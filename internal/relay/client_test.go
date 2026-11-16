@@ -144,7 +144,7 @@ func TestTLSAndRedirectNeverExposeEnrollment(t *testing.T) {
 			c.http.CloseIdleConnections()
 			c.http = c.httpClient(nil)
 			defer c.http.CloseIdleConnections()
-			_, err := c.Enroll(context.Background(), key, false)
+			_, err := c.Enroll(context.Background(), key, protocol.MachineID(strings.Repeat("A", 43)), false)
 			var failure protocol.Error
 			if !errors.As(err, &failure) || failure.Code != protocol.Unauthenticated {
 				t.Fatalf("TLS rejection = %v", err)
@@ -155,7 +155,7 @@ func TestTLSAndRedirectNeverExposeEnrollment(t *testing.T) {
 		t.Fatal("credentials sent before TLS identity verification")
 	}
 	c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
-	_, err := c.Enroll(context.Background(), key, false)
+	_, err := c.Enroll(context.Background(), key, protocol.MachineID(strings.Repeat("A", 43)), false)
 	if err == nil || requests.Load() != 1 {
 		t.Fatalf("redirect followed: requests=%d err=%v", requests.Load(), err)
 	}
@@ -202,4 +202,71 @@ func TestEnrollmentPendingCancelAndBounds(t *testing.T) {
 
 func testCallbacks() Callbacks {
 	return Callbacks{Ready: func(protocol.Scope) {}, BulkReady: func(bool) {}, Disconnected: func() {}, Revoke: func(context.Context, protocol.Revocation) error { return nil }}
+}
+
+func TestEnrollmentCarriesMachineIdentityAcrossKeyRotation(t *testing.T) {
+	id := newTestIdentity(t)
+	machineID := protocol.MachineID(strings.Repeat("A", 43))
+	keys := []ed25519.PrivateKey{testKey(t), testKey(t)}
+	handle := testToken(t)
+	var requests atomic.Int32
+	srv := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := int(requests.Add(1)) - 1
+		if n >= len(keys) {
+			t.Error("unexpected enrollment retry")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		if r.Method != http.MethodPost || r.URL.Path != protocol.PathEnrollments || strings.Contains(r.URL.String(), string(machineID)) {
+			t.Errorf("unexpected enrollment URL: %s %s", r.Method, r.URL)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		var request protocol.EnrollmentRequest
+		if err := json.Unmarshal(body, &request); err != nil || request.Validate() != nil {
+			t.Errorf("invalid enrollment request: %v", err)
+		}
+		if request.MachineID != machineID || request.Rebind != (n == 1) {
+			t.Error("enrollment lost stable identity or explicit replacement intent")
+		}
+		wantKey := base64.RawURLEncoding.EncodeToString(keys[n].Public().(ed25519.PublicKey))
+		if request.PublicKey.Key != wantKey || strings.Contains(string(body), base64.RawURLEncoding.EncodeToString(keys[n].Seed())) {
+			t.Error("enrollment lost public key or exposed private seed")
+		}
+		mustJSON(t, w, http.StatusCreated, protocol.Enrollment{Version: protocol.V1, Handle: handle, UserCode: "ABCD", VerificationURL: "https://relay.example/activate", ExpiresAt: time.Now().Add(time.Minute).Unix(), PollIntervalSeconds: 1})
+	}), false)
+	c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+	for n, key := range keys {
+		if _, err := c.Enroll(t.Context(), key, machineID, n == 1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if requests.Load() != 2 {
+		t.Fatal("enrollment was skipped or replayed")
+	}
+}
+
+func TestEnrollmentRejectsInvalidMachineIdentityBeforeRequest(t *testing.T) {
+	id := newTestIdentity(t)
+	var requests atomic.Int32
+	srv := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}), false)
+	c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+	key := testKey(t)
+	for _, machineID := range []protocol.MachineID{"", "invalid", protocol.MachineID(strings.Repeat("A", 42) + "B")} {
+		_, err := c.Enroll(t.Context(), key, machineID, false)
+		var failure protocol.Error
+		if !errors.As(err, &failure) || failure.Code != protocol.Invalid {
+			t.Fatalf("invalid machine identity accepted: %v", err)
+		}
+	}
+	if requests.Load() != 0 {
+		t.Fatal("invalid identity reached the network")
+	}
 }

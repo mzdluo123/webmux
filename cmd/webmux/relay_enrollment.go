@@ -27,6 +27,10 @@ func (rc *relayController) Enroll(ctx context.Context, req contract.RelayEnrollm
 	if pending || (next.Binding != nil && !req.Rebind) {
 		return protocol.Enrollment{}, protocol.Error{Code: protocol.Conflict}
 	}
+	machineID, err := rc.machine.ID()
+	if err != nil {
+		return protocol.Enrollment{}, err
+	}
 	_, key, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return protocol.Enrollment{}, errors.New("relay identity generation failed")
@@ -38,7 +42,7 @@ func (rc *relayController) Enroll(ctx context.Context, req contract.RelayEnrollm
 	rc.mu.Lock()
 	rc.settings = next
 	rc.mu.Unlock()
-	result, err := rc.client.Enroll(ctx, key, req.Rebind)
+	result, err := rc.client.Enroll(ctx, key, machineID, req.Rebind)
 	if err != nil {
 		return protocol.Enrollment{}, err
 	}

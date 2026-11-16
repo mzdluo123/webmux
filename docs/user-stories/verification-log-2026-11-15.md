@@ -311,3 +311,16 @@
   - 端到端回归：Playwright `terminal.spec.ts`、`softkeys.spec.ts`、`compact-chrome.spec.ts` 桌面与 iPhone SE 共 32 项通过、14 项按设备项目条件跳过、0 失败；
   - 视觉与视口核验：隔离演示实例采集 `1280×900`、`768×800`、`390×844` 明暗主题共 6 组前后对比截图，并核验 `1280×720`、`375×667`、`320×568`、`667×375` 在中英文与明暗主题下打开终端菜单均无横向溢出且浮层完整落在视口内。
 - 局限：仅在 Linux 无头 Chromium 中验证；无头浏览器 `hover` 与 `any-pointer: coarse` 均为 `false`，物理悬停态与 iOS / Android 真机触屏表现未验证。
+
+## 独立机器身份、恢复与所有者删除（2026-11-16，US-A08–US-A10）
+
+- 范围：独立保存机器 ID；同账号同机重新授权恢复原域名；不同机器或旧空 ID 显式确认替换；所有者控制台确认删除并等待撤权，不操作当前生产绑定。
+- 本地验证：
+  - `go test -race ./cmd/webmux`、目标 Go lint 通过；独立 PostgreSQL 中 `internal/store`、`internal/control`、`internal/httpcontrol`、`internal/console` race 测试通过。
+  - 真实 WebMux 配对客户端经 TLS 访问 Relay 控制服务，覆盖首次配对、同机恢复、跨机冲突及旧空 ID 显式迁移；外部 GitHub 身份服务与空节点输送边界为隔离夹具。
+  - 删除回归覆盖账号、邀请、过期会话、旧代际、恢复 CAS、在线与离线待完成、旧授权失效及精确撤权 ACK；控制台交互 Node 测试 4 项通过。
+  - 设置页 Playwright 桌面与 iPhone SE 共 4 项通过；前端类型、Storybook 类型、lint 及架构门禁 46 项通过。
+  - 文档与持久化守卫通过；OpenSpec 现行规范 128 项和本次变更严格校验通过。
+- 界面证据：隔离设置页与控制台分别采集桌面 `1280×900`、平板 `768×800`、手机 `390×844` 的明暗主题前后截图；额外检查 `320×568`，无横向溢出且确认框完整落在视口内。
+- [设置页恢复确认 GIF](../images/relay-machine-recovery/recovery-confirmation.gif)；[手机恢复入口](../images/relay-machine-recovery/after-phone-light.png)。
+- 局限：无真实 GitHub 账号交互、生产绑定恢复或删除验收；Linux 无头 Chromium 不证明 iOS / Android 真机触屏表现。生产部署结果另行记录。

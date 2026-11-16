@@ -226,12 +226,12 @@ func transportError(ctx context.Context, err error) error {
 	return protocol.Error{Code: protocol.Unavailable}
 }
 
-func (c *Client) Enroll(ctx context.Context, key ed25519.PrivateKey, rebind bool) (protocol.Enrollment, error) {
+func (c *Client) Enroll(ctx context.Context, key ed25519.PrivateKey, machineID protocol.MachineID, rebind bool) (protocol.Enrollment, error) {
 	var out protocol.Enrollment
-	if len(key) != ed25519.PrivateKeySize {
+	if len(key) != ed25519.PrivateKeySize || machineID.Validate() != nil {
 		return out, protocol.Error{Code: protocol.Invalid}
 	}
-	in := protocol.EnrollmentRequest{Version: protocol.V1, PublicKey: protocol.PublicKey{Algorithm: protocol.HostAlgorithm, Key: base64.RawURLEncoding.EncodeToString(key.Public().(ed25519.PublicKey))}, Rebind: rebind}
+	in := protocol.EnrollmentRequest{Version: protocol.V1, PublicKey: protocol.PublicKey{Algorithm: protocol.HostAlgorithm, Key: base64.RawURLEncoding.EncodeToString(key.Public().(ed25519.PublicKey))}, MachineID: machineID, Rebind: rebind}
 	if _, err := c.request(ctx, http.MethodPost, protocol.PathEnrollments, in, &out, http.StatusCreated); err != nil {
 		return out, err
 	}
