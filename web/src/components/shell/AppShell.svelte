@@ -163,8 +163,9 @@
             })
           : undefined,
       };
-      // Pick up configs changed on other devices since the page loaded.
+      // Pick up configs and worktrees changed elsewhere since the page loaded.
       if (launchConfigs) void launchConfigs.load();
+      if (repositories) void repositories.refresh();
     },
     rename(session) {
       shellUi.drawerOpen = false;
@@ -181,6 +182,7 @@
     chooseHomeWorktrees(repository) {
       shellUi.drawerOpen = false;
       choosingHome = repository;
+      if (repositories) void repositories.refresh();
     },
     repositoryDetails(repository, tab = "overview") {
       shellUi.drawerOpen = false;
@@ -191,6 +193,7 @@
     worktreeDetails(worktree) {
       shellUi.drawerOpen = false;
       viewingWorktree = worktree;
+      if (repositories) void repositories.refresh();
     },
     switchBranch(worktree, initial) {
       shellUi.drawerOpen = false;
@@ -300,6 +303,9 @@
   function changeMode(next: ShellMode) {
     if (next === shellUi.mode) return;
     shellUi.setMode(next);
+    if (next === "workbench" && repositories) {
+      void repositories.refresh();
+    }
     if (route.name !== "terminal" && route.name !== "git") {
       navigate(
         next === "chat"

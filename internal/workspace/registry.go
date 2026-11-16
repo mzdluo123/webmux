@@ -139,6 +139,14 @@ type Service struct {
 	collabError     string
 	collabDrafts    []commitDraftRecord
 	collabReviews   []ReviewMarkRecord
+
+	watchMu       sync.Mutex
+	watchSubs     map[*Subscription]struct{}
+	watchStop     context.CancelFunc
+	watchDone     chan struct{}
+	watchInterval time.Duration
+	watchDebounce time.Duration
+	closed        bool
 }
 
 // New never makes optional Git or storage availability a server startup failure.
@@ -147,7 +155,7 @@ func New(stateDir string, manager *session.Manager, launches *launch.Service, de
 	if stateDir == "" {
 		stateDir = config.DefaultStateDir()
 	}
-	s := &Service{manager: manager, launches: launches, defaultCwd: defaultCwd, stateDir: stateDir, fetchTimeout: branchFetchTimeout, fetchRemoteTimeout: fetchRemoteTimeout, worktreeGate: make(chan struct{}, 4), writeGates: make(map[string]chan struct{}), starts: make(map[string]int), reservations: make(map[string]bool), changed: make(chan struct{}), confirmations: make(map[string]confirmation), opFlights: make(map[string]*opFlight)}
+	s := &Service{manager: manager, launches: launches, defaultCwd: defaultCwd, stateDir: stateDir, fetchTimeout: branchFetchTimeout, fetchRemoteTimeout: fetchRemoteTimeout, worktreeGate: make(chan struct{}, 4), writeGates: make(map[string]chan struct{}), starts: make(map[string]int), reservations: make(map[string]bool), changed: make(chan struct{}), confirmations: make(map[string]confirmation), opFlights: make(map[string]*opFlight), watchInterval: defaultWatchInterval, watchDebounce: defaultWatchDebounce}
 	s.githubPath, _ = exec.LookPath("gh")
 	s.githubTimeout = githubRequestTimeout
 	git, err := exec.LookPath("git")
@@ -188,6 +196,7 @@ func New(stateDir string, manager *session.Manager, launches *launch.Service, de
 	return s
 }
 func (s *Service) Close() {
+	s.closeWatcher()
 	s.closeProjectClones()
 	s.closeProjects()
 	if s.stopAssociations != nil {
@@ -370,6 +379,7 @@ func (s *Service) Unregister(id string) error {
 			s.commitAssociation(info, nil, false)
 		}
 	}
+	s.notifyWorkspaces()
 	return nil
 }
 func (s *Service) List(ctx context.Context) ([]Repository, error) {

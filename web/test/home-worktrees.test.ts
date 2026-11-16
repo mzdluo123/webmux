@@ -4,6 +4,7 @@ import {
   type HomeLayout,
   parseHomeWorktrees,
   pruneHomeWorktrees,
+  reconcileDiscoveredWorktrees,
   setPinned,
 } from "../src/domains/workspace/home-worktrees";
 import type {
@@ -126,4 +127,83 @@ describe("pruneHomeWorktrees", () => {
 test("corrupt stored data means nothing was curated", () => {
   expect(parseHomeWorktrees("{not json")).toEqual({});
   expect(parseHomeWorktrees(JSON.stringify({ r1: "a" }))).toEqual({});
+});
+
+describe("reconcileDiscoveredWorktrees", () => {
+  test("first observation records baseline worktrees without pinning historical linked ones", () => {
+    const initial = reconcileDiscoveredWorktrees({
+      known: {},
+      home: {},
+      repositories: [repo([tree("main", "main"), tree("legacy")])],
+      settled: true,
+      error: "",
+    });
+    expect(initial.known).toEqual({ r1: ["main", "legacy"] });
+    expect(initial.home).toEqual({});
+  });
+
+  test("subsequent observation pins newly added linked worktrees and respects manual hiding", () => {
+    const baseline = { r1: ["main"] };
+    const discovered = reconcileDiscoveredWorktrees({
+      known: baseline,
+      home: {},
+      repositories: [repo([tree("main", "main"), tree("ext")])],
+      settled: true,
+      error: "",
+    });
+    expect(discovered.known).toEqual({ r1: ["main", "ext"] });
+    expect(discovered.home).toEqual({ r1: ["main", "ext"] });
+
+    // After the user manually hides `ext` from home, refreshing again keeps it hidden.
+    const afterManualHide = reconcileDiscoveredWorktrees({
+      known: discovered.known,
+      home: { r1: ["main"] },
+      repositories: [repo([tree("main", "main"), tree("ext")])],
+      settled: true,
+      error: "",
+    });
+    expect(afterManualHide.known).toBe(discovered.known);
+    expect(afterManualHide.home).toEqual({ r1: ["main"] });
+
+    // Once `ext` is removed externally and later recreated, it is treated as new again.
+    const afterExternalDelete = reconcileDiscoveredWorktrees({
+      known: afterManualHide.known,
+      home: { r1: ["main"] },
+      repositories: [repo([tree("main", "main")])],
+      settled: true,
+      error: "",
+    });
+    expect(afterExternalDelete.known).toEqual({ r1: ["main"] });
+    const recreated = reconcileDiscoveredWorktrees({
+      known: afterExternalDelete.known,
+      home: afterExternalDelete.home,
+      repositories: [repo([tree("main", "main"), tree("ext")])],
+      settled: true,
+      error: "",
+    });
+    expect(recreated.home).toEqual({ r1: ["main", "ext"] });
+  });
+
+  test("unhealthy reads or unsettled state preserve known worktrees untouched", () => {
+    const known = { r1: ["main", "ext"] };
+    const home = { r1: ["main", "ext"] };
+    expect(
+      reconcileDiscoveredWorktrees({
+        known,
+        home,
+        repositories: [repo([], { availability: "unavailable" })],
+        settled: true,
+        error: "",
+      }),
+    ).toEqual({ known, home });
+    expect(
+      reconcileDiscoveredWorktrees({
+        known,
+        home,
+        repositories: [],
+        settled: false,
+        error: "",
+      }),
+    ).toEqual({ known, home });
+  });
 });

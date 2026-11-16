@@ -10,6 +10,12 @@ type WorkspaceCapability struct {
 	RegistryError     string `json:"registryError"`
 }
 
+// RepositoriesEvent is one /ws/repositories message notifying subscribers
+// that registered repositories or their worktrees changed.
+type RepositoriesEvent struct {
+	Type string `json:"type"`
+}
+
 // Repository is a registered Git repository and its worktrees.
 // InitInstruction prefixes the first prompt of a quick start; "" for none.
 // LastFetchedAt is the newest FETCH_HEAD modification time, approximate;

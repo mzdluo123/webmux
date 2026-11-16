@@ -191,6 +191,7 @@ func (s *Service) RebuildWorktree(ctx context.Context, id string, req RebuildReq
 	s.dropRef(cleanupCtx, r, rel.ID)
 	s.sweepReleased(cleanupCtx, r)
 	slog.Info("worktree rebuilt", "release", rel.ID, "mode", plan.Mode)
+	s.notifyWorkspaces()
 	return tree, nil
 }
 

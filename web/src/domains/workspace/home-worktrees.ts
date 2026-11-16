@@ -131,3 +131,121 @@ export function pruneHomeWorktrees(
   }
   return changed ? next : home;
 }
+
+const MAX_HOME_REPOSITORIES = 200;
+const MAX_HOME_WORKTREE_IDS = 2000;
+const MAX_WORKTREE_ID_LENGTH = 128;
+
+function sameStringList(
+  a: readonly string[] | undefined,
+  b: readonly string[],
+): boolean {
+  return (
+    a !== undefined &&
+    a.length === b.length &&
+    a.every((item, index) => item === b[index])
+  );
+}
+
+function countPinnedIds(home: HomeWorktrees): number {
+  let total = 0;
+  for (const ids of Object.values(home)) total += ids.length;
+  return total;
+}
+
+/**
+ * Reconciles per-repository observed worktree IDs (`known`) against a settled,
+ * error-free repository list and pins newly discovered external linked
+ * worktrees onto `home`.
+ *
+ * - First observation of a repository records its current worktrees without
+ *   pinning historical linked worktrees.
+ * - Later observations pin newly added available linked worktrees unless
+ *   already pinned; previously seen worktrees the user manually unpinned stay
+ *   hidden.
+ * - Removed worktrees leave `known`, so a later checkout at the same path is
+ *   recognized as new again.
+ */
+export function reconcileDiscoveredWorktrees(input: {
+  known: HomeWorktrees;
+  home: HomeWorktrees;
+  repositories: readonly Repository[];
+  settled: boolean;
+  error: string;
+}): { known: HomeWorktrees; home: HomeWorktrees } {
+  const { known, home, repositories, settled, error } = input;
+  if (!settled || error) return { known, home };
+
+  const nextKnown: HomeWorktrees = {};
+  let knownChanged = false;
+  let nextHome = home;
+
+  for (const [id, ids] of Object.entries(known)) {
+    if (!repositories.some((repo) => repo.id === id)) {
+      knownChanged = true;
+      continue;
+    }
+    nextKnown[id] = ids;
+  }
+
+  for (const repo of repositories) {
+    if (repo.availability !== "available" || repo.error) {
+      if (repo.id in known) nextKnown[repo.id] = known[repo.id]!;
+      continue;
+    }
+    const currentIds = [
+      ...new Set(
+        repo.worktrees
+          .map((tree) => tree.id)
+          .filter((id) => id.length > 0 && id.length <= MAX_WORKTREE_ID_LENGTH)
+          .slice(0, 1000),
+      ),
+    ];
+    const previous = known[repo.id];
+    if (!sameStringList(previous, currentIds)) {
+      nextKnown[repo.id] = currentIds;
+      knownChanged = true;
+    } else {
+      nextKnown[repo.id] = previous!;
+    }
+    if (previous === undefined || repo.id.length > MAX_WORKTREE_ID_LENGTH) {
+      continue;
+    }
+    const seen = new Set(previous);
+    const added = repo.worktrees
+      .filter(
+        (tree) =>
+          tree.kind === "linked" &&
+          tree.available &&
+          !tree.prunable &&
+          tree.id.length <= MAX_WORKTREE_ID_LENGTH &&
+          !seen.has(tree.id),
+      )
+      .map((tree) => tree.id);
+    if (!added.length) continue;
+
+    const baseHome = pruneHomeWorktrees(nextHome, repositories);
+    if (
+      !(repo.id in baseHome) &&
+      Object.keys(baseHome).length >= MAX_HOME_REPOSITORIES
+    ) {
+      continue;
+    }
+    const alreadyPinned = pinnedIds(baseHome, repo);
+    const missing = added.filter((id) => !alreadyPinned.has(id));
+    if (!missing.length) continue;
+
+    const candidate = setPinned(baseHome, repo, missing, true);
+    if (
+      Object.keys(candidate).length <= MAX_HOME_REPOSITORIES &&
+      countPinnedIds(candidate) <= MAX_HOME_WORKTREE_IDS
+    ) {
+      nextHome = candidate;
+    }
+  }
+
+  return {
+    known: knownChanged ? nextKnown : known,
+    home: nextHome,
+  };
+}

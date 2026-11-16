@@ -245,6 +245,8 @@
   "s1_record_ended_title": "{title}（{agent} · 已结束，点击恢复）",
   "s1_record_released_title": "{title}（{agent} · 已释放空间：{path} · {commit}，点击重建并恢复）",
   "s1_reference_in_chat": "引用到当前聊天",
+  "s1_refresh_workspaces": "刷新工作区",
+  "s1_refreshing_workspaces": "正在刷新工作区…",
   "s1_release_space": "释放空间",
   "s1_release_worktree_preview": "释放空间预览",
   "s1_reload_page": "重新加载页面",

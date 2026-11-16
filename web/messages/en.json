@@ -290,6 +290,8 @@
   "s1_record_ended_title": "{title} ({agent} · ended, click to resume)",
   "s1_record_released_title": "{title} ({agent} · space released: {path} · {commit}, click to rebuild and resume)",
   "s1_reference_in_chat": "Reference in active chat",
+  "s1_refresh_workspaces": "Refresh workspaces",
+  "s1_refreshing_workspaces": "Refreshing workspaces…",
   "s1_release_space": "Release space",
   "s1_release_worktree_preview": "Release space preview",
   "s1_reload_page": "Reload page",

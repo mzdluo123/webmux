@@ -287,3 +287,25 @@
 - `go test -race ./cmd/webmux ./internal/config ./internal/agentcheck` 通过，覆盖默认与显式配置启动、备份与幂等、冲突和写入失败、只读诊断及 PyPI 响应大小。
 - `go test -count=1 ./internal/archtest -run '^(TestPersistence|TestGoFileNames|TestSourceFileSize)'` 通过。
 - 本次范围不涉及 SQLite 旧数据与缺少 `historyRoot` 的旧归档；故事 ID 和总数不变。
+
+## 工作台工作区刷新与外部 Git worktree 实时同步（2026-11-16，US-C08、US-C16、US-J03）
+
+- 范围：为工作台模式补充显式刷新、生命周期自动重读、服务端按需 worktree 变化监听推送及外部新增 linked worktree 自动加入主页，同步更新 US-C08、US-C16、US-J03、`docs/usage/sessions.md`、`docs/protocol/http-workspace.md` 与 `docs/user-stories/coverage.md`，故事 ID 与总数（264）不变。
+- 核心改动：
+  - 新增 `internal/workspace/watch.go` 与 `internal/featurehub/workspace.go`（`GET /ws/repositories`）：
+    - 仅在有活跃订阅时按 2s 周期扫描已登记仓库 `<CommonDir>/HEAD` 与 `<CommonDir>/worktrees/*` 元数据及检出目录状态；
+    - 250ms 防抖后执行 `reassociate` 并推送 `{"type":"changed"}`，无订阅者时零后台轮询、无 Git 子进程开销；
+  - 工作台侧栏在“新建会话”右侧新增常驻“刷新工作区”图标按钮（`AppSidebar.svelte`），并在全路由前台恢复、切换至工作台模式及打开新建会话/主页显示/工作树详情弹窗时自动重读仓库快照；
+  - 在 `home-worktrees.ts` / `home-worktrees.svelte.ts` 维护本机按 host 隔离的已观测工作树基线（`knownWorktrees`）：
+    - 首次观察仓库时保留历史空闲工作树隐藏，之后外部 `git worktree add` 新增的可用 linked worktree 自动加入 `homeWorktrees`；
+    - 尊重用户手动移出主页的选择，并在工作树外部删除后清理基线记录。
+- 本地验证：
+  - 静态与治理门禁：`make check`（前端构建、`svelte-check --tsgo --fail-on-warnings`、`format-check`、`docs-check`、`persistence-check`、Oxlint、`check:arch` 46 项架构断言、`go vet`、`golangci-lint` v2.15.0 0 告警）通过；
+  - 后端回归：`go test -race ./internal/api ./internal/featureapi ./internal/featurehub ./internal/workspace ./internal/featurewire ./internal/archtest ./internal/docguard` 通过，覆盖按需启停、外部新增/删除/分支切换检测及 `/ws/repositories` 鉴权与 Origin 校验；
+  - 前端单元与浏览器回归：
+    - `pnpm --dir web test:unit` 95 文件 1,257 项通过（含 `home-worktrees.test.ts` 11 项、`i18n.test.ts`、`dependency-policy.test.ts`）；
+    - 无关的 `test/base64url.test.ts` 1 项因本机 Node `v24.20.0` 缺少 `.nvmrc` Node `26.13.0` 原生 `Uint8Array.prototype.toBase64` 在本地失败，由远端 Node 26 CI 验证；
+    - Vitest 浏览器 `WorkbenchTree.test.ts`（15 项）与 `AppShell.test.ts`（19 项）共 34 项通过；
+  - 端到端回归：Playwright `worktrees.spec.ts`、`app-shell.spec.ts`、`workspace-discovery.spec.ts`、`repository-scope.spec.ts`、`i18n.spec.ts`、`git-workbench-route.spec.ts` 共 71 项通过、5 项按设备项目条件跳过、0 失败；
+  - 视觉与证据：隔离演示服务核对 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 明暗主题与中英文共 28 个组合均无横向溢出且按钮高度精确对齐，采集桌面、平板、手机明暗六组前后对比截图与 `1280×900` 正常速度交互 GIF。
+- 局限：仅在 Linux 无头 Chromium 下验证；无头浏览器 `hover` 与 `any-pointer: coarse` 均为 `false`，真实鼠标悬停态与触屏硬件行为未在手机、平板、macOS 或 Windows 真机验证。

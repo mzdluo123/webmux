@@ -17,7 +17,9 @@
   - Git 读取慢时保留上次快照并继续显示读取中，只有真实失败才提示错误，单仓库失败不影响其他仓库或会话。
 - **US-J03 选择主页工作树**：作为有大量工作树的使用者，我希望只把关注的工作树放到主页，以便降低总览噪声。
   验收要点：
-  - 默认主工作区可见，新建 worktree 自动添加；
+  - 默认主工作区可见，首次观察仓库时建立本机已见工作树基线（登记前的历史空闲工作树不自动铺满主页）：
+    - 之后通过页面新建，或经实时同步/手动刷新发现外部新增的可用 linked worktree 自动加入主页与工作台树显示；
+    - 手动移出主页后再次刷新保持隐藏，外部删除工作树后清理基线记录（之后在原路径重建时重新视作新增）；
   - 可在侧栏仓库菜单“主页显示…”的列表按分支/路径搜索，勾选添加或取消勾选移出主页；
   - 有会话的工作树始终显示，未添加者有标记；
   - 选择保存到服务端并跨设备同步，409 按 ID 重放；
@@ -193,8 +195,9 @@
 - 释放与重建：[释放服务](../../../../internal/workspace/release.go)、[重建服务](../../../../internal/workspace/rebuild.go)、[推送检查](../../../../internal/workspace/pushcheck.go)；
   [释放确认](../../../../web/src/components/workspace/ReleaseWorktreeDialog.svelte)、[重建确认](../../../../web/src/components/workspace/RebuildWorktreeDialog.svelte)。
 - [推送警告](../../../../web/src/components/settings/PushCheckNotice.svelte)、[对话框浏览器用例](../../../../web/test/browser/WorktreeDialogs.test.ts)、[释放服务端测试](../../../../internal/workspace/release_test.go)、[删除保留记录测试](../../../../internal/workspace/remove_retain_test.go)
-- [工作区总览](../../../../web/src/components/workspace/WorkspaceGroup.svelte)、[主页选择](../../../../web/src/domains/workspace/home-worktrees.ts)、[分支与路径表单](../../../../web/src/components/workspace/WorktreeCreateFields.svelte)
-- [分支与提交信息](../../../../internal/workspace/git.go)、[删除确认](../../../../web/src/components/workspace/RemoveWorktreeDialog.svelte)
+- [工作区总览](../../../../web/src/components/workspace/WorkspaceGroup.svelte)、[主页选择](../../../../web/src/domains/workspace/home-worktrees.ts)、[主页同步状态](../../../../web/src/domains/workspace/home-worktrees.svelte.ts)
+- [主页选择单测](../../../../web/test/home-worktrees.test.ts)、[工作树端到端用例](../../../../web/test/e2e/worktrees.spec.ts)、[分支与路径表单](../../../../web/src/components/workspace/WorktreeCreateFields.svelte)
+- [分支与提交信息](../../../../internal/workspace/git.go)、[工作区监听测试](../../../../internal/workspace/watch_test.go)、[删除确认](../../../../web/src/components/workspace/RemoveWorktreeDialog.svelte)
 - [仓库清单](../../../../internal/workspace/registry.go)、[创建](../../../../internal/workspace/create.go)、[删除](../../../../internal/workspace/remove.go)、[工作区 API](../../../../internal/featureapi/workspace.go)
 - [仓库设置弹窗](../../../../web/src/components/workspace/RepositorySettingsDialog.svelte)、[指令输入框](../../../../web/src/components/sessions/InitInstructionField.svelte)、[添加仓库弹窗](../../../../web/src/components/workspace/AddRepositoryDialog.svelte)
 - [指令浏览器用例](../../../../web/test/browser/RepositoryInstruction.test.ts)、[指令服务端测试](../../../../internal/workspace/instruction_test.go)

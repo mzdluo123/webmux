@@ -39,6 +39,7 @@ afterEach(() => {
   localStorage.removeItem("webmux.sidebarCollapsed");
   localStorage.removeItem("webmux.toastNotifications");
   localStorage.removeItem("webmux.workbenchTree");
+  localStorage.removeItem("webmux.knownWorktrees");
   resetAttentionToasts();
   history.replaceState(null, "", "/");
 });
@@ -759,4 +760,72 @@ test("shows a top-right toast when a session raises attention and navigates on c
   await openButton.click();
   expect(location.pathname).toBe("/s/shellbbb");
   await expect.element(region).not.toBeInTheDocument();
+});
+
+test("workbench sidebar offers a workspace refresh button and follows /ws/repositories changes", async () => {
+  let reads = 0;
+  const linked = worktree({
+    id: "wt-ext",
+    kind: "linked",
+    branch: "feat/ext-sync",
+    path: "/repos/webmux.worktrees/ext-sync",
+  });
+  let currentWorktrees = [worktree(), linked];
+  respond(/^GET \/api\/repositories$/, () => {
+    reads++;
+    return Response.json([repository({ worktrees: currentWorktrees })]);
+  });
+
+  history.replaceState(null, "", "/s/shellaaa");
+  render(ShellHarness, { drafts: createTerminalDrafts() });
+  await snapshot([
+    session({
+      id: "shellaaa",
+      title: "主终端",
+      workspace: {
+        repositoryId: "repo1",
+        worktreeId: "wt-ext",
+        worktreePath: linked.path,
+      },
+    }),
+  ]);
+
+  const newSessionBtn = sidebar().getByRole("button", { name: "新建会话" });
+  const refreshBtn = sidebar().getByRole("button", { name: "刷新工作区" });
+  await expect.element(refreshBtn).toBeVisible();
+  expect(Math.round(refreshBtn.element().getBoundingClientRect().height)).toBe(
+    Math.round(newSessionBtn.element().getBoundingClientRect().height),
+  );
+
+  await expect
+    .element(sidebar().getByText("feat/ext-sync").first())
+    .toBeVisible();
+
+  // Switching to chat mode hides the workbench-only refresh button; switching back refreshes.
+  await sidebar().getByRole("button", { name: "聊天模式" }).click();
+  expect(
+    sidebar().getByRole("button", { name: "刷新工作区" }).elements(),
+  ).toEqual([]);
+  await sidebar().getByRole("button", { name: "工作台模式" }).click();
+  await expect.element(refreshBtn).toBeVisible();
+
+  // External removal reflected when clicking the sidebar refresh button.
+  currentWorktrees = [worktree()];
+  const beforeClickReads = reads;
+  await refreshBtn.click();
+  await expect.poll(() => reads).toBeGreaterThan(beforeClickReads);
+  await expect
+    .poll(() => sidebar().getByText("feat/ext-sync").elements().length)
+    .toBe(0);
+
+  // Live /ws/repositories "changed" frame automatically re-reads repositories without clicking.
+  currentWorktrees = [worktree(), linked];
+  const repoSocket = await socketAt("/ws/repositories");
+  repoSocket.open();
+  const beforePushReads = reads;
+  repoSocket.frame({ type: "changed" } as never);
+  await expect.poll(() => reads).toBeGreaterThan(beforePushReads);
+  await expect
+    .element(sidebar().getByText("feat/ext-sync").first())
+    .toBeVisible();
 });

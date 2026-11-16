@@ -135,6 +135,7 @@ func (s *Service) CreateWorktree(ctx context.Context, repositoryID string, req C
 	for _, tree := range actual.Worktrees {
 		if tree.Path == path {
 			s.captureWorktreeCreateBaseline(refreshCtx, r, repositoryID, tree)
+			s.notifyWorkspaces()
 			return tree, nil
 		}
 	}
