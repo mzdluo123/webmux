@@ -8,7 +8,7 @@
 
 ### Requirement: 启动配置数据模型与命令快照
 
-系统 SHALL 为每条启动配置保存服务端生成的 `id`、`name`、完整命令 `cmd`、环境变量 `env`、可选的 `icon` 与 `preview`、可选的布尔字段 `hybrid`、`createdAt` 与 `updatedAt`。`cmd` SHALL 是保存时的完整 argv；服务端 SHALL NOT 在启动时重新解析或重建命令。
+系统 SHALL 为每条启动配置保存服务端生成的 `id`、`name`、完整命令 `cmd`、环境变量 `env`、可选的 `icon` 与 `preview`、可选的布尔字段 `chat`（`launch-configs.json` 中以键 `hybrid` 保存）、`createdAt` 与 `updatedAt`。`cmd` SHALL 是保存时的完整 argv；服务端 SHALL NOT 在启动时重新解析或重建命令。
 
 `name` 去除首尾空白后 SHALL 为 1–64 个 Unicode 字符，并在启动配置之间唯一；比较 SHALL 使用去空白后的精确值。
 
@@ -42,15 +42,15 @@
 系统 SHALL NOT 提供内置预设：服务端 SHALL NOT 读取 TOML `[[presets]]` 与 `shell`，
 SHALL NOT 提供 `GET /api/presets`，创建会话请求 SHALL NOT 接受 `preset` 与 `args`。
 
-服务首次启动且 `<state_dir>/launch-configs.json` 不存在时，服务端 SHALL 写入 11 条普通启动配置：
+服务首次启动且 `<state_dir>/launch-configs.json` 不存在时，服务端 SHALL 写入 13 条普通启动配置：
 Shell、Claude Code、Codex CLI、Antigravity CLI、Cursor CLI、GitHub Copilot CLI、Open Code、
-Qwen Code、Kimi Code CLI、CodeBuddy Code 与 omp。
+Qwen Code、Kimi Code CLI、CodeBuddy Code、omp、Qoder 与 QoderCN。
 这些配置 SHALL 可像其他配置一样编辑或删除；文件已存在（包括删空后的空列表）时 SHALL NOT 补写或改写。
 
 #### Scenario: 首次启动写入默认配置
 
 - **WHEN** 服务首次启动且状态目录中没有 `launch-configs.json`
-- **THEN** 服务创建该文件并写入 11 条默认配置（含 Antigravity CLI），列表可经 `GET /api/launch-configs` 读取
+- **THEN** 服务创建该文件并写入 13 条默认配置（含 Antigravity CLI、Qoder 与 QoderCN），列表可经 `GET /api/launch-configs` 读取
 
 #### Scenario: 删空后不再补写
 
@@ -94,17 +94,17 @@ Qwen Code、Kimi Code CLI、CodeBuddy Code 与 omp。
 
 - `GET /api/launch-configs`：返回按创建顺序排列的配置摘要数组，存储不可用时返回 503；
 - `GET /api/launch-configs/{id}`：返回单条完整配置；
-- `POST /api/launch-configs`：接收 `{name, icon?, cmd, env?, preview?, hybrid?}`，成功时返回 201 与完整配置；
+- `POST /api/launch-configs`：接收 `{name, icon?, cmd, env?, preview?, chat?}`，成功时返回 201 与完整配置；
 - `PUT /api/launch-configs/{id}`：以同样的字段整体替换可编辑字段，成功时返回 200 与完整配置；
 - `DELETE /api/launch-configs/{id}`：成功时返回 204。
 
-摘要 SHALL 为 `{id, name, icon?, cmd, envNames, preview, hybrid, hybridSupport, createdAt, updatedAt}`，其中 `envNames` 为按字典序排列的变量名数组，SHALL NOT 包含任何环境变量值。
-完整配置 SHALL 为 `{id, name, icon?, cmd, env, preview, hybrid, hybridSupport, createdAt, updatedAt}`。`icon` 与 `preview`（`null` 或 `{lines, skip}`）的取值见 `docs/protocol/http-sessions.md`。
+摘要 SHALL 为 `{id, name, icon?, cmd, envNames, preview, chat, chatSupport, createdAt, updatedAt}`，其中 `envNames` 为按字典序排列的变量名数组，SHALL NOT 包含任何环境变量值。
+完整配置 SHALL 为 `{id, name, icon?, cmd, env, preview, chat, chatSupport, createdAt, updatedAt}`。`icon` 与 `preview`（`null` 或 `{lines, skip}`）的取值见 `docs/protocol/http-sessions.md`。
 
 创建和更新 SHALL 校验数据模型中的全部限制。请求内容与更新语义：
 
 - 缺省 `env` SHALL 视为空对象；`PUT` 为整体替换，未提供的 `env` SHALL 清空原值。
-- 请求体 SHALL 拒绝未知字段且只接受一个 JSON 对象。
+- 请求体 SHALL 拒绝未知字段且只接受一个 JSON 对象；请求体中的 `hybrid` SHALL 视为未知字段。
 - 更新 SHALL NOT 修改 `id` 与 `createdAt`。
 
 错误状态码：
@@ -194,8 +194,8 @@ Qwen Code、Kimi Code CLI、CodeBuddy Code 与 omp。
 
 新建会话对话框 SHALL 通过单一命令选择器选择命令来源：列表包含已保存的启动配置与末尾的“自定义命令…”，二者都只使用自定义命令；系统 SHALL NOT 提供内置预设，SHALL NOT 再以“预先输入 / 手动填写”Tab 区分。提交内容取决于所选来源：
 
-- 保存的启动配置：提交 SHALL 发送 `configId` 与本次选择的 `cwd` 或 `workspace`，可选发送 `name` 与 `startSide`，SHALL NOT 同时发送 `cmd` 或 `env`。
-- 自定义命令：提交 SHALL 发送完整 `cmd` 及本次选择的 `cwd` 或 `workspace`，该命令不写入服务端。
+- 保存的启动配置：提交 SHALL 发送 `configId` 与本次选择的 `cwd`、`workspace` 或 `newWorktree`，可选发送 `name` 与 `view`，SHALL NOT 同时发送 `cmd` 或 `env`。
+- 自定义命令：提交 SHALL 发送完整 `cmd` 及本次选择的 `cwd`、`workspace` 或 `newWorktree`，该命令不写入服务端。
 
 页面 SHALL 只请求启动配置摘要，SHALL NOT 请求环境变量值。在配置与自定义命令之间切换 SHALL 保留已选配置与已输入命令，但只提交当前来源。
 
@@ -236,16 +236,16 @@ Qwen Code、Kimi Code CLI、CodeBuddy Code 与 omp。
 
 ### Requirement: 启动配置的混合模式开关
 
-启动配置 SHALL 支持可选的布尔字段 `hybrid`，缺省为 `false`。
+启动配置 SHALL 支持可选的布尔字段 `chat`（界面称为“混合模式”），缺省为 `false`。HTTP 请求与响应 SHALL 使用 `chat`；`launch-configs.json` 中 SHALL 继续以键 `hybrid` 保存，由存储层映射。
 
 - 保存时为 `false` 的字段 SHALL 不写入文件。
-- `launch-configs.json` 的版本 SHALL 保持 2；不含该字段的已有文件 SHALL 照常读取，所有配置视为未勾选。
+- `launch-configs.json` 的版本 SHALL 保持 2；不含该键的已有文件 SHALL 照常读取，所有配置视为未勾选。
 
-`hybrid` 为 `true` 时，服务端 SHALL 按 `hybrid-agent-profiles` 校验 argv，校验不通过时 SHALL 返回 400
+`chat` 为 `true` 时，服务端 SHALL 按 `hybrid-agent-profiles` 校验 argv，校验不通过时 SHALL 返回 400
 并给出原因，已有数据不变。校验 SHALL NOT 检查第三方连接器是否已安装。
 
 新安装预置的 Antigravity CLI（`agy`）、OpenCode、omp、Codex CLI 与 Claude Code 配置 SHALL 为
-`hybrid: true`，其 argv（含各自的自动批准参数）SHALL 通过 `hybrid-agent-profiles` 校验。
+`chat: true`，其 argv（含各自的自动批准参数）SHALL 通过 `hybrid-agent-profiles` 校验。
 修改已勾选配置的 argv 使其不再受支持时，保存 SHALL 返回 400，用户须先取消勾选。
 
 新安装预置的 agent 配置 SHALL 带上各自的自动批准参数，使工具调用无需逐次批准：
@@ -264,58 +264,71 @@ SHALL 继续被接受并正常渲染。Shell 配置 SHALL 不变。已存在的 
 - **WHEN** 服务首次启动且 `launch-configs.json` 不存在
 - **THEN** 预置的 Antigravity CLI 配置名称为 `"Antigravity CLI"`、图标为 `"antigravity"`、
   argv 为 `["bash","-ic","exec -- \"$@\"","webmux","agy","--dangerously-skip-permissions"]`
-  （服务端 `$SHELL` 为 Bash 时）、`hybrid` 为 `true`、`hybridSupport` 为 `{supported: true, agent: "agy"}`；
-  OpenCode、omp、Codex CLI 与 Claude Code 配置同样为混合配置
+  （服务端 `$SHELL` 为 Bash 时）、`chat` 为 `true`、`chatSupport` 为 `{supported: true, agent: "agy"}`；
+  OpenCode、omp、Codex CLI 与 Claude Code 配置同样为混合配置；文件中这些配置以 `"hybrid": true` 保存
 
 #### Scenario: 已有安装不改写
 
 - **WHEN** 升级前已存在 `launch-configs.json`（含旧的 `"icon": "geminicli"` 配置）
-- **THEN** 服务正常加载且不修改其中任何配置，包括名称、图标、`hybrid` 与命令参数
+- **THEN** 服务正常加载且不修改其中任何配置，包括名称、图标、`hybrid` 键与命令参数
 
 #### Scenario: 勾选 omp 配置
 
-- **WHEN** 用户对自己的 omp 配置把 `hybrid` 改为 `true` 并保存
-- **THEN** 保存成功，摘要中 `hybrid` 为 `true`，`hybridSupport` 为 `{supported: true, agent: "omp"}`
+- **WHEN** 用户对自己的 omp 配置把 `chat` 改为 `true` 并保存
+- **THEN** 保存成功，摘要中 `chat` 为 `true`，`chatSupport` 为 `{supported: true, agent: "omp"}`，文件中该配置为 `"hybrid": true`
 
 #### Scenario: 未安装连接器时勾选 Codex 配置
 
-- **WHEN** 服务上没有 `codex-acp`，用户对 Codex 配置把 `hybrid` 改为 `true` 并保存
+- **WHEN** 服务上没有 `codex-acp`，用户对 Codex 配置把 `chat` 改为 `true` 并保存
 - **THEN** 保存成功；连接器检查只在启动 ACP 进程之前进行
 
 #### Scenario: 旧文件
 
-- **WHEN** 升级前保存的 `launch-configs.json` 不含 `hybrid` 字段
-- **THEN** 服务正常读取，所有配置的 `hybrid` 为 `false`，文件不被改写
+- **WHEN** 升级前保存的 `launch-configs.json` 不含 `hybrid` 键
+- **THEN** 服务正常读取，所有配置的 `chat` 为 `false`，文件不被改写
 
 #### Scenario: 不支持的命令
 
-- **WHEN** 用户对 Gemini CLI 配置提交 `hybrid: true`
+- **WHEN** 用户对 Gemini CLI 配置提交 `chat: true`
 - **THEN** 服务端返回 400，原因为“未识别到支持的 Agent”，已有数据不变
+
+#### Scenario: 请求体使用旧字段名
+
+- **WHEN** 客户端创建启动配置时在请求体中提供 `hybrid: true`
+- **THEN** 服务端以未知字段返回 400，已有数据不变
+
+#### Scenario: 新安装的 Qoder 与 QoderCN 预置
+
+- **WHEN** 服务首次启动且 `launch-configs.json` 不存在，服务端 `$SHELL` 为 Bash
+- **THEN** 预置的 Qoder 配置图标为 `"qoder"`、argv 为
+  `["bash","-ic","exec -- \"$@\"","webmux","qoder","--dangerously-skip-permissions"]`、`hybrid` 为 `true`、
+  `hybridSupport` 为 `{supported: true, agent: "qoder"}`；QoderCN 配置图标为 `"qoder"`、
+  argv 以 `qodercn` 代替 `qoder`、`hybridSupport.agent` 为 `"qodercn"`
 
 ### Requirement: 启动配置的混合支持信息
 
-启动配置的完整配置、摘要、创建与更新请求 SHALL 包含 `hybrid`。完整配置与摘要 SHALL 额外包含只读的 `hybridSupport: {supported, agent?, reason?, connector?}`，由服务端按当前 argv 计算；请求体中提供 `hybridSupport` SHALL 视为未知字段而返回 400。
+启动配置的完整配置、摘要、创建与更新请求 SHALL 包含 `chat`。完整配置与摘要 SHALL 额外包含只读的 `chatSupport: {supported, agent?, reason?, connector?}`，由服务端按当前 argv 计算；请求体中提供 `chatSupport` 或 `hybridSupport` SHALL 视为未知字段而返回 400。
 
 `connector` 只在 `supported` 为 `true` 且档案声明了第三方连接器时出现，内容为 `{executable, title, installCommand, docsUrl}`，
 SHALL 只来自档案，SHALL NOT 反映连接器是否已安装。
 
 #### Scenario: 请求体携带只读字段
 
-- **WHEN** 客户端创建或更新启动配置时在请求体中提供 `hybridSupport`
+- **WHEN** 客户端创建或更新启动配置时在请求体中提供 `chatSupport`
 - **THEN** 服务端返回 400，已有数据不变
 
 #### Scenario: Codex 配置的连接器信息
 
-- **WHEN** 客户端调用 `POST /api/launch-configs/hybrid-support {cmd: ["codex"]}`
+- **WHEN** 客户端调用 `POST /api/launch-configs/chat-support {cmd: ["codex"]}`
 - **THEN** 返回 `{supported: true, agent: "codex", connector: {executable: "codex-acp", …}}`，无论服务上是否安装了 `codex-acp`
 
 ### Requirement: 设置页的混合模式勾选框
 
-设置页的启动配置编辑器 SHALL 提供“混合模式（聊天 ↔ 终端）”勾选框。
+设置页的启动配置编辑器 SHALL 提供“混合模式（聊天 ↔ 终端）”勾选框，对应启动配置的 `chat` 字段。
 
-- 勾选框是否可用 SHALL 由服务端判定，浏览器 SHALL NOT 复制档案规则。打开已有配置时使用其 `hybridSupport`；编辑命令时，设置页 SHALL 去抖调用 `POST /api/launch-configs/hybrid-support {cmd}`（已认证，只读，返回同样的 `hybridSupport`）。
+- 勾选框是否可用 SHALL 由服务端判定，浏览器 SHALL NOT 复制档案规则。打开已有配置时使用其 `chatSupport`；编辑命令时，设置页 SHALL 去抖调用 `POST /api/launch-configs/chat-support {cmd}`（已认证，只读，返回同样的 `chatSupport`）。系统 SHALL NOT 提供 `POST /api/launch-configs/hybrid-support`。
 - 不可用时，勾选框 SHALL 禁用，并在旁边显示原因。
-- 可用且 `hybridSupport.connector` 存在时，勾选框旁 SHALL 说明“聊天端需要另外安装 `<可执行文件>`”，并显示可复制的安装命令与说明链接。
+- 可用且 `chatSupport.connector` 存在时，勾选框旁 SHALL 说明“聊天端需要另外安装 `<可执行文件>`”，并显示可复制的安装命令与说明链接。
 - 启动配置列表 SHALL 为已勾选的配置显示“混合”标记。
 
 #### Scenario: Shell 配置

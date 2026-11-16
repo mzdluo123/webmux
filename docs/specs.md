@@ -144,3 +144,34 @@
 
 - [controller-service-layering](../openspec/specs/controller-service-layering/spec.md)：后端 Controller 与 Service 分层
 - [frontend-architecture-guard](../openspec/specs/frontend-architecture-guard/spec.md)：前端架构检查入口
+
+## 同步归档的规格
+
+- [terminal-file-download](../openspec/specs/terminal-file-download/spec.md)：terminal-file-download 需求与场景
+- [terminal-graphics-negotiation](../openspec/specs/terminal-graphics-negotiation/spec.md)：terminal-graphics-negotiation 需求与场景
+- [update-channels](../openspec/specs/update-channels/spec.md)：update-channels 需求与场景
+- [port-forwarding](../openspec/specs/port-forwarding/spec.md)：port-forwarding 需求与场景
+- [session-port-detection](../openspec/specs/session-port-detection/spec.md)：session-port-detection 需求与场景
+- [archived-worktree-release](../openspec/specs/archived-worktree-release/spec.md)：archived-worktree-release 需求与场景
+- [session-surface](../openspec/specs/session-surface/spec.md)：session-surface 需求与场景
+- [remote-access-wizard](../openspec/specs/remote-access-wizard/spec.md)：remote-access-wizard 需求与场景
+- [voice-recognition](../openspec/specs/voice-recognition/spec.md)：voice-recognition 需求与场景
+- [client-transport](../openspec/specs/client-transport/spec.md)：client-transport 需求与场景
+- [host-scoped-storage](../openspec/specs/host-scoped-storage/spec.md)：host-scoped-storage 需求与场景
+- [hub-message-conn](../openspec/specs/hub-message-conn/spec.md)：hub-message-conn 需求与场景
+- [official-relay-client](../openspec/specs/official-relay-client/spec.md)：official-relay-client 需求与场景
+- [official-relay-node-management](../openspec/specs/official-relay-node-management/spec.md)：official-relay-node-management 需求与场景
+- [official-relay-service](../openspec/specs/official-relay-service/spec.md)：official-relay-service 需求与场景
+- [mcp-network-transport](../openspec/specs/mcp-network-transport/spec.md)：mcp-network-transport 需求与场景
+- [mcp-session-control](../openspec/specs/mcp-session-control/spec.md)：mcp-session-control 需求与场景
+- [headset-browser-support](../openspec/specs/headset-browser-support/spec.md)：headset-browser-support 需求与场景
+- [immersive-xr-terminal](../openspec/specs/immersive-xr-terminal/spec.md)：immersive-xr-terminal 需求与场景
+- [tv-browser-support](../openspec/specs/tv-browser-support/spec.md)：tv-browser-support 需求与场景
+- [simple-native-handoff](../openspec/specs/simple-native-handoff/spec.md)：simple-native-handoff 需求与场景
+- [launch-attention-policy](../openspec/specs/launch-attention-policy/spec.md)：规定启动配置中的提醒策略与完成事件过滤。
+- [qoder-agent-profile](../openspec/specs/qoder-agent-profile/spec.md)：规定 Qoder 与 QoderCN 的命令参数、恢复和聊天配置。
+- [kimi-agent-profile](../openspec/specs/kimi-agent-profile/spec.md)：规定 Kimi 档案的命令识别与恢复参数。
+- [devin-agent-profile](../openspec/specs/devin-agent-profile/spec.md)：规定 Devin 档案的命令识别与恢复参数。
+- [kimi-agent-behavior](../openspec/specs/kimi-agent-behavior/spec.md)：规定 Kimi 的环境、信任与聊天回合行为。
+- [devin-agent-behavior](../openspec/specs/devin-agent-behavior/spec.md)：规定 Devin 的环境、信任、会话锁与聊天回合行为。
+- [launch-agent-presets](../openspec/specs/launch-agent-presets/spec.md)：规定 Agent 预置配置、图标与提醒设置。

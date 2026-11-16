@@ -26,7 +26,7 @@
 
 “打开 WebMux”与左键单击 SHALL 用 Windows 默认浏览器打开本机链接。
 
-托盘 SHALL 从 Windows 侧直接请求本机链接的健康检查以确认可达；该请求 SHALL NOT 携带 Token，返回成功或“需要认证”都视为可达。WebMux 在 WSL 中运行但 Windows 侧不可达时，状态行 SHALL 提示检查 WSL 的 localhost 转发或网络模式设置，图标 SHALL 显示异常而不是已停止。
+托盘 SHALL 从 Windows 侧直接请求本机链接的健康检查以确认可达；该请求 SHALL NOT 携带 Token，返回成功或“需要认证”都视为可达。WebMux 在 WSL 中运行但 Windows 侧不可达时，状态行 SHALL 提示检查 WSL 的 localhost 转发或网络模式设置，图标 SHALL 显示异常。
 
 #### Scenario: Windows 侧不可达
 

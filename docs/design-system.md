@@ -12,7 +12,7 @@ WebMux 是持续运行的终端工作台。视觉方向为克制的开发工具�
    - 危险操作使用 destructive，文字形式的危险次要操作（如“删除全部”）用 `destructive-outline`，都在确认弹窗中说明后果；对话框里更安全的替代操作使用 success 并放在右下角。
    - 同一行的文字按钮在右侧仍有空间时不换行，放不下时才换行（`flex-wrap`）。
    - 设计语言以线条表达状态：开关按钮保持原 variant，只设置 `aria-pressed`；展开（`aria-expanded`）和当前项（`aria-current="true"`）同理，由 Button 统一显示前景色描边，不切换成绿色或灰色填充。
-5. **紧凑但可操作。** 控件使用统一尺寸，而不是页面级 CSS 覆盖。
+5. **紧凑但可操作。** 控件使用统一尺寸。
    - 触屏或小于 640px 的窗口中，常规按钮最小 44px（顶栏等主要导航）；设置、工作区、代码等信息密集页面降为 36px 紧凑触控高度（见 Tokens）；终端紧凑顶栏保留 32px，软键保持横向滚动，优先保留终端内容空间。
    - 小于 640px 时工具栏保持单行：只常驻高频操作，低频操作收进同处的 ⋯ 菜单。菜单项沿用原按钮的名称、处理函数和禁用条件；显隐用 `max-sm:` / `sm:` 断点完成，不新增 JS 布局状态。
    - 聊天输入卡片使用 `composer-mobile:` 断点：小于 640px 宽，或触屏且高度小于 480px 时隐藏低频选项行，在卡片内通过“会话选项”打开底部面板，横屏不恢复常驻选项行。
@@ -45,7 +45,7 @@ WebMux 是持续运行的终端工作台。视觉方向为克制的开发工具�
   - `rounded-xl`（12px）：只用于 Dialog、AlertDialog 与 Drawer 的弹层表面。
   - `rounded-full` 用于圆点、开关、滑块与滚动条；`rounded-none` 用于贴边的行与分段；`rounded-[inherit]` 只用于跟随父级圆角的内层。
   - 不使用裸 `rounded`、`rounded-xs` 或 `rounded-2xl` 及以上；CSS 中的 `border-radius` 只写 `var(--radius-*)`、`0`、`50%`、`999px` 或 `inherit`。
-- 默认控件高 36px，紧凑 32px，工具 28px，大控件 44px。信息密集页面（设置、工作区、代码）在触屏或小于 640px 时，常规按钮与图标按钮用紧凑触控高度 36px（`--control-touch-compact`），由 `.settings-layout`、`.workspace-page`、`.code-panel` 统一设置；不要在页面里再给按钮加 `icon-touch` 或手写高度。
+- 默认控件高 36px，紧凑 32px，工具 28px，大控件 44px。信息密集页面（设置、工作区、代码）在触屏或小于 640px 时，常规按钮与图标按钮用紧凑触控高度 36px（`--control-touch-compact`），由 `.settings-layout`、`.workspace-page`、`.code-panel` 统一设置；页面沿用该统一尺寸规则。
 - 拉丁界面字体使用内置 Inter，界面中日韩文字使用系统无衬线字体；终端和代码使用内置 Maple Mono NF CN（含拉丁字形、制表符、Nerd Font 图标及按 `unicode-range` 切片的中文）。终端标题里的 Nerd Font 私有区图标在界面中回退到同一套内置图标分片，其余界面文字仍使用 Inter 与系统字体。
 - ANSI 终端和语法高亮令牌保持独立；业务状态不再借用 ANSI 色板。
 - 焦点使用 primary 对应的 ring；不依赖 hover 提供唯一反馈。

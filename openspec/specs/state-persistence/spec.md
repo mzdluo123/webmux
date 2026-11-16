@@ -52,7 +52,7 @@
 #### Scenario: Directory sync fails after publication
 
 - **WHEN** rename 或 unlink 已完成但父目录同步失败
-- **THEN** 标记 commit_uncertain，禁止后续写入，不声称旧值已回滚
+- **THEN** 标记 commit_uncertain，后续写入返回存储故障，不声称旧值已回滚
 - **AND** 重启重新读取后才恢复可用状态
 
 ### Requirement: Preserve data and fail closed by domain

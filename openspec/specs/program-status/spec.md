@@ -69,14 +69,14 @@ SHALL NOT 修改、删除或延迟发送给订阅者和写入回放缓冲区的�
 #### Scenario: OpenCode 的会话 ID 只用于身份跟踪
 
 - **WHEN** 混合会话中的 OpenCode 输出 `ESC ] 7501 ; state=working:id=ses_abc ESC \`，此时根记录为 `idle`
-- **THEN** 根记录仍为 `idle`，混合会话的 `hybrid.agentSessionId` 变为 `ses_abc`；
+- **THEN** 根记录仍为 `idle`，混合会话的 `agent.sessionId` 变为 `ses_abc`；
   同样的输出出现在普通会话中时，任何负载都不出现 `ses_abc`
 
 #### Scenario: agy 的 36 字符 UUID 子记录 ID 用于身份跟踪
 
 - **WHEN** 混合会话中的 `agy`（已上报根记录 `state=idle:app=antigravity`）输出
   `ESC ] 7501 ; state=working:id=89c9a933-60f6-46ad-977b-a8daf22f8e4d BEL`
-- **THEN** 根记录仍为 `idle`，混合会话的 `hybrid.agentSessionId` 变为
+- **THEN** 根记录仍为 `idle`，混合会话的 `agent.sessionId` 变为
   `89c9a933-60f6-46ad-977b-a8daf22f8e4d`；同样的输出出现在普通会话中时，任何负载都不出现该 UUID
 
 ### Requirement: 根记录的生命周期
@@ -116,7 +116,7 @@ ESC ] 7501 ; ? : states=idle,working,done,blocked,error : kinds=permission,quest
 应答 SHALL 满足：
 
 - **无需客户端**：没有任何客户端附着时也会写入，不等待浏览器或原生 attach。
-- **顺序**：应答 SHALL 先于该探测被发布给订阅者之后进入 PTY 的任何客户端输入，包括浏览器对紧随其后的 DA1 的自动应答；也 SHALL NOT 与另一份输入交错写入。
+- **顺序**：应答 SHALL 先于该探测被发布给订阅者之后进入 PTY 的任何客户端输入，包括对紧随其后的 DA1 的会话级应答；也 SHALL NOT 与另一份输入交错写入。
 - **不当作用户输入**：应答 SHALL NOT 取得控制权、改变尺寸、清除关注或计为用户输入。
 - **只响应实时输出**：只有实时 PTY 读取会触发应答；浏览器或原生 attach 回放历史、重新同步 SHALL NOT 触发应答。
 - **有界、不阻塞**：待写应答 SHALL 有固定上限，超出上限的探测 SHALL 被丢弃而不重试。应答 SHALL NOT 阻塞 PTY 读取，也 SHALL NOT 在持有会话状态锁时等待 PTY 可写。
@@ -126,12 +126,12 @@ ESC ] 7501 ; ? : states=idle,working,done,blocked,error : kinds=permission,quest
 #### Scenario: 无浏览器时启动 Claude Code
 
 - **WHEN** 通过启动配置创建 Claude Code 会话，没有任何客户端附着，Claude Code 启动时输出 `ESC ] 7501 ; ? ESC \` 与 `ESC [ c`
-- **THEN** PTY 输入收到一次 7501 探测应答，DA1 无人应答，Claude Code 能据此判定支持 7501
+- **THEN** PTY 输入收到一次 7501 探测应答和一次由会话写入的 DA1 应答，且 7501 应答在 DA1 之前，Claude Code 能据此判定支持 7501
 
 #### Scenario: 应答先于浏览器的 DA1
 
-- **WHEN** 浏览器控制端已附着，程序在同一次写入中输出 7501 探测和 DA1，浏览器 xterm 随即产生 DA1 应答
-- **THEN** PTY 输入中 7501 应答完整出现在浏览器 DA1 应答之前
+- **WHEN** 浏览器控制端已附着，程序在同一次写入中输出 7501 探测和 DA1
+- **THEN** PTY 输入中 7501 应答完整出现在会话级 DA1 应答之前，浏览器不对该 DA1 产生第二份应答
 
 #### Scenario: 回放不重答
 
@@ -156,3 +156,22 @@ ESC ] 7501 ; ? : states=idle,working,done,blocked,error : kinds=permission,quest
 
 - **WHEN** 配置 `program_status = false` 后，一个同时发出 7501 和 Warp 事件的 omp 会话发出 `question_asked`
 - **THEN** 程序得不到 7501 探测应答，关注由 Warp 事件决定，为 `question`
+
+### Requirement: 会话级 OSC 7501 状态协议开关覆盖
+
+服务端 SHALL 允许每个会话根据其启动配置的 `attention.programStatus` 字段独立启用或禁用 `OSC 7501` 状态协议（当 `attention` 为空时跟随服务端全局 `program_status` 配置）：
+
+- 当某个会话禁用 `programStatus` 时，服务端 MUST 忽略该会话 PTY 输出中的所有 `OSC 7501` 状态上报、清除与查询序列（不对 `OSC 7501;?` 写回应答）；
+- 禁用当前会话的 `programStatus` MUST 不影响其他已启用 `programStatus` 的会话。
+
+#### Scenario: 启动配置禁用 programStatus 时忽略 OSC 7501 且不应答查询
+
+- **WHEN** 全局 `program_status = true`，但当前会话使用的启动配置显式设置 `attention.programStatus = false`
+- **AND** 会话内程序输出 `\x1b]7501;?\x07` 或 `\x1b]7501;state=done;msg=Finished\x07`
+- **THEN** 服务端不向 PTY 写回 `OSC 7501;1` 应答，不记录 `OSC 7501` 状态槽位，也不阻塞同一会话的 Warp `cli-agent`、`OSC 9`/`OSC 777` 或 `BEL` 信号源
+
+#### Scenario: 启动配置启用 programStatus 时可覆盖全局关闭设置
+
+- **WHEN** 全局 `program_status = false`，但当前会话使用的启动配置显式设置 `attention.programStatus = true`
+- **AND** 会话内程序输出 `\x1b]7501;?\x07`
+- **THEN** 服务端向该会话 PTY 写回 `\x1b]7501;1\x07` 并正常解析该会话的 `OSC 7501` 状态序列

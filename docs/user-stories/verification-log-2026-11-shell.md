@@ -258,7 +258,7 @@
 ## 2026-11-12：新建文件后编辑的净 Diff（US-Q05）
 
 - ACP 新文件的 `oldText` 允许省略或 `null`；Go 使用 nil 指针并在聊天 wire 中省略该字段。前端不增加 nullable JSON 分支，只在有完整快照且没有补丁正文或截断标记时归一不存在的一侧。
-- `keep\noriginal` 新建后改成 `keep\nreplacement`，回合摘要保留一个文件、一个最终 Diff，统计为新增 2 行、删除 0 行，而不是累计中间版本的 3/1。
+- `keep\noriginal` 新建后改成 `keep\nreplacement`，回合摘要保留一个文件、一个最终 Diff，统计为新增 2 行、删除 0 行。
 - 未知、仅补丁、截断与不连续片段继续独立；清空再改写的 1/1、清空再恢复的 0/0、尾随换行策略与查找快捷键归属不变。
 - 前端生产构建、生产/测试类型检查、Oxlint、架构守卫和源码格式检查通过；turn-changes、chat-model、code-diff 共 31 项单元测试及 TurnChanges、CodeDiffReader、TerminalRendering 共 15 项浏览器测试通过。
 - 独立私有生产应用使用绝对路径 fake omp 与隔离 HOME/XDG/FAKEAGENT_STORE；真实 Go WebSocket 新建帧省略 `oldText`，后续编辑帧带完整旧内容。捕获帧交给实际生产 reducer 得到一个 2/0 快照，页面也只展开一个包含 `keep` 与 `replacement` 的 Diff，没有旧版本 `original`。

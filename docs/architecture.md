@@ -297,7 +297,7 @@ else                                        → running
 
 - 叶子全部是计时休眠（命令名或可执行文件名为 `sleep`，或等待频道为 nanosleep；Darwin 上该频道截断为 `nanosle`）时不算在等终端输入。
 - 看不出来的睡眠仍视为可能在等输入，以免漏掉无提示符的 `read`。
-- 没有这些等待特征时，2 秒到 `idle_after_seconds` 之间保持 running，而不是 waiting。
+- 没有这些等待特征时，2 秒到 `idle_after_seconds` 之间保持 running。
 - 状态只用于展示，误判无害。
 
 ## 并发与背压

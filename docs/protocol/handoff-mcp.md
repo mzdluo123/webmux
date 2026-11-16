@@ -10,7 +10,7 @@
 位置是规范十进制字符串，textOffset 是非负整数字节 offset；未知字段、非法 cursor、越界限制与跨来源项目被拒绝。
 
 先调用 `{"view":"activity"}`，随后以结果的 `nextPosition` 继续，直到 `done=true`。
-某项 `truncated=true` 时，保留其 `activityId`，以 `itemId` 和该项 `nextTextOffset` 继续，直到单项 `done=true`；不要把下一项位置当作长正文 offset。
+某项 `truncated=true` 时，保留其 `activityId`，以 `itemId` 和该项 `nextTextOffset` 继续，直到单项 `done=true`；长正文分页使用该项的 `nextTextOffset`。
 UTF-8 边界由服务端检查，中文与 emoji 不拆成非法字符。只读取 preview 固定 `sourcePosition` 以前的已提交项目，知道未来项 ID 也不能越过冻结点。
 
 结果提供来源 Conversation、ProviderThread、Run、Activity、position、角色、状态、selected/omitted 标记、计数和 gap 信息。

@@ -299,7 +299,7 @@ which codex-acp claude-agent-acp  # 必须能在服务的 PATH 或“加载 shel
 - 本次未实测 npm 启动器或 macOS。
 - Claude 聊天端通过 `CLAUDE_CODE_EXECUTABLE` 使用 TUI 同一个 `claude`；配置显式设置时保留配置值。
 - Claude 聊天端复用服务用户、`HOME`、`CLAUDE_CONFIG_DIR` 与现有认证。
-- 不要把服务账号无权读取的 Linux 凭据文件或 macOS Keychain 当作可共享凭据。
+- 凭据共享范围以服务账号实际可读取的 Linux 文件与 macOS Keychain 条目为准。
 - 现有订阅登录、API key、OAuth token 或第三方 provider 由 Claude 自己管理；webmux 不保存凭据，也不在聊天端登录或注销。
 
 > [!WARNING]

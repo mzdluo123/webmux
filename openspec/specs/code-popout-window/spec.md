@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change iframe-code-popout. Update Purpose after archive.
+将代码工作区中的文件预览打开到独立窗口，定义窗口与会话的关联、页面导航及生命周期，使用户能够在多个窗口中并排查看文件。
 
 ## Requirements
 
@@ -51,7 +51,7 @@ TBD - created by archiving change iframe-code-popout. Update Purpose after archi
   - 预览：Markdown 滚动位置，图片缩放与平移，PDF 缩放、页码与滚动位置，JSON 的展开与分页；
 - 修改列表的滚动位置。
 
-恢复后的位置 SHALL 以内容行或页为基准，而不是像素，使窗口尺寸不同时仍定位到同一内容。富文本预览（Markdown、HTML、表格）中浏览器原生的文字选中 SHALL 不在保留范围内。
+恢复后的位置 SHALL 以内容行或页为基准，使窗口尺寸不同时仍定位到同一内容。富文本预览（Markdown、HTML、表格）中浏览器原生的文字选中 SHALL 不在保留范围内。
 
 #### Scenario: 弹出后阅读位置与选择不变
 

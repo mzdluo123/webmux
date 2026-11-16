@@ -49,7 +49,7 @@
 - **WHEN** 业务组件写 `<Button size="sm" class="mt-2 w-full">`
 - **THEN** 不报告违规
 
-### Requirement: 使用主题令牌而不是原始值
+### Requirement: 使用主题令牌
 
 业务代码的类名 MUST NOT 使用以下内容：
 
@@ -153,7 +153,7 @@
 
 `src/` 根目录 SHALL 只保留入口、应用组合、类型声明与全局样式。领域模块、hooks 与业务组件 SHALL 按主题放置；通用控制器与可复用组件 SHALL 分别放在 `hooks/shared/` 与 `components/shared/`，导航组件 SHALL 放在 `components/shell/`。
 
-`arch:test` SHALL 扫描生产树验证目录归属，并以隔离临时模块调用实际依赖配置，验证合法依赖、越界依赖、type-only、循环与失效路径，而不是检查配置文本。
+`arch:test` SHALL 扫描生产树验证目录归属，并以隔离临时模块调用实际依赖配置，验证合法依赖、越界依赖、type-only、循环与失效路径。
 
 #### Scenario: 平铺业务文件
 

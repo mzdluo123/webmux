@@ -221,7 +221,7 @@
   - `Test result` 接受因变更分类而跳过的 `skipped`，并按分类结果交叉校验所有应运行的 job 均成功；
   - E2E 使用独立后端、目录、端口与假 agent 会话库（假 agent 位于后端 `PATH` 首位，混合会话用例由它驱动），等待隔离 Shell 提示符就绪后输入命令；
   - 失败有报告与 trace；
-  - 测试不连接现有开发服务；在外层 WebMux 中运行时清除继承的会话标记，依赖真实外部父进程的少量集成用例明确跳过，而不是把外层会话误判为测试服务器所有；
+  - 测试不连接现有开发服务；在外层 WebMux 中运行时清除继承的会话标记，依赖真实外部父进程的少量集成用例明确跳过，并按服务器归属判定会话；
   - Codex 混合会话夹具清空继承的 `CODEX_PATH`，从夹具自己的 `PATH` 查找假 agent；往返测试用无效宿主路径验证不会误用真实 Codex；
   - PTY 取消写入测试由子进程真实 drain 后断言后续写入成功，attach 取消统一返回 `context.Canceled`，Codex 启动静默期前提失效时失败而非跳过核心断言。
 - **US-L03 预览 UI 与生成证据**：作为贡献者，我希望用真实组件预览极端内容、明暗主题和屏幕尺寸，以便发现溢出并为 UI 变更提供证据。
@@ -243,13 +243,13 @@
   - 发版先由 `verify` 查找标签提交在 `main` 上完整通过的 `push` Test 运行并复用；不在 `main`、无运行、失败、有跳过作业或等待超时则 `Checks` 以 `full: true` 完整重跑，两者都未通过时不签名、不发布；
   - 正式版与开发版安装 NSIS 时使用独立的 kernel.org Ubuntu HTTPS 镜像源，保留 Ubuntu 归档签名校验，不修改 runner 全局源；索引下载失败立即终止构建，不使用旧索引继续安装。
   - 现有 CI 执行相应质量检查。
-- **US-L05 分层架构约束**：作为贡献者，我希望 Controller 与 Service 的边界和线上 JSON 形状由测试守住，以便越界依赖或协议漂移在 `go test` 中就被发现，而不是靠评审。
+- **US-L05 分层架构约束**：作为贡献者，我希望 Controller 与 Service 的边界和线上 JSON 形状由测试守住，以便越界依赖或协议漂移在 `go test` 中就被发现。
   验收要点：
   - `go test ./...` 包含 `internal/archtest`：未归类或失效的包、越界依赖、Controller 直接 I/O 或使用未登记的 Service 包级函数、Service 携带 HTTP 状态、编解码非 `contract` 类型、Controller 在登记函数之外读取请求体等违规一次列出位置、R0–R11 编号及修复提示；
   - 同一包还检查 `internal/acp`、`internal/hybrid`、`internal/agentprofile` 核心与 `web/src`（启动配置图标目录除外）的生产代码不出现任何已注册 agent 的名称或可执行文件名，agent 差异只能放在 `internal/agentprofile/<agent>` 适配器中。纯函数例外需理由且仍被使用；
   - 允许业务整数与非错误对象的领域 Status。R9 检查包级初始化及编码器函数值/方法值，登记函数不能借别名绕过。固定样例覆盖违规与合规写法。141 份线上快照分九组独立运行（另有不可用服务场景单独运行），仅归一化明确动态字段，业务正文、确定性 Git OID、摘要和固定输入保留；
   - 差异可见，有意变更用 `-update` 重新录制；本地状态快照的必填数组保持 `[]`，核心错误由共享传输映射，可选服务错误集中在 `internal/featureapi/errors.go`。
-- **US-L06 前端架构守卫**：作为贡献者或 coding agent，我希望在提交前得到复用组件、设计令牌和分层方面的具体报错，以便新增 UI 复用设计系统，而不是重造组件或复制样式。
+- **US-L06 前端架构守卫**：作为贡献者或 coding agent，我希望在提交前得到复用组件、设计令牌和分层方面的具体报错，以便新增 UI 复用设计系统。
   验收要点：
   - `pnpm --dir web check:arch` 依次运行 ESLint（`@shadcn/lint` 与 Svelte 模板规则）、dependency-cruiser、jscpd、knip 与 Vitest 架构测试；
   - 架构测试由 Vite+ `vp test` 承载，`make check` 与 CI 的格式/构建 job 同样执行完整架构守卫；
@@ -274,7 +274,8 @@
   - 其余 Markdown 单行不超过 300 列（汉字与全角标点按 2 列计），仅围栏代码块豁免，表格行不豁免；
   - `docs/` 与 `openspec/` 的每一级直接子目录不超过 20 个，`docs/images/`、`openspec/specs/` 与 `openspec/changes/archive/` 的固定布局豁免；
   - 失败信息列出实测值、阈值与 AI 指令，要求按主题拆分或合并、在句子边界分段并保留旧路径为树状索引，规则与例外见 [文档治理](../doc-governance.md)；
-  - 超限时按“重构而不是压缩”整理：信息原文迁移，不删减事实、不为过线挤进已有行或缩窄表格列，接近上限时先拆分再新增，并在 PR 中说明新旧位置对应，原则见 [文档治理](../doc-governance.md#超限时重构而不是压缩)。
+  - 超限时按主题迁移完整内容，保留原文事实与表格说明，接近上限时先拆分再新增，并在 PR 中说明新旧位置对应，原则见 [文档治理](../doc-governance.md#超限时按主题迁移完整内容)。
+  - 写作规则记录在 `AGENTS.md`：直接陈述事实、行为、条件和结果；已探索失败的方案记录尝试过程及失败原因。
 - **US-L09 前端代码质量基线**：作为贡献者或 coding agent，我希望前端代码质量有成文基线和可执行门禁，以便一致审查响应式状态、异步行为、类型和前后端契约。
   验收要点：
   - `docs/frontend-style.md` 以 Svelte 官方 Best practices 为主规范、Google TypeScript Style Guide 为补充，登记本地化取舍与 7 条日常审查规则；

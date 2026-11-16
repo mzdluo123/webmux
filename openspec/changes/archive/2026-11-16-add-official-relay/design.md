@@ -53,7 +53,7 @@ Relay 服务端在独立仓库开发和发布，包含 `cmd/webmux-control` 与 
 
 ### 2. WSS + smux v2 与有界连接隔离
 
-依据 [issue #604 验证报告](../../../docs/relay-validation-604.md)，MVP 使用嵌入两端 Go 进程的 `coder/websocket` v1.8.15 与 `xtaci/smux` v1.5.58：
+依据 [issue #604 验证报告](../../../../docs/relay-validation-604.md)，MVP 使用嵌入两端 Go 进程的 `coder/websocket` v1.8.15 与 `xtaci/smux` v1.5.58：
 
 - A 的基础入口保持 HTTPS/WebSocket，B 使用 TLS 1.3 WSS。
 - 宿主连接器不引入 QUIC 探测、UDP 协议回退、FEC 或独立隧道进程。
@@ -75,7 +75,7 @@ TCP 服务器采用 BBR，部署优先使用 fq 并检查实际接口队列；�
 
 宿主使用操作系统实际算法，支持时按 socket 选择 BBR，不要求 Windows 提供 BBR 或用管理员权限更改系统全局设置。WSS 可达性只在本次路径验证，企业代理、移动网络和多运营商仍待验收。
 
-**终端优先验收**：参见[补测报告](../../../docs/relay-terminal-validation-604.md)。同一 PTY 持续输出时独立安排按键，以真实 PTY 回显确认；排队、超时和初始化失败均保留，报告全输入期限封顶分位数及期限内比例。另查高输出完整性、Ctrl-C 退出与续接后的新输入回显；不能只用吞吐或小 echo 选择方案。
+**终端优先验收**：参见[补测报告](../../../../docs/relay-terminal-validation-604.md)。同一 PTY 持续输出时独立安排按键，以真实 PTY 回显确认；排队、超时和初始化失败均保留，报告全输入期限封顶分位数及期限内比例。另查高输出完整性、Ctrl-C 退出与续接后的新输入回显；不能只用吞吐或小 echo 选择方案。
 
 两段真实 RTT 仍构成反馈下限，MVP 选择不是本地 Vim 手感承诺。8 s 期限、2 s 观察比例属于本轮实验口径，不自动成为生产 SLO；发布目标须由维护者另行确认，并补真实浏览器/TUI 验证。
 

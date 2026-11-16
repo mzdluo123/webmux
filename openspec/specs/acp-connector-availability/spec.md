@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change add-codex-hybrid-profile. Update Purpose after archive.
+在切换聊天前检查 Agent 所需的 ACP 连接器，并将缺失依赖、安装方式和原因码交给客户端展示，使用户能从启动配置和会话入口定位连接器问题。
 
 ## Requirements
 
@@ -60,7 +60,7 @@ webmux SHALL NOT 自动安装连接器或其运行时（例如 Node），也 SHA
 #### Scenario: 检查与启动之间被卸载
 
 - **WHEN** 检查通过后、启动之前 `codex-acp` 被删除，直接执行时启动返回 `ENOENT`
-- **THEN** 操作以 `connector_missing` 结束，而不是“启动 agent 失败”
+- **THEN** 操作以 `connector_missing` 结束
 
 ### Requirement: 未安装时终端端照常使用
 
@@ -84,7 +84,7 @@ webmux SHALL NOT 自动安装连接器或其运行时（例如 Node），也 SHA
 
 #### Scenario: 冲突体
 
-- **WHEN** 客户端以 Codex 混合配置和 `startSide: "acp"` 创建会话，连接器未安装
+- **WHEN** 客户端以 Codex 混合配置和 `view: "chat"` 创建会话，连接器未安装
 - **THEN** 服务端返回 409，`reason` 为 `connector_missing`，`connector.executable` 为 `codex-acp`，不创建会话，不写入混合会话记录
 
 ### Requirement: 未安装后重新检查

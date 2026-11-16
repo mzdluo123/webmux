@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change add-code-document-preview. Update Purpose after archive.
+在代码工作区内预览 HTML、PDF 等文档，规定预览入口、资源访问、内容隔离与错误呈现，让用户从文件浏览直接查看文档内容。
 
 ## Requirements
 

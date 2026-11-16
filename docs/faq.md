@@ -92,6 +92,6 @@ HTTP 不是浏览器安全上下文，Clipboard API 不可用。WebMux 会回退
 ## 获取帮助
 
 - **提问或报告缺陷**：在 [GitHub Issues](https://github.com/mzdluo123/webmux/issues) 新建 issue，附上 `webmux version`、操作系统、浏览器与复现步骤。
-- **不要公开安全漏洞**：按 [安全策略](../SECURITY.md#报告漏洞) 私下报告。
+- **私下报告安全漏洞**：按 [安全策略](../SECURITY.md#报告漏洞) 私下报告。
 - **日志**：用户服务可用 `webmux service logs -f` 查看；日志不包含终端输入输出，但请在粘贴前检查是否含有路径等隐私信息。
 - **想参与修复**：从 [参与贡献](../CONTRIBUTING.md) 开始。

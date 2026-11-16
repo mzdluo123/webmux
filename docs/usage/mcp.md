@@ -172,7 +172,7 @@ CLI 与 MCP 共用逻辑操作 ID、去重边界、完成证据、授权范围�
 
 返回 session、worktree、configWarnings、可用时的 link，实际提交初始聊天提示时的 initialInput 回执与等待选择器。
 创建响应丢失时重试相同请求；创建去重仅在服务进程内保留十分钟，服务重启后应先查询现有会话再决定是否重建。
-失败正文保留 step、已创建 sessionId/worktree；不会自动回滚，不要因后续提示失败而重复创建。
+失败正文保留 step、已创建 sessionId/worktree；不会自动回滚，后续操作使用已返回的资源标识。
 
 `session_send` 接受 sessionId 与 request，request 沿用[会话输入契约](../protocol/http-sessions.md#输入与中断)：
 
@@ -242,7 +242,7 @@ maxBytes 范围 1–65536，limited 表示尚有回放字节；解码后按顺�
 - status=ended 表示选定回合结束；结合 stopReason 判断正常结束、取消或失败，不等于所有后台工作已结束。
 - unfinished 沿用当前回合的后台工作标记；reply 最多 64 KiB，截断或回放不完整时 replyTruncated=true。
 - status=waiting_for_user 表示选定回合有待回答请求，返回请求信息；工具不会替用户批准操作。
-- 超时只结束观察，waitTimedOut=true，不中断执行；继续使用同一选择器等待，不要重发输入。
+- 超时只结束观察，waitTimedOut=true，不中断执行；继续使用同一选择器等待，后续请求沿用原操作标识。
 - 缺失回合和队列项不会改为等待其他回合；断线返回错误，不把沉默当成完成。
 - 等待期间曾出现的 queueItemId 被移除且没有启动对应回合时立即报错；初始未出现不冒充“已移除”，同帧 turn.start 优先于队列缺席。
 - CLI 与 MCP 使用同一观察状态机；只有结束事件或匹配的当前回合状态能证明结束，历史缺失保持 replyTruncated，不借用无关回合回复。

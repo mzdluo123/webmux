@@ -78,7 +78,7 @@ webmux-site/
 - 同步 `docs/**/*.md`，以及根目录的 `README.md`（作 `/docs/` 首页的来源之一）、`SECURITY.md`、`CONTRIBUTING.md`。
 - 默认排除面向 agent 的 `docs/agent-rules/`、`docs/agent-rules.md`、`docs/doc-governance.md`，以及 `docs/user-stories/verification-log-*.md`。它们对访客价值低，收录会稀释站点主题。
 - `openspec/` 不镜像。
-- 排除列表写在脚本里，而不是靠手工删。
+- 排除列表写在脚本里，。
 
 **来源与版本**：`sync-docs.mjs` 从主仓库某个 Release tag 读取（与 `sync-assets.mjs` 同一 tag），不是 `main`，保证文档描述的行为与下载页的版本一致。每次同步生成清单（tag、文件、SHA-256）并提交，PR 中能看到文档差异。
 
@@ -97,7 +97,7 @@ webmux-site/
 - `/docs/` 首页就是文档中心的镜像加一个搜索框。
 - 营销页的每个功能描述都链接到对应文档页，文档页页脚链接回下载页，形成双向内链。
 
-**质量门禁**：同步后运行链接与锚点检查，要求 `make docs-check` 认可的相对链接在官网上全部可解析；任何未映射的链接或锚点使构建失败，而不是静默变成 404。
+**质量门禁**：同步后运行链接与锚点检查，要求 `make docs-check` 认可的相对链接在官网上全部可解析；任何未映射的链接或锚点使构建失败，。
 
 **与主仓库的约定**：主仓库文档继续以 GitHub 为编辑入口，官网不反向修改；文档治理规则（20–400 行、300 列）保证每页体量适中，正好适合独立 URL。若某篇文档不适合公开站点，在主仓库文档首部加 `<!-- site: exclude -->` 注释，同步脚本识别后跳过。
 
@@ -114,7 +114,7 @@ webmux-site/
 - 未认证请求每小时 60 次，CI 中传入 `GITHUB_TOKEN` 提高配额。
 - 请求失败时使用提交在仓库中的 `releases.json` 回退副本并在日志中告警；构建不能因为 API 失败而中断。
 - 资产按名称模式分组：`webmux-linux-*`、`webmux-darwin-*`、`webmux-windows-*.exe`、`webmux-tray-*`、`webmux-setup-*`、`*.deb`、`*.rpm`、`install.sh`、`SHA256SUMS`。只生成有匹配资产的分组；`v0.10.1` 不含安装程序、deb 或 rpm，不得为其显示空入口。
-- 遇到未知名称时放进“其他”而不是丢弃。
+- 遇到未知名称时放进“其他”。
 
 ## 托管与部署
 
