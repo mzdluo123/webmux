@@ -178,6 +178,10 @@ test("recover a server binding when this installation is locally unpaired", asyn
 }) => {
   let status: RelayStatus = { ...relayStatus };
   const enrollmentRequests: unknown[] = [];
+  let recovering = false;
+  let transientFailure = true;
+  let cancelFailure = true;
+  let cancelled = false;
   await page.route("**/api/relay**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -187,18 +191,27 @@ test("recover a server binding when this installation is locally unpaired", asyn
       });
     } else if (request.method() === "GET" && path === "/api/relay") {
       await route.fulfill({ json: status });
+    } else if (
+      request.method() === "DELETE" &&
+      path === "/api/relay/enrollments"
+    ) {
+      if (cancelFailure) {
+        cancelFailure = false;
+        await route.fulfill({ status: 503, json: { error: "unavailable" } });
+        return;
+      }
+      cancelled = true;
+      status = { ...status, pairing: false };
+      await route.fulfill({ status: 204 });
     } else if (path === "/api/relay/enrollments") {
       const body: unknown = request.postDataJSON();
       enrollmentRequests.push(body);
-      if (
-        typeof body !== "object" ||
-        body === null ||
-        !("rebind" in body) ||
-        body.rebind !== true
-      ) {
-        await route.fulfill({ status: 409, json: { error: "conflict" } });
-        return;
-      }
+      recovering =
+        typeof body === "object" &&
+        body !== null &&
+        "rebind" in body &&
+        body.rebind === true;
+      status = { ...status, pairing: true };
       await route.fulfill({
         status: 201,
         json: {
@@ -211,6 +224,16 @@ test("recover a server binding when this installation is locally unpaired", asyn
         },
       });
     } else if (path === "/api/relay/enrollments/poll") {
+      if (!recovering) {
+        if (transientFailure) {
+          transientFailure = false;
+          await route.fulfill({ status: 503, json: { error: "unavailable" } });
+        } else {
+          status = { ...status, pairing: false };
+          await route.fulfill({ status: 409, json: { error: "conflict" } });
+        }
+        return;
+      }
       status = {
         ...relayStatus,
         paired: true,
@@ -230,6 +253,21 @@ test("recover a server binding when this installation is locally unpaired", asyn
     .getByRole("button", { name: "开始 GitHub 配对", exact: true })
     .click();
   await confirm.getByRole("button", { name: "确认操作", exact: true }).click();
+  // A transport failure retains the handle, so the user can cancel it.
+  const cancel = page.getByRole("button", { name: "取消配对", exact: true });
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(cancel).toBeVisible();
+  await cancel.click();
+  await expect(cancel).toBeEnabled();
+  await cancel.click();
+  await expect.poll(() => cancelled).toBe(true);
+  await page
+    .getByRole("button", { name: "刷新 Relay 状态", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "开始 GitHub 配对", exact: true })
+    .click();
+  await confirm.getByRole("button", { name: "确认操作", exact: true }).click();
   const recover = page.getByRole("button", {
     name: "恢复已有绑定",
     exact: true,
@@ -238,7 +276,10 @@ test("recover a server binding when this installation is locally unpaired", asyn
   await recover.click();
   await expect(confirm).toContainText("撤销旧密钥和登录访问");
   await confirm.getByRole("button", { name: "取消", exact: true }).click();
-  expect(enrollmentRequests).toEqual([{ rebind: false, confirmPublic: true }]);
+  expect(enrollmentRequests).toEqual([
+    { rebind: false, confirmPublic: true },
+    { rebind: false, confirmPublic: true },
+  ]);
   await recover.click();
   await confirm.getByRole("button", { name: "确认操作", exact: true }).click();
   await expect(
@@ -251,6 +292,7 @@ test("recover a server binding when this installation is locally unpaired", asyn
     page.getByRole("switch", { name: "允许 Relay 公网访问" }),
   ).not.toBeChecked();
   expect(enrollmentRequests).toEqual([
+    { rebind: false, confirmPublic: true },
     { rebind: false, confirmPublic: true },
     { rebind: true, confirmPublic: true },
   ]);

@@ -29,10 +29,12 @@ type machineEnrollmentCall struct {
 
 type machineEnrollmentClient struct {
 	*relay.Client
-	calls       []machineEnrollmentCall
-	failure     error
-	binding     protocol.Binding
-	deleteCalls int
+	calls         []machineEnrollmentCall
+	failure       error
+	pollFailure   error
+	cancelFailure error
+	binding       protocol.Binding
+	deleteCalls   int
 }
 
 func (c *machineEnrollmentClient) Enroll(_ context.Context, key ed25519.PrivateKey, id protocol.MachineID, rebind bool) (protocol.Enrollment, error) {
@@ -44,10 +46,15 @@ func (c *machineEnrollmentClient) Enroll(_ context.Context, key ed25519.PrivateK
 }
 
 func (c *machineEnrollmentClient) Poll(context.Context, protocol.Token) (protocol.EnrollmentResult, error) {
+	if c.pollFailure != nil {
+		return protocol.EnrollmentResult{}, c.pollFailure
+	}
 	return protocol.EnrollmentResult{Version: protocol.V1, Binding: c.binding, OwnerLogin: "owner"}, nil
 }
 
-func (c *machineEnrollmentClient) Cancel(context.Context, protocol.Token) error { return nil }
+func (c *machineEnrollmentClient) Cancel(context.Context, protocol.Token) error {
+	return c.cancelFailure
+}
 
 func (c *machineEnrollmentClient) Delete(context.Context, ed25519.PrivateKey, protocol.Binding) (protocol.LogoutResult, error) {
 	c.deleteCalls++
@@ -209,6 +216,44 @@ func TestRelayMachineFailureBlocksPairingWithoutBreakingController(t *testing.T)
 				if err != nil || !bytes.Equal(original, after) {
 					t.Fatalf("corrupt machine identity was overwritten: %v", err)
 				}
+			}
+		})
+	}
+}
+
+func TestRelayMachinePollRejectionAllowsImmediateRecovery(t *testing.T) {
+	for _, code := range []protocol.Code{protocol.Conflict, protocol.Forbidden, protocol.Expired, protocol.Unauthenticated, protocol.Invalid, protocol.NotFound, protocol.Incompatible, protocol.Unavailable, protocol.UpstreamFailed, protocol.RateLimited} {
+		t.Run(string(code), func(t *testing.T) {
+			dir := t.TempDir()
+			client := &machineEnrollmentClient{pollFailure: protocol.Error{Code: code}, cancelFailure: protocol.Error{Code: protocol.Unavailable}}
+			rc := machineTestController(t, dir, client)
+			defer rc.Close()
+			enrollment, err := rc.Enroll(t.Context(), contract.RelayEnrollmentRequest{ConfirmPublic: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			seed := rc.settings.PendingSeed
+			rc.nextPoll = time.Time{}
+			_, err = rc.Poll(t.Context(), enrollment.Handle)
+			var remote protocol.Error
+			if !errors.As(err, &remote) || remote.Code != code {
+				t.Fatalf("poll rejection changed: %v", err)
+			}
+			uncertain := code == protocol.Unavailable || code == protocol.UpstreamFailed || code == protocol.RateLimited
+			if rc.Status().Pairing != uncertain || uncertain && rc.settings.PendingSeed != seed || !uncertain && rc.settings.PendingSeed != "" {
+				t.Fatal("poll outcome lost the pending-key boundary")
+			}
+			stored, fromWeb, err := relaysetting.Inspect(dir, rc.settings.Config)
+			if err != nil || !fromWeb || stored.PendingSeed != rc.settings.PendingSeed {
+				t.Fatalf("pending-key transition was not persisted: %v", err)
+			}
+			_, err = rc.Enroll(t.Context(), contract.RelayEnrollmentRequest{ConfirmPublic: true, Rebind: true})
+			if uncertain {
+				if !errors.As(err, &remote) || remote.Code != protocol.Conflict {
+					t.Fatalf("uncertain enrollment was replaced: %v", err)
+				}
+			} else if err != nil {
+				t.Fatalf("definitive rejection blocked explicit recovery: %v", err)
 			}
 		})
 	}

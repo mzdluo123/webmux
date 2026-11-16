@@ -86,10 +86,12 @@ func (rc *relayController) Poll(ctx context.Context, handle protocol.Token) (con
 	rc.mu.Unlock()
 	result, err := rc.client.Poll(ctx, handle)
 	if err != nil {
+		err = rc.rejectEnrollment(ctx, handle, err)
 		return rc.Status(), err
 	}
 	if next.Binding != nil && (result.Binding.HostID != next.Binding.HostID || result.Binding.PublicURL != next.Binding.PublicURL || result.Binding.OwnerID != next.Binding.OwnerID || result.Binding.BindingGeneration <= next.Binding.BindingGeneration) {
-		return rc.Status(), protocol.Error{Code: protocol.Forbidden}
+		err = rc.rejectEnrollment(ctx, handle, protocol.Error{Code: protocol.Forbidden})
+		return rc.Status(), err
 	}
 	rc.stop(ctx)
 	next.Config.Enabled = false
@@ -107,6 +109,36 @@ func (rc *relayController) Poll(ctx context.Context, handle protocol.Token) (con
 	rc.pending = [32]byte{}
 	rc.mu.Unlock()
 	return rc.Status(), nil
+}
+
+// Definitive rejections discard only the pending key, never a live binding.
+// Uncertain transport failures retain the handle and key for cancellation.
+func (rc *relayController) rejectEnrollment(ctx context.Context, handle protocol.Token, cause error) error {
+	var remote protocol.Error
+	if !errors.As(cause, &remote) {
+		return cause
+	}
+	switch remote.Code {
+	case protocol.Conflict, protocol.Forbidden, protocol.Expired, protocol.Unauthenticated, protocol.Invalid, protocol.NotFound, protocol.Incompatible:
+	default:
+		return cause
+	}
+	rc.mu.Lock()
+	next := rc.settings
+	rc.mu.Unlock()
+	next.PendingSeed = ""
+	if err := rc.store.Save(next); err != nil {
+		return err
+	}
+	rc.mu.Lock()
+	rc.settings = next
+	rc.pendingExpires = 0
+	rc.pending = [32]byte{}
+	rc.mu.Unlock()
+	// The rejected attempt is already unusable locally; remote cleanup is
+	// best effort under the original request deadline.
+	_ = rc.client.Cancel(ctx, handle)
+	return cause
 }
 
 func (rc *relayController) Cancel(ctx context.Context, handle protocol.Token) error {
