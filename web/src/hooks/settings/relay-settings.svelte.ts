@@ -47,6 +47,13 @@ function failureMessage(cause: unknown) {
   }
 }
 
+function definitivePairingFailure(cause: unknown) {
+  return (
+    cause instanceof APIError &&
+    [400, 401, 403, 404, 409, 410, 426].includes(cause.status)
+  );
+}
+
 export function useRelaySettings() {
   let failure = $state<unknown>();
   let notice = $state<"paired" | "cancelled" | "completed" | "pending">();
@@ -147,10 +154,7 @@ export function useRelaySettings() {
     } catch (cause) {
       if (!ticket.reportable() || revision !== pairingRevision) return;
       failure = cause;
-      if (
-        cause instanceof APIError &&
-        [400, 401, 403, 404, 409, 410, 426].includes(cause.status)
-      ) {
+      if (definitivePairingFailure(cause)) {
         clearPairing();
         void refresh();
       }
@@ -210,9 +214,15 @@ export function useRelaySettings() {
         notice = "cancelled";
       }
     } catch (cause) {
-      if (ticket.reportable()) failure = cause;
+      if (ticket.reportable()) {
+        failure = cause;
+        if (definitivePairingFailure(cause)) clearPairing();
+      }
     } finally {
-      if (ticket.current()) ui.busy = false;
+      if (ticket.current()) {
+        ui.busy = false;
+        if (!ui.enrollment) void refresh();
+      }
     }
   }
 

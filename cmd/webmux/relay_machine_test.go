@@ -258,3 +258,34 @@ func TestRelayMachinePollRejectionAllowsImmediateRecovery(t *testing.T) {
 		})
 	}
 }
+
+func TestRelayMachineTerminalCancellationAllowsRecovery(t *testing.T) {
+	for _, code := range []protocol.Code{protocol.Expired, protocol.Conflict, protocol.NotFound, protocol.Unavailable} {
+		t.Run(string(code), func(t *testing.T) {
+			client := &machineEnrollmentClient{cancelFailure: protocol.Error{Code: code}}
+			rc := machineTestController(t, t.TempDir(), client)
+			defer rc.Close()
+			enrollment, err := rc.Enroll(t.Context(), contract.RelayEnrollmentRequest{ConfirmPublic: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = rc.Cancel(t.Context(), enrollment.Handle)
+			var remote protocol.Error
+			if !errors.As(err, &remote) || remote.Code != code {
+				t.Fatalf("cancellation outcome changed: %v", err)
+			}
+			uncertain := code == protocol.Unavailable
+			if rc.Status().Pairing != uncertain {
+				t.Fatal("cancellation retained an unusable attempt or discarded an uncertain one")
+			}
+			_, err = rc.Enroll(t.Context(), contract.RelayEnrollmentRequest{ConfirmPublic: true, Rebind: true})
+			if uncertain {
+				if !errors.As(err, &remote) || remote.Code != protocol.Conflict {
+					t.Fatalf("uncertain cancellation replaced a live attempt: %v", err)
+				}
+			} else if err != nil {
+				t.Fatalf("terminal cancellation blocked recovery: %v", err)
+			}
+		})
+	}
+}

@@ -202,7 +202,7 @@ test("recover a server binding when this installation is locally unpaired", asyn
       }
       cancelled = true;
       status = { ...status, pairing: false };
-      await route.fulfill({ status: 204 });
+      await route.fulfill({ status: 410, json: { error: "expired" } });
     } else if (path === "/api/relay/enrollments") {
       const body: unknown = request.postDataJSON();
       enrollmentRequests.push(body);
