@@ -216,6 +216,7 @@ func (s *connection) stop(err error) {
 	}
 	s.stopped = true
 	s.err = err
+	relayDebug("connection-stop", protocol.RoleControl, err)
 	s.client.mu.Lock()
 	if s.client.active == s {
 		s.client.active = nil
@@ -416,6 +417,8 @@ func permanentError(err error) bool {
 
 // ctx owns the physical lifetime; authCtx may impose a shorter growth budget.
 func (c *Client) dial(ctx, authCtx context.Context, key ed25519.PrivateKey, a protocol.Assignment, role protocol.Role, expected protocol.Scope) (_ *physical, err error) {
+	stage := "assignment-validation"
+	defer func() { relayDebug(stage, role, err) }()
 	// Only a new primary depends on discovery expiry. Every auxiliary is
 	// independently authorized within its exact, still-live logical scope.
 	if role == protocol.RoleControl && expected.ConnectorGeneration == 0 {
@@ -429,8 +432,10 @@ func (c *Client) dial(ctx, authCtx context.Context, key ed25519.PrivateKey, a pr
 	defer cancel()
 	httpClient := c.httpClient(&a.Trust)
 	defer httpClient.CloseIdleConnections()
+	stage = "wss-dial"
 	ws, response, err := websocket.Dial(authCtx, a.ConnectorURL, &websocket.DialOptions{HTTPClient: httpClient, Subprotocols: []string{protocol.ConnectorSubprotocol}, CompressionMode: websocket.CompressionDisabled})
 	if err != nil {
+		relayDebug(stage, role, err)
 		if response != nil && response.StatusCode >= 300 && response.StatusCode < 400 {
 			return nil, protocol.Error{Code: protocol.Forbidden}
 		}
@@ -449,13 +454,16 @@ func (c *Client) dial(ctx, authCtx context.Context, key ed25519.PrivateKey, a pr
 	if expected.ConnectorGeneration > 0 {
 		hello.ConnectorGeneration = expected.ConnectorGeneration
 	}
+	stage = "hello-write"
 	if err := writeAuth(authCtx, ws, hello); err != nil {
 		return nil, err
 	}
 	var challenge protocol.ConnectorChallenge
+	stage = "challenge-read"
 	if err := readAuth(authCtx, ws, &challenge); err != nil {
 		return nil, err
 	}
+	stage = "challenge-validation"
 	if err := checkChallenge(challenge, a, role, expected, time.Now()); err != nil {
 		return nil, err
 	}
@@ -463,13 +471,16 @@ func (c *Client) dial(ctx, authCtx context.Context, key ed25519.PrivateKey, a pr
 	if err != nil {
 		return nil, err
 	}
+	stage = "proof-write"
 	if err := writeAuth(authCtx, ws, proof); err != nil {
 		return nil, err
 	}
 	var ready protocol.ConnectorReady
+	stage = "ready-read"
 	if err := readAuth(authCtx, ws, &ready); err != nil {
 		return nil, err
 	}
+	stage = "ready-validation"
 	scope := protocol.Scope{HostID: challenge.HostID, BindingGeneration: challenge.BindingGeneration, ConnectorGeneration: challenge.ConnectorGeneration, ControlEpoch: challenge.ControlEpoch, NodeEpoch: challenge.NodeEpoch}
 	if ready.Version != protocol.V1 || ready.HostID != scope.HostID || ready.BindingGeneration != scope.BindingGeneration || ready.ConnectorGeneration != scope.ConnectorGeneration || ready.ControlEpoch != scope.ControlEpoch || ready.NodeEpoch != scope.NodeEpoch || ready.Role != role {
 		return nil, protocol.Error{Code: protocol.StaleGeneration}
@@ -477,10 +488,12 @@ func (c *Client) dial(ctx, authCtx context.Context, key ed25519.PrivateKey, a pr
 	conn := websocket.NetConn(ctx, ws, websocket.MessageBinary)
 	// NetConn disables this limit, so restore it AFTER creating the adapter.
 	ws.SetReadLimit(maxBinaryMessage)
+	stage = "smux-start"
 	mux, err := smux.Client(conn, smuxConfig())
 	if err != nil {
 		return nil, protocol.Error{Code: protocol.InvalidConfig}
 	}
+	stage = "authenticated"
 	return &physical{ws: ws, mux: mux, scope: scope}, nil
 }
 
@@ -521,6 +534,7 @@ func writeAuth(ctx context.Context, ws *websocket.Conn, value any) error {
 func readAuth(ctx context.Context, ws *websocket.Conn, value any) error {
 	kind, data, err := ws.Read(ctx)
 	if err != nil {
+		relayDebug("auth-read", "", err)
 		return transportError(ctx, err)
 	}
 	if kind != websocket.MessageText {

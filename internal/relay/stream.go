@@ -17,6 +17,7 @@ func (s *connection) accept(p *physical, role protocol.Role) error {
 	for {
 		stream, err := p.mux.AcceptStream()
 		if err != nil {
+			relayDebug("stream-accept", role, err)
 			return protocol.Error{Code: protocol.Unavailable}
 		}
 		select {

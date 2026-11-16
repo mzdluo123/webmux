@@ -129,7 +129,9 @@ func (c *Client) httpClient(trust *protocol.ServiceTrust) *http.Client {
 			if state.Version < tls.VersionTLS13 || len(state.VerifiedChains) == 0 || len(state.PeerCertificates) == 0 {
 				return protocol.Error{Code: protocol.Unauthenticated}
 			}
-			return protocol.VerifyCertificatePin(state.PeerCertificates[0], *trust)
+			err := protocol.VerifyCertificatePin(state.PeerCertificates[0], *trust)
+			relayDebug("tls-pin", "", err)
+			return err
 		}
 	}
 	return &http.Client{

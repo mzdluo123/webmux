@@ -93,10 +93,12 @@ func (r *controlRPC) writeLoop() {
 				err = protocol.WriteFrame(r.stream, item.message, protocol.MaxControlBytes)
 			}
 			if err != nil {
+				relayDebug("control-write", protocol.RoleControl, err)
 				item.done <- protocol.Error{Code: protocol.Unavailable}
 				r.session.stop(protocol.Error{Code: protocol.Unavailable})
 				return
 			}
+			relayDebug("control-sent", protocol.RoleControl, nil, item.message.Type)
 			item.done <- nil
 		}
 	}
@@ -106,13 +108,16 @@ func (r *controlRPC) readLoop() {
 	for {
 		var message protocol.ControlMessage
 		if err := protocol.ReadFrame(r.stream, &message, protocol.MaxControlBytes); err != nil {
+			relayDebug("control-read", protocol.RoleControl, err)
 			r.session.stop(protocol.Error{Code: protocol.Unavailable})
 			return
 		}
 		if err := message.Validate(r.session.scope, time.Now()); err != nil {
+			relayDebug("control-validation", protocol.RoleControl, err)
 			r.session.stop(err)
 			return
 		}
+		relayDebug("control-received", protocol.RoleControl, nil, message.Type)
 		switch message.Type {
 		case protocol.ControlPing:
 			if err := r.send(r.session.ctx, r.message(protocol.ControlPong, message.RequestID)); err != nil {
@@ -197,6 +202,7 @@ func (r *controlRPC) heartbeat() {
 			}
 			r.mu.Unlock()
 			if expired {
+				relayDebug("heartbeat-expired", protocol.RoleControl, protocol.Error{Code: protocol.Expired})
 				r.session.stop(protocol.Error{Code: protocol.Expired})
 				return
 			}
