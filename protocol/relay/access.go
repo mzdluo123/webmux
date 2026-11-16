@@ -8,17 +8,20 @@ import (
 	"time"
 )
 
+// BindingAPIVersion rejects the retired restore-and-rekey lifecycle.
+const BindingAPIVersion Version = 2
+
 const (
-	PathEnrollments      = "/v1/enrollments"
-	PathEnrollmentPoll   = "/v1/enrollments/poll"
+	PathEnrollments      = "/v2/enrollments"
+	PathEnrollmentPoll   = "/v2/enrollments/poll"
 	PathHostChallenge    = "/v1/hosts/challenge"
 	PathAssignments      = "/v1/assignments"
-	PathBinding          = "/v1/binding"
+	PathBinding          = "/v2/binding"
 	PathConnector        = "/v1/connector"
 	PathGitHubStart      = "/v1/auth/github/start"
 	PathGitHubCallback   = "/v1/auth/github/callback"
 	PathConsole          = "/v1/console"
-	PathConsoleHosts     = "/v1/console/hosts"
+	PathConsoleHosts     = "/v2/console/hosts"
 	PathConsoleLogout    = "/v1/console/logout"
 	PathLoginAuthorize   = "/v1/login-grants/authorize"
 	PathNodeControl      = "/v1/nodes/control"
@@ -33,18 +36,15 @@ const (
 type EnrollmentRequest struct {
 	Version   Version   `json:"version"`
 	PublicKey PublicKey `json:"publicKey"`
-	MachineID MachineID `json:"machineId,omitempty"`
-	Rebind    bool      `json:"rebind"`
+	MachineID MachineID `json:"machineId"`
 }
 
 func (r EnrollmentRequest) Validate() error {
-	if r.Version != V1 {
+	if r.Version != BindingAPIVersion {
 		return Error{Code: Incompatible}
 	}
-	if r.MachineID != "" {
-		if err := r.MachineID.Validate(); err != nil {
-			return err
-		}
+	if err := r.MachineID.Validate(); err != nil {
+		return err
 	}
 	_, err := r.PublicKey.Parse()
 	return err
@@ -346,7 +346,7 @@ type ConsoleHosts struct {
 	Hosts   []ConsoleHost `json:"hosts"`
 }
 
-// ConsoleHostDelete fences owner-confirmed deletion against a later rebind.
+// ConsoleHostDelete fences owner-confirmed deletion against a newer binding.
 type ConsoleHostDelete struct {
 	Version           Version `json:"version"`
 	HostID            HostID  `json:"hostId"`
@@ -354,7 +354,7 @@ type ConsoleHostDelete struct {
 }
 
 func (r ConsoleHostDelete) Validate() error {
-	if r.Version != V1 {
+	if r.Version != BindingAPIVersion {
 		return Error{Code: Incompatible}
 	}
 	if err := r.HostID.Validate(); err != nil {
@@ -364,6 +364,14 @@ func (r ConsoleHostDelete) Validate() error {
 		return Error{Code: Invalid}
 	}
 	return nil
+}
+
+// BindingDeletionResult separates record removal from remote access closure.
+type BindingDeletionResult struct {
+	Version      Version `json:"version"`
+	RevocationID Token   `json:"revocationId"`
+	Deleted      bool    `json:"deleted"`
+	AccessClosed bool    `json:"accessClosed"`
 }
 
 type LogoutResult struct {

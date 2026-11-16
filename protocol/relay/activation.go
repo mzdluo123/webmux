@@ -3,7 +3,7 @@ package relay
 import "time"
 
 func (e Enrollment) Validate(now time.Time) error {
-	if e.Version != V1 {
+	if e.Version != BindingAPIVersion {
 		return Error{Code: Incompatible}
 	}
 	if err := e.Handle.Validate(); err != nil {
@@ -22,10 +22,20 @@ func (e Enrollment) Validate(now time.Time) error {
 }
 
 func (r EnrollmentPoll) Validate() error {
-	if r.Version != V1 {
+	if r.Version != BindingAPIVersion {
 		return Error{Code: Incompatible}
 	}
 	return r.Handle.Validate()
+}
+
+func (r BindingDeletionResult) Validate() error {
+	if r.Version != BindingAPIVersion {
+		return Error{Code: Incompatible}
+	}
+	if !r.Deleted {
+		return Error{Code: Invalid}
+	}
+	return r.RevocationID.Validate()
 }
 
 func (r HostChallengeRequest) Validate() error {
