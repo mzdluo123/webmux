@@ -166,7 +166,9 @@
 - 文件位于会话临时文件夹的 `uploads/` 中，同名时追加 ` (2)` 等序号而不覆盖。
 - 单文件上限 100 MiB（超限 413），读期限 5 分钟（超时 408）。
 - 无效请求 400，会话不存在 404，会话已退出 409，临时文件夹不可用 503。
-- `GET /api/sessions/{id}/upload?path=<服务器绝对路径>` 读取该会话 `uploads/` 内的普通非符号链接文件（上限 10 MiB，超限 413），按文件内容嗅探 `Content-Type` 并返回原始字节；其他路径或不存在的文件返回 400，会话不存在 404。
+- `GET /api/sessions/{id}/upload?path=<服务器绝对路径>` 读取该会话 `uploads/` 内的普通非符号链接文件（上限 10 MiB，超限 413），返回原始字节与 `Content-Security-Policy: default-src 'none'; sandbox`；其他路径或不存在的文件返回 400，会话不存在 404。
+  - 嗅探属于光栅图片白名单（`image/png`、`image/jpeg`、`image/gif`、`image/webp`、`image/avif`、`image/bmp`、`image/x-icon`）时返回对应 `Content-Type` 与 `Content-Disposition: inline`；
+  - 其余类型统一返回 `Content-Type: application/octet-stream` 与 `Content-Disposition: attachment`。
 
 **会话临时文件夹**：`POST /api/sessions/{id}/artifacts` 幂等地创建并返回 `$TMPDIR/webmux-artifacts-<uid>-<实例摘要>/<会话ID>`（0700）。
 

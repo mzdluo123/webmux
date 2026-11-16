@@ -7,7 +7,10 @@
   - `state.promptCapabilities` 取自 ACP `initialize`，声明 `image` 时 PNG/JPEG/GIF/WebP 以 base64 `image` 块发送且字节一致，声明 `embeddedContext` 时其他附件以文本或 blob `resource` 块发送，否则按服务器路径降级并在时间线提示，图片能力不足时输入框提前提示；
   - Claude 连接器 0.99.1 声明图片与嵌入资源并复用同一管线，但不把该实测能力推广为未来 `latest` 或所有 MIME 类型的保证；
   - 队列条目跨设备带附件元数据，编辑文本保留附件，切到终端时附件路径并入退回的草稿，重启不持久化附件；
-  - 只接受上传目录内、非符号链接的普通文件（临时目录本身可以是符号链接，如 macOS `/var`），单文件 10 MiB、单条最多 8 个且合计 20 MiB，越界或超限在读取前拒绝。
+  - 只接受上传目录内、非符号链接的普通文件（临时目录本身可以是符号链接，如 macOS `/var`），单文件 10 MiB、单条最多 8 个且合计 20 MiB，越界或超限在读取前拒绝；
+  - `GET /api/sessions/{id}/upload?path=...` 携带 `Content-Security-Policy: default-src 'none'; sandbox`：
+    - 光栅图片白名单（`image/png`、`image/jpeg`、`image/gif`、`image/webp`、`image/avif`、`image/bmp`、`image/x-icon`）按嗅探类型与 `Content-Disposition: inline` 返回；
+    - 其余类型统一以 `Content-Type: application/octet-stream` 与 `Content-Disposition: attachment` 下载。
 - **US-Q16 第三方连接器安装提示**：作为使用者，我希望在 agent 的聊天端需要另外安装的连接器缺失时得到明确的安装指引，以便知道需要安装的连接器与安装方法。
   验收要点：
   - 档案声明的连接器（Codex 的 `codex-acp`、Claude Code 的 `claude-agent-acp`）在每次启动 ACP 进程前（资格探测、从聊天开始、切到聊天、恢复到聊天、重连）按启动配置的写法检查（直接执行查启动配置环境的 PATH，“加载 shell 启动文件”经同一 Bash/Zsh 包装执行 `command -v`）；

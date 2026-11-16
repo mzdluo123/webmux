@@ -19,6 +19,7 @@ Q 组以选择 `chat` 及其 `launch`、`files` 依赖为前提。工作树操�
 - [agent 注册表](../../internal/agentprofile/agents/agents.go)、[Codex 适配器](../../internal/agent/codex/codex.go)、[适配器契约测试](../../internal/agent/agenttest/agenttest.go)
 - [Claude Code 适配器](../../internal/agent/claudecode/claudecode.go)、[Claude 注册记录](../../internal/agent/claudecode/registry.go)、[Antigravity CLI 适配器](../../internal/agent/agy/agy.go)
 - [会话外壳与伴随进程](../../internal/session/lifecycle.go)、[进程事实](../../internal/session/process_facts.go)、[聊天接口](../../internal/featureapi/chat.go)、[聊天通道](../../internal/featurehub/chat.go)
+- [上传接口](../../internal/featureapi/upload.go)、[上传测试](../../internal/api/upload_test.go)
 - [启动配置](../../internal/launch/types.go)、[聊天视图](../../web/src/components/chat/)、[代码链接解析](../../web/src/domains/code/markdown-link.ts)、[代码工作区](../../web/src/components/code/CodeWorkspace.svelte)、[会话页](../../web/src/pages/Terminal.svelte)
 - [会话引用](../../web/src/domains/sessions/session-reference.ts)、[侧栏会话菜单](../../web/src/components/shell/SidebarSessionMenu.svelte)、[引用解析用例](../../web/test/session-reference.test.ts)。
 - [已归档记录](../../web/src/components/sessions/ArchivedSessions.svelte)、[归位规则](../../web/src/domains/sessions/archived.ts)、[安装提示](../../web/src/components/sessions/ConnectorInstallHint.svelte)、[原生附着](../../internal/attach/attach.go)
