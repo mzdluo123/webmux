@@ -332,21 +332,7 @@ func (rc *relayController) run(ctx context.Context, gen uint64, settings relayse
 				Ready: func(scope protocol.Scope) {
 					rc.connected(ctx, gen, settings, scope)
 				},
-				BulkReady: func(ready bool) {
-					rc.mu.Lock()
-					defer rc.mu.Unlock()
-					if gen != rc.generation {
-						return
-					}
-					rc.status.BulkReady = ready
-					if ready {
-						rc.status.ReadyConnections = 2
-						rc.status.State = "ready"
-					} else if rc.status.ControlReady {
-						rc.status.ReadyConnections = 1
-						rc.status.State = "degraded"
-					}
-				},
+				PoolsReady:   func(interactive, bulk bool) { rc.poolsReady(gen, interactive, bulk) },
 				Disconnected: func() { rc.disconnected(gen) },
 				Revoke:       func(ctx context.Context, r protocol.Revocation) error { return rc.revoke(ctx, gen, r) },
 			})
@@ -411,8 +397,8 @@ func (rc *relayController) connected(ctx context.Context, gen uint64, settings r
 	}
 	rc.scope = scope
 	rc.status.ControlReady = true
-	rc.status.State = "degraded"
-	rc.status.ReadyConnections = 1
+	rc.status.State = "connecting"
+	rc.status.ReadyConnections = 0
 	rc.status.PublicURL = settings.Binding.PublicURL
 	rc.status.DataReachability = "reachable"
 	rc.status.AppliedRevision = rc.status.ConfigRevision
