@@ -230,7 +230,7 @@ func TestSendQueuedPromptNotices(t *testing.T) {
 	if stdout.Len() != 0 {
 		t.Fatalf("queued send wrote standard output: %q", stdout.String())
 	}
-	want := "webmux: queued as q1 (position 2); the chat is busy. Use --mode steer to inject it now, or --mode now to cancel the turn\n"
+	want := "webmux: queued as q1 (position 2); waiting for the queue to send it. Before switching to --mode steer, check the item's status and remove only your own item confirmed still queued; sending again can duplicate work\n"
 	if stderr.String() != want {
 		t.Fatalf("queued notice %q, want %q", stderr.String(), want)
 	}

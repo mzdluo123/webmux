@@ -53,14 +53,25 @@ func (c Client) actionTools() []mcpprotocol.Tool {
 		"keys":            desc(stringsArray(), "Terminal view only (the CLI's --key): named keys sent after the text — backspace, ctrl-c, ctrl-d, down, enter, esc, left, right, tab, up. Rejected with wrong_view on the chat view."),
 	}
 	if c.hasCapability("chat.acp") {
-		input["mode"] = desc(enumeration("auto", "steer", "refuse", "now"), "Chat view only (the CLI's --mode): auto (send now or queue, the default), steer (inject into the running turn), refuse (fail busy instead of queueing) or now (cancel the running turn and send next).")
+		input["mode"] = desc(enumeration("auto", "steer", "refuse", "now"), "Chat view only (the CLI's --mode). "+
+			"auto (default): use for an independent next task; after readiness and input validation, start only when no turn is running, the queue is unpaused and empty, and the agent connection is available; otherwise queue. "+
+			"steer: use to supplement or correct the current task; requires a linked agent, a profile implementing Steerer, chat.Steering and a running turn. It does not cancel the turn or guarantee immediate processing. "+
+			"After connection and view checks, missing support or no running turn returns steering_unavailable. "+
+			"Only an adapter promptRequired race outcome puts the input at the queue head; startedNewTurn warns that the adapter started a turn WebMux does not track. "+
+			"refuse: use when automation must not queue; after readiness and input validation, start under the same conditions as auto, otherwise return busy. "+
+			"now: use only to explicitly stop and replace the current task; cancellation can interrupt work. Cancel a running turn and prioritize this input at the queue head, or send directly when no turn is running and the connection is available; with neither a running turn nor a connection, return busy.")
 	}
 	if c.hasCapability("files.upload") {
 		input["attachments"] = desc(attachmentSchema(), "Chat view only (the CLI's --attach-file): uploaded file references ({path}) sent with the prompt.")
 	}
 	return []mcpprotocol.Tool{
 		tool("session_launch", "Create a session, optionally using the instance's enabled launch/workspace/chat capabilities. Requires a stable clientRequestId; retry the identical request after a lost response. Creation is deduplicated by the server for ten minutes, in memory only. Partial failures retain created resources.", false, create, []string{"clientRequestId"}, c.launch),
-		tool("session_send", "Send input through the current session view: typed text on the terminal view, a prompt on the chat view. Reuse clientRequestId on retries. Chat returns turnId or queued itemId; terminal acceptance does not prove execution or completion. Read state before sending.", false, map[string]any{
+		tool("session_send", "Send input through the current session view: typed text on the terminal view, a prompt on the chat view. "+
+			"Read state before sending. Choose steer for a current-task supplement, auto for an independent next task, now for an explicit stop-and-replace, or refuse when queueing is unacceptable. "+
+			"If the input is already queued, check its status and remove only your own item confirmed still queued before deciding whether to steer, to avoid duplicate delivery. This control MCP has no queue-removal tool; use an available CLI/API or ask the user to remove it. "+
+			"Retry with the same clientRequestId and identical payload; use a new id for a new operation. "+
+			"Chat receipts may contain a turnId or queued itemId; steer usually has neither turnId nor promptId. "+
+			"A successful steer receipt does not prove understanding or completion; terminal acceptance does not prove execution or completion.", false, map[string]any{
 			"sessionId": sessionIDSchema(), "request": desc(object(input, "clientRequestId", "text"), "Same shape as the body of POST /api/sessions/{id}/input."),
 		}, []string{"sessionId", "request"}, c.send),
 		tool("session_interrupt", "Interrupt the current chat turn or send the terminal interrupt key. Does not delete the session or its history. Reuse clientRequestId on retries.", false, map[string]any{
@@ -72,7 +83,7 @@ func sessionIDSchema() map[string]any {
 	return desc(text(), "Session id, for example from session_list or session_launch.")
 }
 func requestIDSchema() map[string]any {
-	return desc(text(), "Stable request id, 8-64 letters, digits, - or _. Reuse it verbatim when retrying a lost response; generate a new one for a new operation.")
+	return desc(text(), "Stable request id, 8-64 letters, digits, - or _. Reuse it with the identical payload when retrying a lost response; generate a new one for a new operation.")
 }
 func attachmentSchema() map[string]any {
 	return map[string]any{"type": "array", "items": object(map[string]any{"path": text(), "name": text(), "mimeType": text(), "kind": text(), "size": integer(0, 1<<30)}, "path")}

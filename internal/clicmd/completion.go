@@ -147,7 +147,12 @@ func (e Env) optionValues(ctx context.Context, name string) [][2]string {
 	case "view":
 		return [][2]string{{"terminal", ""}, {"chat", ""}}
 	case "mode":
-		return [][2]string{{"auto", "send now or queue"}, {"steer", "inject into the running turn"}}
+		return [][2]string{
+			{"auto", "next task: start with no turn, an empty unpaused queue and a connection; otherwise queue"},
+			{"steer", "supplement a supported running turn without cancelling; processing may happen later"},
+			{"refuse", "same start conditions as auto; otherwise fail with busy instead of queueing"},
+			{"now", "cancel the running turn and send next with priority; send directly if no turn is running and connected"},
+		}
 	case "state":
 		var out [][2]string
 		for _, s := range listStates {

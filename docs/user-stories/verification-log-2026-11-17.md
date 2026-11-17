@@ -167,3 +167,21 @@
 - 一次高负载 E2E 运行中，代码阅读用例在创建 Shell 时收到 129；该用例随后在桌面和手机项目均单独通过，最终完整 E2E 为 558 通过、52 跳过。
 - 真实隔离应用的桌面、平板、手机明暗主题前后截图使用相同会话、功能选择与菜单状态；所有删除后视口保留 TV/头显入口、没有 VR 入口，且无页面横向溢出。
 - 未验证真实头显/TV 硬件、真实悬停或粗指针行为。本次为静态入口删除，无交互动画 GIF。
+
+## 聊天输入模式说明（US-Q08、US-S14）
+
+### 范围
+
+- 校正操作手册、CLI 帮助与排队提示、MCP 工具描述及 HTTP 协议中的 `auto`、`steer`、`refuse`、`now` 选择条件。
+- 补充插话能力、回合结束竞态、回执证据与排队项迁移防重复步骤；调度逻辑、默认模式、API 行为和前端交互保持不变，故事编号与数量不变。
+
+### 已执行验证
+
+- `make docs-check` 通过，覆盖文档规模、链接、可达性及故事目录。
+- `make web` 完成，本分支 `go build -o /tmp/webmux-clarify-chat-input-modes ./cmd/webmux` 成功。
+- 实际运行该二进制的 `send --help`、`chat queue rm --help`，观察模式选择说明及队列项命令参数。
+- 用不存在的独立 socket 执行 `guide sessions` 与 `guide chat`，确认输出来自本分支嵌入手册，包含四模式及排队项迁移步骤。
+- `go test ./internal/clicmd ./internal/mcpcontrol ./internal/agentguide` 首轮发现手册链接守卫不接受页内锚点；改用主题页链接后，受影响的 agentguide、mcpcontrol 包复测通过，clicmd 首轮通过。
+- 通过临时程序运行本分支真实 MCP Registry 的 initialize、tools/list 和 guide_read，离线导出工具及主题说明，观察到模式条件、`steering_unavailable`、竞态及回执边界；程序随后删除。
+- `make format` 已执行；文档治理在格式化后再次通过。
+- 本次为说明修正，未创建收费模型会话，也未重启或部署生产服务。
