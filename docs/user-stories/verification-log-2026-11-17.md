@@ -110,3 +110,27 @@
 - 诊断原会话时拦截浏览器终端发送，观察到重复颜色应答；修复验收使用隔离服务，生产会话保持原样。
 - 首轮 CI 发现新增正则触发控制字符 lint，已有 attention 用例要求历史查询回写；前者改用可读转义标记匹配，后者改为通过步骤文件触发实时查询，验证应答到达 PTY 后提醒仍保留，并验证重开页面没有额外应答。
 - 修订后运行 `pnpm --dir web lint` 通过；Playwright 按 `opening a session does not clear attention|reopening suppresses` 筛选两个文件，桌面与 iPhone SE 共 4 项通过。
+
+## 独立频道消息（US-S26、US-K18–US-K21）
+
+### 行为
+
+- 新增显式选择的 `messaging` 功能，在「设置 → 频道消息」创建频道、分页读取本机历史并幂等发送。
+- 后端独立实现频道和消息存储，接口组织参考 Relaycast；状态目录中保存私有快照与生命周期锁。
+- 固定旧版 14 项选择保留；禁用时不加载消息实现或打开消息存储。文档见[频道消息](../usage/messaging.md)。
+
+### 已执行验证
+
+- `umask 0022; go test -race ./cmd/webmux ./internal/api ./internal/messaging ./internal/featureapi ./internal/featurewire ./internal/config ./internal/builtin ./internal/localclient ./internal/mcpcontrol ./internal/statefile ./internal/archtest ./internal/docguard`：12 个包通过。
+- 首轮现有迁移测试依赖 0640 权限，受本机 umask 影响失败；按该测试预期的 umask 重跑后通过，迁移代码保持原样。
+- `pnpm --dir web check`、`check:test`、`lint`、`check:arch`：通过，包含 46 项架构与依赖测试；前端生产构建通过。
+- `pnpm --dir web exec vp test run --config vitest.browser.config.ts test/browser/MessagingPanel.test.ts test/browser/SettingsNavigation.test.ts`：12 项通过，覆盖创建频道、历史分页、频道草稿、发送失败与过期响应。
+- `pnpm --dir web exec playwright test test/e2e/messaging.spec.ts`：桌面与 iPhone SE 共 6 项通过，覆盖创建、发送、重启后读取、Token 与 Origin 拒绝。
+- 功能选择 E2E 的 40 项通过，包含独立 `messaging` 和固定旧版选择；`test/capabilities.test.ts`、`test/wire-contract.test.ts`、`test/wire-arrays.test.ts` 的 437 项通过。
+- `go vet` 对涉及的后端包通过；使用 Go 1.27.4 构建的固定 golangci-lint v2.15.0 检查全仓库，0 issues。
+- 真实隔离服务检查 1280×900、768×800、390×844、375×667、320×568、667×375 六种视口，浅色/深色共 12 组均无页面横向溢出；320px 下长连续文本可换行。
+- [桌面浅色](../images/messaging/desktop-light.png)、[桌面深色](../images/messaging/desktop-dark.png)来自真实消息面板。
+- [平板浅色](../images/messaging/tablet-light.png)、[平板深色](../images/messaging/tablet-dark.png)来自真实消息面板。
+- [手机浅色](../images/messaging/phone-light.png)、[手机深色](../images/messaging/phone-dark.png)来自真实消息面板。
+- [创建与发送录像](../images/messaging/create-send.gif)使用隔离频道，展示创建、键盘 Tab 焦点与 Enter 发送；发送按钮的 focus-visible 已验证。
+- 无头浏览器未验证真实悬停、粗指针与 iOS/Android 真机键盘。

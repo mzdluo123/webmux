@@ -31,6 +31,7 @@ const primaryCapabilities: Record<FeatureID, string> = {
   p2p: "p2p.direct",
   mcp: "mcp.control",
   immersive: "immersive.xr",
+  messaging: "messaging.messages",
 };
 
 export async function enableCreationFeatures(

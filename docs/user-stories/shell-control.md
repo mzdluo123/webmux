@@ -1,7 +1,7 @@
 # 脚本与 agent 控制
 
 本组描述脚本、CLI agent 与 MCP 客户端控制 WebMux 的能力。本机命令经 socket 访问，不需要 Token；网络 MCP 使用 owner Bearer。
-使用说明见 [脚本控制](../usage/shell-control.md)与 [MCP 控制](../usage/mcp.md)。本组共 25 条故事，编号 US-S01–US-S25。
+使用说明见 [脚本控制](../usage/shell-control.md)与 [MCP 控制](../usage/mcp.md)。本组共 26 条故事，编号 US-S01–US-S26。
 
 ## S. 脚本与 agent 控制
 
@@ -222,6 +222,15 @@
   - RPC ID 不替代业务 clientRequestId；响应丢失以新 RPC ID、原业务 ID/负载重试，既有去重窗口不扩大；超窗/重启先 inspect，续读/续等保持原 cursor/selector。
   - 远程 self=null、无推断 parent，服务端路径不是客户端文件访问；无 OAuth、SSE、Unix/P2P MCP、answer/view/upload 或冻结历史工具扩权。
   - [网络适配器](../../internal/mcphttp/handler.go)、[framing](../../internal/mcphttp/framing.go)、[生命周期](../../internal/mcphttp/lifecycle.go)与 [MCP 使用说明](../usage/mcp.md)。
+
+- **US-S26 独立频道消息面板**：作为 WebMux 使用者，我希望创建频道、阅读持久历史并发送消息，以便在同一实例中保留可查询的交流记录。
+  - 显式选择 `messaging` 后，在「设置 → 频道消息」创建具名频道、选择频道、刷新消息与加载更早历史；无需外部消息服务。
+  - 频道名称使用 1–64 个小写字母、数字、连字符或下划线，以字母或数字开头；主题最多 1024 UTF-8 字节，消息最多 32,000 UTF-8 字节。
+  - 服务端确认发送者为当前实例的 owner；同一请求 ID 和内容重复提交返回原消息，不创建副本；同 ID 的不同内容或频道返回冲突。
+  - 切换频道保留当前页面的各频道草稿；失败保留草稿，过期频道响应不能覆盖新选择；关闭页面取消待处理网络请求。
+  - 频道与消息写入状态目录，重启可读；容量上限为 100 频道、10,000 消息及 16 MiB 文件，超限拒绝新写入并保留数据。
+  - 损坏、锁冲突或发布结果不确定使消息功能不可用；原有 PTY 保持独立。禁用时无消息路由、实现 chunk 或消息 I/O。
+  - 接口继承 WebMux 认证及 Origin 校验；[使用与接口](../usage/messaging.md)、[服务](../../internal/messaging/service.go)、[面板](../../web/src/components/settings/MessagingPanel.svelte)。
 
 ### 依据
 

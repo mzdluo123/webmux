@@ -28,6 +28,7 @@ var definitions = []Definition{
 	{ID: "p2p"},
 	{ID: "mcp"},
 	{ID: "immersive"},
+	{ID: "messaging"},
 }
 
 // Keep this upgrade default fixed: future catalog additions must not silently

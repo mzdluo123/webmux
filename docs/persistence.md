@@ -12,6 +12,7 @@
 | ------------------- | ------------------------ | ----------------------------- | ---------------------------- | --------------------- | -------- |
 | bootstrap           | config.toml              | none                          | internal/config + cmd/webmux | 配置错误阻止启动      | 否       |
 | launch              | launch-configs.json      | launch-configs.json.lock      | internal/launch              | unavailable           | 是       |
+| messaging           | messaging.json           | messaging.json.lock           | internal/messaging           | unavailable           | 是       |
 | repositories        | repositories.json        | repositories.json.lock        | internal/workspace           | unavailable           | 是       |
 | projects            | projects.json            | projects.json.lock            | internal/workspace           | unavailable           | 是       |
 | project-clones      | project-clones.json      | project-clones.json.lock      | internal/workspace           | unavailable           | 是       |
@@ -97,6 +98,14 @@
   - 配置写入走临时文件加改名，保留原权限与其他内容。
   - 不触碰 WebMux 状态目录；Kimi 不写持久信任记录。
   - 主目录、其上级目录和文件系统根永不写入或注入。
+
+## 频道消息存储
+
+选择 `messaging` 后打开 `messaging.json` 的生命周期锁；首次创建频道或发送消息时提交 v1 快照。
+快照包含频道名称与主题、消息正文、服务端发送身份、时间、递增 ID 和发送请求 ID。
+上限为 100 个频道、10,000 条消息及 16 MiB 编码后文件；达到任一上限时拒绝新写入并保留现有数据。
+读取、原子提交、0600 权限、损坏保留、跨进程互斥与发布结果不确定后的冻结由 `internal/statefile` 提供。
+禁用功能时不打开存储；重新启用后仍可读取原有历史。查看与分页不修改文件，也不自动清理历史。
 
 ## 磁盘与活进程诊断
 

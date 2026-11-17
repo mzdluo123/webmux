@@ -13,6 +13,7 @@ import (
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
+	"github.com/rainchan/webmux/internal/messaging"
 	"github.com/rainchan/webmux/internal/p2p"
 	"github.com/rainchan/webmux/internal/p2psettings"
 	"github.com/rainchan/webmux/internal/push"
@@ -27,6 +28,7 @@ import (
 // featureServices is an explicit composition-root record, not a service lookup
 // container. A disabled feature has no service instance or lifetime to release.
 type featureServices struct {
+	messaging         *messaging.Service
 	agents            *agentprofile.Registry
 	launch            *launch.Service
 	agentTools        *agentcheck.Service
@@ -90,6 +92,9 @@ func (p *featureServices) stop() {
 
 // release runs after the core PTYs and connection handlers have stopped.
 func (p *featureServices) release() {
+	if p.messaging != nil {
+		p.messaging.Close()
+	}
 	if p.code != nil {
 		p.code.Close()
 	}

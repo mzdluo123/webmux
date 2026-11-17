@@ -93,24 +93,25 @@ enabled = [] # 生成配置的默认值：仅 PTY 核心
 # enabled = ["workspace", "code"]
 ```
 
-| ID               | 启用的功能                                                     |
-| ---------------- | -------------------------------------------------------------- |
-| `launch`         | 保存、编辑启动配置与首次预设                                   |
-| `workspace`      | 仓库登记、worktree 管理与位置协调                              |
-| `code`           | 会话代码树、Diff 与根内文件操作                                |
-| `files`          | 目录补全、mkdir、会话/暂存上传与交互产物                       |
-| `chat`           | ACP 混合会话、恢复、历史与交接；必须同时列出 `launch`、`files` |
-| `notifications`  | Web Push；终端状态与注意力识别仍属核心                         |
-| `quick-commands` | 快捷指令与模板展开                                             |
-| `voice`          | 外部语音识别设置与音频流                                       |
-| `forward`        | 监听端口发现与 HTTP 转发网关                                   |
-| `cloudflare`     | Cloudflare Tunnel 控制与网页设置                               |
-| `tailscale`      | Tailscale 检测与 Serve/Funnel 托管                             |
-| `p2p`            | WebRTC DataChannel 直连                                        |
-| `mcp`            | MCP 控制入口；网络 `/mcp` 另需 `[mcp].enabled=true`            |
-| `immersive`      | TV/头显与 XR 界面贡献                                          |
+| ID               | 启用的功能                                                            |
+| ---------------- | --------------------------------------------------------------------- |
+| `launch`         | 保存、编辑启动配置与首次预设                                          |
+| `workspace`      | 仓库登记、worktree 管理与位置协调                                     |
+| `code`           | 会话代码树、Diff 与根内文件操作                                       |
+| `files`          | 目录补全、mkdir、会话/暂存上传与交互产物                              |
+| `chat`           | ACP 混合会话、恢复、历史与交接；必须同时列出 `launch`、`files`        |
+| `notifications`  | Web Push；终端状态与注意力识别仍属核心                                |
+| `quick-commands` | 快捷指令与模板展开                                                    |
+| `voice`          | 外部语音识别设置与音频流                                              |
+| `forward`        | 监听端口发现与 HTTP 转发网关                                          |
+| `cloudflare`     | Cloudflare Tunnel 控制与网页设置                                      |
+| `tailscale`      | Tailscale 检测与 Serve/Funnel 托管                                    |
+| `p2p`            | WebRTC DataChannel 直连                                               |
+| `mcp`            | MCP 控制入口；网络 `/mcp` 另需 `[mcp].enabled=true`                   |
+| `immersive`      | TV/头显与 XR 界面贡献                                                 |
+| `messaging`      | 独立频道消息面板、历史与幂等发送；见[频道消息](../usage/messaging.md) |
 
-- **旧配置兼容**：省略整个 `[features]` 或省略 `enabled`，保留上表固定的 14 项旧版选择；不是“未来新增项也自动启用”。显式 `[]` 才是核心模式。
+- **旧配置兼容**：省略整个 `[features]` 或省略 `enabled`，保留上表除 `messaging` 外固定的 14 项旧版选择；不是“未来新增项也自动启用”。显式 `[]` 才是核心模式。
 - **改名迁移**：启动时自动将旧 `[plugins]` 改为 `[features]`，保留原有功能选择（含空数组）。原文备份到配置路径加 `.pre-features.bak`；配置重新编码，原注释保留在备份中。
 - 新旧两表并存时启动报错，原文件保持不变；`config show` / `validate` 保持只读，旧表仍提示迁移。已有新格式配置不重写。
 - 未知 ID、重复 ID、缺失依赖会在启动前报错，不自动补齐。`workspace` 不依赖 `code`，但 Git 工作台须显式同时选择两者。

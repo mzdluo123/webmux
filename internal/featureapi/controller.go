@@ -20,6 +20,7 @@ import (
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
+	"github.com/rainchan/webmux/internal/messaging"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/settings"
@@ -30,6 +31,7 @@ import (
 )
 
 type Deps struct {
+	Messaging         *messaging.Service
 	Config            config.Config
 	Manager           *session.Manager
 	Settings          *settings.Service
@@ -84,6 +86,7 @@ func (s *Server) Contributions() []transport.Contribution {
 		}
 		result = append(result, transport.Contribution{Owner: id, Routes: collector.Routes, Streams: streams})
 	}
+	add("messaging", s.messagingRoutes)
 	add("code", s.codeRoutes)
 	add("workspace", func(mux transport.Registrar) {
 		s.workspaceRoutes(mux)

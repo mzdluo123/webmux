@@ -47,7 +47,7 @@
     ].includes(section.id),
   );
   const accessSections = featureSections.filter((section) =>
-    ["access", "tailscale"].includes(section.id),
+    ["access", "tailscale", "messaging"].includes(section.id),
   );
   const notificationSections = featureSections.filter(
     (section) => section.id === "push",

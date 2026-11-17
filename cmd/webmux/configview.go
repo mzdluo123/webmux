@@ -13,6 +13,7 @@ import (
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/launch"
+	"github.com/rainchan/webmux/internal/messaging"
 	"github.com/rainchan/webmux/internal/p2psettings"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/relaysetting"
@@ -59,6 +60,8 @@ func storeHealth(dir string, id statefile.ID, err error, live bool) contract.Sto
 // inspected, including by offline diagnostics, and never look initialized.
 func storeFeature(id statefile.ID) string {
 	switch id {
+	case statefile.Messaging:
+		return "messaging"
 	case statefile.Launch:
 		return "launch"
 	case statefile.ProjectClones, statefile.Projects, statefile.Repositories, statefile.GitOperations, statefile.GitTaskBaselines, statefile.GitWorkbenchState:
@@ -148,6 +151,8 @@ func configuredView(path string, c config.Config) contract.Configuration {
 		var err error
 		inspected := true
 		switch description.ID {
+		case statefile.Messaging:
+			err = messaging.Inspect(c.StateDir)
 		case statefile.Launch:
 			err = launch.Inspect(c.StateDir)
 		case statefile.ProjectClones:
@@ -276,6 +281,8 @@ func effectiveView(c serverRun, record runtime.Record, deps api.Deps, features *
 		}
 		var err error
 		switch description.ID {
+		case statefile.Messaging:
+			err = features.messaging.Unavailable()
 		case statefile.Launch:
 			err = features.launch.Unavailable()
 		case statefile.ProjectClones:

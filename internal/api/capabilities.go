@@ -12,7 +12,7 @@ func (s *Server) capabilitySnapshot() contract.Capabilities {
 		return s.Capabilities()
 	}
 	snapshot := contract.Capabilities{Version: contract.CapabilitiesVersion, Features: []contract.FeatureStatus{}, Capabilities: []contract.Capability{{ID: "terminal.pty", Available: true}}}
-	ids := map[string]string{"workspace": "workspace.manage", "code": "code.browse", "files": "files.upload", "launch": "launch.configs", "chat": "chat.acp", "notifications": "notifications.push", "quick-commands": "quick-commands.send", "voice": "voice.recognize", "forward": "forward.ports", "cloudflare": "cloudflare.manage", "tailscale": "tailscale.manage", "p2p": "p2p.direct", "mcp": "mcp.control", "immersive": "immersive.xr"}
+	ids := map[string]string{"workspace": "workspace.manage", "code": "code.browse", "files": "files.upload", "launch": "launch.configs", "chat": "chat.acp", "notifications": "notifications.push", "quick-commands": "quick-commands.send", "voice": "voice.recognize", "forward": "forward.ports", "cloudflare": "cloudflare.manage", "tailscale": "tailscale.manage", "p2p": "p2p.direct", "mcp": "mcp.control", "immersive": "immersive.xr", "messaging": "messaging.messages"}
 	for _, definition := range builtin.Catalog() {
 		enabled := s.Config.Features.Has(definition.ID)
 		status, reason := contract.FeatureStatusDisabled, contract.CapabilityReasonFeatureDisabled

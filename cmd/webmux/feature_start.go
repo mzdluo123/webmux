@@ -23,6 +23,7 @@ import (
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
+	"github.com/rainchan/webmux/internal/messaging"
 	"github.com/rainchan/webmux/internal/p2p"
 	"github.com/rainchan/webmux/internal/p2psettings"
 	"github.com/rainchan/webmux/internal/push"
@@ -44,6 +45,9 @@ import (
 // open is called only after the selection is validated. Constructors remain
 // explicit here: neither services nor the HTTP host look up another feature.
 func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Manager, preferences *settings.Service, public *transport.PublicOrigins, address net.Addr, guide *agentguide.Instance, localAPI func() *localRuntime, bridge *transport.Bridge, out io.Writer) error {
+	if c.Features.Has("messaging") {
+		p.messaging = messaging.Open(c.StateDir)
+	}
 	if c.Features.Has("launch") {
 		shell := os.Getenv("SHELL")
 		p.launch = launch.Open(c.StateDir, p.agents)

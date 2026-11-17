@@ -43,6 +43,7 @@ var webmux = manifest{
 		"internal/tunnelsettings":    service,
 		"internal/tailscale":         service,
 		"internal/tailscalesettings": service,
+		"internal/messaging":         service,
 		"internal/voice":             service,
 		"internal/voicesettings":     service,
 		"internal/p2p":               service,

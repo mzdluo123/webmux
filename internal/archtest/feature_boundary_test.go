@@ -19,7 +19,7 @@ func TestTerminalCoreDoesNotImportFeatures(t *testing.T) {
 		"artifacts", "launch", "hybrid", "hybridresume", "conversation", "handoff",
 		"forward", "push", "voice", "voicesettings", "p2p", "p2psettings",
 		"tailscale", "tailscalesettings", "tunnel", "tunnelsettings",
-		"featureapi", "featurehub", "featurewire",
+		"messaging", "featureapi", "featurehub", "featurewire",
 	}
 	for _, core := range []string{"api", "hub", "wire", "transport", "session", "sessioncreate"} {
 		for _, file := range parseDirGoFiles(t, filepath.Join(root, "internal", core), false) {

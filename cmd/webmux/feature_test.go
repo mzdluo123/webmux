@@ -151,3 +151,38 @@ func TestDisabledFeatureConfigurationDoesNotInspectCorruptStores(t *testing.T) {
 		}
 	}
 }
+
+func TestMessagingServeKeepsAuthenticationAndOriginChecks(t *testing.T) {
+	run := startServe(t, false, "messaging-test-owner", []string{"messaging"})
+	client := &http.Client{Timeout: 5 * time.Second}
+	defer client.CloseIdleConnections()
+	for _, tt := range []struct {
+		token, origin string
+		want          int
+	}{
+		{"", "", 401},
+		{"wrong", "", 401},
+		{"messaging-test-owner", "https://untrusted.example", 403},
+		{"messaging-test-owner", "", 201},
+	} {
+		req, err := http.NewRequest(http.MethodPost, run.local+"/api/messaging/channels", bytes.NewBufferString(`{"name":"general","topic":""}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		if tt.token != "" {
+			req.Header.Set("Authorization", "Bearer "+tt.token)
+		}
+		if tt.origin != "" {
+			req.Header.Set("Origin", tt.origin)
+		}
+		response, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response.Body.Close()
+		if response.StatusCode != tt.want {
+			t.Errorf("auth=%q origin=%q: %d", tt.token, tt.origin, response.StatusCode)
+		}
+	}
+}

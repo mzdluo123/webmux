@@ -14,7 +14,8 @@ import (
 // capabilityFeatures is the protocol's capability ownership map. Unknown IDs are
 // never interpreted as permission to invoke an optional endpoint.
 var capabilityFeatures = map[string]string{
-	"terminal.pty": "", "workspace.manage": "workspace", "code.browse": "code",
+	"messaging.messages": "messaging",
+	"terminal.pty":       "", "workspace.manage": "workspace", "code.browse": "code",
 	"files.upload": "files", "launch.configs": "launch", "chat.acp": "chat",
 	"notifications.push": "notifications", "quick-commands.send": "quick-commands",
 	"voice.recognize": "voice", "forward.ports": "forward", "cloudflare.manage": "cloudflare",
@@ -124,6 +125,10 @@ func decodeCapabilitiesV1(raw json.RawMessage) (contract.Capabilities, error) {
 		if snapshot.Capabilities[i].Reason == reasonFeatureDisabledV1 {
 			snapshot.Capabilities[i].Reason = contract.CapabilityReasonFeatureDisabled
 		}
+	}
+	// Messaging was introduced after the retired v1 catalog.
+	if len(snapshot.Features) == 14 {
+		snapshot.Features = append(snapshot.Features, contract.FeatureStatus{ID: "messaging", Status: contract.FeatureStatusDisabled, Reason: contract.CapabilityReasonFeatureDisabled})
 	}
 	return snapshot, nil
 }

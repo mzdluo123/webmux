@@ -21,6 +21,7 @@ var featureCapabilities = [...]struct{ feature, capability string }{
 	{"p2p", "p2p.direct"},
 	{"mcp", "mcp.control"},
 	{"immersive", "immersive.xr"},
+	{"messaging", "messaging.messages"},
 }
 
 // capabilities observes already constructed services; it never opens a store,
@@ -116,6 +117,13 @@ func (p *featureServices) capabilities(c config.Config) contract.Capabilities {
 
 func (p *featureServices) moduleUnavailable(id string) string {
 	switch id {
+	case "messaging":
+		if p.messaging == nil {
+			return contract.CapabilityReasonServiceUnavailable
+		}
+		if p.messaging.Unavailable() != nil {
+			return contract.CapabilityReasonStorageUnavailable
+		}
 	case "launch":
 		if p.launch == nil {
 			return contract.CapabilityReasonServiceUnavailable

@@ -26,7 +26,7 @@ func (p *featureServices) bind(c config.Config, manager *session.Manager, prefer
 		return deps
 	}
 	options := featureapi.Deps{
-		Config: c, Manager: manager, Settings: preferences,
+		Config: c, Manager: manager, Settings: preferences, Messaging: p.messaging,
 		Workspace: p.workspace, Code: p.code, Files: p.files, Artifacts: p.artifacts,
 		Handoffs:      p.handoff,
 		NativeHistory: p.nativeHistory, HistoryProjection: p.historyProjection,

@@ -19,6 +19,15 @@
       "source": "internal/launch/store.go"
     },
     {
+      "id": "messaging",
+      "path": "messaging.json",
+      "lock": "messaging.json.lock",
+      "owner": "internal/messaging",
+      "failure": "unavailable",
+      "web": "是",
+      "source": "internal/messaging/service.go"
+    },
+    {
       "id": "repositories",
       "path": "repositories.json",
       "lock": "repositories.json.lock",
@@ -946,6 +955,18 @@
     "internal/codexrollout/file_unix.go|OpenFile|os.OpenFile": {
       "count": 1,
       "owner": "read-only-codex-rollout"
+    },
+    "internal/statefile/catalog.go|path|messaging.json": {
+      "count": 1,
+      "owner": "messaging"
+    },
+    "internal/messaging/service.go|Open|github.com/rainchan/webmux/internal/statefile.Open": {
+      "count": 1,
+      "owner": "messaging"
+    },
+    "internal/messaging/service.go|Inspect|github.com/rainchan/webmux/internal/statefile.ReadSnapshot": {
+      "count": 1,
+      "owner": "messaging"
     }
   }
 }

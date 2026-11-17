@@ -49,7 +49,7 @@ func TestCoreOnlyHostKeepsCreateAndDiscovery(t *testing.T) {
 	if err := json.Unmarshal(discovery.Body, &snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Version != contract.CapabilitiesVersion || len(snapshot.Features) != 14 || len(snapshot.Capabilities) != 19 {
+	if snapshot.Version != contract.CapabilitiesVersion || len(snapshot.Features) != 15 || len(snapshot.Capabilities) != 20 {
 		t.Fatalf("incomplete static discovery: %+v", snapshot)
 	}
 
@@ -67,7 +67,7 @@ func TestDisabledBusinessRoutesAreNotStaticFallbacks(t *testing.T) {
 	deps := coreOnlyDeps(t)
 	bridge := NewBridge(deps)
 	local := NewLocal(deps, Local{})
-	paths := []string{"/api/repositories", "/api/launch-configs", "/api/fs/dirs", "/api/uploads", "/api/push", "/api/voice/settings", "/api/p2p/ping", "/api/tunnel", "/api/tailscale", "/ws/voice", "/mcp", "/mcp/", "/forward", "/forward?next=%2Fforward%2F5173%2F", "/forward/5173/", "/forward/_auth", "/forward-auth", "/forward-auth?confirm=1&next=%2Fforward%2F5173%2F"}
+	paths := []string{"/api/messaging/channels", "/api/messaging/channels/general/messages", "/api/repositories", "/api/launch-configs", "/api/fs/dirs", "/api/uploads", "/api/push", "/api/voice/settings", "/api/p2p/ping", "/api/tunnel", "/api/tailscale", "/ws/voice", "/mcp", "/mcp/", "/forward", "/forward?next=%2Fforward%2F5173%2F", "/forward/5173/", "/forward/_auth", "/forward-auth", "/forward-auth?confirm=1&next=%2Fforward%2F5173%2F"}
 	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete} {
 		for _, path := range paths {
 			for _, handler := range []http.Handler{bridge.HTTPHandler, local} {

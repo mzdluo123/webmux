@@ -25,6 +25,7 @@ const selections: { name: string; features: FeatureID[] | undefined }[] = [
     features: ["chat", "files", "launch"],
   },
   { name: "mcp-only", features: ["mcp"] },
+  { name: "messaging-only", features: ["messaging"] },
 ];
 
 for (const selection of selections) {
@@ -81,7 +82,10 @@ for (const selection of selections) {
           .sort();
         if (selection.features === undefined) {
           expect(enabled).toEqual(
-            capabilities.features.map((feature) => feature.id).sort(),
+            capabilities.features
+              .filter((feature) => feature.id !== "messaging")
+              .map((feature) => feature.id)
+              .sort(),
           );
           expect(enabled.length).toBeGreaterThan(0);
         } else {
