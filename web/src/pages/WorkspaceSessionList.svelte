@@ -297,6 +297,7 @@
 <div class="workspace-page safe-area-page min-h-dvh">
   <WorkspaceMobileHeader
     title={selectedRepository === "all" ? m.s1_all_repositories() : scopeLabel}
+    mainWorktree={selectedWorktree?.kind === "main"}
     reconnecting={shell.sessions.connection === "reconnecting"}
     {actions}
   />
@@ -313,6 +314,7 @@
       <main class="min-w-0">
         <WorkspaceToolbar
           title={scopeLabel}
+          mainWorktree={selectedWorktree?.kind === "main"}
           {loading}
           {filtering}
           visibleCount={visible.length}
