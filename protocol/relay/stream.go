@@ -81,6 +81,7 @@ type ControlType string
 
 const (
 	ControlExchange   ControlType = "login.exchange"
+	ControlResume     ControlType = "login.resume"
 	ControlGrant      ControlType = "login.grant"
 	ControlICERequest ControlType = "ice.request"
 	ControlICEConfig  ControlType = "ice.config"
@@ -168,6 +169,7 @@ type ControlMessage struct {
 	Scope         Scope          `json:"scope"`
 	ExpiresAt     int64          `json:"expiresAt"`
 	Exchange      *LoginExchange `json:"exchange,omitempty"`
+	Resume        *LoginResume   `json:"resume,omitempty"`
 	Grant         *BrowserGrant  `json:"grant,omitempty"`
 	ICERequest    *ICERequest    `json:"iceRequest,omitempty"`
 	ICEConfig     *ICEConfig     `json:"iceConfig,omitempty"`
@@ -193,7 +195,7 @@ func (m ControlMessage) Validate(expected Scope, now time.Time) error {
 		return Error{Code: Expired}
 	}
 	count := 0
-	for _, present := range []bool{m.Exchange != nil, m.Grant != nil, m.ICERequest != nil, m.ICEConfig != nil, m.Revocation != nil, m.RevocationAck != nil, m.Error != nil} {
+	for _, present := range []bool{m.Exchange != nil, m.Resume != nil, m.Grant != nil, m.ICERequest != nil, m.ICEConfig != nil, m.Revocation != nil, m.RevocationAck != nil, m.Error != nil} {
 		if present {
 			count++
 		}
@@ -211,6 +213,10 @@ func (m ControlMessage) Validate(expected Scope, now time.Time) error {
 	case ControlExchange:
 		if m.Exchange != nil {
 			return m.Exchange.Validate()
+		}
+	case ControlResume:
+		if m.Resume != nil {
+			return m.Resume.Validate()
 		}
 	case ControlGrant:
 		if m.Grant != nil {

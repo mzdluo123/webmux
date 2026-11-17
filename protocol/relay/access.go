@@ -204,9 +204,20 @@ func (r LoginExchange) Validate() error {
 	return nil
 }
 
+// LoginResume revalidates a server-only grant on the authenticated current
+// connector. It never changes identity, origin or the original absolute expiry.
+type LoginResume struct {
+	GrantID Token `json:"grantId"`
+}
+
+func (r LoginResume) Validate() error {
+	return r.GrantID.Validate()
+}
+
 // BrowserGrant is a control-only reference, NEVER a browser Cookie or bearer
-// session. Only a successful LoginExchange can mint it. All ICE refreshes must
-// revalidate its server-side console session, invitation and current connector.
+// session. Only a successful LoginExchange can mint it; LoginResume may move
+// it to a new connector scope without extending expiry. Both resume and ICE
+// refresh revalidate its server-side console session, invitation and binding.
 type BrowserGrant struct {
 	ID                  Token   `json:"id"`
 	ConsoleSessionID    Token   `json:"consoleSessionId"`
