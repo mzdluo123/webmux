@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
+  import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
 
   let {
@@ -11,6 +12,7 @@
     visibleCount,
     sessionCount,
     repositoryCount,
+    showRepositoryCount,
     refreshing,
     onstart,
     startDisabled = false,
@@ -25,6 +27,7 @@
     visibleCount: number;
     sessionCount: number;
     repositoryCount: number;
+    showRepositoryCount: boolean;
     refreshing: boolean;
     // Opens the new-session dialog; the old header's primary action.
     onstart: () => void;
@@ -35,43 +38,52 @@
     children: Snippet;
   } = $props();
   const resolvedTitle = $derived(title ?? m.s8_workspace_title());
+  const scopeCounts = $derived(
+    m.s8_toolbar_repo_session_counts({
+      repos: String(repositoryCount),
+      sessions: String(sessionCount),
+    }),
+  );
 </script>
 
-<div class="mb-5 space-y-3 border-b pb-4">
-  <div
-    class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 sm:gap-x-1"
-  >
+<div class="mb-6 space-y-4 border-b pb-4 sm:mb-8 sm:space-y-6">
+  <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
     <p role="status" class="sr-only">
       {#if loading}{m.s8_toolbar_loading()}
       {:else if filtering}{m.s8_toolbar_filtering_sessions({
           visible: String(visibleCount),
           total: String(sessionCount),
         })}
-      {:else}{m.s8_toolbar_repo_session_counts({
-          repos: String(repositoryCount),
-          sessions: String(sessionCount),
-        })}{/if}{#if refreshing}
+      {:else}{scopeCounts}{/if}{#if refreshing}
         {m.s8_toolbar_refreshing_git()}{/if}
     </p>
-    <div class="min-w-0 sm:mr-3">
-      <!-- Phones already show the title in the top bar. -->
+    <div class="min-w-0 flex-1 sm:mr-3">
       <h1
-        class="hidden min-w-0 text-lg font-semibold tracking-tight break-all sm:block"
+        class="text-lg leading-tight font-semibold tracking-tight wrap-anywhere sm:text-3xl"
       >
         {resolvedTitle}
       </h1>
-      {#if meta}<div class="sm:mt-1">{@render meta()}</div>{/if}
+      <p
+        aria-hidden="true"
+        class="mt-1 hidden text-sm text-muted-foreground sm:block"
+      >
+        {showRepositoryCount
+          ? scopeCounts
+          : m.s8_details_total_sessions({ count: String(sessionCount) })}
+      </p>
+      {#if meta}<div class="empty:hidden sm:mt-2">{@render meta()}</div>{/if}
     </div>
     <div
-      class="ml-auto hidden max-w-full items-center justify-end gap-1 sm:flex"
+      class="ml-auto hidden max-w-full flex-wrap items-center justify-end gap-1 sm:flex"
     >
       {@render actions()}
     </div>
     <Button
-      size="sm"
-      class="order-last min-h-9 w-full sm:order-none sm:min-h-8 sm:w-auto"
+      class="shrink-0"
+      aria-label={m.s8_toolbar_new_session_plus()}
       disabled={startDisabled}
-      onclick={() => onstart()}>{m.s8_toolbar_new_session_plus()}</Button
+      onclick={() => onstart()}
+      ><IconPlus aria-hidden="true" />{m.s8_new_session()}</Button
     >
   </div>
   {@render children()}

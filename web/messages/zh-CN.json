@@ -3975,6 +3975,7 @@
   "s8_save": "保存",
   "s8_saved_start_commit": "已保存的起始提交",
   "s8_saving": "正在保存…",
+  "s8_search_all_repositories": "搜索全部仓库",
   "s8_search_branches_label": "搜索分支",
   "s8_search_branches_placeholder": "搜索分支…",
   "s8_search_local_branches_label": "搜索本地分支",

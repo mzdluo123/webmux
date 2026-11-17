@@ -105,7 +105,7 @@
 
 <section
   class={separated
-    ? "mt-8 min-w-0 space-y-3 border-t border-border pt-8"
+    ? "mt-6 min-w-0 space-y-3 border-t border-border pt-6"
     : "min-w-0 space-y-3"}
   data-worktree-id={worktree?.id}
   {hidden}
@@ -113,9 +113,7 @@
 >
   {#if !focused}
     <div class="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-      <div
-        class="flex w-full min-w-0 flex-none flex-wrap items-center gap-2 sm:w-auto sm:flex-1"
-      >
+      <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
         {#if worktree}
           <IconGitBranch
             class="size-4 shrink-0 text-muted-foreground"
@@ -127,7 +125,7 @@
             aria-hidden="true"
           />
         {/if}
-        <h3 class="min-w-0 break-all text-sm font-semibold">{title}</h3>
+        <h3 class="min-w-0 text-sm font-semibold wrap-anywhere">{title}</h3>
         {#if visible.length > 1}<span
             class="shrink-0 text-xs text-muted-foreground"
             >{visible.length}</span
@@ -173,7 +171,7 @@
   {#if sessions.length}
     <Item.Group
       variant={compact ? "panel" : "default"}
-      class={compact ? undefined : "gap-3"}
+      class={compact ? undefined : "grid session-preview-columns gap-3"}
       aria-label={m.s8_group_sessions_aria({ title })}
     >
       {#each sessions as session (session.id)}

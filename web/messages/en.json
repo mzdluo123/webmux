@@ -4679,6 +4679,7 @@
   "s8_save": "Save",
   "s8_saved_start_commit": "Saved start commit",
   "s8_saving": "Saving…",
+  "s8_search_all_repositories": "Search all repositories",
   "s8_search_branches_label": "Search branches",
   "s8_search_branches_placeholder": "Search branches…",
   "s8_search_local_branches_label": "Search local branches",

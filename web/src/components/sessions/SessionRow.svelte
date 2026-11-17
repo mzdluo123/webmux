@@ -93,8 +93,7 @@
 >
   <a
     data-session-link
-    class:pb-4={!compact && chat}
-    class="group block w-full min-w-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    class="group flex h-full w-full min-w-0 flex-col rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     aria-label={session.title}
     href={`/s/${session.id}`}
     onclick={(event) => {
@@ -112,13 +111,11 @@
       }
     }}
   >
-    <div
-      class={compact ? "min-w-0 px-3 py-3 pr-14" : "min-w-0 px-4 pt-4 pr-14"}
-    >
+    <div class={compact ? "min-w-0 px-3 py-3" : "min-w-0 px-4 py-4"}>
       <!-- The status follows the title, so a status change grows only to
            the right and moves nothing else; the facts below stay put. Large
            text on a narrow card moves the status under the title. -->
-      <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+      <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pr-12">
         <Item.Title class="min-w-0 max-w-full" title={session.title}>
           <span class="truncate group-hover:underline">{session.title}</span>
           <IconChevronRight
@@ -201,21 +198,23 @@
         {#if session.preview}
           <p
             aria-label={m.s3_latest_msg_preview_label()}
-            class="mt-3 line-clamp-3 min-w-0 px-4 text-sm leading-6 break-words whitespace-pre-line text-foreground/85"
+            class="mb-4 line-clamp-3 min-w-0 px-4 text-sm leading-6 wrap-break-word whitespace-pre-line text-foreground/85"
           >
             {session.preview}
           </p>
         {/if}
       {:else}
-        <pre
-          data-slot="terminal-preview"
-          aria-label={m.s3_terminal_output_preview_label()}
-          style:--preview-lines={settings.lines}
-          class:preview-empty={!preview}
-          class="h-preview mt-4 min-w-0 overflow-hidden px-4 pb-4 font-mono text-xs leading-5 whitespace-pre text-foreground/85">{preview ||
-            (session.preview
-              ? m.s3_preview_trailing_hidden()
-              : m.s3_waiting_terminal_output())}</pre>
+        <div class="mt-auto rounded-b-lg border-t bg-muted/35">
+          <pre
+            data-slot="terminal-preview"
+            aria-label={m.s3_terminal_output_preview_label()}
+            style:--preview-lines={settings.lines}
+            class:preview-empty={!preview}
+            class="h-preview min-w-0 overflow-hidden px-4 py-2 font-mono text-xs leading-5 whitespace-pre text-foreground/85">{preview ||
+              (session.preview
+                ? m.s3_preview_trailing_hidden()
+                : m.s3_waiting_terminal_output())}</pre>
+        </div>
       {/if}
     {/if}
   </a>

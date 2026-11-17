@@ -22,6 +22,8 @@
   - 首页不展示底部品牌、仓库持久化及可信网络/重启说明栏；
   - 会话与仓库管理表单按需加载，加载中可取消，下载失败可关闭提示，取消后不会迟到弹出。
 - **US-C02 实时查看会话摘要**：作为使用者，我希望在首页看到标题、状态、最近活跃时间、连接设备数和输出预览，以便少打开几个终端就能判断进度。
+  - 工作台与核心会话首页的预览卡片按内容区宽度排列，宽屏并列、窄屏单列。终端输出在卡片底部独立显示，两种首页均可切换为单列紧凑模式，显示偏好保存在本设备。
+  - 没有会话时，列表内给出启动提示，使用页头的“新建会话”创建。核心会话首页搜索无结果时，可在列表内清除搜索。
   验收要点：
   - 默认显示输出预览，可切换为只保留会话摘要的紧凑列表，显式选择的显示方式在当前浏览器记忆；
   - 列表先加载快照再处理实时事件；
@@ -48,8 +50,8 @@
   - 搜索可展开匹配仓库；
   - 支持清除筛选、无匹配提示和 `/` 聚焦搜索，输入框与弹窗中不抢快捷键；
   - 筛掉的卡片不参与键盘导航或辅助技术浏览，并关闭该卡片已打开的菜单；
-  - 手机上状态筛选为单行横向滚动（选中项自动滚入可见，每个页签都显示计数，为 0 时显示 0），搜索框提示缩短为“搜索会话”；首页顶栏同时承载紧凑/预览、刷新与仓库菜单图标，页内不再重复仓库标题，“新建会话”独占一行；
-  - 清除筛选恢复卡片顺序，删除会话后移除对应卡片。
+  - 手机上状态筛选为单行横向滚动（选中项自动滚入可见，每个页签都显示计数，为 0 时显示 0），搜索框提示缩短为“搜索会话”；首页顶栏同时承载紧凑/预览、刷新与仓库菜单图标，页内标题与“新建会话”同排；宽屏标题下显示当前范围的会话总数，全部仓库视图另显示仓库总数；
+  - 清除筛选恢复卡片顺序，焦点回到搜索框；在单个仓库、工作树或直接会话内找不到结果时，可保留筛选条件并扩大到全部仓库。删除会话后移除对应卡片。
 - **US-C05 判断运行状态**：作为使用者，我希望区分运行中、可能在等我、空闲和已退出，以便决定先查看哪个任务。
   验收要点：
   - 程序通过 `OSC 7501` 报告状态时以报告为准（工作中、阻塞、完成、空闲），工作中但长时间无输出视为空闲；
@@ -208,7 +210,7 @@
 - [置顶状态](../../../web/src/domains/sessions/session-pins.svelte.ts)、[服务端设置接口](../../../internal/api/settings.go)、[侧栏置顶端到端用例](../../../web/test/e2e/app-shell.spec.ts)
 - [会话切换面板](../../../web/src/components/shell/SessionSwitcher.svelte)、[快速切换端到端用例](../../../web/test/e2e/session-switcher.spec.ts)
 - [消息定位与清除高亮](../../../web/src/components/chat/ChatTranscript.svelte)、[分屏与代码面板定位回归](../../../web/test/e2e/hybrid.spec.ts)
-- [显示方式](../../../web/src/components/terminal/SessionViewControls.svelte)、[范围端到端用例](../../../web/test/e2e/repository-scope.spec.ts)
+- [显示方式](../../../web/src/components/sessions/SessionViewControls.svelte)、[范围端到端用例](../../../web/test/e2e/repository-scope.spec.ts)
 - [会话首页](../../../web/src/pages/SessionList.svelte)、[会话卡片](../../../web/src/components/sessions/SessionRow.svelte)、[启动配置预览解析](../../../web/src/domains/settings/launch-previews.svelte.ts)
 - [仓库分组](../../../web/src/components/workspace/RepositoryGroup.svelte)、[工作区分组](../../../web/src/components/workspace/WorkspaceGroup.svelte)、[列表事件更新](../../../web/src/hooks/sessions/session-list.ts)
 - [原子快照与订阅](../../../internal/session/manager.go)、[规范会话投影](../../../internal/featurewire/session.go)、[工作区关联](../../../internal/workspace/sessions.go)。
