@@ -31,7 +31,6 @@
   import IconGitBranch from "~icons/tabler/git-branch";
   import IconLayoutDashboard from "~icons/tabler/layout-dashboard";
   import IconLoader2 from "~icons/tabler/loader-2";
-  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { ListButton } from "$lib/components/ui/list-button";
@@ -41,6 +40,7 @@
   import RowStatus from "../shared/RowStatus.svelte";
   import { underRowAction } from "../../hooks/shared/sidebar-row";
   import { switchableWorktree } from "../../domains/workspace/worktree-sync";
+  import MainWorktreeMark from "../workspace/MainWorktreeMark.svelte";
   import UpstreamStatus from "../workspace/UpstreamStatus.svelte";
   import SidebarRepositoryMenu from "./SidebarRepositoryMenu.svelte";
   import SidebarRowMenu from "./SidebarRowMenu.svelte";
@@ -359,15 +359,12 @@
               : ""}
             size="xs"
           />{/if}
-        <span class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+        <span class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
           <span
             class={`min-w-0 truncate ${node.kind === "repository" ? "font-medium" : ""} ${node.reason || status === "ended" ? "text-muted-foreground" : ""}`}
             >{node.label}</span
           >
-          {#if mainWorktree}<Badge
-              variant="outline"
-              title={m.s8_badge_main_worktree()}>{m.s7_wt_main_badge()}</Badge
-            >{/if}
+          {#if mainWorktree}<MainWorktreeMark />{/if}
         </span>
         {#if upstream}<span class="flex shrink-0 items-center gap-1"
             ><UpstreamStatus state={upstream} indicator /></span

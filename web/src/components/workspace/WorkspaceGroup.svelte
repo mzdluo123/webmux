@@ -12,6 +12,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import * as Item from "$lib/components/ui/item";
+  import MainWorktreeMark from "./MainWorktreeMark.svelte";
   import WorktreeBadges from "./WorktreeBadges.svelte";
   import WorktreeControls from "./WorktreeControls.svelte";
   import SessionRow from "../sessions/SessionRow.svelte";
@@ -127,7 +128,10 @@
             aria-hidden="true"
           />
         {/if}
-        <h3 class="min-w-0 break-all text-sm font-semibold">{title}</h3>
+        <div class="flex min-w-0 items-center gap-1.5">
+          <h3 class="min-w-0 break-all text-sm font-semibold">{title}</h3>
+          {#if worktree?.kind === "main"}<MainWorktreeMark srLabel />{/if}
+        </div>
         {#if visible.length > 1}<span
             class="shrink-0 text-xs text-muted-foreground"
             >{visible.length}</span

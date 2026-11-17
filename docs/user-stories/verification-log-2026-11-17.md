@@ -313,27 +313,27 @@
 - 本轮覆盖文本来源读取、预览、真实工具链与跨 Agent 恢复；图片 UI、图片投影与发送管线保持原样。
 - CLI 的已有认证由 Agent 自身使用；未读取 Token、执行登录或处理 Claude 的 `auth_required`。
 
-## 2026-11-18：常驻工作区视图增加主工作区描边徽标（US-C17、US-J02）
+## 2026-11-18：常驻工作区视图增加主工作区线性图标标记（US-C17、US-J02）
 
 ### 范围
 
 - 故事编号与总数（264）保持不变，更新 US-C17、US-J02 及 `workbench-navigation` 规格：
-  - 首页工作树分组标题与单工作树页头（`WorktreeBadges`）为主工作区（`kind === "main"`）常驻显示描边「主工作区」徽标；
-  - 工作台侧栏树（`WorkbenchTree`）为主工作区行显示紧凑描边「主」徽标（`title="主工作区"`，无障碍名称附加 `，主工作区`），并在无活动会话时保留行尾占位槽以避免悬停「⋯」按钮遮挡徽标；
-  - 统一主页显示对话框、仓库面板工作树列表、Git 工作台下拉菜单与设计系统示例中的主工作区徽标为 `variant="outline"`；
+  - 新增共享组件 `MainWorktreeMark.svelte`，在首页工作树分组标题及桌面/窄屏单工作树页头标题右侧为主工作区（`kind === "main"`）常驻渲染无框线性 `tabler:home` 图标（悬停提示“主工作区”，提供屏幕阅读器名称）；路径、提交与已跟踪文件干净状态继续收在“工作树详情”弹窗中；
+  - 工作台侧栏树（`WorkbenchTree`）为主工作区行在分支名右侧显示同一线性 `home` 图标（`title="主工作区"`，无障碍名称附加 `，主工作区`），并在无活动会话时保留行尾占位槽以避免悬停“⋯”按钮遮挡该图标；
   - 同步对齐 `HandoffForm.svelte` 对 `SegmentedControl` / `SegmentedControlItem` 的具名导入，消除主线合入偏差导致的 `svelte-check` 报错。
 
 ### 已执行验证
 
 - 静态与治理门禁：
   - `pnpm --dir web check`、`check:test`、`check:storybook`：0 errors、0 warnings；
-  - `pnpm --dir web lint`（Oxlint 1294 文件）与 `pnpm --dir web check:arch`（ESLint、dependency-cruiser、jscpd 0 克隆、knip、架构与依赖策略 49 项测试）通过；
+  - `pnpm --dir web lint` 与 `pnpm --dir web check:arch`（ESLint、dependency-cruiser、jscpd 0 克隆、knip、架构与依赖策略 49 项测试）通过；
   - `go test -count=1 ./internal/docguard ./internal/archtest`、`openspec validate --specs`（128/128）、`go vet` 与 `make go-lint`（0 issues）通过。
 - 组件、Storybook 与端到端回归：
   - 单元测试 `test/i18n.test.ts` 5 项通过（校验中英词条键集、占位符对等与源码零硬编码中文）；
-  - 浏览器组件套件 `WorkbenchTree`、`WorkspaceGroup`、`RepositoryGroup`、`TvNavigation`、`AppShell`、`RepositoryPanel`、`WorktreeDialogs` 共 98 项通过（含长分支名无会话主工作区行悬停「⋯」零遮挡几何断言）；
+  - 浏览器组件套件 `WorkbenchTree`、`WorkspaceGroup`、`RepositoryGroup`、`TvNavigation`、`AppShell` 共 60 项通过（含长分支名无会话主工作区行悬停“⋯”零遮挡几何断言）；
+  - Storybook `design-system.spec.ts`、`overflow.spec.ts`、`contracts.spec.ts` 62 项通过；
   - Playwright 端到端 `repository-scope.spec.ts` 与 `app-shell.spec.ts` 桌面及 iPhone SE（320×568，含 200% 字号）共 21 项通过、5 项按设备跳过、0 失败。
 - 界面证据与局限：
   - 隔离演示服务在 1280×900、1280×720、768×800、390×844、375×667、320×568、667×375 及 320×700（200% 字号）明暗主题下检查 `scrollWidth <= innerWidth`，无页面级横向溢出；
-  - 采集桌面 1280×900（全览与单工作树聚焦）、平板 768×800（主页与抽屉展开）、手机 390×844（主页与抽屉展开）明暗主题前后对比截图共 24 张，公开链接均经 HTTP 200 校验；
+  - 重新采集桌面 1280×900（全览与单工作树聚焦）、平板 768×800（主页与抽屉展开）、手机 390×844（主页与抽屉展开）明暗主题前后对比截图共 24 张并更新 PR 证据，公开链接均经 HTTP 200 校验；
   - 仅在 Linux 无头 Chromium 下验证，`hover` 与 `any-pointer: coarse` 均为 `false`，物理鼠标悬停与触屏常驻状态未验证，未进行手机或平板真机验证。

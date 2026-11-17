@@ -53,7 +53,7 @@
       >
     {/if}
     {#if entry.tree.kind === "main"}
-      <Badge variant="outline">{m.s8_badge_main_worktree()}</Badge>
+      <Badge variant="secondary">{m.s8_badge_main_worktree()}</Badge>
     {:else if entry.tree.kind === "bare"}
       <Badge variant="secondary">bare</Badge>
     {/if}

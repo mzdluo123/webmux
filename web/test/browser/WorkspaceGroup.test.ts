@@ -81,7 +81,7 @@ const healthy: Worktree = {
   error: "",
 };
 
-test("healthy worktrees show the main worktree badge on main and keep paths and status totals in the details dialog", async () => {
+test("healthy worktrees mark main with a home icon and keep paths, normal badges and status totals in the details dialog", async () => {
   render(WorkspaceGroup, {
     title: "main",
     path: healthy.path,
@@ -95,9 +95,10 @@ test("healthy worktrees show the main worktree badge on main and keep paths and 
   await expect
     .element(page.getByRole("link", { name: "Build agent" }))
     .toBeVisible();
-  await expect
-    .element(page.getByText("主工作区", { exact: true }))
-    .toBeVisible();
+  const mark = document.querySelector<HTMLElement>("[data-main-worktree]");
+  expect(mark).not.toBeNull();
+  expect(mark!.getAttribute("title")).toBe("主工作区");
+  expect(mark!.querySelector("svg")).not.toBeNull();
   expect(page.getByText(healthy.path, { exact: true }).elements()).toEqual([]);
   expect(page.getByText("已跟踪文件干净", { exact: true }).elements()).toEqual(
     [],
@@ -138,7 +139,7 @@ test("healthy worktrees show the main worktree badge on main and keep paths and 
     onclose: () => {},
     onstart: () => {},
   });
-  expect(page.getByText("主工作区", { exact: true }).elements()).toEqual([]);
+  expect(document.querySelector("[data-main-worktree]")).toBeNull();
 });
 
 test("dirty, untracked and locked warnings stay visible without opening details", async () => {

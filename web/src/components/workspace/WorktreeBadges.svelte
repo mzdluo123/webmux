@@ -8,8 +8,7 @@
   // Undefined `pinned` means the list is not curated (no pin badge).
   let { worktree, pinned }: { worktree: Worktree; pinned?: boolean } = $props();
   const shown = $derived(
-    worktree.kind === "main" ||
-      pinned === false ||
+    pinned === false ||
       worktree.kind === "bare" ||
       worktree.locked ||
       worktree.prunable ||
@@ -22,9 +21,6 @@
 
 {#if shown}
   <div class="flex max-w-full flex-wrap items-center gap-1.5">
-    {#if worktree.kind === "main"}<Badge variant="outline"
-        >{m.s8_badge_main_worktree()}</Badge
-      >{/if}
     {#if pinned === false}<Badge variant="outline"
         >{m.s8_badge_not_on_home()}</Badge
       >{/if}

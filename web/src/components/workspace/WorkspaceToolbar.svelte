@@ -2,9 +2,11 @@
   import type { Snippet } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
+  import MainWorktreeMark from "./MainWorktreeMark.svelte";
 
   let {
     title,
+    mainWorktree = false,
     actions,
     loading,
     filtering,
@@ -18,6 +20,7 @@
     children,
   }: {
     title?: string;
+    mainWorktree?: boolean;
     /** Icon controls; phones show them in the top bar instead. */
     actions: Snippet;
     loading: boolean;
@@ -55,11 +58,12 @@
     </p>
     <div class="min-w-0 sm:mr-3">
       <!-- Phones already show the title in the top bar. -->
-      <h1
-        class="hidden min-w-0 text-lg font-semibold tracking-tight break-all sm:block"
-      >
-        {resolvedTitle}
-      </h1>
+      <div class="hidden min-w-0 items-center gap-1.5 sm:flex">
+        <h1 class="min-w-0 text-lg font-semibold tracking-tight break-all">
+          {resolvedTitle}
+        </h1>
+        {#if mainWorktree}<MainWorktreeMark srLabel size="md" />{/if}
+      </div>
       {#if meta}<div class="sm:mt-1">{@render meta()}</div>{/if}
     </div>
     <div

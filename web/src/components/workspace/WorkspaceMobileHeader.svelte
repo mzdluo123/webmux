@@ -2,13 +2,16 @@
   import type { Snippet } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import SidebarButton from "../shell/SidebarButton.svelte";
+  import MainWorktreeMark from "./MainWorktreeMark.svelte";
 
   let {
     title,
+    mainWorktree = false,
     reconnecting,
     actions,
   }: {
     title: string;
+    mainWorktree?: boolean;
     reconnecting: boolean;
     actions: Snippet;
   } = $props();
@@ -20,6 +23,7 @@
 >
   <SidebarButton />
   <h1 class="min-w-0 truncate text-sm font-medium">{title}</h1>
+  {#if mainWorktree}<MainWorktreeMark srLabel />{/if}
   {#if reconnecting}
     <span role="status" class="shrink-0 text-xs text-warning"
       >{m.s8_reconnecting_banner()}</span

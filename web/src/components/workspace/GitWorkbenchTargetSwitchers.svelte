@@ -156,9 +156,7 @@
             {:else if wt.locked}
               <Badge variant="warning">{m.s7_wt_locked_badge()}</Badge>
             {:else if wt.kind === "main"}
-              <Badge variant="outline" title={m.s8_badge_main_worktree()}
-                >{m.s7_wt_main_badge()}</Badge
-              >
+              <Badge variant="outline">{m.s7_wt_main_badge()}</Badge>
             {/if}
           </DropdownMenu.RadioItem>
         {/each}
