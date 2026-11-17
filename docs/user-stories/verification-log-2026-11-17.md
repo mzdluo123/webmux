@@ -328,3 +328,8 @@
 - 基于最新主分支执行 `go test -race ./internal/agent/omp/history ./internal/historyimport ./internal/historyprojection ./internal/handoff`，全部通过。
 - `go test -count=1 ./internal/docguard ./internal/archtest` 通过。
 - 验证使用隔离的合成原生文件；本轮未启动真实 Agent、发送模型请求或操作生产会话。
+- 首轮 CI 的 Go race、构建检查及打包通过，桌面与手机交接 E2E 在格式切换处失败；现场快照没有格式控件，根因是表单引用了组件库未导出的 `Root/Item`，改用既有命名导出。
+- 修复后桌面与手机 `handoff.spec.ts` 共 8 项通过；临时真实页面捕获覆盖两套设备项目、点击与方向键切换，捕获脚本已删除。
+- `pnpm --dir web check`、`lint`、`check:arch` 及改动组件格式检查通过；类型检查 0 errors、0 warnings，架构回归 49 项通过。
+- 桌面 1280×900、平板 768×800、手机 390×844 提供浅色前后截图与修复后的深色截图；另检查 375×667、320×568、667×375、1280×720，页面无横向溢出。
+- 截图与 GIF 使用隔离合成会话；未验证真机触摸、系统键盘及真实悬停，未向真实模型发送交接。
