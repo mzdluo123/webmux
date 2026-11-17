@@ -113,10 +113,8 @@
     terminal: () => t,
     mounted: () => mounted,
     active: () => active && visible,
-    immersive: () => !!xr?.active,
     chat: () => hybrid.view === "chat",
     desktop: () => desktop,
-    root: () => terminalRoot,
     focusChat: () => stage?.focusChat(),
     focusComposer: () => stage?.focusComposer(),
     editComposer: (value) => stage?.editComposerKey(value),
@@ -223,7 +221,7 @@
     },
     () => keyboardDismissed(),
     () => chrome.sizeLocked,
-    () => active && !xr?.active && allowAutomaticInputFocus(),
+    () => active && allowAutomaticInputFocus(),
     false,
     () => chrome.keyboardHeld,
   );
@@ -269,43 +267,12 @@
     () => !!availableFeatures.files,
   );
   const fullscreen = useFullscreen((message) => (error = message));
-  const xr = features.immersive?.useXrSessionSource({
-    id: sessionId,
-    terminal: t,
-    chatPanel: features.chat?.xrChatPanel,
-    quickCommands: () =>
-      availableFeatures.quickCommands?.availableCommands(
-        !!availableFeatures.files,
-      ) ?? [],
-    codeAvailable: () => !!availableFeatures.code,
-    hybrid,
-    draft,
-    codePanels: () => codePanel?.xrPanels() ?? [],
-    focus: input.focusXr,
-    blur: input.blurXr,
-    editDraft: (input) => stage?.editComposerKey(input),
-    editChat: (input) => stage?.editChatKey(input),
-    sendDraft: input.sendDraft,
-    sendChat: () => stage?.sendChatDraft(),
-    toggleDraft: input.toggleDraft,
-    showCode: chrome.showCode,
-    showChat: revealChat,
-    showSwitchChoice: () => (chrome.choiceClosed = false),
-    runQuick: runQuickCommand,
-    error: (message) => (error = message),
-    notice: () => {
-      const chatErr = features.chat
-        ? stage?.getChatError() || hybrid.chat.error
-        : "";
-      return [error, t.error, chatErr].filter(Boolean).join(" ");
-    },
-  });
   $effect(() => {
     const record = hybrid.recoverable;
     if (hybrid.known) seenHybrid = true;
     if (record && hybrid.view === "recovery")
       untrack(() => oninfo(record, t.connection));
-    if (hybrid.missing && (seenHybrid || xr?.active)) untrack(onremoved);
+    if (hybrid.missing && seenHybrid) untrack(onremoved);
   });
 
   onMount(() => {
@@ -336,9 +303,6 @@
   bind:clientWidth={paneWidth}
   data-terminal-compact={!desktop}
   bind:this={terminalRoot}
-  onkeydowncapture={input.guardXrInput}
-  onbeforeinputcapture={input.guardXrInput}
-  onpastecapture={input.guardXrInput}
 >
   {#if features.chat}
     <features.chat.Handoff
@@ -395,11 +359,9 @@
     {paneActions}
     {headerTerminal}
     {fullscreen}
-    xr={availableFeatures.immersive ? xr : undefined}
     {desktop}
     {documentScroll}
-    chatVisible={((active && visible) || (input.xrFocused && !!xr?.active)) &&
-      (desktop || !chrome.codeShown || !!xr?.active)}
+    chatVisible={active && visible && (desktop || !chrome.codeShown)}
     {hybrid}
     terminal={t}
     uploads={availableFeatures.files ? uploads : undefined}

@@ -15,7 +15,6 @@
   } from "../../domains/terminal/terminal-keys";
   import type { UploadProgress } from "../../hooks/shared/upload.svelte";
   import type { Connection } from "../../platform/ws-contracts";
-  import { xrPresentation } from "../../hooks/shared/xr-presentation.svelte";
   import { hasTouchInput } from "../../platform/touch-input";
   import { tvMode } from "../../hooks/shared/tv-mode.svelte";
 
@@ -103,7 +102,7 @@
   let captured = $state(false);
   let inputButton = $state<HTMLButtonElement | null>(null);
   $effect(() => {
-    if (!tvMode.enabled || xrPresentation.active || !visible || !container) {
+    if (!tvMode.enabled || !visible || !container) {
       captured = false;
       return;
     }

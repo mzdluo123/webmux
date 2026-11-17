@@ -34,7 +34,7 @@ import { createTerminalSocket } from "./terminal-socket.svelte";
 import { useTerminalReadiness } from "./terminal-readiness.svelte";
 export type { TerminalController } from "../../domains/terminal/terminal-search";
 
-// A single parsed model and socket survive every DOM/XR presentation change.
+// A single parsed model and socket survive terminal view and hybrid switches.
 export function useTerminal(
   getContainer: () => HTMLDivElement,
   id: string,
@@ -51,8 +51,6 @@ export function useTerminal(
 ): TerminalController {
   let terminal = $state.raw<Terminal>();
   let renderer: TerminalRenderer | undefined;
-  let immersive = false;
-  let presentationChanged = () => {};
   let scrollOnFit = false;
   let sized = false;
   let fitWidth = 0;
@@ -130,19 +128,6 @@ export function useTerminal(
     follow = true;
   }
   function safeFit() {
-    if (immersive) {
-      const grid = stream.control;
-      if (
-        terminal &&
-        (stream.observing || !sized) &&
-        grid &&
-        (terminal.cols !== grid.cols || terminal.rows !== grid.rows)
-      )
-        terminal.resize(grid.cols, grid.rows);
-      if (grid) sized = true;
-      updateBottom();
-      return;
-    }
     const parent = getContainer();
     if (isVisible() && parent?.clientWidth > 0 && parent?.clientHeight > 0) {
       const held =
@@ -176,8 +161,7 @@ export function useTerminal(
     if (!terminal || !parent) return;
     const buffer = terminal.buffer.active;
     // Observers and locked grids scroll their host past the xterm viewport.
-    const scrollsHost =
-      !immersive && (parent.classList.contains("observing") || gridFixed());
+    const scrollsHost = parent.classList.contains("observing") || gridFixed();
     atBottom =
       buffer.viewportY >= buffer.baseY &&
       (!scrollsHost ||
@@ -187,12 +171,6 @@ export function useTerminal(
     if (userScrolled) follow = atBottom;
   }
   function scrollToBottom() {
-    if (immersive) {
-      terminal?.scrollToBottom();
-      follow = true;
-      updateBottom();
-      return;
-    }
     scrollOnFit = true;
     follow = true;
     safeFit();
@@ -250,7 +228,6 @@ export function useTerminal(
       const term = view.term;
       renderer = view;
       terminal = term;
-      view.setImmersive(immersive);
       search = new SearchAddon({ highlightLimit: terminalFindLimit });
       term.loadAddon(search);
       canFind = true;
@@ -275,7 +252,6 @@ export function useTerminal(
         fit: safeFit,
         scrollToBottom,
         isVisible,
-        isImmersive: () => immersive,
         copy: (text) => clipboard.copySelection(text),
         resetFind: () => {
           clearFind();
@@ -283,7 +259,6 @@ export function useTerminal(
         },
         preserveViewport: () => findActive || !follow,
       });
-      presentationChanged = attachment.presentationChanged;
       const detachInput = attachTerminalInput(term, parent, {
         userInput,
         clipboard,
@@ -341,16 +316,6 @@ export function useTerminal(
   return {
     get emulator() {
       return terminal;
-    },
-    get graphicsUnsupported() {
-      return stream.graphicsUnsupported;
-    },
-    setImmersive(active) {
-      if (immersive === active) return;
-      immersive = active;
-      renderer?.setImmersive(active);
-      presentationChanged();
-      if (!active) safeFit();
     },
     scrollLines(lines) {
       if (!Number.isFinite(lines)) return;
@@ -448,7 +413,6 @@ export function useTerminal(
       terminal?.clearSelection();
     },
     send,
-    consumeInput,
     setFontSize,
     resetModifiers: clearModifiers,
     toggleModifier(key: keyof Modifiers) {

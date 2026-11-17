@@ -9,7 +9,6 @@
   // panel beside it (stacked instead on narrow screens).
   let {
     codeShown,
-    immersive = false,
     desktop,
     draftOpen,
     terminalPane,
@@ -18,7 +17,6 @@
     onfind,
   }: {
     codeShown: boolean;
-    immersive?: boolean;
     desktop: boolean;
     draftOpen: boolean;
     terminalPane: Snippet;
@@ -34,7 +32,7 @@
 <div
   class="terminal-workspace"
   class:code-shown={codeShown}
-  class:mobile-code={!desktop && codeShown && !immersive}
+  class:mobile-code={!desktop && codeShown}
   class:compact={!desktop}
 >
   <Resizable.PaneGroup direction="horizontal">

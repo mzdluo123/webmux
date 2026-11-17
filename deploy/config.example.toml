@@ -137,7 +137,7 @@ program_status = true
 # Omit this table only to retain the legacy full feature set on an existing
 # installation. Explicit [] means no features; missing dependencies are errors.
 # Available IDs: launch, workspace, code, files, chat, notifications,
-# quick-commands, voice, forward, cloudflare, tailscale, p2p, mcp, immersive.
+# quick-commands, voice, forward, cloudflare, tailscale, p2p, mcp.
 # chat requires launch and files. Features do not enable their network services:
 # the existing [tunnel], [tailscale], [mcp], [p2p], etc. switches still apply.
 # Agent pretrust and profile-specific submit delay require launch.

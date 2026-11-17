@@ -76,7 +76,6 @@
   import { onActiveHostChange } from "./platform/storage";
   import { useDeviceShell } from "./hooks/shared/device-shell.svelte";
   import { tvInput } from "./hooks/shared/tv-input.svelte";
-  import { xrPresentation } from "./hooks/shared/xr-presentation.svelte";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { clearRelayAuth, resetRelayAuth } from "./platform/relay-auth";
   import { relayAuth } from "./platform/relay-auth.svelte";
@@ -296,7 +295,7 @@
     document.addEventListener("click", link);
     window.addEventListener("popstate", change);
     const disconnectShortcut = watchSessionSwitcherShortcut(
-      () => !xrPresentation.active && canSwitch && !switcherOpen,
+      () => canSwitch && !switcherOpen,
       openSwitcher,
     );
     window.addEventListener("webmux:auth", auth);
@@ -344,7 +343,7 @@
   });
 </script>
 
-{#if tvInput.message && !xrPresentation.active}
+{#if tvInput.message}
   <div
     class="pointer-events-none fixed inset-x-6 top-6 z-[100] mx-auto w-fit max-w-[calc(100%-3rem)] rounded-lg bg-background shadow-lg"
   >

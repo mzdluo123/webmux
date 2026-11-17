@@ -13,10 +13,8 @@ export function createSessionTerminalInput(options: {
   terminal: () => TerminalController;
   mounted: () => boolean;
   active: () => boolean;
-  immersive: () => boolean;
   chat: () => boolean;
   desktop: () => boolean;
-  root: () => HTMLElement | undefined;
   focusChat: () => void;
   focusComposer: () => void;
   editComposer: (input: string) => void;
@@ -26,8 +24,6 @@ export function createSessionTerminalInput(options: {
   notice: (message: string) => void;
 }) {
   const { draft, drafts } = options;
-  let xrFocused = $state(false);
-  let currentTarget: (() => boolean) | undefined;
   const draftInput = createSessionTerminalDraft({
     draft,
     drafts,
@@ -45,13 +41,6 @@ export function createSessionTerminalInput(options: {
     else if (draft.enabled) options.focusComposer();
     else options.terminal().focus();
   }
-  function blurXr() {
-    currentTarget = undefined;
-    xrFocused = false;
-    const target = document.activeElement;
-    if (target instanceof HTMLElement && options.root()?.contains(target))
-      target.blur();
-  }
 
   return {
     beginInput: draftInput.beginInput,
@@ -68,32 +57,12 @@ export function createSessionTerminalInput(options: {
     get scratchSaved() {
       return draftInput.scratchSaved;
     },
-    get xrFocused() {
-      return xrFocused;
-    },
     active() {
-      return options.immersive() ? !!currentTarget?.() : options.active();
+      return options.active();
     },
     focus() {
-      if (!options.active() || options.immersive()) return;
+      if (!options.active()) return;
       focusOriginal();
-    },
-    async focusXr(isCurrent: () => boolean) {
-      if (!isCurrent()) return;
-      currentTarget = isCurrent;
-      xrFocused = true;
-      await tick();
-      if (!options.mounted() || currentTarget !== isCurrent || !isCurrent())
-        return;
-      focusOriginal();
-      if (!isCurrent() && currentTarget === isCurrent) blurXr();
-    },
-    blurXr,
-    guardXrInput(event: Event) {
-      if (!options.immersive() || currentTarget?.()) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      blurXr();
     },
     insertReference(text: string) {
       if (options.chat())

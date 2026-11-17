@@ -95,15 +95,6 @@
       () => navigator?.capture() ?? seed?.navigator,
     );
   }
-  const xrContents = $derived.by(() => {
-    const tab = ws.s.tabs.find((item) => item.key === ws.s.active);
-    const navigation = navigator?.xrPanel();
-    const content = tab ? views.get(tab)?.xrPanel() : undefined;
-    return [...(navigation ? [navigation] : []), ...(content ? [content] : [])];
-  });
-  export function xrPanels() {
-    return xrContents;
-  }
   function setNavWidth(width: number) {
     const limit = Math.min(navMax, (inner?.clientWidth ?? navMax) - 160);
     ws.s.navWidth = Math.round(Math.max(navMin, Math.min(limit, width)));
