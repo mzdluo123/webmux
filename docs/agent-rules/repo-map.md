@@ -27,7 +27,7 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. Read it when you nee
 - `web/src/domains/<topic>/`: business algorithms and reactive domain state, grouped by ownership.
 - `web/src/pages/`, `web/src/hooks/<topic>/`, `web/src/components/<topic>/`: page composition, resource-owning controllers and business UI.
   Cross-topic reuse lives in `shared/`; navigation UI lives in `components/shell/`. See [frontend architecture](../frontend-architecture.md).
-- `web/src/lib/components/ui/`: shadcn-svelte base components and project-maintained, business-independent UI compositions. Project components are registered in `web/ui-project-components.json`; business components compose these shared implementations.
+- `web/src/lib/components/ui/`: shadcn-svelte base components and project-maintained, business-independent UI compositions. Generated-file exemptions are listed in `web/ui-generated-files.json`; other UI files are checked by default; business components compose these shared implementations.
 - `web/test/`: Node unit, browser component, and isolated backend E2E suites.
 - `deploy/`: deployment examples.
 - `docs/`, `openspec/`: user/contributor docs and specification artifacts. Obey [doc-governance.md](../doc-governance.md): 20–400 lines, at most 300 display columns per line, at most 48 KiB per file, at most 20 child directories.
@@ -43,7 +43,7 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. Read it when you nee
 - `Makefile`, `go.mod`, `web/package.json`, `web/pnpm-lock.yaml`, `web/pnpm-workspace.yaml`: build commands, tool/dependency versions, and permitted install scripts.
 - `web/vite.config.ts`: Vite+ build, proxy/alias, formatting, and lint configuration; repository formatting also uses this file.
 - `web/tsconfig.json`, `web/components.json`: strict typing and UI generation.
-- Frontend architecture guard: `web/eslint.config.mjs`, `web/.dependency-cruiser.cjs`, `web/.jscpd.json`, `web/knip.config.ts`, `web/ui-project-components.json`, `web/test/architecture.test.ts`, `web/test/dependency-policy.test.ts`.
+- Frontend architecture guard: `web/eslint.config.mjs`, `web/.dependency-cruiser.cjs`, `web/.jscpd.json`, `web/knip.config.ts`, `web/ui-generated-files.json`, `web/test/architecture.test.ts`, `web/test/dependency-policy.test.ts`.
   - Baselines: `web/eslint-suppressions.json`, `web/.dependency-cruiser-known-violations.json`, `web/.jscpd-baseline.json`.
 - `README.md`, `docs/` (usage, deployment, architecture, protocol), `CONTRIBUTING.md`, `SECURITY.md`: user and contributor documentation at overview level. Confirm implementation details against source.
   - Start from [docs/README.md](../README.md), the documentation hub; `docs/overview.md` holds the full feature introduction and `docs/faq.md` the FAQ and help channels that the root `README.md` summarizes.

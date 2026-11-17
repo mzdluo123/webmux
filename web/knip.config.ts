@@ -1,5 +1,5 @@
 import type { KnipConfig } from "knip";
-import projectUI from "./ui-project-components.json" with { type: "json" };
+import generatedUI from "./ui-generated-files.json" with { type: "json" };
 
 export default {
   entry: ["scripts/*.{ts,mjs}"],
@@ -12,7 +12,7 @@ export default {
     "test/**/*.ts",
   ],
   ignore: [
-    `src/lib/components/ui/!(${projectUI.join("|")})/**`,
+    ...generatedUI.map((file) => `src/lib/components/ui/${file}`),
     "src/lib/paraglide/**",
   ],
   ignoreDependencies: [

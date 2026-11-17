@@ -5,7 +5,10 @@
   import { Label } from "$lib/components/ui/label";
   import * as NativeSelect from "$lib/components/ui/native-select";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import type { CodeDiff, CodeFile } from "../../contracts/schemas";
   import type { MarkdownHeading } from "./CodeMarkdownPreview.svelte";
@@ -255,20 +258,20 @@
           {@render outlineItems()}
         </DropdownMenu.Content>
       </DropdownMenu.Root>{/if}
-    {#if svgFile}<SegmentedControl.Root
+    {#if svgFile}<SegmentedControl
         value={svgView}
         onValueChange={(view) =>
           onshowsvg(view === "source" ? "source" : "preview")}
         aria-label={m.s5_svg_display_mode()}
         class="shrink-0"
       >
-        <SegmentedControl.Item value="preview"
-          >{m.s5_preview()}</SegmentedControl.Item
+        <SegmentedControlItem value="preview"
+          >{m.s5_preview()}</SegmentedControlItem
         >
-        <SegmentedControl.Item value="source"
-          >{m.s5_source()}</SegmentedControl.Item
+        <SegmentedControlItem value="source"
+          >{m.s5_source()}</SegmentedControlItem
         >
-      </SegmentedControl.Root>{/if}
+      </SegmentedControl>{/if}
     {#if shownDiff}
       {#if imageChange}<Label size="sm" class="shrink-0"
           >{m.s5_preview_source_side()}

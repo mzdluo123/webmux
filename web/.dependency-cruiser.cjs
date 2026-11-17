@@ -5,8 +5,12 @@
 // -> platform/contracts. Feature entries may compose existing views, never the reverse.
 // Type-only dependencies obey the same boundaries as runtime imports.
 
-const projectUI = require("./ui-project-components.json");
-const GENERATED_UI = `^src/lib/components/ui/(?!(${projectUI.join("|")})(/|$))`;
+const generatedUI = require("./ui-generated-files.json");
+const GENERATED_UI = `^(?:${generatedUI
+  .map((file) =>
+    `src/lib/components/ui/${file}`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+  )
+  .join("|")})$`;
 
 const PRIMITIVES = "node_modules/(bits-ui|vaul-svelte|paneforge)/";
 const VARIANTS = "node_modules/(tailwind-variants|class-variance-authority)/";

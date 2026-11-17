@@ -1,7 +1,10 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
   import { Label } from "$lib/components/ui/label";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { Switch } from "$lib/components/ui/switch";
   import type { ForwardOptions } from "../../contracts/schemas";
 
@@ -49,19 +52,19 @@
     <p class="text-sm font-medium" id={`${id}-prefix-label`}>
       {m.s8_fwd_prefix_label()}
     </p>
-    <SegmentedControl.Root
+    <SegmentedControl
       size="form"
       bind:value={options.prefix}
       aria-labelledby={`${id}-prefix-label`}
       aria-describedby={`${id}-prefix-help`}
     >
-      <SegmentedControl.Item value="keep"
-        >{m.s8_fwd_prefix_keep()}</SegmentedControl.Item
+      <SegmentedControlItem value="keep"
+        >{m.s8_fwd_prefix_keep()}</SegmentedControlItem
       >
-      <SegmentedControl.Item value="strip"
-        >{m.s8_fwd_prefix_strip()}</SegmentedControl.Item
+      <SegmentedControlItem value="strip"
+        >{m.s8_fwd_prefix_strip()}</SegmentedControlItem
       >
-    </SegmentedControl.Root>
+    </SegmentedControl>
     <p id={`${id}-prefix-help`} class="text-xs text-muted-foreground">
       {#if options.prefix === "keep"}
         {m.s8_fwd_prefix_keep_before()}<code class="font-mono">{base}…</code

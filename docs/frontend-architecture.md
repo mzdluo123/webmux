@@ -32,9 +32,9 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 公共组件通过 props、snippet 和回调接收内容与操作，不读取 API、领域状态或设备持久化设置。
 业务状态映射留在 `components/`，例如 SessionStatus 将会话状态映射为 Badge；ConfirmDialog 负责异步操作的错误转换。
 
-手工公共组合登记在 `web/ui-project-components.json`，保留命名、499 行体量、重复外观、循环依赖和未使用代码检查。
+手工公共组合默认接受命名、499 行体量、重复外观、循环依赖和未使用代码检查，包括 ListButton、SegmentedControl 与 `tabs/indicator.ts`。
 设计系统实现拥有外观与底层元素封装职责，因此沿用 `ui/` 的模板外观、原生控件及原语导入豁免；语义色、圆角和 Svelte 规则继续检查。
-生成组件保留按需生成的孤儿、命名与体量豁免。新增手工组合时同步登记清单；ESLint、依赖守卫和 Knip 的职责见下表。
+生成代码的文件级豁免清单是 `web/ui-generated-files.json`，依赖守卫、Knip 和架构测试共用该清单；新增文件默认接受检查。生成文件增删时同步审查清单，架构测试检查清单排序、唯一性和文件存在性。
 
 ## 分层
 

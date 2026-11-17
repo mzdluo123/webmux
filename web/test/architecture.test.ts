@@ -7,13 +7,13 @@ import { describe, expect, test } from "vite-plus/test";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const UI_DIR = "src/lib/components/ui/";
-const projectUIDirectories = JSON.parse(
-  readFileSync(`${root}/ui-project-components.json`, "utf8"),
+const generatedUIFiles = JSON.parse(
+  readFileSync(`${root}/ui-generated-files.json`, "utf8"),
 ) as string[];
+const generatedUI = new Set(generatedUIFiles.map((file) => `${UI_DIR}${file}`));
+const isGeneratedUI = (file: string) => generatedUI.has(file);
 const isProjectUI = (file: string) =>
-  projectUIDirectories.some((name) => file.startsWith(`${UI_DIR}${name}/`));
-const isGeneratedUI = (file: string) =>
-  file.startsWith(UI_DIR) && !isProjectUI(file);
+  file.startsWith(UI_DIR) && !isGeneratedUI(file);
 const PARAGLIDE_DIR = "src/lib/paraglide/";
 
 const files = globSync("src/**/*.svelte", { cwd: root })
@@ -124,6 +124,23 @@ function radiusViolations(file: string): string[] {
 }
 
 describe("frontend architecture", () => {
+  test("generated UI exemptions name existing files once", () => {
+    const uiFiles = new Set(
+      globSync("src/lib/components/ui/**/*.{ts,svelte}", { cwd: root }).map(
+        (file) => file.replaceAll("\\", "/"),
+      ),
+    );
+    expect(generatedUIFiles).toEqual([...new Set(generatedUIFiles)].sort());
+    expect([...generatedUI].filter((file) => !uiFiles.has(file))).toEqual([]);
+    for (const file of [
+      "list-button/list-button.svelte",
+      "segmented-control/segmented-control.svelte",
+      "tabs/indicator.ts",
+      "new-widget/widget.svelte",
+    ])
+      expect(isProjectUI(`${UI_DIR}${file}`)).toBe(true);
+  });
+
   test("source root contains only bootstrapping, declarations and global styles", () => {
     const entryFiles: Record<string, true> = {
       "src/App.svelte": true,

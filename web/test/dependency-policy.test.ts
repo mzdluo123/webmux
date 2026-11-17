@@ -225,10 +225,10 @@ describe("dependency boundary policy", () => {
     ).toContain("no-circular");
   });
 
-  test("project UI keeps cycle checks while registry barrels are exempt", () => {
+  test("unregistered UI keeps cycle checks while generated barrels are exempt", () => {
     expect(
       violations(
-        "src/lib/components/ui/inline-notice/index.ts",
+        "src/lib/components/ui/new-widget/index.ts",
         "src/lib/components/ui/info-hint/index.ts",
         { cycle: true },
       ),
@@ -243,10 +243,10 @@ describe("dependency boundary policy", () => {
     ).toContain("no-unresolved");
   });
 
-  test("unused project UI is rejected while generated UI can be unused", () => {
+  test("unused unregistered UI is rejected while generated UI can be unused", () => {
     expect(
       violations(
-        "src/lib/components/ui/inline-notice/index.ts",
+        "src/lib/components/ui/new-widget/index.ts",
         "src/lib/components/ui/button/index.ts",
         { orphan: true },
       ),
