@@ -18,6 +18,18 @@
   } = $props();
 
   let ready = $state(false);
+
+  // The trigger is the row's second tab stop; ArrowLeft steps back to the
+  // row item, the way the row's own arrow handling treats it as a sibling.
+  function triggerKeydown(event: KeyboardEvent) {
+    if (event.key !== "ArrowLeft") return;
+    const row = (event.currentTarget as HTMLElement)
+      .closest("li")
+      ?.querySelector<HTMLElement>("[data-tree-key]");
+    if (!row) return;
+    event.preventDefault();
+    row.focus();
+  }
 </script>
 
 <DropdownMenu.Root
@@ -32,7 +44,8 @@
         variant="file-tree-action"
         aria-label={ariaLabel}
         title={ariaLabel}
-        {tabindex}><IconDots aria-hidden="true" /></ListButton
+        {tabindex}
+        onkeydown={triggerKeydown}><IconDots aria-hidden="true" /></ListButton
       >
     {/snippet}
   </DropdownMenu.Trigger>
