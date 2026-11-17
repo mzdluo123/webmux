@@ -68,7 +68,7 @@ func (c Client) actionTools() []mcpprotocol.Tool {
 		tool("session_launch", "Create a session, optionally using the instance's enabled launch/workspace/chat capabilities. Requires a stable clientRequestId; retry the identical request after a lost response. Creation is deduplicated by the server for ten minutes, in memory only. Partial failures retain created resources.", false, create, []string{"clientRequestId"}, c.launch),
 		tool("session_send", "Send input through the current session view: typed text on the terminal view, a prompt on the chat view. "+
 			"Read state before sending. Choose steer for a current-task supplement, auto for an independent next task, now for an explicit stop-and-replace, or refuse when queueing is unacceptable. "+
-			"If the input is already queued, check its status and remove only your own item confirmed still queued before deciding whether to steer, to avoid duplicate delivery. "+
+			"If the input is already queued, check its status and remove only your own item confirmed still queued before deciding whether to steer, to avoid duplicate delivery. This control MCP has no queue-removal tool; use an available CLI/API or ask the user to remove it. "+
 			"Retry with the same clientRequestId and identical payload; use a new id for a new operation. "+
 			"Chat receipts may contain a turnId or queued itemId; steer usually has neither turnId nor promptId. "+
 			"A successful steer receipt does not prove understanding or completion; terminal acceptance does not prove execution or completion.", false, map[string]any{

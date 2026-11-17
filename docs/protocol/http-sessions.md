@@ -59,7 +59,7 @@
   - `steer`（插话）：向支持插话的运行中回合补充内容，不取消当前回合。
   - `refuse`：立即发送条件同 `auto`，不满足时返回 409 `busy`，不排队。
   - `now`（取消后立即发送）：取消运行回合后队首优先发送，可能打断工作；无运行回合且连接可用时直接发送。
-  - 200 `{view: "chat", queued, itemId?, turnId?, promptId?}`，含义见 [聊天视图的输入](http-hybrid.md#聊天视图的输入)。
+  - 200 `{view: "chat", queued, itemId?, position?, turnId?, promptId?}`，含义见 [聊天视图的输入](http-hybrid.md#聊天视图的输入)。
   - 带 `keys` 时 409 `wrong_view`。
 
 `POST /api/sessions/{id}/interrupt {clientRequestId}`：

@@ -203,7 +203,7 @@ Claude Code 的 ACP 进程无参数执行 `claude-agent-acp`，`initialize` 固�
 `text` 不超过 64 KiB；有附件时可以只发附件。ACP 自动重连期间提交的自动发送消息进入队列等待连接恢复。回合以 `cancelled`、错误、`refusal` 或 `auth_required` 结束时，非空队列暂停。
 
 插话先检查连接与视图状态，再检查档案实现、agent 声明的 `steering` 能力及运行回合；后面三项任一不满足返回 `steering_unavailable`。
-omp、Codex 与 Claude Code 的档案声明该能力，实际可用性仍以当前会话状态为准。
+档案支持不保证当前连接可用，实际插话能力以当前会话状态为准。
 只有支持 outcome 协议的适配器报告 `promptRequired` 时，回合结束竞态中的文本才会回到队首，待队列可发送时开始下一回合；报告 `startedNewTurn` 会提示该回合不受 WebMux 跟踪。
 
 迁移自己的排队项为插话前，先核对队列当前状态，确认原项仍排队并成功删除后，再核对插话能力与运行回合。
@@ -243,7 +243,7 @@ agent 声明 `promptCapabilities.image` 时图片以 `image` 块（base64 与原
 - 对象已变化：`answered`（请求已被其他设备答复）、`sent`（队列条目已发送或已删除）。
 - 其余：`steering_unavailable`、`session_missing`、`config_missing`、`limit`。
 
-Codex 与 Claude Code 的插话带 `_meta.steering.idleBehavior = "promptRequired"`：适配器报告 `promptRequired` 时消息排到队首；agent 回答 `failed` 时请求以 502 失败。
+支持 outcome 协议的适配器带 `_meta.steering.idleBehavior = "promptRequired"`：适配器报告 `promptRequired` 时消息排到队首；agent 回答 `failed` 时请求以 502 失败。
 
 agent 调用失败返回 502；`hybrid-sessions.json` 不可用返回 503 并附文件路径，普通会话不受影响。
 
