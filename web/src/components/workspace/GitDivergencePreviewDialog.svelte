@@ -10,8 +10,8 @@
     gitDivergenceConfirmLabel,
     gitDivergenceTitleLabel,
   } from "../../domains/workspace/git-divergence-model";
-  import InlineNotice from "../shared/InlineNotice.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import BranchCommitList from "./BranchCommitList.svelte";
   import GitOperationSessionAck from "./GitOperationSessionAck.svelte";
   import PreviewIssues from "./PreviewIssues.svelte";

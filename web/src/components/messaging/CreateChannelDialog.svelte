@@ -3,8 +3,8 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { MessagingCreateChannelSchema } from "../../contracts/messaging-schemas";
   import type { MessagingController } from "../../hooks/messaging/messaging.svelte";
   let { messaging }: { messaging: MessagingController } = $props();

@@ -25,11 +25,11 @@
     resolveHunksCalculatedDiff,
   } from "../../domains/code/code-diff-client";
   import CodeDiffReader from "../code/CodeDiffReader.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitCommitPreviewMetaCard from "./GitCommitPreviewMetaCard.svelte";
   import GitDialogFooter from "./GitDialogFooter.svelte";
   import GitIssueList from "./GitIssueList.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   let {
     model,

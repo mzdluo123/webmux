@@ -1,7 +1,7 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
   import type { PushCheck } from "../../contracts/schemas";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   // Whether the commit a removal or release keeps is contained in a
   // remote-tracking ref. The server reads local refs only, so an unpushed

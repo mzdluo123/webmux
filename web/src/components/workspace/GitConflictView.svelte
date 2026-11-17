@@ -32,7 +32,7 @@
     type GitConflictDraftState,
   } from "../../domains/workspace/git-conflict-model";
   import type { GitConflictController } from "../../hooks/workspace/git-conflict-controller.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitConflictMobilePane from "./GitConflictMobilePane.svelte";
   import GitConflictTextPane from "./GitConflictTextPane.svelte";
   import GitConflictVariantCard from "./GitConflictVariantCard.svelte";

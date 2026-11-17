@@ -10,7 +10,7 @@
   import { Button } from "$lib/components/ui/button";
   import * as InputGroup from "$lib/components/ui/input-group";
   import * as Empty from "$lib/components/ui/empty";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import type { MessagingController } from "../../hooks/messaging/messaging.svelte";
 
   let { messaging }: { messaging: MessagingController } = $props();

@@ -63,13 +63,14 @@ WebMux 的 UI 从使用者当前的任务出发：让人看懂发生了什么、
 
 继续使用 `web/src/lib/components/ui/` 中的 shadcn-svelte 与 bits-ui 组件，保留键盘导航、焦点管理和 ARIA 行为。修改生成组件后，重新运行生成器时需要审查本地差异。这些约定由 [前端架构守卫](frontend-architecture.md) 检查，现有的 variant、size 与例外契约也列在其中。
 
-| 层级       | 组件                                                                | 约定                                                 |
-| ---------- | ------------------------------------------------------------------- | ---------------------------------------------------- |
-| 基础操作   | Button、Badge、Input、Textarea、Label、Switch、Select               | 使用 variant 和 size；不以页面选择器覆盖全体按钮外观 |
-| 容器和导航 | Card、Item、Tabs、DropdownMenu、Popover                             | 内容层使用边界和留白；浮层使用独立表面和阴影         |
-| 弹层       | Dialog、AlertDialog、Drawer                                         | 共享文字与形状规范；危险菜单项保留红色               |
-| 业务反馈   | InlineNotice、SessionStatus                                         | 复用语义颜色和状态文字，长错误信息允许换行           |
-| 业务模式   | WorkspaceGroup、SessionRow、ResponsiveDialog、TerminalInputComposer | 组合基础组件；响应式布局与资源生命周期由业务组件管理 |
+| 层级       | 组件                                                             | 约定                                                 |
+| ---------- | ---------------------------------------------------------------- | ---------------------------------------------------- |
+| 基础操作   | Button、Badge、Input、Textarea、Label、Switch、Select            | 使用 variant 和 size；不以页面选择器覆盖全体按钮外观 |
+| 容器和导航 | Card、Item、Tabs、DropdownMenu、Popover                          | 内容层使用边界和留白；浮层使用独立表面和阴影         |
+| 弹层       | Dialog、AlertDialog、Drawer                                      | 共享文字与形状规范；危险菜单项保留红色               |
+| 公共反馈   | InlineNotice、StripNotice、InfoHint                              | 位于 `ui/`，统一提示语义与按需说明                   |
+| 公共组合   | ResponsiveDialog、PickerField、AdvancedSection、KeyValueSummary  | 位于 `ui/`，通过 props、snippet 和回调组合基础控件   |
+| 业务模式   | SessionStatus、WorkspaceGroup、SessionRow、TerminalInputComposer | 位于 `components/`，负责领域状态和业务操作           |
 
 `SessionStatus` 区分需立即处理的提醒（需要回答、等待授权、出错停止）与普通等待，以及正常退出与非零退出码。`InlineNotice` 的 danger 使用 `role="alert"`，其他提示使用 `role="status"`；常规静态说明可继续使用普通段落，避免过多实时播报。
 

@@ -3,7 +3,7 @@
   import { ItemGroup } from "$lib/components/ui/item";
   import { Badge } from "$lib/components/ui/badge";
   import type { GitBranchItem } from "../../contracts/git-workbench-schemas";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import GitDialogFooter from "./GitDialogFooter.svelte";
   import GitRecoveryCommandBox from "./GitRecoveryCommandBox.svelte";
 

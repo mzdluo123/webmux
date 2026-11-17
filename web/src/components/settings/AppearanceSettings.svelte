@@ -17,7 +17,7 @@
   import * as Card from "$lib/components/ui/card";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import LocaleChoice from "../shared/LocaleChoice.svelte";
   import { tvMode } from "../../hooks/shared/tv-mode.svelte";
   import { headsetMode } from "../../hooks/shared/headset-mode.svelte";

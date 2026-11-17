@@ -30,7 +30,7 @@
   import type { GitWorktreeContext } from "../../contracts/git-workbench-schemas";
   import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
   import { validateAuthorOverrideInput } from "../../domains/workspace/git-v2-adapter";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitCommitAdvancedOptions from "./GitCommitAdvancedOptions.svelte";
   import GitCommitDraftConflictCard from "./GitCommitDraftConflictCard.svelte";
 

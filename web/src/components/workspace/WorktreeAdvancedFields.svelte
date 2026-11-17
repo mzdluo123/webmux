@@ -8,7 +8,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import * as Select from "$lib/components/ui/select";
-  import AdvancedSection from "../shared/AdvancedSection.svelte";
+  import { AdvancedSection } from "$lib/components/ui/advanced-section";
 
   let {
     mode,

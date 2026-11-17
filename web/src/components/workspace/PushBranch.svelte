@@ -18,7 +18,7 @@
   import BranchCommitList from "./BranchCommitList.svelte";
   import FlowActions from "../shared/FlowActions.svelte";
   import FlowStatus from "../shared/FlowStatus.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import PreviewIssues from "./PreviewIssues.svelte";
 
   // Pushes the previewed commit of a local branch to its upstream or, for a

@@ -5,7 +5,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
-  import PickerField from "../shared/PickerField.svelte";
+  import { PickerField } from "$lib/components/ui/picker-field";
   import BranchCommandList from "./BranchCommandList.svelte";
   import WorktreeBaseStatus from "./WorktreeBaseStatus.svelte";
 

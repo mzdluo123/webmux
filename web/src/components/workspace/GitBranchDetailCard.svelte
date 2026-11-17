@@ -11,7 +11,7 @@
     resolveGitBranchUpstream,
     type GitSharedBranchActionKind,
   } from "../../domains/workspace/git-branches-model";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   let {
     activeBranch,

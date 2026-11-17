@@ -34,7 +34,7 @@ description: Use for any WebMux UI design or implementation. Start with user tas
 
 1. 阅读相关页面、组件、故事和用户故事，定位当前任务受到的阻碍。
 2. 按顺序复用：`web/src/lib/components/ui/` → 业务复合组件 → shadcn-svelte registry。用户已明确方向时直接实现；存在会改变主任务路径的取舍时简要比较方案。
-3. 基础控件的外观通过 `ui/` 的 variant/size 扩展，并登记[前端架构守卫](../../../docs/frontend-architecture.md)。使用处的 `class` 控制布局；颜色与尺寸消费语义令牌。
+3. 通用 UI 壳（InlineNotice、ResponsiveDialog、InfoHint 等）从 `ui/` 导入，保持单一实现与可审计的变体。基础控件的外观通过 `ui/` 的 variant/size 扩展，并登记[前端架构守卫](../../../docs/frontend-architecture.md)。使用处的 `class` 控制布局；颜色与尺寸消费语义令牌。
 4. 迁移入口、组件、测试与文档，保持同一任务的交互一致。聊天与快速开始共用已有 `ComposerCard`；其他输入体验按真实能力选择可复用控件。
 5. 验证完整路径及失败恢复，再提交真实截图与交互证据。
 

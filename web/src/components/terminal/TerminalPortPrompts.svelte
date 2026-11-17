@@ -1,5 +1,5 @@
 <script lang="ts">
-  import StripNotice from "../shared/StripNotice.svelte";
+  import { StripNotice } from "$lib/components/ui/strip-notice";
   import { untrack, type Snippet } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { Button } from "$lib/components/ui/button";

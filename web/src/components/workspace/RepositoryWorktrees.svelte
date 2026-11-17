@@ -26,7 +26,7 @@
     type WorktreeBatchFilter,
   } from "../../domains/workspace/worktree-batch";
   import { Button } from "$lib/components/ui/button";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import ManageWorktreesPreview from "./ManageWorktreesPreview.svelte";
   import ManageWorktreesResultNotice from "./ManageWorktreesResultNotice.svelte";
   import ManageWorktreesSelectList from "./ManageWorktreesSelectList.svelte";

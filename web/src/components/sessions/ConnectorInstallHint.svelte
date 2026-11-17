@@ -6,7 +6,7 @@
   import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
   import { m } from "$lib/paraglide/messages.js";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { useCopied } from "../../hooks/shared/copied.svelte";
   import { connectorMissingText } from "../../domains/sessions/hybrid";
   import type { AgentConnector } from "../../contracts/schemas";

@@ -4,7 +4,7 @@
   import { Label } from "$lib/components/ui/label";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import { Textarea } from "$lib/components/ui/textarea";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import GitDialogFooter from "./GitDialogFooter.svelte";
 
   let {

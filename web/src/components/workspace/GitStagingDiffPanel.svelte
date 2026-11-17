@@ -23,7 +23,7 @@
   import { createOfflineHunkDiffState } from "../../hooks/workspace/git-offline-diff.svelte";
   import type { GitStagingDiffController } from "../../hooks/workspace/git-staging-diff.svelte";
   import CodeDiffReader from "../code/CodeDiffReader.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitConflictTerminalNotice from "./GitConflictTerminalNotice.svelte";
   import GitDiffSelectionBar from "./GitDiffSelectionBar.svelte";
   import GitStagingDiffHeader from "./GitStagingDiffHeader.svelte";

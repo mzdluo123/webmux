@@ -6,7 +6,7 @@
   import { Label } from "$lib/components/ui/label";
   import { Switch } from "$lib/components/ui/switch";
   import * as Card from "$lib/components/ui/card";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { APIError } from "../../platform/api";
   import {
     attentionToasts,

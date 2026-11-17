@@ -9,7 +9,7 @@
   import ChannelList from "../components/messaging/ChannelList.svelte";
   import Conversation from "../components/messaging/Conversation.svelte";
   import CreateChannelDialog from "../components/messaging/CreateChannelDialog.svelte";
-  import InlineNotice from "../components/shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { useMessaging } from "../hooks/messaging/messaging.svelte";
   const messaging = useMessaging();
   const state = messaging.state;

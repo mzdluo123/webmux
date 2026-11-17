@@ -14,7 +14,7 @@
   } from "../../contracts/schemas";
   import { statusSummary } from "../../domains/sessions/session-status";
   import { fetchedText } from "../../domains/workspace/worktree-sync";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   // The repository panel's overview: where the repository lives, its
   // default branch, how many worktrees the home page lists, the remotes, the

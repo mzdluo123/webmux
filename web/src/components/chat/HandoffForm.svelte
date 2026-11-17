@@ -14,7 +14,7 @@
   import { getShell } from "../../hooks/shared/shell.svelte";
   import { getFeatureContributions } from "../../features/context";
   import { featureAvailable } from "../../platform/feature-host.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import HandoffPreviewCard from "./HandoffPreviewCard.svelte";
   let { editor: e, fork }: { editor: HandoffEditor; fork: boolean } = $props();
   const shell = getShell();

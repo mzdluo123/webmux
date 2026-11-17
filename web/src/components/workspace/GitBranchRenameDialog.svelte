@@ -5,7 +5,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import type { GitBranchRenamePreview } from "../../contracts/schemas";
   import { canExecutePreviewedMutation } from "../../domains/workspace/git-v2-adapter";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import GitDialogFooter from "./GitDialogFooter.svelte";
   import GitIssueList from "./GitIssueList.svelte";
   import GitOperationSessionAck from "./GitOperationSessionAck.svelte";
