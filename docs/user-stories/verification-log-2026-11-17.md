@@ -94,6 +94,106 @@
 - 截图使用隔离的旧 Token 门禁和新中转门禁；录像为 Storybook 场景切换，不代表真实 GitHub 授权或生产网络恢复。
 - 无头浏览器未覆盖真实悬停、粗指针、iOS/Android 真机键盘；真实 GitHub 登录成功回调需用户登录态。
 
+## 默认图片交接与现场边界（US-Q19、US-Q20、US-K04）
+
+### 变更范围
+
+- 交接请求默认 image、显式 text；图片页序、字节、hash 在预览冻结，任务独立保留原文，审阅历史不重复作为文本发送。
+- 页数超限重选完整片段并重新渲染；缺字、覆盖不全、能力或资源限制阻止发送，没有静默文本回退。
+- 原生正文与可见工具调用/结果进入机械投影，结构标题与私有状态不替代正文；文本预算与图片预算分开说明。
+- 浏览器和 HTTP 提供生产交接；CLI mcp-serve 的 thread_read 仅补查原文，控制 MCP session_read 仅提供原生分页。
+
+### 既有部署现场事实
+
+以下为用户提供的 2026-11-17 现场报告，服务为 WebMux 0.17.3 的文本交接路径，与本分支图片实现分开。
+证据目录为 `/tmp/webmux-artifacts-1000-edf7f84f/vskhehaw/handoff-live`，报告为 `report.md` 与 `root-causes.md`；本轮未重试失败路径。
+
+- omp 18.22.0：来源因 HistoryRoot 内无关旧文件的 bashExecution 角色导致全目录发现失败；限定测试目录发现成功不等于全根目录问题已修复。
+- Kimi 2.5.3：实际 wire 1.5 被只接受 1.4 的 reader 拒绝；QoderCN 1.1.81 被精确 1.1.84 writer-version 限制拒绝。
+- Codex 0.169.0 / ACP 2.6.0：来源版本被拒绝，经 discovery 表现为身份冲突；agy 1.5.7：ACP cascade ID 与 reader trajectory ID 不一致。
+- 上述来源版本、身份与根目录发现问题由独立变更处理，本轮图片交接不声明修复，也不宣称全部已安装 Agent 来源可读。
+- Claude Code 2.1.299 的 claude-agent-acp 缺失，创建在 precheck 阻止；OpenCode 2.2.6 用户消息可导出，但模型额度耗尽，未验证其目标接收。
+- Devin 3000.13.4 最小双向文字交接通过；其用户与助手两条消息均非空，不代表长会话空 assistant/工具记录已复现或修复。
+- omp 目标约 47 秒完成并给出正确文字答案，但 operation 在约 30 秒已为 unknown；发送状态与答案正确性分别保留，现场未重复发送。
+- 这份既有现场报告没有发送图片，不能据此证明图片到达；其他目标的正确文字答案也不扩大为全部跨 Agent 配对或完整工具历史通过。
+
+### 本分支实际验证记录
+
+统一验证在实现完成后执行。原始证据保留于 `/tmp/webmux-artifacts-1000-edf7f84f/32ugftkr/image-handoff`。
+
+- Go race：`internal/handoff`、`internal/hybrid`、`internal/historyprojection`、`internal/agent/devin/history`、`internal/historysource`、`internal/historyimport`、`internal/threadread` 通过；覆盖空消息、工具关联、分页重选、缺字、覆盖不全、能力变化、冻结一致性与确认取消/断线。
+- `go test ./internal/api -run TestWireSnapshots -update` 后，`go test -race ./internal/api -run 'TestNativeHandoffHTTP|TestWireSnapshots'` 通过，涵盖认证、Origin 与图片 wire 契约。
+- 前端 `check`、`lint`、`check:arch` 通过，架构测试 46 项；`check:test` 为 0 errors、0 warnings，`conversation-schema.test.ts` 与 `wire-contract.test.ts` 共 366 项通过，`src` 格式检查通过。
+- 隔离嵌入运行时的 Playwright `test/e2e/handoff.spec.ts` 通过；覆盖预览图片加载、放大/关闭、文本模式失效旧预览、原文补查、并发去重、句柄过期与不支持图片时显式文本交接。
+- 变更 Go 包的 `golangci-lint run` 返回 0 issues。
+
+### 真实浏览器与模型证据
+
+- 浏览器在隔离服务中创建并审阅三页冻结图片，点击 Send handoff；目标为真实 omp 18.22.0，模型 `openai-codex/gpt-6-astra`、thinking `medium`。
+- ACP 捕获记录仅有一次 `session/prompt`，内含 1 个文本块与 3 个真实 image 块；PNG 共 698765 字节，逐页 SHA-256 与浏览器预览完全一致，任务原文保留。
+- 任务文本没有随机答案；模型无工具调用，准确返回 `IMAGE_OK WMX-IMAGE-643994C44C 蓝鹭 48397`，证明读取了图片独有的随机码、中文名和端口。
+- operation 从 21:48:25 到 21:49:07 正确结束为 succeeded，超过 30 秒没有提前 unknown；另捕获真实 prompt 的 `end_turn`。发送确认、回合结束与答案核对分别留证。
+- 实际 prompt result 报告 input/output/total token 为 8135/22/8157；这是整次请求的 provider usage，未拆分为图片 token，也未与文本费用比较。
+- 来源基线为本分支隔离合成 omp schema-3 根目录；未包含独立来源修复 PR #683，也未包含尚未交付的 discovery/identity 修复。合成源使用 fake agent 写入原生文件，目标及其模型响应均为真实运行。
+- 前后截图分别来自分支基线真实服务/UI 与修改后真实服务，同一组合成字段；截图覆盖桌面 1280×900、平板 768×800、手机 390×844 的浅深主题，页面无横向溢出。
+- 放大框另检查 375×667、320×568、667×375；键盘 Enter 打开、Escape 关闭并恢复触发器焦点。无头浏览器未验证真实悬停、粗指针或真机触控/IME。
+- 原始 `browser-preview.json`、`real-acp-evidence.jsonl`、`real-verification.json` 与 `visual-checks.json` 保留在上述交付物目录；未用私人历史请求模型，未重启既有服务。
+
+| 视口 / 主题 | 修改前                                                                    | 修改后                                                                   |
+| ----------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| 桌面 / 浅色 | ![修改前桌面浅色](../images/handoff/snapcompact-before-desktop-light.png) | ![修改后桌面浅色](../images/handoff/snapcompact-after-desktop-light.png) |
+| 平板 / 浅色 | ![修改前平板浅色](../images/handoff/snapcompact-before-tablet-light.png)  | ![修改后平板浅色](../images/handoff/snapcompact-after-tablet-light.png)  |
+| 手机 / 浅色 | ![修改前手机浅色](../images/handoff/snapcompact-before-phone-light.png)   | ![修改后手机浅色](../images/handoff/snapcompact-after-phone-light.png)   |
+| 桌面 / 深色 | ![修改前桌面深色](../images/handoff/snapcompact-before-desktop-dark.png)  | ![修改后桌面深色](../images/handoff/snapcompact-after-desktop-dark.png)  |
+| 平板 / 深色 | ![修改前平板深色](../images/handoff/snapcompact-before-tablet-dark.png)   | ![修改后平板深色](../images/handoff/snapcompact-after-tablet-dark.png)   |
+| 手机 / 深色 | ![修改前手机深色](../images/handoff/snapcompact-before-phone-dark.png)    | ![修改后手机深色](../images/handoff/snapcompact-after-phone-dark.png)    |
+
+桌面浅色、合成数据，正常速度打开/关闭放大框：
+
+![图片放大交互](../images/handoff/snapcompact-zoom.gif)
+
+真实目标读取仅存在图片中的合成答案：
+
+![真实图片答案](../images/handoff/snapcompact-real-image-answer.png)
+
+### 审查修正与补充现场事实
+
+- 页数协议固定为 1–8，与普通附件数量独立；前端契约、默认值、输入上界和标签共用常量。清空恢复 8，小数和越界输入规整为范围内整数。
+- 发送直接提交已审阅句柄，由服务端原子校验有效期与消费状态；浏览器无需再下载整组 PNG。明确拒绝与不明网络结果分开处理。
+- Wire 快照保留字段及类型，图片字节、hash、尺寸使用归一化值；原始 PNG 与 hash 一致性继续由 handoff 回归验证。
+- 修正后的 Playwright handoff 8 项、API/handoff 定向 race、前端架构 46 项、类型与 lint 检查通过。实际浏览器清空页数恢复 8，预览后直接 POST 发送成功，网络记录中没有额外预览 GET。
+- 父会话补充 Claude Code 2.1.326 / native model `k3.1-pro` 的隔离文本交接通过；旧认证失败不再代表该新测试配置。该证据不扩展为图片、长历史或工具历史验收，临时认证配置已由父会话清理。
+
+### 精确来源候选的临时组合
+
+- 图片代码 `c2d9c7df302d8b7b2f6ffe7f7115e305b1921bf4` 与 #683 的 `028cd161f6ad4298b6839f0cc6986bd7580f1a95` 生成临时 merge-tree `35c5955770de14fceb0fc4bd50b6b0052d858b61`；未合并任何分支。
+- Go 代码无冲突，Kimi/Qoder/QoderCN/historyprojection/handoff race 全部通过；本文件与 `hybrid-sessions/composition-and-handoff.md` 两处文档有内容冲突，未将临时树当成可直接合并的完整提交。
+- 只读父会话的隔离合成原文，reader 按 cursor 重读冻结范围，经本分支 renderer 与真实 ACP 交给 Astra/medium。Kimi 6 条记录、QoderCN 8 条记录，均为 0 gap、1 页、无缺字/未覆盖、无工具调用及正常 end_turn。
+- QoderCN 的随机码、中文名与端口 3/3 正确，耗时约 40.38 秒；Kimi 2/3 正确，耗时约 26.99 秒：模型将原文、投影与 PNG 中的「青鹭」误读为「青鸢」，随机码与端口正确。
+- 保留这次字符误读，没有重新请求。渲染覆盖通过不等于模型精确识别；冻结原文补查和用户主动文本模式继续保留。
+- 组合测试只覆盖 reader/render/ACP，未重跑组合树的 HTTP/UI 全链路。完整输入、图片、实际回答与评分见交付物目录的 `integration/report.md`；临时构建目录及模型进程已清理。
+
+### 最终五来源 HTTP/UI 图片组合验收
+
+- 来源基线固定为 #684 `20909cac14fa5088cf337ae52d16cb6acd04b3b5` 与 #683 `028cd161f6ad4298b6839f0cc6986bd7580f1a95`。
+- 图片 Go 基线为 `e8832deb800286ce06458b7c12bda9ddb2c8aada`，隔离组合提交为 `e6a5e3136f0abf34375e3181036161451e0073af`；另包含本次顶部默认图片模式文案修正。
+- 已同步 `origin/main` 的 `cdcf67d39b11b128af9c2a9513a9f2822b98b182`。组合文档保留各来源的版本、身份及独立验证事实；没有改写来源 owner 分支。
+- 仅恢复获授权的五个已关闭合成来源。Kimi/QoderCN 各选入 4 段，omp/Codex/agy 各 2 段，均为 1 页、0 省略；来源缺口分别为 0、0、0、10、2，预览与文本指引明确展示。
+- 五次均由真实浏览器生成预览并发送，目标固定为 `openai-codex/gpt-6-astra`、`medium`。每次只收到一个真实 ACP image 块，PNG 字节/hash 与冻结预览完全一致，当前任务原样保留且文本不含校验码。
+- 五个 operation 均为 succeeded，五个目标回合均正常 end_turn，工具调用均为 0。QoderCN、omp、Codex、agy 的四字段全部正确；Kimi 的校验码、端口、文件名正确，项目名「青鹭」仍误读为「青鸢」。
+- Kimi 原文、冻结补查、投影与原始 PNG 均为「青鹭」。PNG 为 1024×424、140948 字节，SHA-256 为 `14925f830ea735cd19e51f11d1dc61aa9d451f7b00b50d1713b2338b022a65db`；原尺寸放大可见完整字形。
+- 该次 Kimi 字符识别未通过；此前 2/3 的失败也保留。没有重新请求、默认切换文本或将答案附加到文本；PNG 覆盖与传输一致性不保证模型精确识字。
+- 五个目标绑定的冻结原文接口均返回 HTTP 200，均可补查正确校验码与中文名。该证据覆盖 `thread_read` 使用的 HTTP 路径，未在禁用工具的模型回合中调用 MCP。
+- 最终浏览器截图覆盖桌面 1280×900、平板 768×800、手机 390×844 的明暗主题，均无页面横向溢出；录制 Enter 打开原尺寸图片、Escape 关闭的真实 GIF。无真机、真实悬停或粗指针验证。
+- 合成输入、五组预览/PNG/ACP 回执/实际回答/冻结补查、字段评分、来源缺口及 harness 保存在本会话交付物的 `image-handoff/combined-service/`。
+- 隔离服务已停止，指定隔离配置的模型进程无残留；既有服务与来源会话未重启。源文件保留为只读验收证据。
+- 本地完成 1250 项单元、936 项浏览器组件、137 项 Storybook、562 项 E2E（52 跳过）及 18 项性能测试（2 跳过）。
+- 首轮 Go 全套仅失败于 Devin 文件行数和图片 JSON 编码归属两项架构规则；拆分内容解析、复用 ACP 编码后，ACP/Devin/handoff 与完整架构 race 通过，最终组合的六个 reader、import/projection/handoff/docguard/archtest race 通过。
+- 最终 UI 构建通过，568 文件、0 errors、0 warnings。旧 HEAD 的 CI 前端构建在第二次 `compile:i18n` 阶段触发 20 分钟作业超时；保留该失败记录，最终提交继续跟进检查。
+- 最终 `make check` 通过：构建、格式、文档与持久化守卫、前端 lint/类型/架构 46 项、Go vet 与 golangci-lint（0 issues）。
+
+![Kimi 图片字符识别失败的真实回答](../images/handoff/snapcompact-kimi-image-misread.png)
+
 ## 终端历史查询应答隔离（US-D03）
 
 ### 行为与根因

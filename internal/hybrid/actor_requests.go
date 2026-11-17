@@ -119,6 +119,9 @@ func (a *actor) openRequest(p *pending) {
 		p.answer <- cancelledAnswer(p.kind)
 		return
 	}
+	if a.turn != nil {
+		a.turn.acknowledge(nil)
+	}
 	if p.tool != nil && a.turn != nil {
 		a.work.tool(*p.tool)
 		a.refreshWork()

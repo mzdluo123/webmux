@@ -2,9 +2,11 @@ package hybrid
 
 import (
 	"context"
-	"github.com/rainchan/webmux/internal/acp"
 	"strconv"
+	"sync"
 	"time"
+
+	"github.com/rainchan/webmux/internal/acp"
 )
 
 func (a *actor) sendPrompt(text, wireText string, attachments []Attachment, queueItem, titleSource string, check func(string) (string, error), refresh ...bool) (PromptResult, error) {
@@ -14,6 +16,10 @@ func (a *actor) sendPrompt(text, wireText string, attachments []Attachment, queu
 	if err != nil {
 		return PromptResult{}, err
 	}
+	return a.sendBlocks(text, attachments, queueItem, titleSource, blocks, notes, backgroundRefresh)
+}
+
+func (a *actor) sendBlocks(text string, attachments []Attachment, queueItem, titleSource string, blocks []acp.ContentBlock, notes []string, backgroundRefresh bool) (PromptResult, error) {
 
 	a.nextTurn++
 	if a.promptTitle {
@@ -28,7 +34,7 @@ func (a *actor) sendPrompt(text, wireText string, attachments []Attachment, queu
 	n := strconv.Itoa(a.nextTurn)
 	result := PromptResult{TurnID: "t" + n, PromptID: "p" + n}
 	ctx, cancel := context.WithCancel(context.Background())
-	t := &turn{acknowledgement: make(chan error, 1), id: result.TurnID, cancel: cancel, done: make(chan struct{}), backgroundRefresh: backgroundRefresh}
+	t := &turn{acknowledgement: &promptAcknowledgement{done: make(chan struct{})}, id: result.TurnID, cancel: cancel, done: make(chan struct{}), backgroundRefresh: backgroundRefresh}
 	a.turn = t
 	a.snapshotProcesses()
 	a.work.endTurn()
@@ -51,10 +57,19 @@ func (a *actor) sendPrompt(text, wireText string, attachments []Attachment, queu
 	return result, nil
 }
 
+// Acknowledgement belongs to the dispatched turn, outside the bounded command.
+// Closing done publishes one immutable outcome to every deduplicated observer.
+type promptAcknowledgement struct {
+	done chan struct{}
+	once sync.Once
+	err  error
+}
+
 func (t *turn) acknowledge(err error) {
-	t.acknowledgementOnce.Do(func() {
-		if t.acknowledgement != nil {
-			t.acknowledgement <- err
-		}
-	})
+	if receipt := t.acknowledgement; receipt != nil {
+		receipt.once.Do(func() {
+			receipt.err = err
+			close(receipt.done)
+		})
+	}
 }

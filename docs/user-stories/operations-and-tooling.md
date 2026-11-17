@@ -33,8 +33,8 @@
   - 支持 `default_cwd`、`scrollback_bytes`、`idle_after_seconds`、`prompt_patterns`、`agent_protocol`、`bell_attention`、`program_status`、`agent_pretrust`，校验正则；
   - `agent_protocol`、`bell_attention`、`program_status` 属于核心 PTY 状态识别，不依赖通知或聊天功能；`agent_pretrust` 与 agent 专属提交延迟由 `launch` 启动集成提供，未选择时不装配；
   - 启动命令由显式 argv（核心）或 `launch` 保存配置提供，原 `shell`/`presets` 不提供内置命令；仅首次启用 `launch` 且文件缺失时写入常见 agent 预设；
-  - 选择 `chat` 后，通过 Agent 原生身份读取历史；`handoff_token_cap` 设置交接历史预算上限。
-  - 选择 `chat` 后，`handoff_token_cap` 默认 16000，校验范围 1024–64000，限制交接历史保守预算；实际预算仍受上下文窗口和 prompt 上限约束；
+  - 选择 `chat` 后，通过 Agent 原生身份读取历史，默认图片交接、显式文本；图片默认最多 8 页，页数和字节预算独立于文本估算；
+  - `handoff_token_cap` 默认 16000、范围 1024–64000，约束交接文本保守预算，并受窗口和 prompt 上限限制；图片还受附件与编码请求上限限制，文本估算不代表视觉 token 或费用；
   - 提醒集成方式见 [使用指南](../usage/attention.md)。
 - **US-K05 安装后台用户服务**：作为部署者，我希望以当前用户安装并启动后台服务，以便不需要一直开着前台终端。
   验收要点：

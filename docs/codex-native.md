@@ -1,6 +1,6 @@
 # 原生历史直读与快照
 
-通过已登记会话的 runtime ID 读取 Agent 原生历史，取得短期冻结范围并生成机械文本投影。
+通过已登记会话的 runtime ID 读取 Agent 原生历史，取得短期冻结范围；交接默认生成历史图片，也可显式选择机械文本投影。
 浏览器交接操作见[原生历史交接](hybrid-sessions/handoff.md)。
 
 ## 最短读取路径
@@ -24,7 +24,7 @@ OpenCode、agy 与 Devin 的 SQLite 由只读读取器访问。
 
 快照固定来源路径、Agent、原生 ID、分支、解析版本、记录 hash 与边界。
 范围之后的追加属于后续历史；范围内修改和来源丢失产生明确错误。
-快照在当前进程有效五分钟，最多 32 项，与预览文本共用 64 MiB 预算。
+快照在当前进程有效五分钟，最多 32 项，与预览文本及图片表示共用 64 MiB 预算。
 
 ## 运行身份与目录
 
@@ -32,11 +32,14 @@ OpenCode、agy 与 Devin 的 SQLite 由只读读取器访问。
 创建与恢复进程时记录实际历史根目录；旧记录缺失目录时返回来源不可用。
 服务启动保留旧会话数据库原件，升级操作见[持久化说明](persistence.md#旧会话数据库与升级)。
 
-## 投影与显式图片实验
+## 投影与图片交接
 
-Snapcompact 负责工具输出截断、空白规范化与文本预算，当前用户任务保持原样。
-图片实验通过 action=render 显式执行，结果包含页面、缺失字形和未覆盖范围。
-实验说明见[图片实验](native-image-experiment.md)与[ACP 图片传输记录](native-image-transport.md)。
+Snapcompact 对可导出用户/助手正文及可见工具调用/结果做机械投影，保留角色、来源顺序和工具关联。
+结构 JSON、记录标题、私有推理和不可导出 provider 状态不替代正文；当前用户任务独立保持原样。
+生产交接默认渲染历史图片，超页时重选完整片段后重新渲染；缺字、覆盖不全、渲染或能力错误阻止发送，文本需明确选择。
+图片冻结后按相同字节发送；页数/字节限制与文本预算分开，不能据此推断模型费用或阅读准确性。
+`action=render` 的显式开发入口仍可查看页面、缺失字形和未覆盖范围。
+历史独立实验见[图片实验](native-image-experiment.md)与[ACP 图片传输记录](native-image-transport.md)，其结果不代表新生产路径已验收。
 完整字段见[原生历史 HTTP](protocol/http-conversation.md)和[交接 API](protocol/http-handoff.md)。
 
 ## 读取器与版本证据
@@ -59,6 +62,11 @@ Snapcompact 负责工具输出截断、空白规范化与文本预算，当前�
 原生格式、CLI、连接器和历史注入协议是独立版本维度，不能互相替代。
 未知格式、引用式 lineage、无法证明的分支或原生身份返回明确错误，不猜测会话归属。
 SQLite 读取在只读事务内完成；agy 生产读取 BLOB，不把 decoded JSON 研究文件冒充原生来源。
+
+2026-11-17 当前部署的合成历史现场测试另发现来源兼容性问题：
+omp 的根目录发现被无关旧格式阻断，Kimi wire 1.5 和 QoderCN 1.1.81 被版本限制拒绝，Codex 0.169.0 的版本失败被表现为身份冲突，agy 的 cascade/trajectory 身份不一致。
+这些问题按独立修复处理，本轮图片投影变更不声明修复；连接器缺失与模型额度限制也不等于图片能力结论。
+现场结果与当前图片路径的验证边界见[2026-11-17 核对记录](user-stories/verification-log-2026-11-17.md#默认图片交接与现场边界us-q19us-q20us-k04)。
 
 ## 资源、隐私与 Codex 格式细节
 
@@ -88,4 +96,5 @@ Codex 发现保留原有独立预算：元信息 64 KiB、累计 16 MiB、最多
 
 ## 投影与图片
 
-文本投影使用独立 Snapcompact 核心。显式图片实验及其测量记录见[图片实验](native-image-experiment.md)与[ACP 图片传输](native-image-transport.md)。
+生产默认图片及显式文本共用独立 Snapcompact 核心；格式和预算见[交接 API](protocol/http-handoff.md)。
+保留的[图片实验](native-image-experiment.md)与[ACP 图片传输](native-image-transport.md)只证明各自注明的模型、版本和样本，不代表全部 reader 或跨 Agent 配对已验收。

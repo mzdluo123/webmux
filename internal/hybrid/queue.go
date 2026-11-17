@@ -161,13 +161,23 @@ func (a *actor) prompt(text, titleSource string, attachments []Attachment) (Prom
 
 // promptRefuse sends text when the session is idle and refuses to queue it
 // otherwise: a script that must not wait gets ErrBusy.
-func (a *actor) promptRefuse(text, titleSource string, attachments []Attachment) (PromptResult, error) {
+func (a *actor) promptRefuse(text, titleSource string, attachments []Attachment, images []PromptImage) (PromptResult, error) {
 	if err := a.ready(); err != nil {
 		return PromptResult{}, err
 	}
 	a.clearAttention()
 	if !a.canSendNow() {
 		return PromptResult{}, fmt.Errorf("%w: 消息未发送", ErrBusy)
+	}
+	if len(images) > 0 {
+		if !a.chat.PromptCapabilities.Image {
+			return PromptResult{}, fmt.Errorf("%w: 目标 agent 不支持图片", ErrInvalid)
+		}
+		blocks, err := imagePromptBlocks(text, images)
+		if err != nil {
+			return PromptResult{}, err
+		}
+		return a.sendBlocks(text, nil, "", titleSource, blocks, nil, false)
 	}
 	return a.send(text, attachments, "", titleSource)
 }
