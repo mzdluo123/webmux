@@ -61,6 +61,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
   let terminal: Terminal | undefined;
   let graphicsUnsupported = $state(false);
   let socket: SocketConnection | undefined;
+  let replaying = false;
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   const identity = clientIdentity();
@@ -95,7 +96,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     let restoreFrame = 0;
     let restoreVersion = 0;
     terminal = term;
-    let replaying = false;
+    replaying = false;
     let graphics: TerminalGraphics | undefined;
     const writeOutput = (data: Uint8Array, parsed: () => void) => {
       if (graphics) graphics.write(data, parsed);
@@ -436,7 +437,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     },
     // Sends one of xterm's automatic replies to a device query.
     sendReply(reply: string) {
-      socket?.send(6, encoder.encode(reply));
+      if (!replaying) socket?.send(6, encoder.encode(reply));
     },
     // Takes input and grid control for this browser tab.
     claim() {
