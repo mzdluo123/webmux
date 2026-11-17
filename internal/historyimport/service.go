@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+
 	"github.com/rainchan/webmux/internal/historysource"
 )
 
@@ -43,6 +44,18 @@ func (s *Service) Discover(ctx context.Context, agent, root string) ([]historyso
 	return fn(ctx, root)
 }
 func (s *Service) RuntimeSource(ctx context.Context, id string) (historysource.Source, error) {
+	source, err := s.runtimeSource(ctx, id)
+	if err != nil {
+		return historysource.Source{}, err
+	}
+	doc, err := s.readNative(ctx, historysource.Request{Source: source})
+	if err != nil {
+		return historysource.Source{}, err
+	}
+	return doc.Source, nil
+}
+
+func (s *Service) runtimeSource(ctx context.Context, id string) (historysource.Source, error) {
 	var empty historysource.Source
 	if s == nil || s.resolveIdentity == nil {
 		return empty, historysource.ErrUnavailable
@@ -77,7 +90,7 @@ func (s *Service) RuntimeSource(ctx context.Context, id string) (historysource.S
 	return result, nil
 }
 func (s *Service) FreezeRuntime(ctx context.Context, id string) (Scope, error) {
-	source, err := s.RuntimeSource(ctx, id)
+	source, err := s.runtimeSource(ctx, id)
 	if err != nil {
 		return Scope{}, err
 	}

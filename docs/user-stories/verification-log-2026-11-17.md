@@ -111,6 +111,45 @@
 - 首轮 CI 发现新增正则触发控制字符 lint，已有 attention 用例要求历史查询回写；前者改用可读转义标记匹配，后者改为通过步骤文件触发实时查询，验证应答到达 PTY 后提醒仍保留，并验证重开页面没有额外应答。
 - 修订后运行 `pnpm --dir web lint` 通过；Playwright 按 `opening a session does not clear attention|reopening suppresses` 筛选两个文件，桌面与 iPhone SE 共 4 项通过。
 
+## 原生来源发现与身份绑定（US-Q19、US-Q20）
+
+### 范围与证据
+
+- 修复范围为 omp 头部发现与角色分类、Codex 0.169.0 格式及错误保真、agy cascade/trajectory 身份映射；发送与图片链路保持原实现。
+- 旧夹具保留，新增本机合成会话的脱敏捕获；当前 omp 与 Codex 最小捕获没有工具调用，工具参数、结果和关联由旧实录及明确标记的合成回归覆盖。
+- 本机命令输出为 `omp/18.22.0`、`codex-cli 0.169.0`、agy `1.5.7`。
+- `opencode models --standalone` 列出 `opencode-go/deepseek-v4.1-flash`，隔离接收验收选用该模型。
+
+### 已执行准备
+
+- `pnpm --dir web install --frozen-lockfile` 通过。
+- `pnpm --dir web build` 通过，Svelte 检查为 0 errors、0 warnings，生成隔离服务的嵌入资源。
+- 验收配置使用独立临时 state_dir 与 loopback 监听；生产服务及既有会话保持原样，未读取 Token 或处理账号认证。
+
+### 回归与静态验证
+
+- `go test -race` 覆盖 `internal/historyimport`、`internal/codexrollout`、三个 agent history 包、`internal/historyprojection`、`internal/handoff`、`internal/featureapi`。
+- 首轮仅 Codex 新增 reader 单测失败：该断言把上层冻结摘要校验误放到仅持字节边界的 reader；删除此重复断言后，Codex 包复测通过。RuntimeSource 集成回归保留并通过冻结内容修改拒绝断言。
+- `go test -count=1 ./internal/docguard ./internal/archtest` 通过。
+- 对上述来源包与 `internal/featureapi` 运行 `golangci-lint run`，结果为 0 issues。
+- `CGO_ENABLED=0 go build -o /tmp/webmux-native-history-identity/webmux ./cmd/webmux` 通过，真实验收运行该二进制。
+
+### 隔离真实 Agent 验收
+
+三种来源首轮均正常 `end_turn`；运行时原生读取 HTTP 200、预览 HTTP 201、发送 HTTP 202，交接操作均为 `succeeded`。
+目标使用已查询确认的 `opencode-go/deepseek-v4.1-flash`；当前任务没有包含答案，目标从历史恢复三项合成事实。
+
+| 来源  | 来源会话   | 目标会话   | 目标 t1 实际回复                           |
+| ----- | ---------- | ---------- | ------------------------------------------ |
+| omp   | `ts3xug6o` | `eoyhmzm6` | `HANDOFF_OK WMX-omp-659ade63 青鹭 49367`   |
+| Codex | `srg3zjhn` | `mncv2vh7` | `HANDOFF_OK WMX-codex-ccee309a 青鹭 49367` |
+| agy   | `qm5soray` | `hdkwvzw7` | `HANDOFF_OK WMX-agy-4e929a7a 青鹭 49367`   |
+
+- 三个指定目标 t1 均收到 `turn.end` / `end_turn`；回复逐项核对校验码、项目名及端口。
+- 六个自建会话的 kill 均成功；随后逐个 GET 确认 `state=closed`、`status=exited`。exit 观察因会话先移出 active 返回 1，未取得进程退出码证明；隔离服务之后正常退出，退出码 0。
+- 完整本地证据：`/tmp/webmux-native-history-identity/evidence-complete.json`；清理证据：同目录 `cleanup.json`。
+- 此轮证明三种来源到 OpenCode 的文本交接；工具链由 reader 回归覆盖，图片交接与 Claude 账号认证不在本次验收范围。
+
 ## 移除沉浸式 VR 模式（US-H15、US-K18、US-L02）
 
 ### 范围与兼容性

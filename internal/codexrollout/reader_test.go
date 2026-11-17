@@ -63,7 +63,7 @@ func TestIncompleteAndCorrupt(t *testing.T) {
 }
 func TestVersionUnknownAndLimits(t *testing.T) {
 	b := fixture(t)
-	for _, version := range []string{"0.76.0", "9.99.0"} {
+	for _, version := range []string{"0.76.0", "0.168.0", "0.170.0", "9.99.0"} {
 		_, err := Read(strings.NewReader(strings.Replace(string(b), "0.77.0", version, 1)), nil)
 		if !errors.Is(err, ErrVersion) {
 			t.Fatal(err)
@@ -174,5 +174,38 @@ func TestUnverifiedMirrorsAndReasoningAreExplicit(t *testing.T) {
 	})
 	if err != nil || !slices.Contains(categories, "mirror_pairing_unverified") || !slices.Contains(categories, "nonexportable_reasoning") {
 		t.Fatal(categories, err)
+	}
+}
+
+func TestCurrentVersionRetainsLineageRestrictions(t *testing.T) {
+	header := strings.Replace(string(bytes.SplitN(fixture(t), []byte{'\n'}, 2)[0]), "0.77.0", "0.169.0", 1)
+	for _, lineage := range []string{
+		`"history_base":{"session_id":"parent"}`,
+		`"forked_from_id":"parent"`,
+		`"subagent_history_start_ordinal":0`,
+	} {
+		data := strings.Replace(header, `"cli_version":`, lineage+`,"cli_version":`, 1) + "\n"
+		if _, err := Read(strings.NewReader(data), nil); !errors.Is(err, ErrVersion) {
+			t.Fatalf("reference lineage accepted: %v", err)
+		}
+	}
+	data := strings.Replace(header, `"cli_version":`, `"history_base":null,"forked_from_id":null,"subagent_history_start_ordinal":null,"cli_version":`, 1) + "\n"
+	if _, err := Read(strings.NewReader(data), nil); err != nil {
+		t.Fatalf("null lineage rejected: %v", err)
+	}
+}
+
+func TestEnvironmentProvenanceDoesNotHideUserText(t *testing.T) {
+	header := strings.Replace(string(bytes.SplitN(fixture(t), []byte{'\n'}, 2)[0]), "0.77.0", "0.169.0", 1)
+	for _, kinds := range []string{`[]`, `["unknown"]`, `["environments.environment_context","user.text"]`} {
+		line := `{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>literal user text</environment_context>"}],"internal_chat_message_metadata_passthrough":{"content_item_kinds":` + kinds + `}}}`
+		var items []Item
+		_, err := Read(strings.NewReader(header+"\n"+line+"\n"), func(record Record) error {
+			items = append(items, record.Items...)
+			return nil
+		})
+		if err != nil || len(items) != 1 || items[0].Text != "<environment_context>literal user text</environment_context>" {
+			t.Fatalf("user text hidden by unverified provenance: %+v %v", items, err)
+		}
 	}
 }

@@ -2,7 +2,7 @@
   "agent": "codex",
   "sourceLayout": "~/.codex/sessions/<year>/<month>/<day>/rollout-<timestamp>-<session-id>.jsonl",
   "provenance": {
-    "kind": "sanitized excerpts of real pre-existing local native session recordings",
+    "kind": "sanitized native session recordings: historical excerpts and an authorized synthetic current capture",
     "statement": "Every fixture line is derived from an actual source JSONL record; no events, roles, calls, tool results, branches, or compaction records were synthesized.",
     "excerpts": [
       {
@@ -62,6 +62,24 @@
         "contentOrCallTypes": {},
         "toolNames": [],
         "gaps": "Only the listed original JSONL records are retained in original order; every other source record is omitted. References into omitted history are remapped but not reconnected or invented."
+      },
+      {
+        "file": "current-0.169.0.jsonl",
+        "sampleKind": "complete-synthetic-session-capture",
+        "source": "authorized-synthetic-recording-3",
+        "sourceRecords": 20,
+        "sourceLines": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+        "recordTypes": {
+          "session_meta": 1,
+          "event_msg": 7,
+          "response_item": 9,
+          "world_state": 1,
+          "turn_context": 1,
+          "token_usage_record": 1
+        },
+        "messageRoles": {"developer": 4, "user": 2, "assistant": 1},
+        "toolNames": [],
+        "gaps": "All source records retained in order. The source intentionally called no tools; current-format tool tests explicitly supplement it with older captured tool envelopes."
       }
     ]
   },
@@ -76,6 +94,16 @@
         "source": "local-recording-2",
         "field": "session_meta.payload.cli_version",
         "value": "0.157.1"
+      },
+      {
+        "source": "authorized-synthetic-recording-3",
+        "field": "session_meta.payload.cli_version",
+        "value": "0.169.0",
+        "connectorContext": "ACP 2.6.0 reported for the authorized capture; not inferred from the rollout CLI version",
+        "originator": "webmux",
+        "sourceKind": "vscode",
+        "identity": "session_meta.id equals session_meta.session_id and the authorized runtime native ID; consistently remapped",
+        "lineage": "No non-null history_base, forked_from_id or subagent_history_start_ordinal in the captured session_meta"
       }
     ],
     "installedBinaryVersion": "unknown; no binary was executed"
@@ -86,6 +114,7 @@
     "Original IDs and retained-source revisions/hashes are consistently remapped to synthetic UUIDs within each source; separate sources use separate namespaces.",
     "Timestamp values are shifted per source to a 2000-01-01 baseline, preserving representation, relative timing, and equality. Native booleans and non-identifying numeric counters/metrics remain; numeric error identifiers are replaced.",
     "Native object/array envelopes, ordering, field presence, nulls, enum values, message roles, call/result links, and parent references are retained. Opaque signatures/encrypted payloads are placeholders rather than valid cryptographic data.",
+    "The current synthetic capture preserves structural enum values and content_item_kinds provenance; generated context and instructions are replaced, the synthetic prompt/answer use stable safe facts, and account/session/message/turn IDs are consistently remapped into a separate namespace.",
     "Only sanitized fixture files and this manifest are written to the repository; no raw source content, real usernames, session IDs, account IDs, or original absolute source paths are included."
   ],
   "coverage": [
@@ -146,10 +175,25 @@
       "contentOrCallTypes": {},
       "toolNames": [],
       "gaps": "Only the listed original JSONL records are retained in original order; every other source record is omitted. References into omitted history are remapped but not reconnected or invented."
+    },
+    {
+      "file": "current-0.169.0.jsonl",
+      "sampleKind": "complete-synthetic-session-capture",
+      "source": "authorized-synthetic-recording-3",
+      "sourceRecords": 20,
+      "portableMessages": 2,
+      "coverage": [
+        "Canonical user and assistant response_item bodies with native IDs",
+        "item_completed user/agent mirrors excluded; reasoning excluded",
+        "Environment-only user message identified by content_item_kinds and excluded",
+        "additional_tools, world_state, task lifecycle and token usage envelopes",
+        "Header-based discovery, unsupported-version candidate retention and frozen-prefix consumer regressions"
+      ],
+      "toolEvidence": "No tool calls in this current capture. Supplementary tests reuse the unchanged historical tool fixture under the current header; this is compatibility coverage, not a claim of current live tool execution."
     }
   ],
   "limitations": [
-    "Sanitized historical excerpts, not complete resumable sessions. No agent was installed, started, or queried; no runtime, reader, or API support is claimed.",
+    "Historical excerpts and one complete synthetic current recording; sanitized fixtures are not resumable sessions. No agent binary was executed or queried while capturing these files.",
     "Messages, prompts, instructions, tool input/output, paths, URLs, models, signatures, and encrypted content are placeholders; semantic replay and cryptographic validation are intentionally impossible.",
     "Source files were read only. No authentication/configuration files, environment-variable dumps, or whole stores were copied. Context files were not opened.",
     "Original parent/call/message relationships are retained through deterministic per-source ID remapping; references to omitted entries remain external and are not fabricated.",
@@ -167,6 +211,12 @@
       "format": "jsonl",
       "records": 2,
       "sha256": "b2041cfbbb44b7db88ac04a9b3743c0f13963bee15af7bb5aa7ffd98c5c84fe7"
+    },
+    {
+      "path": "current-0.169.0.jsonl",
+      "format": "jsonl",
+      "records": 20,
+      "sha256": "071cda03f1b909bf40cb3d752edb7b92af33c730c93ffd90b2e719120abdd199"
     }
   ]
 }

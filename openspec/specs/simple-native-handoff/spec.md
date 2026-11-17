@@ -23,6 +23,21 @@
 - **WHEN** 发送前冻结范围内的内容或原生身份发生变化
 - **THEN** 系统返回来源变化或身份冲突错误，用户重新生成预览
 
+#### Scenario: 无关历史格式不支持
+
+- **WHEN** omp HistoryRoot 同时包含有效目标与正文不兼容的其他会话
+- **THEN** 发现仅检查有界原生头，唯一目标经 reader 校验后可冻结；同 ID 的多个候选仍返回身份冲突
+
+#### Scenario: 目标版本不支持
+
+- **WHEN** Codex 目标原生 ID 存在，但 writer 版本未受支持
+- **THEN** 系统 SHALL 返回来源格式错误并保留版本解析原因，身份不匹配仅用于缺失或歧义的身份
+
+#### Scenario: ACP 与存储身份不同
+
+- **WHEN** agy 数据库的 cascade ID 与 trajectory ID 不同
+- **THEN** 系统 SHALL 用数据库 cascade ID 匹配 ACP 会话，并将两个 ID 纳入冻结来源校验
+
 ### Requirement: 机械文本投影与当前任务
 
 系统 SHALL 采用确定性工具输出截断、空白规范化及有界预算生成文本投影。
