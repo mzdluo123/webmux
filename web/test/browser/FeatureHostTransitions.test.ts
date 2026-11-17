@@ -6,6 +6,7 @@ import App from "../../src/App.svelte";
 import { api, navigate } from "../../src/platform/api";
 import {
   applyRelayAuth,
+  relayAuthRevision,
   relayAuthStatus,
   resetRelayAuth,
 } from "../../src/platform/relay-auth";
@@ -447,13 +448,10 @@ test("relay recovery keeps the terminal, route and unsent draft without replayin
     csrfToken: "owner",
     expiresAt: Math.floor(Date.now() / 1000) + 3600,
   };
-  respond(/^GET \/api\/relay\/auth\/session$/, () =>
-    Response.json(authenticated),
-  );
   const info = session({ id: "aaaaaaaa" });
   respond(/^GET \/api\/sessions\/aaaaaaaa$/, () => Response.json(info));
   await mount();
-  applyRelayAuth(authenticated);
+  applyRelayAuth(authenticated, relayAuthRevision());
   navigate("/s/aaaaaaaa?message=retained");
   const terminal = await socketAt("/ws/s/aaaaaaaa");
   terminal.binary(2, info);
@@ -492,15 +490,14 @@ test("relay recovery keeps the terminal, route and unsent draft without replayin
 test.each(["expired", "revoked", "unauthenticated"] as const)(
   "a relay %s response retains console login instead of reporting a bad Token",
   async (reason) => {
-    respond(/^GET \/api\/relay\/auth\/session$/, () =>
-      Response.json({
-        authenticated: true,
-        relay: true,
-        csrfToken: "owner",
-        expiresAt: Math.floor(Date.now() / 1000) + 3600,
-      }),
-    );
+    const authenticated = {
+      authenticated: true,
+      relay: true,
+      csrfToken: "owner",
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+    };
     await mount();
+    applyRelayAuth(authenticated, relayAuthRevision());
     navigate("/settings/relay");
     respond(/^POST \/api\/relay-auth-regression$/, () =>
       Response.json(
