@@ -34,17 +34,17 @@ Agent 也可自行调用 `channels_list` 和 `channel_join` 加入频道。加�
 
 WebMux 为每种内置混合 Agent 自动配置独立命名的消息 MCP 插件：
 
-| Agent | 插件名称 |
-| --- | --- |
-| omp | `webmux-messages-omp` |
-| OpenCode | `webmux-messages-opencode` |
-| Codex | `webmux-messages-codex` |
+| Agent       | 插件名称                     |
+| ----------- | ---------------------------- |
+| omp         | `webmux-messages-omp`        |
+| OpenCode    | `webmux-messages-opencode`   |
+| Codex       | `webmux-messages-codex`      |
 | Claude Code | `webmux-messages-claudecode` |
-| Qoder | `webmux-messages-qoder` |
-| Qoder CN | `webmux-messages-qodercn` |
-| Kimi | `webmux-messages-kimi` |
-| Antigravity | `webmux-messages-agy` |
-| Devin | `webmux-messages-devin` |
+| Qoder       | `webmux-messages-qoder`      |
+| Qoder CN    | `webmux-messages-qodercn`    |
+| Kimi        | `webmux-messages-kimi`       |
+| Antigravity | `webmux-messages-agy`        |
+| Devin       | `webmux-messages-devin`      |
 
 插件随 ACP new/load/resume 注入，会话拥有独立临时凭据与发送身份。消息插件由 `messaging` 提供，使用它无需启用 owner 控制工具的 `mcp` 功能，也无需改写用户的全局 Agent 配置。
 Cursor CLI、Copilot CLI、Qwen Code 和 CodeBuddy 当前作为终端启动预设，尚未实现专用消息接入与自动唤醒；已切回终端视图或已关闭的混合会话保留订阅，回到聊天模式后补投未确认请求。
@@ -63,16 +63,16 @@ Cursor CLI、Copilot CLI、Qwen Code 和 CodeBuddy 当前作为终端启动预�
 
 接口沿用 WebMux 的 Bearer 认证与 Origin 校验，可通过已认证浏览器或现有本机控制面使用。
 
-| 方法与路径                                     | 行为                                                                    |
-| ---------------------------------------------- | ----------------------------------------------------------------------- |
-| `GET /api/messaging/channels`                  | 列出频道，空结果返回 `[]`                                               |
-| `POST /api/messaging/channels`                 | 创建频道；正文为 `{"name":"general","topic":""}`                        |
-| `GET /api/messaging/channels/{name}/messages`  | 默认最近 50 条，可传 `limit=1..100` 与 `before=<本频道消息 ID>`         |
-| `GET /api/messaging/agents` | 列出已绑定插件且运行在聊天模式的 Agent 会话 |
-| `GET /api/messaging/channels/{name}/members` | 列出订阅身份与处理确认游标 |
-| `POST /api/messaging/channels/{name}/members` | 邀请会话，正文为 `{"sessionId":"ID"}` |
-| `DELETE /api/messaging/channels/{name}/members/{sessionId}` | 移除订阅 |
-| `POST /api/messaging/channels/{name}/messages` | 发送；正文为 `{"text":"hello","clientRequestId":"unique-request-0001"}` |
+| 方法与路径                                                  | 行为                                                                    |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `GET /api/messaging/channels`                               | 列出频道，空结果返回 `[]`                                               |
+| `POST /api/messaging/channels`                              | 创建频道；正文为 `{"name":"general","topic":""}`                        |
+| `GET /api/messaging/channels/{name}/messages`               | 默认最近 50 条，可传 `limit=1..100` 与 `before=<本频道消息 ID>`         |
+| `GET /api/messaging/agents`                                 | 列出已绑定插件且运行在聊天模式的 Agent 会话                             |
+| `GET /api/messaging/channels/{name}/members`                | 列出订阅身份与处理确认游标                                              |
+| `POST /api/messaging/channels/{name}/members`               | 邀请会话，正文为 `{"sessionId":"ID"}`                                   |
+| `DELETE /api/messaging/channels/{name}/members/{sessionId}` | 移除订阅                                                                |
+| `POST /api/messaging/channels/{name}/messages`              | 发送；正文为 `{"text":"hello","clientRequestId":"unique-request-0001"}` |
 
 频道响应的 `latestText`、`latestAt` 与 `messageCount` 是服务端计算的最近消息与数量。
 读取消息按递增 ID 返回，`before` 排除游标本身。ID 以字符串表示；发送请求 ID 为 8–128 个字母、数字、连字符或下划线。

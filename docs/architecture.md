@@ -86,7 +86,7 @@ MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响�
 | `internal/p2psettings`                        | P2P 直连网页设置持久化（`p2p-settings.json`）、独立文件锁、校验与故障关闭                                  |
 | `internal/wsl`                                | 共享的 WSL 判定与 `wslinfo --networking-mode` 探测                                                         |
 | `internal/codeview`                           | 只读文件浏览、Git 修改列表、内容快照与变化检测；根内文件操作与目录 ZIP                                     |
-| `internal/messaging`                          | 独立频道与消息历史、Agent 订阅与确认游标、按端口投递任务、原子快照与容量限制                                                           |
+| `internal/messaging`                          | 独立频道与消息历史、Agent 订阅与确认游标、按端口投递任务、原子快照与容量限制                               |
 | `internal/push`                               | Web Push 订阅存储、注意力提醒与出站推送                                                                    |
 | `internal/archtest`                           | 只含测试：分层清单与架构规则 R0–R11                                                                        |
 | `internal/docguard`                           | 只含测试：文档与 spec 的行数、体积、目录扇出与树状组织规则                                                 |
