@@ -25,6 +25,16 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
   let task = $state("");
   let format = $state<"image" | "text">("image");
   let maxPages = $state<number>(handoffMaxPages);
+  let maxPagesDraft = $state(String(handoffMaxPages));
+  let maxPagesChecked = $state(false);
+  const parsedMaxPages = $derived(
+    /^\d+$/.test(maxPagesDraft) ? Number(maxPagesDraft) : Number.NaN,
+  );
+  const maxPagesValid = $derived(
+    Number.isInteger(parsedMaxPages) &&
+      parsedMaxPages >= 1 &&
+      parsedMaxPages <= handoffMaxPages,
+  );
   let location = $state<HandoffLocation>(emptyHandoffLocation());
   let locationKind = $state<TargetKind>("directory");
   let preview = $state<HandoffPreview | null>(null);
@@ -47,7 +57,10 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     location: targetSessionId ? emptyHandoffLocation() : location,
   });
   const choiceChanged = $derived(
-    preview !== null && reviewedRequestKey !== JSON.stringify(request),
+    preview !== null &&
+      ((format === "image" &&
+        (!maxPagesValid || parsedMaxPages !== maxPages)) ||
+        reviewedRequestKey !== JSON.stringify(request)),
   );
   const sealed = $derived(operation !== null || uncertainOperationId !== "");
   const active = $derived(
@@ -72,8 +85,15 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       lifetime.abort();
     };
   });
+  function commitMaxPages() {
+    maxPagesChecked = true;
+    if (!maxPagesValid) return false;
+    maxPages = parsedMaxPages;
+    return true;
+  }
   async function generate() {
     if (busy || active) return;
+    if (format === "image" && !commitMaxPages()) return;
     busy = true;
     error = "";
     try {
@@ -170,13 +190,17 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     set format(v: "image" | "text") {
       format = v;
     },
-    get maxPages() {
-      return maxPages;
+    get maxPagesDraft() {
+      return maxPagesDraft;
     },
-    set maxPages(v: number) {
-      maxPages = Number.isFinite(v)
-        ? Math.min(handoffMaxPages, Math.max(1, Math.trunc(v)))
-        : handoffMaxPages;
+    set maxPagesDraft(v: string) {
+      maxPagesDraft = v;
+      maxPagesChecked = false;
+    },
+    get maxPagesError() {
+      return maxPagesChecked && !maxPagesValid
+        ? m.handoff_max_pages_invalid({ max: handoffMaxPages })
+        : "";
     },
     get source() {
       return source;
@@ -246,6 +270,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       return sealed;
     },
     fork,
+    commitMaxPages,
     generate,
     send,
     refresh,

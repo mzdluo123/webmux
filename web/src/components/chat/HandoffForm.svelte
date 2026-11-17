@@ -5,7 +5,10 @@
   import { Label } from "$lib/components/ui/label";
   import { Textarea } from "$lib/components/ui/textarea";
   import * as Select from "$lib/components/ui/select";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import {
     emptyHandoffLocation,
@@ -70,7 +73,7 @@
   <fieldset class="min-w-0 space-y-3" disabled={e.busy || e.active}>
     <div class="space-y-2">
       <Label>{m.handoff_format()}</Label>
-      <SegmentedControl.Root
+      <SegmentedControl
         value={e.format}
         onValueChange={(value) => {
           if (value === "image" || value === "text") e.format = value;
@@ -79,13 +82,13 @@
         size="form"
         wrap
       >
-        <SegmentedControl.Item value="image"
-          >{m.handoff_format_image()}</SegmentedControl.Item
+        <SegmentedControlItem value="image"
+          >{m.handoff_format_image()}</SegmentedControlItem
         >
-        <SegmentedControl.Item value="text"
-          >{m.handoff_format_text()}</SegmentedControl.Item
+        <SegmentedControlItem value="text"
+          >{m.handoff_format_text()}</SegmentedControlItem
         >
-      </SegmentedControl.Root>
+      </SegmentedControl>
     </div>
     {#if e.format === "image"}
       <div class="space-y-2">
@@ -94,16 +97,25 @@
         >
         <Input
           id="handoff-pages"
-          type="number"
-          min={1}
-          max={handoffMaxPages}
-          value={e.maxPages}
-          oninput={(event) => {
-            e.maxPages = event.currentTarget.valueAsNumber;
-            event.currentTarget.value = String(e.maxPages);
-          }}
+          inputmode="numeric"
+          autocomplete="off"
+          bind:value={e.maxPagesDraft}
+          onblur={() => e.commitMaxPages()}
+          aria-invalid={!!e.maxPagesError}
+          aria-describedby={e.maxPagesError
+            ? "handoff-pages-help handoff-pages-error"
+            : "handoff-pages-help"}
         />
-        <p class="text-xs text-muted-foreground">
+        {#if e.maxPagesError}
+          <p
+            id="handoff-pages-error"
+            class="text-xs text-destructive"
+            role="alert"
+          >
+            {e.maxPagesError}
+          </p>
+        {/if}
+        <p id="handoff-pages-help" class="text-xs text-muted-foreground">
           {m.handoff_image_reselect()}
         </p>
       </div>

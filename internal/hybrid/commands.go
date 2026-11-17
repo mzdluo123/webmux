@@ -32,6 +32,9 @@ type PromptInput struct {
 	Mode                 string
 	Attachments          []Attachment
 	Images               []PromptImage
+	// ImageTextOffset inserts frozen images between text edges at a UTF-8 byte
+	// boundary. Zero keeps the ordinary text-then-images order.
+	ImageTextOffset int
 }
 
 type promptDispatch struct {
@@ -167,7 +170,7 @@ func (s *Service) Prompt(ctx context.Context, id string, in PromptInput) (Prompt
 				if in.ExpectedUsage != nil && (a.chat.Usage == nil || a.chat.Usage.Used != in.ExpectedUsage.Used || a.chat.Usage.Size != in.ExpectedUsage.Size) {
 					return PromptResult{}, ErrConflict
 				}
-				result, err := a.promptRefuse(in.Text, in.TitleSource, attachments, in.Images)
+				result, err := a.promptRefuse(in.Text, in.TitleSource, attachments, in.Images, in.ImageTextOffset)
 				if err == nil && a.turn != nil {
 					acknowledgement = a.turn.acknowledgement
 				}
