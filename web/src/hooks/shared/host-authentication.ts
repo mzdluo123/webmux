@@ -3,7 +3,8 @@ import { HealthSchema } from "../../contracts/schemas";
 import { RelayAuthSessionSchema } from "../../contracts/relay-schemas";
 import {
   applyRelayAuth,
-  clearRelayAuth,
+  resetRelayAuth,
+  relayAuthStatus,
   relayAuthRevision,
 } from "../../platform/relay-auth";
 
@@ -13,8 +14,8 @@ export async function prepareHostAuthentication(
   signal: AbortSignal,
   current: () => boolean,
 ) {
-  const restoreOwner = !preferToken && location.protocol === "https:";
-  if (!restoreOwner) clearRelayAuth();
+  const restoreOwner = !preferToken;
+  if (!restoreOwner) resetRelayAuth();
   const authRevision = relayAuthRevision();
   if (restoreOwner) {
     try {
@@ -27,10 +28,12 @@ export async function prepareHostAuthentication(
       );
       if (!current()) return false;
       applyRelayAuth(session, authRevision);
+      if (session.relay && !session.authenticated) return false;
     } catch {
       // Local-only and older hosts still use the existing Token login.
       if (!current()) return false;
-      clearRelayAuth();
+      if (relayAuthStatus().relay) return false;
+      resetRelayAuth();
     }
   }
   await api("/health", HealthSchema, "GET", undefined, signal);

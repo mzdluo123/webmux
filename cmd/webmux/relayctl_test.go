@@ -160,3 +160,16 @@ func TestRelayConnectedClearsFailureOnlyForActiveGeneration(t *testing.T) {
 		})
 	}
 }
+
+func TestRelayAuthSnapshotRetainsBindingWithoutReadiness(t *testing.T) {
+	binding := protocol.Binding{HostID: "0123456789abcdef0123456789abcdef", OwnerID: "123", BindingGeneration: 1, PublicURL: "https://h-0123456789abcdef0123456789abcdef.example.com"}
+	rc := &relayController{settings: relaysetting.Settings{Binding: &binding}}
+	got, ready := rc.authSnapshot()
+	if ready || got.Binding != binding {
+		t.Fatalf("offline snapshot lost binding identity or authorized access: %+v ready=%v", got, ready)
+	}
+	rc.settings.Binding = nil
+	if got, ready := rc.authSnapshot(); ready || got.Binding.HostID != "" {
+		t.Fatal("unbound snapshot retained identity")
+	}
+}

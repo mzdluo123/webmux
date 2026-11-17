@@ -108,6 +108,8 @@ Relay 就绪后，固定公共地址 SHALL 出现在现有访问 URL 汇总、�
 
 成功后宿主 SHALL 创建绝对有效期不超过 12 小时的内存会话，使用 host-only、Secure、HttpOnly、SameSite=Lax、Path=/ 的 `__Host-` Cookie；MUST NOT 写入 localStorage、sessionStorage 或 URL。回调 SHALL 禁缓存、禁止 Referer 泄露并跳至无凭据 URL。长期 WebMux Token MUST NOT 参与跳转或自动下发。
 
+认证门禁 SHALL 区分中转暂时重连、登录过期、授权撤销与直连 Token 无效。中转登录入口 SHALL 保留经过校验的同源应用路径，完成 state、PKCE 和一次性 code 校验后返回原页面；外部地址、认证端点和携带凭据的路径 SHALL 被拒绝。
+
 #### Scenario: 新设备免 Token 打开面板
 
 - **WHEN** 所有者在新设备登录官方后台并点击自己的在线主机
@@ -122,7 +124,21 @@ Relay 就绪后，固定公共地址 SHALL 出现在现有访问 URL 汇总、�
 
 Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端 SHALL 通过现有 API/WS 封装识别登录态。Cookie 写请求 MUST 校验同源 Origin 与 CSRF token，转发上游前 MUST 剥离宿主认证 Cookie 和 CSRF 材料。
 
-宿主注销、会话过期、对应后台会话撤销、绑定撤销、换钥、移出邀请名单、Relay 关闭或断线 SHALL 撤销相关宿主会话。宿主重启 SHALL 清空会话。撤销 SHALL 拒绝后续请求并关闭该会话建立的 WebSocket、P2P 和转发连接，但 MUST NOT 终止持久 PTY。
+宿主注销、会话过期、对应后台会话撤销、绑定撤销、换钥、移出邀请名单或 Relay 关闭 SHALL 撤销相关宿主会话。宿主重启 SHALL 清空会话。撤销 SHALL 拒绝后续请求并关闭该会话建立的 WebSocket、P2P 和转发连接，但 MUST NOT 终止持久 PTY。
+
+临时 control 断线 SHALL 立即暂停登录会话的业务访问并关闭派生连接，保留有界的内存恢复记录至原绝对到期时间。恢复记录 MUST NOT 单独授权业务访问。新连接就绪后，宿主 SHALL 经认证控制通道重新校验原 grant、后台会话、所有者、邀请及绑定，取得精确绑定新 Scope 的授权后才恢复原 Cookie 对应的访问。
+
+恢复 SHALL 保持原 grant ID、所有者、Origin 和绝对期限，不延长 12 小时上限。明确撤销与恢复并发时 SHALL 以撤销为准；旧访问上下文与旧 Scope SHALL 保持失效。前端暂时恢复期间 SHALL 保留原路由并有界退避查询，恢复成功后按原终端续接协议重连，不自动重放业务写请求。
+
+#### Scenario: 短暂断线后恢复登录
+
+- **WHEN** control 连接短暂中断后以新连接代际恢复，原后台会话、邀请、绑定及 grant 仍有效
+- **THEN** 断线期间业务访问被拒绝，旧派生连接关闭；控制面重新授权后原 Cookie 可继续访问，绝对到期时间不变
+
+#### Scenario: 断线期间撤销授权
+
+- **WHEN** 登录处于暂停状态时，后台注销、取消邀请、解绑或 grant 撤销
+- **THEN** 控制面拒绝恢复，旧 Cookie 不能访问业务；页面说明登录状态并提供重新登录入口，不显示直连 Token 错误
 
 #### Scenario: 关闭 Relay 后旧会话不能复用
 

@@ -9,7 +9,7 @@ import {
   type RelayStatus,
   type RelayPairing,
 } from "../../contracts/relay-schemas";
-import { clearRelayAuth } from "../../platform/relay-auth";
+import { clearRelayAuth, relayAuthStatus } from "../../platform/relay-auth";
 import { LatestRequest } from "../shared/remote-request.svelte";
 
 export interface RelaySettingsView {
@@ -90,13 +90,12 @@ export function useRelaySettings() {
   function accept(status: RelayStatus) {
     const previous = ui.status;
     ui.status = status;
-    if (
-      previous &&
-      (!status.paired ||
-        !status.enabled ||
-        (previous.controlReady && !status.controlReady))
-    )
-      clearRelayAuth();
+    if (previous && (!status.paired || !status.enabled)) clearRelayAuth();
+    else if (previous?.controlReady && !status.controlReady) {
+      clearRelayAuth("reconnecting");
+      if (relayAuthStatus().relay)
+        window.dispatchEvent(new Event("webmux:relay-check"));
+    }
   }
 
   function schedule() {
@@ -250,15 +249,20 @@ export function useRelaySettings() {
       ui.loading = false;
       failure = "auth";
     };
+    const restored = () => {
+      if (authInvalid) void refresh();
+    };
     const visible = () => {
       if (!document.hidden) void refresh();
     };
     window.addEventListener("webmux:auth", invalidate);
+    window.addEventListener("webmux:relay-restored", restored);
     document.addEventListener("visibilitychange", visible);
     void refresh();
     return () => {
       mounted = false;
       window.removeEventListener("webmux:auth", invalidate);
+      window.removeEventListener("webmux:relay-restored", restored);
       document.removeEventListener("visibilitychange", visible);
       clearTimeout(timer);
       requests.dispose();

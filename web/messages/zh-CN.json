@@ -4413,5 +4413,15 @@
   "handoff_preview_stats": "已选 {selected} 项，省略 {omitted} 项，来源缺口 {gaps} 项",
   "handoff_history_budget": "历史预算 {used} / {total}；到期时间 {expires}",
   "handoff_operation_state": "操作状态：{state}",
-  "handoff_read_original": "补查冻结原文"
+  "handoff_read_original": "补查冻结原文",
+  "relay_auth_title": "通过官方中继连接",
+  "relay_auth_description": "此地址使用 WebMux 控制台登录。",
+  "relay_auth_reconnecting": "正在重新连接主机，并自动检查当前浏览器登录状态。",
+  "relay_auth_retry_stopped": "主机仍不可用，自动检查已暂停。连接恢复后可再次检查。",
+  "relay_auth_expired": "中继登录已到期，请重新登录后继续。",
+  "relay_auth_revoked": "中继访问权限已撤销或你已退出登录。仅在仍有此主机访问权限时重新登录。",
+  "relay_auth_unauthenticated": "请通过官方中继登录后访问此主机。",
+  "relay_auth_drafts_kept": "保持此标签页打开可保留当前页面和未发送的草稿。中断的操作不会自动重发。",
+  "relay_auth_check_again": "再次检查连接",
+  "relay_auth_login": "通过 WebMux 控制台登录"
 }

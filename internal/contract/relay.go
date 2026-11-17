@@ -83,4 +83,12 @@ type RelayAuthSession struct {
 	Authenticated bool   `json:"authenticated"`
 	CSRFToken     string `json:"csrfToken"`
 	ExpiresAt     int64  `json:"expiresAt"`
+	Relay         bool   `json:"relay,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+}
+
+type RelayAuthFailure struct {
+	Error  string `json:"error"`
+	Relay  bool   `json:"relay"`
+	Reason string `json:"reason"`
 }

@@ -164,7 +164,16 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		if r.URL.Path == "/api/relay" || strings.HasPrefix(r.URL.Path, "/api/relay/") {
 			relayAuthHeaders(w)
 		}
-		if _, owner := relayPrincipal(r); !owner && s.withRelayBrowser(w, r, s.middleware(next)) {
+		if principal, owner := relayPrincipal(r); owner {
+			if s.Relay == nil || s.Relay.Auth == nil {
+				failure(w, http.StatusUnauthorized, errors.New("authentication required"))
+				return
+			}
+			if _, err := s.Relay.Auth.Status(principal); err != nil {
+				s.relayBrowserFailure(w, r, err)
+				return
+			}
+		} else if s.withRelayBrowser(w, r, s.middleware(next)) {
 			return
 		}
 		if !hostAllowed(r.Host) && !s.Public.HostAllowed(r.Host) {

@@ -28,7 +28,14 @@ import {
   type SwitchTarget,
   type Worktree,
 } from "../contracts/schemas";
-import { authenticationHeaders, authenticationToken } from "./relay-auth";
+import {
+  authenticationHeaders,
+  authenticationToken,
+  clearRelayAuth,
+  relayAuthStatus,
+  relayAuthRevision,
+} from "./relay-auth";
+import { RelayAuthReasonSchema } from "../contracts/relay-schemas";
 import { store, stored } from "./storage";
 import { currentTransport, TransportUploadError } from "./transport";
 
@@ -68,9 +75,25 @@ export function consumeTokenFragment(): boolean {
   store("token", token);
   return true;
 }
-function responseError(status: number, body: unknown, fallback: string) {
+function responseError(
+  status: number,
+  body: unknown,
+  fallback: string,
+  authRevision: number,
+) {
   const detail = ErrorSchema.safeParse(body);
-  if (status === 401) window.dispatchEvent(new Event("webmux:auth"));
+  const relay = z
+    .object({ relay: z.literal(true), reason: RelayAuthReasonSchema })
+    .safeParse(body);
+  if (
+    authRevision === relayAuthRevision() &&
+    (status === 401 || (status === 503 && relay.success))
+  ) {
+    const auth = relayAuthStatus();
+    if (auth.relay && (auth.authenticated || auth.reason === "reconnecting"))
+      clearRelayAuth(relay.success ? relay.data.reason : "reconnecting");
+    window.dispatchEvent(new Event("webmux:auth"));
+  }
   return detail.success
     ? new APIError(
         status,
@@ -88,6 +111,7 @@ async function request(
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<Response> {
+  const authRevision = relayAuthRevision();
   const response = await currentTransport().fetch(path, {
     method,
     signal,
@@ -102,6 +126,7 @@ async function request(
       response.status,
       await response.json().catch(() => null),
       response.statusText,
+      authRevision,
     );
   return response;
 }
@@ -181,6 +206,7 @@ export async function uploadForm<T extends z.ZodType>(
     throw new DOMException(m.s1_upload_cancelled(), "AbortError");
   const form = new FormData();
   form.append("file", file);
+  const authRevision = relayAuthRevision();
   let result;
   try {
     result = await currentTransport().upload({
@@ -197,7 +223,12 @@ export async function uploadForm<T extends z.ZodType>(
     throw err;
   }
   if (result.status < 200 || result.status >= 300)
-    throw responseError(result.status, result.body, result.statusText);
+    throw responseError(
+      result.status,
+      result.body,
+      result.statusText,
+      authRevision,
+    );
   return schema.parse(result.body);
 }
 // Creates the session's artifacts folder when missing and returns its path.

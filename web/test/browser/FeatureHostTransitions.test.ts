@@ -3,7 +3,9 @@ import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import App from "../../src/App.svelte";
-import { navigate } from "../../src/platform/api";
+import { api, navigate } from "../../src/platform/api";
+import { relayAuthStatus, resetRelayAuth } from "../../src/platform/relay-auth";
+import { NoContentSchema } from "../../src/contracts/schemas";
 import { setActiveHostId } from "../../src/platform/storage";
 import { requestFeatureHostRefresh } from "../../src/platform/feature-host.svelte";
 import { p2pState } from "../../src/platform/p2p-state.svelte";
@@ -20,6 +22,7 @@ import type { NegotiatedSession } from "../../src/platform/p2p-session";
 import type * as P2PFraming from "../../src/platform/p2p-framing";
 import {
   FakeSocket,
+  commands,
   installChatFixture,
   respond,
   socketAt,
@@ -78,6 +81,7 @@ const peerStatus: P2PStatus = {
 };
 
 beforeEach(() => {
+  resetRelayAuth();
   enabled = [];
   unavailable = [];
   voiceReady = false;
@@ -186,6 +190,7 @@ beforeEach(() => {
 afterEach(async () => {
   vi.useRealTimers();
   await cleanup();
+  resetRelayAuth();
   root.remove();
   setActiveHostId(null);
   history.replaceState(null, "", "/");
@@ -429,3 +434,87 @@ test("host switching releases old P2P resources and disabled selection never res
   expect(direct.negotiate).toHaveBeenCalledTimes(count);
   expect(p2pState.mode).toBe("ws");
 });
+
+test("relay recovery keeps the terminal, route and unsent draft without replaying actions", async () => {
+  await page.viewport(1280, 900);
+  const authenticated = {
+    authenticated: true,
+    relay: true,
+    csrfToken: "owner",
+    expiresAt: Math.floor(Date.now() / 1000) + 3600,
+  };
+  respond(/^GET \/api\/relay\/auth\/session$/, () =>
+    Response.json(authenticated),
+  );
+  const info = session({ id: "aaaaaaaa" });
+  respond(/^GET \/api\/sessions\/aaaaaaaa$/, () => Response.json(info));
+  await mount();
+  navigate("/s/aaaaaaaa?message=retained");
+  const terminal = await socketAt("/ws/s/aaaaaaaa");
+  terminal.binary(2, info);
+  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
+  const draft = page.getByRole("textbox", { name: "草稿内容", exact: true });
+  await draft.fill("keep my unsent relay draft");
+  const owner = document.querySelector(".session-owner");
+  const emulator = document.querySelector(".xterm");
+  const commandCount = commands().length;
+  const pending = Promise.withResolvers<Response>();
+  respond(/^GET \/api\/relay\/auth\/session$/, () => pending.promise);
+  terminal.drop(1006);
+  await expect
+    .element(page.getByRole("heading", { name: "通过官方中继连接" }))
+    .toBeVisible();
+  expect(document.querySelector('input[type="password"]')).toBeNull();
+  expect(relayAuthStatus()).toMatchObject({
+    relay: true,
+    authenticated: false,
+    reason: "reconnecting",
+  });
+  expect(document.querySelector(".session-owner")).toBe(owner);
+  expect(document.querySelector(".xterm")).toBe(emulator);
+  pending.resolve(Response.json(authenticated));
+  const resumed = await socketAt("/ws/s/aaaaaaaa", 1);
+  resumed.binary(2, info);
+  await expect.element(draft).toHaveValue("keep my unsent relay draft");
+  expect(location.pathname + location.search).toBe(
+    "/s/aaaaaaaa?message=retained",
+  );
+  expect(document.querySelector(".session-owner")).toBe(owner);
+  expect(document.querySelector(".xterm")).toBe(emulator);
+  expect(commands()).toHaveLength(commandCount);
+});
+
+test.each(["expired", "revoked", "unauthenticated"] as const)(
+  "a relay %s response retains console login instead of reporting a bad Token",
+  async (reason) => {
+    respond(/^GET \/api\/relay\/auth\/session$/, () =>
+      Response.json({
+        authenticated: true,
+        relay: true,
+        csrfToken: "owner",
+        expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    );
+    await mount();
+    navigate("/settings/relay");
+    respond(/^POST \/api\/relay-auth-regression$/, () =>
+      Response.json(
+        { error: "access ended", relay: true, reason },
+        { status: 401 },
+      ),
+    );
+    await expect(
+      api("/relay-auth-regression", NoContentSchema, "POST"),
+    ).rejects.toMatchObject({ status: 401 });
+    const login = page.getByRole("link", { name: "通过 WebMux 控制台登录" });
+    await expect.element(login).toBeVisible();
+    await expect
+      .element(login)
+      .toHaveAttribute(
+        "href",
+        "/auth/relay/start?returnTo=%2Fsettings%2Frelay",
+      );
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+    expect(relayAuthStatus()).toMatchObject({ relay: true, reason });
+  },
+);
