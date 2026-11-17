@@ -1698,6 +1698,7 @@
   "s4_output_preview": "输出预览",
   "s4_pane_limit_reached": "已达到 8 个窗格上限",
   "s4_panel_picker": "面板选择",
+  "s4_panel_picker_hint": "选择要打开的侧栏面板",
   "s4_panes_group_aria": "窗格",
   "s4_paste": "粘贴",
   "s4_paste_content_aria": "粘贴内容",

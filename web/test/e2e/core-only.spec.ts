@@ -1,4 +1,5 @@
 import {
+  closePanelPicker,
   coreTest as test,
   expect,
   expectConnected,
@@ -96,7 +97,7 @@ test("core-only ignores stale feature preferences and creates, types into, and r
   await expect(
     picker.getByRole("button", { name: "分屏", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "关闭侧栏面板", exact: true }).click();
+  await closePanelPicker(page);
 
   await runCommand(
     page,

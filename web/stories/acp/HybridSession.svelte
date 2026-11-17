@@ -568,6 +568,7 @@
         bind:view={panelView}
         shown={codeShown}
         close={closePanel}
+        onpicker={openPanels}
       >
         {#snippet paneActions(closePanel: () => void)}
           <TerminalSplitPanel
