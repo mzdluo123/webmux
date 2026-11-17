@@ -49,3 +49,21 @@
 - 无头浏览器未验证真实悬停、粗指针、iOS/Android 真机键盘及触控行为。
 
 实现依据：[宿主控制器](../../cmd/webmux/relay_enrollment.go)、[页内设置](../../web/src/components/settings/RelaySettings.svelte)、[配对规格](../../openspec/specs/official-relay-pairing/spec.md)。
+
+## Relay 接收端有效期简化（US-A10）
+
+### 范围与根因
+
+- 主机与 Relay 相差约 3 秒时，30 秒认证质询在接收端显示剩余 33 秒，被未来寿命上界误判为过期。
+- 共享协议和宿主配对响应改为只检查绝对到期时间；签发端继续限制寿命，签名、单次 nonce、受众、代际、请求超时和心跳失联检测保留。
+- 删除控制消息专用的 5 秒时钟容差；宿主固定引用本次发布的共享协议版本。
+
+### 已执行验证
+
+- `protocol/relay` 中执行 `go test -race ./...` 通过，覆盖落后 3 秒时的质询签名与验证、实际到期拒绝及控制消息未来时间。
+- `go test -race ./internal/relay ./internal/relaysetting` 通过，覆盖带时钟偏差的签名分配和配对响应。
+- `umask 0022; go test -race ./cmd/webmux -run TestRelay` 通过。
+- `make web` 通过；前端检查为 0 errors、0 warnings，随后完成 Go 二进制构建。
+- 隔离实例临时使用现有绑定连接真实 Relay，返回 `ready`、WSS `2/2`，控制面与数据面均为 `reachable`，节点为 `us1`；验收结束后停止隔离实例并清理临时状态。
+
+此记录覆盖接收端寿命上界变更及真实建链；生产 Relay 服务端未在本轮重新部署，大幅时钟偏差仍需校时。

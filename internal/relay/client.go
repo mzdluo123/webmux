@@ -252,7 +252,7 @@ func (c *Client) Enroll(ctx context.Context, key ed25519.PrivateKey, machineID p
 	}
 	u, err := url.Parse(out.VerificationURL)
 	now := time.Now()
-	if out.Version != protocol.BindingAPIVersion || out.Handle.Validate() != nil || out.UserCode == "" || len(out.UserCode) > 256 || strings.ContainsAny(out.UserCode, "\r\n\x00") || err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" || len(out.VerificationURL) > protocol.MaxURLBytes || out.ExpiresAt <= now.Unix() || out.ExpiresAt > now.Add(15*time.Minute).Unix() || out.PollIntervalSeconds < 1 || out.PollIntervalSeconds > 60 {
+	if out.Version != protocol.BindingAPIVersion || out.Handle.Validate() != nil || out.UserCode == "" || len(out.UserCode) > 256 || strings.ContainsAny(out.UserCode, "\r\n\x00") || err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" || len(out.VerificationURL) > protocol.MaxURLBytes || out.ExpiresAt <= now.Unix() || out.PollIntervalSeconds < 1 || out.PollIntervalSeconds > 60 {
 		return protocol.Enrollment{}, protocol.Error{Code: protocol.Invalid}
 	}
 	return out, nil
