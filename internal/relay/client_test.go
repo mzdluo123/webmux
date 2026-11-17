@@ -202,7 +202,7 @@ func TestEnrollmentPendingCancelAndBounds(t *testing.T) {
 }
 
 func testCallbacks() Callbacks {
-	return Callbacks{Ready: func(protocol.Scope) {}, BulkReady: func(bool) {}, Disconnected: func() {}, Revoke: func(context.Context, protocol.Revocation) error { return nil }}
+	return Callbacks{Ready: func(protocol.Scope) {}, PoolsReady: func(bool, bool) {}, Disconnected: func() {}, Revoke: func(context.Context, protocol.Revocation) error { return nil }}
 }
 
 func TestEnrollmentCarriesMachineIdentityAcrossKeyRotation(t *testing.T) {

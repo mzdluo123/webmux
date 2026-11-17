@@ -227,12 +227,18 @@ func TestConnectorReadinessBulkSeparationAndSynchronousDisconnect(t *testing.T) 
 	c.assignment = &owned
 	ready := make(chan protocol.Scope, 1)
 	bulkState := make(chan bool, 8)
+	lastBulk := false
 	var disconnected atomic.Bool
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		done <- c.Connect(ctx, key, a, Callbacks{Ready: func(scope protocol.Scope) { ready <- scope }, BulkReady: func(value bool) { bulkState <- value }, Disconnected: func() { disconnected.Store(true) }, Revoke: func(context.Context, protocol.Revocation) error { return nil }})
+		done <- c.Connect(ctx, key, a, Callbacks{Ready: func(scope protocol.Scope) { ready <- scope }, PoolsReady: func(_ bool, value bool) {
+			if value != lastBulk {
+				lastBulk = value
+				bulkState <- value
+			}
+		}, Disconnected: func() { disconnected.Store(true) }, Revoke: func(context.Context, protocol.Revocation) error { return nil }})
 	}()
 	control := awaitRole(t, controls)
 	select {
@@ -495,7 +501,13 @@ func startPoolConnector(t *testing.T, id testIdentity, loopback string, wrap fun
 	ctx, cancel := context.WithCancel(context.Background())
 	h := &poolConnector{client: c, controls: controls, bulks: bulks, bulkState: make(chan bool, 32), cancel: cancel, done: make(chan struct{})}
 	callbacks := testCallbacks()
-	callbacks.BulkReady = func(ready bool) { h.bulkState <- ready }
+	lastBulk := false
+	callbacks.PoolsReady = func(_ bool, ready bool) {
+		if ready != lastBulk {
+			lastBulk = ready
+			h.bulkState <- ready
+		}
+	}
 	go func() {
 		h.err = c.Connect(ctx, key, a, callbacks)
 		close(h.done)
@@ -744,8 +756,29 @@ func TestFixedSlotsRetryAuthenticationWithoutGrowth(t *testing.T) {
 	wrap := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			attempt := attempts.Add(1)
-			if attempt == 2 || attempt == 3 {
+			if attempt == 2 {
 				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			if attempt == 3 || attempt == 4 {
+				ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{Subprotocols: []string{protocol.ConnectorSubprotocol}})
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				defer ws.CloseNow()
+				var hello protocol.ConnectorHello
+				if err := readAuth(r.Context(), ws, &hello); err != nil {
+					t.Error(err)
+					return
+				}
+				code := protocol.StaleGeneration
+				if attempt == 4 {
+					code = protocol.Expired
+				}
+				if err := writeAuth(r.Context(), ws, protocol.Error{Code: code}); err != nil {
+					t.Error(err)
+				}
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -764,7 +797,7 @@ func TestFixedSlotsRetryAuthenticationWithoutGrowth(t *testing.T) {
 			t.Fatal("fixed slot retry changed scope")
 		}
 	}
-	if got := attempts.Load(); got != 1+protocol.DefaultInteractiveConnections+protocol.DefaultBulkConnections+2 {
+	if got := attempts.Load(); got != 1+protocol.DefaultInteractiveConnections+protocol.DefaultBulkConnections+3 {
 		t.Fatalf("unexpected authentication attempts: %d", got)
 	}
 	h.cancel()

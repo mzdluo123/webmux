@@ -24,7 +24,7 @@ const (
 
 type Callbacks struct {
 	Ready        func(protocol.Scope)
-	BulkReady    func(bool)
+	PoolsReady   func(interactive, bulk bool)
 	Disconnected func()
 	// Revoke returns only after the targeted HTTP/WS/P2P/forward access is closed.
 	Revoke func(context.Context, protocol.Revocation) error
@@ -56,23 +56,24 @@ type httpStream struct {
 }
 
 type connection struct {
-	client       *Client
-	assignment   protocol.Assignment
-	key          ed25519.PrivateKey
-	callbacks    Callbacks
-	ctx          context.Context
-	cancel       context.CancelFunc
-	control      *physical
-	scope        protocol.Scope
-	wg           sync.WaitGroup
-	headerSlots  chan struct{}
-	ready        chan struct{}
-	eventMu      sync.Mutex
-	stopped      bool
-	isReady      bool
-	bulkReady    bool
-	err          error
-	shutdownDone chan struct{}
+	client           *Client
+	assignment       protocol.Assignment
+	key              ed25519.PrivateKey
+	callbacks        Callbacks
+	ctx              context.Context
+	cancel           context.CancelFunc
+	control          *physical
+	scope            protocol.Scope
+	wg               sync.WaitGroup
+	headerSlots      chan struct{}
+	ready            chan struct{}
+	eventMu          sync.Mutex
+	stopped          bool
+	isReady          bool
+	bulkReady        bool
+	interactiveReady bool
+	err              error
+	shutdownDone     chan struct{}
 
 	mu              sync.Mutex
 	rpc             *controlRPC
@@ -86,7 +87,7 @@ type connection struct {
 // Connect runs one logical generation until loss or cancellation. Its caller
 // owns primary control reconnect policy; auxiliary sockets stay in its scope.
 func (c *Client) Connect(ctx context.Context, key ed25519.PrivateKey, a protocol.Assignment, callbacks Callbacks) error {
-	if callbacks.Ready == nil || callbacks.BulkReady == nil || callbacks.Disconnected == nil || callbacks.Revoke == nil {
+	if callbacks.Ready == nil || callbacks.PoolsReady == nil || callbacks.Disconnected == nil || callbacks.Revoke == nil {
 		return protocol.Error{Code: protocol.InvalidConfig}
 	}
 	if len(key) != ed25519.PrivateKeySize {
@@ -187,17 +188,18 @@ func (s *connection) publishReady(rpc *controlRPC) bool {
 	return true
 }
 
-func (s *connection) publishBulk() {
+func (s *connection) publishPools() {
 	s.eventMu.Lock()
 	defer s.eventMu.Unlock()
 	s.mu.Lock()
-	ready := len(s.bulkPool.physicals) > 0
+	interactive := len(s.interactivePool.physicals) > 0
+	bulk := len(s.bulkPool.physicals) > 0
 	s.mu.Unlock()
-	if s.stopped || !s.isReady || s.bulkReady == ready {
+	if s.stopped || !s.isReady || s.bulkReady == bulk && s.interactiveReady == interactive {
 		return
 	}
-	s.bulkReady = ready
-	s.callbacks.BulkReady(ready)
+	s.interactiveReady, s.bulkReady = interactive, bulk
+	s.callbacks.PoolsReady(interactive, bulk)
 }
 
 func (s *connection) stop(err error) {
@@ -273,9 +275,7 @@ func (s *connection) runPhysical(role protocol.Role) {
 			}
 			s.pool(role).physicals[p] = struct{}{}
 			s.mu.Unlock()
-			if role == protocol.RoleBulk {
-				s.publishBulk()
-			}
+			s.publishPools()
 			backoff = 100 * time.Millisecond
 			_ = s.accept(p, role)
 			p.close()
@@ -290,10 +290,9 @@ func (s *connection) runPhysical(role protocol.Role) {
 				}
 			}
 			s.mu.Unlock()
-			if role == protocol.RoleBulk {
-				s.publishBulk()
-			}
+			s.publishPools()
 		} else if permanentError(err) {
+			s.stop(err)
 			return
 		}
 		timer := time.NewTimer(backoff)
@@ -309,5 +308,5 @@ func (s *connection) runPhysical(role protocol.Role) {
 
 func permanentError(err error) bool {
 	var p protocol.Error
-	return errors.As(err, &p) && p.Code != protocol.Unavailable && p.Code != protocol.RateLimited
+	return errors.As(err, &p) && p.Code != protocol.Unavailable && p.Code != protocol.RateLimited && p.Code != protocol.StaleGeneration && p.Code != protocol.Expired
 }

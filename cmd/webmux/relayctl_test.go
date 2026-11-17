@@ -91,6 +91,26 @@ func TestRelayDisableRevokesWhenPersistenceFails(t *testing.T) {
 	}
 }
 
+func TestRelayReadinessRequiresInteractivePool(t *testing.T) {
+	rc := &relayController{generation: 1}
+	rc.poolsReady(1, false, true)
+	if rc.status.State != "degraded" || rc.status.ControlReady || !rc.status.BulkReady || rc.status.ReadyConnections != 1 {
+		t.Fatalf("bulk-only transport reported healthy: %+v", rc.status)
+	}
+	rc.poolsReady(1, true, true)
+	if rc.status.State != "ready" || !rc.status.ControlReady || rc.status.ReadyConnections != 2 {
+		t.Fatalf("recovered interactive pool not ready: %+v", rc.status)
+	}
+	rc.poolsReady(0, false, false)
+	if rc.status.State != "ready" {
+		t.Fatal("old generation changed readiness")
+	}
+	rc.poolsReady(1, false, true)
+	if rc.status.State != "degraded" || rc.status.ControlReady || rc.status.ReadyConnections != 1 {
+		t.Fatalf("interactive loss retained ready state: %+v", rc.status)
+	}
+}
+
 func TestRelayConnectedClearsFailureOnlyForActiveGeneration(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
@@ -120,7 +140,7 @@ func TestRelayConnectedClearsFailureOnlyForActiveGeneration(t *testing.T) {
 			settings := relaysetting.Settings{Binding: &protocol.Binding{PublicURL: origin}}
 			rc.connected(ctx, tt.gen, settings, protocol.Scope{})
 			if tt.wantReady {
-				if !rc.status.ControlReady || rc.status.ReadyConnections != 1 ||
+				if rc.status.ControlReady || rc.status.ReadyConnections != 0 ||
 					rc.status.State != "degraded" || rc.status.PublicURL != origin ||
 					rc.status.Error != "" || rc.status.ReadinessError != "" ||
 					rc.status.ReconnectReason != "" || public.SourceOrigin("relay") != origin {
