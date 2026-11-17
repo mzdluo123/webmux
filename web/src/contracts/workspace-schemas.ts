@@ -8,6 +8,7 @@ import {
   SessionInputResultSchema,
 } from "./chat-schemas";
 import { ForwardSchema, SessionInfoSchema } from "./session-schemas";
+import { UpstreamChoiceSchema } from "./worktree-upstream-schemas";
 
 // One commit: a worktree's last commit or a start point offered for a new
 // worktree.
@@ -211,6 +212,7 @@ export const CreateWorktreeRequestSchema = z.object({
   mode: z.enum(["new", "existing"]),
   branch: z.string(),
   base: z.string().optional(),
+  upstreamChoice: UpstreamChoiceSchema.optional(),
 });
 // Whether a commit is contained in a remote-tracking ref of its repository,
 // read from local refs only. `unpushed`: remotes exist and none contains it;
@@ -413,6 +415,7 @@ const NewWorktreeSchema = z.object({
   branch: z.string().optional(),
   base: z.string().optional(),
   path: z.string().optional(),
+  upstreamChoice: UpstreamChoiceSchema.optional(),
 });
 // POST /sessions, the only way to create a session. The location is one of
 // `cwd`, `workspace` and `newWorktree`; the command `configId` or

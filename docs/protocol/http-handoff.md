@@ -46,13 +46,19 @@ POST /api/handoff-operations/{operationId}/cancel
 发送体为 `{ "operationId": "<预览返回的操作 ID>" }`，返回 202。
 服务端在调用目标前原子消费预览并登记操作；同一操作的重复请求返回当前结果。
 操作返回 id、previewId、instanceId、state、targetSessionId、worktreeId、worktreePath、error 与时间字段。
-状态为 `preparing`、`sending`、`succeeded`、`failed` 或 `unknown`。
-目标创建和普通 prompt 各执行一次；操作成功表示本轮已获得接收证据，不代表回合结束或任务验收。
+状态为 `preparing`、`sending`、`awaiting_upstream`、`succeeded`、`failed` 或 `unknown`。
+目标成功创建与普通 prompt 各执行一次；操作成功表示本轮已获得接收证据，不代表回合结束或任务验收。
 接收证据包括本轮 Agent 正文、思考、工具调用、plan、当前授权/提问，或成功的 `session/prompt` 响应。
 30 秒 commandTimeout 只约束校验与 actor 接受派发；确认观察绑定该 turn 的共享回执，慢模型不会仅因超过 30 秒变成 unknown。
 尚无活动且连接仍存活时保持 `sending`；取消确认观察或连接断开且没有接收证据时为 `unknown`，不会自动重发。
 准备阶段取消为 `failed`；用户须在目标会话检查指定 turn 的最终输出。
 结果不明返回「可能已发送，请检查目标会话」。操作结果最多保留 256 项，完成十五分钟后失效。
+
+新工作树上游有更新或获取失败时，操作停在 `awaiting_upstream`，`finishedAt` 为 null，`worktreeUpstream` 提供[上游确认信息](http-workspace.md#创建前的上游确认)。此时尚未创建目标资源：
+
+- 确认后向同一 `/send` 提交 `{operationId, upstreamChoice: {confirmationId, useUpstream}}`，继续原操作与冻结页集。
+- 重复相同确认只观察已有操作；上游状态再次变化时重新进入 `awaiting_upstream`。
+- 取消操作或预览过期后无法继续创建，保留来源与原工作树。
 
 ## 原文补查与错误
 

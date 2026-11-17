@@ -54,7 +54,7 @@
   - 位置：
     - 当前目录所在的已登记 worktree 自动关联；
     - `--worktree REPO:WORKTREE|PATH` 选已有 worktree，`--cwd` 须在其中；
-    - `--new-worktree` 是开关（`--branch`、`--base`、`--existing-branch`、`--worktree-path`、`--repo`、`--refresh-base`）：只发一次带 `newWorktree` 的 `POST /api/sessions`，由服务端先建 worktree 再启动；
+    - `--new-worktree` 是开关（`--branch`、`--base`、`--existing-branch`、`--worktree-path`、`--repo`、`--no-pin`、`--upstream=latest|local`）：请求带 `newWorktree`，服务端先检查上游、确认选择，再建 worktree 与会话；
       省略 `--branch` 时服务端自动生成 `wt/<日期>-<时间>` 形式的不冲突分支名；默认像 Web 端一样加入主页显示（`--no-pin` 不加入）；
     - `--` 之前出现位置参数时以 2 结束，与 `--new-worktree` 同用时提示改用 `--branch`（旧写法 `--new-worktree BRANCH` 不会被当作命令执行）；
     - 失败按服务端的 `step` 报告失败步骤，保留已创建的 worktree 与会话并给出路径与 ID，不回滚；
@@ -135,7 +135,7 @@
   - 已删除的 `chat switch`、`chat ls`、`chat resume`、`chat forget` 按未知命令以 2 结束。
 - **US-S16 从脚本管理 worktree 与主页显示**：作为编排脚本，我希望为并行任务创建、查看和删除 worktree，并决定它们是否出现在主页，以便 Web 端与脚本看到同一个工作区。
   - `worktree ls|show|create|rm`：`REPO` 为 ID、路径或 `.`，worktree 为 ID、分支或路径，找不到时以 2 结束并列出候选；`create` 默认放在 `<仓库>.worktrees/<分支末段>`，
-    `--refresh-base` 先取回上游；`rm` 先在标准错误输出预览，有阻止原因时需要 `--force`，终端上要求输入路径确认，非交互时需要 `--yes`；
+    创建前统一检查上游，存在更新或获取失败时先明确选择最新上游、保留本地或取消；非交互调用返回可重试的确认信息；`rm` 先在标准错误输出预览，有阻止原因时需要 `--force`，终端上要求输入路径确认，非交互时需要 `--yes`；
   - 主页状态（`pinned`、`sessions`、`hidden`）与 Web 端规则一致：从未设置的仓库只显示主工作区，有会话或归档记录的 worktree 总会显示；
   - `worktree` 命令对已归档会话的计数读取 `GET /api/sessions?state=archived`；
   - `worktree create` 与 `run --new-worktree` 默认加入主页显示（`--no-pin`）；`worktree pin|unpin|home [--set|--reset]` 只改该仓库的 `homeWorktrees` 条目，

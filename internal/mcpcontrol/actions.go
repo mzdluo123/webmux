@@ -83,7 +83,7 @@ func sessionIDSchema() map[string]any {
 	return desc(text(), "Session id, for example from session_list or session_launch.")
 }
 func requestIDSchema() map[string]any {
-	return desc(text(), "Stable request id, 8-64 letters, digits, - or _. Reuse it with the identical payload when retrying a lost response; generate a new one for a new operation.")
+	return desc(text(), "Stable request id, 8-64 letters, digits, - or _. Reuse it with the identical payload when retrying a lost response; after a worktree_upstream_confirmation, reuse it with the explicit newWorktree.upstreamChoice. Generate a new id for a new operation.")
 }
 func attachmentSchema() map[string]any {
 	return map[string]any{"type": "array", "items": object(map[string]any{"path": text(), "name": text(), "mimeType": text(), "kind": text(), "size": integer(0, 1<<30)}, "path")}
@@ -97,7 +97,7 @@ func createProperties() map[string]any {
 		"cwd":                desc(text(), "Working directory."),
 		"name":               desc(text(), "Display name."),
 		"workspace":          desc(object(map[string]any{"repositoryId": text(), "worktreeId": text()}, "repositoryId", "worktreeId"), "Run in an existing worktree."),
-		"newWorktree":        desc(object(map[string]any{"repositoryId": text(), "mode": enumeration("new", "existing"), "branch": text(), "base": text(), "path": text()}, "repositoryId", "mode"), "Create or reuse a worktree: repositoryId, mode new or existing, plus optional branch, base and path."),
+		"newWorktree":        desc(object(map[string]any{"repositoryId": text(), "mode": enumeration("new", "existing"), "branch": text(), "base": text(), "path": text(), "upstreamChoice": desc(object(map[string]any{"confirmationId": text(), "useUpstream": boolean()}, "confirmationId", "useUpstream"), "Answer worktree_upstream_confirmation using its confirmationId. Ask the user before choosing; useUpstream=true is forbidden when canUseUpstream=false.")}, "repositoryId", "mode"), "Create a worktree. An upstream update returns worktree_upstream_confirmation with worktreeUpstream; ask latest/local/cancel, then retry the same clientRequestId with upstreamChoice. Existing diverged branches allow only local/cancel."),
 		"labels":             desc(stringMap(), "Session labels."),
 		"view":               desc(enumeration("terminal", "chat"), "Initial view; chat requires a chat-capable launch."),
 		"prompt":             desc(text(), "Initial input after launch: a prompt on the chat view or a submitted line on the terminal view."),
@@ -120,6 +120,11 @@ func (c Client) launch(ctx context.Context, raw json.RawMessage) (any, error) {
 	if err := c.API.DoBounded(ctx, http.MethodPost, "/api/sessions", req, responseLimit, &result); err != nil {
 		var e *localclient.APIError
 		if errors.As(err, &e) {
+			var challenge contract.WorktreeUpstreamFailure
+			if e.Status == http.StatusConflict && json.Unmarshal(e.Body, &challenge) == nil &&
+				challenge.Reason == "worktree_upstream_confirmation" && challenge.WorktreeUpstream != nil {
+				return nil, errors.New(string(e.Body))
+			}
 			var failure contract.CreateSessionFailure
 			if json.Unmarshal(e.Body, &failure) == nil && failure.Step != "" {
 				data, marshalErr := json.Marshal(failure)

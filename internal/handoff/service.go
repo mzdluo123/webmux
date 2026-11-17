@@ -16,6 +16,7 @@ import (
 	"github.com/rainchan/webmux/internal/historysource"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 const operationLifetime = 15 * time.Minute
@@ -26,9 +27,10 @@ const maxImagePages = 8
 type historyBinding struct{ scopeID, identity string }
 
 type operationEntry struct {
-	operation Operation
-	preview   *Preview
-	cancel    context.CancelFunc
+	operation      Operation
+	preview        *Preview
+	cancel         context.CancelFunc
+	upstreamChoice *sessioncreate.UpstreamChoice
 }
 type Service struct {
 	history    map[string]historyBinding
@@ -57,7 +59,18 @@ func New(o Options) *Service {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Service{options: o, history: map[string]historyBinding{}, previews: map[string]*Preview{}, operations: map[string]*operationEntry{}, instance: rand.Text(), now: time.Now, ctx: ctx, cancel: cancel}
 }
-func (s *Service) Close() { s.mu.Lock(); s.closed = true; s.cancel(); s.mu.Unlock(); s.workers.Wait() }
+func (s *Service) Close() {
+	s.mu.Lock()
+	s.closed = true
+	s.cancel()
+	for _, e := range s.operations {
+		if e.operation.State == "awaiting_upstream" {
+			s.finishLocked(e, "failed", "服务已关闭")
+		}
+	}
+	s.mu.Unlock()
+	s.workers.Wait()
+}
 func (s *Service) cleanLocked() {
 	now := s.now()
 	for key, binding := range s.history {
@@ -79,6 +92,9 @@ func (s *Service) cleanLocked() {
 		}
 	}
 	for id, e := range s.operations {
+		if e.operation.State == "awaiting_upstream" && e.preview != nil && !now.Before(e.preview.ExpiresAt) {
+			s.finishLocked(e, "failed", ErrExpired.Error())
+		}
 		if e.operation.FinishedAt != nil && !now.Before(e.operation.FinishedAt.Add(operationLifetime)) {
 			delete(s.operations, id)
 		}
@@ -278,6 +294,42 @@ func (s *Service) Deliver(ctx context.Context, previewID, operationID string) (O
 	go func() { defer s.workers.Done(); defer cancel(); s.send(ctx, e) }()
 	return e.operation, nil
 }
+
+// ConfirmUpstream resumes the same frozen delivery after an explicit decision.
+// Repeating an accepted decision observes its operation without starting it again.
+func (s *Service) ConfirmUpstream(ctx context.Context, previewID, operationID string, choice sessioncreate.UpstreamChoice) (Operation, error) {
+	if err := ctx.Err(); err != nil {
+		return Operation{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleanLocked()
+	if s.closed {
+		return Operation{}, ErrUnavailable
+	}
+	e := s.operations[operationID]
+	if e == nil || e.operation.PreviewID != previewID {
+		return Operation{}, ErrConflict
+	}
+	if e.upstreamChoice != nil && *e.upstreamChoice == choice && e.operation.State != "awaiting_upstream" {
+		return e.operation, nil
+	}
+	check := e.operation.WorktreeUpstream
+	if e.operation.State != "awaiting_upstream" || check == nil || check.ConfirmationID != choice.ConfirmationID {
+		return Operation{}, ErrConflict
+	}
+	if choice.UseUpstream && !check.CanUseUpstream {
+		return Operation{}, ErrInvalid
+	}
+	e.upstreamChoice = &choice
+	e.operation.WorktreeUpstream = nil
+	e.operation.State = "preparing"
+	runCtx, cancel := context.WithCancel(s.ctx)
+	e.cancel = cancel
+	s.workers.Add(1)
+	go func() { defer s.workers.Done(); defer cancel(); s.send(runCtx, e) }()
+	return e.operation, nil
+}
 func (s *Service) Delivery(ctx context.Context, id string) (Operation, error) {
 	if err := ctx.Err(); err != nil {
 		return Operation{}, err
@@ -305,7 +357,7 @@ func (s *Service) Cancel(ctx context.Context, id string) (Operation, error) {
 		return e.operation, nil
 	}
 	e.cancel()
-	if e.operation.State == "preparing" {
+	if e.operation.State == "preparing" || e.operation.State == "awaiting_upstream" {
 		s.finishLocked(e, "failed", "已取消")
 	}
 	return e.operation, nil

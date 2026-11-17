@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { api } from "./api";
+import type { UpstreamChoice } from "../contracts/worktree-upstream-schemas";
 import {
   SessionInfoSchema,
   HandoffPreviewRequestSchema,
@@ -38,12 +39,17 @@ export const threadAPI = {
       undefined,
       signal,
     ),
-  send: (id: string, operationId: string, signal?: AbortSignal) =>
+  send: (
+    id: string,
+    operationId: string,
+    signal?: AbortSignal,
+    upstreamChoice?: UpstreamChoice,
+  ) =>
     api(
       `/handoff-previews/${encodeURIComponent(id)}/send`,
       HandoffOperationSchema,
       "POST",
-      { operationId },
+      { operationId, ...(upstreamChoice ? { upstreamChoice } : {}) },
       signal,
       HandoffSendRequestSchema,
     ),

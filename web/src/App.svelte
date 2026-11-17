@@ -21,6 +21,7 @@
 <script lang="ts">
   import ConnectionGate from "./components/shell/ConnectionGate.svelte";
   import RelayAccessOverlay from "./components/shell/RelayAccessOverlay.svelte";
+  import AppOverlays from "./components/shell/AppOverlays.svelte";
   import {
     startSettings,
     stopSettings,
@@ -339,6 +340,8 @@
   });
 </script>
 
+<AppOverlays {ready} bind:uploadNotice />
+
 {#if tvInput.message}
   <div
     class="pointer-events-none fixed inset-x-6 top-6 z-[100] mx-auto w-fit max-w-[calc(100%-3rem)] rounded-lg bg-background shadow-lg"
@@ -483,16 +486,4 @@
     onselect={selectSession}
     oncancel={restoreSwitcherFocus}
   />
-{/if}
-
-{#if ready && uploadNotice}
-  <div
-    class="fixed inset-x-2 top-2 z-50 flex items-start gap-2 rounded-md border bg-card p-3 text-sm shadow-lg"
-    role="alert"
-  >
-    <p class="min-w-0 flex-1 break-all">{uploadNotice}</p>
-    <Button variant="outline" size="sm" onclick={() => (uploadNotice = "")}
-      >{m.s1_close()}</Button
-    >
-  </div>
 {/if}

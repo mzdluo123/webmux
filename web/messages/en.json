@@ -5033,5 +5033,13 @@
   "relay_auth_check_again": "Check connection again",
   "relay_auth_login": "Sign in with WebMux console",
   "relay_reconnect_paused": "Cannot reach the host; reconnect paused",
-  "relay_reconnect_status_aria": "Reconnect status: {status}"
+  "relay_reconnect_status_aria": "Reconnect status: {status}",
+  "worktree_upstream_title": "Choose the worktree baseline",
+  "worktree_upstream_description": "Review the fetched upstream before creating this worktree. Refreshing the preview does not select a baseline.",
+  "worktree_upstream_local": "Local · {branch}",
+  "worktree_upstream_remote": "Upstream · {branch}",
+  "worktree_upstream_latest": "Use latest upstream",
+  "worktree_upstream_keep": "Keep local",
+  "worktree_upstream_preview": "Upstream preview · {branch}. Choose the baseline when creating.",
+  "worktree_upstream_waiting": "Waiting for a worktree baseline choice"
 }

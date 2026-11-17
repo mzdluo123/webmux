@@ -66,11 +66,15 @@ func (s *Service) Prepare(ctx context.Context, in sessioncreate.Input) (out sess
 			if err := s.planWorktree(readCtx, r, nw, &plan); err != nil {
 				return out, err
 			}
+			request := CreateRequest{Path: plan.path, Mode: nw.Mode, Branch: plan.branch, Base: plan.base, UpstreamChoice: nw.UpstreamChoice}
+			if _, err := s.checkCreationUpstream(ctx, nw.RepositoryID, request); err != nil {
+				return out, err
+			}
 			// Chat preflight must use an existing repository directory, not the future
 			// worktree. The created location replaces this directory after preflight.
 			out.Cwd = r.entry.AnchorPath
 			out.Create = func(ctx context.Context) (*sessioncreate.Location, error) {
-				tree, err := s.CreateWorktree(ctx, nw.RepositoryID, CreateRequest{Path: plan.path, Mode: nw.Mode, Branch: plan.branch, Base: plan.base})
+				tree, err := s.CreateWorktree(ctx, nw.RepositoryID, request)
 				if err != nil {
 					return nil, creationLocationError(err)
 				}
@@ -107,7 +111,7 @@ func (s *Service) Prepare(ctx context.Context, in sessioncreate.Input) (out sess
 }
 
 func creationLocationError(err error) error {
-	if errors.Is(err, ErrConflict) {
+	if errors.Is(err, ErrConflict) || errors.Is(err, sessioncreate.ErrUpstreamConfirmation) {
 		return errors.Join(sessioncreate.ErrLocationConflict, err)
 	}
 	return err

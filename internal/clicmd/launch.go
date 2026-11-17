@@ -35,8 +35,8 @@ type runOptions struct {
 	env             envFlag
 	labels          labelFlag
 	// Location.
-	worktree, branch, base, worktreePath, repo      string
-	newWorktree, existingBranch, noPin, refreshBase bool
+	worktree, branch, base, worktreePath, repo, upstream string
+	newWorktree, existingBranch, noPin                   bool
 	// View and first message.
 	view, prompt, permission string
 	init                     bool
@@ -122,7 +122,7 @@ var runCommand = &Command{
 		"worktree-path":      {Requires: []string{"new-worktree"}},
 		"repo":               {Requires: []string{"new-worktree"}},
 		"no-pin":             {Requires: []string{"new-worktree"}},
-		"refresh-base":       {Requires: []string{"new-worktree"}},
+		"upstream":           {Requires: []string{"new-worktree"}},
 		"view":               {Requires: []string{"launch-config"}},
 		"init":               {Requires: []string{"launch-config"}},
 		"set":                {Repeatable: true, Requires: []string{"view"}},
@@ -160,7 +160,7 @@ var runCommand = &Command{
 		fs.StringVar(&o.worktreePath, "worktree-path", "", "put the new worktree at `DIR` (default: <repository>.worktrees/<branch leaf>)")
 		fs.StringVar(&o.repo, "repo", "", "repository of the new worktree: an ID, a path or . (default: the current directory's)")
 		fs.BoolVar(&o.noPin, "no-pin", false, "do not show the new worktree on the home page")
-		fs.BoolVar(&o.refreshBase, "refresh-base", false, "fetch the base branch's upstream first and start from it")
+		fs.StringVar(&o.upstream, "upstream", "", "when worktree confirmation is needed, choose `latest|local` without prompting")
 		fs.StringVar(&o.view, "view", "", "start on `VIEW`: terminal (the default) or chat, which needs a launch config with the chat view and implies --detach")
 		fs.StringVar(&o.prompt, "prompt", "", "first message `TEXT` (- reads standard input): the first chat prompt, or typed with Enter on the terminal view")
 		fs.BoolVar(&o.init, "init", false, "put the repository's initialization instruction before the first message")
@@ -203,8 +203,10 @@ func (o *runOptions) validate(argv []string) error {
 		return errors.New("a command is required after --")
 	case o.worktree != "" && o.newWorktree:
 		return errors.New("--worktree and --new-worktree cannot be combined")
-	case !o.newWorktree && (o.branch != "" || o.base != "" || o.existingBranch || o.worktreePath != "" || o.repo != "" || o.noPin || o.refreshBase):
-		return errors.New("--branch, --base, --existing-branch, --worktree-path, --repo, --no-pin and --refresh-base need --new-worktree")
+	case !validUpstreamPolicy(o.upstream):
+		return errors.New("--upstream must be latest or local")
+	case !o.newWorktree && (o.branch != "" || o.base != "" || o.existingBranch || o.worktreePath != "" || o.repo != "" || o.noPin || o.upstream != ""):
+		return errors.New("--branch, --base, --existing-branch, --worktree-path, --repo, --no-pin and --upstream need --new-worktree")
 	case o.existingBranch && o.branch == "":
 		return errors.New("--existing-branch needs --branch")
 	case o.newWorktree && o.cwd != "":
@@ -398,14 +400,6 @@ func (e Env) run(ctx context.Context, o runOptions, argv []string) int {
 			_ = console.Restore()
 		}
 	}
-	if o.refreshBase && !o.existingBranch {
-		base, err := e.refreshBase(ctx, client, newRepo, o.base)
-		if err != nil {
-			restore()
-			return e.Fail(err)
-		}
-		request.NewWorktree.Base = base
-	}
 	for _, file := range o.attachments {
 		path, err := e.uploadFile(ctx, client, "/api/uploads", file)
 		if err != nil {
@@ -416,9 +410,30 @@ func (e Env) run(ctx context.Context, o runOptions, argv []string) int {
 	}
 	request.ClientRequestID = newRequestID()
 	var result contract.CreateSessionResult
-	if err := client.Do(ctx, http.MethodPost, "/api/sessions", request, &result); err != nil {
+	for {
+		err := client.Do(ctx, http.MethodPost, "/api/sessions", request, &result)
+		if err == nil {
+			break
+		}
+		check := worktreeUpstreamChallenge(err)
+		if check == nil || request.NewWorktree == nil {
+			restore()
+			return e.createFailure(err)
+		}
+		// A terminal opened for attachment is raw; restore it before asking.
+		hadConsole := console != nil
 		restore()
-		return e.createFailure(err)
+		console = nil
+		request.NewWorktree.UpstreamChoice, err = e.chooseWorktreeUpstream(*check, o.upstream)
+		if err != nil {
+			return e.Fail(err)
+		}
+		if hadConsole {
+			console, err = e.OpenConsole()
+			if err != nil {
+				return e.Fail(err)
+			}
+		}
 	}
 	// An attached terminal is raw already: lines end with CR LF.
 	eol := "\n"
