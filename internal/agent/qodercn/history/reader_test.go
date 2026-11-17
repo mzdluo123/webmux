@@ -31,6 +31,8 @@ func TestNativeSessionsAndMetadata(t *testing.T) {
 	}{
 		{"session-1.jsonl", "cbf69028-0808-5568-829a-60d59e3b0868", 3},
 		{"session-2.jsonl", "54b3d76a-0976-5482-94ae-367317ee052e", 2},
+		{"session-1.1.81.jsonl", "00000000-0000-0000-0000-000000000001", 2},
+		{"session-tools-1.1.81.jsonl", "00000000-0000-0000-0000-000000000001", 2},
 	} {
 		t.Run(tt.file, func(t *testing.T) {
 			s := fixture(t, tt.file, tt.id)
@@ -54,7 +56,7 @@ func TestNativeSessionsAndMetadata(t *testing.T) {
 				t.Fatal(messages, metadata, doc.FormatVersion)
 			}
 			// Session two contains an actual cycle in its sanitized system ancestry.
-			if tt.messages == 2 && (len(doc.Gaps) != 1 || doc.Gaps[0].Category != "cycle") {
+			if tt.file == "session-2.jsonl" && (len(doc.Gaps) != 1 || doc.Gaps[0].Category != "cycle") {
 				t.Fatal(doc.Gaps)
 			}
 			sources, err := Discover(context.Background(), filepath.Dir(s.Path))
@@ -69,8 +71,8 @@ func TestNativeSessionsAndMetadata(t *testing.T) {
 	}
 }
 
-// Synthetic mutations supplement, not replace, real native captures. Tools and
-// compaction were absent from the observed QoderCN sessions.
+// Synthetic mutations supplement real native captures with error, branch,
+// compaction and frozen-boundary cases not present in the observed sessions.
 func TestBranchToolsCompactionAndFrozenBoundary(t *testing.T) {
 	s := fixture(t, "session-2.jsonl", "54b3d76a-0976-5482-94ae-367317ee052e")
 	appendText := func(text string) {
@@ -87,7 +89,7 @@ func TestBranchToolsCompactionAndFrozenBoundary(t *testing.T) {
 		}
 	}
 	appendText(`{"type":"system","uuid":"compact","parentUuid":"outside","subtype":"compact_boundary"}` + "\n" +
-		`{"type":"assistant","uuid":"call","parentUuid":"compact","message":{"role":"assistant","content":[{"type":"thinking","thinking":"SECRET"},{"type":"text","text":"你好 🌍"},{"type":"tool_use","id":"tool","name":"Read","input":{"secret":"SECRET"}}]}}` + "\n" +
+		`{"type":"assistant","uuid":"call","parentUuid":"compact","message":{"role":"assistant","content":[{"type":"thinking","thinking":"SECRET"},{"type":"text","text":"你好 🌍"},{"type":"tool_use","id":"tool","name":"Read","input":{"path":"fixture.txt"}}]}}` + "\n" +
 		`{"type":"user","uuid":"result","parentUuid":"call","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tool","content":"done","is_error":true}]}}` + "\n" +
 		`{"type":"assistant","uuid":"other","parentUuid":"compact","message":{"role":"assistant","content":"WRONG_BRANCH"}}` + "\n" +
 		`{"type":"active-leaf","leafUuid":"result"}` + "\n")
@@ -100,7 +102,7 @@ func TestBranchToolsCompactionAndFrozenBoundary(t *testing.T) {
 		if strings.Contains(r.Text, "SECRET") || strings.Contains(r.Text, "WRONG_BRANCH") {
 			t.Fatal(r)
 		}
-		if r.Kind == "tool_use" {
+		if r.Kind == "tool_arguments" && r.CallID == "tool" && r.ToolName == "Read" && r.Text == `{"path":"fixture.txt"}` {
 			calls++
 		}
 		if r.Kind == "tool_result" && r.CallID == "tool" && r.Status == "error" {

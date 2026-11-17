@@ -1,7 +1,7 @@
 {
   "agent": "kimi",
   "sourceLayout": "~/.kimi-code/sessions/<workspace-id>/<session-id>/state.json and agents/<agent-id>/wire.jsonl",
-  "provenance": "Sanitized excerpts from one real pre-existing local Kimi session: its native state.json and selected actual wire.jsonl records covering one user turn through the final assistant end_turn. No events were synthesized and no agent was launched.",
+  "provenance": "Three sanitized captures: the original pre-existing protocol 1.4 tool turn documented below, the authorized synthetic protocol 1.5 handoff session in protocol15Capture, and the new isolated genuine protocol 1.5 Read invocation in protocol15ToolCapture. All fixture records derive from native captures, not invented tool events.",
   "versionEvidence": {
     "agentVersion": "unknown; the selected session state has no agent release version",
     "wireProtocolVersion": "1.4",
@@ -27,6 +27,61 @@
     "method": "Read state.json and agents/main/wire.jsonl under the included workspace/session hierarchy. To emulate the original absolute homedir relationship, mount the included session hierarchy below /fixture/home/.kimi-code/sessions or resolve that synthetic prefix to the fixture root. Parse each JSONL line as a native wire record.",
     "recordsDefinition": "One JSON document for state.json; the exact number of JSONL records for wire.jsonl."
   },
+  "protocol15Capture": {
+    "agentVersion": "2.5.3",
+    "wireProtocolVersion": "1.5",
+    "stateVersion": 2,
+    "evidence": [
+      "The authorized synthetic session's first wire record declares protocol_version 1.5; its state.json declares version 2.",
+      "The authorized handoff-live/report.md release table independently reports Kimi Code CLI 2.5.3; handoff-live/root-causes.md identifies this same session and the former first-record rejection. The protocol value is not used to infer the CLI release.",
+      "All 30 records from the authorized single-turn wire stream were inspected. This capture contains no tool invocation; tools are independently covered by the original 1.4 fixture and the genuine 1.5 capture documented in protocol15ToolCapture."
+    ],
+    "sanitization": [
+      "All 30 event records and their ordering are retained. IDs are consistently remapped; workspace, session, home and cwd are synthetic; timestamps are shifted to a fixed origin.",
+      "The user prompt and assistant answer are replaced with a synthetic Unicode project/port/checksum pair. Reasoning and injected instruction bodies become HIDDEN_REASONING and HIDDEN_INJECTION canaries.",
+      "Tool definition arrays, subagent definitions, systemPrompt and environmentDisclosure fields are omitted. Other nonstructural strings, hashes, model aliases and environment details are redacted; no credentials, configuration files, logs or other sessions were read."
+    ],
+    "eventSemantics": [
+      "metadata is the exact protocol gate. context.append_message holds the canonical user message; origin.kind injection marks runtime reminders that must not become user history.",
+      "context.append_loop_event content.part text holds the canonical assistant answer; think remains excluded. step.begin links the content to step.end and its final end_turn.",
+      "turn.prompt and agent.message.appended mirror canonical context records. Their input promptId/userMessageId and assistant messageId agree with canonical message/step IDs; they must not duplicate bodies.",
+      "environment.set_binding, mcp.tools_discovered, profile.bind, changeNotifier.snapshot, plan_mode.cancel, permission.set_mode, agent.turn.started, plugin.session_start, tool_select.initialized, llm.tools_snapshot, llm.request, usage.record, token_counting.measured, agent.turn.ended, turn.ended, token_counting.turn_recorded and prompt.completed are control, schema, lifecycle or accounting records, not transcript bodies.",
+      "state version 2 adds native id, numeric timestamps and cwd; the reader checks id and the main agent's homedir binding, not title or cwd. Unversioned legacy state remains supported.",
+      "Tool args JSON and result output plus optional note remain visible with call/step/parent associations in both supported wire protocols. This no-tool capture provides no tool-shape evidence; protocol15ToolCapture provides that evidence separately."
+    ],
+    "limitations": [
+      "Only wire 1.4 and 1.5 are supported; unknown wire/state versions fail closed. Unknown context mutations remain explicit gaps.",
+      "The new capture covers one completed root-agent turn, not compaction, child agents, cancellation or errors. Non-main agent records are excluded.",
+      "Parser version kimi-wire/2 invalidates earlier cursors because transcript filtering and tool argument/result coverage changed."
+    ]
+  },
+  "protocol15ToolCapture": {
+    "agentVersion": "2.5.3",
+    "wireProtocolVersion": "1.5",
+    "stateVersion": 2,
+    "sourceWireSHA256": "ce9b11f0ed915a8def28d4633e0c2ea1a8cd71aeb53cf9c3b5741041b6ed8c5b",
+    "evidence": [
+      "A separately authorized isolated Kimi run read only the synthetic workspace fact.txt via the native Read tool, then replied ACK. The source was the exact state/wire session supplied by the parent; no other sessions or authentication files were inspected.",
+      "All 36 native wire events are retained in order. The accompanying five-record sanitized cli-output.jsonl independently declares system.version 2.5.3 and shows the same Read arguments, tool-call ID, tool result and final ACK.",
+      "The first native metadata record declares protocol_version 1.5. state.json declares version 2 and binds the synthetic session ID and main agent home."
+    ],
+    "sanitization": [
+      "Session/workspace/home IDs, message IDs, event UUIDs and tool-call IDs are consistently remapped across wire, state and CLI proof. Distinct event UUID and toolCallId remain distinct.",
+      "The prompt, tool output marker and absolute paths are replaced with synthetic values. The safe relative fact.txt argument, synthetic Unicode project, port and ACK remain useful assertions.",
+      "All event types and records remain. Tool schema arrays, subagent definitions, systemPrompt and environmentDisclosure are omitted; other nonstructural strings are redacted; thinking and injections become hidden-body canaries. Timestamps are shifted."
+    ],
+    "eventSemantics": [
+      "tool.call uses args as a JSON object. Its uuid is not its toolCallId; tool.result parentUuid points at the call event uuid while toolCallId associates the call and result.",
+      "The Read result uses result.output as a multiline string and durationMs as bookkeeping. Tool arguments are emitted as the existing exportable tool_arguments kind, not the non-exportable tool_use kind.",
+      "The first step finishes with tool_use and contains no assistant text. The second step contains the final text ACK and finishes end_turn.",
+      "agent.message.appended includes assistant toolCalls with serialized arguments, a role tool result mirror and the final assistant mirror. These duplicate canonical context loop records and must not create extra bodies.",
+      "Both real 1.4 and real 1.5 tool captures are consumed through FreezeScope/Page regressions, asserting exact 1.5 args/output and parent/call linkage after ID normalization."
+    ],
+    "limitations": [
+      "This capture demonstrates Read, not every tool or failure shape. Legacy 1.4 retains seven actual Read/Bash/Glob pairs, an error result and an optional result note.",
+      "No compaction, cancellation or child-agent behavior is claimed from this completed root-agent turn."
+    ]
+  },
   "files": [
     {
       "path": "wd_fixture_0001/session_00000000-0000-4000-8000-000000000001/state.json",
@@ -39,6 +94,36 @@
       "format": "jsonl",
       "records": 42,
       "sha256": "40a32d9e2d1413d5e455984f07c05b43f4acab5f81e4cbc78c0e523dd1282dbc"
+    },
+    {
+      "path": "wd_fixture_0002/session_00000000-0000-4000-8000-000000000002/state.json",
+      "format": "json",
+      "records": 1,
+      "sha256": "cf7d6d39194187b3e9a77b6bf4eb9b0d52721840cc08b2a117bf5df04ee96eb5"
+    },
+    {
+      "path": "wd_fixture_0002/session_00000000-0000-4000-8000-000000000002/agents/main/wire.jsonl",
+      "format": "jsonl",
+      "records": 30,
+      "sha256": "f7559af4548f7219e7c913ceb7d27de9bc79491471a9fb76bb26576a6a439b63"
+    },
+    {
+      "path": "wd_fixture_0003/session_00000000-0000-4000-8000-000000000003/state.json",
+      "format": "json",
+      "records": 1,
+      "sha256": "5c8796c888fb7e1c5f70a7d8fbb703ac22579d3383fbf360a23d21ee379e7706"
+    },
+    {
+      "path": "wd_fixture_0003/session_00000000-0000-4000-8000-000000000003/agents/main/wire.jsonl",
+      "format": "jsonl",
+      "records": 36,
+      "sha256": "4ab5134fa7aec3fb07f38d5da56ed64e37b745f4a2afdac8ee0a5d9c69759227"
+    },
+    {
+      "path": "wd_fixture_0003/session_00000000-0000-4000-8000-000000000003/cli-output.jsonl",
+      "format": "jsonl",
+      "records": 5,
+      "sha256": "80e18516105b045dea9ab0602611772df62b288511857e517373b702657d7783"
     }
   ]
 }

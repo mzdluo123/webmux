@@ -1,4 +1,4 @@
-// Package history reads Kimi wire protocol 1.4; CLI release versions are unknown.
+// Package history reads Kimi wire protocols 1.4 and 1.5.
 package history
 
 import (
@@ -18,28 +18,33 @@ import (
 	"github.com/rainchan/webmux/internal/historysource"
 )
 
-const ParserVersion = "kimi-wire/1"
+const ParserVersion = "kimi-wire/2"
 
-type boundary struct{ End, Fingerprint, State string }
+type boundary struct{ End, Fingerprint, State, Parser string }
 type part struct{ Type, Text string }
 type message struct {
 	ID      string `json:"id"`
 	UUID    string `json:"uuid"`
 	Role    string `json:"role"`
 	Content []part `json:"content"`
+	Origin  struct {
+		Kind string `json:"kind"`
+	} `json:"origin"`
 }
 type event struct {
-	Type      string `json:"type"`
-	UUID      string `json:"uuid"`
-	Parent    string `json:"parentUuid"`
-	Step      string `json:"stepUuid"`
-	CallID    string `json:"toolCallId"`
-	Name      string `json:"name"`
-	Finish    string `json:"finishReason"`
-	MessageID string `json:"messageId"`
-	Part      part   `json:"part"`
+	Type      string          `json:"type"`
+	UUID      string          `json:"uuid"`
+	Parent    string          `json:"parentUuid"`
+	Step      string          `json:"stepUuid"`
+	CallID    string          `json:"toolCallId"`
+	Name      string          `json:"name"`
+	Finish    string          `json:"finishReason"`
+	Args      json.RawMessage `json:"args"`
+	MessageID string          `json:"messageId"`
+	Part      part            `json:"part"`
 	Result    struct {
 		Output  string `json:"output"`
+		Note    string `json:"note"`
 		IsError bool   `json:"isError"`
 	} `json:"result"`
 }
@@ -80,6 +85,7 @@ func identity(ctx context.Context, source historysource.Source) ([]byte, error) 
 		return nil, historysource.ErrLimit
 	}
 	var state struct {
+		ID     string `json:"id"`
 		Agents map[string]struct {
 			Home   string  `json:"homedir"`
 			Type   string  `json:"type"`
@@ -88,6 +94,9 @@ func identity(ctx context.Context, source historysource.Source) ([]byte, error) 
 	}
 	if json.Unmarshal(data, &state) != nil {
 		return nil, historysource.ErrFormat
+	}
+	if state.ID != "" && state.ID != source.NativeID {
+		return nil, historysource.ErrIdentity
 	}
 	main, ok := state.Agents["main"]
 	if !ok || main.Type != "main" || main.Parent != nil || !filepath.IsAbs(main.Home) || filepath.Clean(main.Home) != home {
@@ -105,12 +114,18 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 	if err != nil {
 		return empty, err
 	}
+	var header struct {
+		Version *int `json:"version"`
+	}
+	if json.Unmarshal(state, &header) != nil || (header.Version != nil && *header.Version != 2) {
+		return empty, historysource.ErrFormat
+	}
 	sum := sha256.Sum256(state)
 	stateHash := hex.EncodeToString(sum[:])
 	frozen := boundary{}
 	if req.Cursor != "" {
 		data, e := base64.RawURLEncoding.DecodeString(req.Cursor)
-		if e != nil || json.Unmarshal(data, &frozen) != nil || frozen.End == "" || frozen.Fingerprint == "" || frozen.State != stateHash {
+		if e != nil || json.Unmarshal(data, &frozen) != nil || frozen.End == "" || frozen.Fingerprint == "" || frozen.State != stateHash || frozen.Parser != ParserVersion {
 			return empty, historysource.ErrChanged
 		}
 	}
@@ -123,11 +138,12 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 	messageIndex := make(map[string]int)
 	representedMessages := make(map[string]bool)
 	stepText := make(map[string]bool)
-	metadata := false
+	protocol := ""
 	doc, err := historysource.ReadJSONL(ctx, raw, func(data []byte, offset, end int64) error {
 		var row struct {
 			Type    string  `json:"type"`
 			Version string  `json:"protocol_version"`
+			AgentID string  `json:"agentId"`
 			Message message `json:"message"`
 			Event   event   `json:"event"`
 		}
@@ -135,25 +151,38 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 			return historysource.ErrFormat
 		}
 		if offset == 0 {
-			if row.Type != "metadata" || row.Version != "1.4" {
+			if row.Type != "metadata" || (row.Version != "1.4" && row.Version != "1.5") {
 				return historysource.ErrFormat
 			}
-			metadata = true
+			protocol = row.Version
 			return nil
 		}
 		r := historysource.Record{ID: "wire:" + strconv.FormatInt(offset, 10), Offset: offset, End: end}
 		switch row.Type {
 		case "metadata":
 			return historysource.ErrFormat
+		}
+		// Child-agent events and injected runtime instructions are not user history.
+		if row.AgentID != "" && row.AgentID != "main" {
+			return nil
+		}
+		switch row.Type {
 		case "context.append_message":
 			m := row.Message
-			if m.Role != "user" && m.Role != "assistant" && m.Role != "tool" {
-				return nil
-			}
 			if m.ID != "" {
 				r.ID = m.ID
 			} else if m.UUID != "" {
 				r.ID = m.UUID
+			}
+			if m.Origin.Kind == "injection" {
+				return nil
+			}
+			if m.Role == "user" && m.Origin.Kind != "" && m.Origin.Kind != "user" {
+				gaps = append(gaps, historysource.Gap{RecordID: r.ID, Category: "unsupported-message-origin", Offset: offset})
+				return nil
+			}
+			if m.Role != "user" && m.Role != "assistant" && m.Role != "tool" {
+				return nil
 			}
 			if representedMessages[r.ID] {
 				return nil
@@ -205,10 +234,13 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 				if e.CallID == "" {
 					return historysource.ErrFormat
 				}
-				r.Kind = "tool_use"
+				r.Kind = "tool_arguments"
 				r.Role = "assistant"
 				r.CallID = e.CallID
 				r.ToolName = e.Name
+				if len(e.Args) != 0 && !bytes.Equal(e.Args, []byte("null")) {
+					r.Text = string(e.Args)
+				}
 				calls[e.CallID] = e.Name
 				records = append(records, r)
 			case "tool.result":
@@ -221,6 +253,12 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 				r.ParentID = e.Parent
 				r.ToolName = calls[e.CallID]
 				r.Text = e.Result.Output
+				if e.Result.Note != "" {
+					if r.Text != "" {
+						r.Text += "\n"
+					}
+					r.Text += e.Result.Note
+				}
 				r.Status = "completed"
 				if e.Result.IsError {
 					r.Status = "error"
@@ -247,15 +285,15 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 			if strings.HasPrefix(row.Type, "context.") {
 				gaps = append(gaps, historysource.Gap{RecordID: r.ID, Category: "unsupported-context-mutation", Offset: offset})
 			}
-			// turn.prompt mirrors append_message. Config, thinking and wire bookkeeping
-			// are deliberately not exposed as transcript bodies.
+			// turn.prompt and agent.message.appended mirror canonical context records.
+			// Profile/config, thinking and wire bookkeeping are never transcript bodies.
 		}
 		return nil
 	})
 	if err != nil {
 		return empty, err
 	}
-	if !metadata {
+	if protocol == "" {
 		return empty, historysource.ErrFormat
 	}
 	if frozen.Fingerprint != "" && frozen.Fingerprint != doc.Fingerprint {
@@ -269,9 +307,9 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 		return empty, historysource.ErrChanged
 	}
 	doc.Source.Branch = "main"
-	doc.FormatVersion = "kimi-wire/1.4"
+	doc.FormatVersion = "kimi-wire/" + protocol
 	doc.ParserVersion = ParserVersion
-	b, _ := json.Marshal(boundary{doc.Cursor, doc.Fingerprint, stateHash})
+	b, _ := json.Marshal(boundary{End: doc.Cursor, Fingerprint: doc.Fingerprint, State: stateHash, Parser: ParserVersion})
 	doc.Cursor = base64.RawURLEncoding.EncodeToString(b)
 	doc.Fingerprint += ":" + stateHash
 	kept := records[:0]
