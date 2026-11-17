@@ -128,10 +128,8 @@
             aria-hidden="true"
           />
         {/if}
-        <div class="flex min-w-0 items-center gap-1.5">
-          <h3 class="min-w-0 break-all text-sm font-semibold">{title}</h3>
-          {#if worktree?.kind === "main"}<MainWorktreeMark srLabel />{/if}
-        </div>
+        <h3 class="min-w-0 break-all text-sm font-semibold">{title}</h3>
+        {#if worktree?.kind === "main"}<MainWorktreeMark srLabel />{/if}
         {#if visible.length > 1}<span
             class="shrink-0 text-xs text-muted-foreground"
             >{visible.length}</span
