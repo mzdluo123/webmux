@@ -2,7 +2,10 @@
 
 ## Context
 
-`SessionSidePanel` 是终端页右侧栏的宿主，内部三个视图：`picker`（选择页）、`code`、`split`。`SessionTerminalStage.openPanels` 将 `codeShown` 置真并调用 `openPicker()`；`codeShown` 经 `codePanelState` 跨会话持久化，`panelView` 随页面存活。面板宽度小于 1024px 时（`desktop=false`），`mobile-code` 样式让面板整屏覆盖终端；视口窄于 640px 是应用的手机档位（`ResponsiveDialog`、`CodeFileActions` 均以此为 Dialog/Drawer 分界）。
+`SessionSidePanel` 是终端页右侧栏的宿主，内部三个视图：`picker`（选择页）、`code`、`split`。
+`SessionTerminalStage.openPanels` 将 `codeShown` 置真并调用 `openPicker()`；`codeShown` 经 `codePanelState` 跨会话持久化，`panelView` 随页面存活。
+面板宽度小于 1024px 时（`desktop=false`），`mobile-code` 样式让面板整屏覆盖终端。
+视口窄于 640px 是应用的手机档位（`ResponsiveDialog`、`CodeFileActions` 均以此为 Dialog/Drawer 分界）。
 
 ## Decisions
 
