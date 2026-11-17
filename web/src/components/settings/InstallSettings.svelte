@@ -3,7 +3,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as Card from "$lib/components/ui/card";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { detectSupport } from "../../platform/push";
   import { featureEnabled } from "../../platform/feature-host.svelte";
   import {

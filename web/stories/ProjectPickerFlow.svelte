@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
   import ProjectPicker from "../src/components/workspace/ProjectPicker.svelte";
-  import ResponsiveDialog from "../src/components/shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import { Button } from "../src/lib/components/ui/button";
   import {
     setFeatureCapabilities,

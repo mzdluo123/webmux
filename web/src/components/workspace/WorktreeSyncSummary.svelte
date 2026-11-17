@@ -14,7 +14,7 @@
     operationLabels,
     worktreeUpstream,
   } from "../../domains/workspace/worktree-sync";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import UpstreamStatus from "./UpstreamStatus.svelte";
 
   // A worktree's Git sync: its upstream and the commits ahead or behind it,

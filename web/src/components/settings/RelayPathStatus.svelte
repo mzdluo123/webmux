@@ -3,7 +3,7 @@
   import { featureContributions } from "../../features/registry.svelte";
   import { relayAuth } from "../../platform/relay-auth.svelte";
   import { relayDiagnostic } from "../../domains/settings/relay-diagnostics";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   const optimizer = $derived(featureContributions.entries.p2p?.p2pState);
   const labels = $derived({

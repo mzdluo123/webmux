@@ -8,7 +8,7 @@
   import { useP2PSettings } from "../../hooks/settings/p2p-settings.svelte";
   import { p2pState, type P2PPhase } from "../../platform/p2p-state.svelte";
   import { runP2PEchoABTest } from "../../platform/p2p.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { relayAuth } from "../../platform/relay-auth.svelte";
   import { relayDiagnostic } from "../../domains/settings/relay-diagnostics";
 

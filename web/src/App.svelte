@@ -77,7 +77,7 @@
   import { useDeviceShell } from "./hooks/shared/device-shell.svelte";
   import { tvInput } from "./hooks/shared/tv-input.svelte";
   import { xrPresentation } from "./hooks/shared/xr-presentation.svelte";
-  import InlineNotice from "./components/shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { clearRelayAuth, resetRelayAuth } from "./platform/relay-auth";
   import { relayAuth } from "./platform/relay-auth.svelte";
   import { createRelayAuthRecovery } from "./hooks/shared/relay-auth-recovery";

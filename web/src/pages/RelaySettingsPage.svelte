@@ -8,7 +8,7 @@
   import { clearRelayAuth } from "../platform/relay-auth";
   import { relayAuth } from "../platform/relay-auth.svelte";
   import { Button } from "$lib/components/ui/button";
-  import InlineNotice from "../components/shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   let logoutFailed = $state(false);
   let loggingOut = $state(false);

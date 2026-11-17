@@ -7,7 +7,7 @@
   import IconRocket from "~icons/tabler/rocket";
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
-  import InfoHint from "../shared/InfoHint.svelte";
+  import { InfoHint } from "$lib/components/ui/info-hint";
   import SettingsRowMenu from "./SettingsRowMenu.svelte";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Card from "$lib/components/ui/card";
@@ -30,7 +30,7 @@
   import LaunchConfigIcon from "./LaunchConfigIcon.svelte";
   import LaunchPresetMenu from "./LaunchPresetMenu.svelte";
   import LaunchConfigDialog from "./LaunchConfigDialog.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   let { defaultShell = "" }: { defaultShell?: "" | StartupShell } = $props();
 

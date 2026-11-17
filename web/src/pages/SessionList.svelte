@@ -6,7 +6,7 @@
   import SidebarButton from "../components/shell/SidebarButton.svelte";
   import SessionSwitcherTrigger from "../components/shell/SessionSwitcherTrigger.svelte";
   import SessionRow from "../components/sessions/SessionRow.svelte";
-  import InlineNotice from "../components/shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import HomeUpdateNotice from "../components/shared/HomeUpdateNotice.svelte";
   import { matchesSessionQuery } from "../domains/sessions/session-location";
   import {

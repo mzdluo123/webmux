@@ -8,7 +8,7 @@
   import type { Branches } from "../../contracts/schemas";
   import type { CommitChoice } from "../../domains/workspace/commit-choices";
   import BranchCommandList from "./BranchCommandList.svelte";
-  import PickerField from "../shared/PickerField.svelte";
+  import { PickerField } from "$lib/components/ui/picker-field";
   import SwitchBranchCommitSelect from "./SwitchBranchCommitSelect.svelte";
 
   export type SwitchTargetMode = "existing" | "new" | "detach";

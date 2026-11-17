@@ -16,7 +16,7 @@
   import WorktreeControls from "./WorktreeControls.svelte";
   import SessionRow from "../sessions/SessionRow.svelte";
   import ArchivedSessions from "../sessions/ArchivedSessions.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import LazyDialog from "../shared/LazyDialog.svelte";
   let {
     title,

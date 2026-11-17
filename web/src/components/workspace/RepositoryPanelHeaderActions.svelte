@@ -5,7 +5,7 @@
   import { locale } from "$lib/locale";
   import { Button } from "$lib/components/ui/button";
   import type { FetchResult } from "../../contracts/schemas";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitWorkbenchButton from "./GitWorkbenchButton.svelte";
 
   let {

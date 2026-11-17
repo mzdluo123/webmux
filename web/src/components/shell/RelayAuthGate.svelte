@@ -1,6 +1,6 @@
 <script lang="ts">
   import AuthGateFrame from "./AuthGateFrame.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { Button } from "$lib/components/ui/button";
   import { m } from "$lib/paraglide/messages.js";
   import type { RelayAuthReason } from "../../contracts/relay-schemas";

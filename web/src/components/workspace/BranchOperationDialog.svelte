@@ -6,7 +6,7 @@
   } from "../../domains/workspace/branch-actions";
   import type { BranchOperations } from "../../domains/workspace/branch-operations";
   import BranchOperationFlow from "./BranchOperationFlow.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   // A branch operation started outside the repository panel (home page,
   // sidebar, worktree details): a dialog on desktop, a bottom drawer on

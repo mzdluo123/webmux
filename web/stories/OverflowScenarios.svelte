@@ -7,7 +7,7 @@
   import ScratchPanel from "../src/components/terminal/ScratchPanel.svelte";
   import CodeChangesList from "../src/components/code/CodeChangesList.svelte";
   import GitWorkbenchShell from "../src/components/workspace/GitWorkbenchShell.svelte";
-  import ResponsiveDialog from "../src/components/shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import { Button } from "../src/lib/components/ui/button";
   import { createTerminalDrafts } from "../src/domains/terminal/terminal-draft.svelte";
   import { buildGitWorkbenchFixture } from "./git-workbench-fixtures";

@@ -9,7 +9,7 @@
   import { Input } from "$lib/components/ui/input";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import type {
     GitLogFilterCallbacks,
     GitLogFilterFields,

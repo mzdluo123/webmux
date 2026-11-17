@@ -4,7 +4,7 @@
   import { Label } from "$lib/components/ui/label";
   import { m } from "$lib/paraglide/messages.js";
   import type { GitCommitPreviewModel } from "../../contracts/git-workbench-schemas";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   let {
     model,

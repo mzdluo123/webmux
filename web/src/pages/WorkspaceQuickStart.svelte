@@ -49,7 +49,7 @@
     loadQuickStartFeatures,
     type QuickStartFeatures,
   } from "../features/quick-start";
-  import InlineNotice from "../components/shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import QuickStartAccessories from "../components/sessions/QuickStartAccessories.svelte";
   import {
     featureAvailable,

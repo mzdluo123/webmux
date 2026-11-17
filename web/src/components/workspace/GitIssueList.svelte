@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { GitIssue } from "../../contracts/git-workbench-schemas";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   let {
     blockers = [],

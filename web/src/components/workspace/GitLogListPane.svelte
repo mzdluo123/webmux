@@ -11,7 +11,7 @@
     GitHistoryStatus,
     GitTaskBaseline,
   } from "../../contracts/git-workbench-schemas";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitLogCommitRow from "./GitLogCommitRow.svelte";
   import GitLogFilterBar from "./GitLogFilterBar.svelte";
   import type {

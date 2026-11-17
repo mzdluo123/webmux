@@ -7,7 +7,7 @@
   import * as Card from "$lib/components/ui/card";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Collapsible from "$lib/components/ui/collapsible";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import RelayDiagnostics from "./RelayDiagnostics.svelte";
   import type { RelaySettingsView } from "../../hooks/settings/relay-settings.svelte";
   import {

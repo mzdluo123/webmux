@@ -7,7 +7,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import { m } from "$lib/paraglide/messages.js";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   // Sets the user-chosen title. It outranks titles the terminal or agent
   // report; clearing it hands the title back to them. The new title reaches

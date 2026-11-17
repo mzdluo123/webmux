@@ -4,7 +4,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import type { HandoffEditor } from "../../hooks/sessions/handoff.svelte";
   import { openSession } from "../../hooks/shared/shell.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import HandoffHistoryReader from "./HandoffHistoryReader.svelte";
   let { editor: e }: { editor: HandoffEditor } = $props();
 </script>
