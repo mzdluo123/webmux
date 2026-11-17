@@ -14,7 +14,7 @@ export async function prepareHostAuthentication(
   signal: AbortSignal,
   current: () => boolean,
 ) {
-  const restoreOwner = !preferToken;
+  const restoreOwner = !preferToken && location.protocol === "https:";
   if (!restoreOwner) resetRelayAuth();
   const authRevision = relayAuthRevision();
   if (restoreOwner) {

@@ -4,7 +4,11 @@ import { page } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import App from "../../src/App.svelte";
 import { api, navigate } from "../../src/platform/api";
-import { relayAuthStatus, resetRelayAuth } from "../../src/platform/relay-auth";
+import {
+  applyRelayAuth,
+  relayAuthStatus,
+  resetRelayAuth,
+} from "../../src/platform/relay-auth";
 import { NoContentSchema } from "../../src/contracts/schemas";
 import { setActiveHostId } from "../../src/platform/storage";
 import { requestFeatureHostRefresh } from "../../src/platform/feature-host.svelte";
@@ -449,6 +453,7 @@ test("relay recovery keeps the terminal, route and unsent draft without replayin
   const info = session({ id: "aaaaaaaa" });
   respond(/^GET \/api\/sessions\/aaaaaaaa$/, () => Response.json(info));
   await mount();
+  applyRelayAuth(authenticated);
   navigate("/s/aaaaaaaa?message=retained");
   const terminal = await socketAt("/ws/s/aaaaaaaa");
   terminal.binary(2, info);
