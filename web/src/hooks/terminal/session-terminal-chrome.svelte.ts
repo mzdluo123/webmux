@@ -214,8 +214,16 @@ export function useSessionTerminalChrome(options: {
     $effect(() => {
       if (hybrid.view !== "chat") chatEditing = false;
     });
+    // The dismissal flag latches until the IME reopens or the page unlocks
+    // into document scroll. Fixed shells (tablet, standalone, split panes,
+    // code panel) never unlock, so react only to a newly observed dismissal:
+    // otherwise the stale flag would keep releasing every later chat focus.
+    let dismissalObserved = false;
     $effect(() => {
-      if (options.keyboardDismissed() && chatEditing) {
+      const dismissed = options.keyboardDismissed();
+      const observed = dismissed && !dismissalObserved;
+      dismissalObserved = dismissed;
+      if (observed && chatEditing) {
         chatEditing = false;
         options.releaseChatEditing();
       }
