@@ -5,7 +5,10 @@
   import { Label } from "$lib/components/ui/label";
   import { Textarea } from "$lib/components/ui/textarea";
   import * as Select from "$lib/components/ui/select";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import {
     emptyHandoffLocation,
@@ -70,7 +73,7 @@
   <fieldset class="min-w-0 space-y-3" disabled={e.busy || e.active}>
     <div class="space-y-2">
       <Label>{m.handoff_format()}</Label>
-      <SegmentedControl.Root
+      <SegmentedControl
         value={e.format}
         onValueChange={(value) => {
           if (value === "image" || value === "text") e.format = value;
@@ -79,13 +82,13 @@
         size="form"
         wrap
       >
-        <SegmentedControl.Item value="image"
-          >{m.handoff_format_image()}</SegmentedControl.Item
+        <SegmentedControlItem value="image"
+          >{m.handoff_format_image()}</SegmentedControlItem
         >
-        <SegmentedControl.Item value="text"
-          >{m.handoff_format_text()}</SegmentedControl.Item
+        <SegmentedControlItem value="text"
+          >{m.handoff_format_text()}</SegmentedControlItem
         >
-      </SegmentedControl.Root>
+      </SegmentedControl>
     </div>
     {#if e.format === "image"}
       <div class="space-y-2">
