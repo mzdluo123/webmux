@@ -184,6 +184,7 @@ test("SidebarFooter host status popover reflects P2P direct mode and RTT", async
     hostname: "devbox",
     setupSettled: true,
     onforward: () => {},
+    onadd: () => {},
   });
 
   await page.getByRole("button", { name: /^查看主机状态：/ }).click();

@@ -38,6 +38,7 @@ test("workspace defers settings and management forms until requested", async ({
   expect(scripts.some((url) => /\/NewSessionDialog-/.test(url))).toBe(true);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toBeHidden();
+  await revealSidebar(page);
   await page.getByRole("button", { name: "添加仓库", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "添加仓库" })).toBeVisible();
   expect(scripts.some((url) => /\/AddRepositoryDialog-/.test(url))).toBe(true);

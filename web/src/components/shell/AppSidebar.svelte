@@ -370,6 +370,8 @@
     hostname={setup.hostname}
     setupSettled={shell.setup.settled}
     onforward={shell.forward}
+    onadd={shell.addRepository}
+    canAdd={setup.gitReady && setup.registryReady}
   />
 </nav>
 
