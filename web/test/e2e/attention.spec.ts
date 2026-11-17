@@ -78,14 +78,15 @@ test("agent attention survives spinner output and clears on user input", async (
   ).toMatchObject({ kind: "bell", source: "terminal" });
 });
 
-// omp queries terminal modes and sizes at startup. Opening the page replays
-// those queries into xterm.js, whose automatic replies reach the PTY; they
-// must not count as the user answering.
+// Historical queries stay local to replay. Live replies reach the PTY while
+// preserving the agent's question; step files trigger them without user input.
 const queryingAgent = String.raw`
-printf '\033[?2026$p\033[18t\033[14t\033[16t\033[c\033[6n'
+query() { printf '\033[?2026$p\033[18t\033[14t\033[16t\033[c\033[6n'; }
+query
 printf '\033]777;notify;warp://cli-agent;{"v":1,"agent":"e2e","event":"question_asked"}\007'
 stty -echo -icanon min 1
 ( while :; do printf '\r| waiting'; sleep 0.1; printf '\r/ waiting'; sleep 0.1; done ) &
+( for step in 1 2; do until [ -e "query$step" ]; do sleep 0.05; done; query; done ) &
 cat > replies.bin
 `;
 
@@ -107,17 +108,31 @@ test("opening a session does not clear attention through terminal replies", asyn
     (await (await request.get(`/api/sessions/${id}`)).json()).attention;
   await expect.poll(attention).toMatchObject({ kind: "question" });
 
+  let previousReplies = "";
   for (const visit of [1, 2]) {
     await page.goto(`/s/${id}`);
     await expectConnected(page);
     await expect(page.locator(".restore-overlay")).toBeHidden();
-    // Give the replayed queries' replies time to reach the PTY.
+    expect(await readFile(join(workDir, "replies.bin"), "latin1")).toBe(
+      previousReplies,
+    );
+    await writeFile(join(workDir, `query${visit}`), "");
     await expect
-      .poll(() => readFile(join(workDir, "replies.bin"), "latin1"), {
-        message: `visit ${visit} replies`,
-      })
-      .toMatch(/\$y/);
-    await page.waitForTimeout(800);
+      .poll(
+        async () => {
+          const replies = await readFile(
+            join(workDir, "replies.bin"),
+            "latin1",
+          );
+          return {
+            count: replies.split("$y").length - 1,
+            complete: replies.endsWith("R"),
+          };
+        },
+        { message: `visit ${visit} live replies` },
+      )
+      .toEqual({ count: visit, complete: true });
+    previousReplies = await readFile(join(workDir, "replies.bin"), "latin1");
     expect(await attention(), `visit ${visit}`).toMatchObject({
       kind: "question",
       source: "agent",
@@ -338,4 +353,120 @@ test("shows a script's notify message in the toast and clears it on request", as
   const cleared = await request.delete(`/api/sessions/${id}/attention`);
   expect(cleared.status()).toBe(204);
   await expect(toast).toBeHidden();
+});
+
+test("deferring an inbox alert lets it return without stopping the session", async ({
+  page,
+  request,
+  workDir,
+}, info) => {
+  const created = await request.post("/api/sessions", {
+    data: {
+      cwd: workDir,
+      name: "Review alert",
+      cmd: ["/bin/sh", "-c", "sleep 600"],
+    },
+  });
+  expect(created.status()).toBe(201);
+  const { id } = (await created.json()).session;
+  const raised = await request.post(`/api/sessions/${id}/attention`, {
+    data: { kind: "error", message: "Review the failed check" },
+  });
+  expect(raised.status()).toBe(200);
+  await page.goto(`/s/${id}`);
+  if (info.project.use.isMobile)
+    await page.getByRole("button", { name: "打开侧栏", exact: true }).click();
+  await page.getByRole("button", { name: /^待我处理/ }).click();
+  const inbox = page.getByRole("dialog", { name: "待我处理", exact: true });
+  await page.clock.install();
+  const defer = inbox.getByRole("button", {
+    name: "稍后（15 分钟后提醒）：Review alert",
+  });
+  await defer.click();
+  await expect(inbox.getByText("已暂缓", { exact: true })).toBeVisible();
+  const renamed = await request.patch(`/api/sessions/${id}`, {
+    data: { name: "Renamed review alert" },
+  });
+  expect(renamed.ok()).toBe(true);
+  await expect(
+    inbox.getByRole("button", { name: "Renamed review alert", exact: true }),
+  ).toBeVisible();
+  await page.clock.fastForward(15 * 60_000 + 50);
+  await expect(
+    inbox.getByRole("button", {
+      name: "稍后（15 分钟后提醒）：Renamed review alert",
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("region", { name: "会话通知" })).toContainText(
+    "Renamed review alert",
+  );
+  expect(
+    (await (await request.get(`/api/sessions/${id}`)).json()).status,
+  ).not.toBe("exited");
+});
+
+test("inbox has one conditional entry and keeps every landscape action reachable", async ({
+  page,
+  request,
+  workDir,
+}) => {
+  await page.setViewportSize({ width: 667, height: 375 });
+  const quiet = await request.post("/api/sessions", {
+    data: {
+      cwd: workDir,
+      name: "Quiet session",
+      cmd: ["/bin/sh", "-c", "sleep 600"],
+    },
+  });
+  expect(quiet.status()).toBe(201);
+  const quietId = (await quiet.json()).session.id;
+  await page.goto(`/s/${quietId}`);
+  await expectConnected(page);
+  await page.getByRole("button", { name: "展开侧栏", exact: true }).click();
+  const trigger = page.getByRole("button", { name: /^待我处理/ });
+  await expect(trigger).toHaveCount(0);
+  const ids: string[] = [];
+  for (let index = 0; index < 8; index++) {
+    const created = await request.post("/api/sessions", {
+      data: {
+        cwd: workDir,
+        name: `Landscape alert ${index}`,
+        cmd: ["/bin/sh", "-c", "sleep 600"],
+      },
+    });
+    expect(created.status()).toBe(201);
+    const { id } = (await created.json()).session;
+    ids.push(id);
+    const raised = await request.post(`/api/sessions/${id}/attention`, {
+      data: { kind: "error" },
+    });
+    expect(raised.status()).toBe(200);
+  }
+  await expect(trigger).toHaveCount(1);
+  await trigger.click();
+  const inbox = page.getByRole("dialog", { name: "待我处理", exact: true });
+  const lastAction = inbox.getByRole("button", {
+    name: "稍后（15 分钟后提醒）：Landscape alert 0",
+    exact: true,
+  });
+  await lastAction.scrollIntoViewIfNeeded();
+  await expect(lastAction).toBeInViewport({ ratio: 1 });
+  const bounds = await inbox.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.y).toBeGreaterThanOrEqual(0);
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(375);
+  await lastAction.click();
+  await expect(inbox.getByText("已暂缓", { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "展开侧栏", exact: true }).click();
+  await trigger.click();
+  await expect(inbox.getByText("已暂缓", { exact: true })).toHaveCount(0);
+  for (const id of ids) {
+    const cleared = await request.delete(`/api/sessions/${id}/attention`);
+    expect(cleared.status()).toBe(204);
+  }
+  // Keep the open empty state usable, then remove the entry on dismissal.
+  await expect(inbox.getByText("当前没有等待处理的会话。")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toHaveCount(0);
 });

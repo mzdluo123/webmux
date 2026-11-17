@@ -1,15 +1,19 @@
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { seedSettings } from "./settings-fixture";
+import { diffReview } from "../../src/domains/code/diff-review.svelte";
+import type { CodeChange } from "../../src/contracts/schemas";
 import {
   settings,
   saveSettings,
   stopSettings,
   startSettings,
-} from "../../src/settings.svelte";
-import { emptySettings } from "../../src/settings-intent";
+} from "../../src/domains/settings/settings.svelte";
+import { emptySettings } from "../../src/domains/settings/settings-intent";
+import { setActiveHostId } from "../../src/platform/storage";
 
 afterEach(() => {
   stopSettings();
+  setActiveHostId(null);
   vi.unstubAllGlobals();
   localStorage.clear();
 });
@@ -51,19 +55,19 @@ test("409 rebases only the local preview field and caches confirmed data", async
 });
 
 test("a failed optimistic save rolls back without caching or replaying it", async () => {
-  await seedSettings({ theme: "light" });
+  await seedSettings({ forceSoftKeys: false });
   const cache = localStorage.getItem("webmux.settingsCache");
   const response = Promise.withResolvers<Response>();
   const fetch = vi.fn<typeof window.fetch>(() => response.promise);
   vi.stubGlobal("fetch", fetch);
-  const task = saveSettings({ theme: "dark" });
-  expect(settings.values.theme).toBe("dark");
+  const task = saveSettings({ forceSoftKeys: true });
+  expect(settings.values.forceSoftKeys).toBe(true);
   expect(localStorage.getItem("webmux.settingsCache")).toBe(cache);
   response.resolve(
     Response.json({ error: "storage /state/settings.json" }, { status: 503 }),
   );
   await expect(task).rejects.toThrow("settings.json");
-  expect(settings.values.theme).toBe("light");
+  expect(settings.values.forceSoftKeys).toBe(false);
   expect(settings.ready).toBe(false);
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(localStorage.getItem("webmux.settingsCache")).toBe(cache);
@@ -77,18 +81,20 @@ test("a second conflict stops automatic retries and preserves the latest snapsho
       : Response.json({
           revision: 1,
           updatedAt: "2026-10-26T00:00:00Z",
-          values: { ...emptySettings, theme: "light" },
+          values: { ...emptySettings, forceSoftKeys: false },
         }),
   );
   vi.stubGlobal("fetch", fetch);
-  await expect(saveSettings({ theme: "dark" })).rejects.toThrow("conflict");
+  await expect(saveSettings({ forceSoftKeys: true })).rejects.toThrow(
+    "conflict",
+  );
   expect(fetch).toHaveBeenCalledTimes(3);
-  expect(settings.values.theme).toBe("light");
+  expect(settings.values.forceSoftKeys).toBe(false);
 });
 
 test("a reconnected snapshot replaces stale revisions after a server reset", async () => {
   await seedSettings();
-  await saveSettings({ theme: "dark" });
+  await saveSettings({ forceSoftKeys: true });
   const sockets: FakeSocket[] = [];
   class FakeSocket {
     static OPEN = 1;
@@ -113,8 +119,66 @@ test("a reconnected snapshot replaces stale revisions after a server reset", asy
     }),
   });
   expect(settings.revision).toBe(0);
-  expect(settings.values.theme).toBeNull();
+  expect(settings.values.forceSoftKeys).toBeNull();
   expect(
     JSON.parse(localStorage.getItem("webmux.settingsCache")!).revision,
   ).toBe(0);
+});
+
+test("isolates settingsCache and diffReview storage events per hostId", async () => {
+  localStorage.setItem("webmux.host.host-a.settingsCache", "{corrupt");
+  localStorage.setItem(
+    "webmux.host.host-b.settingsCache",
+    JSON.stringify({
+      revision: 3,
+      updatedAt: "2026-10-26T00:00:00Z",
+      values: { ...emptySettings, forceSoftKeys: true },
+    }),
+  );
+
+  setActiveHostId("host-a");
+  expect(localStorage.getItem("webmux.host.host-a.settingsCache")).toBeNull();
+  expect(settings.revision).toBe(0);
+
+  setActiveHostId("host-b");
+  expect(settings.revision).toBe(3);
+  expect(settings.values.forceSoftKeys).toBe(true);
+
+  const change: CodeChange = {
+    path: "a.ts",
+    nodeId: "n1",
+    status: "modified",
+    group: "working",
+    reviewVersion: "v1",
+  };
+  setActiveHostId("host-a");
+  const disconnect = diffReview.connect();
+  try {
+    expect(diffReview.has("repo", change)).toBe(false);
+    localStorage.setItem(
+      "webmux.host.host-b.diffReview",
+      JSON.stringify([[JSON.stringify(["repo", "working", "n1"]), "v1"]]),
+    );
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: "webmux.host.host-b.diffReview",
+        storageArea: localStorage,
+      }),
+    );
+    expect(diffReview.has("repo", change)).toBe(false);
+
+    localStorage.setItem(
+      "webmux.host.host-a.diffReview",
+      JSON.stringify([[JSON.stringify(["repo", "working", "n1"]), "v1"]]),
+    );
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: "webmux.host.host-a.diffReview",
+        storageArea: localStorage,
+      }),
+    );
+    expect(diffReview.has("repo", change)).toBe(true);
+  } finally {
+    disconnect();
+  }
 });

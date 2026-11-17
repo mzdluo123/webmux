@@ -7,6 +7,8 @@ Tailscale 状态，并按网页设置或 `[tailscale]` 配置托管一个精确�
 
 ## 启用前
 
+先 [选择 `tailscale` 功能](deployment/configuration.md#内置功能选择) 并重启，才提供检测、网页设置和托管控制；单纯经已存在的 VPN 直连核心不需要该功能。
+
 1. 安装并登录 Tailscale；确认 `tailscale status --json` 的 `BackendState` 为
    `Running`。
 2. 在 Tailscale 管理台为节点启用 HTTPS 与 MagicDNS。`CertDomains` 必须包含
@@ -104,7 +106,7 @@ tailscale serve --https=<port> off
 ```
 
 `serve off` 同时移除该端口的 handler 与 Funnel 标记；重复执行返回的
-`handler does not exist` 可视为已移除。不要先执行 `funnel off`，它会让随后的
+`handler does not exist` 可视为已移除。先执行 `funnel off` 会让随后的
 `serve off` 报错。
 
 常见原因：

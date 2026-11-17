@@ -13,7 +13,7 @@ export function resolveE2EWorkers(
     return workers;
   }
   if (env.CI) return 2;
-  return Math.min(2, parallelism);
+  return Math.min(8, parallelism);
 }
 
 export default defineConfig({
@@ -25,7 +25,7 @@ export default defineConfig({
   fullyParallel: true,
   // Each worker fixture owns its backend and sessions, so workers never
   // share state or reuse dev servers. CI keeps two slots to overlap PTY/Git
-  // and browser waits. Local runs use up to two to cut the serial wall
+  // and browser waits. Local runs scale to eight to cut the serial wall
   // clock; WEBMUX_E2E_WORKERS overrides everywhere.
   workers: resolveE2EWorkers(),
   forbidOnly: Boolean(process.env.CI),
@@ -39,6 +39,7 @@ export default defineConfig({
     ["html", { outputFolder: "playwright-report/e2e", open: "never" }],
   ],
   use: {
+    locale: "zh-CN",
     headless: true,
     screenshot: "only-on-failure",
     // Recording every test costs ~14% of suite time. CI retries once, so it

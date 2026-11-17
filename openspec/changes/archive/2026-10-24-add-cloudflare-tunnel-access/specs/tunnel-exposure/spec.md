@@ -84,7 +84,7 @@
 #### Scenario: 缓存被篡改
 
 - **WHEN** `state_dir` 中缓存的 cloudflared 与内置 SHA-256 不一致
-- **THEN** 系统不执行该文件，而是重新下载并校验
+- **THEN** 系统重新下载并校验该文件
 
 #### Scenario: 不支持的平台
 

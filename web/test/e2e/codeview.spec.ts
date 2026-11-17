@@ -9,7 +9,7 @@ import {
   createShell,
   runCommand,
   expectTerminalLine,
-  viewSwitch,
+  toggleCode,
 } from "./fixtures";
 function git(root: string, ...args: string[]) {
   return execFileSync("git", ["-C", root, ...args], {
@@ -23,8 +23,9 @@ function git(root: string, ...args: string[]) {
   }).toString();
 }
 async function showCode(page: import("@playwright/test").Page) {
-  await viewSwitch(page.locator(".terminal-header"), "代码").click();
-  await expect(page.getByRole("region", { name: "代码工作区" })).toBeVisible();
+  const code = page.getByRole("region", { name: "代码工作区" });
+  if (!(await code.isVisible())) await toggleCode(page);
+  await expect(code).toBeVisible();
 }
 async function visibleCode(page: import("@playwright/test").Page) {
   return (
@@ -131,10 +132,7 @@ test("read ordinary files, independent tabs, updates and insert a line without E
       .filter({ hasText: /^2$/ })
       .click();
     await page.getByRole("button", { name: "发送位置到终端" }).click();
-    await page
-      .locator(".terminal-header")
-      .getByRole("button", { name: "折叠代码" })
-      .click();
+    await toggleCode(page);
   }
   const buffer = await (await request.get(`/api/sessions/${id}/buffer`)).text();
   expect(buffer).not.toContain(`reference: ${join(workDir, "clean.go")}:2\r\n`);
@@ -460,7 +458,7 @@ test("large change lists remain browsable and late files can compare, update and
   expect(
     await page
       .getByRole("list", { name: "修改列表" })
-      .locator("button")
+      .getByRole("listitem")
       .count(),
   ).toBeLessThan(50);
   await page.getByLabel("筛选修改路径").fill("file-1204");
@@ -510,7 +508,7 @@ test("large change lists remain browsable and late files can compare, update and
   await page
     .getByRole("button", { name: "未跟踪 bulk/file-1204.txt", exact: true })
     .click();
-  expect(await list.locator("button").count()).toBeLessThan(50);
+  expect(await list.getByRole("listitem").count()).toBeLessThan(50);
   const context = await (
     await request.get(`/api/sessions/${id}/code/context`)
   ).json();

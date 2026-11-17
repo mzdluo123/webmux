@@ -4,7 +4,7 @@ WebMux 的核心价值是从手机或浏览器持续操控服务器上的 CLI ag
 
 ## 运行
 
-在仓库根目录运行，要求 Go 1.26+、Node.js 26.13.0（与 `.nvmrc` 一致）、pnpm 12.18.0、Git、Linux/macOS、`bash`（PATH 中） 及 `stty`、`cat`、`dd`、`sleep`。`make baseline` 会先安装锁定的前端依赖并构建嵌入资源，再启动采样；直接执行 `go run ./cmd/baseline` 前需先运行 `make web`。无需下载或调用真实收费 agent，也无需启动开发服务。前端构建耗时不计入 baseline 的采样结果。
+在仓库根目录运行，要求 Go 1.27+、Node.js 26.13.0（与 `.nvmrc` 一致）、pnpm 12.18.0、Git、Linux/macOS、`bash`（PATH 中） 及 `stty`、`cat`、`dd`、`sleep`。`make baseline` 会先安装锁定的前端依赖并构建嵌入资源，再启动采样；直接执行 `go run ./cmd/baseline` 前需先运行 `make web`。无需下载或调用真实收费 agent，也无需启动开发服务。前端构建耗时不计入 baseline 的采样结果。
 
 ```sh
 make baseline
@@ -14,7 +14,7 @@ make baseline BASELINE_SAMPLES=2 BASELINE_OUTPUT=/tmp/webmux-smoke.json
 make baseline BASELINE_OUTPUT=baseline/results/candidate.json
 ```
 
-每个性能场景默认 30 次；仅回显有 3 次不计入统计的预热。认证使用 22 个固定用例，状态识别使用 8 个固定标注场景。整个 suite 顺序运行，使用临时目录和动态 loopback 端口，退出时关闭所建会话并清理目录。不要并行运行浏览器测试、构建或其他重任务再把结果当作空载基线。
+每个性能场景默认 30 次；仅回显有 3 次不计入统计的预热。认证使用 22 个固定用例，状态识别使用 8 个固定标注场景。整个 suite 顺序运行，使用临时目录和动态 loopback 端口，退出时关闭所建会话并清理目录。空载基线在浏览器测试、构建等重任务结束后独立运行。
 
 API 服务与测量客户端处于同一 Go 进程（`httptest`），PTY 子进程实际运行。时间不包含 CLI 服务进程启动、浏览器加载和绘制。
 

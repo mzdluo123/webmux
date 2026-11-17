@@ -1,0 +1,16 @@
+{
+  "status": 200,
+  "body": {
+    "affectedWorktrees": [],
+    "blockers": [],
+    "confirmationId": "<confirmationId#12>",
+    "expiresAt": "<time>",
+    "headOid": "e8fba90afc70f97624e3df16dfc5ef1e435e3654",
+    "newName": "feat-renamed",
+    "oldName": "feat-conflict",
+    "repositoryId": "<id#1>",
+    "sessions": [],
+    "subject": "feat: firefly conflict",
+    "warnings": []
+  }
+}

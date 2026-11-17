@@ -1,9 +1,9 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
-import SessionRow from "../../src/components/SessionRow.svelte";
-import { setLaunchPreviews } from "../../src/launch-previews.svelte";
-import type { SessionInfo } from "../../src/schemas";
+import SessionRow from "../../src/components/sessions/SessionRow.svelte";
+import { setLaunchPreviews } from "../../src/domains/settings/launch-previews.svelte";
+import type { SessionInfo } from "../../src/contracts/schemas";
 
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -46,14 +46,14 @@ test("opens the terminal in this tab", async () => {
   await expect.element(link).toHaveAttribute("href", `/s/${base.id}`);
   await expect.element(link).not.toHaveAttribute("target");
   const start = location.href;
-  const before = history.length;
+  const push = vi.spyOn(history, "pushState");
   link
     .element()
     .dispatchEvent(
       new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }),
     );
   expect(location.pathname).toBe(`/s/${base.id}`);
-  expect(history.length).toBe(before + 1);
+  expect(push).toHaveBeenCalledExactlyOnceWith(null, "", `/s/${base.id}`);
   history.replaceState(null, "", start);
 });
 

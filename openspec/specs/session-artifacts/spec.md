@@ -1,7 +1,8 @@
 # session-artifacts Specification
 
 ## Purpose
-TBD - created by archiving change add-session-artifacts-folder. Update Purpose after archive.
+
+为每个会话管理上传素材与 Agent 交付物的临时文件夹，提供文件定位、访问和清理规则，使浏览器与 Agent 通过同一目录交换文件。
 
 ## Requirements
 
@@ -45,7 +46,7 @@ TBD - created by archiving change add-session-artifacts-folder. Update Purpose a
 ### Requirement: 临时文件夹的生命周期与清扫
 
 - 普通会话被删除（`DELETE /api/sessions/{id}?remove=1` 或其他使会话离开会话列表的删除路径）后，系统 SHALL 删除该会话文件夹及其全部内容。
-- 混合会话离开运行中列表但仍保留可恢复记录时，系统 SHALL 保留其文件夹；`DELETE /api/hybrid-sessions/{id}` 成功删除记录后 SHALL 删除该文件夹。恢复后的混合会话 SHALL 沿用原文件夹。
+- 混合会话离开运行中列表但仍保留可恢复记录时，系统 SHALL 保留其文件夹；`DELETE /api/sessions/{id}?forget=1` 成功删除记录后 SHALL 删除该文件夹。恢复后的混合会话 SHALL 沿用原文件夹。
 - 会话仅关闭或进程退出而未被删除时，文件夹 SHALL 保留。
 - 服务启动时，在开始接受请求之前，系统 SHALL 清扫本实例根目录：删除名称不对应任何可恢复混合会话记录的会话文件夹。混合会话记录不可读取（例如记录文件损坏）时 SHALL 跳过整次清扫并记录警告，SHALL NOT 删除任何文件夹。
 - 删除 SHALL 只作用于本实例根目录内的直接子目录，SHALL NOT 跟随符号链接。删除失败 SHALL 记录不含文件内容的警告，SHALL NOT 影响会话删除本身的结果。
@@ -69,6 +70,11 @@ TBD - created by archiving change add-session-artifacts-folder. Update Purpose a
 
 - **WHEN** 服务启动时 `hybrid-sessions.json` 无法解析
 - **THEN** 实例根目录中的所有文件夹保持原样，日志记录跳过清扫
+
+#### Scenario: 删除记录后清理文件夹
+
+- **WHEN** 客户端对一个已关闭的混合会话请求 `DELETE /api/sessions/{id}?forget=1`
+- **THEN** 记录被删除后，该会话的临时文件夹随之删除
 
 ### Requirement: 上传文件保存到临时文件夹
 

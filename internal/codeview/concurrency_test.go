@@ -23,7 +23,7 @@ func TestCanceledBindingKeepsGitDiscoveryRetryable(t *testing.T) {
 	}
 	// Model the opener leaving after admission, before Git discovery finishes.
 	cancel()
-	_, err = s.bind(ctx, id, RootWorkspace)
+	_, err = s.bind(ctx, sessionScope(id, RootWorkspace))
 	release()
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("canceled discovery returned %v, want context.Canceled", err)

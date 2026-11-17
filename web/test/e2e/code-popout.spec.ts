@@ -2,7 +2,13 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Frame, FrameLocator, Locator, Page } from "@playwright/test";
-import { test, expect, createShell, viewSwitch } from "./fixtures";
+import {
+  test,
+  expect,
+  createShell,
+  revealSidebar,
+  toggleCode,
+} from "./fixtures";
 
 function git(root: string, ...args: string[]) {
   execFileSync("git", ["-C", root, ...args], {
@@ -24,8 +30,10 @@ function frameOf(win: Page) {
   return win.frameLocator('iframe[title="代码工作区"]');
 }
 type Scope = Page | FrameLocator;
-function showCode(page: Page) {
-  return viewSwitch(page.locator(".terminal-header"), "代码").click();
+async function showCode(page: Page) {
+  const code = page.getByRole("region", { name: "代码工作区" });
+  if (!(await code.isVisible())) await toggleCode(page);
+  await expect(code).toBeVisible();
 }
 function popOutButton(page: Page) {
   return page.getByRole("button", {
@@ -192,16 +200,35 @@ test("the code panel pops out into a framed window and both ways keeps its readi
     .poll(async () => Math.abs((await topLine(frame)) - top))
     .toBeLessThanOrEqual(1);
 
-  // Server settings, such as the theme, reach the window.
+  // Browser-local theme changes and server code-reader settings reach the window.
+  await revealSidebar(page);
+  await page
+    .getByRole("button", { name: "切换为黑色主题", exact: true })
+    .click();
+  await expect(frame.locator("html")).toHaveClass(/\bdark\b/);
+  await page
+    .getByRole("button", { name: "切换为白色主题", exact: true })
+    .click();
+  await expect(frame.locator("html")).not.toHaveClass(/\bdark\b/);
   const settings = await (await request.get("/api/settings")).json();
   await request.patch("/api/settings", {
-    data: { baseRevision: settings.revision, changes: { theme: "dark" } },
+    data: {
+      baseRevision: settings.revision,
+      changes: {
+        codeReader: { lineNumbers: "hide", diffOverflow: "scroll" },
+      },
+    },
   });
-  await expect(frame.locator("html")).toHaveClass(/\bdark\b/);
+  await expect(
+    frame.getByRole("button", { name: "显示行号", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
   const latest = await (await request.get("/api/settings")).json();
   await request.patch("/api/settings", {
-    data: { baseRevision: latest.revision, changes: { theme: null } },
+    data: { baseRevision: latest.revision, changes: { codeReader: null } },
   });
+  await expect(
+    frame.getByRole("button", { name: "显示行号", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
 
   // Menus and dialogs open inside the window, at the pointer.
   await frame.getByRole("tab", { name: "文件", exact: true }).click();
@@ -254,10 +281,7 @@ test("closing the opener's code view keeps the popped-out panel live", async ({
   );
   await writeFile(join(workDir, "live.txt"), "before\n");
   await createShell(page, "Popout live", workDir);
-  const toggle = page
-    .locator(".terminal-header")
-    .getByRole("button", { name: /^(代码|折叠代码)$/ });
-  await toggle.click();
+  await toggleCode(page);
   const opened = page.context().waitForEvent("page");
   await popOutButton(page).click();
   const frame = frameOf(await opened);
@@ -267,7 +291,7 @@ test("closing the opener's code view keeps the popped-out panel live", async ({
   ).toContainText("before");
   // Hiding the code pane in the opener must not pause the popped-out panel's
   // update checks.
-  await toggle.click();
+  await toggleCode(page);
   await writeFile(join(workDir, "live.txt"), "after\n");
   await expect(
     frame.getByRole("tab", { name: /^live\.txt · worktree ●$/ }),
@@ -439,6 +463,36 @@ function withoutPictureInPicture(page: Page) {
   });
 }
 
+test("viewed marks survive switching between the code popup and the main app", async ({
+  page,
+  workDir,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium-desktop", "desktop pop-out");
+  await withoutPictureInPicture(page);
+  git(workDir, "init", "-q");
+  await writeFile(join(workDir, "first.txt"), "first\n");
+  await writeFile(join(workDir, "second.txt"), "second\n");
+  await createShell(page, "Review code", workDir);
+  await showCode(page);
+  await page.getByRole("tab", { name: "修改", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "标记为已看：first.txt" }),
+  ).toBeVisible();
+  const opened = page.waitForEvent("popup");
+  await popOutButton(page).click();
+  const popup = await opened;
+  const frame = frameOf(popup);
+  await frame.getByRole("tab", { name: "修改", exact: true }).click();
+  await frame.getByRole("button", { name: "标记为已看：first.txt" }).click();
+  await popup.close();
+  await page.getByRole("tab", { name: "修改", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "标记为已看：first.txt" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "标记为已看：second.txt" }).click();
+  await expect(page.getByText("已看 2 / 2 个已加载修改")).toBeVisible();
+});
+
 test("without Picture-in-Picture a desktop browser pops out into an ordinary popup", async ({
   page,
   workDir,
@@ -503,7 +557,7 @@ test("mobile browsers without Picture-in-Picture offer no pop-out", async ({
   await withoutPictureInPicture(page);
   await writeFile(join(workDir, "mobile.txt"), "mobile document\n");
   await createShell(page, "Mobile code", workDir);
-  await viewSwitch(page, "代码").click();
+  await toggleCode(page);
   await expect(
     page.getByRole("button", { name: "mobile.txt", exact: true }),
   ).toBeVisible();

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   MATCH_LIMIT,
   findMatchLines,
@@ -6,7 +6,7 @@ import {
   matchStatus,
   stepMatch,
   type MatchCursor,
-} from "../src/code-search";
+} from "../src/domains/code/code-search";
 
 const spec = (search: string, options: { regexp?: boolean } = {}) => ({
   search,

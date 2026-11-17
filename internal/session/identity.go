@@ -22,6 +22,10 @@ type Identity struct {
 	// ProgramChildID is the first segment of the latest OSC 7501 child
 	// record id.
 	ProgramChildID string
+	// Title is the latest OSC 0/2 title reported by the current run, empty
+	// when unset or cleared; TitleSeq counts OSC 0/2 reports in this run.
+	Title    string
+	TitleSeq uint64
 	// PID, Executable and Cwd describe the current run's root process. They
 	// are empty without a live run; Executable and Cwd are also empty when
 	// the process table cannot be read.
@@ -90,6 +94,9 @@ func (s *Session) rootPIDs() []int {
 	slices.Sort(pids)
 	return pids
 }
+
+// ProcessRoots returns the live PTY and sidecar roots for process adapters.
+func (s *Session) ProcessRoots() []int { return s.rootPIDs() }
 
 // RunChildren returns the executable base names of the current run's root
 // process's direct children, read on demand for profiles that allow a

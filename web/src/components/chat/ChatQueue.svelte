@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { useDockMotion } from "../../hooks/dock-motion.svelte";
+  import { m } from "$lib/paraglide/messages.js";
+  import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
   import { MediaQuery } from "svelte/reactivity";
   import IconArrowBarUp from "~icons/tabler/arrow-bar-up";
   import IconArrowNarrowUp from "~icons/tabler/arrow-narrow-up";
@@ -9,10 +10,10 @@
   import IconTrash from "~icons/tabler/trash";
   import { Button } from "$lib/components/ui/button";
   import { Textarea } from "$lib/components/ui/textarea";
-  import ConfirmDialog from "../ConfirmDialog.svelte";
-  import type { ChatActions } from "../../chat-api";
-  import { errorMessage } from "../../error";
-  import type { ChatState } from "../../schemas";
+  import ConfirmDialog from "../shared/ConfirmDialog.svelte";
+  import type { ChatActions } from "../../platform/chat-api";
+  import { errorMessage } from "../../platform/error";
+  import type { ChatState } from "../../contracts/schemas";
 
   // The server's prompt queue, shared by every device. Small viewports fold
   // it to one line with the count and the first prompt. After an interrupted
@@ -61,7 +62,10 @@
   }
 </script>
 
-<section class="rounded-lg border bg-card p-1 text-sm" aria-label="排队的消息">
+<section
+  class="rounded-lg border bg-card p-1 text-sm"
+  aria-label={m.s3_queued_messages_label()}
+>
   <div class="flex flex-wrap items-center gap-2 px-2 py-0.5">
     <Button
       variant="quiet"
@@ -69,8 +73,9 @@
       class="max-w-full min-w-0"
       aria-expanded={open}
       onclick={() => (open = !open)}
-      >排队 {queue.items.length}{#if !open}<span class="min-w-0 truncate"
-          >· {queue.items[0]?.text || "附件"}</span
+      >{m.s3_queue_count({ count: queue.items.length })}{#if !open}<span
+          class="min-w-0 truncate"
+          >· {queue.items[0]?.text || m.s3_attachment_short()}</span
         >{/if}<IconChevronDown
         class={[
           "motion-safe:transition-transform motion-safe:duration-200",
@@ -84,25 +89,30 @@
         <IconPlayerPause
           class="size-3.5"
           aria-hidden="true"
-        />回合已中断，队列暂停
+        />{m.s3_queue_paused_status()}
       </span>
       <span class="ml-auto flex gap-1">
         <Button
           variant="outline"
           size="xs"
           {disabled}
-          onclick={() => run(actions.resumeQueue)}>继续</Button
+          onclick={() => run(actions.resumeQueue)}>{m.s3_queue_resume()}</Button
         >
         <Button
           variant="quiet"
           size="xs"
           {disabled}
-          onclick={() => run(actions.clearQueue)}>清空</Button
+          onclick={() => run(actions.clearQueue)}>{m.s3_queue_clear()}</Button
         >
       </span>
     {/if}
   </div>
-  <ol bind:this={list} hidden={!open} inert={!open}>
+  <ol
+    bind:this={list}
+    hidden={!open}
+    inert={!open}
+    class="max-h-[min(16rem,40dvh)] overflow-y-auto overscroll-contain"
+  >
     {#each queue.items as item, i (item.id)}
       <li class="flex flex-wrap items-center justify-end gap-x-1 pr-1 pl-2">
         <IconCornerDownRight
@@ -112,8 +122,8 @@
         <Textarea
           variant="ghost"
           rows={1}
-          class="min-h-0 min-w-0 flex-1 basis-40"
-          aria-label={`编辑排队消息 ${i + 1}`}
+          class="max-h-[calc(4lh+0.5rem)] min-h-0 min-w-0 flex-1 basis-40"
+          aria-label={m.s3_queue_edit_item_label({ index: i + 1 })}
           {disabled}
           value={item.text}
           onkeydown={(event) => {
@@ -133,7 +143,7 @@
         {#if item.attachments?.length}
           <span
             class="flex min-w-0 basis-full flex-wrap justify-end gap-1 pr-1 pl-5 text-xs text-muted-foreground"
-            aria-label="这条排队消息的附件"
+            aria-label={m.s3_queue_item_attachments_label()}
           >
             {#each item.attachments as attachment (attachment.path)}
               <span class="max-w-40 truncate"
@@ -146,8 +156,8 @@
           <Button
             variant="quiet"
             size="icon-sm"
-            aria-label="上移"
-            title="上移"
+            aria-label={m.s3_move_up()}
+            title={m.s3_move_up()}
             {disabled}
             onclick={() => run(() => actions.moveQueuedUp(item.id))}
             ><IconArrowNarrowUp aria-hidden="true" /></Button
@@ -156,8 +166,8 @@
         <Button
           variant="quiet"
           size="icon-sm"
-          aria-label="立即发送"
-          title={running ? "立即发送（中断当前回合）" : "立即发送"}
+          aria-label={m.s3_send_now()}
+          title={running ? m.s3_send_now_interrupt_title() : m.s3_send_now()}
           {disabled}
           onclick={() => {
             if (!running) {
@@ -171,8 +181,8 @@
         <Button
           variant="quiet"
           size="icon-sm"
-          aria-label="删除"
-          title="删除"
+          aria-label={m.s3_delete()}
+          title={m.s3_delete()}
           {disabled}
           onclick={() => run(() => actions.removeQueued(item.id))}
           ><IconTrash aria-hidden="true" /></Button
@@ -184,10 +194,10 @@
 
 <ConfirmDialog
   bind:open={sendNowOpen}
-  title="立即发送？"
+  title={m.s3_send_now_confirm_title()}
   onconfirm={() => {
     const itemId = sendNow;
     sendNowOpen = false;
     if (itemId) run(() => actions.sendQueuedNow(itemId));
-  }}>当前回合会被中断，然后发送这条消息。</ConfirmDialog
+  }}>{m.s3_send_now_confirm_body()}</ConfirmDialog
 >

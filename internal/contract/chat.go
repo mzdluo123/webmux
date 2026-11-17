@@ -114,7 +114,8 @@ type ChatAttachment struct {
 
 // ChatTurn is the current or last turn. StartedAt and EndedAt let every
 // connected client render the same elapsed and total durations. Unfinished
-// is true when an end_turn left a tool call in_progress.
+// is true when an end_turn left a tool call in_progress or started an
+// explicitly backgrounded command.
 type ChatTurn struct {
 	Running    bool       `json:"running"`
 	Unfinished bool       `json:"unfinished,omitempty"`
@@ -312,6 +313,7 @@ type ChatTurnStart struct {
 // ChatTurnEnd closes a turn. StopReason is end_turn, max_tokens,
 // max_turn_requests, refusal, cancelled, error or auth_required.
 type ChatTurnEnd struct {
+	Unfinished bool   `json:"unfinished,omitempty"`
 	TurnID     string `json:"turnId"`
 	StopReason string `json:"stopReason"`
 	Error      string `json:"error,omitempty"`
@@ -414,4 +416,13 @@ const (
 type ChatPermissionModeRequest struct {
 	ClientRequestID string             `json:"clientRequestId"`
 	Mode            ChatPermissionMode `json:"mode"`
+}
+
+// ChatMessageMatch is a bounded excerpt of a cached chat message.
+type ChatMessageMatch struct {
+	SessionID string    `json:"sessionId"`
+	MessageID string    `json:"messageId"`
+	Role      string    `json:"role"`
+	Excerpt   string    `json:"excerpt"`
+	At        time.Time `json:"at"`
 }

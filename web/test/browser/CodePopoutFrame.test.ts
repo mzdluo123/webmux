@@ -1,12 +1,12 @@
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import CodePopoutFrameHarness from "./CodePopoutFrameHarness.svelte";
 import {
   codePopoutHandshake,
   type CodePopoutOutbound,
   type CodeWorkspaceSnapshot,
-} from "../../src/schemas";
-import type { useCodePopoutFrame } from "../../src/hooks/code-popout-frame.svelte";
+} from "../../src/contracts/schemas";
+import type { useCodePopoutFrame } from "../../src/hooks/code/code-popout-frame.svelte";
 
 afterEach(async () => {
   try {

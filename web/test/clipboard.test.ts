@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
-import { clipboardFiles } from "../src/clipboard";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
+import { clipboardFiles } from "../src/platform/clipboard";
 
 function item(entries: Record<string, string>): ClipboardItem {
   return {

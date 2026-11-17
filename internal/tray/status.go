@@ -69,6 +69,7 @@ func (s *Supervisor) onStatus(ctx context.Context, ls *loopState, ev statusEvent
 		mode, managed := ManagedMode(status, ls.Settings.Mode)
 		if s.sessionsUnknown(ls) && status.Sessions != nil {
 			ls.Sessions = *status.Sessions
+			ls.SessionCounts = SessionCounts{Total: *status.Sessions}
 		}
 		if !managed {
 			ls.State = StateExternal
@@ -114,6 +115,7 @@ func (s *Supervisor) onStatus(ctx context.Context, ls *loopState, ev statusEvent
 	}
 	ls.State = StateStopped
 	ls.Sessions = 0
+	ls.SessionCounts = SessionCounts{}
 	ls.Mode = ls.Settings.Mode
 	ls.Reason = ""
 	if status.Health.Status == contract.HealthNotWebMux {
@@ -142,6 +144,7 @@ func (s *Supervisor) onDegraded(ctx context.Context, ls *loopState, e *ContractE
 		s.stopWatch(ls)
 		ls.watching = false
 		ls.Sessions = 0
+		ls.SessionCounts = SessionCounts{}
 	}
 	ls.Degraded = true
 	ls.Status = contract.StatusV1{V: e.V, Version: e.Version, State: state, URLs: contract.URLs{Local: local}}
@@ -185,8 +188,10 @@ func setRunning(ls *loopState, b BuildInfo) {
 
 func clearRunning(ls *loopState) { ls.Running, ls.RunningCompat = nil, "" }
 
-// sessionsUnknown is true before the subscription reports a count.
-func (s *Supervisor) sessionsUnknown(ls *loopState) bool { return !ls.watching || ls.Sessions == 0 }
+// sessionsUnknown is true before the subscription reports a snapshot.
+func (s *Supervisor) sessionsUnknown(ls *loopState) bool {
+	return !ls.watching || !ls.SessionCounts.Known
+}
 
 func (s *Supervisor) hint(ls *loopState) string {
 	var hints []string

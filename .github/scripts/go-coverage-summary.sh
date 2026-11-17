@@ -17,7 +17,7 @@ summary_md="$out_dir/summary.md"
 # and merge duplicate block entries produced by cross-package -coverpkg runs.
 awk '
 NR == 1 { print; next }
-$1 !~ /^github\.com\/rainchan\/webmux\/(internal\/archtest|internal\/docguard|internal\/agentprofile\/agenttest|internal\/acp\/testdata\/fakeagent|cmd\/baseline)\// {
+$1 !~ /^github\.com\/rainchan\/webmux\/(internal\/archtest|internal\/docguard|internal\/agent\/agenttest|internal\/acp\/testdata\/fakeagent|cmd\/baseline)\// {
   key = $1 " " $2
   counts[key] += $3
 }

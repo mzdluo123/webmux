@@ -9,10 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/session"
-	"github.com/rainchan/webmux/internal/workspace"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 func TestAttentionSignalOptions(t *testing.T) {
@@ -39,7 +41,7 @@ func TestAttentionSignalOptions(t *testing.T) {
 			if err := c.Validate(); err != nil {
 				t.Fatal(err)
 			}
-			o := SessionOptions(c)
+			o := SessionOptions(c, agents.Default())
 			if o.DisableAgentProtocol != row.disableProtocol || o.DisableBellAttention != row.disableBel || o.DisableProgramStatus != row.disableStatus {
 				t.Fatalf("options = %+v", o)
 			}
@@ -47,7 +49,7 @@ func TestAttentionSignalOptions(t *testing.T) {
 	}
 }
 
-func TestSessionOptionsExcludeListenPort(t *testing.T) {
+func TestForwardOptionsExcludeListenPort(t *testing.T) {
 	for _, row := range []struct {
 		listen string
 		want   []int
@@ -58,7 +60,7 @@ func TestSessionOptionsExcludeListenPort(t *testing.T) {
 		{"127.0.0.1:0", nil},
 		{"no-port", nil},
 	} {
-		if got := SessionOptions(config.Config{Listen: row.listen}).ExcludePorts; !slices.Equal(got, row.want) {
+		if got := ForwardOptions(config.Config{Listen: row.listen}, nil).ExcludePorts; !slices.Equal(got, row.want) {
 			t.Errorf("listen %q: ExcludePorts = %v, want %v", row.listen, got, row.want)
 		}
 	}
@@ -80,16 +82,15 @@ func TestSavedLaunchConfigLoadsBashrcAndForwardsArguments(t *testing.T) {
 	if err := c.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	m := session.NewManager(SessionOptions(c))
+	m := session.NewManager(SessionOptions(c, agents.Default()))
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
 		defer cancel()
 		m.Shutdown(ctx)
 	}()
-	launches := launch.Open(t.TempDir())
+	launches := launch.Open(t.TempDir(), agents.Default())
 	defer launches.Close()
-	service := workspace.New(t.TempDir(), m, launches, home)
-	defer service.Close()
+	service := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: home, Commands: launches})
 	agent := "opencode"
 	script := "#!/bin/sh\nprintf 'agent=%s token=%s\\n' \"" + agent + "\" \"$WEBMUX_TEST_TOKEN\"\nfor arg in \"$@\"; do printf 'arg=<%s>\\n' \"$arg\"; done\n"
 	if err := os.WriteFile(filepath.Join(bin, agent), []byte(script), 0700); err != nil {
@@ -99,7 +100,7 @@ func TestSavedLaunchConfigLoadsBashrcAndForwardsArguments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, err := service.Create(context.Background(), workspace.CreateInput{Cwd: home, ConfigID: &saved.ID})
+	created, err := service.Create(context.Background(), sessioncreate.Input{Cwd: home, ConfigID: &saved.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,6 +119,24 @@ func TestSavedLaunchConfigLoadsBashrcAndForwardsArguments(t *testing.T) {
 	}
 }
 
+func TestSessionOptionsSubmitDelay(t *testing.T) {
+	delay := SessionOptions(config.Config{}, agents.Default()).SubmitDelay
+	for _, tc := range []struct {
+		argv []string
+		want time.Duration
+	}{
+		{argv: []string{"kimi"}, want: 200 * time.Millisecond},
+		{argv: []string{"kimi", "--environment", "remote"}, want: 200 * time.Millisecond},
+		{argv: []string{"bash", "-ic", `exec -- "$@"`, "webmux", "kimi", "--auto"}, want: 200 * time.Millisecond},
+		{argv: []string{"opencode"}, want: 0},
+		{argv: []string{"sh", "-c", "kimi"}, want: 0},
+	} {
+		if got := delay(tc.argv); got != tc.want {
+			t.Errorf("SubmitDelay(%q) = %v, want %v", tc.argv, got, tc.want)
+		}
+	}
+}
+
 func TestAgentPretrustOption(t *testing.T) {
 	dir := t.TempDir()
 	for _, row := range []struct {
@@ -132,8 +151,18 @@ func TestAgentPretrustOption(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := SessionOptions(c).PreLaunch != nil; got != row.want {
+		if got := SessionOptions(c, agents.Default()).PreLaunch != nil; got != row.want {
 			t.Fatalf("%q: PreLaunch set = %v, want %v", row.body, got, row.want)
 		}
+	}
+}
+
+func TestSessionOptionsEmptyAgentSelection(t *testing.T) {
+	options := SessionOptions(config.Config{}, nil)
+	if options.SubmitDelay == nil {
+		t.Fatal("launch selection did not assemble submission policy")
+	}
+	if got := options.SubmitDelay([]string{"kimi"}); got != 0 {
+		t.Fatalf("empty selection restored built-in delay: %v", got)
 	}
 }

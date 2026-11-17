@@ -29,18 +29,43 @@ var (
 	ErrInternal    = errors.New("workspace internal error")
 	ErrUnavailable = errors.New("workspace unavailable")
 	ErrTimeout     = errors.New("workspace operation timed out")
+
+	ErrReadOnly    error = conflictKind{"workspace target is read-only"}
+	ErrStale       error = conflictKind{"workspace snapshot is stale"}
+	ErrLocked      error = conflictKind{"workspace repository is busy"}
+	ErrConflicted  error = conflictKind{"workspace has unresolved conflict"}
+	ErrBlocked     error = conflictKind{"workspace operation is blocked"}
+	ErrHookFailed  error = conflictKind{"workspace commit failed"}
+	ErrIdempotency error = conflictKind{"workspace idempotency conflict"}
+	ErrUncertain   error = conflictKind{"workspace operation outcome is uncertain"}
 )
+
+type conflictKind struct {
+	msg string
+}
+
+func (e conflictKind) Error() string { return e.msg }
+func (e conflictKind) Unwrap() error { return ErrConflict }
 
 // Error carries the user-facing message; its kind is reachable through
 // errors.Is.
 type Error struct {
 	kind    error
+	subkind error
 	message string
 }
 
 func (e *Error) Error() string { return e.message }
-func (e *Error) Unwrap() error { return e.kind }
+func (e *Error) Unwrap() []error {
+	if e.subkind != nil {
+		return []error{e.kind, e.subkind}
+	}
+	return []error{e.kind}
+}
 func problemf(kind error, format string, args ...any) error {
+	if _, ok := kind.(conflictKind); ok {
+		return &Error{kind: ErrConflict, subkind: kind, message: fmt.Sprintf(format, args...)}
+	}
 	return &Error{kind: kind, message: fmt.Sprintf(format, args...)}
 }
 
@@ -75,6 +100,10 @@ type Repository struct {
 	// InitInstruction prefixes the first prompt of a quick start; empty
 	// for none.
 	InitInstruction string `json:"initInstruction"`
+	// LastFetchedAt is the newest FETCH_HEAD modification time of the
+	// repository and its linked worktrees; nil when none exists. It is
+	// approximate: fetches that skip FETCH_HEAD are not seen.
+	LastFetchedAt *time.Time `json:"lastFetchedAt"`
 }
 type Worktree struct {
 	ID           string  `json:"id"`
@@ -92,16 +121,65 @@ type Worktree struct {
 	HasUntracked bool    `json:"hasUntracked"`
 	HasIgnored   bool    `json:"hasIgnored"`
 	Error        string  `json:"error"`
+	// Upstream is the short upstream name ("origin/main"); nil without one
+	// or when the status could not be read.
+	Upstream *string `json:"upstream"`
+	// Ahead and Behind count commits against the upstream; nil without an
+	// upstream, when it is gone, or when Git did not compute them.
+	Ahead        *int `json:"ahead"`
+	Behind       *int `json:"behind"`
+	UpstreamGone bool `json:"upstreamGone"`
+	// LastCommit describes Head; nil for bare, unavailable or unborn
+	// worktrees and when it could not be read.
+	LastCommit *Commit `json:"lastCommit"`
+	// Changes is nil when the status could not be read.
+	Changes *WorktreeChanges `json:"changes"`
+	// Operation is the Git operation in progress: merge, rebase,
+	// cherry-pick, revert or bisect; nil for none.
+	Operation *string `json:"operation"`
+}
+
+// WorktreeChanges counts status entries. One entry can be staged and
+// unstaged at once.
+type WorktreeChanges struct {
+	Staged     int `json:"staged"`
+	Unstaged   int `json:"unstaged"`
+	Untracked  int `json:"untracked"`
+	Conflicted int `json:"conflicted"`
 }
 type Branch struct {
 	Name          string   `json:"name"`
 	Head          string   `json:"head"`
 	WorktreePaths []string `json:"worktreePaths"`
+	Subject       string   `json:"subject"`
+	CommittedAt   string   `json:"committedAt"`
+	// Upstream is the short upstream name; nil without one.
+	Upstream *string `json:"upstream"`
+	// Ahead and Behind are nil without an upstream or when it is gone.
+	Ahead        *int `json:"ahead"`
+	Behind       *int `json:"behind"`
+	UpstreamGone bool `json:"upstreamGone"`
+	// MergedIntoDefault reports that the main worktree's HEAD contains
+	// the branch; false for a bare or unborn main worktree.
+	MergedIntoDefault bool `json:"mergedIntoDefault"`
 }
 type Base struct {
 	Name    string `json:"name"`
 	Head    string `json:"head"`
 	Subject string `json:"subject"`
+	// Kind is "local" for refs/heads and "remote" for refs/remotes.
+	Kind        string `json:"kind"`
+	CommittedAt string `json:"committedAt"`
+}
+
+// Remote is one configured remote; credentials in its URLs are redacted.
+type Remote struct {
+	Name     string `json:"name"`
+	FetchURL string `json:"fetchUrl"`
+	PushURL  string `json:"pushUrl"`
+}
+type Remotes struct {
+	Remotes []Remote `json:"remotes"`
 }
 
 // Commit is one entry of the history shown when choosing a start commit.
@@ -111,9 +189,23 @@ type Commit struct {
 	Author      string `json:"author"`
 	CommittedAt string `json:"committedAt"`
 }
+type Tag struct {
+	Name        string `json:"name"`
+	Head        string `json:"head"`
+	Subject     string `json:"subject"`
+	CommittedAt string `json:"committedAt"`
+	Kind        string `json:"kind"` // "lightweight" | "annotated"
+	TagOID      string `json:"tagOid,omitempty"`
+	Message     string `json:"message,omitempty"`
+	TaggerName  string `json:"taggerName,omitempty"`
+	TaggerEmail string `json:"taggerEmail,omitempty"`
+	TaggedAt    string `json:"taggedAt,omitempty"`
+	Signed      bool   `json:"signed,omitempty"`
+}
 type Branches struct {
 	Branches           []Branch `json:"branches"`
 	Bases              []Base   `json:"bases"`
+	Tags               []Tag    `json:"tags"`
 	DefaultBase        *string  `json:"defaultBase"`
 	DefaultBaseSubject string   `json:"defaultBaseSubject"`
 	DefaultBranch      *string  `json:"defaultBranch"`

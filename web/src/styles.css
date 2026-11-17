@@ -91,6 +91,33 @@
   }
 }
 
+/* Capture the new palette before control-level color transitions can run. */
+:root[data-theme-transition] * {
+  transition: none;
+}
+:root[data-theme-transition]::view-transition {
+  pointer-events: none;
+}
+:root[data-theme-transition]::view-transition-group(root),
+:root[data-theme-transition]::view-transition-old(root),
+:root[data-theme-transition]::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme-transition]::view-transition-new(root) {
+    animation: theme-reveal 360ms ease-out both;
+  }
+}
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0 at var(--theme-reveal-origin));
+  }
+  to {
+    clip-path: circle(var(--theme-reveal-radius) at var(--theme-reveal-origin));
+  }
+}
+
 .font-mono,
 .xterm {
   font-variant-ligatures: none;
@@ -278,14 +305,20 @@
   flex: 1 !important;
   overflow: visible !important;
 }
-[data-chat-view][data-document-scroll="true"] [data-slot="scroll-area"],
+.terminal-page[data-document-scroll="true"] [data-pane] {
+  display: flex;
+  flex-direction: column;
+}
+[data-chat-view][data-document-scroll="true"] [data-chat-transcript-scroll],
 [data-chat-view][data-document-scroll="true"]
-  [data-slot="scroll-area-viewport"] {
+  [data-chat-transcript-scroll]
+  > [data-slot="scroll-area-viewport"] {
   height: auto !important;
   overflow: visible !important;
 }
 [data-chat-view][data-document-scroll="true"]
-  [data-slot="scroll-area-scrollbar"] {
+  [data-chat-transcript-scroll]
+  > [data-slot="scroll-area-scrollbar"] {
   display: none !important;
 }
 [data-chat-view][data-document-scroll="true"] [data-chat-dock] {
@@ -293,7 +326,7 @@
   bottom: 0;
   z-index: 10;
   background: var(--background);
-  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 /* iOS pans the visual viewport to keep a focused caret visible. xterm moves
    this textarea with the cursor and widens it as composition text grows, so
@@ -408,9 +441,12 @@
 .terminal-host .xterm .xterm-viewport {
   background-color: var(--terminal-background);
 }
+/* Clears xterm's rows and selection (1); stays under helpers (5),
+   decorations (6–8), accessibility (10) and the scrollbar (11). */
 .xterm-graphics-layer {
   position: absolute;
   inset: 0;
+  z-index: 3;
   overflow: hidden;
   pointer-events: none;
   isolation: isolate;
@@ -540,9 +576,41 @@
   bottom: 0 !important;
 }
 .terminal-pane,
-.code-pane {
+.code-pane,
+.git-pane {
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
+}
+.git-divider {
+  background: var(--border);
+  touch-action: none;
+}
+.git-branch-tree-pane {
+  width: var(--git-branch-tree-width, 240px);
+  min-width: 180px;
+  max-width: min(360px, 40%);
+  flex-shrink: 0;
+}
+.git-log-diff-dock {
+  height: var(--git-log-diff-height, 280px);
+  min-height: 140px;
+  max-height: 68%;
+  flex-shrink: 0;
+}
+/* Shared horizontal counterpart to the code navigation divider. */
+.code-row-divider {
+  position: relative;
+  height: 1px;
+  flex-shrink: 0;
+  background: var(--border);
+  cursor: row-resize;
+  touch-action: none;
+}
+.code-row-divider::after {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
 }
 [data-code-scrollbar]::-webkit-scrollbar {
   width: 0;
@@ -664,7 +732,8 @@
   /* Information-dense pages trade some target size for visible content. */
   .workspace-page .wm-control,
   .settings-layout .wm-control,
-  .code-panel .wm-control {
+  .code-panel .wm-control,
+  .git-workbench .wm-control {
     min-height: var(--control-touch-compact);
     min-width: var(--control-touch-compact);
   }
@@ -699,4 +768,55 @@
   max-width: 85%;
   background: var(--background);
   box-shadow: 4px 0 10px #0002;
+}
+
+/* Explicit device modes, not pointer or screen-size guesses. The same design
+   system controls grow together, including portalled menus and dialogs. */
+html[data-ui-mode="tv"] {
+  font-size: 125%;
+  --control-sm: 2.75rem;
+  --control-default: 2.75rem;
+  --control-lg: 3rem;
+  --control-touch: 2.75rem;
+  --control-touch-compact: 2.75rem;
+  --tv-focus-width: 3px;
+  --tv-focus-offset: 3px;
+}
+html[data-ui-mode="tv"] .app-header {
+  --app-header-height: 3.5rem;
+}
+html[data-ui-mode="tv"] :focus:not(.xterm-helper-textarea) {
+  outline: var(--tv-focus-width) solid var(--primary);
+  outline-offset: var(--tv-focus-offset);
+  box-shadow: none;
+}
+html[data-ui-mode="tv"] [data-slot="dropdown-menu-item"],
+html[data-ui-mode="tv"] [data-slot="dropdown-menu-checkbox-item"],
+html[data-ui-mode="tv"] [data-slot="select-item"],
+html[data-ui-mode="tv"] [data-slot="input"],
+html[data-ui-mode="tv"] .wm-control {
+  min-height: var(--control-default);
+}
+html[data-ui-mode="tv"] [data-tv-scroll] {
+  scroll-margin-block: 0.5rem;
+}
+html[data-ui-mode="tv"] .session-terminal:not(.force-soft-keys) .soft-keys,
+html[data-headset-mode="true"]
+  .session-terminal:not(.force-soft-keys)
+  .soft-keys {
+  display: none;
+}
+html[data-headset-mode="true"]
+  .session-terminal:not(.force-soft-keys)
+  .quick-commands-header {
+  display: flex;
+}
+/* Remote users reach draft actions before choosing to edit its text. The
+   textarea keeps all native caret keys once deliberately selected. */
+html[data-ui-mode="tv"] .terminal-composer > [data-slot="textarea"] {
+  order: 2;
+}
+html[data-ui-mode="tv"] [data-tv-captured="true"] .terminal-host {
+  outline: var(--tv-focus-width) solid var(--primary);
+  outline-offset: calc(-1 * var(--tv-focus-width));
 }

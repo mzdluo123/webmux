@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
 import { once } from "node:events";
 import { createServer } from "node:net";
+import { availableParallelism } from "node:os";
 
 let previewPort: number;
 if (process.env.TEST_WORKER_INDEX === undefined) {
@@ -27,7 +28,8 @@ const baseURL = `http://127.0.0.1:${previewPort}`;
 
 export default defineConfig({
   testDir: "./test/storybook",
-  workers: process.env.CI ? 6 : 2,
+  // Keep CPU headroom for long-conversation layout and scroll checks on CI.
+  workers: process.env.CI ? 2 : Math.min(6, availableParallelism()),
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
@@ -41,6 +43,7 @@ export default defineConfig({
   ],
   use: {
     baseURL,
+    locale: "zh-CN",
     browserName: "chromium",
     headless: true,
     reducedMotion: "reduce",
@@ -57,11 +60,12 @@ export default defineConfig({
         "overflow.spec.ts",
         "design-system.spec.ts",
         "acp-chat*.spec.ts",
+        "git-workbench.spec.ts",
       ],
     },
   ],
   webServer: {
-    command: `node node_modules/vite/bin/vite.js preview --config storybook.serve.config.ts --port ${previewPort}`,
+    command: `pnpm exec vp preview --config storybook.serve.config.ts --port ${previewPort}`,
     url: `${baseURL}/index.json`,
     reuseExistingServer: false,
     timeout: 30_000,

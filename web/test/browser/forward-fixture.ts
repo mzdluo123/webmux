@@ -1,9 +1,13 @@
-import { vi } from "vitest";
+import { vi } from "vite-plus/test";
 import {
   defaultForwardOptions,
-  receiveSessionFrame,
-} from "../../src/forwards.svelte";
-import type { Forward, ListeningPort, SessionInfo } from "../../src/schemas";
+  observeSessionEvent,
+} from "../../src/domains/workspace/forwards.svelte";
+import type {
+  Forward,
+  ListeningPort,
+  SessionInfo,
+} from "../../src/contracts/schemas";
 
 export function forward(port: number, fields: Partial<Forward> = {}): Forward {
   return {
@@ -52,7 +56,7 @@ export function session(
 
 /** Replaces the live forward list as a `forwards` event would. */
 export function seedForwards(forwards: Forward[]) {
-  receiveSessionFrame(JSON.stringify({ type: "forwards", forwards }));
+  observeSessionEvent({ type: "forwards", forwards });
 }
 
 /** Answers every fetch with `respond` and records the calls. */

@@ -66,10 +66,11 @@ func (s *streamOutput) Write(p []byte) (int, error) {
 }
 func readGitOverrides(ctx context.Context, cwd string, limit int, args ...string) ([]string, error) {
 	overrides := []string{}
-	if len(args) > 0 && (args[0] == "diff" || args[0] == "status") {
-		// Even raw/status comparisons can run clean/process filters. Disable
-		// every configured driver for this command without changing config.
-		names, e := readGitCommand(ctx, cwd, limit, nil, nil, "config", "--null", "--name-only", "--get-regexp", `^filter\..*\.(clean|smudge|process|required)$`)
+	if len(args) > 0 && (args[0] == "diff" || args[0] == "diff-tree" || args[0] == "diff-index" || args[0] == "log" || args[0] == "status" || args[0] == "blame") {
+		// Even raw/status/log/diff-tree/blame comparisons can run clean/process or
+		// textconv helpers. Disable configured drivers for this command without
+		// changing repository config.
+		names, e := readGitCommand(ctx, cwd, limit, nil, nil, "config", "--null", "--name-only", "--get-regexp", `^(filter\..*\.(clean|smudge|process|required)|diff\..*\.textconv)$`)
 		if e != nil {
 			return nil, e
 		}

@@ -26,13 +26,13 @@ ACP 进程 SHALL 使用与 TUI 相同的服务用户、`HOME` 与 `CLAUDE_CONFIG
 
 Claude Code 档案 SHALL 从保留的 argv 推导首次聊天端配置：
 
-| argv | 配置项取值 |
-|---|---|
-| `--model <m>` | `model = <m>` |
-| `--effort <e>` | `effort = <e>` |
-| `--permission-mode default`/`manual` | `mode = default` |
-| `--permission-mode acceptEdits`/`plan`/`auto`/`bypassPermissions` | `mode` 为同名值 |
-| `--dangerously-skip-permissions` | `mode = bypassPermissions`，优先于其他权限参数 |
+| argv                                                              | 配置项取值                                     |
+| ----------------------------------------------------------------- | ---------------------------------------------- |
+| `--model <m>`                                                     | `model = <m>`                                  |
+| `--effort <e>`                                                    | `effort = <e>`                                 |
+| `--permission-mode default`/`manual`                              | `mode = default`                               |
+| `--permission-mode acceptEdits`/`plan`/`auto`/`bypassPermissions` | `mode` 为同名值                                |
+| `--dangerously-skip-permissions`                                  | `mode = bypassPermissions`，优先于其他权限参数 |
 
 Claude Code 2.1.316 的 `--permission-mode` 接受 `acceptEdits`、`auto`、`bypassPermissions`、`default`（`manual` 为别名）、`dontAsk` 与 `plan`。
 
@@ -50,7 +50,7 @@ Claude Code 2.1.316 的 `--permission-mode` 接受 `acceptEdits`、`auto`、`byp
 #### Scenario: Auto 被适配器回退
 
 - **WHEN** argv 请求 `--permission-mode auto`，当前模型不支持 Auto
-- **THEN** 界面显示适配器实际回退的 `acceptEdits` 与相应通知，而不是仍显示 `auto`
+- **THEN** 界面显示适配器实际回退的 `acceptEdits` 与相应通知
 
 #### Scenario: 当前 provider 接受 Auto 与 Bypass
 
@@ -133,14 +133,14 @@ Codex 的 ACP 进程（含资格探测）SHALL 在“两端环境一致”的环
 Codex 在每次 `session/load` 后都会把模型、推理强度与批准/沙箱模式恢复为默认值。因此 Codex 档案 SHALL 声明
 `model`、`reasoning_effort`、`mode` 为加载后重新应用的配置项，并 SHALL 提供从 argv 推导这些值的映射：
 
-| argv | 配置项取值 |
-|---|---|
-| `-m <m>`/`--model <m>` | `model = <m>` |
-| `-c model_reasoning_effort=<e>`（值可带引号） | `reasoning_effort = <e>` |
-| `--dangerously-bypass-approvals-and-sandbox` | `mode = agent-full-access` |
-| `--approve-for-me` | `mode = agent` |
-| `-s read-only` | `mode = read-only` |
-| `-s workspace-write` | `mode = workspace-write` |
+| argv                                          | 配置项取值                 |
+| --------------------------------------------- | -------------------------- |
+| `-m <m>`/`--model <m>`                        | `model = <m>`              |
+| `-c model_reasoning_effort=<e>`（值可带引号） | `reasoning_effort = <e>`   |
+| `--dangerously-bypass-approvals-and-sandbox`  | `mode = agent-full-access` |
+| `--approve-for-me`                            | `mode = agent`             |
+| `-s read-only`                                | `mode = read-only`         |
+| `-s workspace-write`                          | `mode = workspace-write`   |
 
 多个批准/沙箱参数同时出现时，按表中自上而下的顺序取第一个匹配。其他批准/沙箱组合（例如 `-s danger-full-access` 或单独的 `-a`）
 SHALL NOT 推导 `mode`，并 SHALL 在聊天视图列为“以下参数在聊天端不生效”。
@@ -150,7 +150,7 @@ SHALL NOT 推导 `mode`，并 SHALL 在聊天视图列为“以下参数在聊�
 #### Scenario: 预置配置的批准模式
 
 - **WHEN** 预置的 Codex CLI 混合配置从终端开始，发出首条消息后切到聊天
-- **THEN** 聊天端的 `mode` 为 `agent-full-access`，而不是适配器默认的 `agent`
+- **THEN** 聊天端的 `mode` 为 `agent-full-access`
 
 ### Requirement: Codex 的聊天端命令
 
@@ -166,9 +166,9 @@ Codex 档案 SHALL 声明在聊天视图命令菜单中隐藏的命令 `logout`�
 
 Antigravity CLI（`agy`）的 TUI 原生通过 `OSC 7501` 根记录上报 `app=antigravity` 与运行状态，
 但不在根记录中携带会话 ID。混合会话中 `agy` 的每一次 TUI 启动（包括首次启动与恢复）SHALL 注入
-`--settings` 会话级设置，配置 `title` 命令在状态变化时将 `conversation_id` 作为 `OSC 7501`
-子记录写入控制终端，且不向标准输出打印内容以免覆盖终端标题；原 argv 中的 `--settings` SHALL
-作为丢弃参数省略并在切换结果中提示。首次启动时注入的参数 SHALL 在会话信息的命令中可见。
+`--settings` 会话级设置，配置 `title` 命令在状态或标题变化时将 `conversation_id` 作为 `OSC 7501`
+子记录、将 `conversation_title` 作为 `OSC 2` 窗口标题（标题为空时写入空 `OSC 2` 清空旧标题）写入控制终端，
+且不向标准输出打印内容；原 argv 中的 `--settings` SHALL 作为丢弃参数省略并在切换结果中提示。首次启动时注入的参数 SHALL 在会话信息的命令中可见。
 
 #### Scenario: agy 首次启动与恢复均注入会话级设置
 
@@ -192,3 +192,21 @@ Antigravity CLI（`agy`）的 TUI 原生通过 `OSC 7501` 根记录上报 `app=a
   返回默认的 `gemini-4-argon` 与 `medium`）
 - **THEN** 系统自动对 `model` 与 `thought_level` 调用 `session/set_config_option`，
   切回聊天后两项配置仍为 `gemini-3.8-flash` 与 `low`
+
+### Requirement: Antigravity CLI 的后台状态检查 prompt
+
+`agy` 档案 SHALL 声明后台状态检查 prompt。后台进程退出且连续两次静默轮询后，系统 SHALL 向 agy 发送以下英文消息，使其补发工具完成状态与结果；其他 agent 档案 SHALL NOT 因该机制额外发起模型回合。
+
+> The background processes from the previous turn have exited. Please check the latest background task status and report the outcome to the user. Do not start any new tasks.
+
+自动检查 SHALL 使用正常 `session/prompt` 管线，SHALL NOT 伪造工具退出码或读取 agy 的私有 transcript。检查回合 SHALL 标记为后台刷新，旧工具完成事件 SHALL NOT 再次触发检查。
+
+#### Scenario: agy 后台退出后自动补发状态
+
+- **WHEN** agy 的后台进程退出且连续两次轮询没有发现新进程
+- **THEN** 系统自动发送上述英文消息，agy 补发旧工具的 `completed` 更新与结果回复，随后清除未完成状态并产生 `done`，且不再自动发起第二次检查
+
+#### Scenario: 其他 agent 不使用 agy 专用检查
+
+- **WHEN** Kimi 的后台进程退出且连续两次轮询没有发现新进程
+- **THEN** 系统直接按提醒策略产生 `done`，不自动发送英文状态检查消息

@@ -10,7 +10,7 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. Read it when you nee
   - `internal/vtpreview/`: stateless VT emulation for terminal preview and replay snapshots.
   - `internal/procpeek/`: cross-platform process tree traversal and listening port inspection (`_linux.go` reads `/proc`, `_darwin.go` uses sysctl/`proc_pidinfo`, shared logic in `_unix.go`).
 - `internal/hybrid/`: hybrid (TUI ↔ ACP chat) sessions, one actor per session, records in `hybrid-sessions.json`.
-  - `internal/acp/`: stdlib-only ACP v1 client. `internal/agentprofile/` (adapters `opencode`, `omp`, `codex`, `claudecode`, `agy`, `qoder`, `qodercn`; list in `agentprofile/agents`): agent-neutral profiles and registry.
+  - `internal/acp/`: stdlib-only ACP v1 client. `internal/agentprofile/`: agent-neutral profiles, trust plans and explicit `agents` registry; `internal/agent/<name>/`: concrete adapters, history readers, roots, trust policies and metadata. `internal/agent/agenttest/` runs shared adapter contracts.
 - `internal/api/`, `internal/hub/`, `internal/wire/`: controllers.
   - HTTP/security boundaries, status mapping (`api/errors.go`), streaming transport, and service↔wire conversion.
   - No direct filesystem, process, or service package-level calls.
@@ -23,7 +23,10 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. Read it when you nee
   - The fixture under `testdata/fixture` proves each rule.
   - `agents_size_test.go` enforces the `AGENTS.md` size budget.
 - `internal/docguard/`: test-only documentation/spec size and tree-layout guard. Thresholds and exemptions live in [doc-governance.md](../doc-governance.md) and `doc_test.go`.
-- `web/src/pages/`, `web/src/hooks/`: page state and resource-owning terminal/mobile behavior.
+- `web/src/contracts/`, `web/src/platform/`: Zod wire contracts and reusable browser/network/storage infrastructure.
+- `web/src/domains/<topic>/`: business algorithms and reactive domain state, grouped by ownership.
+- `web/src/pages/`, `web/src/hooks/<topic>/`, `web/src/components/<topic>/`: page composition, resource-owning controllers and business UI.
+  Cross-topic reuse lives in `shared/`; navigation UI lives in `components/shell/`. See [frontend architecture](../frontend-architecture.md).
 - `web/src/lib/components/ui/`: shadcn-svelte base components. Compose them in business components instead of inventing replacement dialogs or menus.
 - `web/test/`: Node unit, browser component, and isolated backend E2E suites.
 - `deploy/`: deployment examples.
@@ -38,8 +41,9 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. Read it when you nee
 - `internal/session/manager.go`, `session.go`, `input_write.go`, `ring.go`: state ownership, PTY lifecycle, cancellable input, and replay.
 - `web/embed.go`: embeds `web/dist`. Rebuild the frontend before compiling Go to avoid missing or stale assets.
 - `Makefile`, `go.mod`, `web/package.json`, `web/pnpm-lock.yaml`, `web/pnpm-workspace.yaml`: build commands, tool/dependency versions, and permitted install scripts.
-- `web/vite.config.ts`, `web/tsconfig.json`, `web/components.json`, `.oxfmtrc.json`, `web/.oxlintrc.json`: proxy/alias, strict typing, UI generation, formatting, and lint configuration.
-- Frontend architecture guard: `web/eslint.config.mjs`, `web/.dependency-cruiser.cjs`, `web/.jscpd.json`, `web/knip.json`, `web/test/architecture.test.ts`.
+- `web/vite.config.ts`: Vite+ build, proxy/alias, formatting, and lint configuration; repository formatting also uses this file.
+- `web/tsconfig.json`, `web/components.json`: strict typing and UI generation.
+- Frontend architecture guard: `web/eslint.config.mjs`, `web/.dependency-cruiser.cjs`, `web/.jscpd.json`, `web/knip.json`, `web/test/architecture.test.ts`, `web/test/dependency-policy.test.ts`.
   - Baselines: `web/eslint-suppressions.json`, `web/.dependency-cruiser-known-violations.json`, `web/.jscpd-baseline.json`.
 - `README.md`, `docs/` (usage, deployment, architecture, protocol), `CONTRIBUTING.md`, `SECURITY.md`: user and contributor documentation at overview level. Confirm implementation details against source.
   - Start from [docs/README.md](../README.md), the documentation hub; `docs/overview.md` holds the full feature introduction and `docs/faq.md` the FAQ and help channels that the root `README.md` summarizes.
@@ -53,7 +57,7 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. Read it when you nee
 
 ## Runtime and Tooling Preferences
 
-- Use Go 1.26+, Node.js 26.13.0 (LTS, pinned in `.nvmrc`), pnpm 12.18.0, and GNU Make.
+- Use Go 1.27+, Node.js 26.13.0 (LTS, pinned in `.nvmrc`), pnpm 12.18.0, and GNU Make.
 - Use pnpm, not npm, Yarn, or Bun, to manage frontend dependencies. Retain the frozen lockfile workflow and the `esbuild`-only dependency build-script allowlist.
 - Production needs only the Linux or macOS binary, a shell, and any chosen CLI agents. It does not require Node or Go.
 - `deploy/webmux.service` (systemd) and `deploy/com.webmux.plist` (launchd) are the service examples.

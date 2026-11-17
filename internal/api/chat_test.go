@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,9 +19,9 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/rainchan/webmux/internal/agentprofile/codex"
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
-	"github.com/rainchan/webmux/internal/agentprofile/opencode"
+	"github.com/rainchan/webmux/internal/agent/codex"
+	"github.com/rainchan/webmux/internal/agent/omp"
+	"github.com/rainchan/webmux/internal/agent/opencode"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/session"
@@ -53,7 +54,7 @@ func fakeAgentPath(t testing.TB, profile string) string {
 		for _, name := range []string{omp.Name, opencode.Name, codex.Name, "codex-acp", "claude", "claude-agent-acp"} {
 			build := exec.Command("go", "build", "-o", filepath.Join(fakeAgent.dir, name), "../acp/testdata/fakeagent")
 			build.Env = fakeAgent.env
-			if out, err := build.CombinedOutput(); err != nil {
+			if out, err := testCommandOutput(build); err != nil {
 				fakeAgent.err = fmt.Errorf("go build: %w\n%s", err, out)
 				return
 			}
@@ -463,7 +464,7 @@ func TestChatCommandConflicts(t *testing.T) {
 		{context.Canceled, 504, ""},
 	} {
 		w := httptest.NewRecorder()
-		sessionCommandFailure(w, row.err)
+		featureCommandFailure(w, row.err)
 		var body contract.SessionConflict
 		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 			t.Fatal(err)
@@ -569,5 +570,29 @@ func TestChatSocketSlowClient(t *testing.T) {
 	}
 	if snapshot := readChat(t, fresh); snapshot.State == nil || snapshot.State.Turn.Running || len(snapshot.State.Queue.Items) != 0 {
 		t.Fatalf("snapshot after the slow client %+v", snapshot)
+	}
+}
+
+func TestChatSearchQueryValidation(t *testing.T) {
+	h := newHybridAPI(t, nil)
+	for _, query := range []string{"", "a", " a ", strings.Repeat("a", 121), strings.Repeat("界", 121)} {
+		t.Run(fmt.Sprintf("invalid-%d", len(query)), func(t *testing.T) {
+			w := h.command("GET", "/api/chat/search?q="+url.QueryEscape(query), nil)
+			var body contract.ErrorResponse
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if w.Code != http.StatusBadRequest || body.Error == "" {
+				t.Fatalf("invalid search: status %d, body %s", w.Code, w.Body.String())
+			}
+		})
+	}
+	for _, query := range []string{"ab", " ab ", strings.Repeat("a", 120), strings.Repeat("界", 120)} {
+		t.Run(fmt.Sprintf("valid-%d", len(query)), func(t *testing.T) {
+			w := h.command("GET", "/api/chat/search?q="+url.QueryEscape(query), nil)
+			if w.Code != http.StatusOK || strings.TrimSpace(w.Body.String()) != "[]" {
+				t.Fatalf("empty search: status %d, body %s", w.Code, w.Body.String())
+			}
+		})
 	}
 }

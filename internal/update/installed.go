@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-
-	"github.com/rainchan/webmux/internal/contract"
 )
 
 const (
@@ -127,7 +125,13 @@ func (v *InstalledVersion) query() (version string, ok bool) {
 	if err != nil {
 		return "", false
 	}
-	var reply contract.VersionV1
+	// This subprocess boundary stays private so release signing does not link
+	// the server's public contracts and their optional protocol dependencies.
+	var reply struct {
+		V        int    `json:"v"`
+		Version  string `json:"version"`
+		Contract int    `json:"contract"`
+	}
 	if json.Unmarshal(out, &reply) != nil || reply.Version == "" {
 		return "", false
 	}

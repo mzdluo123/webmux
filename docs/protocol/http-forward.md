@@ -2,7 +2,7 @@
 
 端口转发把服务器本机回环端口上的开发服务器（例如 Vite）经 WebMux 现有监听地址转发到浏览器，不新开端口。转发只保存在内存中，服务重启后清空；与会话无关，会话退出后转发仍保留，直到手动移除。
 
-服务端实现：登记、探测与凭据在 `internal/forward`，网关与接口在 `internal/api/forward.go`。网关只注册在 TCP 监听器上，本机 Unix 套接字控制面没有网关。
+需要选择 `forward`；禁用时管理与网关路径返回 404，不启动监听端口扫描。登记、探测与凭据在 `internal/forward`，网关与接口在 `internal/featureapi/forward.go`。网关只注册在 TCP，本机 Unix 套接字不提供网关。
 
 ## 管理接口
 
@@ -95,5 +95,5 @@ interface ForwardRequest {
 ## 安全边界
 
 - 转发页面与 WebMux 同源，页面脚本能读取 `localStorage` 中的主 Token；只转发自己信任的开发服务器。
-- 浏览器按主机而不是端口隔离 Cookie，同一主机其他端口上的服务也能收到 `webmux_forward`；它只能访问网关，不能访问 shell。
+- 浏览器按主机，同一主机其他端口上的服务也能收到 `webmux_forward`；它只能访问网关，不能访问 shell。
 - 网关不记录请求体、响应体或 Cookie。

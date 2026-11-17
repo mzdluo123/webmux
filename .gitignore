@@ -4,6 +4,9 @@
 /web/dist/*
 !/web/dist/.gitkeep
 /web/.vitest/
+/web/.svelte-check/
+/web/src/lib/paraglide/
+/web/project.inlang/cache/
 /web/test-results/
 /web/playwright-report/
 *.log

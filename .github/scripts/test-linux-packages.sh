@@ -36,18 +36,25 @@ case $version in
 *) package_version="$version-1" ;;
 esac
 
-# Shared checks after installation: the four files, their modes, the units'
+# Shared checks after installation: the binary, units and notices, their modes, the units'
 # commands and the version the binary reports.
 checks='
 	test "$(stat -c %a /usr/bin/webmux)" = 755
 	test "$(stat -c %a /usr/lib/systemd/user/webmux.service)" = 644
 	test "$(stat -c %a /usr/lib/systemd/system/webmux-update.service)" = 644
 	test "$(stat -c %a /usr/lib/systemd/system/webmux-update.timer)" = 644
+	test "$(stat -c %a /usr/share/licenses/webmux/OFL-NotoSansCJK.txt)" = 644
+	test "$(stat -c %a /usr/share/licenses/webmux/Snapcompact-Go-NOTICES.txt)" = 644
+	grep -q "SIL OPEN FONT LICENSE Version 1.1" /usr/share/licenses/webmux/OFL-NotoSansCJK.txt
+	grep -q "Copyright (c) 2014-2021 Adobe" /usr/share/licenses/webmux/OFL-NotoSansCJK.txt
+	grep -q "MIT License" /usr/share/licenses/webmux/Snapcompact-Go-NOTICES.txt
 	grep -qx "ExecStart=/usr/bin/webmux serve" /usr/lib/systemd/user/webmux.service
 	grep -qx "ExecStart=/usr/bin/webmux update apply" /usr/lib/systemd/system/webmux-update.service
 	test "$(/usr/bin/webmux version)" = "webmux $VERSION"
 '
 removed='
+	test ! -e /usr/share/licenses/webmux/OFL-NotoSansCJK.txt
+	test ! -e /usr/share/licenses/webmux/Snapcompact-Go-NOTICES.txt
 	test ! -e /usr/bin/webmux
 	test ! -e /usr/lib/systemd/user/webmux.service
 	test ! -e /usr/lib/systemd/system/webmux-update.service
@@ -74,7 +81,7 @@ timer_calls='
 docker run --rm -e VERSION="$version" -v "$dir:/pkgs:ro" "$debian_image" sh -euc "
 	test -z \"\$(dpkg-deb -f /pkgs/$deb Depends)\"
 	test \"\$(dpkg-deb -f /pkgs/$deb Version)\" = '$package_version'
-	test \"\$(dpkg-deb -c /pkgs/$deb | awk '\$1 !~ /^d/ {print \$6}' | sort | tr '\n' ' ')\" = './usr/bin/webmux ./usr/lib/systemd/system/webmux-update.service ./usr/lib/systemd/system/webmux-update.timer ./usr/lib/systemd/user/webmux.service '
+	test \"\$(dpkg-deb -c /pkgs/$deb | awk '\$1 !~ /^d/ {print \$6}' | sort | tr '\n' ' ')\" = './usr/bin/webmux ./usr/lib/systemd/system/webmux-update.service ./usr/lib/systemd/system/webmux-update.timer ./usr/lib/systemd/user/webmux.service ./usr/share/licenses/webmux/OFL-NotoSansCJK.txt ./usr/share/licenses/webmux/Snapcompact-Go-NOTICES.txt '
 
 	# Without systemd: installs and removes quietly, enabling nothing.
 	dpkg -i /pkgs/$deb >/dev/null
@@ -106,7 +113,7 @@ docker run --rm -e VERSION="$version" -v "$dir:/pkgs:ro" "$debian_image" sh -euc
 printf 'ok - %s installs, upgrades, runs and removes on Debian\n' "$deb"
 
 docker run --rm -e VERSION="$version" -v "$dir:/pkgs:ro" "$fedora_image" sh -euc "
-	test \"\$(rpm -qpl /pkgs/$rpm | tr '\n' ' ')\" = '/usr/bin/webmux /usr/lib/systemd/system/webmux-update.service /usr/lib/systemd/system/webmux-update.timer /usr/lib/systemd/user/webmux.service '
+	test \"\$(rpm -qpl /pkgs/$rpm | tr '\n' ' ')\" = '/usr/bin/webmux /usr/lib/systemd/system/webmux-update.service /usr/lib/systemd/system/webmux-update.timer /usr/lib/systemd/user/webmux.service /usr/share/licenses/webmux/OFL-NotoSansCJK.txt /usr/share/licenses/webmux/Snapcompact-Go-NOTICES.txt '
 	test -z \"\$(rpm -qpR /pkgs/$rpm | grep -v '^rpmlib(' | grep -v '^/bin/sh' || true)\"
 	test \"\$(rpm -qp --qf '%{VERSION}-%{RELEASE}' /pkgs/$rpm)\" = '$package_version'
 

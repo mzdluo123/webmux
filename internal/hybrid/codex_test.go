@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/rainchan/webmux/internal/acp"
+	"github.com/rainchan/webmux/internal/agent/codex"
 	"github.com/rainchan/webmux/internal/agentprofile"
-	"github.com/rainchan/webmux/internal/agentprofile/codex"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -21,6 +21,9 @@ import (
 // live in a CODEX_HOME of the test's own.
 func (h *harness) codexInput(side Side, pathDir string, args ...string) CreateInput {
 	h.t.Helper()
+	// Clear the host connector path before resolving this fixture's fake agent.
+	// An explicit launch value would also override the connector's defaults.
+	h.t.Setenv("CODEX_PATH", "")
 	exe := agentPath(h.t, codex.Name)
 	if pathDir == "" {
 		pathDir = filepath.Dir(exe)
@@ -45,6 +48,7 @@ func configValue(options []ConfigOption, id string) string {
 // and model from the launch arguments back after every load, and hides
 // /logout.
 func TestCodexRoundTrip(t *testing.T) {
+	t.Setenv("CODEX_PATH", "/nonexistent/host-codex")
 	h := newHarness(t, 0)
 	h.fast()
 	s := h.create(h.codexInput(SideTUI, "", "--dangerously-bypass-approvals-and-sandbox", "-m", "gpt-b", "--search"))
@@ -52,11 +56,11 @@ func TestCodexRoundTrip(t *testing.T) {
 	if cmd := s.Info().Cmd; !slices.Contains(cmd, "--no-daemon") {
 		t.Fatalf("terminal command %q", cmd)
 	}
-	waitFor(t, "session from the writer lock", func() bool { return s.Info().Hybrid.AgentSessionID != nil })
+	waitFor(t, "session from the writer lock", func() bool { return h.svc.Metadata(s.Info().ID).AgentSessionID != nil })
 	h.waitReason(id, ReasonNoSessionID)
 	tuiTurn(t, s, "one")
 	h.waitEligible(id)
-	sid := *s.Info().Hybrid.AgentSessionID
+	sid := *h.svc.Metadata(s.Info().ID).AgentSessionID
 
 	r := h.mustSwitch(id, SideACP)
 	if !slices.Equal(r.Unsupported, []string{"--search"}) {
@@ -82,7 +86,7 @@ func TestCodexRoundTrip(t *testing.T) {
 	waitFor(t, "resumed transcript", func() bool { return strings.Contains(string(s.Buffer()), "> two") })
 	tuiTurn(t, s, "three")
 	h.waitEligible(id)
-	if got := *s.Info().Hybrid.AgentSessionID; got != sid {
+	if got := *h.svc.Metadata(s.Info().ID).AgentSessionID; got != sid {
 		t.Fatalf("resumed terminal names session %s, want %s", got, sid)
 	}
 	h.mustSwitch(id, SideACP)
@@ -229,8 +233,8 @@ func TestCodexExternalWriter(t *testing.T) {
 	id := s.Info().ID
 	tuiTurn(t, s, "one")
 	h.waitEligible(id)
-	waitFor(t, "session from the writer lock", func() bool { return s.Info().Hybrid.AgentSessionID != nil })
-	sid := *s.Info().Hybrid.AgentSessionID
+	waitFor(t, "session from the writer lock", func() bool { return h.svc.Metadata(s.Info().ID).AgentSessionID != nil })
+	sid := *h.svc.Metadata(s.Info().ID).AgentSessionID
 	h.closeSession(id)
 	other, err := h.manager.Create(session.CreateInput{Cwd: in.Cwd, Cmd: []string{in.Cmd[0], "resume", sid}, Env: in.Env})
 	if err != nil {
@@ -339,7 +343,7 @@ func TestCodexStartupIsNotATurn(t *testing.T) {
 	h := newHarness(t, 0)
 	h.fast()
 	in := h.codexInput(SideACP, "")
-	in.Env["FAKEAGENT_STARTUP_DELAY"] = "1500ms"
+	in.Env["FAKEAGENT_STARTUP_DELAY"] = "5000ms"
 	s := h.create(in)
 	id := s.Info().ID
 	chatTurn(t, h, id, "one")
@@ -347,7 +351,7 @@ func TestCodexStartupIsNotATurn(t *testing.T) {
 	waitFor(t, "loading terminal reports working", func() bool { return tuiBusy(s.Info()) })
 	h.waitEligible(id)
 	if !tuiBusy(s.Info()) {
-		t.Skip("the terminal finished loading before the check; the quiet period was not exercised")
+		t.Fatal("the terminal finished loading before the quiet-period check")
 	}
 	h.mustSwitch(id, SideACP)
 	lines := strings.Split(h.logs.String(), "\n")
@@ -359,5 +363,17 @@ func TestCodexStartupIsNotATurn(t *testing.T) {
 	}
 	if !strings.Contains(last, "interrupt=false") {
 		t.Fatalf("switch during startup: %s", last)
+	}
+}
+
+func TestStartFailurePreservesCause(t *testing.T) {
+	h := newHarness(t, 0)
+	cmd, _, _, err := h.svc.admit(h.codexInput(SideACP, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	failure := startFailure(cmd, context.Canceled)
+	if !errors.Is(failure.err, context.Canceled) || !errors.Is(failure.err, ErrAgent) {
+		t.Fatalf("start failure lost its causes: %v", failure.err)
 	}
 }

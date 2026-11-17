@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import {
   QUICK_COMMAND_PRESETS,
   commandLabel,
@@ -13,8 +13,11 @@ import {
   renderWebmuxBrief,
   usesArtifactDir,
   usesWebmuxBrief,
-} from "../src/quick-commands";
-import { QuickCommandsSchema, type QuickCommand } from "../src/schemas";
+} from "../src/domains/settings/quick-commands";
+import {
+  QuickCommandsSchema,
+  type QuickCommand,
+} from "../src/contracts/schemas";
 
 const command = (overrides: Partial<QuickCommand> = {}): QuickCommand => ({
   id: "a1",

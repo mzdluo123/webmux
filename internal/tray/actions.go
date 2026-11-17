@@ -156,12 +156,13 @@ func (s *Supervisor) unexpectedExit(ctx context.Context, ls *loopState, detail s
 	ls.watching = false
 	ls.gen++
 	ls.Sessions = 0
+	ls.SessionCounts = SessionCounts{}
 	clearRunning(ls)
 	ls.readyBy = time.Time{}
 	if ls.Mode == ModeTray && ls.Settings.LogFile != "" {
 		detail += "；日志 " + ls.Settings.LogFile
 	}
-	message := "WebMux 意外退出（" + detail + "），终端会话已丢失"
+	message := "WebMux 意外退出（" + detail + "），普通终端会话已丢失，混合会话可在启动后恢复"
 	if tunnel {
 		message += "；公网隧道已关闭"
 	}
@@ -255,6 +256,7 @@ func (s *Supervisor) onStop(ctx context.Context, ls *loopState, ev stopEvent) {
 	}
 	ls.State = StateStopped
 	ls.Sessions = 0
+	ls.SessionCounts = SessionCounts{}
 	ls.Mode = ls.Settings.Mode
 	ls.HasStatus = false
 	ls.Status = contract.StatusV1{}

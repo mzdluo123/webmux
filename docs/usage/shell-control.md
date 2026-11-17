@@ -4,20 +4,24 @@
 
 先从下面的常见任务找到对应命令；单个命令的全部选项、默认值、输出与示例写在 `webmux <命令> --help` 中，本页不重复。`webmux help --json` 输出机器可读的命令树。
 
+CLI 用当前实例的 `/api/capabilities` 判断可选操作，不靠 health/status 或本地配置猜测。自定义命令、附着、输出与提醒属核心；启动配置需 `launch`，仓库/worktree 需 `workspace`，聊天需 `chat` 及依赖，临时文件夹需 `files`。
+下表示例按对应功能已启用书写；先按 [内置功能选择](../deployment/configuration.md#内置功能选择) 配置并重启，禁用接口不会被探测或自动开启。
+
 ## 常见任务
 
-| 我想……                                  | 命令                                                                                       |
-| --------------------------------------- | ------------------------------------------------------------------------------------------ |
-| 让 agent 在新 worktree 里做事并拿到回复 | `webmux run --new-worktree --launch-config "Claude Code" --view chat --prompt "…" --reply` |
-| 在持久会话里跑命令，按命令退出码结束    | `webmux run --follow --strip -- go test ./...`                                             |
-| 给已有会话发一句话并等它做完            | `webmux send <ID> "…" --reply`（聊天视图）或 `--enter --wait idle`（终端视图）             |
-| 读 agent 最后的回复                     | `webmux chat log <ID>`                                                                     |
-| 看全屏 TUI 当前画面                     | `webmux screen <ID>`                                                                       |
-| 等会话需要我或空闲                      | `webmux wait <ID> --until attention,idle --changed`                                        |
-| 任务完成后提醒我                        | `webmux notify --kind done "构建完成"`                                                     |
-| 查看当前会话的仓库、分支与链接          | `webmux get`                                                                               |
-| 找到本会话的临时文件夹                  | `webmux dir self`                                                                          |
-| 读 WebMux 工具手册                      | `webmux guide`                                                                             |
+| 我想……                                  | 命令                                                                                     |
+| --------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 让 agent 在新 worktree 里做事并拿到回复 | `webmux run --new-worktree --launch-config CONFIG_NAME --view chat --prompt "…" --reply` |
+| 在持久会话里跑命令，按命令退出码结束    | `webmux run --follow --strip -- go test ./...`                                           |
+| 给已有会话输入并观察回合或状态          | `webmux send <ID> "…" --reply`（聊天视图）或 `--enter --wait waiting,idle`（终端视图）   |
+| 读 agent 最后的回复                     | `webmux chat log <ID>`                                                                   |
+| 看全屏 TUI 当前画面                     | `webmux screen <ID>`                                                                     |
+| 等会话需要我或空闲                      | `webmux wait <ID> --until attention,idle --changed`                                      |
+| 任务完成后提醒我                        | `webmux notify --kind done "构建完成"`                                                   |
+| 查看当前会话的仓库与分支                | `webmux get`                                                                             |
+| 查看本机已安装的 CLI agent 与可用更新   | `webmux agents [--check]`                                                                |
+| 找到本会话的临时文件夹                  | `webmux dir self`                                                                        |
+| 读 WebMux 工具手册                      | `webmux guide`                                                                           |
 
 下面按用途展开，每节先给命令，再说明规则与边界。
 
@@ -42,15 +46,33 @@
 
 `PATH` 中的 `webmux` 可能比服务旧或新。用 `"$WEBMUX_BIN"` 运行的命令总是与服务同一版本；旧版 CLI 调用新接口时会提示“服务端版本过旧”并给出两边的版本。
 
+## 排查 P2P / WebRTC 直连
+
+先用 `webmux p2p status` 查看运行实例是否编译支持、是否开启、当前有效 STUN 配置、来源、实际绑定的 UDP 端口与网关映射状态，再用 `webmux p2p peers` 查看活动连接。
+两者经本机套接字读取，支持会话内调用；选项、JSON 结构、示例和退出码见各命令的 `--help`。
+
+- `status` 的 `udpPort = 0` 表示自动选端口，`udpBindings` 才是实际绑定的共享 ICE 套接字；列表为空不等于 UDP 可用或被拦截，支持 P2P 的构建仍可能使用逐 peer 套接字。
+- `peers` 显示连接状态、候选对类型、IP 族、RTT 与流通道数；候选元数据和 RTT 可能来自浏览器报告，RTT 不一定是 ICE RTT，流通道数不含控制与 RPC 通道。
+  未测量指标显示 `unknown`，JSON 中缺失 RTT；已测得的 `0ms` 保留为 `0`。
+- `webmux p2p probe` 从 CLI 新建临时 UDP 套接字，向运行实例配置的 STUN 目标做有限诊断；指定目标时可独立于服务运行，用 IPv4 或 IPv6 分别验证。
+  结果包含实际本地、远端及 STUN 观察到的映射地址；失败保留原因，JSON 同样保留失败结果。
+- 每个目标只发一个绑定请求、最多等待 3 秒；整体超时包含配置读取、DNS 与所有目标，且最多 1 分钟。无公网扫描、无限重试或 NAT 类型判定。
+- 探测针对 **CLI 的网络与临时端口**，不是服务端 ICE 端口，也不验证网关端口映射；STUN 成功或多个目标报告相同映射都不能保证 WebRTC 穿透。
+  `stuns:` 需要 TLS/TCP，本 UDP 探测会明确报告不支持。
+
+支持 P2P 的构建提供 UDP4/UDP6、浏览器 offer 与服务端 full ICE answer，不支持 TURN；Hard NAT 或 UDP 被拦截时可能仍需 HTTP/WS 回落。
+`nop2p` 构建明确报告 WebRTC 已裁剪；独立 CLI STUN 探测仍可用。
+诊断不改设置、网关映射或连接策略；会话内原有 P2P 设置与信令操作继续返回 403。
+
 ## 查看会话元数据
 
 ```sh
-webmux get                               # 在会话内查看当前会话：仓库、分支、启动配置、视图、链接、父子会话与标签
+webmux get                               # 在会话内查看当前会话：仓库、分支、启动配置、视图、父子会话与标签
 webmux get abcd2345 --json               # 另一个会话的完整详情（SessionDetails）
 branch=$(webmux get --field worktree.branch)   # 不用 jq 取单个字段
 ```
 
-详情不包含 Token 或启动环境变量的值；临时文件夹只在已经存在时报告，`get` 不会创建它。
+详情不包含 Token 或启动环境变量的值；临时文件夹只在已经存在时报告，`get` 不会创建它。文本输出不显示会话链接，需要链接时用 `webmux open <ID>`；`--json` 仍按 `SessionDetails` 返回服务端的 `link` 字段。
 
 ## 父会话与标签
 
@@ -67,10 +89,10 @@ webmux ls --label run=42 --status exited --json   # 按标签和状态筛选
 ## 启动会话
 
 ```sh
-webmux run --detach --json --wait idle --timeout 60s --launch-config omp   # 等 agent 就绪
+webmux run --detach --json --wait idle --timeout 60s --launch-config CONFIG_NAME # 只等待状态，不证明 agent 就绪或任务完成
 webmux run --follow --strip -- go test ./...       # 在持久会话里跑命令，输出纯文本，以命令的退出码退出
-webmux run --new-worktree --branch fix/lint --launch-config "Claude Code" --view chat --init --prompt "修复 lint" --reply
-webmux launch-config options "Claude Code"         # 列出 run --set 可用的配置项
+webmux run --new-worktree --branch fix/lint --launch-config CONFIG_NAME --view chat --init --prompt "修复 lint" --reply
+webmux launch-config options CONFIG_NAME          # 在已登记仓库中发现实际设置 ID 和允许值；也可用 --repo 指定仓库
 ```
 
 - `run` 是唯一的创建命令，与 Web 端新建会话对话框一样用一次请求完成。可以指定：
@@ -84,11 +106,12 @@ webmux launch-config options "Claude Code"         # 列出 run --set 可用的�
 - `--cols N --rows M` 给终端设定初始尺寸，程序第一次输出就按它排版。
   - 两者须同时给出，各 1–1000，默认 80×24；
   - 第一个取得控制权的浏览器或 `attach` 仍按自己的窗口调整。
+- 先用 `webmux launch-config ls --json` 发现获授权的真实配置名称，替换 CONFIG_NAME；CLI 按名称选择，MCP/API 才使用配置 ID。模型与设置值从 `launch-config options` 或 `chat status` 发现，不依赖默认 provider。
 
 ## 输入、中断与读取输出
 
 ```sh
-webmux send <ID> 'make test' --enter --wait idle --timeout 10m   # 输入并回车，等会话回到空闲
+webmux send <ID> 'make test' --enter --wait waiting,idle --timeout 10m # 只等状态变化，随后另行验证命令结果
 webmux send <ID> "修复 lint 并汇报改动" --reply --timeout 20m     # 聊天视图：输出 agent 的最终回复
 webmux interrupt <ID>                            # 取消聊天回合，或在终端写入中断键
 webmux resize <ID> 120x40 [--take]               # 脚本改终端尺寸；浏览器或 attach 控制时需要 --take
@@ -106,6 +129,8 @@ webmux api /api/launch-configs                   # 没有专用命令的接口�
   - 排队时标准错误报告队列项与位置（`--json` 的 `position`），标准输出保持为空；
   - 选项属于另一种视图时服务端以 `wrong_view` 拒绝，什么也不写入。
 - `send --wait` 先订阅再输入，只接受之后的状态变化，对两种视图都适用；`--reply` 只用于聊天视图，在终端视图上以 1 结束并提示改用 `--wait`。
+- 输入 accepted/written、状态变化、指定回合结束、进程退出与 exitCode 是不同证据；任务验收另做，idle 或回复“完成”均不能证明业务成功。超时只停止观察，保持原等待目标，不重发输入。
+- **输出兼容性**：`send/run --reply --json` 保持 `{stopReason,error,reply,events,request}` 对象，只新增顶层 `unfinished` boolean。true 表示真实后台工作未结束，stderr 提示；`end_turn` 仍退出 0，events 中不增加伪事件。
 - `logs --strip` 适合按行输出的程序；全屏 TUI 用 `screen`，画面在 CLI 本地渲染，服务端不做终端模拟。
 - `resize` 在没有控制端、或控制端是脚本（`send` 取得的 `script` 控制权）时直接生效。
   - 浏览器或 `attach` 控制时以 1 结束（服务端 409）：浏览器会把自己的网格重发，两边会来回抢；
@@ -130,11 +155,11 @@ webmux notify --clear --session <ID>
 ```sh
 webmux view <ID> chat                            # 切到聊天视图并等待完成；terminal 切回终端
 webmux chat status <ID>                          # 视图、回合、队列、待回答请求与选项、agent 设置
-webmux chat answer <ID> <请求ID> --option allow_once
+webmux chat answer <ID> <请求ID> --option <当前授权请求的真实optionId>
 webmux chat watch <ID>                           # 持续输出聊天
 webmux chat log <ID>                             # 一次性读取最后一条消息（通常是 agent 的最后回复）后退出
 webmux chat log <ID> --last 3 --tools           # 最近三条消息与其间的工具调用（标题与最终状态）
-webmux chat set <ID> model=sonnet; webmux chat permission <ID> ask
+webmux chat set <ID> <实际设置ID>=<允许值>; webmux chat permission <ID> ask
 webmux ls --archived --repo .                    # 已关闭或已中断、可以恢复的会话
 webmux resume <ID> --view chat --detach
 webmux rm <ID> --forget --yes                    # 删除归档记录与临时文件夹
@@ -143,6 +168,8 @@ webmux rm <ID> --forget --yes                    # 删除归档记录与临时�
 - 从开启了聊天视图的启动配置创建的会话有终端与聊天两个视图，`webmux ls` 在状态列显示它当前的视图（终端、聊天、切换中）。
   - `ls --json` 原样包含 `views`、`view`、`transition` 与 `agent`，不再含 `hybrid` 对象。
 - 启动配置用 `webmux launch-config add` 或 `webmux launch-config edit` 的 `--chat` / `--no-chat` 开启或关闭聊天视图（混合模式）；旧选项 `--hybrid` 已删除。
+  - 只选择 `launch` 时仍可新增和编辑普通终端配置。修改已有配置的名称、环境或预览，不会清除未启用聊天/通知功能拥有的已存选项；显式修改聊天开关需选择 `chat`。
+  - 未修改的提醒策略始终保留，包括通知功能已选择但推送投递尚未启用的情况。
 - `run --launch-config <名称>` 引用这类配置时创建混合会话，默认从终端开始；本地终端可以照常输入，附着中的终端不提供切换按键。
   - `--view chat` 从聊天开始（隐含 `--detach`）；
   - `--set ID=VALUE`、`--permission ask|auto`、`--attach-file PATH` 只在 `--view chat` 时可用。
@@ -155,6 +182,7 @@ webmux rm <ID> --forget --yes                    # 删除归档记录与临时�
   - `--json` 输出一个 `ChatFrame`（`type` 为 `events`，消息的分段已合并）；
   - 历史有长度上限，较早的消息可能已被丢弃（标准错误提示）；
   - 与 `send --reply` 不同，它不发送输入，也不等待回合。`chat watch --history` 的历史部分同样只显示每个工具调用的最终状态，实时帧不变。
+- 失败、超时或断线不代表存在授权请求。先查当前 pending request，核对内容和用户授权范围，再使用真实 optionId；kind=allow_once 不保证 ID 同名，不自动扩大为永久 auto。
 - `view` 等到切换结束；终端 TUI 忙时 `--force` 强制切换，不强制就取消切换并以 1 结束。找不到 agent 会话时列出候选并接受重试。
 - `attach` 在会话处于聊天视图或切换中时拒绝附着，以退出码 1 结束。
   - 附着期间被切到聊天视为被动分离：恢复终端、提示后以 0 结束；
@@ -171,10 +199,17 @@ webmux worktree create . --branch fix/lint --base main   # 输出路径，并像
 webmux worktree ls . --hidden                    # HOME 列：pinned、sessions、hidden
 webmux worktree pin . exp/a; webmux worktree home . --reset
 webmux worktree rm . fix/lint --yes              # 先预览；有阻止原因时需要 --force
+webmux worktree switch . main feat/a             # 原地切换分支；也可 --track origin/fix/b、--create NAME [--from REF]、--detach REF
 webmux repo add; webmux repo branches .; webmux repo commits . --from main; webmux repo base . main
+webmux repo remotes .; webmux worktree show . feat/x --json   # 远程 URL 已脱敏；JSON 含 upstream、ahead、behind
+webmux repo fetch . && webmux worktree prune . --yes   # 获取全部远程；清理目录已缺失的失效登记，分支保留
+webmux repo ff . feat/a                          # 快进到上游：只用本地远程跟踪引用
+webmux repo push . feat/c --remote origin --to feat/c --yes   # 发布没有上游的分支
+webmux repo branch-rm . --cleanup                # 删除工作树遗留的分支；--unmerged 才删有独有提交的
 printf '{{webmux}}\n\n{{user}}' | webmux repo settings . --init -
 webmux launch-config add "Dev" --icon terminal --env MODE=dev -- bash -lc 'npm run dev'
 webmux launch-config edit "Dev" --unset-env MODE; webmux launch-config show "Dev" --json
+webmux agents; webmux agents --check --all       # 本机已安装的 CLI agent 与 ACP 连接器版本；--check 按需查上游更新
 webmux forward add 5173 --session self --label web
 ```
 
@@ -182,6 +217,18 @@ webmux forward add 5173 --session self --label web
 - 主页显示的规则与 Web 端相同：从未设置的仓库只显示主工作区，有会话或已归档会话的 worktree 总会显示。
   - 写入只改该仓库的 `homeWorktrees` 条目，与其他设备冲突（409）时重新读取并重放，最多 3 次。
 - `worktree rm`、`repo rm`、`launch-config rm` 与 `rm --forget` 一样：终端上先确认，非交互时需要 `--yes`。`repo rm` 不删除文件，并清理该仓库的主页显示设置。
+- `worktree switch` 先在标准错误输出预览（阻止原因、警告与运行中的会话），会话不会被关闭：
+  - 有阻止原因（未提交修改、进行中的合并或变基、分支已被其他工作树检出）时什么都不改，以 1 结束；
+  - 有运行中的会话时在终端上要求输入 `yes`，非交互时需要 `--yes`，否则以 2 结束；
+  - 成功时输出所在分支（`--detach` 时输出提交），`--json` 输出 Worktree。
+- `worktree ls` 的状态列在有上游时追加领先/落后（如 `+2/-1`）或 `gone`；`worktree show`、`repo show` 输出上游、领先/落后、最近提交与修改统计，`repo show` 另输出上次获取远程时间；`repo branches` 有上游与领先/落后列，无上游时为 `-`。这些数据只读本地引用，不联网；`--json` 与 HTTP 响应一致。
+- `repo fetch` 逐行输出每个远程的结果（分类与脱敏同 Web 端），全部成功以 0 结束，任一远程失败或仓库没有远程以 1 结束。
+- `worktree prune` 只选未锁定、目录已缺失的失效登记（不执行 `git worktree prune`），把批量预览写到标准错误，确认规则同 `worktree rm`，非交互且没有 `--yes` 时以 2 结束。
+  - 没有可清理项以 0 结束；确认后逐项输出 `removed`、`skipped`、`failed`，有 `failed` 时以 1 结束。
+- `repo ff`、`repo push`、`repo branch-rm` 与 Web 端调用同一组预览与执行接口，预览输出到标准错误：
+  - 有阻止原因时以 1 结束且不做改动；终端上先确认，非交互时需要 `--yes`，否则以 2 结束；
+  - `repo ff` 快进检出的分支且工作树下有运行会话时同样需要确认；`repo push` 对已有上游的分支给出 `--remote` 或 `--to` 时以 2 结束；
+  - `repo branch-rm --cleanup` 选出未被检出、且上游已删除或已合入默认分支的分支，有独有提交的分支只在加 `--unmerged` 时删除；已删除分支的输出行带恢复命令。
 - 初始化指令最多 4000 个字符，超出时 CLI 以 2 拒绝；引用不存在的快捷指令只警告，仍会保存。`--edit` 用 `$VISUAL` 或 `$EDITOR` 编辑。
 - 启动配置的变量值默认隐藏；`edit` 读取后只改给出的字段再整体保存；开启聊天视图（`--chat`）前先检查命令是否支持。
 
@@ -209,9 +256,9 @@ curl -s http://127.0.0.1:7681/llms.txt   # 也可以直接读 HTTP 地址，不�
 
 手册只写命令帮助给不了的内容：能力索引、概念（会话状态、视图、`self`、临时文件夹）、选择命令的依据、跨命令的流程与本实例信息。命令目录在服务启动时由命令表渲染，完整用法仍以 `webmux <命令> --help` 为准，手册不复制选项清单与单命令示例。
 
-手册不写死安装路径：示例中的 `webmux` 指 `"$WEBMUX_BIN"`、指令中给出的绝对路径或 `PATH` 中的 `webmux`。经 TCP 读取的版本不含任何实例信息，经本机套接字读取时附带本实例的版本、可执行文件与套接字。
+手册不写死安装路径：示例中的 `webmux` 指 `"$WEBMUX_BIN"`、指令中给出的绝对路径或 `PATH` 中的 `webmux`。路径只定位文件，仍须比较客户端 `version` 与服务 `status`；经 TCP 读取的手册不含实例信息，本机套接字附带本实例版本、可执行文件与套接字。
 
-在快捷指令或仓库初始化指令里写 `{{webmux}}`，会插入一段说明：会话 ID、命令与套接字路径、手册地址，以及本会话临时文件夹的路径和“交付文件放这里而不是项目仓库”的规则。系统预设“WebMux 工具”就是一条正文为 `{{webmux}}` 的快捷指令。`webmux dir self` 输出临时文件夹路径。
+在快捷指令或仓库初始化指令里写 `{{webmux}}`，会插入一段说明：会话 ID、命令与套接字路径、手册地址，以及本会话临时文件夹的路径和“交付文件保存在会话临时文件夹”的规则。系统预设“WebMux 工具”就是一条正文为 `{{webmux}}` 的快捷指令。`webmux dir self` 输出临时文件夹路径。
 
 ## 帮助与退出码
 

@@ -48,8 +48,8 @@ var completionCommand = &Command{
 var completionScripts = map[string]string{
 	"bash": `# bash completion for webmux
 _webmux() {
-	local IFS=$'\n'
 	local words=("${COMP_WORDS[@]:1:COMP_CWORD}")
+	local IFS=$'\n'
 	COMPREPLY=($(webmux __complete "${words[@]}" 2>/dev/null | cut -f1))
 }
 complete -o default -F _webmux webmux
@@ -235,6 +235,18 @@ func (e Env) query(ctx context.Context, path string, out any) bool {
 		return false
 	}
 	defer client.Close()
+	var capability string
+	switch path {
+	case "/api/launch-configs":
+		capability = "launch.configs"
+	case "/api/repositories":
+		capability = "workspace.manage"
+	case "/api/forwards":
+		capability = "forward.ports"
+	}
+	if capability != "" && client.RequireCapability(ctx, capability) != nil {
+		return false
+	}
 	return client.Do(ctx, http.MethodGet, path, nil, out) == nil
 }
 

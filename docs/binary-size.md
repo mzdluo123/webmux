@@ -1,6 +1,6 @@
 # 内嵌二进制体积
 
-在 macOS arm64 上使用 Go 1.26.1 和同一组发布参数比较上游 `700f043` 与本次修改：`CGO_ENABLED=0`、`-trimpath`、`-ldflags "-s -w -X main.version=0.1.0"`。以下是可执行文件本身的大小，不是下载压缩包。
+以下首表是历史优化记录，不代表当前发行体积。在 macOS arm64 上使用 Go 1.26.1 和同一组发布参数比较上游 `700f043` 与本次修改：`CGO_ENABLED=0`、`-trimpath`、`-ldflags "-s -w -X main.version=0.1.0"`。以下是可执行文件本身的大小，不是下载压缩包。
 
 | 指标                   |       修改前 |       修改后 |   缩减 |
 | ---------------------- | -----------: | -----------: | -----: |
@@ -19,6 +19,8 @@ Vite 保留可供普通静态服务器预览的 `dist`，同时生成确定性�
 - 代价是 ZIP 增加约 3.4 MB（brotli 版本）。
 
 拉丁界面保留 Inter，界面中日韩文字使用浏览器所在设备的系统无衬线字体；终端和代码使用内置 Maple Mono NF CN 的拉丁字形、制表符、Powerline、Nerd Font 图标，以及由 `cn-font-split` 按 `unicode-range` 切分的中文分片（仅在进入终端或代码工作区且遇到对应码位时按需加载）。
+
+终端标题带到界面的 Nerd Font 私有区图标复用同一份图标 WOFF2；普通界面文字和中文仍由 Inter 与系统字体渲染。
 
 两种字重中 10,329 个轮廓及水平度量相同、且没有 hint 指令的图标共用同一个 WOFF2 文件。有差异或带 hint 指令的字形继续分别保留。共享文件分别声明 `100 500` 和 `600 900` 两个字重范围，与其他 unicode-range 分片保持一致；单独声明 `100 900` 会破坏复合字体匹配，使英文回退为比例字体。
 
@@ -51,3 +53,34 @@ Storybook 设计系统标题允许换行，以适应不同系统字体和大号�
 | ---- | -------------------------------------------------------- | ------------------------------------------------------- |
 | 浅色 | ![修改前](images/binary-size/storybook-before-light.png) | ![修改后](images/binary-size/storybook-after-light.png) |
 | 深色 | ![修改前](images/binary-size/storybook-before-dark.png)  | ![修改后](images/binary-size/storybook-after-dark.png)  |
+
+## 可选模块裁剪（`-tags nop2p`）
+
+默认构建内嵌纯 Go WebRTC DataChannel 引擎（`pion/webrtc/v4`）与本地路由器端口映射（UPnP IGD / NAT-PMP / PCP，见 US-H12）。资源极度受限的嵌入式或容器构建可附加 `-tags nop2p` 裁剪 P2P 依赖（其他 HTTP/WebSocket 功能不变）：
+
+| 构建方式（Linux amd64，`CGO_ENABLED=0 -trimpath -ldflags "-s -w"`） |         体积 |               差异 |
+| ------------------------------------------------------------------- | -----------: | -----------------: |
+| 默认构建（含 WebRTC P2P 与网关端口映射）                            | 60,620,960 B |  基准（57.81 MiB） |
+| 裁剪构建（`-tags nop2p`）                                           | 55,607,456 B | -4.78 MiB（-8.3%） |
+
+## 原生历史 PNG 的字体预算
+
+本阶段选择默认包含完整、未修改的 Noto Sans CJK SC Regular，以保持单文件发行、离线中文 PNG 生成与缺字检测。
+不在运行时下载字体，也不另复制渲染器；使用 `snapcompact-go v0.1.0` 的字库和实现。
+`features.enabled=[]` 或关闭 chat 不会裁掉静态链接的字库；`nop2p` 也不裁剪它。
+为这次原生导入与 PNG 接入记录的增量预算为 **20 MiB**，包含字库及新链接的 Go 代码；这不是承诺后续整个程序总大小不变。
+
+2026-11-16 在 Linux amd64、Go 1.27.4 上构建本机版及 macOS arm64 交叉版。
+基线为 `62c43b2aa`，接入版 Go 代码为 `3d82e33ca`；两边复用相同前端 ZIP，隔离后端接入的增量。
+两边 ZIP 的 SHA256 均为 `7c5044d83c17ffffa2a3d0d3bb2a1a21f33ba71e051a6812e5130b98152032f2`。
+参数均为 `CGO_ENABLED=0 go build -trimpath -ldflags '-s -w -X main.version=native-size-check' ./cmd/webmux`，仅切换 GOOS/GOARCH。
+
+| 目标        |         基线 |       接入版 |                              增量 |
+| ----------- | -----------: | -----------: | --------------------------------: |
+| Linux amd64 | 65,257,632 B | 82,735,264 B | 17,477,632 B（16.67 MiB，26.78%） |
+| macOS arm64 | 63,633,874 B | 81,224,290 B | 17,590,416 B（16.78 MiB，27.64%） |
+
+字库本身为 16,437,364 B。这里测量可执行文件，不是下载压缩包或运行时 RSS；macOS 结果没有真机运行验证。
+原始二进制在内嵌资源 `/fonts/licenses/OFL-NotoSansCJK.txt` 中携带完整版权和 OFL 文本。
+`/fonts/licenses/Snapcompact-Go-NOTICES.txt` 同时包含压缩库和依赖的许可声明；Linux deb/rpm 另将两份文本安装到 `/usr/share/licenses/webmux/`。
+许可证静态资源读取和包内路径、内容、权限、卸载均有回归检查；PNG 生成成功不证明模型可读或节省 token。

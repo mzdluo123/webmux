@@ -72,13 +72,20 @@ func portFromTarget(target string) int {
 	return value
 }
 
-func localPort(local string) (int, bool) {
+// localHostPort extracts the loopback host and port from the origin
+// localOrigin reports for the bound listener. Both "127.0.0.1" and "::1"
+// pass: a dual-stack wildcard bind reports "::1" while remaining reachable
+// on IPv4 loopback, and Start's loopback probe decides the rest.
+func localHostPort(local string) (string, int, bool) {
 	host, portText, err := net.SplitHostPort(strings.TrimPrefix(local, "http://"))
-	if err != nil || host != "127.0.0.1" {
-		return 0, false
+	if err != nil || (host != "127.0.0.1" && host != "::1") {
+		return "", 0, false
 	}
 	port, err := strconv.Atoi(portText)
-	return port, err == nil && port > 0
+	if err != nil || port < 1 {
+		return "", 0, false
+	}
+	return host, port, true
 }
 
 func classifyTailscaleError(err error, provider string) string {

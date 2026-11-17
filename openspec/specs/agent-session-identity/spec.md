@@ -1,6 +1,7 @@
 # agent-session-identity Specification
 
 ## Purpose
+
 混合会话在 TUI 端时，webmux 需要知道 TUI 当前打开的是哪个 agent 会话，才能在切换时加载正确的对话。本能力从终端信号中识别 agent 身份、当前 agent 会话 ID 与 cwd，判定能否切到聊天视图，并防止同一个 agent 会话被两处同时打开。
 
 ## Requirements
@@ -22,11 +23,11 @@
 #### Scenario: omp 启动即带出 ID
 
 - **WHEN** 混合会话中的 omp 发出 `session_start` 事件，带有 `session_id` 与 `cwd`
-- **THEN** 会话信息中的 `hybrid.agentSessionId` 更新为该 ID，现有关注与状态不变
+- **THEN** 会话信息中的 `agent.sessionId` 更新为该 ID，现有关注与状态不变
 
 ### Requirement: 身份字段的可见范围与根进程信息
 
-这些字段 SHALL 只保存在服务端内存中。它们 SHALL NOT 出现在普通会话的会话信息、日志或推送中；对混合会话，只有经档案解释后的 agent 名与 agent 会话 ID 出现在 `hybrid` 对象中。会话退出时 SHALL 清空这些字段。
+这些字段 SHALL 只保存在服务端内存中。它们 SHALL NOT 出现在普通会话的会话信息、日志或推送中；对混合会话，只有经档案解释后的 agent 名与 agent 会话 ID 出现在会话信息的 `agent` 对象中（`agent.name` 与 `agent.sessionId`）。会话退出时 SHALL 清空这些字段。
 
 系统 SHALL 另外记录会话 PTY 根进程的可执行文件名与当前工作目录（Linux 读取 `/proc`，macOS 使用系统进程信息），供资格判定使用。
 
@@ -62,7 +63,7 @@ agent 会话 ID 发生变化（例如在 TUI 中执行 `/new`、`/resume`、`/fo
 
 ### Requirement: 切到聊天的资格
 
-会话在 `tui` 端时，只有同时满足以下六个条件，切到聊天的操作才 SHALL 可用：
+会话在终端视图（`view` 为 `terminal`）时，只有同时满足以下六个条件，切到聊天的操作才 SHALL 可用：
 
 1. 终端信号识别出的 agent 有对应的档案（omp 由 Warp 事件或 `OSC 7501` `app=omp` 识别；
    OpenCode 由 `OSC 7501` `app=opencode` 识别；Codex 由 `OSC 7501` `app=codex` 识别；
@@ -101,7 +102,7 @@ agent 会话 ID 发生变化（例如在 TUI 中执行 `/new`、`/resume`、`/fo
 - **WHEN** 从终端开始的 `agy` 混合会话发出 `app=antigravity` 根记录，并在首条消息后通过
   `OSC 7501` 子记录报出 UUID `89c9a933-60f6-46ad-977b-a8daf22f8e4d`，且 `agy acp` 的
   `session/list` 包含该 ID
-- **THEN** 会话的 `hybrid.agentSessionId` 更新为 `89c9a933-60f6-46ad-977b-a8daf22f8e4d`，
+- **THEN** 会话的 `agent.sessionId` 更新为 `89c9a933-60f6-46ad-977b-a8daf22f8e4d`，
   “聊天”按钮变为可用
 
 #### Scenario: 在 shell 中手动启动
@@ -117,7 +118,7 @@ agent 会话 ID 发生变化（例如在 TUI 中执行 `/new`、`/resume`、`/fo
 #### Scenario: 未安装连接器优先提示
 
 - **WHEN** Codex 混合会话尚未发出消息，服务上没有 `codex-acp`
-- **THEN** “聊天”按钮提示“未安装 Codex ACP 适配器（codex-acp）”，而不是“请先在 TUI 中发送一条消息”
+- **THEN** “聊天”按钮提示“未安装 Codex ACP 适配器（codex-acp）”
 
 ### Requirement: 跨会话占用检测
 
@@ -140,7 +141,7 @@ Claude Code 的 OSC 7501 根记录只提供 `app=claude-code`，不提供会话 
 
 采用注册记录前 SHALL 验证：
 
-- 文件名 PID、记录内 PID 与实际 agent 进程一致；本次实测的原生 Linux 运行直接使用根 PID，npm `node` 启动器使用其直接 Claude 子进程，而不是启动器 PID；
+- 文件名 PID、记录内 PID 与实际 agent 进程一致；本次实测的原生 Linux 运行直接使用根 PID，npm `node` 启动器使用其直接 Claude 子进程；
 - `sessionId` 是合法 UUID，记录 cwd 与资格判定使用的规范化 cwd 一致；
 - Linux 记录中的 `procStart` SHALL 是 `/proc/<pid>/stat` 第 22 字段的十进制启动 ticks 字符串，`pidDomain` SHALL 为 `linux:<machine-id>:<pid-namespace>`；二者 SHALL 与当前进程事实一致。其他平台使用各自可验证的进程启动标识与 domain；无法证明记录属于当前运行、记录已过期或 JSON 无效时 SHALL 拒绝采用；
 - 读取与解析 SHALL 有界，注册记录路径和内容 SHALL NOT 泄露到负载或日志。
@@ -152,7 +153,7 @@ Claude Code 的 OSC 7501 根记录只提供 `app=claude-code`，不提供会话 
 #### Scenario: 启动后取得 Claude 会话 ID
 
 - **WHEN** 当前 Claude 进程的注册记录包含匹配的 PID、进程启动标识、cwd 与 UUID `01a18715-8504-7020-9f3d-257900000000`
-- **THEN** `hybrid.agentSessionId` 更新为该 UUID，资格判定继续核对该 ID 是否已列出
+- **THEN** `agent.sessionId` 更新为该 UUID，资格判定继续核对该 ID 是否已列出
 
 #### Scenario: PID 复用产生的陈旧记录
 
@@ -225,7 +226,7 @@ ID 变化（例如 TUI 中执行 `/new`、`/resume`、`/fork`）SHALL 按“跟�
 #### Scenario: 启动即得到 ID
 
 - **WHEN** Codex 混合会话从终端开始，TUI 打开了 `~/.codex/thread-writer-locks/01a18715-8504-7020-9f3d-257900000000.lock`
-- **THEN** `hybrid.agentSessionId` 为 `01a18715-8504-7020-9f3d-257900000000`；发出首条消息前，“聊天”按钮提示“请先在 TUI 中发送一条消息”
+- **THEN** `agent.sessionId` 为 `01a18715-8504-7020-9f3d-257900000000`；发出首条消息前，“聊天”按钮提示“请先在 TUI 中发送一条消息”
 
 #### Scenario: 新会话保留旧锁
 
@@ -251,3 +252,134 @@ Codex 在 `session/load` 或 `session/resume` 时以该错误拒绝被其他 Cod
 
 - **WHEN** 用户在 webmux 之外打开了同一 Codex 会话，然后在混合会话中点击“聊天”
 - **THEN** 切换失败并回到终端端，所有设备看到“该会话正被另一个 Codex 客户端使用”，没有产生新的 agent 会话
+
+### Requirement: 根进程可执行文件回退识别
+
+终端信号未识别出 agent 时（例如 Qoder、QoderCN 不发 OSC 7501 根记录），系统 SHALL 回退按会话
+PTY 根进程的可执行文件识别：根进程可执行文件属于当前配置档案（含其版本化名称），或档案允许启动器、
+根进程是该启动器且其直接子进程属于该档案时，SHALL 视为识别出该档案的 agent，cwd 取根进程的 cwd；
+档案跟踪写锁或进程注册记录时，会话 ID 仍按该来源取得。终端信号识别出 agent 时 SHALL 以信号为准。
+
+#### Scenario: 无 OSC 7501 时按进程识别
+
+- **WHEN** QoderCN 混合会话的根进程可执行文件为 `qoderclicn-1.1.81`，终端没有 OSC 7501 根记录
+- **THEN** 系统识别该会话的 agent 为 qodercn，不提示“未识别到支持的 Agent”
+
+### Requirement: 无自有会话 ID 来源档案的 session/list 候选判定
+
+档案既不跟踪写锁也不读取进程注册记录（例如 Qoder、QoderCN），且当前尚无会话 ID 时，系统 SHALL 用
+`session/list` 做候选判定，SHALL NOT 直接判定为缺少会话 ID：
+
+1. 用根进程 cwd 调用 `session/list`，取更新时间晚于本次 TUI 启动的会话作为候选；
+2. 没有候选时，“聊天”按钮保持不可用，提示“请先在 TUI 中发送一条消息”；
+3. 有候选时“聊天”按钮可用；切换时恰有一个候选则采用它；
+4. 有多个候选时，切换 SHALL 返回 409 `session_ambiguous` 并附候选列表，由用户选择后重试。
+
+#### Scenario: 唯一候选自动选择
+
+- **WHEN** Qoder 混合会话切到聊天，`session/list` 在当前 cwd 下恰有一个本次 TUI 启动后更新的会话
+- **THEN** 系统采用该会话 ID，切换成功
+
+#### Scenario: 多个候选提示用户
+
+- **WHEN** Qoder 混合会话切到聊天，`session/list` 在当前 cwd 下有多个本次 TUI 启动后更新的会话
+- **THEN** 切换返回 409 `session_ambiguous`，前端显示候选列表供用户选择
+
+#### Scenario: 首条消息之前
+
+- **WHEN** 从终端开始的 Qoder 混合会话还没有发送过消息，`session/list` 中没有本次启动后更新的会话
+- **THEN** “聊天”按钮不可用，提示“请先在 TUI 中发送一条消息”
+
+### Requirement: Kimi 的终端身份识别
+
+OSC 7501 根记录的 `app` 为 `kimi-code` 时，系统 SHALL 将 agent 识别为 `kimi`，cwd 取根进程 cwd。Kimi 的 OSC 7501 子记录 SHALL NOT 被假定为 agent 会话 ID；没有可靠 ID 来源时，系统 SHALL 使用 `session/list` 候选判定。
+
+终端信号未识别出 agent、但 PTY 根进程可执行文件为 `kimi` 时，系统 SHALL 按既有根进程回退规则识别当前 Kimi 配置。系统 SHALL NOT 把 `kimi-code` 当作可执行文件名，也 SHALL NOT 要求额外的 node 启动器或进程注册记录。
+
+#### Scenario: OSC 7501 根记录
+
+- **WHEN** Kimi TUI 发出 `state=idle:app=kimi-code`，根进程 cwd 为 `/work/project`
+- **THEN** 会话的 agent 识别为 `kimi`，资格探测使用 `/work/project`
+
+#### Scenario: 无 OSC 7501 时按进程识别
+
+- **WHEN** Kimi 混合会话的原生根进程可执行文件为 `kimi`，终端没有 OSC 7501 根记录
+- **THEN** 系统识别该会话的 agent 为 `kimi`，不提示“未识别到支持的 Agent”
+
+### Requirement: Kimi 会话 ID 的候选判定
+
+Kimi TUI 当前没有可靠会话 ID 时，系统 SHALL 用正确 cwd 调用 `kimi acp` 的 `session/list`，取更新时间晚于本次 TUI 启动的会话作为候选：
+
+1. 没有候选时，“聊天”按钮保持不可用，提示“请先在 TUI 中发送一条消息”；
+2. 切换时恰有一个候选则采用它；
+3. 有多个候选时，切换 SHALL 返回 409 `session_ambiguous` 并附候选列表，由用户选择后重试；
+4. 当前 TUI 是 WebMux 以 `--session <id>` 从聊天端恢复时，SHALL 优先使用本次恢复 ID，并仍核对该 ID 能被 `session/list` 找到。
+
+候选探测 SHALL 只初始化与列出会话，SHALL NOT 加载或恢复会话。`session/list` 返回的 `session_` 前缀 ID SHALL 原样用于后续 `session/load`、`session/resume` 与 TUI `--session`，SHALL NOT 改写为 UUID 或去除前缀。
+
+#### Scenario: 唯一候选自动选择
+
+- **WHEN** Kimi 混合会话切到聊天，`session/list` 在当前 cwd 下恰有一个本次 TUI 启动后更新的会话
+- **THEN** 系统采用该会话 ID，切换成功
+
+#### Scenario: 多个候选提示用户
+
+- **WHEN** 同一 cwd 下本次 Kimi TUI 启动后有多个会话被更新，用户点击“聊天”
+- **THEN** 服务端返回 409 `session_ambiguous` 与候选列表，前端显示候选供用户选择
+
+#### Scenario: 首条消息之前
+
+- **WHEN** 从终端开始的 Kimi 混合会话还没有发送过消息，`session/list` 中没有本次启动后更新的会话
+- **THEN** “聊天”按钮不可用，提示“请先在 TUI 中发送一条消息”
+
+#### Scenario: 从聊天恢复来的 TUI
+
+- **WHEN** WebMux 以 `kimi --session session_1` 恢复 TUI，尚未获得新的终端会话 ID
+- **THEN** 系统以 `session_1` 核对切换资格，不把其他近期会话当作当前会话
+
+### Requirement: Devin 的终端身份识别
+
+OSC 7501 根记录的 `app` 为 `devin` 时，系统 SHALL 将 agent 识别为 `devin`，cwd 取根进程 cwd。`devin` TUI 不发 `7501;?` 探测而直接上报根记录，其根记录不携带会话 ID；没有可靠 ID 来源时，系统 SHALL 使用 `session/list` 候选判定。
+
+终端信号未识别出 agent、但 PTY 根进程可执行文件为 `devin` 时，系统 SHALL 按既有根进程回退规则识别当前 Devin 配置。Devin 的会话 ID 为词组 slug（如 `luminous-acorn`），SHALL 作为不透明字符串处理，SHALL NOT 假定为 UUID 或改写格式。
+
+#### Scenario: OSC 7501 根记录
+
+- **WHEN** Devin TUI 发出 `state=idle:app=devin`，根进程 cwd 为 `/work/project`
+- **THEN** 会话的 agent 识别为 `devin`，资格探测使用 `/work/project`
+
+#### Scenario: 无 OSC 7501 时按进程识别
+
+- **WHEN** Devin 混合会话的原生根进程可执行文件为 `devin`，终端没有 OSC 7501 根记录
+- **THEN** 系统识别该会话的 agent 为 `devin`，不提示“未识别到支持的 Agent”
+
+### Requirement: Devin 会话 ID 的候选判定
+
+Devin TUI 当前没有可靠会话 ID 时，系统 SHALL 用正确 cwd 调用 `devin acp` 的 `session/list`，取更新时间晚于本次 TUI 启动的会话作为候选：
+
+1. 没有候选时，“聊天”按钮保持不可用，提示“请先在 TUI 中发送一条消息”；
+2. 切换时恰有一个候选则采用它；
+3. 有多个候选时，切换 SHALL 返回 409 `session_ambiguous` 并附候选列表，由用户选择后重试；
+4. 当前 TUI 是 WebMux 以 `--resume <id>` 从聊天端恢复时，SHALL 优先使用本次恢复 ID，并仍核对该 ID 能被 `session/list` 找到。
+
+候选探测 SHALL 只初始化与列出会话，SHALL NOT 加载或恢复会话。`session/list` 返回的 slug ID SHALL 原样用于后续 `session/load` 与 TUI `--resume`，SHALL NOT 改写。条目的 `_meta.isLocked`/`lockHolderPid` 只是瞬态持锁信息，SHALL NOT 用于过滤候选。
+
+#### Scenario: 唯一候选自动选择
+
+- **WHEN** Devin 混合会话切到聊天，`session/list` 在当前 cwd 下恰有一个本次 TUI 启动后更新的会话
+- **THEN** 系统采用该会话 ID，切换成功
+
+#### Scenario: 多个候选提示用户
+
+- **WHEN** 同一 cwd 下本次 Devin TUI 启动后有多个会话被更新，用户点击“聊天”
+- **THEN** 服务端返回 409 `session_ambiguous` 与候选列表，前端显示候选供用户选择
+
+#### Scenario: 首条消息之前
+
+- **WHEN** 从终端开始的 Devin 混合会话还没有发送过消息，`session/list` 中没有本次启动后更新的会话
+- **THEN** “聊天”按钮不可用，提示“请先在 TUI 中发送一条消息”
+
+#### Scenario: 从聊天恢复来的 TUI
+
+- **WHEN** WebMux 以 `devin --resume calm-fjord` 恢复 TUI，尚未获得新的终端会话 ID
+- **THEN** 系统以 `calm-fjord` 核对切换资格，不把其他近期会话当作当前会话

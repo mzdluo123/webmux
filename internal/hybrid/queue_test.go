@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/acp"
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
-	"github.com/rainchan/webmux/internal/agentprofile/opencode"
+	"github.com/rainchan/webmux/internal/agent/omp"
+	"github.com/rainchan/webmux/internal/agent/opencode"
 	"github.com/rainchan/webmux/internal/attentionkind"
 	"github.com/rainchan/webmux/internal/session"
 )
@@ -422,7 +422,7 @@ func TestChatSwitchingRefusesCommandsAndClearsAttention(t *testing.T) {
 	if _, err := h.svc.Prompt(ctxT(t), id, PromptInput{ClientRequestID: rid(), Text: "hi"}); !errors.Is(err, ErrSwitching) {
 		t.Fatalf("prompt while switching: %v", err)
 	}
-	if info := shell.Info(); info.Attention != nil || info.Hybrid.Side != string(SideACP) || info.Hybrid.To != string(SideTUI) {
+	if info := shell.Info(); info.Attention != nil || h.svc.Metadata(info.ID).Side != string(SideACP) || h.svc.Metadata(info.ID).To != string(SideTUI) {
 		t.Fatalf("info while switching %+v", info)
 	}
 	cleared, err := call(ctxT(t), a, func() (bool, error) {

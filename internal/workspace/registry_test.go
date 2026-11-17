@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 func gitTest(t *testing.T, cwd string, args ...string) string {
@@ -116,14 +117,14 @@ func TestRegistryIdentityPersistenceAndRemoval(t *testing.T) {
 	root := initRepo(t)
 	state := t.TempDir()
 	s, manager := testService(t, state, root)
-	item, err := s.CreateSession(context.Background(), CreateInput{Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf BEFORE; read value; printf AFTER"}})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf BEFORE; read value; printf AFTER"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	waitOutput(t, item, "BEFORE")
 	id := item.Info().ID
 	repository := registerTest(t, s, root)
-	if item.Info().Workspace == nil || item.Info().Workspace.RepositoryID != repository.ID {
+	if s.Association(item.Info().ID) == nil || s.Association(item.Info().ID).RepositoryID != repository.ID {
 		t.Fatal("registration did not associate running session")
 	}
 	linked := linkedTest(t, s, repository, "feature")
@@ -157,7 +158,7 @@ func TestRegistryIdentityPersistenceAndRemoval(t *testing.T) {
 	if err := restarted.Unregister(repository.ID); err != nil {
 		t.Fatal(err)
 	}
-	if item.Info().ID != id || item.Info().Status == session.StatusExited || item.Info().Workspace != nil || !strings.Contains(string(item.Buffer()), "BEFORE") {
+	if item.Info().ID != id || item.Info().Status == session.StatusExited || restarted.Association(item.Info().ID) != nil || !strings.Contains(string(item.Buffer()), "BEFORE") {
 		t.Fatal("unregister changed PTY identity, lifecycle, buffer or retained association")
 	}
 	if _, err := os.Stat(linked.Path); err != nil {
@@ -227,7 +228,7 @@ func TestRegistryFaultsDoNotPublishOrOverwrite(t *testing.T) {
 	if err := json.Unmarshal(original, &stored); err != nil || len(stored.Repositories) != 1 {
 		t.Fatalf("original registry: %v", err)
 	}
-	item, err := broken.CreateSession(context.Background(), CreateInput{Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf DEGRADED"}})
+	item, err := broken.CreateSession(context.Background(), sessioncreate.Input{Cwd: root, Cmd: []string{"/bin/sh", "-c", "printf DEGRADED"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,12 +247,12 @@ func TestNoGitAndNonRepositoryRemainDirect(t *testing.T) {
 	if _, _, err := s.Register(context.Background(), root); errorKind(err) != ErrUnavailable {
 		t.Fatalf("missing Git error: %v", err)
 	}
-	item, err := s.CreateSession(context.Background(), CreateInput{Cmd: []string{"/bin/sh", "-c", "printf DIRECT"}})
+	item, err := s.CreateSession(context.Background(), sessioncreate.Input{Cmd: []string{"/bin/sh", "-c", "printf DIRECT"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	waitDone(t, item)
-	if item.Info().Cwd != root || item.Info().Workspace != nil || !strings.Contains(string(item.Buffer()), "DIRECT") {
+	if item.Info().Cwd != root || s.Association(item.Info().ID) != nil || !strings.Contains(string(item.Buffer()), "DIRECT") {
 		t.Fatalf("degraded direct session: %+v", item.Info())
 	}
 }

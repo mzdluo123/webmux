@@ -48,17 +48,17 @@
 
 ## 取舍
 
-- 选择路径前缀而不是子域名：路径前缀在 Tailscale MagicDNS 与 Cloudflare quick tunnel 下都能用，代价是使用绝对路径的应用必须设置 base，且转发页面与 WebMux 同源，页面脚本能读取浏览器中保存的主 token。只转发自己信任的开发服务器。
-- 用专用 Cookie 而不是主 token：新标签页里的页面、脚本和 HMR 请求无法携带 Bearer 头；Cookie 按主机共享给同主机其他端口，所以它只能访问网关、不能访问 shell。
+- 选择路径前缀：路径前缀在 Tailscale MagicDNS 与 Cloudflare quick tunnel 下都能用，代价是使用绝对路径的应用必须设置 base，且转发页面与 WebMux 同源，页面脚本能读取浏览器中保存的主 token。只转发自己信任的开发服务器。
+- 使用专用 Cookie：新标签页里的页面、脚本和 HMR 请求无法携带 Bearer 头；Cookie 按主机共享给同主机其他端口，所以它只能访问网关、不能访问 shell。
 - 转发与忽略状态都不持久化：服务重启后开发服务器通常也已退出，重新添加的成本很低。
 
 ## 代码依据
 
 - [转发登记、探测与凭据](../../internal/forward/forward.go)、[凭据与兑换码](../../internal/forward/credentials.go)、[服务用例](../../internal/forward/forward_test.go)
-- [网关与转发接口](../../internal/api/forward.go)、[网关用例](../../internal/api/forward_test.go)、[路由注册](../../internal/api/router.go)
-- [会话列表事件](../../internal/hub/hub.go)、[事件用例](../../internal/hub/list_test.go)、[线上类型](../../internal/contract/forward.go)
-- [监听端口检测](../../internal/session/listening_ports.go)、[Linux 扫描](../../internal/procpeek/listen_linux.go)、[macOS 扫描](../../internal/procpeek/listen_darwin.go)、[真实监听用例](../../internal/session/listening_ports_unix_test.go)
-- [前端契约](../../web/src/schemas.ts)、[转发状态与忽略集合](../../web/src/forwards.svelte.ts)、[转发状态用例](../../web/test/browser/forwards.test.ts)
-- [顶栏按钮](../../web/src/components/ForwardButton.svelte)、[转发对话框](../../web/src/components/ForwardDialog.svelte)、[对话框用例](../../web/test/browser/ForwardDialog.test.ts)
-- [终端端口提示](../../web/src/components/TerminalPortPrompts.svelte)、[提示用例](../../web/test/browser/TerminalNotices.test.ts)、[混合会话用例](../../web/test/browser/TerminalHybrid.test.ts)
+- [网关与转发接口](../../internal/featureapi/forward.go)、[网关用例](../../internal/api/forward_test.go)、[路由贡献](../../cmd/webmux/feature_bind.go)
+- [会话列表传输](../../internal/hub/list.go)、[事件用例](../../internal/hub/list_test.go)、[线上类型](../../internal/contract/forward.go)、[可选投影](../../internal/featurewire/session.go)
+- [监听端口检测](../../internal/forward/listening.go)、[Linux 扫描](../../internal/procpeek/listen_linux.go)、[macOS 扫描](../../internal/procpeek/listen_darwin.go)、[真实监听用例](../../internal/forward/listening_unix_test.go)
+- [前端契约](../../web/src/contracts/schemas.ts)、[转发状态与忽略集合](../../web/src/domains/workspace/forwards.svelte.ts)、[转发状态用例](../../web/test/browser/forwards.test.ts)
+- [顶栏按钮](../../web/src/components/workspace/ForwardButton.svelte)、[转发对话框](../../web/src/components/workspace/ForwardDialog.svelte)、[对话框用例](../../web/test/browser/ForwardDialog.test.ts)
+- [终端端口提示](../../web/src/components/terminal/TerminalPortPrompts.svelte)、[提示用例](../../web/test/browser/TerminalNotices.test.ts)、[混合会话用例](../../web/test/browser/TerminalHybrid.test.ts)
 - [转发认证页](../../web/src/pages/ForwardAuth.svelte)、[认证页用例](../../web/test/browser/ForwardAuth.test.ts)、[端到端用例](../../web/test/e2e/port-forwarding.spec.ts)

@@ -7,7 +7,16 @@ import {
   type Locator,
   type Page,
 } from "@playwright/test";
+import {
+  chooseSessionDirectory,
+  ensureSessionSetup,
+  sessionLocation,
+} from "./session-project";
 import { startE2EServer, type E2EServer } from "./server.mjs";
+import {
+  CapabilitiesSchema,
+  type FeatureID,
+} from "../../src/contracts/feature-schemas";
 
 type Session = { id: string; status: string; exitCode: number | null };
 
@@ -90,14 +99,58 @@ async function cleanLaunchConfigs(request: APIRequestContext) {
   }
 }
 
+async function cleanP2PSettings(request: APIRequestContext) {
+  const response = await request.delete("/api/p2p/settings");
+  expect([200, 501]).toContain(response.status());
+}
+
+async function cleanFeatures(
+  request: APIRequestContext,
+  enabled: ReadonlySet<FeatureID>,
+) {
+  if (enabled.has("chat")) await cleanHybridRecords(request);
+  if (enabled.has("workspace")) await cleanRepositories(request);
+  if (enabled.has("launch")) await cleanLaunchConfigs(request);
+  if (enabled.has("p2p")) await cleanP2PSettings(request);
+}
+
+async function resetSettings(
+  request: APIRequestContext,
+  enabled: ReadonlySet<FeatureID>,
+) {
+  const response = await request.get("/api/settings");
+  expect(response.ok()).toBeTruthy();
+  const prefs = await response.json();
+  const changes: Record<string, null> = {
+    sessionPins: null,
+    forceSoftKeys: null,
+  };
+  if (enabled.has("code")) {
+    changes.preview = null;
+    changes.codeReader = null;
+  }
+  if (enabled.has("quick-commands")) changes.quickCommands = null;
+  if (enabled.has("workspace")) changes.homeWorktrees = null;
+  if (enabled.has("forward")) changes.ignoreHighPorts = null;
+  expect(
+    (
+      await request.patch("/api/settings", {
+        data: { baseRevision: prefs.revision, changes },
+      })
+    ).ok(),
+  ).toBeTruthy();
+}
+
 export const test = base.extend<
   { workDir: string; _isolation: void },
-  { server: E2EServer }
+  { server: E2EServer; features: FeatureID[] | undefined }
 >({
+  // Missing preserves legacy defaults; [] is explicitly core-only. Do not
+  // resolve dependencies here: the real backend validates the exact selection.
+  features: [undefined, { scope: "worker", option: true }],
   server: [
-    // oxlint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for fixture dependencies.
-    async ({}, use) => {
-      const server = await startE2EServer();
+    async ({ features }, use) => {
+      const server = await startE2EServer({ features });
       try {
         await use(server);
       } finally {
@@ -119,29 +172,19 @@ export const test = base.extend<
   },
   _isolation: [
     async ({ request, page, server }, use, testInfo) => {
+      const capabilityResponse = await request.get("/api/capabilities");
+      expect(capabilityResponse.ok()).toBeTruthy();
+      const capabilities = CapabilitiesSchema.parse(
+        await capabilityResponse.json(),
+      );
+      const enabled = new Set(
+        capabilities.features
+          .filter((feature) => feature.enabled)
+          .map((feature) => feature.id),
+      );
       await cleanSessions(request);
-      await cleanHybridRecords(request);
-      await cleanRepositories(request);
-      await cleanLaunchConfigs(request);
-      const prefs = await (await request.get("/api/settings")).json();
-      expect(
-        (
-          await request.patch("/api/settings", {
-            data: {
-              baseRevision: prefs.revision,
-              changes: {
-                theme: null,
-                preview: null,
-                codeReader: null,
-                quickCommands: null,
-                homeWorktrees: null,
-                forceSoftKeys: null,
-                ignoreHighPorts: null,
-              },
-            },
-          })
-        ).ok(),
-      ).toBeTruthy();
+      await cleanFeatures(request, enabled);
+      await resetSettings(request, enabled);
       const browserLogs: string[] = [];
       page.on("console", (message) =>
         browserLogs.push(`[${message.type()}] ${message.text()}`),
@@ -181,12 +224,13 @@ export const test = base.extend<
                 contentType: "text/plain",
               });
             }
-            await testInfo.attach("archived-sessions.json", {
-              body: await (
-                await request.get("/api/sessions?state=archived")
-              ).body(),
-              contentType: "application/json",
-            });
+            if (enabled.has("chat"))
+              await testInfo.attach("archived-sessions.json", {
+                body: await (
+                  await request.get("/api/sessions?state=archived")
+                ).body(),
+                contentType: "application/json",
+              });
             const agentEvents = await readFile(
               join(server.env.FAKEAGENT_STORE!, "events.log"),
               "utf8",
@@ -199,28 +243,8 @@ export const test = base.extend<
           }
         } finally {
           await cleanSessions(request);
-          await cleanHybridRecords(request);
-          await cleanRepositories(request);
-          await cleanLaunchConfigs(request);
-          const prefs = await (await request.get("/api/settings")).json();
-          expect(
-            (
-              await request.patch("/api/settings", {
-                data: {
-                  baseRevision: prefs.revision,
-                  changes: {
-                    theme: null,
-                    preview: null,
-                    codeReader: null,
-                    quickCommands: null,
-                    homeWorktrees: null,
-                    forceSoftKeys: null,
-                    ignoreHighPorts: null,
-                  },
-                },
-              })
-            ).ok(),
-          ).toBeTruthy();
+          await cleanFeatures(request, enabled);
+          await resetSettings(request, enabled);
         }
       }
     },
@@ -228,11 +252,19 @@ export const test = base.extend<
   ],
 });
 
+export const coreTest = test.extend<{}, { features: FeatureID[] | undefined }>({
+  features: [[], { scope: "worker", option: true }],
+});
+
 export { expect };
 
 // New-session dialog pickers. Option names start with the item title and
 // continue with its command or path.
-async function pick(page: Page, field: "位置" | "运行", name: string) {
+async function pick(
+  page: Page,
+  field: "位置" | "工作位置" | "运行",
+  name: string,
+) {
   await page.getByRole("button", { name: field, exact: true }).click();
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   await page
@@ -258,39 +290,99 @@ export async function backToList(page: Page) {
 }
 
 /**
- * Makes the sidebar's global entries (settings, theme, port forwarding)
- * reachable: phones keep them in the drawer.
+ * Makes global sidebar entries reachable, waiting for mobile drawer entry
+ * before consumers interact with its contents.
  */
 export async function revealSidebar(page: Page): Promise<boolean> {
-  const open = page.getByRole("button", { name: "打开侧栏" }).first();
-  if (!(await open.isVisible())) return false;
-  await open.click();
-  return true;
+  const open = page
+    .getByRole("button", { name: /^(打开|展开)侧栏$/ })
+    .filter({ visible: true })
+    .first();
+  const navigation = page.getByRole("navigation", {
+    name: "导航",
+    exact: true,
+  });
+  // Capability bootstrap and lazy pages may not have mounted the mobile
+  // trigger yet. An immediate isVisible() would mistake that for desktop.
+  await expect
+    .poll(
+      async () => (await open.isVisible()) || (await navigation.isVisible()),
+    )
+    .toBe(true);
+  let opened = false;
+  // A closing drawer is still visible during its exit animation. Prefer
+  // the trigger's open state rather than mistaking that for an open drawer.
+  if (
+    (await open.isVisible()) &&
+    (await open.getAttribute("aria-expanded")) !== "true"
+  ) {
+    await open.click();
+    opened = true;
+  }
+  await expect(navigation).toBeVisible();
+  const drawer = page.getByRole("dialog", { name: "导航", exact: true });
+  if (await drawer.isVisible())
+    await expect
+      .poll(() =>
+        drawer.evaluate((node) =>
+          node
+            .getAnimations()
+            .some(
+              (animation) =>
+                animation.pending || animation.playState === "running",
+            ),
+        ),
+      )
+      .toBe(false);
+  return opened;
 }
 
 export async function chooseLaunch(page: Page, name: string) {
+  await ensureSessionSetup(page);
   await pick(page, "运行", name);
 }
 
 export async function chooseLocation(page: Page, name: string) {
-  await pick(page, "位置", name);
+  await expect(sessionLocation(page)).toBeVisible();
+  await pick(
+    page,
+    (await page
+      .getByRole("button", { name: "工作位置", exact: true })
+      .isVisible())
+      ? "工作位置"
+      : "位置",
+    name,
+  );
 }
 
 export async function useCustomCommand(page: Page, command: string) {
-  await chooseLaunch(page, "自定义命令…");
+  await ensureSessionSetup(page);
+  const launch = page.getByRole("button", { name: "运行", exact: true });
+  const custom = page.getByLabel("自定义启动命令", { exact: true });
+  await expect(launch.or(custom).first()).toBeVisible();
+  if (await launch.isVisible()) await chooseLaunch(page, "自定义命令…");
   await page.getByLabel("自定义启动命令", { exact: true }).fill(command);
 }
 
 export async function useDirectory(page: Page, cwd: string) {
-  await expect(
-    page.getByRole("button", { name: "位置", exact: true }),
-  ).toBeVisible();
   const input = page.getByLabel("工作目录", { exact: true });
-  if (!(await input.isVisible())) await chooseLocation(page, "输入或浏览目录…");
-  await input.fill(cwd);
+  const legacy = page.getByRole("button", { name: "位置", exact: true });
+  await expect(
+    input
+      .or(legacy)
+      .or(page.getByRole("combobox", { name: "搜索项目", exact: true }))
+      .or(page.getByRole("button", { name: "更换项目", exact: true }))
+      .first(),
+  ).toBeVisible();
+  if (await input.isVisible()) await input.fill(cwd);
+  else if (await legacy.isVisible()) {
+    await chooseLocation(page, "输入或浏览目录…");
+    await input.fill(cwd);
+  } else await chooseSessionDirectory(page, cwd);
 }
 
 export async function nameSession(page: Page, name: string) {
+  await ensureSessionSetup(page);
   await page.getByRole("button", { name: "高级：会话名称" }).click();
   await page.getByLabel("会话名称", { exact: false }).fill(name);
 }
@@ -369,9 +461,10 @@ export async function headerAction(page: Page, name: string) {
   return page.getByRole("menuitem", { name, exact: true });
 }
 
-export async function runCommand(page: Page, command: string) {
+export async function runCommand(page: Page | Locator, command: string) {
   const input = page.locator(".xterm-helper-textarea");
   await expect(page.locator(".restore-overlay")).toBeHidden();
+  await expect(input).toBeEditable();
   // Target the textarea after replay rather than relying on focus held across
   // the wait. Both locator actions focus it when dispatching real key events.
   await input.pressSequentially(command);
@@ -406,24 +499,35 @@ export async function recordInput(
   const path = join(directory, "received-input");
   await runCommand(
     page,
-    `stty raw -echo; printf '\\033[?2004${bracketed ? "h" : "l"}RECORDER_READY\\r\\n'; cat > ${quote(path)}`,
+    `stty raw -echo; : > ${quote(path)}; printf '\\033[?2004${bracketed ? "h" : "l"}RECORDER_READY\\r\\n'; cat >> ${quote(path)}`,
   );
   await expectTerminalLine(page, "RECORDER_READY");
   await expect.poll(() => readFile(path, "utf8")).toBe("");
   return path;
 }
 
-// The split button sits in the header from 640px up; on phones the same
-// actions are the terminal menu's "窗格" group. Opens whichever applies.
-export async function openPaneMenu(scope: Locator | Page) {
-  const page = "viewportSize" in scope ? scope : scope.page();
-  if ((page.viewportSize()?.width ?? 1280) >= 640)
-    return scope.getByRole("button", { name: "分屏", exact: true }).click();
-  await scope.getByRole("button", { name: /^(终端|会话)菜单$/ }).click();
+// Split actions live in the session's side-panel picker on every viewport.
+export async function openSplitPanel(scope: Locator | Page) {
+  const picker = await openPanelPicker(scope);
+  await picker.getByRole("button", { name: "分屏", exact: true }).click();
 }
 
-// The header's code button: "代码" while the panel is closed, and "终端" while
-// it fills a narrow pane or a phone's screen (the name says where it goes).
-export function viewSwitch(scope: Locator | Page, name: "终端" | "代码") {
-  return scope.getByRole("button", { name, exact: true });
+async function openPanelPicker(scope: Locator | Page) {
+  const page = "viewportSize" in scope ? scope : scope.page();
+  await scope.getByRole("button", { name: "打开面板", exact: true }).click();
+  return page.getByRole("group", { name: "面板选择", exact: true });
+}
+
+export async function toggleCode(scope: Locator | Page) {
+  if (await scope.locator(".code-pane").isVisible()) {
+    await openPanelPicker(scope);
+    await scope
+      .getByRole("button", { name: "关闭侧栏面板", exact: true })
+      .click();
+  } else
+    await (
+      await openPanelPicker(scope)
+    )
+      .getByRole("button", { name: "代码", exact: true })
+      .click();
 }

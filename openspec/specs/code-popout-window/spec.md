@@ -1,8 +1,11 @@
 # code-popout-window Specification
 
 ## Purpose
-TBD - created by archiving change iframe-code-popout. Update Purpose after archive.
+
+将代码工作区中的文件预览打开到独立窗口，定义窗口与会话的关联、页面导航及生命周期，使用户能够在多个窗口中并排查看文件。
+
 ## Requirements
+
 ### Requirement: 独立窗口运行独立的代码工作区实例
 
 系统 SHALL 让独立窗口运行自己的代码工作区实例：
@@ -48,7 +51,7 @@ TBD - created by archiving change iframe-code-popout. Update Purpose after archi
   - 预览：Markdown 滚动位置，图片缩放与平移，PDF 缩放、页码与滚动位置，JSON 的展开与分页；
 - 修改列表的滚动位置。
 
-恢复后的位置 SHALL 以内容行或页为基准，而不是像素，使窗口尺寸不同时仍定位到同一内容。富文本预览（Markdown、HTML、表格）中浏览器原生的文字选中 SHALL 不在保留范围内。
+恢复后的位置 SHALL 以内容行或页为基准，使窗口尺寸不同时仍定位到同一内容。富文本预览（Markdown、HTML、表格）中浏览器原生的文字选中 SHALL 不在保留范围内。
 
 #### Scenario: 弹出后阅读位置与选择不变
 
@@ -125,4 +128,3 @@ TBD - created by archiving change iframe-code-popout. Update Purpose after archi
 
 - **WHEN** 用户把独立窗口拖窄到 640px 以下，而主页面仍为宽屏
 - **THEN** 独立窗口按窄屏规则显示（文件操作改为底部面板、文档栏操作收进代码菜单），底部面板显示在独立窗口内
-

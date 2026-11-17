@@ -1,12 +1,13 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Page, Request } from "@playwright/test";
-import { test, expect, createShell, viewSwitch } from "./fixtures";
+import { test, expect, createShell, toggleCode } from "./fixtures";
 import { pdfFixture } from "../fixtures/pdf";
 
 async function showCode(page: Page) {
-  await viewSwitch(page.locator(".terminal-header"), "代码").click();
-  await expect(page.getByRole("region", { name: "代码工作区" })).toBeVisible();
+  const code = page.getByRole("region", { name: "代码工作区" });
+  if (!(await code.isVisible())) await toggleCode(page);
+  await expect(code).toBeVisible();
 }
 async function open(page: Page, name: string) {
   const navigation = page.getByRole("button", {

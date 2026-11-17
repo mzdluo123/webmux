@@ -6,6 +6,12 @@ Web 端的新建会话对话框、快速开始页与 `webmux run` 都调用它�
 - 线上类型：[`internal/contract/sessions.go`](../../internal/contract/sessions.go) 中的 `CreateSessionRequest`、`CreateSessionResult` 与 `CreateSessionFailure`。
 - 会话的其他操作见 [会话、启动配置与其他](http-sessions.md)；聊天视图的行为见 [聊天视图与混合会话](http-hybrid.md)。
 
+创建成功时，实际提交初始聊天提示才返回可选 `initialInput`（沿用会话输入回执，含 turnId/promptId 或排队项）；空白提示和空初始化指令不返回该字段。
+
+**功能前提**：显式 `cmd`/`env` + `cwd` 的普通 PTY 创建属于核心，不需要 launch/workspace/files。
+`configId` 需要 `launch`；`workspace` / `newWorktree` / 仓库初始化指令需要 `workspace`；附件需要 `files`；聊天视图需要 `chat`（依赖 `launch` + `files`）；快捷指令展开需要 `quick-commands`。
+未提供对应贡献时不猜测命令或位置，也不隐式启用功能；先读取 [能力发现](../protocol.md#能力发现)。旧浏览器记住的 `configId` 不能回退为任意默认命令。
+
 ## 请求体
 
 ```jsonc
@@ -20,6 +26,16 @@ Web 端的新建会话对话框、快速开始页与 `webmux run` 都调用它�
   "configId": "k3m9q2x7",
   "view": "chat",
   "prompt": "修复 lint",
+  "agentConfig": { "model": "sonnet" },
+  "permissionMode": "auto",
+}
+// 已有工作树中以聊天视图开工（快速开始的「已有工作树」，与上一段二选一）
+{
+  "clientRequestId": "r-9c3m2n8p",
+  "workspace": { "repositoryId": "r1", "worktreeId": "w2" },
+  "configId": "k3m9q2x7",
+  "view": "chat",
+  "prompt": "继续修复 lint",
   "agentConfig": { "model": "sonnet" },
   "permissionMode": "auto",
 }
@@ -60,7 +76,7 @@ Web 端的新建会话对话框、快速开始页与 `webmux run` 都调用它�
 `view` 取 `terminal`（缺省）或 `chat`，只对开启了聊天视图（`chat: true`）的启动配置有意义：
 
 - `terminal`：在 PTY 中运行配置的 argv；混合配置运行档案生成的终端命令（OpenCode 注入 `--standalone`）。
-- `chat`：不启动终端，而是启动 ACP 进程并依次调用 `initialize` 与 `session/new`。
+- `chat`：启动 ACP 进程并依次调用 `initialize` 与 `session/new`。
 
 对普通配置或自定义命令提供 `view: "chat"` 返回 400。以聊天视图创建而档案的连接器未安装时返回 409 `connector_missing`，不创建会话。
 

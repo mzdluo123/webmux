@@ -1,11 +1,11 @@
 <script lang="ts">
-  import WorkspaceGroup from "../../src/components/WorkspaceGroup.svelte";
-  import type { ArchiveActions } from "../../src/archived";
+  import WorkspaceGroup from "../../src/components/workspace/WorkspaceGroup.svelte";
+  import type { ArchiveActions } from "../../src/domains/sessions/archived";
   import type {
     ArchivedSession,
     SessionInfo,
     SessionView,
-  } from "../../src/schemas";
+  } from "../../src/contracts/schemas";
   import { now, session } from "../fixtures";
   import { agentMetadata, sessionIds } from "./fixtures";
 
@@ -68,6 +68,8 @@
     record(
       "archivda",
       "omp · 修复首页排序后补充回归测试与文档说明，确认长标题会截断",
+      {},
+      {},
     ),
     record(
       "archivdb",

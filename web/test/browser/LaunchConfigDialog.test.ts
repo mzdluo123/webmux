@@ -1,8 +1,14 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
-import LaunchConfigDialog from "../../src/components/LaunchConfigDialog.svelte";
-import type { LaunchConfig } from "../../src/schemas";
+import LaunchConfigDialog from "../../src/components/settings/LaunchConfigDialog.svelte";
+import type { LaunchConfig } from "../../src/contracts/schemas";
+import {
+  enableCreationFeatures,
+  resetCreationFeatures,
+} from "./feature-fixture";
+
+beforeEach(() => enableCreationFeatures());
 
 const saved: LaunchConfig = {
   id: "abcdefg2",
@@ -24,8 +30,10 @@ type Handler = (
   body: unknown,
 ) => Response | Promise<Response> | undefined;
 
+type RecordedRequest = { method: string; path: string; body: unknown };
+
 function serve(routes: Record<string, Handler>) {
-  const requests: { method: string; path: string; body: unknown }[] = [];
+  const requests: RecordedRequest[] = [];
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof fetch>(async (input, init) => {
@@ -41,6 +49,12 @@ function serve(routes: Record<string, Handler>) {
   return requests;
 }
 
+const savedRequest = (requests: readonly RecordedRequest[]) =>
+  requests.findLast(
+    ({ method, path }) =>
+      method === "PUT" || (method === "POST" && path === "/api/launch-configs"),
+  );
+
 afterEach(async () => {
   try {
     await cleanup();
@@ -48,6 +62,7 @@ afterEach(async () => {
   } finally {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    resetCreationFeatures();
   }
 });
 
@@ -79,11 +94,11 @@ test.each([
     await page.getByRole("option", { name: label, exact: true }).click();
     await save().click();
     await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-    expect(requests.at(-1)).toMatchObject({
+    expect(savedRequest(requests)).toMatchObject({
       method: "PUT",
       body: { cmd: saved.cmd, env: saved.env },
     });
-    expect((requests.at(-1)!.body as { icon?: string }).icon).toBe(icon);
+    expect((savedRequest(requests)!.body as { icon?: string }).icon).toBe(icon);
   },
 );
 
@@ -158,6 +173,9 @@ test("the startup-file checkbox saves a normal command without expanding its arg
   await page
     .getByLabelText("启动命令")
     .fill(`opencode --continue 'a b' '' '$HOME'`);
+  await page.getByRole("button", { name: "添加环境变量" }).click();
+  await page.getByLabelText("变量名 1").fill("LITERAL");
+  await page.getByLabelText("变量值 1").fill("$HOME");
   await page
     .getByRole("checkbox", { name: "加载 shell 启动文件", exact: true })
     .click();
@@ -166,11 +184,10 @@ test("the startup-file checkbox saves a normal command without expanding its arg
     .toMatchTextContent(/Bash/);
   await save().click();
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-  expect(requests.at(-1)).toEqual({
-    method: "POST",
-    path: "/api/launch-configs",
+  expect(savedRequest(requests)).toMatchObject({
     body: {
       name: "Open Code",
+      env: { LITERAL: "$HOME" },
       cmd: [
         "bash",
         "-ic",
@@ -182,9 +199,6 @@ test("the startup-file checkbox saves a normal command without expanding its arg
         "",
         "$HOME",
       ],
-      env: {},
-      preview: null,
-      chat: false,
     },
   });
 });
@@ -214,7 +228,7 @@ test("the default shell preselects Zsh and can be switched back to Bash", async 
   await page.getByRole("option", { name: "Bash（~/.bashrc）" }).click();
   await save().click();
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-  expect(requests.at(-1)).toMatchObject({
+  expect(savedRequest(requests)).toMatchObject({
     method: "POST",
     body: {
       cmd: ["bash", "-ic", 'exec -- "$@"', "webmux", "omp", "--auto-approve"],
@@ -243,7 +257,7 @@ test("saves per-config preview settings", async () => {
   await skip.fill("5");
   await save().click();
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-  expect(requests.at(-1)?.body).toMatchObject({
+  expect(savedRequest(requests)?.body).toMatchObject({
     preview: { lines: 30, skip: 5 },
   });
 });
@@ -261,13 +275,80 @@ test("following the global default saves a null preview", async () => {
     configId: saved.id,
     onsaved,
   });
-  await page.getByRole("checkbox", { name: "跟随全局默认" }).click();
+  await page
+    .getByRole("checkbox", { name: /跟随全局默认\s*（输出预览）/ })
+    .click();
   await expect
     .poll(() => page.getByLabelText("显示行数").elements().length)
     .toBe(0);
   await save().click();
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-  expect(requests.at(-1)?.body).toMatchObject({ preview: null });
+  expect(savedRequest(requests)?.body).toMatchObject({ preview: null });
+});
+
+test("configures per-config attention settings, shows signal priority, and hides irrelevant fields by mode", async () => {
+  const onsaved = vi.fn();
+  const requests = serve({
+    "/api/launch-configs/abcdefg2": (method, body) =>
+      method === "GET"
+        ? Response.json(saved)
+        : Response.json({ ...saved, ...(body as object) }),
+  });
+  render(LaunchConfigDialog, {
+    open: true,
+    configId: saved.id,
+    onsaved,
+  });
+  const followDefault = page.getByRole("checkbox", {
+    name: /跟随全局默认\s*（完成与介入提醒）/,
+  });
+  await expect.element(followDefault).toBeChecked();
+  await followDefault.click();
+  await expect
+    .element(page.getByText(/优先级：状态协议 \(OSC 7501\) > Agent 事件/))
+    .toBeVisible();
+
+  await page.getByRole("checkbox", { name: "状态协议 (OSC 7501)" }).click();
+  await page.getByLabelText("最短回合耗时（秒）").fill("10");
+  await page.getByLabelText("完成确认延迟（秒）").fill("3");
+
+  // Switching to "仅需介入" hides threshold inputs while keeping signal sources.
+  await page.getByRole("radio", { name: "仅需介入", exact: true }).click();
+  await expect
+    .poll(() => page.getByLabelText("最短回合耗时（秒）").elements().length)
+    .toBe(0);
+  await expect
+    .element(page.getByRole("checkbox", { name: "Agent 事件 (Warp 协议)" }))
+    .toBeVisible();
+
+  // Switching to "关闭" hides both signal sources and threshold inputs.
+  await page.getByRole("radio", { name: "关闭", exact: true }).click();
+  await expect
+    .poll(
+      () =>
+        page
+          .getByRole("checkbox", { name: "Agent 事件 (Warp 协议)" })
+          .elements().length,
+    )
+    .toBe(0);
+
+  // Switch back to "全部提醒" and save.
+  await page.getByRole("radio", { name: "全部提醒", exact: true }).click();
+  const scrollBody = page.getByTestId("launch-config-scroll");
+  await expect.element(scrollBody).toBeVisible();
+  await save().click();
+  await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
+  expect(savedRequest(requests)?.body).toMatchObject({
+    attention: {
+      mode: "all",
+      programStatus: false,
+      agentProtocol: true,
+      notify: true,
+      bell: true,
+      minTurnSeconds: 10,
+      doneDelaySeconds: 3,
+    },
+  });
 });
 
 test.each([
@@ -307,7 +388,7 @@ test.each([
     if (!enabled) await checkbox.click();
     await save().click();
     await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-    expect(requests.at(-1)).toMatchObject({
+    expect(savedRequest(requests)).toMatchObject({
       method: "PUT",
       body: { cmd: enabled ? wrapped : argv, env: saved.env },
     });
@@ -338,7 +419,7 @@ test("editing only the name keeps every env variable in the PUT body", async () 
   await name.fill("Claude 新名称");
   await save().click();
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-  expect(requests.at(-1)).toEqual({
+  expect(savedRequest(requests)).toEqual({
     method: "PUT",
     path: "/api/launch-configs/abcdefg2",
     body: {
@@ -346,6 +427,7 @@ test("editing only the name keeps every env variable in the PUT body", async () 
       cmd: ["claude", "--resume"],
       env: { API_KEY: "secret-value" },
       preview: null,
+      attention: null,
       chat: false,
     },
   });
@@ -431,8 +513,60 @@ test("the hybrid checkbox follows the server's verdict for the edited command", 
   await hybrid.click();
   await save().click();
   await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
-  expect(requests.at(-1)).toMatchObject({
+  expect(savedRequest(requests)).toMatchObject({
     method: "PUT",
     body: { cmd: ["omp", "--model", "haiku"], chat: true },
   });
+});
+
+test("launch-only editing preserves inactive feature fields and never probes chat support", async () => {
+  await enableCreationFeatures(["launch"]);
+  const inactive: LaunchConfig = {
+    ...saved,
+    chat: true,
+    attention: {
+      mode: "urgent",
+      programStatus: false,
+      agentProtocol: true,
+      notify: true,
+      bell: false,
+      minTurnSeconds: 0,
+      doneDelaySeconds: 0,
+    },
+  };
+  const onsaved = vi.fn();
+  const requests = serve({
+    "/api/launch-configs/abcdefg2": (method, body) =>
+      Response.json(
+        method === "GET" ? inactive : { ...inactive, ...(body as object) },
+      ),
+  });
+  render(LaunchConfigDialog, { open: true, configId: inactive.id, onsaved });
+  await expect
+    .element(page.getByLabelText("名称", { exact: true }))
+    .toHaveValue(inactive.name);
+  expect(
+    page.getByRole("checkbox", { name: "混合模式（聊天 ↔ 终端）" }).elements(),
+  ).toHaveLength(0);
+  expect(
+    document.getElementById("launch-config-attention-fieldset"),
+  ).toBeNull();
+  await page.getByLabelText("名称", { exact: true }).fill("Renamed");
+  await save().click();
+  await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
+  expect(requests.map((request) => request.path)).toEqual([
+    "/api/launch-configs/abcdefg2",
+    "/api/launch-configs/abcdefg2",
+  ]);
+  expect(savedRequest(requests)).toMatchObject({
+    body: { name: "Renamed" },
+  });
+  expect(savedRequest(requests)!.body).not.toHaveProperty("chat");
+  expect(savedRequest(requests)!.body).not.toHaveProperty("attention");
+  expect(onsaved).toHaveBeenCalledWith(
+    expect.objectContaining({
+      chat: inactive.chat,
+      attention: inactive.attention,
+    }),
+  );
 });

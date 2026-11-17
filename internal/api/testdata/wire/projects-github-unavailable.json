@@ -1,0 +1,11 @@
+{
+  "status": 200,
+  "body": {
+    "available": false,
+    "hasMore": false,
+    "login": "",
+    "page": 1,
+    "reason": "无法验证服务端 GitHub 身份，请检查服务用户的 gh 登录、权限与网络",
+    "repositories": []
+  }
+}

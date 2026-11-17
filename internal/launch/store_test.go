@@ -16,7 +16,7 @@ import (
 
 func open(t *testing.T, dir string) *Service {
 	t.Helper()
-	s := Open(dir)
+	s := Open(dir, agents.Default())
 	t.Cleanup(s.Close)
 	return s
 }
@@ -70,11 +70,11 @@ func TestSeedFillsOnlyANewFile(t *testing.T) {
 		return out
 	}
 	dir := t.TempDir()
-	s := Open(dir)
+	s := Open(dir, agents.Default())
 	if err := s.Seed(Presets("/bin/zsh")); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"Shell", "Claude Code", "Codex CLI", "Antigravity CLI", "Cursor CLI", "GitHub Copilot CLI", "Open Code", "Qwen Code", "Kimi Code CLI", "CodeBuddy Code", "omp", "Qoder", "QoderCN"}
+	want := []string{"Shell", "Claude Code", "Codex CLI", "Antigravity CLI", "Cursor CLI", "GitHub Copilot CLI", "Open Code", "Qwen Code", "Kimi Code CLI", "CodeBuddy Code", "omp", "Qoder", "QoderCN", "Devin CLI"}
 	if got := names(s); !reflect.DeepEqual(got, want) {
 		t.Fatalf("seeded %v", got)
 	}
@@ -86,16 +86,22 @@ func TestSeedFillsOnlyANewFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantIcons := []string{"terminal", "claudecode", "codex", "antigravity", "cursor", "githubcopilot", "opencode", "qwen", "kimi", "codebuddy", "pi", "qoder", "qoder"}
+	wantIcons := []string{"terminal", "claudecode", "codex", "antigravity", "cursor", "githubcopilot", "opencode", "qwen", "kimi", "codebuddy", "pi", "qoder", "qoder", "devin"}
 	for i, c := range list {
 		if c.Icon != wantIcons[i] {
 			t.Fatalf("preset %s icon %q", c.Name, c.Icon)
 		}
 		// Only the agents with a hybrid profile start as hybrid sessions,
 		// and their seeded commands, auto-approve flag included, qualify.
-		hybrid := c.Name == "Claude Code" || c.Name == "Codex CLI" || c.Name == "Antigravity CLI" || c.Name == "Open Code" || c.Name == "omp" || c.Name == "Qoder" || c.Name == "QoderCN"
+		hybrid := c.Name == "Claude Code" || c.Name == "Codex CLI" || c.Name == "Antigravity CLI" || c.Name == "Open Code" || c.Name == "omp" || c.Name == "Qoder" || c.Name == "QoderCN" || c.Name == "Kimi Code CLI" || c.Name == "Devin CLI"
 		if c.Hybrid != hybrid || (hybrid && !c.HybridSupport.Supported) {
 			t.Fatalf("preset %s hybrid %v support %+v", c.Name, c.Hybrid, c.HybridSupport)
+		}
+		if c.Name == "Kimi Code CLI" && (c.Cmd[len(c.Cmd)-1] != "--yolo" || c.HybridSupport.Agent != "kimi") {
+			t.Fatalf("Kimi preset = %+v", c)
+		}
+		if c.Name == "Devin CLI" && (c.Cmd[len(c.Cmd)-1] != "dangerous" || c.HybridSupport.Agent != "devin") {
+			t.Fatalf("Devin preset = %+v", c)
 		}
 	}
 	for _, c := range list {
@@ -119,7 +125,7 @@ func TestSeedFillsOnlyANewFile(t *testing.T) {
 
 func TestReopenPersists(t *testing.T) {
 	dir := t.TempDir()
-	s := Open(dir)
+	s := Open(dir, agents.Default())
 	a := mustCreate(t, s, Input{Name: "  Claude 恢复  ", Cmd: []string{"claude", "--resume", ""}, Env: map[string]string{"B": "2", "A": "1"}})
 	b := mustCreate(t, s, Input{Name: "shell", Cmd: []string{"bash"}})
 	updated, err := s.Update(a.ID, Input{Name: "Claude", Cmd: []string{"claude"}, Env: map[string]string{"A": "x"}})
@@ -164,7 +170,7 @@ func TestReopenPersists(t *testing.T) {
 
 func TestPreviewSettingsPersist(t *testing.T) {
 	dir := t.TempDir()
-	s := Open(dir)
+	s := Open(dir, agents.Default())
 	a := mustCreate(t, s, Input{Name: "agent", Cmd: []string{"agent"}, Preview: &PreviewSettings{Lines: 20, Skip: 4}})
 	if a.Preview == nil || a.Preview.Lines != 20 || a.Preview.Skip != 4 {
 		t.Fatalf("created preview %+v", a.Preview)
@@ -204,6 +210,44 @@ func TestPreviewSettingsPersist(t *testing.T) {
 	}
 }
 
+func TestAttentionSettingsPersist(t *testing.T) {
+	dir := t.TempDir()
+	s := Open(dir, agents.Default())
+	want := AttentionSettings{
+		Mode:             AttentionModeUrgent,
+		ProgramStatus:    false,
+		AgentProtocol:    true,
+		Notify:           true,
+		Bell:             false,
+		MinTurnSeconds:   15,
+		DoneDelaySeconds: 5,
+	}
+	a := mustCreate(t, s, Input{Name: "omp", Cmd: []string{"omp"}, Attention: &want})
+	if a.Attention == nil || *a.Attention != want {
+		t.Fatalf("created attention %+v, want %+v", a.Attention, want)
+	}
+	list, err := s.List()
+	if err != nil || len(list) != 1 || list[0].Attention == nil || *list[0].Attention != want {
+		t.Fatalf("summary attention %+v %v", list, err)
+	}
+	// Mutating a returned copy must not change stored state.
+	a.Attention.MinTurnSeconds = 99
+	got, _ := s.Get(a.ID)
+	if got.Attention == nil || got.Attention.MinTurnSeconds != 15 {
+		t.Fatalf("stored attention changed: %+v", got.Attention)
+	}
+	s.Close()
+	s = open(t, dir)
+	got, err = s.Get(a.ID)
+	if err != nil || got.Attention == nil || *got.Attention != want {
+		t.Fatalf("reloaded attention %+v %v", got.Attention, err)
+	}
+	updated, err := s.Update(a.ID, Input{Name: "omp", Cmd: []string{"omp"}})
+	if err != nil || updated.Attention != nil {
+		t.Fatalf("cleared attention %+v %v", updated.Attention, err)
+	}
+}
+
 func TestVersion1FilePreservedAndRejected(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, fileName)
@@ -223,7 +267,7 @@ func TestVersion1FilePreservedAndRejected(t *testing.T) {
 
 func TestIconsPersistAndLegacyConfigsRemainReadable(t *testing.T) {
 	dir := t.TempDir()
-	s := Open(dir)
+	s := Open(dir, agents.Default())
 	a := mustCreate(t, s, Input{Name: "Claude", Icon: "claudecode", Cmd: []string{"claude"}})
 	b := mustCreate(t, s, Input{Name: "Legacy", Cmd: []string{"bash"}})
 	s.Close()
@@ -263,7 +307,7 @@ func TestIconsPersistAndLegacyConfigsRemainReadable(t *testing.T) {
 
 func TestHybridFlag(t *testing.T) {
 	dir := t.TempDir()
-	s := Open(dir)
+	s := Open(dir, agents.Default())
 	omp := []string{"/usr/bin/env", "bash", "-ic", `exec -- "$@"`, "webmux", "omp"}
 	plain := mustCreate(t, s, Input{Name: "omp", Cmd: omp})
 	raw, err := os.ReadFile(filepath.Join(dir, fileName))
@@ -271,7 +315,7 @@ func TestHybridFlag(t *testing.T) {
 		t.Fatalf("unchecked config wrote hybrid: %s %v", raw, err)
 	}
 	on, err := s.Update(plain.ID, Input{Name: "omp", Cmd: omp, Hybrid: true})
-	if err != nil || !on.Hybrid || !reflect.DeepEqual(on.HybridSupport(), agentprofile.Support{Supported: true, Agent: "omp", Agents: agents.Default().Titles()}) {
+	if err != nil || !on.Hybrid || !reflect.DeepEqual(on.HybridSupport, agentprofile.Support{Supported: true, Agent: "omp", Agents: agents.Default().Titles()}) {
 		t.Fatalf("enable hybrid = %+v, %v", on, err)
 	}
 	list, err := s.List()
@@ -311,7 +355,7 @@ func TestHybridFlag(t *testing.T) {
 	}
 	s = open(t, dir)
 	got, err := s.Get(plain.ID)
-	if err != nil || !got.Hybrid || got.HybridSupport().Reason != agentprofile.ReasonUnknownAgent {
+	if err != nil || !got.Hybrid || got.HybridSupport.Reason != agentprofile.ReasonUnknownAgent {
 		t.Fatalf("stale hybrid config = %+v, %v", got, err)
 	}
 }
@@ -433,7 +477,7 @@ func TestNilAndClosedUnavailable(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.Close()
-	closed := Open(t.TempDir())
+	closed := Open(t.TempDir(), agents.Default())
 	closed.Close()
 	if _, err := closed.List(); !errors.Is(err, ErrUnavailable) {
 		t.Fatal(err)
@@ -503,6 +547,27 @@ func TestLimits(t *testing.T) {
 		"preview skip":     {Input{Name: "a", Cmd: []string{"a"}, Preview: &PreviewSettings{Lines: 10, Skip: -1}}, false},
 		"preview long skip": {
 			Input{Name: "a", Cmd: []string{"a"}, Preview: &PreviewSettings{Lines: 10, Skip: 51}}, false,
+		},
+		"attention all": {
+			Input{Name: "a", Cmd: []string{"a"}, Attention: &AttentionSettings{Mode: AttentionModeAll, ProgramStatus: true, AgentProtocol: true, Notify: true, Bell: true, MinTurnSeconds: 0, DoneDelaySeconds: 0}}, true,
+		},
+		"attention max bounds": {
+			Input{Name: "a", Cmd: []string{"a"}, Attention: &AttentionSettings{Mode: AttentionModeOff, MinTurnSeconds: MaxMinTurnSecs, DoneDelaySeconds: MaxDoneDelaySec}}, true,
+		},
+		"attention bad mode": {
+			Input{Name: "a", Cmd: []string{"a"}, Attention: &AttentionSettings{Mode: "invalid"}}, false,
+		},
+		"attention neg min turn": {
+			Input{Name: "a", Cmd: []string{"a"}, Attention: &AttentionSettings{Mode: AttentionModeAll, MinTurnSeconds: -1}}, false,
+		},
+		"attention big min turn": {
+			Input{Name: "a", Cmd: []string{"a"}, Attention: &AttentionSettings{Mode: AttentionModeAll, MinTurnSeconds: MaxMinTurnSecs + 1}}, false,
+		},
+		"attention neg done delay": {
+			Input{Name: "a", Cmd: []string{"a"}, Attention: &AttentionSettings{Mode: AttentionModeAll, DoneDelaySeconds: -1}}, false,
+		},
+		"attention big done delay": {
+			Input{Name: "a", Cmd: []string{"a"}, Attention: &AttentionSettings{Mode: AttentionModeAll, DoneDelaySeconds: MaxDoneDelaySec + 1}}, false,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

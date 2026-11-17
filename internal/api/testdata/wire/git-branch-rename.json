@@ -1,0 +1,105 @@
+{
+  "status": 200,
+  "body": {
+    "branch": "feat-renamed",
+    "branches": {
+      "bases": [
+        {
+          "committedAt": "2026-01-02T03:04:05Z",
+          "head": "e8fba90afc70f97624e3df16dfc5ef1e435e3654",
+          "kind": "local",
+          "name": "refs/heads/feat-renamed",
+          "subject": "feat: firefly conflict"
+        },
+        {
+          "committedAt": "2026-01-02T03:04:05Z",
+          "head": "e1a44d3f9e2472de4f251ee9c56351c59225a847",
+          "kind": "local",
+          "name": "refs/heads/main",
+          "subject": "feat: amend merge commit with author override"
+        }
+      ],
+      "branches": [
+        {
+          "ahead": null,
+          "behind": null,
+          "committedAt": "2026-01-02T03:04:05Z",
+          "head": "e8fba90afc70f97624e3df16dfc5ef1e435e3654",
+          "mergedIntoDefault": false,
+          "name": "feat-renamed",
+          "subject": "feat: firefly conflict",
+          "upstream": null,
+          "upstreamGone": false,
+          "worktreePaths": []
+        },
+        {
+          "ahead": null,
+          "behind": null,
+          "committedAt": "2026-01-02T03:04:05Z",
+          "head": "e1a44d3f9e2472de4f251ee9c56351c59225a847",
+          "mergedIntoDefault": true,
+          "name": "main",
+          "subject": "feat: amend merge commit with author override",
+          "upstream": null,
+          "upstreamGone": false,
+          "worktreePaths": [
+            "<repo>"
+          ]
+        }
+      ],
+      "defaultBase": "e1a44d3f9e2472de4f251ee9c56351c59225a847",
+      "defaultBaseSubject": "feat: amend merge commit with author override",
+      "defaultBranch": "main",
+      "defaultParent": "<repo>.worktrees",
+      "tags": []
+    },
+    "operationId": "<operationId#10>",
+    "repository": {
+      "anchorPath": "<repo>",
+      "availability": "available",
+      "checkedAt": "<time>",
+      "commonDir": "<repo>/.git",
+      "error": "",
+      "id": "<id#1>",
+      "initInstruction": "",
+      "lastFetchedAt": null,
+      "name": "repo",
+      "worktrees": [
+        {
+          "ahead": null,
+          "available": true,
+          "behind": null,
+          "branch": "main",
+          "changes": {
+            "conflicted": 0,
+            "staged": 0,
+            "unstaged": 0,
+            "untracked": 0
+          },
+          "detached": false,
+          "dirty": false,
+          "error": "",
+          "hasIgnored": false,
+          "hasUntracked": false,
+          "head": "e1a44d3f9e2472de4f251ee9c56351c59225a847",
+          "id": "<id#2>",
+          "kind": "main",
+          "lastCommit": {
+            "author": "Ada Lovelace",
+            "committedAt": "2026-01-02T03:04:05Z",
+            "hash": "e1a44d3f9e2472de4f251ee9c56351c59225a847",
+            "subject": "feat: amend merge commit with author override"
+          },
+          "lockReason": "",
+          "locked": false,
+          "operation": null,
+          "path": "<repo>",
+          "prunable": false,
+          "repositoryId": "<id#1>",
+          "upstream": null,
+          "upstreamGone": false
+        }
+      ]
+    }
+  }
+}

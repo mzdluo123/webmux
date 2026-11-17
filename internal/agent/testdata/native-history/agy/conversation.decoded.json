@@ -1,0 +1,1163 @@
+{
+  "representation": "Schema-decoded companion to conversation.sql, not a native JSON transcript",
+  "trajectory_meta": {
+    "trajectory_id": "00000000-0000-4000-8000-000000000001",
+    "cascade_id": "00000000-0000-4000-8000-000000000002",
+    "trajectory_type": 4,
+    "source": 17
+  },
+  "steps": [
+    {
+      "idx": 0,
+      "step_type": 14,
+      "status": 3,
+      "has_subtrajectory": 0,
+      "metadata": {
+        "created_at": {
+          "seconds": 1700000000,
+          "nanos": 0
+        },
+        "source": 4,
+        "execution_id": "00000000-0000-4000-8000-000000000003",
+        "source_trajectory_step_info": {
+          "trajectory_id": "00000000-0000-4000-8000-000000000001",
+          "cascade_id": "00000000-0000-4000-8000-000000000002"
+        },
+        "internal_metadata": {
+          "status_transitions": [
+            {
+              "updated_status": 3,
+              "timestamp": {
+                "seconds": 1700000000,
+                "nanos": 0
+              }
+            }
+          ]
+        },
+        "model_api_content_id": "fixture-id-0004"
+      },
+      "error_details": null,
+      "permissions": null,
+      "task_details": null,
+      "render_info": null,
+      "step_payload": {
+        "type": 14,
+        "status": 3,
+        "metadata": {
+          "created_at": {
+            "seconds": 1700000000,
+            "nanos": 0
+          },
+          "source": 4,
+          "execution_id": "00000000-0000-4000-8000-000000000003",
+          "source_trajectory_step_info": {
+            "trajectory_id": "00000000-0000-4000-8000-000000000001",
+            "cascade_id": "00000000-0000-4000-8000-000000000002"
+          },
+          "internal_metadata": {
+            "status_transitions": [
+              {
+                "updated_status": 3,
+                "timestamp": {
+                  "seconds": 1700000000,
+                  "nanos": 0
+                }
+              }
+            ]
+          },
+          "model_api_content_id": "fixture-id-0004"
+        },
+        "user_input": {
+          "user_response": "[redacted]",
+          "items": [
+            {
+              "text": "[redacted]"
+            }
+          ],
+          "active_user_state": {},
+          "user_config": {
+            "planner_config": {
+              "plan_model": 1437,
+              "tool_config": {
+                "run_command": {
+                  "auto_command_config": {
+                    "auto_execution_policy": 3
+                  },
+                  "enable_terminal_sandbox": 0
+                },
+                "antigravity_browser": {
+                  "enable_browser_subagent_webview": 0
+                },
+                "permission_config": {
+                  "enterprise_config": {
+                    "enforce_workspace_validation": 0
+                  },
+                  "effective_grants": {
+                    "allow": [
+                      "[redacted]",
+                      "[redacted]",
+                      "[redacted]",
+                      "[redacted]",
+                      "[redacted]"
+                    ]
+                  }
+                }
+              },
+              "retry_config": {
+                "api_retry": {
+                  "max_sleep_duration_ms": 30000
+                }
+              },
+              "customization_discovery_config": {
+                "skills": {
+                  "inherit_user": 1,
+                  "skills_paths": [
+                    {
+                      "absolute": "[redacted]"
+                    },
+                    {
+                      "absolute": "[redacted]"
+                    }
+                  ],
+                  "builtin_skill_names": [
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]"
+                  ]
+                },
+                "agents": {
+                  "builtin_agent_names": [
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]"
+                  ]
+                }
+              },
+              "declarative_mixin_config": {
+                "prompt_sections": [
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  }
+                ],
+                "tools": [
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  }
+                ],
+                "pre_invocation_hooks": [
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  }
+                ],
+                "post_invocation_hooks": [
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  }
+                ],
+                "pre_tool_hooks": [
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  }
+                ],
+                "post_tool_hooks": [
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  }
+                ],
+                "stop_hooks": [
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  }
+                ],
+                "force_disable_fundamental_components": 1,
+                "tool_decorators": [
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  }
+                ]
+              }
+            },
+            "executor_config": {
+              "use_core_direct": 1
+            },
+            "dynamic_workspace_uris": [
+              "[redacted]"
+            ]
+          },
+          "user_agent_spec": {
+            "builtin_agent": {
+              "default_agent": {
+                "is_google": 0,
+                "is_interactive": 1,
+                "surface": 2
+              }
+            }
+          }
+        }
+      },
+      "step_format": 0
+    },
+    {
+      "idx": 1,
+      "step_type": 15,
+      "status": 3,
+      "has_subtrajectory": 0,
+      "metadata": {
+        "created_at": {
+          "seconds": 1700000000,
+          "nanos": 0
+        },
+        "source": 2,
+        "viewable_at": {
+          "seconds": 1700000001,
+          "nanos": 0
+        },
+        "finished_generating_at": {
+          "seconds": 1700000001,
+          "nanos": 0
+        },
+        "completed_at": {
+          "seconds": 1700000001,
+          "nanos": 0
+        },
+        "model_usage": {
+          "model": 1437,
+          "input_tokens": 8235,
+          "output_tokens": 168,
+          "api_provider": 24,
+          "message_id": "fixture-id-0005",
+          "response_header": [
+            {
+              "key": "[redacted]",
+              "value": "[redacted]"
+            }
+          ],
+          "thinking_output_tokens": 96,
+          "response_output_tokens": 72,
+          "response_id": "fixture-id-0006"
+        },
+        "generator_model": 1437,
+        "execution_id": "00000000-0000-4000-8000-000000000003",
+        "source_trajectory_step_info": {
+          "trajectory_id": "00000000-0000-4000-8000-000000000001",
+          "step_index": 1,
+          "cascade_id": "00000000-0000-4000-8000-000000000002"
+        },
+        "internal_metadata": {
+          "status_transitions": [
+            {
+              "updated_status": 8,
+              "timestamp": {
+                "seconds": 1700000001,
+                "nanos": 0
+              }
+            },
+            {
+              "updated_status": 3,
+              "timestamp": {
+                "seconds": 1700000001,
+                "nanos": 0
+              }
+            }
+          ]
+        },
+        "started_at": {
+          "seconds": 1700000001,
+          "nanos": 0
+        },
+        "model_api_content_id": "fixture-id-0007"
+      },
+      "error_details": null,
+      "permissions": null,
+      "task_details": null,
+      "render_info": null,
+      "step_payload": {
+        "type": 15,
+        "status": 3,
+        "metadata": {
+          "created_at": {
+            "seconds": 1700000000,
+            "nanos": 0
+          },
+          "source": 2,
+          "viewable_at": {
+            "seconds": 1700000001,
+            "nanos": 0
+          },
+          "finished_generating_at": {
+            "seconds": 1700000001,
+            "nanos": 0
+          },
+          "completed_at": {
+            "seconds": 1700000001,
+            "nanos": 0
+          },
+          "model_usage": {
+            "model": 1437,
+            "input_tokens": 8235,
+            "output_tokens": 168,
+            "api_provider": 24,
+            "message_id": "fixture-id-0005",
+            "response_header": [
+              {
+                "key": "[redacted]",
+                "value": "[redacted]"
+              }
+            ],
+            "thinking_output_tokens": 96,
+            "response_output_tokens": 72,
+            "response_id": "fixture-id-0006"
+          },
+          "generator_model": 1437,
+          "execution_id": "00000000-0000-4000-8000-000000000003",
+          "source_trajectory_step_info": {
+            "trajectory_id": "00000000-0000-4000-8000-000000000001",
+            "step_index": 1,
+            "cascade_id": "00000000-0000-4000-8000-000000000002"
+          },
+          "internal_metadata": {
+            "status_transitions": [
+              {
+                "updated_status": 8,
+                "timestamp": {
+                  "seconds": 1700000001,
+                  "nanos": 0
+                }
+              },
+              {
+                "updated_status": 3,
+                "timestamp": {
+                  "seconds": 1700000001,
+                  "nanos": 0
+                }
+              }
+            ]
+          },
+          "started_at": {
+            "seconds": 1700000001,
+            "nanos": 0
+          },
+          "model_api_content_id": "fixture-id-0007"
+        },
+        "planner_response": {
+          "thinking": "[redacted]",
+          "message_id": "fixture-id-0005",
+          "tool_calls": [
+            {
+              "id": "fixture-id-0008",
+              "name": "run_command",
+              "arguments_json": "{\"CommandLine\":\"[redacted]\",\"WaitMsBeforeAsync\":0,\"toolSummary\":\"[redacted]\"}"
+            }
+          ],
+          "thinking_duration": {
+            "seconds": 4,
+            "nanos": 970423839
+          },
+          "stop_reason": 2
+        }
+      },
+      "step_format": 0
+    },
+    {
+      "idx": 2,
+      "step_type": 132,
+      "status": 3,
+      "has_subtrajectory": 0,
+      "metadata": {
+        "created_at": {
+          "seconds": 1700000001,
+          "nanos": 0
+        },
+        "source": 2,
+        "tool_call": {
+          "id": "fixture-id-0008",
+          "name": "run_command",
+          "arguments_json": "{\"CommandLine\":\"[redacted]\",\"WaitMsBeforeAsync\":0,\"toolSummary\":\"[redacted]\"}"
+        },
+        "viewable_at": {
+          "seconds": 1700000001,
+          "nanos": 0
+        },
+        "finished_generating_at": {
+          "seconds": 1700000001,
+          "nanos": 0
+        },
+        "completed_at": {
+          "seconds": 1700000004,
+          "nanos": 0
+        },
+        "generator_model": 1437,
+        "execution_id": "00000000-0000-4000-8000-000000000003",
+        "source_trajectory_step_info": {
+          "trajectory_id": "00000000-0000-4000-8000-000000000001",
+          "step_index": 2,
+          "cascade_id": "00000000-0000-4000-8000-000000000002"
+        },
+        "internal_metadata": {
+          "status_transitions": [
+            {
+              "updated_status": 1,
+              "timestamp": {
+                "seconds": 1700000001,
+                "nanos": 0
+              }
+            },
+            {
+              "updated_status": 2,
+              "timestamp": {
+                "seconds": 1700000001,
+                "nanos": 0
+              }
+            },
+            {
+              "updated_status": 3,
+              "timestamp": {
+                "seconds": 1700000004,
+                "nanos": 0
+              }
+            }
+          ]
+        },
+        "started_at": {
+          "seconds": 1700000001,
+          "nanos": 0
+        },
+        "model_api_content_id": "fixture-id-0009",
+        "tool_source": 1
+      },
+      "error_details": null,
+      "permissions": null,
+      "task_details": {
+        "id": "fixture-id-0010",
+        "log_uri": "[redacted]",
+        "description": "[redacted]",
+        "title": "[redacted]",
+        "moved_to_background_at": {
+          "seconds": 1700000002,
+          "nanos": 0
+        }
+      },
+      "render_info": null,
+      "step_payload": {
+        "type": 132,
+        "status": 3,
+        "metadata": {
+          "created_at": {
+            "seconds": 1700000001,
+            "nanos": 0
+          },
+          "source": 2,
+          "tool_call": {
+            "id": "fixture-id-0008",
+            "name": "run_command",
+            "arguments_json": "{\"CommandLine\":\"[redacted]\",\"WaitMsBeforeAsync\":0,\"toolSummary\":\"[redacted]\"}"
+          },
+          "viewable_at": {
+            "seconds": 1700000001,
+            "nanos": 0
+          },
+          "finished_generating_at": {
+            "seconds": 1700000001,
+            "nanos": 0
+          },
+          "completed_at": {
+            "seconds": 1700000004,
+            "nanos": 0
+          },
+          "generator_model": 1437,
+          "execution_id": "00000000-0000-4000-8000-000000000003",
+          "source_trajectory_step_info": {
+            "trajectory_id": "00000000-0000-4000-8000-000000000001",
+            "step_index": 2,
+            "cascade_id": "00000000-0000-4000-8000-000000000002"
+          },
+          "internal_metadata": {
+            "status_transitions": [
+              {
+                "updated_status": 1,
+                "timestamp": {
+                  "seconds": 1700000001,
+                  "nanos": 0
+                }
+              },
+              {
+                "updated_status": 2,
+                "timestamp": {
+                  "seconds": 1700000001,
+                  "nanos": 0
+                }
+              },
+              {
+                "updated_status": 3,
+                "timestamp": {
+                  "seconds": 1700000004,
+                  "nanos": 0
+                }
+              }
+            ]
+          },
+          "started_at": {
+            "seconds": 1700000001,
+            "nanos": 0
+          },
+          "model_api_content_id": "fixture-id-0009",
+          "tool_source": 1
+        },
+        "task_details": {
+          "id": "fixture-id-0010",
+          "log_uri": "[redacted]",
+          "description": "[redacted]",
+          "title": "[redacted]",
+          "moved_to_background_at": {
+            "seconds": 1700000002,
+            "nanos": 0
+          }
+        },
+        "generic": {
+          "args": [
+            {
+              "key": "WaitMsBeforeAsync",
+              "value": "[redacted]"
+            },
+            {
+              "key": "toolSummary",
+              "value": "[redacted]"
+            },
+            {
+              "key": "CommandLine",
+              "value": "[redacted]"
+            }
+          ],
+          "result": {
+            "result": "[redacted]",
+            "step_render_info": {
+              "title_prefix": "[redacted]",
+              "icon": "[redacted]",
+              "aggregation_key": "[redacted]",
+              "title_parts": [
+                {
+                  "text": "[redacted]"
+                }
+              ],
+              "content_blocks": [
+                {
+                  "terminal": {
+                    "command": "[redacted]",
+                    "cwd": "[redacted]",
+                    "exit_code": 0
+                  }
+                }
+              ]
+            },
+            "payload": {
+              "type_url": "[redacted]"
+            },
+            "full_output_uri": "[redacted]"
+          }
+        }
+      },
+      "step_format": 0
+    },
+    {
+      "idx": 3,
+      "step_type": 15,
+      "status": 3,
+      "has_subtrajectory": 0,
+      "metadata": {
+        "created_at": {
+          "seconds": 1700000002,
+          "nanos": 0
+        },
+        "source": 2,
+        "viewable_at": {
+          "seconds": 1700000003,
+          "nanos": 0
+        },
+        "finished_generating_at": {
+          "seconds": 1700000003,
+          "nanos": 0
+        },
+        "completed_at": {
+          "seconds": 1700000003,
+          "nanos": 0
+        },
+        "model_usage": {
+          "model": 1437,
+          "input_tokens": 2444,
+          "output_tokens": 23,
+          "cache_read_tokens": 6181,
+          "api_provider": 24,
+          "message_id": "fixture-id-0011",
+          "response_header": [
+            {
+              "key": "[redacted]",
+              "value": "[redacted]"
+            }
+          ],
+          "thinking_output_tokens": 14,
+          "response_output_tokens": 9,
+          "response_id": "fixture-id-0012"
+        },
+        "generator_model": 1437,
+        "execution_id": "00000000-0000-4000-8000-000000000003",
+        "source_trajectory_step_info": {
+          "trajectory_id": "00000000-0000-4000-8000-000000000001",
+          "step_index": 3,
+          "metadata_index": 1,
+          "cascade_id": "00000000-0000-4000-8000-000000000002"
+        },
+        "internal_metadata": {
+          "status_transitions": [
+            {
+              "updated_status": 8,
+              "timestamp": {
+                "seconds": 1700000003,
+                "nanos": 0
+              }
+            },
+            {
+              "updated_status": 3,
+              "timestamp": {
+                "seconds": 1700000003,
+                "nanos": 0
+              }
+            }
+          ]
+        },
+        "started_at": {
+          "seconds": 1700000003,
+          "nanos": 0
+        },
+        "model_api_content_id": "fixture-id-0013"
+      },
+      "error_details": null,
+      "permissions": null,
+      "task_details": null,
+      "render_info": null,
+      "step_payload": {
+        "type": 15,
+        "status": 3,
+        "metadata": {
+          "created_at": {
+            "seconds": 1700000002,
+            "nanos": 0
+          },
+          "source": 2,
+          "viewable_at": {
+            "seconds": 1700000003,
+            "nanos": 0
+          },
+          "finished_generating_at": {
+            "seconds": 1700000003,
+            "nanos": 0
+          },
+          "completed_at": {
+            "seconds": 1700000003,
+            "nanos": 0
+          },
+          "model_usage": {
+            "model": 1437,
+            "input_tokens": 2444,
+            "output_tokens": 23,
+            "cache_read_tokens": 6181,
+            "api_provider": 24,
+            "message_id": "fixture-id-0011",
+            "response_header": [
+              {
+                "key": "[redacted]",
+                "value": "[redacted]"
+              }
+            ],
+            "thinking_output_tokens": 14,
+            "response_output_tokens": 9,
+            "response_id": "fixture-id-0012"
+          },
+          "generator_model": 1437,
+          "execution_id": "00000000-0000-4000-8000-000000000003",
+          "source_trajectory_step_info": {
+            "trajectory_id": "00000000-0000-4000-8000-000000000001",
+            "step_index": 3,
+            "metadata_index": 1,
+            "cascade_id": "00000000-0000-4000-8000-000000000002"
+          },
+          "internal_metadata": {
+            "status_transitions": [
+              {
+                "updated_status": 8,
+                "timestamp": {
+                  "seconds": 1700000003,
+                  "nanos": 0
+                }
+              },
+              {
+                "updated_status": 3,
+                "timestamp": {
+                  "seconds": 1700000003,
+                  "nanos": 0
+                }
+              }
+            ]
+          },
+          "started_at": {
+            "seconds": 1700000003,
+            "nanos": 0
+          },
+          "model_api_content_id": "fixture-id-0013"
+        },
+        "planner_response": {
+          "response": "[redacted]",
+          "message_id": "fixture-id-0011",
+          "modified_response": "[redacted]",
+          "stop_reason": 2
+        }
+      },
+      "step_format": 0
+    },
+    {
+      "idx": 4,
+      "step_type": 101,
+      "status": 3,
+      "has_subtrajectory": 0,
+      "metadata": {
+        "created_at": {
+          "seconds": 1700000004,
+          "nanos": 0
+        },
+        "source": 5,
+        "completed_at": {
+          "seconds": 1700000004,
+          "nanos": 0
+        },
+        "execution_id": "00000000-0000-4000-8000-000000000014",
+        "source_trajectory_step_info": {
+          "trajectory_id": "00000000-0000-4000-8000-000000000001",
+          "step_index": 4,
+          "metadata_index": 2,
+          "cascade_id": "00000000-0000-4000-8000-000000000002"
+        },
+        "internal_metadata": {
+          "status_transitions": [
+            {
+              "updated_status": 3,
+              "timestamp": {
+                "seconds": 1700000004,
+                "nanos": 0
+              }
+            }
+          ]
+        },
+        "started_at": {
+          "seconds": 1700000004,
+          "nanos": 0
+        },
+        "model_api_content_id": "fixture-id-0015"
+      },
+      "error_details": null,
+      "permissions": null,
+      "task_details": null,
+      "render_info": null,
+      "step_payload": {
+        "type": 101,
+        "status": 3,
+        "metadata": {
+          "created_at": {
+            "seconds": 1700000004,
+            "nanos": 0
+          },
+          "source": 5,
+          "completed_at": {
+            "seconds": 1700000004,
+            "nanos": 0
+          },
+          "execution_id": "00000000-0000-4000-8000-000000000014",
+          "source_trajectory_step_info": {
+            "trajectory_id": "00000000-0000-4000-8000-000000000001",
+            "step_index": 4,
+            "metadata_index": 2,
+            "cascade_id": "00000000-0000-4000-8000-000000000002"
+          },
+          "internal_metadata": {
+            "status_transitions": [
+              {
+                "updated_status": 3,
+                "timestamp": {
+                  "seconds": 1700000004,
+                  "nanos": 0
+                }
+              }
+            ]
+          },
+          "started_at": {
+            "seconds": 1700000004,
+            "nanos": 0
+          },
+          "model_api_content_id": "fixture-id-0015"
+        },
+        "system_message": {
+          "message": "[redacted]",
+          "render_info": {
+            "title": "[redacted]",
+            "content_blocks": [
+              {
+                "terminal": {
+                  "command": "[redacted]",
+                  "cwd": "[redacted]",
+                  "exit_code": 0
+                }
+              }
+            ]
+          },
+          "event_type": "[redacted]",
+          "agent_message": {
+            "id": "00000000-0000-4000-8000-000000000016",
+            "recipient": "00000000-0000-4000-8000-000000000002",
+            "sender": "fixture-id-0010",
+            "priority": 3,
+            "timestamp": {
+              "seconds": 1700000004,
+              "nanos": 0
+            },
+            "render_details": {
+              "message_title": "[redacted]"
+            },
+            "source_metadata": {
+              "tool": {
+                "conversation_id": "00000000-0000-4000-8000-000000000002",
+                "step_index": 2,
+                "tool_call": {
+                  "id": "fixture-id-0008",
+                  "name": "run_command",
+                  "arguments_json": "{\"CommandLine\":\"[redacted]\",\"WaitMsBeforeAsync\":0,\"toolSummary\":\"[redacted]\"}"
+                }
+              }
+            },
+            "content": "[redacted]"
+          }
+        }
+      },
+      "step_format": 0
+    },
+    {
+      "idx": 5,
+      "step_type": 15,
+      "status": 3,
+      "has_subtrajectory": 0,
+      "metadata": {
+        "created_at": {
+          "seconds": 1700000004,
+          "nanos": 0
+        },
+        "source": 2,
+        "viewable_at": {
+          "seconds": 1700000005,
+          "nanos": 0
+        },
+        "finished_generating_at": {
+          "seconds": 1700000005,
+          "nanos": 0
+        },
+        "completed_at": {
+          "seconds": 1700000005,
+          "nanos": 0
+        },
+        "model_usage": {
+          "model": 1437,
+          "input_tokens": 2317,
+          "output_tokens": 96,
+          "cache_read_tokens": 6576,
+          "api_provider": 24,
+          "message_id": "fixture-id-0017",
+          "response_header": [
+            {
+              "key": "[redacted]",
+              "value": "[redacted]"
+            }
+          ],
+          "thinking_output_tokens": 52,
+          "response_output_tokens": 44,
+          "response_id": "fixture-id-0018"
+        },
+        "generator_model": 1437,
+        "execution_id": "00000000-0000-4000-8000-000000000014",
+        "source_trajectory_step_info": {
+          "trajectory_id": "00000000-0000-4000-8000-000000000001",
+          "step_index": 5,
+          "metadata_index": 2,
+          "cascade_id": "00000000-0000-4000-8000-000000000002"
+        },
+        "internal_metadata": {
+          "status_transitions": [
+            {
+              "updated_status": 8,
+              "timestamp": {
+                "seconds": 1700000005,
+                "nanos": 0
+              }
+            },
+            {
+              "updated_status": 3,
+              "timestamp": {
+                "seconds": 1700000005,
+                "nanos": 0
+              }
+            }
+          ]
+        },
+        "started_at": {
+          "seconds": 1700000005,
+          "nanos": 0
+        },
+        "model_api_content_id": "fixture-id-0019"
+      },
+      "error_details": null,
+      "permissions": null,
+      "task_details": null,
+      "render_info": null,
+      "step_payload": {
+        "type": 15,
+        "status": 3,
+        "metadata": {
+          "created_at": {
+            "seconds": 1700000004,
+            "nanos": 0
+          },
+          "source": 2,
+          "viewable_at": {
+            "seconds": 1700000005,
+            "nanos": 0
+          },
+          "finished_generating_at": {
+            "seconds": 1700000005,
+            "nanos": 0
+          },
+          "completed_at": {
+            "seconds": 1700000005,
+            "nanos": 0
+          },
+          "model_usage": {
+            "model": 1437,
+            "input_tokens": 2317,
+            "output_tokens": 96,
+            "cache_read_tokens": 6576,
+            "api_provider": 24,
+            "message_id": "fixture-id-0017",
+            "response_header": [
+              {
+                "key": "[redacted]",
+                "value": "[redacted]"
+              }
+            ],
+            "thinking_output_tokens": 52,
+            "response_output_tokens": 44,
+            "response_id": "fixture-id-0018"
+          },
+          "generator_model": 1437,
+          "execution_id": "00000000-0000-4000-8000-000000000014",
+          "source_trajectory_step_info": {
+            "trajectory_id": "00000000-0000-4000-8000-000000000001",
+            "step_index": 5,
+            "metadata_index": 2,
+            "cascade_id": "00000000-0000-4000-8000-000000000002"
+          },
+          "internal_metadata": {
+            "status_transitions": [
+              {
+                "updated_status": 8,
+                "timestamp": {
+                  "seconds": 1700000005,
+                  "nanos": 0
+                }
+              },
+              {
+                "updated_status": 3,
+                "timestamp": {
+                  "seconds": 1700000005,
+                  "nanos": 0
+                }
+              }
+            ]
+          },
+          "started_at": {
+            "seconds": 1700000005,
+            "nanos": 0
+          },
+          "model_api_content_id": "fixture-id-0019"
+        },
+        "planner_response": {
+          "response": "[redacted]",
+          "message_id": "fixture-id-0017",
+          "modified_response": "[redacted]",
+          "stop_reason": 2
+        }
+      },
+      "step_format": 0
+    }
+  ]
+}

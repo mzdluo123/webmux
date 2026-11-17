@@ -110,6 +110,7 @@ func (e Env) guide(ctx context.Context, page string, args []string, full bool) i
 			text = []byte(guide.Index(nil, ""))
 		}
 	}
+	_, _ = fmt.Fprintln(e.Stderr, "webmux guide: this is a command catalog; optional commands require enabled instance capabilities from /api/capabilities")
 	_, _ = e.Stdout.Write(text)
 	return contract.ExitOK
 }

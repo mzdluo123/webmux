@@ -3,10 +3,11 @@
 package winui
 
 import (
-	"fmt"
 	"sync/atomic"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/rainchan/webmux/internal/tray"
 )
 
 const dialogTitle = "WebMux"
@@ -33,13 +34,24 @@ func confirm(text string) bool {
 	return messageBox(text, windows.MB_OKCANCEL|windows.MB_ICONWARNING|windows.MB_DEFBUTTON2) == idOK
 }
 
-// confirmSessions asks before an action that ends sessions, for example
-// prefix "停止 WebMux "; it does not ask when there are none.
-func confirmSessions(prefix string, sessions int) bool {
-	if sessions <= 0 {
+// confirmRestart asks before restarting WebMux when ordinary terminal sessions
+// or actively working sessions exist; idle hybrid sessions restart directly.
+func confirmRestart(prefix string, snap tray.Snapshot) bool {
+	prompt, needed := tray.RestartConfirmPrompt(prefix, snap)
+	if !needed {
 		return true
 	}
-	return confirm(fmt.Sprintf("%s将结束 %d 个终端会话，且不可恢复。\n\n是否继续？", prefix, sessions))
+	return confirm(prompt)
+}
+
+// confirmStop asks before stopping WebMux whenever sessions exist, describing
+// which sessions end and which hybrid sessions recover on next start.
+func confirmStop(prefix string, snap tray.Snapshot) bool {
+	prompt, needed := tray.StopConfirmPrompt(prefix, snap)
+	if !needed {
+		return true
+	}
+	return confirm(prompt)
 }
 
 type quitChoice int
@@ -53,10 +65,7 @@ const (
 // askQuit is the three-way exit question for a managed running WebMux.
 // MessageBoxW cannot relabel its buttons, so the text explains them.
 func askQuit(sessions int, forwarding bool) quitChoice {
-	text := fmt.Sprintf("WebMux 正在运行（%d 个终端会话）。\n\n是：停止 WebMux 并退出（结束所有终端会话）\n否：仅退出托盘（WebMux 继续运行）\n取消：不退出", sessions)
-	if forwarding {
-		text += "\n\n托盘转发会随托盘退出而停止，其他设备将无法再经转发地址访问。"
-	}
+	text := tray.QuitPrompt(sessions, forwarding)
 	switch messageBox(text, windows.MB_YESNOCANCEL|windows.MB_ICONQUESTION|windows.MB_DEFBUTTON2) {
 	case idYes:
 		return quitStop

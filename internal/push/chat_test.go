@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
+	"github.com/rainchan/webmux/internal/agent/omp"
 	"github.com/rainchan/webmux/internal/hybrid"
 )
 
@@ -23,7 +25,7 @@ func TestServicePushesChatPermission(t *testing.T) {
 		t.Fatalf("go build: %v\n%s", err, out)
 	}
 	m := newManager(t)
-	hybrids := hybrid.New(hybrid.Options{StateDir: t.TempDir(), Manager: m})
+	hybrids := hybrid.New(hybrid.Options{Agents: agents.Default(), StateDir: t.TempDir(), Manager: m})
 	t.Cleanup(hybrids.Close)
 	server := newPushServer(t, nil)
 	s := startService(t, m, server, nil)

@@ -1,0 +1,40 @@
+{
+  "status": 200,
+  "body": {
+    "budget": {
+      "current": 25,
+      "history": 16000,
+      "nativeUsed": 0,
+      "overBudget": false,
+      "reserve": 32000,
+      "source": "estimated",
+      "used": 0,
+      "window": 128000
+    },
+    "createdAt": "<time>",
+    "expiresAt": "<time>",
+    "gapCount": 0,
+    "id": "<id#1>",
+    "instanceId": "<instanceId#1>",
+    "omittedCount": 0,
+    "operationId": "<operationId#1>",
+    "request": {
+      "agentConfig": {},
+      "configId": "<configId#1>",
+      "location": {
+        "cwd": "",
+        "newWorktreeBase": "",
+        "newWorktreeBranch": "",
+        "repositoryId": "",
+        "worktreeId": ""
+      },
+      "targetSessionId": "<targetSessionId#1>",
+      "userText": "new task\n  indentation"
+    },
+    "selectedCount": 1,
+    "snapshotId": "<snapshotId#1>",
+    "sourceSessionId": "<targetSessionId#1>",
+    "text": "Historical reference. Source agent=\"omp\" session=\"wire-native\" branch=\"\" cwd=\"<repo>\". Frozen scope: <frozen-scope>. Source gaps: 0. Exact text: thread_read with snapshotId=<frozen-scope>.\nIncluded: 1; omissions: 0.\n[role=user id=aabd8d45c9777617d08dba310ed62ebddc63292279fa85ed43a980962cae4458 tool=]\n{\"Source\":\"aabd8d45c9777617d08dba310ed62ebddc63292279fa85ed43a980962cae4458\",\"Role\":\"user\",\"Tool\":\"\",\"Call\":\"\",\"Status\":\"\"}\ntext:\n中文 original history\n\n\nCurrent user task:\nnew task\n  indentation",
+    "userText": "new task\n  indentation"
+  }
+}

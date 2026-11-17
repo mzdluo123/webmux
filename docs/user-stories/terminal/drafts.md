@@ -20,6 +20,7 @@
   验收要点：
   - 关闭草稿仅隐藏当前草稿和暂存面板，不发送或清空；
   - 隐藏期间收到插入或暂存更新时有提示；
+  - 当前路由、二维窗格或 VR 观察仍持有会话时，实时/归档清单的短暂缺席不得回收草稿；规范查询返回 503 或会话仍存在也不能当作已删除；
   - 草稿栏以图标和数量徽标打开暂存，清空图标提供名称提示；
   - 清空当前草稿与清空暂存分别确认，删除对应本机保存，不删除已上传文件。
 - **US-F04 明确发送与确认**：作为使用者，我希望点击发送后知道正文是否写入终端，以便避免把点击成功误当作任务已执行。
@@ -70,6 +71,6 @@
 
 依据：
 
-- [草稿面板](../../../web/src/components/TerminalInputComposer.svelte)、[暂存面板](../../../web/src/components/ScratchPanel.svelte)、[暂存交互测试](../../../web/test/browser/ScratchPanel.test.ts)
-- [暂存演示](../../../web/stories/ScratchNotes.stories.ts)、[草稿状态](../../../web/src/terminal-draft.svelte.ts)、[本机存储](../../../web/src/draft-storage.ts)
+- [草稿面板](../../../web/src/components/terminal/TerminalInputComposer.svelte)、[暂存面板](../../../web/src/components/terminal/ScratchPanel.svelte)、[暂存交互测试](../../../web/test/browser/ScratchPanel.test.ts)
+- [暂存演示](../../../web/stories/ScratchNotes.stories.ts)、[草稿状态](../../../web/src/domains/terminal/terminal-draft.svelte.ts)、[本机存储](../../../web/src/domains/terminal/draft-storage.ts)
 - [终端发送](../../../web/src/pages/Terminal.svelte)、[提交确认](../../../internal/session/control.go)。

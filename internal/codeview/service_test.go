@@ -351,9 +351,9 @@ func TestCacheEvictionAndSessionCleanup(t *testing.T) {
 		t.Fatal(e)
 	}
 	for i := 0; i < 65; i++ {
-		s.put(&snapshot{session: id, context: c.ID, size: 1024 * 1024})
+		s.put(&snapshot{owner: ownerScope(sessionScope(id, RootWorkspace)), context: c.ID, size: 1024 * 1024})
 	}
-	if _, e = s.get(id, f.Snapshot); errorKind(e) != ErrGone {
+	if _, e = s.get(sessionScope(id, RootWorkspace), f.Snapshot); errorKind(e) != ErrGone {
 		t.Fatalf("budget did not evict old snapshot: %v", e)
 	}
 	s.mu.Lock()

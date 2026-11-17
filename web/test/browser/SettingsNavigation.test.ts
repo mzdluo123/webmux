@@ -1,9 +1,35 @@
-import { reloadSettings, stopSettings } from "../../src/settings.svelte";
-import { emptySettings } from "../../src/settings-intent";
-import { afterEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import {
+  reloadSettings,
+  stopSettings,
+  settings,
+} from "../../src/domains/settings/settings.svelte";
+import { emptySettings } from "../../src/domains/settings/settings-intent";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import Settings from "../../src/pages/Settings.svelte";
+import { FeatureIDSchema } from "../../src/contracts/feature-schemas";
+import {
+  initializeTheme,
+  themePreference,
+} from "../../src/hooks/settings/theme";
+import {
+  clearHostStorage,
+  setActiveHostId,
+  store,
+  stored,
+} from "../../src/platform/storage";
+import {
+  enableCreationFeatures,
+  resetCreationFeatures,
+} from "./feature-fixture";
+
+beforeEach(() => {
+  localStorage.clear();
+  initializeTheme();
+  themePreference.refresh();
+  return enableCreationFeatures(FeatureIDSchema.options);
+});
 
 const originalURL = location.href;
 
@@ -11,9 +37,12 @@ afterEach(async () => {
   vi.restoreAllMocks();
   await cleanup();
   await userEvent.cleanup();
+  resetCreationFeatures();
   vi.unstubAllGlobals();
   history.replaceState(null, "", originalURL);
+  setActiveHostId(null);
   localStorage.clear();
+  themePreference.refresh();
   await page.viewport(1024, 900);
 });
 
@@ -176,4 +205,153 @@ test("network switch toggles ignoreHighPorts between false and default null", as
     { baseRevision: 0, changes: { ignoreHighPorts: false } },
     { baseRevision: 1, changes: { ignoreHighPorts: null } },
   ]);
+});
+
+test("core settings navigation and sections exclude every disabled provider", async () => {
+  await enableCreationFeatures([]);
+  await openSettings();
+  const nav = page.getByRole("navigation", { name: "设置分区" });
+  for (const id of [
+    "code-reader",
+    "quick-commands",
+    "voice",
+    "launch-configs",
+    "agent-tools",
+    "access",
+    "tailscale",
+    "push",
+  ]) {
+    expect(nav.element().querySelector(`a[href="#${id}"]`)).toBeNull();
+    expect(document.getElementById(id)).toBeNull();
+  }
+  const paths = vi
+    .mocked(fetch)
+    .mock.calls.map(
+      ([input]) => new URL(String(input), location.href).pathname,
+    );
+  expect(
+    paths.some((path) =>
+      /launch-configs|agent-tools|voice|push|tunnel|tailscale|p2p/.test(path),
+    ),
+  ).toBe(false);
+  await expect
+    .element(
+      page.getByRole("switch", { name: "压缩实时连接（permessage-deflate）" }),
+    )
+    .toBeVisible();
+  await nav.getByRole("link", { name: "快捷键", exact: true }).click();
+  await expect.poll(() => document.activeElement?.id).toBe("shortcuts");
+  await expect
+    .element(page.getByRole("heading", { name: "窗格管理", exact: true }))
+    .toBeVisible();
+});
+
+test("core preference saves do not submit or erase inactive feature preferences", async () => {
+  await enableCreationFeatures([]);
+  const values = {
+    ...emptySettings,
+    ignoreHighPorts: false,
+    codeReader: { lineNumbers: "hide" as const, diffOverflow: "wrap" as const },
+  };
+  const patches: unknown[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async (input, init) => {
+      const path = new URL(String(input), location.href).pathname;
+      if (path === "/api/settings") {
+        if (init?.method === "PATCH") {
+          const body = JSON.parse(String(init.body));
+          patches.push(body);
+          return Response.json({
+            revision: 1,
+            updatedAt: "",
+            values: { ...values, ...body.changes },
+          });
+        }
+        return Response.json({ revision: 0, updatedAt: "", values });
+      }
+      if (path === "/api/config")
+        return Response.json({ defaultCwd: "/tmp", portDetection: true });
+      throw new Error(`Disabled provider requested: ${path}`);
+    }),
+  );
+  stopSettings();
+  await reloadSettings();
+  render(Settings);
+  await page.getByRole("radio", { name: "深色", exact: true }).click();
+  expect(localStorage.getItem("webmux.theme")).toBe("dark");
+  expect(document.documentElement.classList.contains("dark")).toBe(true);
+  expect(patches).toEqual([]);
+
+  await page.getByRole("switch", { name: "始终显示底部工具栏" }).click();
+  await vi.waitFor(() => expect(patches).toHaveLength(1));
+  expect(patches).toEqual([
+    { baseRevision: 0, changes: { forceSoftKeys: true } },
+  ]);
+  expect(settings.values.codeReader).toEqual(values.codeReader);
+  expect(settings.values.ignoreHighPorts).toBe(false);
+  expect(
+    page.getByRole("switch", { name: "代码行号" }).elements(),
+  ).toHaveLength(0);
+});
+
+test("theme stays device-local, works offline, and syncs across same-browser windows", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () =>
+      Response.json({ error: "unavailable" }, { status: 503 }),
+    ),
+  );
+  stopSettings();
+  await reloadSettings();
+  render(Settings);
+
+  const group = page.getByRole("radiogroup", { name: "主题", exact: true });
+  await expect.element(group).toBeVisible();
+  await group.getByRole("radio", { name: "深色", exact: true }).click();
+  expect(localStorage.getItem("webmux.theme")).toBe("dark");
+  expect(document.documentElement.classList.contains("dark")).toBe(true);
+
+  setActiveHostId("remote-a");
+  store("token", "ephemeral");
+  clearHostStorage("remote-a");
+  expect(stored("token")).toBe("");
+  expect(stored("theme")).toBe("dark");
+  setActiveHostId(null);
+
+  localStorage.setItem("webmux.theme", "light");
+  window.dispatchEvent(
+    new StorageEvent("storage", {
+      key: "webmux.theme",
+      newValue: "light",
+      storageArea: localStorage,
+    }),
+  );
+  expect(document.documentElement.classList.contains("dark")).toBe(false);
+  await expect
+    .element(group.getByRole("radio", { name: "浅色", exact: true }))
+    .toHaveAttribute("aria-checked", "true");
+
+  await group.getByRole("radio", { name: "跟随系统", exact: true }).click();
+  expect(localStorage.getItem("webmux.theme")).toBeNull();
+  expect(themePreference.value).toBe("system");
+
+  vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    throw new DOMException("quota exceeded", "QuotaExceededError");
+  });
+  await group.getByRole("radio", { name: "深色", exact: true }).click();
+  expect(localStorage.getItem("webmux.theme")).toBeNull();
+  expect(themePreference.value).toBe("dark");
+  expect(document.documentElement.classList.contains("dark")).toBe(true);
+
+  await cleanup();
+  render(Settings);
+  await expect
+    .element(
+      page
+        .getByRole("radiogroup", { name: "主题", exact: true })
+        .getByRole("radio", { name: "深色", exact: true }),
+    )
+    .toHaveAttribute("aria-checked", "true");
+  expect(document.documentElement.classList.contains("dark")).toBe(true);
 });

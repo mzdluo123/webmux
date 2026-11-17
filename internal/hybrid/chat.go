@@ -243,6 +243,7 @@ type TurnStart struct {
 // TurnEnd closes a turn. StopReason is an ACP stop reason, error or
 // auth_required.
 type TurnEnd struct {
+	Unfinished bool
 	TurnID     string
 	StopReason string
 	Error      string
@@ -353,8 +354,8 @@ type Eligibility struct {
 // Turn is the current or last turn. StartedAt is set for every turn once it
 // starts; EndedAt is set when it finishes, so a reconnect can show its elapsed
 // time without starting a new client-side measurement. Unfinished reports that
-// an end_turn ended while a tool call was still in_progress (for example a
-// backgrounded command).
+// an end_turn left a tool call in_progress or started an explicitly
+// backgrounded command.
 type Turn struct {
 	Running    bool
 	Unfinished bool

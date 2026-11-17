@@ -1,0 +1,12 @@
+{
+  "status": 200,
+  "body": {
+    "error": "",
+    "expiresAt": 0,
+    "phase": "cancelling",
+    "pollIntervalSeconds": 0,
+    "retryAt": 0,
+    "userCode": "",
+    "verificationUrl": ""
+  }
+}

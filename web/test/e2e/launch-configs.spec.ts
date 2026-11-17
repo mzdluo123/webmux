@@ -1,3 +1,4 @@
+import { ensureSessionSetup } from "./session-project";
 import type { Page } from "@playwright/test";
 import {
   chooseLaunch,
@@ -201,6 +202,7 @@ test("configs persist across a settings reload and remain selectable alongside m
     .getByRole("button", { name: "＋ 新建会话", exact: true })
     .first()
     .click();
+  await ensureSessionSetup(page);
   const select = page.getByRole("button", { name: "运行", exact: true });
   await expect(select).toContainText("E2E persisted");
   await expect(select.locator('[data-launch-icon="codex"] svg')).toBeVisible();
@@ -214,4 +216,37 @@ test("configs persist across a settings reload and remain selectable alongside m
   await expect(
     page.getByLabel("自定义启动命令", { exact: true }),
   ).toBeVisible();
+});
+
+test("the Kimi preset restores as a hybrid config with explicit YOLO mode", async ({
+  page,
+  request,
+}) => {
+  const restored = await request.post("/api/launch-configs/presets", {
+    data: { name: "Kimi Code CLI" },
+  });
+  expect(restored.status(), await restored.text()).toBe(200);
+  const configs = await restored.json();
+  const kimi = configs.find(
+    (config: { name: string }) => config.name === "Kimi Code CLI",
+  );
+  expect(kimi.chat).toBe(true);
+  expect(kimi.chatSupport).toMatchObject({ supported: true, agent: "kimi" });
+  expect(kimi.chatSupport.connector).toBeUndefined();
+  expect(kimi.cmd.at(-1)).toBe("--yolo");
+
+  await page.goto("/settings#launch-configs");
+  const row = card(page).getByText("Kimi Code CLI", { exact: true });
+  await expect(row).toBeVisible();
+  await expect(card(page)).toContainText("混合会话");
+  await card(page)
+    .getByRole("button", { name: "编辑 Kimi Code CLI", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("启动命令", { exact: true })).toHaveValue(
+    "/usr/bin/env bash -ic 'exec -- \"$@\"' webmux kimi --yolo",
+  );
+  await expect(
+    dialog.getByLabel("混合模式（聊天 ↔ 终端）", { exact: true }),
+  ).toBeChecked();
 });

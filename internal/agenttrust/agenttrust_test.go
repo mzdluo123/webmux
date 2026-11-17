@@ -1,19 +1,30 @@
 package agenttrust
 
 import (
-	"strings"
-
 	"encoding/json"
-	"github.com/BurntSushi/toml"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/BurntSushi/toml"
+	"github.com/rainchan/webmux/internal/agent/agy"
+	"github.com/rainchan/webmux/internal/agent/claudecode"
+	"github.com/rainchan/webmux/internal/agent/codex"
+	"github.com/rainchan/webmux/internal/agent/copilot"
+	"github.com/rainchan/webmux/internal/agent/devin"
+	"github.com/rainchan/webmux/internal/agent/kimi"
+	"github.com/rainchan/webmux/internal/agent/qoder"
+	"github.com/rainchan/webmux/internal/agent/qodercn"
+	"github.com/rainchan/webmux/internal/agentprofile/trustconfig"
 )
 
 func newTrust(home string, env map[string]string) *Trust {
 	return &Trust{
-		home:   func() (string, error) { return home, nil },
-		getenv: func(k string) string { return env[k] },
+		policies:  []trustconfig.Policy{claudecode.Trust, codex.Trust, copilot.Trust, agy.Trust, kimi.Trust, devin.Trust, qodercn.Trust, qoder.Trust},
+		home:      func() (string, error) { return home, nil },
+		getenv:    func(k string) string { return env[k] },
+		lookupEnv: func(k string) (string, bool) { v, ok := env[k]; return v, ok },
 	}
 }
 
@@ -579,6 +590,9 @@ func TestPrepareWritesThroughSymlinkedConfig(t *testing.T) {
 	}
 	target := filepath.Join(dotfiles, "claude.json")
 	if err := os.WriteFile(target, []byte("{}"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(target, 0o640); err != nil {
 		t.Fatal(err)
 	}
 	link := filepath.Join(home, ".claude.json")

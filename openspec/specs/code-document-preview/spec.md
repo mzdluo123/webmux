@@ -1,8 +1,11 @@
 # code-document-preview Specification
 
 ## Purpose
-TBD - created by archiving change add-code-document-preview. Update Purpose after archive.
+
+在代码工作区内预览 HTML、PDF 等文档，规定预览入口、资源访问、内容隔离与错误呈现，让用户从文件浏览直接查看文档内容。
+
 ## Requirements
+
 ### Requirement: 格式预览入口
 
 完整文本文件的扩展名（大小写不敏感）为 `.html`、`.htm`、`.csv`、`.tsv` 或 `.json` 时，代码工作区 SHALL 在文档栏提供“预览”入口并可“返回源码”，窄屏时入口位于“代码菜单”。
@@ -141,4 +144,3 @@ PDF 预览 SHALL 在首次需要时加载随应用打包的渲染器与 worker�
 
 - **WHEN** 用户打开应用但从未打开 PDF
 - **THEN** 浏览器不请求 PDF 渲染器、worker、CMap 或字体资源
-

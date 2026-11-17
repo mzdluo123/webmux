@@ -1,0 +1,15 @@
+{
+  "status": 200,
+  "body": {
+    "error": "",
+    "finishedAt": "<time>",
+    "id": "<operationId#1>",
+    "instanceId": "<instanceId#1>",
+    "previewId": "<id#1>",
+    "startedAt": "<time>",
+    "state": "succeeded",
+    "targetSessionId": "<targetSessionId#1>",
+    "worktreeId": "",
+    "worktreePath": ""
+  }
+}

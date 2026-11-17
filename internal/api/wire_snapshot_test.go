@@ -8,7 +8,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/rainchan/webmux/internal/agentguide"
 	"io"
 	"log/slog"
 	"mime"
@@ -22,27 +21,46 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentcatalog"
+	"github.com/rainchan/webmux/internal/agentcheck"
+	"github.com/rainchan/webmux/internal/agentguide"
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/coder/websocket"
+	"github.com/rainchan/webmux/internal/agent/codex"
+	"github.com/rainchan/webmux/internal/agent/omp"
 	"github.com/rainchan/webmux/internal/agentprofile"
-	"github.com/rainchan/webmux/internal/agentprofile/codex"
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/featureapi"
+	"github.com/rainchan/webmux/internal/featurewire"
+	"github.com/rainchan/webmux/internal/files"
 	"github.com/rainchan/webmux/internal/forward"
+	"github.com/rainchan/webmux/internal/handoff"
+	"github.com/rainchan/webmux/internal/historyimport"
+	"github.com/rainchan/webmux/internal/historyprojection"
+	"github.com/rainchan/webmux/internal/historysource"
+	"github.com/rainchan/webmux/internal/hub"
 	"github.com/rainchan/webmux/internal/hybrid"
+	"github.com/rainchan/webmux/internal/hybridresume"
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 	"github.com/rainchan/webmux/internal/settings"
+	"github.com/rainchan/webmux/internal/transport"
+	"github.com/rainchan/webmux/internal/workspace"
 )
 
 // The wire snapshots pin the JSON the browser's Zod contract
-// (web/src/schemas.ts) reads. Re-record an intended protocol change with
+// (web/src/contracts/schemas.ts) reads. Re-record an intended protocol change
+// with
 //
 //	go test ./internal/api -run TestWireSnapshots -update
 //
@@ -71,20 +89,39 @@ func wireSchema(name string) wireRules {
 	}
 	repositoryFields := func(prefix string) {
 		add(prefix, "id", "id")
-		add(prefix, "time", "checkedAt")
+		add(prefix, "time", "checkedAt", "lastFetchedAt")
 		add(prefix, "path", "anchorPath", "commonDir", "error")
 		worktreeFields(prefix + "/worktrees/*")
 	}
 	documentFields := func(prefix string) {
 		add(prefix, "path", "absolutePath")
 	}
+	taskBaselineFields := func(prefix string) {
+		add(prefix, "id", "baselineId", "repositoryId", "worktreeId")
+		add(prefix, "time", "capturedAt")
+		add(prefix, "path", "worktreePath")
+	}
 	switch name {
+	case "native-handoff-preview":
+		add("/budget", "measured", "used") // Includes the temporary source cwd in the generated header.
+		add("", "id", "id", "instanceId", "operationId", "sourceSessionId", "snapshotId")
+		add("/request", "id", "configId", "targetSessionId")
+		add("", "time", "createdAt", "expiresAt")
+		add("", "path", "text")
+	case "native-freeze", "native-read":
+		add("", "id", "snapshotId")
+		add("", "time", "expiresAt")
+	case "handoff-operation-succeeded":
+		add("", "id", "id", "previewId", "instanceId", "targetSessionId")
+		add("", "time", "startedAt", "finishedAt")
 	case "settings-patch", "settings-reset", "ws-settings-update":
 		add("", "time", "updatedAt")
 	case "session-agent-guide":
 		// The folder name holds the UID, a state directory hash and the
 		// session ID; the brief repeats it.
 		add("", "id", "dir", "prompt")
+	case "terminal-output":
+		add("", "id", "generation")
 	case "session-details":
 		sessionFields("/session")
 		add("/session", "path", "cmd/*")
@@ -94,6 +131,7 @@ func wireSchema(name string) wireRules {
 		"session-create-new-worktree", "session-create-new-worktree-retry":
 		sessionFields("/session")
 		add("/session", "path", "cmd/*")
+		add("/initialInput", "id", "turnId", "promptId", "itemId")
 		worktreeFields("/worktree")
 	case "session-get", "session-labels", "session-attention", "session-resize", "session-resize-take",
 		"ws-terminal-state", "ws-terminal-state-exited", "session-get-hybrid", "session-get-hybrid-work", "ws-terminal-state-hybrid", "hybrid-resume":
@@ -144,7 +182,7 @@ func wireSchema(name string) wireRules {
 		}
 	case "health":
 		// Host measurements differ on every machine and call.
-		add("", "hostStat", "load/one", "load/five", "load/fifteen", "memory/total", "memory/available")
+		add("", "hostStat", "load/one", "load/five", "load/fifteen", "memory/total", "memory/available", "swap/total", "swap/used")
 		add("", "hostCPUs", "load/cpus")
 	case "config":
 		add("", "path", "defaultCwd")
@@ -165,8 +203,23 @@ func wireSchema(name string) wireRules {
 		add("/*", "id", "id")
 		add("/*", "time", "createdAt", "updatedAt")
 		add("/*", "path", "cmd/*")
-	case "repository-register", "repository-register-release", "repository-register-again", "repository-worktrees", "repository-update", "repository-register-instruction", "repository-update-instruction":
+	case "agent-tools", "agent-tools-check":
+		add("", "time", "checkedAt", "remoteCheckedAt")
+		add("/tools/*", "path", "path", "connector/path")
+	case "repository-register", "repository-register-release", "repository-register-again", "repository-worktrees", "repository-update", "repository-register-instruction", "repository-update-instruction", "repository-register-git":
 		repositoryFields("")
+	case "repository-fetch":
+		add("", "id", "operationId")
+		repositoryFields("/repository")
+	case "project-clone-start", "project-clone-completed", "project-clone-repeat", "project-clone-register-repeat":
+		add("", "id", "id", "projectId")
+		add("", "path", "path")
+	case "project-create", "project-register-again":
+		add("", "id", "id", "repositoryId")
+		add("", "path", "path")
+	case "projects", "projects-empty":
+		add("/*", "id", "id", "repositoryId")
+		add("/*", "path", "path")
 	case "repositories", "repositories-empty":
 		repositoryFields("/*")
 	case "error-409-session-create-worktree":
@@ -182,6 +235,27 @@ func wireSchema(name string) wireRules {
 		worktreeFields("/worktree")
 		sessionFields("/sessions/*")
 		sessionFields("/archived/*")
+	case "worktree-switch-preview":
+		worktreeFields("/worktree")
+		sessionFields("/sessions/*")
+		add("/blockers/*", "path", "path")
+	case "branch-fast-forward-preview":
+		add("", "id", "confirmationId")
+		add("", "time", "expiresAt")
+		worktreeFields("/worktree")
+		sessionFields("/sessions/*")
+	case "branch-push-preview":
+		add("", "id", "confirmationId")
+		add("", "time", "expiresAt")
+		add("", "path", "pushUrl")
+	case "branch-delete-preview":
+		add("", "id", "confirmationId")
+		add("", "time", "expiresAt")
+	case "branch-push":
+		add("", "id", "operationId")
+		repositoryFields("/repository")
+	case "branch-delete":
+		repositoryFields("/repository")
 	case "worktree-usage":
 		// The linked worktree's .git file holds a temporary path.
 		add("", "measured", "bytes")
@@ -223,6 +297,9 @@ func wireSchema(name string) wireRules {
 	case "code-check":
 		add("", "time", "checkedAt")
 		rules["/snapshots"] = "snapshotKeys"
+	case "chat-message-search":
+		add("/*", "id", "sessionId")
+		add("/*", "time", "at")
 	case "ws-chat-snapshot":
 		add("", "id", "generation")
 		add("/state", "id", "agentSessionId")
@@ -239,6 +316,153 @@ func wireSchema(name string) wireRules {
 		add("", "id", "id")
 	case "push-test":
 		add("", "id", "removed/*")
+	case "git-context-repo", "git-context-worktree":
+		add("", "id", "contextId")
+		add("", "path", "rootPath")
+	case "git-tree", "git-files":
+		add("", "time", "checkedAt")
+	case "git-file", "git-file-commit", "git-snapshot-file":
+		add("", "id", "snapshotId")
+		add("", "time", "checkedAt")
+		documentFields("/document")
+	case "git-changes":
+		add("", "id", "nextCursor")
+		add("", "time", "checkedAt")
+	case "git-diff", "git-task-diff", "git-stash-diff", "git-revision-diff":
+		add("", "id", "snapshotId")
+		add("", "time", "checkedAt")
+		documentFields("/old")
+		documentFields("/new")
+	case "git-compare":
+		add("/changes", "id", "nextCursor")
+		add("/changes", "time", "checkedAt")
+		add("/diff", "id", "snapshotId")
+		add("/diff", "time", "checkedAt")
+		documentFields("/diff/old")
+		documentFields("/diff/new")
+	case "git-history", "git-history-task", "git-history-no-baseline":
+		add("", "time", "lastFetchedAt")
+		add("/rows/*/refs/*", "id", "worktreeId")
+		taskBaselineFields("/taskBaseline")
+	case "git-task-baseline", "git-task-baseline-empty", "git-task-baseline-put":
+		taskBaselineFields("/baseline")
+	case "git-task-changes", "git-task-changes-no-baseline":
+		taskBaselineFields("/baseline")
+		add("/changes", "id", "nextCursor")
+		add("/changes", "time", "checkedAt")
+	case "git-reviews", "git-reviews-put":
+		add("/files/*", "time", "reviewedAt")
+	case "git-commit-draft-empty", "git-commit-draft-put":
+		add("", "id", "repositoryId", "worktreeId")
+		add("", "time", "updatedAt")
+	case "error-409-git-draft-conflict":
+		add("/currentDraft", "id", "repositoryId", "worktreeId")
+		add("/currentDraft", "time", "updatedAt")
+	case "git-commit-detail":
+		add("/refs/*", "id", "worktreeId")
+	case "git-commit-preview", "git-commit-preview-blocked", "git-commit-amend-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+	case "git-commit", "git-commit-amend":
+		add("", "id", "operationId")
+	case "git-operation":
+		add("", "id", "id", "repositoryId", "worktreeId", "confirmationId")
+		add("", "time", "startedAt", "finishedAt")
+		add("/preview", "path", "worktreePath")
+	case "git-operations":
+		add("/operations/*", "id", "id", "repositoryId", "worktreeId", "confirmationId")
+		add("/operations/*", "time", "startedAt", "finishedAt")
+		add("/operations/*/preview", "path", "worktreePath")
+	case "git-operation-state", "git-operation-state-idle":
+		add("", "id", "worktreeId")
+		add("", "path", "worktreePath")
+	case "git-merge-preview", "git-rebase-preview", "git-cherry-pick-preview", "git-cherry-pick-preview-2", "git-revert-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		sessionFields("/sessions/*")
+	case "git-abort-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		sessionFields("/sessions/*")
+	case "git-merge-conflicted", "git-cherry-pick-conflicted", "git-operation-continue", "git-operation-abort":
+		add("", "id", "operationId", "recoveryRef")
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+		worktreeFields("/worktree")
+	case "git-conflict-detail":
+		add("", "id", "repositoryId", "worktreeId")
+		add("", "path", "worktreePath")
+	case "git-conflict-save":
+		// path and identity are deterministic once file bytes are fixed.
+	case "git-conflict-resolve":
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+	case "git-stashes":
+		add("/stashes/*", "time", "createdAt")
+	case "git-stash-detail":
+		add("/entry", "time", "createdAt")
+	case "git-stash-create-preview", "git-stash-apply-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		add("/entry", "time", "createdAt")
+		sessionFields("/sessions/*")
+	case "git-stash-create":
+		add("", "id", "operationId")
+		add("/entry", "time", "createdAt")
+		worktreeFields("/worktree")
+	case "git-stash-apply", "git-stash-pop":
+		add("", "id", "operationId")
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+		worktreeFields("/worktree")
+	case "git-stash-drop-preview":
+		add("", "id", "confirmationId", "repositoryId")
+		add("", "time", "expiresAt")
+		add("/entry", "time", "createdAt")
+	case "git-stash-drop":
+		add("", "id", "operationId")
+		add("/stashes/*", "time", "createdAt")
+	case "git-branch-rename-preview":
+		add("", "id", "confirmationId", "repositoryId")
+		add("", "time", "expiresAt")
+		worktreeFields("/affectedWorktrees/*")
+		sessionFields("/sessions/*")
+	case "git-branch-rename", "git-branch-upstream":
+		add("", "id", "operationId")
+		repositoryFields("/repository")
+		add("/branches", "path", "defaultParent")
+		add("/branches/branches/*", "path", "worktreePaths/*")
+	case "git-tag-create", "git-tag-delete":
+		add("", "id", "operationId")
+		add("/tag", "time", "taggedAt")
+		add("/branches", "path", "defaultParent")
+		add("/branches/branches/*", "path", "worktreePaths/*")
+		add("/branches/tags/*", "time", "taggedAt")
+	case "git-remote-add", "git-remote-update", "git-remote-remove":
+		add("", "id", "operationId")
+		repositoryFields("/repository")
+	case "git-discard-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		add("", "path", "worktreePath")
+		sessionFields("/sessions/*")
+	case "git-discard":
+		add("", "id", "operationId", "recoveryOid", "recoveryRef", "recoveryCommand")
+		worktreeFields("/worktree")
+	case "git-smart-checkout-preview":
+		add("", "id", "confirmationId", "repositoryId", "worktreeId")
+		add("", "time", "expiresAt")
+		worktreeFields("/worktree")
+		sessionFields("/sessions/*")
+	case "git-smart-checkout":
+		add("", "id", "operationId", "stashOid", "recoveryCommand")
+		add("/inProgress", "id", "worktreeId")
+		add("/inProgress", "path", "worktreePath")
+		worktreeFields("/worktree")
 	}
 	return rules
 }
@@ -331,6 +555,9 @@ func withHostStats(v any) any {
 	if body["memory"] == nil {
 		body["memory"] = map[string]any{"total": 0.0, "available": 0.0}
 	}
+	if body["swap"] == nil {
+		body["swap"] = map[string]any{"total": 0.0, "used": 0.0}
+	}
 	return body
 }
 
@@ -383,6 +610,10 @@ func (n *wireNormalizer) value(rules wireRules, path string, v any) any {
 			if n.hostname != "" && v == n.hostname {
 				return "<hostname>"
 			}
+		case "emptyCoverage":
+			// This fixture has no history items: this field contains generated
+			// attribution only, never a user message or edited free-form context.
+			return regexp.MustCompile(`[a-f0-9]{32}`).ReplaceAllStringFunc(n.pathText(v), func(id string) string { return n.id("historyReference", id) })
 		case "path":
 			return n.pathText(v)
 		case "artifacts":
@@ -474,13 +705,55 @@ func lineDiff(want, got string) string {
 }
 
 type wireFixture struct {
+	handoffs *handoff.Service
 	*wireRecorder
-	ctx      context.Context
-	server   *httptest.Server
-	manager  *session.Manager
-	hybrids  *hybrid.Service
-	launches *launch.Service
-	root     string
+	ctx        context.Context
+	server     *httptest.Server
+	manager    *session.Manager
+	hybrids    *hybrid.Service
+	launches   *launch.Service
+	root       string
+	projection featurewire.Projection
+	metadataMu sync.RWMutex
+	metadataID string
+	metadata   *hybrid.Metadata
+}
+
+// The synthetic shell below pins transient states independently of provider
+// scheduling, while using the same feature-owned metadata and converter as live
+// chat sessions. All other sessions use the real service projection.
+func (f *wireFixture) project(info session.Info) contract.SessionInfo {
+	out := f.projection.Session(info)
+	if metadata := f.chatMetadata(info.ID); metadata != nil {
+		featurewire.ProjectChat(&out, metadata)
+	}
+	return out
+}
+
+func (f *wireFixture) chatMetadata(id string) *hybrid.Metadata {
+	f.metadataMu.RLock()
+	defer f.metadataMu.RUnlock()
+	if id == f.metadataID {
+		return f.metadata
+	}
+	return nil
+}
+
+func (f *wireFixture) terminal(id string) (bool, string) {
+	if metadata := f.chatMetadata(id); metadata != nil {
+		if metadata.To != "" {
+			return false, string(featurewire.View(metadata.To))
+		}
+		return metadata.Side == string(hybrid.SideTUI), string(featurewire.View(metadata.Side))
+	}
+	return f.projection.Terminal(id)
+}
+
+func (f *wireFixture) setChatMetadata(id string, metadata hybrid.Metadata) {
+	f.metadataMu.Lock()
+	f.metadataID, f.metadata = id, &metadata
+	f.metadataMu.Unlock()
+	f.manager.Notify(id)
 }
 
 // newWireFixture runs every service the router serves, against a Git
@@ -520,7 +793,7 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{{"init", "-b", "main"}, {"add", "."}, {"commit", "-m", "initial"}} {
-		if out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput(); err != nil {
+		if out, err := testCommandOutput(exec.Command("git", append([]string{"-C", root}, args...)...)); err != nil {
 			t.Fatalf("Git fixture: %v %s", err, out)
 		}
 	}
@@ -529,6 +802,12 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 	}
 	if err := os.WriteFile(filepath.Join(root, "new.txt"), []byte("fresh\n"), 0o600); err != nil {
 		t.Fatal(err)
+	}
+	for _, name := range []string{"a.txt", "new.txt"} {
+		stamp := time.Unix(1700000000, 0)
+		if err := os.Chtimes(filepath.Join(root, name), stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
 	}
 	hostname, _ := os.Hostname()
 	rec.norm.path(root, "<repo>")
@@ -553,28 +832,82 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 	}
 	m := session.NewManager(testSessionOptions(c))
 	pushes := push.New(c.Push, t.TempDir(), m, slog.New(slog.NewTextHandler(io.Discard, nil)), pushService.Client().Transport)
-	launches := launch.Open(t.TempDir())
+	launches := launch.Open(t.TempDir(), agents.Default())
+	agentBinDir := filepath.Join(tmp, "agent-bin")
+	if err := os.MkdirAll(agentBinDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, out := range map[string]string{
+		"claude": "2.1.300 (Claude Code)",
+		"codex":  "codex-cli 0.165.0",
+	} {
+		if err := os.WriteFile(filepath.Join(agentBinDir, name), []byte("#!/bin/sh\necho '"+out+"'\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	agentRegistry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/@anthropic-ai/claude-code/latest":
+			_, _ = w.Write([]byte(`{"version":"2.1.320"}`))
+		case "/@openai/codex/latest":
+			_, _ = w.Write([]byte(`{"version":"0.165.0"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(agentRegistry.Close)
+	agentTools := agentcheck.New(agentcheck.Options{
+		Entries:       agentcatalog.Build(agents.Default()),
+		ShellPath:     "/bin/sh",
+		Env:           []string{"HOME=" + home, "PATH=" + agentBinDir},
+		NPMBases:      []string{agentRegistry.URL},
+		PyPIBase:      agentRegistry.URL,
+		GitHubAPIBase: agentRegistry.URL,
+	})
 	prefs := settings.Open(t.TempDir())
 	t.Cleanup(prefs.Close)
 	folders := artifacts.New(artifacts.Options{TempDir: tmp, StateDir: t.TempDir(), Manager: m})
 	folders.Start(func(string) bool { return false })
 	t.Cleanup(folders.Close)
 	codes := codeview.New(m, folders)
-	public := &PublicOrigins{}
+	public := &transport.PublicOrigins{}
 	if err := public.Set("cloudflare", "https://abc.trycloudflare.com"); err != nil {
 		t.Fatal(err)
 	}
 	if err := public.Set("tailscale", "https://node.tailnet.ts.net:8443"); err != nil {
 		t.Fatal(err)
 	}
-	hybrids := hybrid.New(hybrid.Options{StateDir: t.TempDir(), Manager: m, Uploads: folders.UploadPath})
+	hybrids := hybrid.New(hybrid.Options{Agents: agents.Default(), StateDir: t.TempDir(), Manager: m, Uploads: folders.UploadPath})
 	forwards := forward.New(forward.Config{ExcludePorts: []int{7681}, Reachable: func(context.Context, int) bool { return false }})
 	t.Cleanup(forwards.Close)
 	guide := &agentguide.Instance{Version: "wire", LocalURL: "http://127.0.0.1:7681", Bin: "/opt/webmux/bin/webmux"}
 	guide.SetSocket("/run/user/1000/webmux/webmux.sock")
-	deps := Deps{Config: c, Manager: m, Public: public, Push: pushes, Launch: launches, Code: codes, Settings: prefs, Hybrid: hybrids, Artifacts: folders, Forward: forwards, DefaultShell: agentprofile.ShellBash, Guide: guide}
-	deps.InstalledVersion, deps.Launcher = func() string { return "0.5.0" }, contract.LauncherSystemd
-	server := httptest.NewServer(New(testDeps(t, deps)))
+	workspaces := workspace.New(t.TempDir(), m, launches, root)
+	workspaces.UseHybrid(hybrids)
+	t.Cleanup(workspaces.Close)
+	codes.UseWorkspace(workspaces)
+	recovery := hybridresume.New(hybrids, launches, hybridresume.Options{DefaultCwd: root, Creation: hybrids.Creation(), Locations: workspaces, ResumeLocations: workspaces})
+	f := &wireFixture{wireRecorder: rec, manager: m, hybrids: hybrids, launches: launches, root: root, projection: featurewire.Projection{Workspace: workspaces, Chat: hybrids, Forward: forwards}}
+	native := historyimport.New(historyimport.Options{
+		Resolve: func(context.Context, string) (historyimport.Identity, error) {
+			return historyimport.Identity{Agent: "omp", NativeID: "wire-native", Root: "/wire"}, nil
+		},
+		Discoverers: map[string]historyimport.DiscoverFunc{"omp": func(context.Context, string) ([]historysource.Source, error) {
+			return []historysource.Source{{Agent: "omp", NativeID: "wire-native", Path: "/wire/native"}}, nil
+		}},
+		Readers: map[string]historysource.ReadFunc{"omp": func(ctx context.Context, req historysource.Request) (historysource.Document, error) {
+			return historysource.Document{Source: req.Source, Cursor: "fixed", Fingerprint: "wire-file", Generation: "1", FormatVersion: "wire-v1", ParserVersion: "wire-v1", Records: []historysource.Record{{ID: "wire-user", Role: "user", Kind: "prose", Text: "中文 original history"}}}, nil
+		}},
+	})
+	projection := historyprojection.New(historyprojection.Options{Source: native, Preprocess: historyprojection.DefaultPreprocessConfig()})
+	f.handoffs = handoff.New(handoff.Options{Hybrid: hybrids, Launch: launches, NativeHistory: native, HistoryProjection: projection})
+	t.Cleanup(f.handoffs.Close)
+	controllers := featureapi.Bind(featureapi.Deps{Config: c, Manager: m, Settings: prefs, Workspace: workspaces, Code: codes, Files: files.New(root), Artifacts: folders, Handoffs: f.handoffs, NativeHistory: native, HistoryProjection: projection, Push: pushes, Launch: launches, AgentTools: agentTools, Hybrid: hybrids, Resume: recovery, Forward: forwards, Guide: guide, Public: public, ProjectSession: f.project})
+	creation := sessioncreate.New(m, sessioncreate.Options{DefaultCwd: root, Commands: launches, Locations: workspaces, Files: folders, Chat: hybrids.Creation(), Brief: func(id, dir string) string {
+		return guide.Brief(agentguide.BriefInput{SessionID: id, Dir: dir})
+	}})
+	core := Deps{Config: c, Manager: m, Settings: prefs, Create: creation, Sessions: controllers, Contributions: controllers.Contributions(), ProjectSession: f.project, SessionProjection: hub.Options{Project: f.project, Terminal: f.terminal, SubscribeForwards: f.projection.SubscribeForwards, Forwards: f.projection.Forwards}, EnrichDetails: controllers.EnrichDetails, KeepSessionPin: controllers.KeepSessionPin, EnrichConfig: controllers.EnrichConfig, Renamed: controllers.Renamed, DefaultShell: agentprofile.ShellBash, Public: public, Guide: guide, InstalledVersion: func() string { return "0.5.0" }, Launcher: contract.LauncherSystemd}
+	server := httptest.NewServer(New(core))
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(func() {
 		cancel()
@@ -588,7 +921,8 @@ func newWireFixture(t *testing.T, rec *wireRecorder) *wireFixture {
 		m.Shutdown(shutdown)
 	})
 	rec.norm.path(strings.TrimPrefix(server.URL, "http://"), "<server>")
-	return &wireFixture{wireRecorder: rec, ctx: ctx, server: server, manager: m, hybrids: hybrids, launches: launches, root: root}
+	f.ctx, f.server = ctx, server
+	return f
 }
 
 type wireRequest struct {
@@ -705,6 +1039,27 @@ func (f *wireFixture) send(conn *websocket.Conn, kind byte, p []byte) {
 	}
 }
 
+// git changes the fixture repository outside the API.
+func (f *wireFixture) git(args ...string) {
+	f.t.Helper()
+	if out, err := testCommandOutput(exec.Command("git", append([]string{"-C", f.root}, args...)...)); err != nil {
+		f.t.Fatalf("Git fixture %v: %v %s", args, err, out)
+	}
+}
+
+// gitOutput is git that returns Git's standard output without its final
+// newline.
+func (f *wireFixture) gitOutput(args ...string) string {
+	f.t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", f.root}, args...)...)
+	cmd.Stderr = io.Discard
+	out, err := testCommandOutput(cmd)
+	if err != nil {
+		f.t.Fatalf("Git fixture %v: %v", args, err)
+	}
+	return strings.TrimSuffix(out, "\n")
+}
+
 func withHost(host string) func(*wireRequest) { return func(r *wireRequest) { r.host = host } }
 func withOrigin(origin string) func(*wireRequest) {
 	return func(r *wireRequest) { r.origin = origin }
@@ -749,24 +1104,33 @@ func TestWireSnapshots(t *testing.T) {
 		{"basics-errors-fs-upload", wireBasics},
 		{"launch", wireLaunch},
 		{"workspace", wireWorkspace},
+		{"projects", wireProjects},
+		{"projects-clone", wireProjectClones},
+		{"projects-github", wireProjectGitHub},
 		{"codeview", wireCodeview},
 		{"push", wirePush},
 		{"settings", wireSettings},
 		{"hybrid", wireHybrid},
+		{"native-handoff", wireNativeHandoff},
 		{"hybrid-records", wireHybridRecords},
 		{"release", wireRelease},
 		{"forwards", wireForwards},
 		{"quick-start", wireQuickStart},
+		{"git-workbench", wireGitWorkbench},
 	} {
 		t.Run(group.name, func(t *testing.T) {
+			if group.name == "projects-clone" {
+				installWireProjectCloneGit(t)
+			}
+			if group.name == "projects-github" {
+				installWireProjectGitHub(t)
+			}
 			rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
 			group.run(newWireFixture(t, rec))
 		})
 	}
 }
 
-// wireQuickStart pins a quick start, its retry, its failure bodies and the
-// launch list's remembered agent options.
 func wireQuickStart(f *wireFixture) {
 	agent := fakeAgentPath(f.t, omp.Name)
 	f.norm.path(filepath.Dir(agent), "<fakeagent>")
@@ -873,6 +1237,7 @@ func wireSessions(f *wireFixture) {
 	f.call("sessions-list", "GET", "/api/sessions", nil, 200)
 	f.call("error-400-sessions-list-state", "GET", "/api/sessions?state=recoverable", nil, 400)
 	f.call("session-get", "GET", "/api/sessions/"+runningID, nil, 200)
+	f.call("terminal-output", "GET", "/api/sessions/"+runningID+"/output?maxBytes=1", nil, 200)
 	cat := f.call("session-create-cat", "POST", "/api/sessions", map[string]any{"cmd": []string{"/bin/cat"}, "name": "cat"}, 201)
 	catID := str(field(cat, "session"), "id")
 	f.call("session-input", "POST", "/api/sessions/"+catID+"/input", contract.SessionInputRequest{ClientRequestID: "wire-input-1", Text: "echo hi", Submit: true}, 200)
@@ -1009,7 +1374,7 @@ func wireBasics(f *wireFixture) {
 	oversized.Host = strings.TrimPrefix(f.server.URL, "http://")
 	oversized.Header.Set("Authorization", "Bearer secret")
 	oversized.Header.Set("Content-Type", "multipart/form-data; boundary=x")
-	oversized.ContentLength = maxUploadBodyBytes + 1
+	oversized.ContentLength = 101<<20 + 1
 	tooLarge := httptest.NewRecorder()
 	f.server.Config.Handler.ServeHTTP(tooLarge, oversized)
 	f.record("error-413-upload", tooLarge.Code, tooLarge.Body.Bytes())
@@ -1032,8 +1397,14 @@ func wireLaunch(f *wireFixture) {
 	f.call("session-create-from-config", "POST", "/api/sessions", map[string]any{"configId": str(shell, "id"), "cwd": f.root}, 201)
 	f.call("error-404-session-config", "POST", "/api/sessions", map[string]any{"configId": "zzzzzzzz"}, 404)
 	f.call("launch-delete", "DELETE", "/api/launch-configs/"+launchID, nil, 204)
+	if err := f.launches.Seed([]launch.Input{{Name: "omp", Icon: "pi", Cmd: []string{"omp", "--auto-approve"}, Env: map[string]string{"PI_FORCE_IMAGE_PROTOCOL": "kitty"}, Hybrid: true}}); err != nil {
+		f.t.Fatal(err)
+	}
 	f.call("launch-presets", "GET", "/api/launch-configs/presets", nil, 200)
 	f.call("launch-presets-restore", "POST", "/api/launch-configs/presets", map[string]any{"name": "omp"}, 200)
+	f.call("agent-tools", "GET", "/api/agent-tools", nil, 200)
+	f.call("agent-tools-check", "POST", "/api/agent-tools/check", contract.AgentToolsCheckRequest{RefreshLocal: false}, 200)
+	f.call("error-400-agent-tools-query", "GET", "/api/agent-tools?refresh=invalid", nil, 400)
 }
 
 func wireWorkspace(f *wireFixture) {
@@ -1061,6 +1432,9 @@ func wireWorkspace(f *wireFixture) {
 	f.call("session-create-workspace", "POST", "/api/sessions", map[string]any{"cmd": []string{"/bin/sh", "-c", "sleep 60"}, "workspace": map[string]string{"repositoryId": repositoryID, "worktreeId": treeID}}, 201)
 	treeURL := base + "/worktrees/" + treeID
 	f.call("worktree-usage", "POST", treeURL+"/usage", map[string]any{}, 200)
+	// Blocked: main is checked out by the main worktree; the running
+	// session is listed and warned about.
+	f.call("worktree-switch-preview", "POST", treeURL+"/switch-preview", contract.SwitchPreviewRequest{Target: contract.SwitchTarget{Kind: "local", Branch: "main"}}, 200)
 	f.call("error-404-worktree-usage", "POST", base+"/worktrees/missing/usage", map[string]any{}, 404)
 	preview := f.call("worktree-removal-preview", "POST", treeURL+"/removal-preview", map[string]any{}, 200)
 	f.call("error-409-worktree-remove", "POST", treeURL+"/remove", map[string]any{"confirmationId": str(preview, "confirmationId"), "mode": "safe"}, 409)
@@ -1071,6 +1445,49 @@ func wireWorkspace(f *wireFixture) {
 	batchPreview := f.call("worktree-batch-removal-preview", "POST", base+"/worktrees/batch-removal-preview", contract.BatchRemovalPreviewRequest{WorktreeIDs: []string{batchTreeID, treeID}}, 200)
 	f.call("error-400-worktree-batch-remove", "POST", base+"/worktrees/batch-remove", contract.BatchRemoveWorktreesRequest{ConfirmationID: str(batchPreview, "confirmationId"), IncludeForce: true, CloseSessions: false}, 400)
 	f.call("worktree-batch-remove", "POST", base+"/worktrees/batch-remove", contract.BatchRemoveWorktreesRequest{ConfirmationID: str(batchPreview, "confirmationId"), IncludeForce: false, CloseSessions: false}, 200)
+	// Branch operations against a local bare remote: the linked worktree,
+	// with its running session, is one commit behind its upstream; a new
+	// branch is published where the remote already has another commit;
+	// a contained and an unmerged branch are deleted without acknowledging
+	// the unmerged one.
+	syncRemote := filepath.Join(f.t.TempDir(), "sync.git")
+	f.norm.path(syncRemote, "<sync-remote>")
+	f.git("init", "--bare", "--quiet", "-b", "main", syncRemote)
+	f.git("remote", "add", "origin", syncRemote)
+	f.git("push", "--quiet", "-u", "origin", "linked")
+	f.git("push", "--quiet", "origin", f.gitOutput("commit-tree", "-p", "linked", "-m", "upstream change", "linked^{tree}")+":refs/heads/linked")
+	f.call("branch-fast-forward-preview", "POST", base+"/branches/fast-forward-preview", contract.FastForwardPreviewRequest{Branch: "linked"}, 200)
+	f.git("branch", "publish/c", f.gitOutput("commit-tree", "-p", "linked", "-m", "local change", "linked^{tree}"))
+	f.git("push", "--quiet", "origin", f.gitOutput("commit-tree", "-p", "linked", "-m", "their change", "linked^{tree}")+":refs/heads/publish/c")
+	pushPreview := f.call("branch-push-preview", "POST", base+"/branches/push-preview", contract.PushPreviewRequest{Branch: "publish/c"}, 200)
+	f.call("branch-push", "POST", base+"/branches/push", contract.PushRequest{ConfirmationID: str(pushPreview, "confirmationId")}, 200)
+	f.git("branch", "merged/old", "linked")
+	deletePreview := f.call("branch-delete-preview", "POST", base+"/branches/delete-preview", contract.BranchDeletePreviewRequest{Branches: []string{"merged/old", "publish/c"}}, 200)
+	f.call("branch-delete", "POST", base+"/branches/delete", contract.BranchDeleteRequest{ConfirmationID: str(deletePreview, "confirmationId")}, 200)
+	f.git("branch", "-D", "publish/c")
+	f.git("branch", "--unset-upstream", "linked")
+	f.git("remote", "remove", "origin")
+	f.call("repository-remotes-empty", "GET", base+"/remotes", nil, 200)
+	f.git("remote", "add", "origin", "https://user:secret@example.invalid/app.git")
+	f.git("remote", "set-url", "--push", "origin", "https://token@example.invalid/app.git")
+	f.call("repository-remotes", "GET", base+"/remotes", nil, 200)
+	f.git("remote", "remove", "origin")
+	// One remote fetches from a local bare clone; the other fails like ssh
+	// refusing the key.
+	bare := filepath.Join(f.t.TempDir(), "origin.git")
+	f.git("clone", "--bare", f.root, bare)
+	f.git("remote", "add", "origin", bare)
+	ssh := filepath.Join(f.t.TempDir(), "ssh")
+	if err := os.WriteFile(ssh, []byte("#!/bin/sh\necho 'git@fork.invalid: Permission denied (publickey).' >&2\nexit 255\n"), 0o700); err != nil {
+		f.t.Fatal(err)
+	}
+	f.git("config", "core.sshCommand", ssh)
+	f.git("remote", "add", "fork", "ssh://git@fork.invalid/app.git")
+	f.call("repository-fetch", "POST", base+"/fetch", contract.FetchRemotesRequest{}, 200)
+	f.git("remote", "remove", "fork")
+	f.git("remote", "remove", "origin")
+	f.git("config", "--unset", "core.sshCommand")
+	f.call("error-404-repository-remotes", "GET", "/api/repositories/missing/remotes", nil, 404)
 	f.call("repository-unregister", "DELETE", base, nil, 204)
 }
 
@@ -1152,7 +1569,7 @@ func TestWireSnapshotsUnavailableServices(t *testing.T) {
 	rec := &wireRecorder{t: t, norm: newWireNormalizer(), seen: map[string]bool{}}
 	m := session.NewManager(session.Options{})
 	defer m.Shutdown(context.Background())
-	handler := New(testDeps(t, Deps{Config: config.Config{Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
+	handler := New(testDeps(t, testServices{Config: config.Config{Token: "secret"}, Manager: m, Workspace: testWorkspace(t, m, t.TempDir())}))
 	for _, row := range []struct {
 		name, method, path, body string
 		want                     int
@@ -1177,10 +1594,10 @@ func wireSettings(f *wireFixture) {
 	c := f.dial("/ws/settings")
 	f.event(c, "ws-settings-snapshot", func(e map[string]any) bool { return e["type"] == "settings" })
 	f.call("settings-get", "GET", "/api/settings", nil, 200)
-	f.call("settings-patch", "PATCH", "/api/settings", map[string]any{"baseRevision": 0, "changes": map[string]any{"theme": "dark", "quickCommands": []any{}}}, 200)
+	f.call("settings-patch", "PATCH", "/api/settings", map[string]any{"baseRevision": 0, "changes": map[string]any{"forceSoftKeys": true, "quickCommands": []any{}, "sessionPins": []any{}}}, 200)
 	f.event(c, "ws-settings-update", func(e map[string]any) bool { return e["type"] == "settings.update" })
-	f.call("settings-conflict", "PATCH", "/api/settings", map[string]any{"baseRevision": 0, "changes": map[string]any{"theme": nil}}, 409)
-	f.call("settings-reset", "PATCH", "/api/settings", map[string]any{"baseRevision": 1, "changes": map[string]any{"theme": nil}}, 200)
+	f.call("settings-conflict", "PATCH", "/api/settings", map[string]any{"baseRevision": 0, "changes": map[string]any{"forceSoftKeys": nil}}, 409)
+	f.call("settings-reset", "PATCH", "/api/settings", map[string]any{"baseRevision": 1, "changes": map[string]any{"forceSoftKeys": nil}}, 200)
 }
 
 // wireDriver is a hybrid shell driver that does nothing.
@@ -1200,13 +1617,14 @@ func wireHybrid(f *wireFixture) {
 		f.t.Fatal(err)
 	}
 	id := item.Info().ID
-	item.SetOverlay(&session.Overlay{Hybrid: &session.HybridInfo{Side: "tui", State: "active", Agent: "omp", AgentTitle: "omp", AgentIcon: "pi"}})
+	f.setChatMetadata(id, hybrid.Metadata{Side: "tui", State: "active", Agent: "omp", AgentTitle: "omp", AgentIcon: "pi"})
 	f.call("session-get-hybrid", "GET", "/api/sessions/"+id, nil, 200)
 
 	terminal := f.dial("/ws/s/" + id + "?client=wire-client-1&label=Wire")
 	f.frame(terminal, "ws-terminal-state-hybrid", 2, nil)
 	agentSessionID := "ses_wire"
-	item.SetOverlay(&session.Overlay{Hybrid: &session.HybridInfo{Side: "acp", Phase: "loading", State: "active", Agent: "omp", AgentTitle: "omp", AgentIcon: "pi", AgentSessionID: &agentSessionID, Work: "读取 internal/wire/wire.go"}})
+	f.setChatMetadata(id, hybrid.Metadata{Side: "acp", Phase: "loading", State: "active", Agent: "omp", AgentTitle: "omp", AgentIcon: "pi", AgentSessionID: &agentSessionID, Work: "读取 internal/wire/wire.go"})
+	item.SetOverlay(&session.Overlay{Destination: "chat"})
 	f.call("session-get-hybrid-work", "GET", "/api/sessions/"+id, nil, 200)
 	if err := item.EndRun(f.ctx); err != nil {
 		f.t.Fatal(err)
@@ -1238,6 +1656,9 @@ func wireChat(f *wireFixture) {
 		items, _ := e["items"].([]any)
 		return e["type"] == contract.ChatFrameEvents && len(items) > 0 && str(items[0], "kind") == contract.ChatEventTurnStart
 	})
+	f.call("chat-message-search", "GET", "/api/chat/search?q=hello", nil, 200)
+	f.call("error-400-chat-search-short", "GET", "/api/chat/search?q=a", nil, 400)
+	f.call("error-400-chat-search-long", "GET", "/api/chat/search?q="+strings.Repeat("a", 121), nil, 400)
 	f.call("chat-prompt-queued", "POST", "/api/sessions/"+id+"/input", contract.SessionInputRequest{ClientRequestID: "wire-prompt-2", Text: "later"}, 200)
 	f.event(conn, "ws-chat-state", func(e map[string]any) bool {
 		state, _ := e["state"].(map[string]any)
@@ -1264,7 +1685,7 @@ func wireChat(f *wireFixture) {
 	// omp reports its session at start but saves it with the first
 	// message: the switch is refused as not listed.
 	deadline := time.Now().Add(chatTimeout)
-	for terminal.Info().Hybrid.AgentSessionID == nil {
+	for f.hybrids.Metadata(terminal.Info().ID).AgentSessionID == nil {
 		if time.Now().After(deadline) {
 			f.t.Fatal("terminal reported no agent session")
 		}
@@ -1308,9 +1729,14 @@ func wireHybridRecords(f *wireFixture) {
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	id, sid := item.Info().ID, *item.Info().Hybrid.AgentSessionID
-	// The record keeps the worktree the session belonged to when it closed.
-	f.manager.SetWorkspace(id, item.Info().Cwd, &session.Workspace{RepositoryID: "repo0001", WorktreeID: "tree0001", WorktreePath: item.Info().Cwd})
+	id, sid := item.Info().ID, *f.hybrids.Metadata(item.Info().ID).AgentSessionID
+	// The record captures its association through the workspace feature port.
+	f.hybrids.SetWorkspaceSource(func(current string) *hybrid.WorkspaceRef {
+		if current != id {
+			return nil
+		}
+		return &hybrid.WorkspaceRef{RepositoryID: "repo0001", WorktreeID: "tree0001"}
+	})
 	closeShell := func() {
 		if err := f.manager.Close(id); err != nil {
 			f.t.Fatal(err)
@@ -1429,4 +1855,43 @@ func (f *wireFixture) closed(conn *websocket.Conn, name string) {
 		f.record(name, 0, data)
 		return
 	}
+}
+
+func wireNativeHandoff(f *wireFixture) {
+	cfg, err := f.launches.Create(launch.Input{Name: "wire target", Cmd: []string{fakeAgentPath(f.t, omp.Name)}, Hybrid: true})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	source, err := f.hybrids.Create(f.ctx, hybrid.CreateInput{ConfigID: cfg.ID, Cmd: cfg.Cmd, Cwd: f.root, StartSide: hybrid.SideACP, Env: map[string]string{"FAKEAGENT_STORE": f.t.TempDir()}})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	id := source.Info().ID
+	p, err := f.handoffs.Preview(f.ctx, id, handoff.Request{TargetSessionID: id, UserText: "new task\n  indentation"})
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.norm.path(p.SnapshotID+".", "<frozen-scope>.")
+	f.norm.path("snapshotId="+p.SnapshotID+".", "snapshotId=<frozen-scope>.")
+	f.call("native-handoff-preview", "GET", "/api/handoff-previews/"+p.ID, nil, 200)
+	native := f.call("native-freeze", "POST", "/api/native-history", contract.NativeRequest{Action: "freeze", SessionID: id}, 200)
+	f.call("native-read", "POST", "/api/native-history", contract.NativeRequest{Action: "read", SnapshotID: str(native, "snapshotId")}, 200)
+	if _, err := f.handoffs.Deliver(f.ctx, p.ID, p.OperationID); err != nil {
+		f.t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		o, err := f.handoffs.Delivery(f.ctx, p.OperationID)
+		if err != nil {
+			f.t.Fatal(err)
+		}
+		if o.FinishedAt != nil {
+			if o.State != "succeeded" {
+				f.t.Fatalf("operation %+v", o)
+			}
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	f.call("handoff-operation-succeeded", "GET", "/api/handoff-operations/"+p.OperationID, nil, 200)
 }

@@ -1,0 +1,23 @@
+{
+  "status": 200,
+  "body": {
+    "agent": "omp",
+    "boundary": "fixed",
+    "branch": "",
+    "contentHash": "1a3a3c7ae8c2ef492d3dc4f68fa1d000857824132c744a25e983f86f774847a9",
+    "expiresAt": "<time>",
+    "files": [],
+    "format": "wire-v1",
+    "gaps": [],
+    "more": false,
+    "nativeId": "wire-native",
+    "nextPosition": "0",
+    "nextTextOffset": "0",
+    "parser": "wire-v1",
+    "pending": false,
+    "recordCount": 1,
+    "records": [],
+    "snapshotId": "<snapshotId#2>",
+    "truncated": false
+  }
+}

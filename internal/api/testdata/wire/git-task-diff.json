@@ -1,0 +1,54 @@
+{
+  "status": 200,
+  "body": {
+    "change": {
+      "changeId": "684989653d05fe23762335178d4ad454ecdc0dd35fd2919f6feddcab7b0cca1c",
+      "group": "task",
+      "newMode": "100644",
+      "newOid": "0000000000000000000000000000000000000000",
+      "newPath": "sub/b.txt",
+      "nodeId": "c3ViL2IudHh0",
+      "oldMode": "100644",
+      "oldOid": "af9c6fd168ea28cf99aa2c2dd9057a8b720e2262",
+      "oldPath": "sub/b.txt",
+      "reviewVersion": "1fde17d706d11d72aaa70fa4598b7e23cf6da5245ff07a10dad6b416b2b4df30",
+      "status": "M"
+    },
+    "checkedAt": "<time>",
+    "kind": "text",
+    "new": {
+      "absolutePath": "<repo>/sub/b.txt",
+      "contentVersion": "39727f86480ebdd4271553b48d5d741f030834587df9827bb5f39f26d3e4cd8f",
+      "downloadable": true,
+      "kind": "text",
+      "lineCount": 3,
+      "mediaType": "",
+      "nodeId": "c3ViL2IudHh0",
+      "oid": "",
+      "path": "sub/b.txt",
+      "reason": "",
+      "referenceable": true,
+      "size": 19,
+      "source": "worktree",
+      "text": "bee\nbutterfly\nmoth\n"
+    },
+    "old": {
+      "absolutePath": "<repo>/sub/b.txt",
+      "contentVersion": "c150e5a8a604acebd8d15bd7bf8ea96b2874bdcc91dee6319977d353251283b0",
+      "downloadable": true,
+      "kind": "text",
+      "lineCount": 1,
+      "mediaType": "",
+      "nodeId": "c3ViL2IudHh0",
+      "oid": "af9c6fd168ea28cf99aa2c2dd9057a8b720e2262",
+      "path": "sub/b.txt",
+      "reason": "",
+      "referenceable": true,
+      "size": 4,
+      "source": "commit:2de8fe1f09b18871f913bbafa26fee479279c2b6",
+      "text": "bee\n"
+    },
+    "reason": "",
+    "snapshotId": "<snapshotId#5>"
+  }
+}

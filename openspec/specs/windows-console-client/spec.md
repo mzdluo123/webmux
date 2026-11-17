@@ -51,9 +51,9 @@
 - 指向目标发行版自身文件系统的路径（`\\wsl.localhost\<发行版>\...` 或 `\\wsl$\<发行版>\...`）SHALL 换算为对应的 Linux 绝对路径；
 - 其他路径（网络共享、其他发行版等）无法换算时，SHALL 以退出码 2 结束并提示使用 `--cwd` 指定 Linux 路径。
 
-`--cwd` 的值以 `/` 或 `~` 开头时 SHALL 作为 Linux 路径原样使用，否则 SHALL 按上述规则换算。`--env` 只传递显式列出的变量，SHALL NOT 复制 Windows 环境；服务端不支持该字段时 SHALL 报错而不是忽略。
+`--cwd` 的值以 `/` 或 `~` 开头时 SHALL 作为 Linux 路径原样使用，否则 SHALL 按上述规则换算。`--env` 只传递显式列出的变量，SHALL NOT 复制 Windows 环境；服务端不支持该字段时 SHALL 报错。
 
-默认创建后 SHALL 立即附着（等同 `attach`）；`--detach` 时 SHALL 只输出会话 ID 与本机链接后以退出码 0 结束。
+默认创建后 SHALL 立即附着（等同 `attach`）；`--detach` 时 SHALL 只输出会话 ID 后以退出码 0 结束。
 
 #### Scenario: 从 Windows 目录启动
 
@@ -73,7 +73,7 @@
 #### Scenario: 仅创建
 
 - **WHEN** 用户执行 `webmux run --detach --name review -- codex`
-- **THEN** 输出新会话 ID 与 `http://127.0.0.1:7681/s/<id>`，退出码 0，会话在 WSL 中继续运行
+- **THEN** 输出新会话 ID，退出码 0，会话在 WSL 中继续运行；需要链接时用 `webmux open <id>`
 
 ### Requirement: 在 Windows 控制台中附着
 

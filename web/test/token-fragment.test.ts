@@ -1,5 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { consumeTokenFragment, stored } from "../src/api";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
+import { consumeTokenFragment, stored } from "../src/platform/api";
 
 describe("consumeTokenFragment", () => {
   let storage: Map<string, string>;

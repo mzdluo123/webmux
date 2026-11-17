@@ -1,4 +1,4 @@
-import { expect, test, vi } from "vitest";
+import { expect, test, vi } from "vite-plus/test";
 import {
   createKittyGraphics,
   createKittyStream,
@@ -6,7 +6,7 @@ import {
   type KittyImage,
   type KittyPlacement,
   type KittyPlacementSpec,
-} from "../src/kitty-graphics";
+} from "../src/domains/terminal/kitty-graphics";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -48,10 +48,11 @@ function harness(
     handle: KittyPlacement;
   }[] = [];
   let cursor = { column: 0, line: 0 };
+  let screen = { top: 0, bottom: 24 };
   const graphics = createKittyGraphics({
     cellSize: () => ({ width: 10, height: 20 }),
     cursor: () => cursor,
-    viewport: () => ({ top: 0, bottom: 24 }),
+    viewport: () => screen,
     reply: (text) => {
       replies.push(text);
       logs.push(`reply:${text}`);
@@ -108,6 +109,9 @@ function harness(
     send,
     setCursor(column: number, line: number) {
       cursor = { column, line };
+    },
+    setViewport(top: number, bottom: number) {
+      screen = { top, bottom };
     },
   };
 }
@@ -762,4 +766,43 @@ test("an asynchronous write failure replies with the active image id", async () 
   const board = harness(undefined, undefined, true);
   await board.send(`\x1b_Ga=T,f=32,s=2,v=2,i=1;${raw(2, 2)}\x1b\\after`);
   expect(board.replies).toContain("\x1b_Gi=1;EINVAL:write failed\x1b\\");
+});
+
+test("screen-scoped deletions spare scrollback placements while explicit id deletions still remove them", async () => {
+  const dispose = vi.fn();
+  const board = harness(async () => ({ ...fakeImage(), dispose }));
+  board.setCursor(0, 2);
+  await board.send(
+    `\x1b_Ga=T,f=32,s=2,v=2,i=1,p=1,c=2,r=2,z=-1,C=1;${raw(2, 2)}\x1b\\`,
+  );
+  board.setViewport(10, 34);
+  board.setCursor(0, 12);
+  await board.send(
+    `\x1b_Ga=T,f=32,s=2,v=2,i=2,p=1,c=2,r=2,z=-1,C=1;${raw(2, 2)}\x1b\\`,
+  );
+
+  for (const control of [
+    "d=C",
+    "d=P,x=1,y=1",
+    "d=Q,x=1,y=1,z=-1",
+    "d=X,x=1",
+    "d=Y,y=1",
+    "d=Z,z=-1",
+    "d=A",
+  ]) {
+    await board.send(`\x1b_Ga=d,${control}\x1b\\`);
+  }
+  board.graphics.eraseDisplay(2);
+
+  expect(board.placements[0]!.disposed).toBe(false);
+  expect(board.placements[1]!.disposed).toBe(true);
+  expect(dispose).toHaveBeenCalledTimes(1);
+
+  await board.send("\x1b_Ga=p,i=1,p=2,C=1\x1b\\");
+  expect(board.replies.at(-1)).toBe("\x1b_Gi=1,p=2;OK\x1b\\");
+
+  await board.send("\x1b_Ga=d,d=I,i=1\x1b\\");
+  expect(board.placements[0]!.disposed).toBe(true);
+  expect(board.placements[2]!.disposed).toBe(true);
+  expect(dispose).toHaveBeenCalledTimes(2);
 });

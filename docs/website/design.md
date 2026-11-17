@@ -114,7 +114,7 @@
 ## Logo 使用
 
 - 横向标志：`webmux-logo-light.svg`（浅底）与 `webmux-logo-dark.svg`（深底），用 `<picture>` 按 `prefers-color-scheme` 切换；最小宽度 120px；四周留白不少于图形高度。
-- 单独图标：`web/public/icon.svg` 用于 favicon、OG 图与社交头像；`apple-touch-icon` 单独同步 `web/public/apple-touch-icon.png`，不得指向 SVG。不要把横向标志裁成图标。
+- 单独图标：`web/public/icon.svg` 用于 favicon、OG 图与社交头像；`apple-touch-icon` 单独同步 `web/public/apple-touch-icon.png`，不得指向 SVG。图标使用独立图标资产。
 - 不改色、不加描边、不旋转、不放在渐变或照片上；深色背景只用 `#111814` 或 `#19211c`。
 - OG 图模板：1200 × 630，深绿底 `#111814`，左侧薄荷色图标，右侧白色标题与一句副标题；每个主要页面生成各自标题的 OG 图（Astro 可用 satori 或预渲染）。
 
@@ -123,7 +123,7 @@
 - 只用真实界面：`docs/images/` 下由 `pnpm --dir web screenshots` 生成的图，以及各功能目录中的 PR 证据图；深浅色成对使用。
 - 每张图写明 `width` / `height`，导出 AVIF 与 WebP 并保留 PNG / JPG 回退；单张压缩后不超过 200 KB，Hero 主图不超过 300 KB。
 - 首屏主图 `loading="eager"` 且 `fetchpriority="high"`，其余懒加载。
-- 替代文本描述内容而不是文件名（“会话总览：多个 agent 会话按仓库分组，显示运行状态与屏幕预览”）。
+- 替代文本描述内容（“会话总览：多个 agent 会话按仓库分组，显示运行状态与屏幕预览”）。
 - UI 变化后先在主仓库重新生成截图，再运行同步脚本；官网不手工截图。
 
 ## 图标

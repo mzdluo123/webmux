@@ -4,9 +4,10 @@ package contract
 type APIHealth struct {
 	OK       bool `json:"ok"`
 	Sessions int  `json:"sessions"`
-	// Load and Memory are omitted where the platform cannot report them.
+	// Load, Memory and Swap are omitted where the platform cannot report them.
 	Load   *HostLoad   `json:"load,omitempty"`
 	Memory *HostMemory `json:"memory,omitempty"`
+	Swap   *HostSwap   `json:"swap,omitempty"`
 }
 
 // HostLoad is the host's 1, 5 and 15 minute load averages and its logical
@@ -23,6 +24,12 @@ type HostLoad struct {
 type HostMemory struct {
 	Total     uint64 `json:"total"`
 	Available uint64 `json:"available"`
+}
+
+// HostSwap is swap space in bytes; hosts without swap omit it.
+type HostSwap struct {
+	Total uint64 `json:"total"`
+	Used  uint64 `json:"used"`
 }
 
 // ServerConfig is the body of GET /api/config.
@@ -42,6 +49,9 @@ type ServerConfig struct {
 	PortDetection bool `json:"portDetection"`
 	// Voice reports whether external speech recognition is configured.
 	Voice bool `json:"voice"`
+	// P2P reports whether opportunistic P2P direct upgrade is supported and
+	// enabled on this server; older servers omit it.
+	P2P bool `json:"p2p"`
 }
 
 // PendingUpdate is an installed version awaiting a restart. Launcher is the

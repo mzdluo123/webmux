@@ -7,10 +7,11 @@ import {
   chooseLaunch,
   chooseLocation,
   expect,
-  openPaneMenu,
+  openSplitPanel,
   test,
   useCustomCommand,
 } from "./fixtures";
+import { chooseSessionProject, sessionLocation } from "./session-project";
 import { repositoryMenu } from "./repository-menu";
 
 const exec = promisify(execFile);
@@ -64,13 +65,19 @@ test("global and worktree creation use the selected repository instead of an unr
     .getByRole("button", { name: "＋ 新建会话", exact: true })
     .first()
     .click();
-  const location = page.getByRole("button", { name: "位置", exact: true });
-  await expect(location).toContainText("second · 主工作区 · main");
+  const location = sessionLocation(page);
+  await expect(location).toContainText("主工作区 · main");
+  await expect(
+    page.getByRole("dialog").getByText("second", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "取消", exact: true }).click();
   expect(await (await request.get("/api/sessions")).json()).toEqual([]);
   const group = page.locator(`[data-worktree-id="${second.worktrees[0].id}"]`);
   await group.getByRole("button", { name: "新建会话", exact: true }).click();
-  await expect(location).toContainText("second · 主工作区 · main");
+  await expect(location).toContainText("主工作区 · main");
+  await expect(
+    page.getByRole("dialog").getByText("second", { exact: true }),
+  ).toBeVisible();
   await useCustomCommand(page, "/bin/sh -i");
   await page.getByRole("button", { name: "创建并进入 →", exact: true }).click();
   await expect(page).toHaveURL(/\/s\/[a-z0-9]+$/);
@@ -148,11 +155,9 @@ test("full split creation uses saved configs and keeps the launch subdirectory a
     .locator(".xterm")
     .evaluate((element) => element.setAttribute("data-retained", "yes"));
   const open = async () => {
-    await openPaneMenu(pane);
-    await page
-      .getByRole("menuitem", { name: "新建会话…", exact: true })
-      .click();
-    await expect(page.getByLabel("工作目录", { exact: true })).toHaveValue(cwd);
+    await openSplitPanel(pane);
+    await page.getByRole("button", { name: "新建会话…", exact: true }).click();
+    await expect(sessionLocation(page)).toContainText(cwd);
   };
   await open();
   await page.getByRole("button", { name: "取消", exact: true }).click();
@@ -174,8 +179,10 @@ test("full split creation uses saved configs and keeps the launch subdirectory a
     configId: config.id,
     workspace: { repositoryId: repo.id },
   });
-  await openPaneMenu(page.locator(".split-terminal").last());
-  await page.getByRole("menuitem", { name: "左右分屏 · 新建 Shell" }).click();
+  await openSplitPanel(page.locator(".split-terminal").last());
+  await page
+    .getByRole("button", { name: "左右分屏 · 新建 Shell", exact: true })
+    .click();
   await expect(page.locator(".split-terminal")).toHaveCount(3);
   const all = await (await request.get("/api/sessions")).json();
   expect(all.every((item: { cwd: string }) => item.cwd === cwd)).toBe(true);
@@ -193,12 +200,12 @@ test("split creation retains a new worktree across repository changes after comm
   });
   const original = (await response.json()).session;
   await page.goto(`/s/${original.id}`);
-  await openPaneMenu(page);
-  await page.getByRole("menuitem", { name: "新建会话…", exact: true }).click();
+  await openSplitPanel(page);
+  await page.getByRole("button", { name: "新建会话…", exact: true }).click();
   // The pane's repository is listed first, so its "new worktree" comes first.
   await chooseLocation(page, "新建工作树…");
-  const location = page.getByRole("button", { name: "位置", exact: true });
-  await expect(location).toContainText("新建工作树 · project");
+  const location = sessionLocation(page);
+  await expect(location).toContainText("新建工作树");
   const branch = page.getByLabel("新分支名称", { exact: true });
   await expect(branch).not.toHaveValue("");
   await branch.fill("feature/retry-target");
@@ -211,9 +218,11 @@ test("split creation retains a new worktree across repository changes after comm
     .getByRole("button", { name: "创建并加入分屏 →", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText("webmux-missing-agent");
-  await expect(location).toContainText("project · feature/retry-target");
+  await expect(location).toContainText("feature/retry-target");
+  await chooseSessionProject(page, other.name);
   await chooseLocation(page, `主工作区 · main ${other.anchorPath}`);
   await expect(location).not.toContainText("retry-target");
+  await chooseSessionProject(page, repo.name);
   await location.click();
   const retained = page.getByRole("option", {
     name: /^feature\/retry-target/,
@@ -257,3 +266,66 @@ test("split creation retains a new worktree across repository changes after comm
     repositories.find((item: { id: string }) => item.id === repo.id).worktrees,
   ).toHaveLength(2);
 });
+
+for (const context of [false, true])
+  test(`returning from ${context ? "pane context" : "global"} to a project preserves its worktree draft${context ? "" : " through a host repository refresh"}`, async ({
+    page,
+    request,
+    workDir,
+  }) => {
+    const repo = await register(request, join(workDir, "draft-project"));
+    if (context) {
+      const response = await request.post("/api/sessions", {
+        data: {
+          workspace: {
+            repositoryId: repo.id,
+            worktreeId: repo.worktrees[0].id,
+          },
+          cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+        },
+      });
+      expect(response.status()).toBe(201);
+      const { session } = await response.json();
+      await page.goto(`/s/${session.id}`);
+      const pane = page.locator(`[data-session-id="${session.id}"]`);
+      await expect(pane.locator(".xterm-helper-textarea")).toBeAttached();
+      await openSplitPanel(pane);
+      await page
+        .getByRole("button", { name: "新建会话…", exact: true })
+        .click();
+    } else {
+      await page.goto("/");
+      await selectScope(page, "all");
+      await page
+        .getByRole("main")
+        .getByRole("button", { name: "＋ 新建会话", exact: true })
+        .first()
+        .click();
+      await chooseSessionProject(page, "draft-project");
+    }
+    await chooseLocation(page, "新建工作树…");
+    const branch = page.getByLabel("新分支名称", { exact: true });
+    await expect(branch).not.toHaveValue("");
+    await branch.fill("feature/kept-draft");
+    await page
+      .getByRole("button", { name: "高级：起始提交与存放目录", exact: true })
+      .click();
+    const path = page.getByLabel("新工作树完整路径", { exact: true });
+    await path.fill(join(workDir, "kept-draft"));
+    await page.getByRole("button", { name: "更换项目", exact: true }).click();
+    const refreshed = context
+      ? undefined
+      : page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === "/api/repositories" &&
+            response.request().method() === "GET",
+        );
+    await chooseSessionProject(page, "draft-project");
+    if (refreshed) await (await refreshed).finished();
+    await expect(branch).toHaveValue("feature/kept-draft");
+    await expect(path).toHaveValue(join(workDir, "kept-draft"));
+    await page.getByRole("button", { name: "取消", exact: true }).click();
+    expect(await (await request.get("/api/sessions")).json()).toHaveLength(
+      context ? 1 : 0,
+    );
+  });

@@ -1,0 +1,33 @@
+{
+  "status": 200,
+  "body": {
+    "activePeers": 0,
+    "capabilities": {
+      "iceMode": "full",
+      "networks": [
+        "udp4",
+        "udp6"
+      ],
+      "turn": false
+    },
+    "enabled": true,
+    "peers": [],
+    "portMap": {
+      "state": "off"
+    },
+    "portMapping": false,
+    "source": "web",
+    "storageAvailable": true,
+    "stunServers": [
+      "stun:stun.cloudflare.com:3478"
+    ],
+    "supported": true,
+    "udpBindings": [
+      {
+        "network": "udp4",
+        "port": 45678
+      }
+    ],
+    "udpPort": 0
+  }
+}

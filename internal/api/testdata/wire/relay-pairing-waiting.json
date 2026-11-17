@@ -1,0 +1,12 @@
+{
+  "status": 200,
+  "body": {
+    "error": "",
+    "expiresAt": 1800000000,
+    "phase": "waiting",
+    "pollIntervalSeconds": 5,
+    "retryAt": 0,
+    "userCode": "ABCD-EFGH",
+    "verificationUrl": "https://github.com/login/device"
+  }
+}

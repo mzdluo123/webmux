@@ -1,0 +1,11 @@
+{
+  "status": 200,
+  "body": {
+    "body": "",
+    "repositoryId": "<id#1>",
+    "revision": 0,
+    "subject": "",
+    "updatedAt": null,
+    "worktreeId": "<id#2>"
+  }
+}

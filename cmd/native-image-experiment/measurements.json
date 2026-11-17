@@ -1,0 +1,47 @@
+{
+  "measured_at_utc": "2026-11-15T18:34:17Z",
+  "host": "macOS arm64",
+  "renderer": "github.com/mzdluo123/snapcompact-go v0.1.0",
+  "cli": "omp v18.20.2",
+  "provider": "openai-codex",
+  "model": "gpt-6.1-sol",
+  "generator_sha256": "b9e702ba449a1d520d4fe5ade373597c1962b0970dcc46020f07dfaa7ea979f7",
+  "runner_sha256": "17d0346cbda45e751b63247afda06983e579594515ae10e066b9c1c9e2139db4",
+  "input_sha256": {
+    "raw.txt": "1d4279a6ba3c96442ccbebe2f8537c44dfe907bbf63e6f7b282e2d90cf028f9e",
+    "projected.txt": "d8fc1702578f83e325876ad7327d344bb7240988b43c8c05bb08a271e6d336f7",
+    "task.txt": "7c639655900dbd2e1a7f9a8f814909a661060aef37c5e33129ee237f824037ad"
+  },
+  "raw_history_bytes": 12251,
+  "projected_history_bytes": 3181,
+  "project_ms": 0.38,
+  "render_image_ms": 37.395,
+  "render_hybrid_ms": 28.562,
+  "render_timing_note": "Includes page writes in this experiment; excludes NewRenderer font initialization and compilation.",
+  "missing_glyphs": 0,
+  "uncovered_ranges": 0,
+  "omission": {"source": "log", "field": "text", "start_rune": 1200, "end_rune": 9110, "original_runes": 9910},
+  "cost_note": "Token usage is reported by the CLI after real model responses. USD values are CLI price-catalog estimates, not an invoice or independently verified gateway billing. Zero cache usage was reported. No repeated event snapshots are summed.",
+  "runs": [
+    {"mode": "raw", "exit_code": 0, "input_tokens": 5484, "output_tokens": 77, "total_tokens": 5561, "cli_estimated_usd": 0.011738, "wall_seconds": 4.911, "images": 0, "prompt_bytes": 12802, "correct_retained_fields": 6, "exact_read_errors": 0, "constraint_omissions": 0, "middle_marker": "JADE-120", "supplementary_requests": 0, "tool_calls": 0},
+    {"mode": "projected", "exit_code": 0, "input_tokens": 2696, "output_tokens": 76, "total_tokens": 2772, "cli_estimated_usd": 0.006152, "wall_seconds": 4.492, "images": 0, "prompt_bytes": 3732, "correct_retained_fields": 6, "exact_read_errors": 0, "constraint_omissions": 0, "middle_marker": "NEED_SOURCE", "supplementary_requests": 0, "tool_calls": 0},
+    {"mode": "image", "exit_code": 0, "input_tokens": 4722, "output_tokens": 150, "reasoning_tokens_in_output": 72, "total_tokens": 4872, "cli_estimated_usd": 0.010944, "wall_seconds": 10.117, "images": 3, "prompt_bytes": 540, "correct_retained_fields": 6, "exact_read_errors": 0, "constraint_omissions": 0, "middle_marker": "NEED_SOURCE", "supplementary_requests": 0, "tool_calls": 0},
+    {"mode": "hybrid", "exit_code": 0, "input_tokens": 4254, "output_tokens": 137, "reasoning_tokens_in_output": 59, "total_tokens": 4391, "cli_estimated_usd": 0.009878, "wall_seconds": 7.262, "images": 2, "prompt_bytes": 752, "correct_retained_fields": 6, "exact_read_errors": 0, "constraint_omissions": 0, "middle_marker": "NEED_SOURCE", "supplementary_requests": 0, "tool_calls": 0}
+  ],
+  "retained_answer": {"port": 9097, "chinese": "青竹", "condition": "x <= 7 and x != 0", "indented_return": "        return \"青竹:ok\"", "command": "printf '%s\\n' 'a|b && c; $(NO_EXEC)'", "tail_marker": "LOTUS-239"},
+  "image_envelopes": {
+    "image": [
+      {"mime": "image/webp", "bytes": 68592, "width": 1024, "height": 1012},
+      {"mime": "image/webp", "bytes": 81336, "width": 1024, "height": 1012},
+      {"mime": "image/png", "bytes": 54307, "width": 1568, "height": 200}
+    ],
+    "hybrid": [
+      {"mime": "image/webp", "bytes": 68592, "width": 1024, "height": 1012},
+      {"mime": "image/webp", "bytes": 79586, "width": 1024, "height": 984}
+    ]
+  },
+  "image_envelope_note": "Decoded from the CLI's user message_end image blocks, not a network packet capture. Image-only text contained the task, file wrappers and resize coordinates, but none of the six answers.",
+  "limitations": ["One final run per representation, no confidence intervals", "No WebMux server, ACP or native history injection tested", "Missing middle marker was detected, not looked up; full-original-task completion cost remains unknown", "No authoritative model or gateway image/detail/request-size ceilings established", "No peak RSS measurement"],
+  "codex_probe": {"cli": "codex-cli 0.165.0", "mode": "raw", "exit_code": 1, "wall_seconds": 60.407, "minimal_error": "401 token_revoked; workspace routing discovery unauthorized", "usage": null, "billing": "unknown", "image_delivery": "not reached"},
+  "other_cli_help_only": {"claude": "2.1.245", "opencode": "1.18.23"}
+}

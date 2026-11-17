@@ -9,7 +9,8 @@
   - 终端输出不被当作普通聊天文本重排；
   - 空闲输出与回显立即送达，连续输出（如 resize 重绘）按约 60 FPS 合并；
   - 高吞吐输出保持字节顺序并在退出前送完；
-  - 程序以 DEC 2026 同步输出重绘时，文字与图片在同一帧切换。
+  - 程序以 DEC 2026 同步输出重绘时，文字与图片在同一帧切换；
+  - 点击终端输出中的 `http(s)` OSC 8 链接时打开应用内确认对话框，按当前界面语言展示目标地址（IDN 域名规范化为 Punycode）与安全提示，不阻塞实时输出；确认后以 `noopener,noreferrer` 在新标签页打开，取消或非 `http(s)` 协议不跳转。
 - **US-D02 离开页面后继续运行**：作为远程使用者，我希望关闭标签页、手机锁屏或切换网络后进程仍继续运行，以便长任务不依赖浏览器在线。
   验收要点：
   - 浏览器取消连接只解除附着；
@@ -20,6 +21,7 @@
   - 代际和续接点有效时只追加缺失字节，即使更早历史被覆盖也保留现有终端与查找状态；
   - 否则重置终端（回放期间保留旧画面与图片，完成后同帧切换），未截断时回放缓冲，已截断时仅初始化模式、不回放旧文本，并请求程序重绘，再无缝接入实时流；
   - 完整重置清除旧查找标记并提示按 Enter 重查；
+  - 历史快照中的颜色、光标等设备查询只恢复画面，自动应答不回写 PTY；回放完成后的实时查询正常应答，重开页面不会向程序输入框追加历史查询响应。
   - 慢客户端断开而不阻塞 PTY；
   - 普通 pageshow 不替换连接；
   - 回到前台或发送终端输入时仍为 OPEN 的连接先以无副作用的提交查询探测，3 秒内有回复即保留连接与阅读位置，隐藏期间漏收输出、探测超时或连接已断时才续接，bfcache 恢复同样续接；
@@ -28,11 +30,11 @@
 - **US-D04 查看保留历史**：作为使用者，我希望重开会话后查看最近输出，并知道更早的记录是否已被覆盖，以便判断历史是否完整。
   验收要点：
   - 默认每会话保留 2 MiB 原始字节，可配置；
-  - 截断后的完整恢复不把任意后缀当作完整屏幕，而是清空不可恢复的历史并请求程序重绘，不显示历史丢弃或重绘请求提示；
-  - 查找范围与复制缓冲中的截断标记仍保留；
+  - 截断后的完整恢复清空不可恢复的历史并请求程序重绘；
+  - 查找范围中的截断标记仍保留；
   - 通过短暂改变实际 PTY 列数再恢复请求重绘，不注入按键、不接管控制，并发控制端 resize 优先；
   - 程序不响应时不保证恢复成功，已退出程序不能重绘；
-  - 诊断/复制原始缓冲仍可用，有界缓冲不是永久日志或完整 VT 状态。
+  - 诊断原始缓冲接口仍可用，有界缓冲不是永久日志或完整 VT 状态。
 - **US-D05 多设备观察**：作为在电脑与手机间切换的使用者，我希望同时打开同一会话并观察输出，以便跨设备接续任务。
   验收要点：
   - 各端连接同一个 PTY；
@@ -47,22 +49,22 @@
   - 控制端断开后等待下一次接管，终端设备查询避免重复应答。
 - **US-D07 阅读与恢复画面**：作为使用者，我希望滚动历史后能回到最新输出，并能清屏或重新同步，以便处理长输出和异常画面。
   验收要点：
-  - 提供滚动到最新位置（窄于 640px 时由终端内“回到最新”浮动按钮承担）、清屏和重新同步；
+  - 顶栏不再提供“滚动到最新位置”按钮；提供终端内“回到最新”浮动按钮、清屏和重新同步；
   - 重新同步与重开页面使用同一安全快照恢复路径，历史截断时清空不可恢复内容并请求重绘；
-  - 窄屏终端离开底部（含观察端平移离开最新行）时右下角显示带文字的“回到最新”，点击回到最新输出且不取得焦点、不开合键盘，回到底部自动隐藏；
-  - 这些操作不创建新会话，也不结束进程；
-  - 复制全部缓冲独立于当前可见区域。
+  - 桌面与手机终端离开底部（含观察端或锁定尺寸平移离开最新行）时，在终端区域靠下居中显示带文字的“回到最新”悬浮按钮，点击直接到达最新输出且不取得焦点、不开合键盘，回到底部自动隐藏；
+  - 这些操作不创建新会话，也不结束进程。
 - **US-D08 全屏与字体**：作为使用者，我希望进入全屏并调整字体，以便在不同屏幕上留出更多终端空间。
   验收要点：
   - 浏览器支持时可进入和退出原生全屏（窄于 640px 时在终端菜单中）；
   - 不支持时浏览器标签页提示添加到主屏幕，主屏幕 Web App 中不显示全屏入口；
-  - 字体可在 8–20px 间调整，只保存在当前浏览器、不跨设备同步（各设备屏幕大小不同），并用于终端布局；终端与代码区内置 `Maple Mono NF CN`（含拉丁、制表符、Nerd Font 图标及按需加载的 `unicode-range` 中文切片），保证中英文 2:1 等宽对齐。
+  - 字体可在 8–20px 间调整，只保存在当前浏览器、不跨设备同步（各设备屏幕大小不同），并用于终端布局；终端与代码区内置 `Maple Mono NF CN`（含拉丁、制表符、Nerd Font 图标及按需加载的 `unicode-range` 中文切片），保证中英文 2:1 等宽对齐；
+  - 终端已绘制后才加载完成的图标、制表符或中文切片会触发重新测量并重绘这些字形，不依赖浏览器派发 `loadingdone`（WebKit 没有 `FontFaceSetLoadEvent`，可能不派发），因此未安装 Nerd Font 的平板上 omp 等程序的 Nerd Font 图标也能显示。
 - **US-D09 查看退出结果**：作为使用者，我希望程序结束后仍能看到退出码和最后输出，以便确认成功或排查失败。
   验收要点：
   - 最终输出排空后发布退出；
   - 退出码与原始缓冲保留至手动移除；
   - 已退出会话不再接受终端输入；
-  - 退出后的前台恢复与手动重新同步仍使用安全 WebSocket 快照，缓冲已截断时清空不能重建的历史，不显示历史丢弃或无法重绘提示，不把原始后缀写入终端。混合会话的 TUI 自行退出时同样保留最后输出，并标记为已中断、提供恢复到聊天或终端（US-Q10）。
+  - 退出后的前台恢复与手动重新同步仍使用安全 WebSocket 快照，缓冲已截断时清空不能重建的历史，不显示历史丢弃或无法重绘提示，不把原始后缀写入终端。混合会话的 TUI 自行退出时同样保留最后输出，并标记为已中断、提供按原终端模式恢复的入口（US-Q10）。
 - **US-D10 关闭和移除会话**：作为使用者，我希望明确终止不再需要的任务，再清除会话记录，以便管理进程与列表。
   验收要点：
   - 关闭前确认，先 SIGHUP、超时后 SIGKILL，并按平台能力清理后代；
@@ -72,7 +74,7 @@
   - macOS 自守护进程边界见 [部署说明](../deployment/services.md#平台差异)。混合会话的结束操作称为“停止会话并归档”（非破坏性确认）：先中断进行中的回合，记录改为已关闭并进入所属工作树的“已归档”，单窗格会话页随后返回首页，“已归档”保持折叠，不自动展开，分屏时只移除该窗格；删除记录另行确认（US-Q12）。
 - **US-D11 查找终端输出**：作为阅读长输出的使用者，我希望在当前终端缓冲中查找文字并复制匹配，以便定位错误而不向程序发送输入。
   验收要点：
-  - 终端菜单“查找”、Ctrl+Shift+F 或 macOS Cmd+F 打开查找栏，普通 Ctrl+F 不拦截；
+  - 终端菜单“查找”、Ctrl+Shift+F 或 macOS Cmd+F 打开查找栏，普通 Ctrl+F 不拦截；仅终端视图拥有此快捷键，聊天内嵌文件或 Diff 的查找交给获得焦点的阅读器；
   - 从当前视口开始，支持大小写、全词、正则、上/下一个匹配及 Enter/Shift+Enter，Esc 关闭；
   - 显示当前序号、无匹配与无效正则，达到 1000 个时明确只统计前 1000 个；
   - 范围限当前 xterm 缓冲（默认最多回看 10000 行），全屏程序只查当前屏幕，服务端历史截断另行提示，不检索已覆盖输出或服务端原始字节；
@@ -87,8 +89,8 @@
   - 支持直接传输的 PNG、RGB、RGBA、分块传输、图片与放置 ID、图像编号、源矩形裁剪、按单元格缩放与偏移、`C=1` 光标策略及各类删除；
   - 查询由控制端浏览器在后续文本前答复，回放历史不回发旧响应；
   - 普通/备用屏幕的图片隔离；
-  - `CSI 2J` 清屏删除对应放置，局部文本擦除不删除图片；
-  - 图片随输出滚动并可随历史视口重新显示，历史截断释放对应放置；
+  - `CSI 2J` 清屏与 `a=d` 屏幕级删除（`d=a`/`c`/`p`/`q`/`x`/`y`/`z`）只作用于当前活动屏幕，查看历史时不会误删回滚区图片或仍在回滚区引用的图像数据；局部文本擦除不删除图片；
+  - 默认光标策略（`C=0`）在屏幕底部放置多行图片时按行滚屏分配缓冲行，待折行（pending wrap）光标钳制在右边界内；图片随输出滚动、终端宽度重排回流或渲染器切换后仍可随历史视口完整显示，历史截断释放对应放置；
   - omp 顶部裁剪及只重绘文字时保留正确图片，不依赖会被文本擦除删除的 xterm marker；
   - 解码、图像数量、放置及画布资源有界，超限请求被拒绝，后续尺寸变化超限时释放放置；
   - 图片只绘制在浏览器终端，不进入会话列表文本预览；
@@ -96,12 +98,12 @@
   - 不支持文件/共享内存介质、动画、Unicode 占位符和相对父放置，不支持的相对放置返回 `ENOTSUP`；
   - 负 z-index 图片仍显示在文字上方。
 
-- **US-D15 查阅快捷键**：作为使用者，我希望从终端右上角查看全部 WebMux 快捷键，以便发现操作方式并确认生效范围。
+- **US-D15 查阅快捷键**：作为使用者，我希望从设置页查看全部 WebMux 快捷键，以便发现操作方式并确认生效范围。
   验收要点：
-  - 右上角键盘按钮在 640px 及以上可见；窄于 640px（手机无实体键盘）时收入终端菜单“快捷键”，弹窗在 320px 内完整可见；
-  - 弹窗分组展示键位，说明平台修饰键、Ctrl+B 前缀、焦点范围及快速切换会话（US-C18）。
-  - 明暗主题与低高度横屏中可滚动查阅，标题和关闭按钮保持可见；
-  - 按钮或 Esc 关闭后焦点返回入口；
+  - 设置页提供“快捷键”分区和分区导航，支持 `/settings#shortcuts` 直接定位；终端顶栏和菜单不再提供旧入口；
+  - 页面分组展示键位，说明平台修饰键、Ctrl+B 前缀、焦点范围及快速切换会话（US-C18）；
+  - 明暗主题与 320px 窄屏中可随页面滚动查阅，无页面横向溢出；
+  - 分区导航定位后聚焦教程，带会话来源进入设置时仍可返回终端；
   - 查阅不触发分屏、不向终端输入、不改变未发送草稿；
   - Shell 与 CLI 自有键位由目标程序决定。
 
@@ -109,38 +111,38 @@
 
 依据：
 
-- [快捷键帮助](../../web/src/components/TerminalShortcuts.svelte)、[帮助入口](../../web/src/components/TerminalHeader.svelte)、[帮助验收](../../web/test/e2e/shortcuts.spec.ts)
+- [快捷键帮助](../../web/src/components/settings/ShortcutsSettings.svelte)、[帮助入口](../../web/src/pages/Settings.svelte)、[帮助验收](../../web/test/e2e/shortcuts.spec.ts)
   分屏创建补充（US-D13）：完整表单支持保存配置、临时命令、命名及方向选择；取消不创建，成功保留原终端与路由。完整创建和快速 Shell 均保留源启动子目录与工作树校验。
 
-- [分屏布局](../../web/src/terminal-layout.ts)、[终端窗格](../../web/src/components/SessionTerminal.svelte)、[分屏菜单](../../web/src/components/TerminalSplitMenu.svelte)
-- [会话选择](../../web/src/components/SplitSessionDialog.svelte)、[分屏验收](../../web/test/e2e/splits.spec.ts)、[后台交互验收](../../web/test/e2e/split-background.spec.ts)
-- [终端页面](../../web/src/pages/Terminal.svelte)、[终端连接](../../web/src/hooks/terminal.svelte.ts)、[终端回放](../../web/src/hooks/terminal-socket.svelte.ts)、[终端视口](../../web/src/components/TerminalViewport.svelte)
+- [分屏布局](../../web/src/domains/terminal/terminal-layout.ts)、[终端窗格](../../web/src/components/terminal/SessionTerminal.svelte)、[分屏面板](../../web/src/components/terminal/TerminalSplitPanel.svelte)
+- [会话选择](../../web/src/components/terminal/SplitSessionDialog.svelte)、[分屏验收](../../web/test/e2e/splits.spec.ts)、[后台交互验收](../../web/test/e2e/split-background.spec.ts)
+- [终端页面](../../web/src/pages/Terminal.svelte)、[终端连接](../../web/src/hooks/terminal/terminal.svelte.ts)、[终端回放](../../web/src/hooks/terminal/terminal-socket.svelte.ts)、[终端视口](../../web/src/components/terminal/TerminalViewport.svelte)
 - [回放浏览器回归](../../web/test/browser/TerminalReplay.test.ts)、[安全快照与重绘](../../internal/session/session.go)、[模式初始化](../../internal/vtpreview/preview.go)
 - [快照回归](../../internal/session/replay_test.go)
-- [真实 PTY 重绘回归](../../internal/session/replay_unix_test.go)、[查找栏](../../web/src/components/TerminalFindBar.svelte)、[查找契约与范围](../../web/src/terminal-search.ts)
-- [查找单元用例](../../web/test/terminal-search.test.ts)、[终端浏览器验收用例](../../web/test/e2e/terminal.spec.ts)、[连接生命周期](../../web/src/ws.ts)
-- [平台能力判断](../../web/src/capabilities.ts)
+- [真实 PTY 重绘回归](../../internal/session/replay_unix_test.go)、[查找栏](../../web/src/components/terminal/TerminalFindBar.svelte)、[查找契约与范围](../../web/src/domains/terminal/terminal-search.ts)
+- [查找单元用例](../../web/test/terminal-search.test.ts)、[终端浏览器验收用例](../../web/test/e2e/terminal.spec.ts)、[连接生命周期](../../web/src/platform/ws.ts)
+- [平台能力判断](../../web/src/platform/capabilities.ts)
 - [回显延迟与连续输出回归](../../internal/api/continuity_test.go)
 - [WebSocket 桥接](../../internal/hub/hub.go)、[会话 IO](../../internal/session/input_write.go)、[控制权](../../internal/session/control.go)
-- [会话管理](../../internal/session/manager.go)、[Kitty 图形协议](../../web/src/kitty-graphics.ts)、[图形渲染层](../../web/src/hooks/terminal-graphics.ts)
+- [会话管理](../../internal/session/manager.go)、[Kitty 图形协议](../../web/src/domains/terminal/kitty-graphics.ts)、[图形渲染层](../../web/src/hooks/terminal/terminal-graphics.ts)
 - [协议单元用例](../../web/test/kitty-graphics.test.ts)
 - [图形浏览器用例](../../web/test/browser/TerminalGraphics.test.ts)、[终端渲染与等宽字体回归](../../web/test/browser/TerminalRenderer.test.ts)。
+- [终端链接校验](../../web/src/domains/terminal/terminal-link.ts)、[终端对话框](../../web/src/components/terminal/SessionTerminalDialogs.svelte)、[链接确认回归](../../web/test/browser/TerminalLinkConfirm.test.ts)。
 
-图形滚动补充依据：[图像行锚点](../../web/src/hooks/terminal-graphics-anchor.ts)、[共享重绘字节](../../web/test/fixtures/kitty-scroll.ts)、[交互式 PTY 复现程序](../../web/test/fixtures/kitty-scroll-demo.mjs)。
+图形滚动补充依据：[图像行锚点](../../web/src/hooks/terminal/terminal-graphics-anchor.ts)、[图形历史与回流回归](../../web/test/browser/TerminalGraphicsScrollback.test.ts)、[共享重绘字节](../../web/test/fixtures/kitty-scroll.ts)、[交互式 PTY 复现程序](../../web/test/fixtures/kitty-scroll-demo.mjs)。
 
 ## E. 剪贴板与文件上传
 
-- **US-E01 复制选中与全部缓冲**：作为使用者，我希望复制选中文字或当前服务端保留的全部输出，以便分享结果和排查问题。
+- **US-E01 复制选中文字**：作为使用者，我希望复制终端中选中的文字，以便分享结果和排查问题。
   验收要点：
   - 桌面有选中时 Ctrl+C（macOS ⌘C）复制并清除选择，无选中时 Ctrl+C 发送中断；
   - Ctrl+Shift+C 不再复制；
   - 复制按钮旁显示对应快捷键且触摸设备隐藏；
   - 触摸选择提供复制按钮；
-  - 菜单可复制全部缓冲；
-  - 缓冲被截断时注明更早输出已覆盖。
+  - 终端菜单不再提供复制全部缓冲入口（命令行读取保留输出见 US-S10 `webmux logs`）。
 - **US-E02 粘贴文本与降级操作**：作为使用者，我希望粘贴多行文本，并在剪贴板权限不可用时仍能手动操作，以便在 HTTP 或受限浏览器中输入。
   验收要点：
-  - 提供 Ctrl+Shift+V 和粘贴入口；
+  - 提供浏览器原生粘贴、Ctrl+Shift+V 与软键栏粘贴按钮，终端菜单已移除粘贴项；
   - 遵循目标程序的 bracketed paste 模式；
   - 剪贴板读写被拒绝时提供手动文本框；
   - 未启用 bracketed paste 的程序可能把换行当作提交。
@@ -174,7 +176,10 @@
   - 已上传但未插入时提示真实路径，保留已成功插入的结果；
   - 退出会话拒绝新上传。
 
-依据：[终端剪贴板操作](../../web/src/components/SessionTerminal.svelte)、[剪贴板处理](../../web/src/terminal-clipboard.ts)、[上传交互](../../web/src/hooks/upload.svelte.ts)、[上传接口](../../internal/api/upload.go)、[临时文件夹](../../internal/artifacts/artifacts.go)。
+依据：
+
+- 剪贴板：[终端操作](../../web/src/components/terminal/SessionTerminal.svelte)、[处理逻辑](../../web/src/domains/terminal/terminal-clipboard.ts)。
+- 上传：[交互](../../web/src/hooks/shared/upload.svelte.ts)、[接口](../../internal/featureapi/upload.go)、[临时文件夹](../../internal/artifacts/artifacts.go)。
 
 ## F. 草稿编写、保存与发送确认
 
@@ -226,8 +231,8 @@
 
 依据：
 
-- [快捷指令数据](../../web/src/quick-commands.ts)、[状态与同步](../../web/src/quick-commands.svelte.ts)、[菜单](../../web/src/components/QuickCommandMenu.svelte)、[编辑弹窗](../../web/src/components/QuickCommandDialog.svelte)
-- [设置](../../web/src/pages/Settings.svelte)、[系统预设菜单](../../web/src/components/QuickCommandPresetMenu.svelte)、[预设菜单用例](../../web/test/browser/QuickCommandPresetMenu.test.ts)、[初始化指令展开](../../internal/workspace/instruction.go)。
+- [快捷指令数据](../../web/src/domains/settings/quick-commands.ts)、[状态与同步](../../web/src/domains/settings/quick-commands.svelte.ts)、[菜单](../../web/src/components/settings/QuickCommandMenu.svelte)、[编辑弹窗](../../web/src/components/settings/QuickCommandDialog.svelte)
+- [设置](../../web/src/pages/Settings.svelte)、[系统预设菜单](../../web/src/components/settings/QuickCommandPresetMenu.svelte)、[预设菜单用例](../../web/test/browser/QuickCommandPresetMenu.test.ts)、[初始化指令展开](../../internal/workspace/instruction.go)。
 
 ## H. 手机、平板与触摸操作
 
@@ -285,21 +290,23 @@
   - 手机的代码视图不提供快捷指令入口；回到终端视图后由软键栏进入。
 - **US-H08 窄屏紧凑顶栏**：作为在手机或主屏幕 Web App 中查看 agent 的使用者，我希望顶栏只保留身份和视图切换，其余操作按用途归类，以便看清会话名称、把高度留给终端，并一眼知道自己在哪个视图。
   验收要点：
-  - 窄于 640px 时顶栏单行且不横向滚动，只常驻返回、状态点加标题、“会话视图”切换（普通会话“终端 | 代码”，混合会话“聊天 | 终端 | 代码”，带文字，不再另设代码按钮）和终端菜单；分屏在手机上不常用，收入终端菜单“窗格”组（新建/加入会话、分屏、放大、关闭窗格）；
-  - 普通会话与混合会话的“会话视图”是同一个标签页控件（`tablist`），文案固定，选中项表示当前视图（`aria-selected`）；页面加载、会话信息到达和切换进行中不改换控件，混合会话确认后在前面加上“聊天”，切换目标未知时各项原位保留且不选中；
+  - 窄于 640px 时顶栏单行且不横向滚动，保留返回、状态点加标题、聊天与终端的“会话视图”切换、“打开面板”和终端菜单；
+  - “打开面板”在手机与桌面均展开右侧栏，先显示标题为“打开面板”的选择页，提供“分屏”按钮，启用 `code` 后另有“代码”按钮；选择后以代码工作区或原有全部分屏选项替换选择页，不使用下拉菜单或子菜单；
+  - 选择页提供“关闭侧栏面板”，分屏页头部提供“返回面板选择”和“关闭侧栏面板”；代码页保持原有布局，不新增头部，点击会话页右上角“打开面板”回到选择页后关闭侧栏；终端菜单不再重复分屏组；
+  - 仅“面板选择”区域获得焦点时，C/S 分别选择代码与分屏（代码需启用 `code`）；快捷键提示不计入按钮名称，终端、聊天与代码内容不响应这两个选择键；
   - 状态点在标题之前；连接异常时点脉动（尊重减少动效设置），“重连中”等文字显示在标题下方小字，不挤掉标题；
   - 草稿开关在触屏软键栏快捷指令旁，软键栏隐藏（代码视图或非触屏窄屏）时在终端菜单首组；
-  - 终端菜单按“会话 / 剪贴板 / 终端 / 显示”分组，窄屏另含全屏、上传文件、快捷键，名称与禁用条件不变；滚动到最新位置由终端内“回到最新”浮动按钮承担；
+  - 终端菜单按“会话 / 终端 / 显示”分组，窄屏另含全屏、上传文件，名称与禁用条件不变；快捷键教程统一在设置页查阅，终端视图可见时回到最新输出由终端区域靠下居中的“回到最新”浮动按钮承担（单栏代码视图下先切回终端）；
   - 返回与菜单为触控尺寸，其余顶栏控件为紧凑触控尺寸；
   - 320px 下无横向溢出，393px 下完整显示较短标题；
-  - 宽屏保留既有按钮（含草稿、快捷键）并增加分屏菜单；
-  - 宽屏状态点紧随标题，右侧按“聊天 | 终端”、图标操作（上传、滚动到最新）、快捷指令、草稿、代码、全屏、分屏、菜单排列；
+  - 宽屏保留草稿等常用按钮，原代码按钮改为“打开面板”，独立分屏按钮移入侧栏选择页；
+  - 宽屏状态点紧随标题，右侧按“聊天 | 终端”、上传、快捷指令、草稿、打开面板、全屏、菜单排列；
   - 返回按钮始终可用。
 - **US-H09 安装为应用**：作为在手机或桌面常用 WebMux 的使用者，我希望知道当前地址能否安装并一键安装，以便像本地应用一样打开且不被地址栏占用空间。
   验收要点：
   - 设置页“安装应用”分区显示正以应用方式运行、本页刚完成安装，或在浏览器提供安装提示时显示未安装；
   - 没有提示时不断言未安装（已安装应用的普通标签页同样收不到提示），只说明未以应用方式打开；
-  - Chromium 在安全上下文提供安装提示时显示“安装 WebMux”按钮并调用浏览器提示，提示只用一次，取消后说明可从浏览器菜单安装，安装后隐藏按钮；
+  - Chromium 在安全上下文提供安装提示时显示“安装 WebMux”按钮并调用浏览器提示，提示只用一次；取消或提示 Promise 被拒绝时说明可从浏览器菜单安装，失败不产生未处理 rejection，安装后隐藏按钮；
   - 没有提示时说明 Chrome、Edge 与 macOS Safari 的菜单入口；
   - iOS / iPadOS 显示“分享 → 添加到主屏幕”与重新输入 Token 的步骤，HTTP 地址可添加但推送仍需 HTTPS；
   - 非安全上下文（既非 HTTPS 也非本机回环地址）明确提示“当前地址不能提供完整 PWA 能力”并指向 HTTPS 入口；
@@ -308,16 +315,20 @@
 
 US-H09 图标验收：应用图标与页头标志一致。maskable 版本为系统裁切保留安全边距，Apple 主屏幕图标交由系统裁圆角。
 
-慢速网络下的连接与加载压缩（US-H10–US-H11）见[网络压缩用户故事](terminal-network.md)。
+慢速与中转网络下的连接压缩、加载压缩与机会性 P2P 直连升级（US-H10–US-H12）见[网络压缩与 P2P 直连用户故事](terminal-network.md)。
 
 依据：
 
-- [安装状态](../../web/src/install.svelte.ts)、[安装卡片](../../web/src/components/InstallSettings.svelte)、[安装卡片用例](../../web/test/browser/InstallSettings.test.ts)
+- [安装状态](../../web/src/platform/install.svelte.ts)、[安装卡片](../../web/src/components/settings/InstallSettings.svelte)、[安装卡片用例](../../web/test/browser/InstallSettings.test.ts)
 - [主屏幕图标](../../web/public/icon-512.png)、[maskable 图标](../../web/public/icon-maskable.svg)、[Apple 主屏幕图标](../../web/public/apple-touch-icon.png)
-- [Manifest](../../web/public/manifest.webmanifest)、[Manifest 与图标用例](../../internal/api/static_test.go)、[软键栏](../../web/src/components/SoftKeys.svelte)、[软键盘摇杆](../../web/src/components/TouchGamepad.svelte)、[摇杆偏好](../../web/src/hooks/touch-gamepad-preference.svelte.ts)
-- [触摸手势](../../web/src/hooks/touch.ts)
-- [触摸检测](../../web/src/touch-input.ts)、[视口与键盘可见性](../../web/src/hooks/viewport.svelte.ts)、[终端输入与键盘切换](../../web/src/hooks/terminal.svelte.ts)
-- [键盘按钮暂时保持尺寸](../../web/src/hooks/keyboard-size-hold.ts)、[保持状态机用例](../../web/test/keyboard-size-hold.test.ts)
-- [草稿输入框](../../web/src/components/TerminalInputComposer.svelte)、[终端页面](../../web/src/pages/Terminal.svelte)、[Web 应用清单](../../web/public/manifest.webmanifest)。
+- 安装入口：[Manifest](../../web/public/manifest.webmanifest)、[Manifest 与图标用例](../../internal/api/static_test.go)。
+- 终端输入：[软键栏](../../web/src/components/terminal/SoftKeys.svelte)、[软键盘摇杆](../../web/src/components/terminal/TouchGamepad.svelte)、[摇杆偏好](../../web/src/hooks/terminal/touch-gamepad-preference.svelte.ts)。
+- [触摸手势](../../web/src/hooks/terminal/touch.ts)
+- [触摸检测](../../web/src/platform/touch-input.ts)、[视口与键盘可见性](../../web/src/hooks/shared/viewport.svelte.ts)、[终端输入与键盘切换](../../web/src/hooks/terminal/terminal.svelte.ts)
+- [键盘按钮暂时保持尺寸](../../web/src/hooks/terminal/keyboard-size-hold.ts)、[保持状态机用例](../../web/test/keyboard-size-hold.test.ts)
+- [草稿输入框](../../web/src/components/terminal/TerminalInputComposer.svelte)、[终端页面](../../web/src/pages/Terminal.svelte)、[Web 应用清单](../../web/public/manifest.webmanifest)。
+- [面板选择](../../web/src/components/terminal/SessionSidePanel.svelte)、[分屏面板](../../web/src/components/terminal/TerminalSplitPanel.svelte)。
 
-偏好同步依据：[服务](../../internal/settings/service.go)、[统一前端入口](../../web/src/settings.svelte.ts)、[操作重放](../../web/src/settings-intent.ts)、[双客户端验收](../../web/test/e2e/settings-sync.spec.ts)。
+偏好同步依据：[服务](../../internal/settings/service.go)、[统一前端入口](../../web/src/domains/settings/settings.svelte.ts)、[操作重放](../../web/src/domains/settings/settings-intent.ts)、[双客户端验收](../../web/test/e2e/settings-sync.spec.ts)。
+
+头显 2D、TV 导航与沉浸式工作区（US-H13–US-H15）见[头显与 TV 用户故事](terminal-xr-tv.md)。

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
-  import CodeWorkspace from "../components/CodeWorkspace.svelte";
-  import { useCodePopoutFrame } from "../hooks/code-popout-frame.svelte";
+  import { m } from "$lib/paraglide/messages.js";
+  import CodeWorkspace from "../components/code/CodeWorkspace.svelte";
+  import { useCodePopoutFrame } from "../hooks/code/code-popout-frame.svelte";
 
   let { id }: { id: string } = $props();
   const frame = useCodePopoutFrame();
@@ -24,12 +25,14 @@
     />
   {:else if frame.phase === "standalone"}
     <div class="space-y-2 p-6 text-sm">
-      <p>独立代码窗口需从会话页面打开。</p>
-      <Button href={`/s/${id}`} variant="outline" size="sm">返回会话</Button>
+      <p>{m.s1_code_popout_requires_session()}</p>
+      <Button href={`/s/${id}`} variant="outline" size="sm"
+        >{m.s1_back_to_session()}</Button
+      >
     </div>
   {:else}
     <p role="status" class="p-6 text-sm text-muted-foreground">
-      正在连接会话页面…
+      {m.s1_connecting_session_page()}
     </p>
   {/if}
 </main>

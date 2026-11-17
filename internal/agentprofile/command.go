@@ -57,11 +57,11 @@ func (r Reason) Message() string {
 	case ReasonSessionStore:
 		return "该参数使聊天视图无法找到会话"
 	case ReasonDirectoryArg:
-		return "请在新建会话时选择目录，不要在命令中写目录"
+		return "工作目录在新建会话时选择"
 	case ReasonNonInteractive:
 		return "该参数不启动交互界面"
 	case ReasonSessionArg:
-		return "该参数打开已有会话，混合配置请不要指定会话"
+		return "该参数打开已有会话；混合配置使用 WebMux 管理的原生会话身份"
 	default:
 		return "未识别到支持的 Agent"
 	}
@@ -164,9 +164,6 @@ func (c *Command) classify() error {
 			continue
 		}
 		if optionsDone || !strings.HasPrefix(token, "-") || token == "-" {
-			if p.Positional == PositionalDirectory {
-				return &UnsupportedError{Reason: ReasonDirectoryArg, Arg: token}
-			}
 			if !positionalSeen && !optionsDone {
 				if p.SessionSubcommands[token] {
 					return &UnsupportedError{Reason: ReasonSessionArg, Arg: token}
@@ -174,6 +171,9 @@ func (c *Command) classify() error {
 				if p.Subcommands[token] || hasAnyPrefix(token, p.SubcommandPrefixes) {
 					return &UnsupportedError{Reason: ReasonNonInteractive, Arg: token}
 				}
+			}
+			if p.Positional == PositionalDirectory || (p.Positional == PositionalDirectoryPrompt && !optionsDone) {
+				return &UnsupportedError{Reason: ReasonDirectoryArg, Arg: token}
 			}
 			positionalSeen = true
 			c.hasPrompt = true
@@ -395,6 +395,13 @@ func (c Command) ChatConfig() (seeds []Seed, unsupported []string) {
 
 // ProtocolOnFD3 reports that ACPArgv's process writes the protocol to fd 3.
 func (c Command) ProtocolOnFD3() bool { return c.Form == FormStartup }
+
+// NativeProtocolArgv uses the same startup-file form and the exact executable
+// resolved for the connector, without reapplying launch options to a saved
+// native thread. Arguments remain argv entries, never shell-expanded text.
+func (c Command) NativeProtocolArgv(executable string, args ...string) []string {
+	return c.wrapExec(startupACPScript, executable, args...)
+}
 
 // Dropped lists the arguments that resume and ACP commands omit.
 func (c Command) Dropped() []string { return slices.Clone(c.dropped) }

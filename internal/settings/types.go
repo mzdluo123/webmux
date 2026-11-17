@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf16"
@@ -33,19 +34,21 @@ type Command struct {
 	Enter   bool   `json:"enter"`
 }
 type Values struct {
-	Theme         *string             `json:"theme"`
 	Preview       *Preview            `json:"preview"`
 	CodeReader    *CodeReader         `json:"codeReader"`
 	QuickCommands *[]Command          `json:"quickCommands"`
 	HomeWorktrees map[string][]string `json:"homeWorktrees"`
+	SessionPins   []string            `json:"sessionPins,omitempty"`
 	ForceSoftKeys *bool               `json:"forceSoftKeys"`
 	// IgnoreHighPorts suppresses automatic port-forwarding prompts and
 	// detected-port rows for ports 30000 and above when nil or true;
 	// omitempty keeps files written before this setting loadable.
 	IgnoreHighPorts *bool `json:"ignoreHighPorts,omitempty"`
-	// LegacyFontSize, LegacyChatIdleSleepMinutes and LegacyArtifactPrompt
-	// only let files written before those settings were removed load under
-	// strict decoding. Open discards them and they are never written back.
+	// LegacyTheme, LegacyFontSize, LegacyChatIdleSleepMinutes and
+	// LegacyArtifactPrompt only let files written before those settings were
+	// removed load under strict decoding. Open discards them and they are never
+	// written back.
+	LegacyTheme                json.RawMessage `json:"theme,omitempty"`
 	LegacyFontSize             json.RawMessage `json:"fontSize,omitempty"`
 	LegacyChatIdleSleepMinutes json.RawMessage `json:"chatIdleSleepMinutes,omitempty"`
 	LegacyArtifactPrompt       json.RawMessage `json:"artifactPrompt,omitempty"`
@@ -96,9 +99,21 @@ func validate(f storedFile) error {
 	}
 	return validateValues(f.Values)
 }
+
+const maxSessionPins = 50
+
+var sessionPinID = regexp.MustCompile(`^[a-z2-7]{8}$`)
+
 func validateValues(v Values) error {
-	if v.Theme != nil && *v.Theme != "light" && *v.Theme != "dark" {
+	if len(v.SessionPins) > maxSessionPins {
 		return ErrInvalid
+	}
+	pins := make(map[string]bool, len(v.SessionPins))
+	for _, id := range v.SessionPins {
+		if !sessionPinID.MatchString(id) || pins[id] {
+			return ErrInvalid
+		}
+		pins[id] = true
 	}
 	if v.Preview != nil && (v.Preview.Lines < 1 || v.Preview.Lines > 50 || v.Preview.Skip < 0 || v.Preview.Skip > 50) {
 		return ErrInvalid
@@ -164,7 +179,7 @@ func clonePtr[T any](p *T) *T {
 	return &v
 }
 func cloneValues(v Values) Values {
-	v.Theme = clonePtr(v.Theme)
+	v.SessionPins = slices.Clone(v.SessionPins)
 	v.Preview = clonePtr(v.Preview)
 	v.CodeReader = clonePtr(v.CodeReader)
 	v.ForceSoftKeys = clonePtr(v.ForceSoftKeys)
@@ -189,8 +204,6 @@ func apply(v Values, c Changes) (Values, error) {
 	}
 	for key := range c.Fields {
 		switch key {
-		case "theme":
-			v.Theme = c.Values.Theme
 		case "preview":
 			v.Preview = c.Values.Preview
 		case "codeReader":
@@ -199,6 +212,8 @@ func apply(v Values, c Changes) (Values, error) {
 			v.QuickCommands = c.Values.QuickCommands
 		case "homeWorktrees":
 			v.HomeWorktrees = c.Values.HomeWorktrees
+		case "sessionPins":
+			v.SessionPins = c.Values.SessionPins
 		case "forceSoftKeys":
 			v.ForceSoftKeys = c.Values.ForceSoftKeys
 		case "ignoreHighPorts":

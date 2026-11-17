@@ -3,6 +3,7 @@
   import IconInfoCircle from "~icons/tabler/info-circle";
   import { Button } from "$lib/components/ui/button";
   import * as Popover from "$lib/components/ui/popover";
+  import { m } from "$lib/paraglide/messages.js";
 
   // "ⓘ" beside a one-line summary: the longer explanation opens on demand
   // instead of taking the first screen of a small phone.
@@ -23,8 +24,9 @@
         {...props}
         variant="quiet"
         size="icon-xs"
-        aria-label={`${label}说明`}
-        title="说明"><IconInfoCircle aria-hidden="true" /></Button
+        aria-label={m.s1_info_hint_aria({ label })}
+        title={m.s1_info_hint_title()}
+        ><IconInfoCircle aria-hidden="true" /></Button
       >
     {/snippet}
   </Popover.Trigger>

@@ -1,0 +1,100 @@
+<script lang="ts">
+  import { untrack } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
+  import { errorMessage } from "../../platform/error";
+  import { api } from "../../platform/api";
+  import { settings } from "../../domains/settings/settings.svelte";
+  import { parseQuickCommands } from "../../domains/settings/quick-commands";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
+  import {
+    INIT_INSTRUCTION_MAX,
+    RepositorySchema,
+    UpdateRepositoryRequestSchema,
+    type Repository,
+  } from "../../contracts/schemas";
+  import { Button } from "$lib/components/ui/button";
+  import InitInstructionField from "../sessions/InitInstructionField.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
+
+  // Edits a repository's settings from the home toolbar: today the init
+  // instruction template; saving it empty removes it.
+  let {
+    repository,
+    onclose,
+    onchange,
+  }: {
+    repository: Repository;
+    onclose: () => void;
+    onchange: () => void;
+  } = $props();
+  let instruction = $state(untrack(() => repository.initInstruction));
+  let busy = $state(false);
+  let error = $state("");
+  const commands = $derived(
+    featureAvailable("quick-commands.send")
+      ? (settings.values.quickCommands ?? parseQuickCommands(""))
+      : [],
+  );
+  async function save() {
+    busy = true;
+    error = "";
+    try {
+      await api(
+        `/repositories/${repository.id}`,
+        RepositorySchema,
+        "PATCH",
+        { initInstruction: instruction.trim() },
+        undefined,
+        UpdateRepositoryRequestSchema,
+      );
+      onchange();
+      onclose();
+    } catch (err) {
+      error = errorMessage(err);
+    } finally {
+      busy = false;
+    }
+  }
+</script>
+
+<ResponsiveDialog
+  title={m.s8_repo_settings_title()}
+  description={m.s8_repo_settings_desc({ name: repository.name })}
+  {onclose}
+  {busy}
+>
+  <form
+    class="space-y-4"
+    onsubmit={(event) => {
+      event.preventDefault();
+      void save();
+    }}
+  >
+    <InitInstructionField
+      id="repository-instruction-edit"
+      {commands}
+      commandsAvailable={featureAvailable("quick-commands.send")}
+      bind:value={instruction}
+    />
+    {#if error}<p role="alert" class="break-all text-sm text-destructive">
+        {error}
+      </p>{/if}
+    <div class="flex justify-end gap-2">
+      <Button
+        type="button"
+        variant="ghost"
+        class="mr-auto"
+        disabled={busy || !instruction}
+        onclick={() => (instruction = "")}>{m.s8_clear()}</Button
+      >
+      <Button type="button" variant="outline" disabled={busy} onclick={onclose}
+        >{m.s8_cancel()}</Button
+      >
+      <Button
+        type="submit"
+        disabled={busy || instruction.length > INIT_INSTRUCTION_MAX}
+        >{busy ? m.s8_saving() : m.s8_save()}</Button
+      >
+    </div>
+  </form>
+</ResponsiveDialog>

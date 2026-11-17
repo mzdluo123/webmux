@@ -31,6 +31,14 @@ const requiredButtons: Record<
   ],
   "code-changes": [{ name: /unbroken_identifier/, count: 3 }],
   "workspace-dialog": [{ name: "关闭预览", count: 1 }],
+  "git-workbench-shell": [
+    { name: "推送…", count: 1 },
+    { name: "提交预览…", count: 1 },
+  ],
+  "git-push-dialog": [
+    { name: "取消", count: 1 },
+    { name: "确认推送", count: 1 },
+  ],
 };
 
 export async function assertRequiredButtons(scope: Locator, story: Story) {

@@ -1,0 +1,251 @@
+<script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
+  import { errorMessage } from "../../platform/error";
+  import { onMount, untrack } from "svelte";
+  import { Button } from "$lib/components/ui/button";
+  import IconPictureInPictureOff from "~icons/tabler/picture-in-picture-off";
+  import CodeWorkspace from "./CodeWorkspace.svelte";
+  import type { CodeHost } from "../../domains/code/code-host";
+  import type {
+    CodeHostState,
+    CodeReveal,
+    CodeWorkspaceSnapshot,
+    ReportedCwd,
+  } from "../../contracts/schemas";
+  import type { TextInsertion } from "../../domains/terminal/terminal-draft.svelte";
+  import { popoutAvailable, popOut, type CodePopout } from "./code-popout";
+  import { codePanelState } from "../../hooks/code/code-panel-state";
+  import { findShell, openGitWorkbench } from "../../hooks/shared/shell.svelte";
+  import type { TerminalFeatures } from "../../features/terminal";
+
+  let {
+    id,
+    visible,
+    connection,
+    paste,
+    draftEnabled,
+    sessionCwd,
+    reportedCwd,
+    reveal,
+    workspaceRef,
+    gitFeature: initialGitFeature,
+  }: {
+    id: string;
+    visible: boolean;
+    connection: string;
+    paste: (text: string) => TextInsertion;
+    draftEnabled: boolean;
+    sessionCwd: string;
+    reportedCwd: ReportedCwd | null;
+    /** A code location another view asks to show, such as from chat output. */
+    reveal?: CodeReveal;
+    workspaceRef?: { repositoryId: string; worktreeId?: string } | null;
+    gitFeature?: TerminalFeatures["git"];
+  } = $props();
+  const gitFeature = untrack(() => initialGitFeature);
+
+  const shell = findShell();
+  const gitWorkspace = $derived.by(() => {
+    if (!gitFeature) return null;
+    const ref =
+      workspaceRef !== undefined
+        ? workspaceRef
+        : shell?.sessions.sessions.find((s) => s.id === id)?.workspace;
+    if (!ref?.repositoryId) return null;
+    if (
+      shell &&
+      workspaceRef === undefined &&
+      !shell.repositories?.list.some((r) => r.id === ref.repositoryId)
+    ) {
+      return null;
+    }
+    return ref;
+  });
+  const fileInspector = gitFeature?.createGitFileInspectorController({
+    getRepoId: () => gitWorkspace?.repositoryId ?? "",
+    getWorktreeId: () => gitWorkspace?.worktreeId || undefined,
+  });
+
+  const host: CodeHost = {
+    get draftEnabled() {
+      return draftEnabled;
+    },
+    get connection() {
+      return connection;
+    },
+    get sessionCwd() {
+      return sessionCwd;
+    },
+    get reportedCwd() {
+      return reportedCwd;
+    },
+    get reveal() {
+      return reveal;
+    },
+    paste: (text) => Promise.resolve(paste(text)),
+  };
+  const hostState = $derived<CodeHostState>({
+    draftEnabled,
+    connection,
+    sessionCwd,
+    reportedCwd,
+  });
+
+  const canPopOut = popoutAvailable();
+  let workspace = $state<CodeWorkspace>();
+  let wrapper = $state<HTMLDivElement>();
+  // While popped out the window's frame owns the workspace; this page keeps
+  // only the latest state it reported, and remounts from it on return.
+  let popout = $state<CodePopout>();
+  export function isPoppedOut() {
+    return !!popout;
+  }
+  export function xrPanels() {
+    return workspace?.xrPanels() ?? [];
+  }
+  // While the window starts, the workspace here is inert: the window restores
+  // the state captured when popping began.
+  let popping = $state(false);
+  // Back on this session the panel reopens as it was left.
+  let snapshot = $state.raw<CodeWorkspaceSnapshot | undefined>(
+    untrack(() => codePanelState.snapshot(id)),
+  );
+  let generation = $state(0);
+  let notice = $state("");
+  let mounted = false;
+
+  async function toggle() {
+    if (popout) return popout.close();
+    if (!workspace || !wrapper || popping) return;
+    popping = true;
+    notice = "";
+    const current = workspace.capture();
+    // Requests this workspace already showed are part of `current`.
+    const shownReveal = reveal?.key ?? 0;
+    const rect = wrapper.getBoundingClientRect();
+    try {
+      const opened = await popOut({
+        id,
+        title: m.s5_code_window_title({
+          target: current.context?.rootPath ?? id,
+        }),
+        width: rect.width,
+        height: rect.height,
+        snapshot: current,
+        host: $state.snapshot(hostState),
+        paste,
+        closed(latest) {
+          popout = undefined;
+          if (!mounted) return;
+          snapshot = latest;
+          generation++;
+        },
+      });
+      // A request that arrived while the window started is shown there too.
+      forwarded = shownReveal;
+      if (mounted) popout = opened;
+      else opened.dispose();
+    } catch (e) {
+      if (mounted)
+        notice = m.s5_popout_open_failed({ message: errorMessage(e) });
+    } finally {
+      popping = false;
+    }
+  }
+
+  $effect(() => {
+    const state = $state.snapshot(hostState);
+    popout?.host(state);
+  });
+  let forwarded = 0;
+  $effect(() => {
+    const target = reveal;
+    if (!popout || !target || target.key === forwarded) return;
+    forwarded = target.key;
+    // Reactive props are proxies, which a message port cannot clone.
+    popout.reveal($state.snapshot(target));
+  });
+
+  // Navigating away remounts the page for another session. The router's
+  // `popstate` runs while this workspace is still laid out, so reading
+  // positions are captured before teardown detaches its views.
+  function keep() {
+    if (workspace && !popout && !popping)
+      codePanelState.keep(id, workspace.capture());
+  }
+  onMount(() => {
+    mounted = true;
+    window.addEventListener("popstate", keep);
+    return () => {
+      window.removeEventListener("popstate", keep);
+      mounted = false;
+      popout?.dispose();
+      fileInspector?.dispose();
+    };
+  });
+</script>
+
+<div
+  bind:this={wrapper}
+  class="flex h-full min-h-0 min-w-0 flex-col"
+  inert={popping}
+  aria-busy={popping}
+>
+  {#if notice}<p
+      role="alert"
+      class="shrink-0 px-2 py-1 text-sm break-all text-destructive"
+    >
+      {notice}
+    </p>{/if}
+  {#if popout}<div
+      class="flex flex-1 flex-col items-center justify-center gap-3 p-4 text-sm text-muted-foreground"
+    >
+      <p>{m.s5_code_shown_in_popout()}</p>
+      <Button variant="outline" size="sm" onclick={() => popout?.close()}
+        ><IconPictureInPictureOff
+          aria-hidden="true"
+        />{m.s5_dock_back_here()}</Button
+      >
+    </div>
+  {:else}
+    {#key generation}<CodeWorkspace
+        bind:this={workspace}
+        {id}
+        {visible}
+        {host}
+        initial={snapshot}
+        popout={canPopOut
+          ? { popped: false, toggle: () => void toggle() }
+          : undefined}
+        onOpenGit={gitWorkspace
+          ? () => {
+              keep();
+              openGitWorkbench({
+                repositoryId: gitWorkspace.repositoryId,
+                worktreeId: gitWorkspace.worktreeId || undefined,
+                returnSession: id,
+              });
+            }
+          : undefined}
+        onInspectGitFile={gitWorkspace && fileInspector
+          ? (path, tab) => fileInspector?.openInspector({ path, tab })
+          : undefined}
+      />{/key}
+  {/if}
+  {#if gitFeature && fileInspector?.open && gitWorkspace}
+    <gitFeature.InspectorDialog
+      inspector={fileInspector}
+      hasWorktree={Boolean(gitWorkspace.worktreeId)}
+      onJumpToCommit={(oid) => {
+        keep();
+        openGitWorkbench({
+          repositoryId: gitWorkspace.repositoryId,
+          worktreeId: gitWorkspace.worktreeId || undefined,
+          view: "log",
+          commit: oid,
+          returnSession: id,
+        });
+      }}
+    />
+  {/if}
+</div>

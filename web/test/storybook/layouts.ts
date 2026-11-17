@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { overflowViolations } from "./overflow";
 
 const viewports = [
@@ -10,14 +10,14 @@ const viewports = [
   { name: "large-text", width: 320, height: 568, textScale: 2 },
 ];
 
-type Layout = {
+export type Layout = {
   name: string;
   viewport: { width: number; height: number };
   theme: "light" | "dark";
   textScale: number;
 };
 
-const layouts: Layout[] = viewports.flatMap(
+export const layouts: Layout[] = viewports.flatMap(
   ({ name, width, height, textScale }) =>
     (["light", "dark"] as const).map((theme) => ({
       name: `${name}-${theme}`,
@@ -33,11 +33,37 @@ export async function expectNoOverflow(page: Page, name: string) {
     .toEqual([]);
 }
 
+/**
+ * Asserts the dialog lies within the viewport. Its height follows dvh,
+ * which can settle a frame after a viewport change on a loaded CI runner.
+ */
+export async function expectDialogFits(
+  page: Page,
+  dialog: Locator,
+  name: string,
+) {
+  const viewport = page.viewportSize()!.height;
+  await expect.soft
+    .poll(
+      async () => {
+        const bounds = await dialog.boundingBox();
+        return (
+          bounds !== null &&
+          bounds.y >= -1 &&
+          bounds.y + bounds.height <= viewport + 1
+        );
+      },
+      { message: name, timeout: 2_000 },
+    )
+    .toBe(true);
+}
+
 export async function checkEachLayout(
   page: Page,
   check: (layout: Layout) => Promise<void>,
+  selectedLayouts: readonly Layout[] = layouts,
 ) {
-  for (const layout of layouts) {
+  for (const layout of selectedLayouts) {
     await test.step(layout.name, async () => {
       await page.setViewportSize(layout.viewport);
       await page.emulateMedia({ colorScheme: layout.theme });

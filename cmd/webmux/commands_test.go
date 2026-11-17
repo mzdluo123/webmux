@@ -27,8 +27,9 @@ func TestOpsCommandFlagsMatchTable(t *testing.T) {
 		"version": func(args []string, stderr io.Writer) {
 			versionCommand(args, io.Discard, stderr)
 		},
-		"status": func(args []string, stderr io.Writer) { statusCommand(args, io.Discard, stderr) },
-		"stop":   func(args []string, stderr io.Writer) { stopCommand(args, io.Discard, stderr) },
+		"status":    func(args []string, stderr io.Writer) { statusCommand(args, io.Discard, stderr) },
+		"stop":      func(args []string, stderr io.Writer) { stopCommand(args, io.Discard, stderr) },
+		"mcp-serve": func(args []string, stderr io.Writer) { mcpCommand(args, strings.NewReader(""), io.Discard, stderr) },
 		"bridge": func(args []string, stderr io.Writer) {
 			bridgeCommand(args, strings.NewReader(""), io.Discard, stderr)
 		},
@@ -213,7 +214,11 @@ func firstLine(s string) string {
 var _ = clicmd.GroupHelp
 
 func TestConnectLocalPrefersSocketThenConfigThenEnvironment(t *testing.T) {
-	dir := t.TempDir()
+	dir, err := os.MkdirTemp("/tmp", "wmx-cli-socket-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	envSocket := dir + "/env.sock"
 	getenv := func(name string) string {
 		if name == contract.SocketEnv {

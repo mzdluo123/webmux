@@ -29,7 +29,7 @@
 - 代际相同且序号仍在日志内时，服务端 SHALL 只补发其后的事件；
 - 否则 SHALL 发送重置并从日志起点重放。
 
-日志按编码后的字节计量，上限取 `scrollback_bytes`。超出时最早的事件被丢弃，视图 SHALL 在顶部显示“更早的历史未缓存，可切到终端查看”。
+日志按编码后的字节估算计量，上限取 `scrollback_bytes`。超出时，系统 SHALL 先按“旧工具输出降级”缩减较旧事件的 tool 内容；仍超出时，最早的事件被丢弃，视图 SHALL 在顶部显示“更早的历史未缓存，可切到终端查看”。降级本身 SHALL NOT 触发该提示。
 
 #### Scenario: 断线续接
 
@@ -40,6 +40,11 @@
 
 - **WHEN** 日志超过上限后，用户打开会话
 - **THEN** 视图顶部显示更早历史未缓存的提示，其余对话正常显示
+
+#### Scenario: 先降级再丢弃
+
+- **WHEN** 日志超过上限，且较旧事件中含有大于降级阈值的 tool 内容
+- **THEN** 系统先缩减这些内容；缩减后不再超出时没有任何事件被丢弃，也没有“更早的历史未缓存”提示
 
 ### Requirement: 时间线内容的展示
 
@@ -175,15 +180,35 @@ agent 提供的配置项 SHALL 在桌面输入框下方显示，在手机收进�
 | --------------------------------------------- | ------------ |
 | 有待答复的权限请求                            | `permission` |
 | 有待答复的表单请求                            | `question`   |
-| 回合以 `end_turn` 结束                        | `done`       |
+| 回合以 `end_turn` 结束且无未完成后台工作      | `done`       |
 | 回合以 `refusal`、错误或 `auth_required` 结束 | `error`      |
 
 用户发送消息或答复请求时，系统 SHALL 清除关注。会话状态 SHALL 相应地取 `running`（回合进行中）、`waiting`（存在关注）或 `idle`。
 
 #### Scenario: 回合结束后的关注
 
-- **WHEN** 聊天端的回合以 `end_turn` 结束
+- **WHEN** 聊天端的回合以 `end_turn` 结束且无未完成后台工作
 - **THEN** 会话关注为 `done`、状态为 `waiting`；用户再次发送消息后关注被清除，状态变为 `running`
+
+### Requirement: 回合结束后的后台工作
+
+回合以 `end_turn` 结束时，若仍有 `in_progress` 工具调用，或本轮工具输入明确包含 `run_in_background: true` / `IsDaemon: true`，系统 SHALL 设置 `turn.unfinished: true`，显示“本轮已结束，仍有任务未完成”，且 SHALL NOT 立即产生 `done` 关注。
+
+系统 SHALL NOT 依赖 agent 在回合后主动发送后台完成通知，SHALL 观察 agent 进程树。连续两次静默轮询确认本回合新启动的进程全部退出后，若档案声明了后台状态检查 prompt，系统 SHALL 自动发送该 `session/prompt`；未声明的 agent SHALL 直接按提醒策略产生 `done`，SHALL NOT 额外发起模型回合。
+
+系统 SHALL 通过档案声明的检查回合刷新工具状态与回复，并在其结束后才按提醒策略产生 `done`。新回合开始、切换、重连或会话关闭 SHALL 停止观察。非 Linux/macOS 无进程树支持时，两次轮询后按无新进程处理。
+
+自动检查回合 SHALL 标记为后台刷新，旧工具在该回合补发的完成事件 SHALL NOT 再次触发后台观察或自动检查。系统 SHALL NOT 伪造工具退出码或读取 agent 的私有 transcript。
+
+#### Scenario: agy 在检查回合补发后台完成状态
+
+- **WHEN** agy 的后台进程退出且连续两次轮询没有发现新进程
+- **THEN** 系统自动发送英文状态检查消息，agy 补发旧工具的 `completed` 更新与结果回复，随后清除未完成状态并产生 `done`，且不再自动发起第二次检查
+
+#### Scenario: Kimi 的后台启动调用已经完成
+
+- **WHEN** Kimi 的 Bash 工具输入包含 `run_in_background: true`，启动调用已标为 `completed`，回合以 `end_turn` 返回且后台进程仍在运行
+- **THEN** 回合仍显示有任务未完成，不产生 `done` 关注；后台进程退出且连续两次静默轮询后，清除 `turn.unfinished` 并直接按提醒策略产生 `done`，不自动发起状态检查回合
 
 ### Requirement: 聊天端的推送与卡片预览
 
@@ -196,12 +221,12 @@ agent 提供的配置项 SHALL 在桌面输入框下方显示，在手机收进�
 
 ### Requirement: 会话列表中的 agent 标识
 
-首页会话卡片 SHALL 为任意所在端的混合会话（`hybrid.side` 为 `tui`、`acp` 或 `switching`，含“恢复到终端”后的会话）在“所在端”信息处显示 agent 标识：
+首页会话卡片 SHALL 为任意所在端的混合会话（`agent` 不为 `null`，`view` 为 `terminal` 或 `chat`，或 `transition` 不为 `null`，含“恢复到终端”后的会话）在“所在端”信息处显示 agent 标识：
 
-- 标识由 `agentIcon` 对应的单色品牌小图标与 `agentTitle` 组成，紧接其后是现有的所在端文字，形如“OpenCode · 聊天”；
+- 标识由 `agent.icon` 对应的单色品牌小图标与 `agent.title` 组成，紧接其后是现有的所在端文字，形如“OpenCode · 聊天”；
 - 品牌图标 SHALL 替换原来的通用聊天或终端图标，尺寸与同一行的其他元信息图标相同，颜色跟随该行的弱化文字色；
 - 图标 SHALL 是装饰性的（对辅助技术隐藏），agent 名称以可见文字提供；
-- `agentIcon` 不在本地图标目录中时 SHALL 只显示名称，SHALL NOT 用终端等其他图标代替。
+- `agent.icon` 不在本地图标目录中时 SHALL 只显示名称，SHALL NOT 用终端等其他图标代替。
 
 #### Scenario: 聊天端卡片
 
@@ -220,19 +245,19 @@ agent 提供的配置项 SHALL 在桌面输入框下方显示，在手机收进�
 
 #### Scenario: 未知图标键
 
-- **WHEN** 会话的 `agentIcon` 不在本地图标目录中
+- **WHEN** 会话的 `agent.icon` 不在本地图标目录中
 - **THEN** 卡片只显示 agent 名称与所在端文字，不显示任何替代图标
 
 ### Requirement: 聊天页头部的 agent 标识
 
 会话页显示聊天视图时，头部 SHALL 在会话标题之后、状态点之前显示当前 agent 的标识，强调程度低于标题：
 
-- 宽度不小于 640px 时，标识 SHALL 显示小图标与 `agentTitle`，文字使用弱化色与小号字；
+- 宽度不小于 640px 时，标识 SHALL 显示小图标与 `agent.title`，文字使用弱化色与小号字；
 - 宽度小于 640px 时，标识 SHALL 只显示图标；
-- 任何宽度下，标识 SHALL 有可访问名称“Agent：<agentTitle>”，并以悬停提示显示同样的文字；
+- 任何宽度下，标识 SHALL 有可访问名称“Agent：<agent.title>”，并以悬停提示显示同样的文字；
 - 空间不足时 SHALL 先截断会话标题，agent 标识 SHALL 保持完整；
 - 标识 SHALL 只用于展示，SHALL NOT 可聚焦或可点击；
-- `agentIcon` 不在本地图标目录中时，所有宽度 SHALL 显示名称且不显示图标。
+- `agent.icon` 不在本地图标目录中时，所有宽度 SHALL 显示名称且不显示图标。
 
 会话页显示终端视图时，头部 SHALL NOT 显示该标识。
 
@@ -250,3 +275,93 @@ agent 提供的配置项 SHALL 在桌面输入框下方显示，在手机收进�
 
 - **WHEN** 用户在聊天页点击“终端”并完成切换
 - **THEN** 头部不再显示 agent 标识；切回聊天后标识重新出现
+
+### Requirement: 旧工具输出降级
+
+日志超出上限时，系统 SHALL 把比保护窗口更旧的事件中 tool 的内容块缩减，规则如下：
+
+- 文本、diff 的新旧文本每块至多保留 2 KiB，在 UTF-8 字符边界处截断，并把该内容块标记为 `truncated`。
+- tool 的标题、类型、状态与位置 SHALL 保持不变；事件的序号与种类 SHALL 保持不变。
+- 保护窗口为日志尾部、估算大小不超过上限四分之一的事件，其中的 tool 内容 SHALL NOT 被缩减。
+- 缩减 SHALL 按从旧到新的顺序进行，一旦日志不再超出上限即停止；已不超过阈值的内容块 SHALL NOT 被改动。
+- 日志未超出上限时 SHALL NOT 缩减任何内容。
+- 缩减 SHALL NOT 修改已发给订阅者的对象；已经收到完整内容的订阅者 SHALL 保留所收到的内容。
+
+#### Scenario: 旧输出缩短，最近的保持完整
+
+- **WHEN** 一个长会话的日志超过上限，较旧的整文件读取输出为 40 KiB，最近一轮的读取输出为 40 KiB
+- **THEN** 新打开的页面中较旧的工具调用只保留约 2 KiB 并显示已截断，标题、状态与文件位置不变；最近一轮的输出保持完整
+
+#### Scenario: 单个事件超过保护窗口
+
+- **WHEN** 日志超过上限，最新一条 tool 事件的内容单独就大于上限的四分之一
+- **THEN** 该事件不在保护窗口内，其内容可被缩减；系统优先缩减它
+
+#### Scenario: 短会话不受影响
+
+- **WHEN** 会话的日志始终未超过上限
+- **THEN** 所有 tool 输出保持完整，不被截断
+
+#### Scenario: 续接不受影响
+
+- **WHEN** 客户端已收到某条较旧 tool 事件的完整内容后断线，日志随后降级该事件，客户端带着其后的序号重连
+- **THEN** 客户端不再收到该事件，已显示的完整内容保持不变
+
+### Requirement: 相邻消息块合并存储
+
+日志 SHALL 把同一条消息的连续 `message.append` 块在该消息结束后合并为一条存储事件，规则如下：
+
+- 只合并 `messageId` 与角色都相同、角色为 `agent` 或 `thought` 且不含附件的连续块；用户消息 SHALL NOT 合并。
+- 仍在流式中的最后一条消息 SHALL NOT 合并；实时推送 SHALL 保持逐块发送。
+- 合并事件的序号 SHALL 为该组最后一个块的序号，文本为各块依次连接，`truncated` 为各块的“或”。
+- 重放（新订阅或重置）SHALL 发送合并后的事件。
+- 续接点落在一组之内时，服务端 SHALL 只补发该组中客户端尚未收到的文字，序号为该组最后一个序号；SHALL NOT 重发已收到的文字，也 SHALL NOT 触发重置。
+- 估算大小 SHALL 按合并后的事件计算。
+
+#### Scenario: 重放使用合并后的事件
+
+- **WHEN** 一条 agent 回复由 60 个流式块组成并已结束，用户随后用新设备打开该会话
+- **THEN** 新设备收到的该回复为一条事件，文字与逐块连接的结果完全相同
+
+#### Scenario: 断线恰好落在消息中间
+
+- **WHEN** 客户端收到一条回复的前 20 个块后断线，该回复在断线期间完成并被合并，客户端带着第 20 块的序号重连
+- **THEN** 服务端只补发其余文字，页面上的回复文本完整、不重复、不闪烁，且不触发重置
+
+#### Scenario: 流式中的消息不合并
+
+- **WHEN** 一条回复仍在流式输出
+- **THEN** 已连接的客户端逐块收到更新，新连接的客户端收到的是到目前为止的逐块事件，随后继续收到实时块
+
+#### Scenario: 同样的预算保留更多历史
+
+- **WHEN** 同一会话分别在合并前后写满上限
+- **THEN** 合并后日志保留的对话轮数不少于合并前
+
+### Requirement: 聊天回合完成提醒遵守启动配置提醒策略
+
+当混合会话处于聊天端（`activeSurface == "chat"`）且一个 ACP 回合以 `stopReason == "end_turn"` 结束（且无运行中的后台终端任务）时，服务端 SHALL 按照该会话启动配置绑定的 `attention` 策略决定是否发出以及何时发出 `done` 提醒：
+
+- 若 `mode` 为 `"urgent"` 或 `"off"`，服务端 MUST 不产生回合完成的 `done` 提醒；
+- 若 `minTurnSeconds > 0` 且当前聊天回合耗时短于 `minTurnSeconds`，服务端 MUST 忽略本次 `done` 提醒；
+- 若 `doneDelaySeconds > 0`，服务端 MUST 等待 `doneDelaySeconds` 秒且期间未发起新回合、未切换到终端或产生新的后台任务后才发布 `done` 提醒；
+- 聊天端的权限审批（`permission`）、提问（`question`）与回合错误（`error`）在 `mode != "off"` 时 MUST 立即发布提醒。
+
+#### Scenario: 仅需介入模式下聊天回合完成不发提醒但权限审批照常提醒
+
+- **WHEN** 混合会话的启动配置设置 `attention.mode = "urgent"`，且当前活跃端为聊天端
+- **AND** Agent 在回合中发起 `session/request_permission`
+- **THEN** 会话立即发布 `permission` 提醒
+- **WHEN** 用户批准后该回合以 `end_turn` 正常结束
+- **THEN** 聊天流正常写入 `turn_end` 事件，但会话不发布 `done` 提醒
+
+#### Scenario: 聊天回合耗时低于最短耗时阈值时不触发完成提醒
+
+- **WHEN** 混合会话的启动配置设置 `attention.minTurnSeconds = 15`，用户发送一条简短消息后 Agent 在 4 秒内以 `end_turn` 完成回复
+- **THEN** 聊天界面正常显示完整回复与回合结束状态，但服务端不发布 `done` 提醒
+
+#### Scenario: 聊天回合完成确认延迟期间发起新回合时取消提醒
+
+- **WHEN** 混合会话的启动配置设置 `attention.doneDelaySeconds = 5`，回合以 `end_turn` 结束
+- **AND** 在 5 秒延迟窗口内用户发送了下一条提示词或会话启动了新的后台任务
+- **THEN** 服务端取消挂起的 `done` 提醒，不在旧回合上发出通知

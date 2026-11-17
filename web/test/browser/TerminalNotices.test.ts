@@ -1,12 +1,14 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
-import TerminalNotices from "../../src/components/TerminalNotices.svelte";
-import type { ListeningPort } from "../../src/schemas";
-import { createTerminalDrafts } from "../../src/terminal-draft.svelte";
+import TerminalNotices from "../../src/components/terminal/TerminalNotices.svelte";
+import type { ListeningPort } from "../../src/contracts/schemas";
+import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
 import { body, forward, seedForwards, stubFetch } from "./forward-fixture";
 import { seedSettings } from "./settings-fixture";
-import { stopSettings } from "../../src/settings.svelte";
+import { stopSettings } from "../../src/domains/settings/settings.svelte";
+import * as forwardFeature from "../../src/features/terminal-forward";
+import * as filesFeature from "../../src/features/terminal-files";
 
 afterEach(async () => {
   try {
@@ -31,6 +33,7 @@ const terminal = {
 function notices(fields: Record<string, unknown> = {}) {
   return render(TerminalNotices, {
     terminal,
+    features: { forward: forwardFeature, files: filesFeature },
     uploads: { progress: null, cancel: vi.fn() },
     draft: createTerminalDrafts().get("notice-test"),
     draftSaved: "",
@@ -39,6 +42,7 @@ function notices(fields: Record<string, unknown> = {}) {
     showScratch: vi.fn(),
     dismissScratch: vi.fn(),
     remove: vi.fn(),
+    leave: vi.fn(),
     ...fields,
   });
 }
@@ -228,4 +232,12 @@ test("ports from 30000 up are ignored by default and prompted when the setting i
 
   await seedSettings({ ignoreHighPorts: false });
   await expect.element(page.getByText("另有 2 个端口")).toBeVisible();
+});
+
+test("disabled forwarding contributes no prompt or request for listening ports", async () => {
+  seedForwards([]);
+  const fetch = stubFetch(() => Response.json({}));
+  await notices({ features: {}, session: "core-only", listening: ports(5173) });
+  await expect.element(prompt(5173)).not.toBeInTheDocument();
+  expect(fetch).not.toHaveBeenCalled();
 });

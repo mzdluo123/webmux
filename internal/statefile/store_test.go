@@ -71,6 +71,7 @@ func TestStrictSnapshotsPreserveDocument(t *testing.T) {
 		})
 	}
 }
+
 func TestCommitPhases(t *testing.T) {
 	for _, uncertain := range []bool{false, true} {
 		t.Run(map[bool]string{false: "before-publication", true: "after-publication"}[uncertain], func(t *testing.T) {
@@ -195,6 +196,7 @@ func TestSymlinkCannotBeReadOrReplaced(t *testing.T) {
 func TestEveryDescriptorStorageContract(t *testing.T) {
 	for _, d := range Catalog() {
 		t.Run(string(d.ID), func(t *testing.T) {
+
 			dir := t.TempDir()
 			h, _, err := Open[map[string]any](dir, d.ID, nil)
 			t.Cleanup(h.Close)

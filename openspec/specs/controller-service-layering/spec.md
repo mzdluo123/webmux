@@ -2,7 +2,7 @@
 
 ## Purpose
 
-规定 WebMux 后端 Controller 层（HTTP/WebSocket 传输）与 Service 层（业务规则、状态、文件系统与进程）之间的边界，以及线上类型（DTO）与内部类型的分离。边界由仓库内的架构测试强制执行：违规会让 Go 测试失败，而不是依赖代码评审。
+规定 WebMux 后端 Controller 层（HTTP/WebSocket 传输）与 Service 层（业务规则、状态、文件系统与进程）之间的边界，以及线上类型（DTO）与内部类型的分离。边界由仓库内的架构测试强制执行：违规会让 Go 测试失败。
 
 ## Requirements
 
@@ -155,7 +155,7 @@ Service 包 SHALL NOT 自行编码对客户端可见的 JSON 载荷：
 
 以下情形不受此限制：经共享持久化包写入磁盘的 JSON，以及终端输出与回放快照等原始二进制载荷。
 
-在服务器外解码这些 JSON 的 Go 客户端 SHALL 使用同一批线上类型，而不是 Service 类型。
+在服务器外解码这些 JSON 的 Go 客户端 SHALL 使用同一批线上类型。
 
 #### Scenario: 包级初始化和函数值不能绕过 R9
 
@@ -243,7 +243,7 @@ Service 包 SHALL NOT 自行编码对客户端可见的 JSON 载荷：
 
 ### Requirement: 架构测试的报告与自检
 
-架构测试 SHALL 作为常规 Go 测试运行，被 `go test ./...` 与 `make test` 自动包含，不需要额外工具或网络访问。一次运行 SHALL 报告全部违规，而不是在第一处停止；每条报告 SHALL 包含文件路径、行号、规则编号和修复提示。
+架构测试 SHALL 作为常规 Go 测试运行，被 `go test ./...` 与 `make test` 自动包含，不需要额外工具或网络访问。一次运行 SHALL 报告全部违规；每条报告 SHALL 包含文件路径、行号、规则编号和修复提示。
 
 每条规则 SHALL 在一个包含故意违规的固定样例上验证：样例中的每处违规都被检测到，合规代码不被报告。
 

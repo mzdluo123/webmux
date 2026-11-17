@@ -18,6 +18,7 @@ import (
 
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/localclient"
+	"github.com/rainchan/webmux/internal/sessionobserve"
 )
 
 // The chat commands act on what only a session's chat view has: requests,
@@ -120,24 +121,6 @@ func (e Env) chatCommand(ctx context.Context, args []string, method, path string
 	return contract.ExitOK
 }
 
-// queuedGone ends a wait for a queued prompt once it left the queue
-// without a turn sending it. The turn.start that sends it is published
-// before the state that drops it, so a missing item means it was removed.
-func queuedGone(item string) func(*contract.ChatState) error {
-	seen := false
-	return func(state *contract.ChatState) error {
-		present := slices.ContainsFunc(state.Queue.Items, func(it contract.ChatQueueItem) bool { return it.ID == item })
-		if present {
-			seen = true
-			return nil
-		}
-		if seen {
-			return fmt.Errorf("the queued prompt %s was removed before it was sent", item)
-		}
-		return nil
-	}
-}
-
 var chatWatchCommand = &Command{
 	Name: "chat watch", Group: GroupChat, Args: "SESSION",
 	Summary: "Stream a session's chat view: messages, tool calls, requests and turns.",
@@ -171,11 +154,11 @@ var chatWatchCommand = &Command{
 			if !ok {
 				return code
 			}
-			stream, err := openChat(ctx, client, info.ID)
+			stream, err := sessionobserve.OpenChat(ctx, client, info.ID, 64<<20)
 			if err != nil {
 				return e.Fail(err)
 			}
-			defer stream.close()
+			defer stream.Close()
 			err = e.watchChat(ctx, stream, *asJSON, *history)
 			if ctx.Err() != nil {
 				return 130
@@ -188,13 +171,13 @@ var chatWatchCommand = &Command{
 	},
 }
 
-func (e Env) watchChat(ctx context.Context, stream *chatStream, asJSON, history bool) error {
+func (e Env) watchChat(ctx context.Context, stream *sessionobserve.ChatSubscription, asJSON, history bool) error {
 	out := bufio.NewWriter(e.Stdout)
 	defer func() { _ = out.Flush() }()
 	text := chatText{w: out}
 	replay := false
 	for {
-		frame, err := stream.read(ctx)
+		frame, err := stream.Read(ctx)
 		if err != nil {
 			if status := websocket.CloseStatus(err); status == websocket.StatusNormalClosure || status == contract.CloseMoved {
 				return nil
@@ -300,17 +283,17 @@ func requestSummary(r contract.ChatRequest) string {
 
 // chatSnapshot reads the chat state once.
 func chatSnapshot(ctx context.Context, client *localclient.Client, id string) (contract.ChatState, error) {
-	stream, err := openChat(ctx, client, id)
+	stream, err := sessionobserve.OpenChat(ctx, client, id, 64<<20)
 	if err != nil {
 		return contract.ChatState{}, err
 	}
-	defer stream.close()
-	for stream.state == nil {
-		if _, err := stream.read(ctx); err != nil {
+	defer stream.Close()
+	for stream.State() == nil {
+		if _, err := stream.Read(ctx); err != nil {
 			return contract.ChatState{}, err
 		}
 	}
-	return *stream.state, nil
+	return *stream.State(), nil
 }
 
 var chatStatusCommand = &Command{
@@ -428,85 +411,4 @@ func (e Env) printChatState(info contract.SessionInfo, state contract.ChatState)
 			_, _ = fmt.Fprintf(e.Stdout, "  %s=%s  %s%s\n", c.ID, value, c.Name, extra)
 		}
 	}
-}
-
-var chatAnswerCommand = &Command{
-	Name: "chat answer", Group: GroupChat, Args: "SESSION REQUEST",
-	Summary: "Answer an agent's pending permission request or question.",
-	Description: "A permission request takes --option with one of its option IDs, or --cancel. A form (a question) takes " +
-		"--content with a JSON object of field values, --decline or --cancel. Every device closes the request card at once. " +
-		"webmux chat status lists pending requests with their options and fields.",
-	Arguments: []Item{chatSessionArgument, {Name: "REQUEST", Text: "The request ID from chat status, chat watch or a stopped send --reply."}},
-	Env:       []Item{sessionIDEnv},
-	Exit:      chatExits(ExitItem{Code: 1, Text: "Also: no such pending request, or it was answered already."}),
-	Examples: []Example{
-		{Command: "webmux chat answer abcd2345 r3 --option allow_once", Text: "Approve one tool call."},
-		{Command: `webmux chat answer abcd2345 r4 --content '{"plan":"B"}'`, Text: "Answer a question form."},
-		{Command: "webmux chat answer abcd2345 r3 --cancel", Text: "Dismiss a request."},
-	},
-	SeeAlso: []string{"webmux chat status", "webmux chat permission", "webmux guide chat"},
-	Notes: map[string]Note{
-		"option":  {Conflicts: []string{"cancel", "content", "decline"}},
-		"cancel":  {Conflicts: []string{"option", "content", "decline"}},
-		"content": {Conflicts: []string{"option", "cancel", "decline"}},
-		"decline": {Conflicts: []string{"option", "cancel", "content"}},
-	},
-	Bind: func(fs *flag.FlagSet) Action {
-		option := fs.String("option", "", "select the permission option `ID`")
-		cancelIt := fs.Bool("cancel", false, "cancel the request")
-		content := fs.String("content", "", "submit a form with this `JSON` object of field values")
-		decline := fs.Bool("decline", false, "decline a form")
-		return func(ctx context.Context, e Env, args []string) int {
-			if len(args) != 2 {
-				return e.Usagef("a session and a request ID are required")
-			}
-			if countTrue(*option != "", *cancelIt, *content != "", *decline) != 1 {
-				return e.Usagef("give exactly one of --option, --cancel, --content or --decline")
-			}
-			var fields map[string]json.RawMessage
-			if *content != "" {
-				if err := json.Unmarshal([]byte(*content), &fields); err != nil {
-					return e.Usagef("--content must be a JSON object: %v", err)
-				}
-			}
-			client, code := e.connect()
-			if client == nil {
-				return code
-			}
-			defer client.Close()
-			info, code, ok := e.chatSession(ctx, client, args[0], true)
-			if !ok {
-				return code
-			}
-			state, err := chatSnapshot(ctx, client, info.ID)
-			if err != nil {
-				return e.Fail(err)
-			}
-			i := slices.IndexFunc(state.Requests, func(r contract.ChatRequest) bool { return r.RequestID == args[1] })
-			if i < 0 {
-				_, _ = fmt.Fprintf(e.Stderr, "webmux: no pending request %s (answered already, or see webmux chat status)\n", args[1])
-				return contract.ExitError
-			}
-			request := contract.ChatAnswerRequest{ClientRequestID: newRequestID()}
-			form := state.Requests[i].Kind == "form"
-			switch {
-			case *option != "" && form, (*content != "" || *decline) && !form:
-				return e.Usagef("request %s is a %s; see webmux chat answer --help", args[1], state.Requests[i].Kind)
-			case *option != "":
-				request.Outcome, request.OptionID = "selected", *option
-			case *cancelIt && form:
-				request.Outcome = "cancel"
-			case *cancelIt:
-				request.Outcome = "cancelled"
-			case *decline:
-				request.Outcome = "decline"
-			default:
-				request.Outcome, request.Content = "accept", fields
-			}
-			if err := client.Do(ctx, http.MethodPost, "/api/sessions/"+url.PathEscape(info.ID)+"/chat/requests/"+url.PathEscape(args[1]), request, nil); err != nil {
-				return e.sessionFail(err)
-			}
-			return contract.ExitOK
-		}
-	},
 }

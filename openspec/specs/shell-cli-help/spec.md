@@ -1,6 +1,7 @@
 # shell-cli-help Specification
 
 ## Purpose
+
 让每个 `webmux` 命令都有完整、一致、可机器读取的帮助，并提供 shell 补全，使人和 agent 都能从命令本身学会用法。
 
 ## Requirements
@@ -15,13 +16,14 @@
 - 会话类命令的选项只能经命令表声明（`Bind`），解析与帮助共用同一份声明。
 - 运维命令（`serve`、`config`、`service`、`update` 等）保留各自的解析器；它们的 `--help` 由分发层统一按命令表输出，测试 SHALL 比对每个运维命令实现接受的选项与命令表一致。
 - 除 `run` 等以其他程序 argv 结尾的命令外，选项 SHALL 可以写在位置参数之后；`--` 之后的参数 SHALL 原样作为位置参数。
-- `--help` 输出、`help --json`、shell 补全，以及 llms 中的命令参考，SHALL 全部由这张表生成或经测试比对，不维护第二份手写副本。
-- 共享命令放在 `internal/clicmd`，Linux/macOS CLI 与 Windows 控制台客户端 SHALL 得到相同的帮助。
+- `--help` 输出、`help --json`、shell 补全，以及 llms 的命令目录（`/llms/commands.md`），SHALL 全部由这张表生成或经测试比对，不维护第二份手写副本。
+  命令目录 SHALL 在运行时渲染，仓库中 SHALL NOT 保存生成的副本（见 `agent-shell-guide` 的“手册与命令帮助的分工”）。
+- 共享命令放在 `internal/sessioncmd`，Linux/macOS CLI 与 Windows 控制台客户端 SHALL 得到相同的帮助。
   只属于某个平台的命令（例如 `service`）SHALL 只出现在该平台的帮助中。
 
 #### Scenario: 新增选项忘记写说明
 
-- **WHEN** 开发者给 `chat send` 新增一个选项，但没有写说明或默认值
+- **WHEN** 开发者给 `send` 新增一个选项，但没有写说明或默认值
 - **THEN** 命令表一致性测试失败，并指出缺少的字段
 
 ### Requirement: 完整的 --help
@@ -39,11 +41,12 @@
 9. **See also**：相关命令，以及 `webmux guide <主题>`。
 
 帮助正文 SHALL 使用英文，与现有 CLI 一致；示例中的提示文字可以是中文。帮助 SHALL 按 80 列换行。
+说明中用到手册已完整说明的概念（会话状态的含义、`self`、临时文件夹）时，SHALL 只给一句话定义，并在 See also 中给出对应的 `webmux guide <主题>`，SHALL NOT 复述手册的完整说明。
 
 #### Scenario: 查看子命令帮助
 
-- **WHEN** 用户执行 `webmux chat send --help`
-- **THEN** 输出包含用法、全部选项及默认值、`--wait` 的退出码含义、至少两个示例，以及 `webmux guide chat`
+- **WHEN** 用户执行 `webmux send --help`
+- **THEN** 输出包含用法、全部选项及默认值、`--reply` 的退出码含义、至少两个示例，以及 `webmux guide sessions`
 
 ### Requirement: 帮助的调用与输出约定
 
@@ -82,9 +85,9 @@
 
 `webmux completion bash|zsh|fish` SHALL 把对应 shell 的补全脚本写到标准输出，帮助中 SHALL 给出安装方法。
 
-- 静态补全：命令、子命令、选项名，以及枚举值（状态、起始端、`--kind`、llms 主题、shell 名）。
+- 静态补全：命令、子命令、选项名，以及枚举值（状态、视图、`--kind`、llms 主题、shell 名）。
 - 动态补全由脚本调用隐藏命令 `webmux __complete <words...>` 完成：
-  - 补全会话 ID（zsh 与 fish 附带标题作为说明）、启动配置名称、仓库、worktree、混合会话记录 ID 与转发端口；
+  - 补全会话 ID（zsh 与 fish 附带标题作为说明；`resume` 与 `rm --forget` 补全已归档会话的 ID）、启动配置名称、仓库、worktree 与转发端口；
   - 经本机 API 查询，超时 1 秒；服务未运行或超时时，只返回静态候选，SHALL NOT 输出错误；
   - SHALL NOT 输出 Token 或环境变量的值。
 - `__complete` SHALL NOT 出现在帮助与 `help --json` 中。
@@ -97,8 +100,8 @@
 
 #### Scenario: 服务未运行
 
-- **WHEN** 服务未运行时，用户在 bash 中输入 `webmux chat se` 后按 Tab
-- **THEN** 补全出 `send`、`set`，没有报错输出
+- **WHEN** 服务未运行时，用户在 bash 中输入 `webmux chat s` 后按 Tab
+- **THEN** 补全出 `set`、`status`，没有报错输出
 
 ### Requirement: llms 命令参考与帮助一致
 

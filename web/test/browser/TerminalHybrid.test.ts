@@ -1,14 +1,14 @@
 import "../../src/styles.css";
-import { expect, test } from "vitest";
-import { page } from "vitest/browser";
+import { expect, test } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
 import Terminal from "../../src/pages/Terminal.svelte";
 import type {
   ChatState,
   SessionInfo,
   ViewChangeResult,
-} from "../../src/schemas";
-import { createTerminalDrafts } from "../../src/terminal-draft.svelte";
+} from "../../src/contracts/schemas";
+import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
 import {
   chatState,
   claudeConnector,
@@ -110,7 +110,6 @@ async function onTerminalSide(state: ChatState, claude = false) {
     id,
     drafts,
     onUploadNotice: () => {},
-    reopen: () => {},
   });
   const terminal = await socketAt(terminalPath);
   terminal.binary(2, sessionInfo);
@@ -391,7 +390,10 @@ test("port prompts appear on both the terminal and chat views", async () => {
   await expect
     .element(page.getByRole("textbox", { name: "消息" }))
     .toBeVisible();
-  const listSocket = await socketAt("/ws/sessions", 1);
+  const listSocket = await socketAt("/ws/sessions");
+  expect(
+    sockets.filter((socket) => socket.path === "/ws/sessions"),
+  ).toHaveLength(1);
   listSocket.frame({
     type: "snapshot",
     sessions: [{ ...described(), listeningPorts: [] }],

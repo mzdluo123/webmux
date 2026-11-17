@@ -3,11 +3,11 @@
   import {
     useTerminal,
     type TerminalController,
-  } from "../../src/hooks/terminal.svelte";
-  import type { TerminalUserInput } from "../../src/hooks/terminal-input";
-  import TerminalFindBar from "../../src/components/TerminalFindBar.svelte";
-  import { terminalFindShortcut } from "../../src/hooks/terminal-find-shortcut";
-  import { hasTouchInput } from "../../src/touch-input";
+  } from "../../src/hooks/terminal/terminal.svelte";
+  import type { TerminalUserInput } from "../../src/hooks/terminal/terminal-input";
+  import TerminalFindBar from "../../src/components/terminal/TerminalFindBar.svelte";
+  import { terminalFindShortcut } from "../../src/hooks/terminal/terminal-find-shortcut";
+  import { hasTouchInput } from "../../src/platform/touch-input";
 
   type Props = {
     // Draft-mode routing, as Terminal.svelte passes it to the hook.
@@ -22,6 +22,8 @@
     sizeLocked?: () => boolean;
     // Simulates the keyboard button's height-only hold.
     heightHeld?: () => boolean;
+    // Observation owners claim immersive presentation before their first attach.
+    initialImmersive?: boolean;
   };
   const props: Props = $props();
   const {
@@ -77,6 +79,7 @@
     true,
     heightHeld,
   );
+  terminal.setImmersive(untrack(() => props.initialImmersive ?? false));
   expose?.(terminal);
 </script>
 

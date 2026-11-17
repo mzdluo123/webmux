@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { connect, resumeTimeout, type SocketConnection } from "../src/ws";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
+import { connect, resumeTimeout } from "../src/platform/ws";
+import type { SocketConnection } from "../src/platform/ws-contracts";
 
 class Socket {
   static OPEN = 1;

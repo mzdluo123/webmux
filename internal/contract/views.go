@@ -67,6 +67,8 @@ type SessionAgent struct {
 type SessionArchive struct {
 	ConfigMissing           bool     `json:"configMissing"`
 	PreviousAgentSessionIDs []string `json:"previousAgentSessionIds"`
+	// Shared exports count once. Attachments, delivery metadata and agent-owned
+	// native files are excluded; a conversation without retained text reports 0.
 	// Activity is what an interrupted session was doing: idle, turn or
 	// switching; a turn or switch may not have finished.
 	Activity string `json:"activity,omitempty"`

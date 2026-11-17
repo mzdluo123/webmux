@@ -1,0 +1,22 @@
+{
+  "status": 200,
+  "body": {
+    "baseline": {
+      "baseOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+      "baselineId": "<baselineId#1>",
+      "capturedAt": "<time>",
+      "cleanAtStart": false,
+      "preExistingChanges": {
+        "conflicted": 0,
+        "staged": 0,
+        "unstaged": 1,
+        "untracked": 1
+      },
+      "repositoryId": "<id#1>",
+      "source": "manual_select",
+      "unborn": false,
+      "worktreeId": "<id#2>",
+      "worktreePath": "<repo>"
+    }
+  }
+}

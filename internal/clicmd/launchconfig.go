@@ -160,48 +160,6 @@ var launchConfigShowCommand = &Command{
 	},
 }
 
-// configFields are the flags add and edit share.
-type configFields struct {
-	icon                      string
-	env                       envFlag
-	chat                      bool
-	previewLines, previewSkip int
-	set                       map[string]bool
-}
-
-func bindConfigFields(fs *flag.FlagSet, f *configFields) {
-	f.env = envFlag{}
-	fs.StringVar(&f.icon, "icon", "", "the launch picker `ICON` key (for example claudecode, codex, terminal)")
-	fs.Var(f.env, "env", "set environment variable `NAME=VALUE` for sessions started from the config")
-	fs.BoolVar(&f.chat, "chat", false, "enable the chat view for a supported agent, beside its terminal")
-	fs.IntVar(&f.previewLines, "preview-lines", 0, "show `N` preview lines on the home page (1-50) instead of the global default")
-	fs.IntVar(&f.previewSkip, "preview-skip", 0, "skip the last `N` lines of the preview (0-50)")
-}
-
-// visited records which flags the command line set.
-func visited(fs *flag.FlagSet) map[string]bool {
-	set := map[string]bool{}
-	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
-	return set
-}
-
-// checkChat asks the server whether argv can have a chat view.
-func (e Env) checkChat(ctx context.Context, client *localclient.Client, argv []string) (int, bool) {
-	var support contract.ChatSupport
-	if err := client.Do(ctx, http.MethodPost, "/api/launch-configs/chat-support", contract.ChatSupportRequest{Cmd: argv}, &support); err != nil {
-		return e.Fail(err), false
-	}
-	if !support.Supported {
-		_, _ = fmt.Fprintf(e.Stderr, "webmux: this command cannot have a chat view (%s); supported agents: %s\n",
-			support.Reason, strings.Join(support.SupportedAgents, ", "))
-		return contract.ExitError, false
-	}
-	if support.Connector != nil {
-		_, _ = fmt.Fprintf(e.Stderr, "webmux: its chat view needs %s (install: %s)\n", support.Connector.Title, support.Connector.InstallCommand)
-	}
-	return contract.ExitOK, true
-}
-
 var launchConfigAddCommand = &Command{
 	Name: "launch-config add", Group: GroupLaunch, Args: "NAME -- ARGV...",
 	Summary: "Save a new launch config; it appears in every browser's launch picker.",
@@ -226,7 +184,10 @@ var launchConfigAddCommand = &Command{
 				return e.Usagef("a name and a command after -- are required")
 			}
 			f.set = visited(fs)
-			input := contract.LaunchConfigInput{Name: args[0], Icon: f.icon, Cmd: args[1:], Env: map[string]string(f.env), Chat: f.chat}
+			input := contract.LaunchConfigWrite{Name: args[0], Icon: f.icon, Cmd: args[1:], Env: map[string]string(f.env)}
+			if f.set["chat"] {
+				input.Chat = &f.chat
+			}
 			if code, ok := e.applyPreview(&input, f); !ok {
 				return code
 			}
@@ -235,8 +196,12 @@ var launchConfigAddCommand = &Command{
 				return code
 			}
 			defer client.Close()
-			if input.Chat {
-				if code, ok := e.checkChat(ctx, client, input.Cmd); !ok {
+			if f.chat {
+				snapshot, err := client.Capabilities(ctx)
+				if err != nil {
+					return e.Fail(err)
+				}
+				if code, ok := e.checkChat(ctx, client, input.Cmd, snapshot); !ok {
 					return code
 				}
 			}
@@ -247,39 +212,6 @@ var launchConfigAddCommand = &Command{
 			return e.printSaved(created, *asJSON)
 		}
 	},
-}
-
-func (e Env) applyPreview(input *contract.LaunchConfigInput, f configFields) (int, bool) {
-	if !f.set["preview-lines"] && !f.set["preview-skip"] {
-		return contract.ExitOK, true
-	}
-	preview := contract.PreviewSettings{Lines: 10, Skip: 1}
-	if input.Preview != nil {
-		preview = *input.Preview
-	}
-	if f.set["preview-lines"] {
-		preview.Lines = f.previewLines
-	}
-	if f.set["preview-skip"] {
-		preview.Skip = f.previewSkip
-	}
-	if preview.Lines < 1 || preview.Lines > 50 || preview.Skip < 0 || preview.Skip > 50 {
-		return e.Usagef("--preview-lines is 1-50 and --preview-skip 0-50"), false
-	}
-	input.Preview = &preview
-	return contract.ExitOK, true
-}
-
-func (e Env) printSaved(config contract.LaunchConfig, asJSON bool) int {
-	if asJSON {
-		for name := range config.Env {
-			config.Env[name] = hiddenValue
-		}
-		writeJSON(e.Stdout, config)
-	} else {
-		_, _ = fmt.Fprintln(e.Stdout, config.ID)
-	}
-	return contract.ExitOK
 }
 
 var launchConfigEditCommand = &Command{
@@ -325,7 +257,17 @@ var launchConfigEditCommand = &Command{
 			if !ok {
 				return code
 			}
-			input := contract.LaunchConfigInput{Name: config.Name, Icon: config.Icon, Cmd: config.Cmd, Env: config.Env, Preview: config.Preview, Chat: config.Chat}
+			snapshot, err := client.Capabilities(ctx)
+			if err != nil {
+				return e.Fail(err)
+			}
+			input := contract.LaunchConfigWrite{Name: config.Name, Icon: config.Icon, Cmd: config.Cmd, Env: config.Env, Preview: config.Preview}
+			if localclient.FeatureEnabled(snapshot, "chat") {
+				input.Chat = &config.Chat
+			}
+			if localclient.FeatureEnabled(snapshot, "notifications") {
+				input.Attention = config.Attention
+			}
 			if input.Env == nil {
 				input.Env = map[string]string{}
 			}
@@ -345,17 +287,14 @@ var launchConfigEditCommand = &Command{
 				}
 				delete(input.Env, name)
 			}
-			switch {
-			case f.chat:
-				input.Chat = true
-			case *noChat:
-				input.Chat = false
+			if f.chat || *noChat {
+				input.Chat = &f.chat
 			}
 			if code, ok := e.applyPreview(&input, f); !ok {
 				return code
 			}
-			if input.Chat && (f.chat || len(args) > 1) {
-				if code, ok := e.checkChat(ctx, client, input.Cmd); !ok {
+			if input.Chat != nil && *input.Chat && (f.chat || len(args) > 1) {
+				if code, ok := e.checkChat(ctx, client, input.Cmd, snapshot); !ok {
 					return code
 				}
 			}

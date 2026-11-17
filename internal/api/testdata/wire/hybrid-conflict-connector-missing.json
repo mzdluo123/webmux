@@ -9,6 +9,6 @@
     },
     "error": "未安装 Codex ACP 适配器（codex-acp）",
     "reason": "connector_missing",
-    "step": "session"
+    "step": "precheck"
   }
 }

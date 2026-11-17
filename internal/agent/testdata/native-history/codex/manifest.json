@@ -1,0 +1,172 @@
+{
+  "agent": "codex",
+  "sourceLayout": "~/.codex/sessions/<year>/<month>/<day>/rollout-<timestamp>-<session-id>.jsonl",
+  "provenance": {
+    "kind": "sanitized excerpts of real pre-existing local native session recordings",
+    "statement": "Every fixture line is derived from an actual source JSONL record; no events, roles, calls, tool results, branches, or compaction records were synthesized.",
+    "excerpts": [
+      {
+        "file": "session.jsonl",
+        "sampleKind": "history-excerpt",
+        "source": "local-recording-1",
+        "sourceRecords": 58,
+        "sourceLines": [
+          1,
+          9,
+          12,
+          14,
+          15,
+          17,
+          41,
+          43,
+          48,
+          50,
+          55
+        ],
+        "recordTypes": {
+          "session_meta": 1,
+          "response_item": 10
+        },
+        "messageRoles": {
+          "user": 1,
+          "assistant": 2
+        },
+        "contentOrCallTypes": {
+          "input_text": 1,
+          "output_text": 2,
+          "custom_tool_call": 2,
+          "custom_tool_call_output": 2,
+          "function_call": 1,
+          "function_call_output": 1
+        },
+        "toolNames": [
+          "exec",
+          "wait"
+        ],
+        "gaps": "Only the listed original JSONL records are retained in original order; every other source record is omitted. References into omitted history are remapped but not reconnected or invented."
+      },
+      {
+        "file": "compaction.jsonl",
+        "sampleKind": "compaction-excerpt",
+        "source": "local-recording-2",
+        "sourceRecords": 2004,
+        "sourceLines": [
+          1,
+          1473
+        ],
+        "recordTypes": {
+          "session_meta": 1,
+          "compacted": 1
+        },
+        "messageRoles": {},
+        "contentOrCallTypes": {},
+        "toolNames": [],
+        "gaps": "Only the listed original JSONL records are retained in original order; every other source record is omitted. References into omitted history are remapped but not reconnected or invented."
+      }
+    ]
+  },
+  "versionEvidence": {
+    "observed": [
+      {
+        "source": "local-recording-1",
+        "field": "session_meta.payload.cli_version",
+        "value": "0.162.1"
+      },
+      {
+        "source": "local-recording-2",
+        "field": "session_meta.payload.cli_version",
+        "value": "0.157.1"
+      }
+    ],
+    "installedBinaryVersion": "unknown; no binary was executed"
+  },
+  "sanitization": [
+    "All non-structural strings are replaced with explicit safe placeholders; known native type/role/status enums and tool names are retained.",
+    "JSON-encoded tool-argument strings are parsed, recursively sanitized, and re-encoded; ordinary custom-tool input strings are replaced in full.",
+    "Original IDs and retained-source revisions/hashes are consistently remapped to synthetic UUIDs within each source; separate sources use separate namespaces.",
+    "Timestamp values are shifted per source to a 2000-01-01 baseline, preserving representation, relative timing, and equality. Native booleans and non-identifying numeric counters/metrics remain; numeric error identifiers are replaced.",
+    "Native object/array envelopes, ordering, field presence, nulls, enum values, message roles, call/result links, and parent references are retained. Opaque signatures/encrypted payloads are placeholders rather than valid cryptographic data.",
+    "Only sanitized fixture files and this manifest are written to the repository; no raw source content, real usernames, session IDs, account IDs, or original absolute source paths are included."
+  ],
+  "coverage": [
+    {
+      "file": "session.jsonl",
+      "sampleKind": "history-excerpt",
+      "source": "local-recording-1",
+      "sourceRecords": 58,
+      "sourceLines": [
+        1,
+        9,
+        12,
+        14,
+        15,
+        17,
+        41,
+        43,
+        48,
+        50,
+        55
+      ],
+      "recordTypes": {
+        "session_meta": 1,
+        "response_item": 10
+      },
+      "messageRoles": {
+        "user": 1,
+        "assistant": 2
+      },
+      "contentOrCallTypes": {
+        "input_text": 1,
+        "output_text": 2,
+        "custom_tool_call": 2,
+        "custom_tool_call_output": 2,
+        "function_call": 1,
+        "function_call_output": 1
+      },
+      "toolNames": [
+        "exec",
+        "wait"
+      ],
+      "gaps": "Only the listed original JSONL records are retained in original order; every other source record is omitted. References into omitted history are remapped but not reconnected or invented."
+    },
+    {
+      "file": "compaction.jsonl",
+      "sampleKind": "compaction-excerpt",
+      "source": "local-recording-2",
+      "sourceRecords": 2004,
+      "sourceLines": [
+        1,
+        1473
+      ],
+      "recordTypes": {
+        "session_meta": 1,
+        "compacted": 1
+      },
+      "messageRoles": {},
+      "contentOrCallTypes": {},
+      "toolNames": [],
+      "gaps": "Only the listed original JSONL records are retained in original order; every other source record is omitted. References into omitted history are remapped but not reconnected or invented."
+    }
+  ],
+  "limitations": [
+    "Sanitized historical excerpts, not complete resumable sessions. No agent was installed, started, or queried; no runtime, reader, or API support is claimed.",
+    "Messages, prompts, instructions, tool input/output, paths, URLs, models, signatures, and encrypted content are placeholders; semantic replay and cryptographic validation are intentionally impossible.",
+    "Source files were read only. No authentication/configuration files, environment-variable dumps, or whole stores were copied. Context files were not opened.",
+    "Original parent/call/message relationships are retained through deterministic per-source ID remapping; references to omitted entries remain external and are not fabricated.",
+    "The compacted record retains its native twelve-entry replacement_history and parallel metadata arrays, but the preceding conversation and following world_state/turn_context records are omitted. No forked session was selected."
+  ],
+  "files": [
+    {
+      "path": "session.jsonl",
+      "format": "jsonl",
+      "records": 11,
+      "sha256": "00fc3e1a5b93d8608a76aa05d72cf97617daf9c7efbf5d9599722b04b346579a"
+    },
+    {
+      "path": "compaction.jsonl",
+      "format": "jsonl",
+      "records": 2,
+      "sha256": "b2041cfbbb44b7db88ac04a9b3743c0f13963bee15af7bb5aa7ffd98c5c84fe7"
+    }
+  ]
+}

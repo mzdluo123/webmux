@@ -24,8 +24,8 @@
 以下参数 SHALL 使配置不可用于混合模式：
 
 - 让 TUI 与 ACP 看到不同会话库或不保存会话的参数，原因为“该参数使聊天视图无法找到会话”：omp 的 `--session-dir`/`--no-session`、OpenCode 的 `--server`、Codex 的 `--remote`/`--remote-auth-token-env`，以及 Claude Code 的 `--no-session-persistence`、`--environment`。
-- 在命令中指定或创建工作目录的参数，原因为“请在新建会话时选择目录，不要在命令中写目录”：OpenCode 的位置参数、omp 的 `--cwd`、Codex 的 `-C`/`--cd`/`--worktree`，以及 Claude Code 的 `-w`/`--worktree`/`--tmux`。
-- 打开、复制或指定已有会话的参数或子命令，原因为“该参数指定了 agent 会话，混合配置请不要指定会话”（原因码 `session_arg`）：Codex 的 `resume`/`fork`，以及 Claude Code 的 `-c`/`--continue`、`-r`/`--resume`、`--fork-session`、`--session-id`、`--from-pr`、`--teleport`、`--cloud` 与 `attach`。
+- 在命令中指定或创建工作目录的参数，原因为“工作目录在新建会话时选择”：OpenCode 的位置参数、omp 的 `--cwd`、Codex 的 `-C`/`--cd`/`--worktree`，以及 Claude Code 的 `-w`/`--worktree`/`--tmux`。
+- 打开、复制或指定已有会话的参数或子命令，原因为“该参数指定了 agent 会话；混合配置使用 WebMux 管理的原生会话身份”（原因码 `session_arg`）：Codex 的 `resume`/`fork`，以及 Claude Code 的 `-c`/`--continue`、`-r`/`--resume`、`--fork-session`、`--session-id`、`--from-pr`、`--teleport`、`--cloud` 与 `attach`。
 
 omp 的 `--profile` SHALL NOT 视为不可用：它同时透传给 ACP 进程，两端使用同一个配置档的会话库。Claude Code 的 `CLAUDE_CONFIG_DIR` SHALL 通过启动配置环境传递，SHALL NOT 因设置了该环境变量而拒绝混合模式。
 

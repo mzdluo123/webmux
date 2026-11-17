@@ -110,3 +110,49 @@ for (const story of [
     });
   });
 }
+
+for (const theme of ["light", "dark"]) {
+  test(`conversation tick colors and bounded volumes (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(
+      `/iframe.html?id=design-system--forms&viewMode=story&globals=theme:${theme}`,
+    );
+    const user = page.locator('[data-turn-role="user"]');
+    const agent = page.locator(
+      '[data-turn-role="agent"][data-turn-volume="single"]',
+    );
+    await expect(user).toBeVisible();
+    const colors = await Promise.all(
+      [user, agent].map((tick) =>
+        tick
+          .locator("span")
+          .evaluate((node) => getComputedStyle(node).backgroundColor),
+      ),
+    );
+    expect(colors[0]).not.toBe(colors[1]);
+    for (const [volume, width] of [
+      ["single", 12],
+      ["few", 16],
+      ["several", 20],
+      ["many", 24],
+    ] as const) {
+      const tick = page.locator(
+        `[data-turn-role="agent"][data-turn-volume="${volume}"]`,
+      );
+      expect(
+        await tick
+          .locator("span")
+          .evaluate((node) => node.getBoundingClientRect().width),
+      ).toBe(width);
+      expect(
+        await tick.evaluate((node) => node.getBoundingClientRect().height),
+      ).toBe(12);
+    }
+    expect(
+      await page
+        .locator('[data-turn-role="group"] span')
+        .evaluate((node) => node.getBoundingClientRect().width),
+    ).toBe(24);
+  });
+}

@@ -1,10 +1,42 @@
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
-import NewSessionDialog from "../../src/components/NewSessionDialog.svelte";
-import type { LaunchConfigsState } from "../../src/launch-configs";
-import type { LaunchEntry } from "../../src/new-session-defaults";
-import type { Repository, SessionInfo, Worktree } from "../../src/schemas";
+import NewSessionDialog from "../../src/components/sessions/NewSessionDialog.svelte";
+import type { LaunchConfigsState } from "../../src/domains/settings/launch-configs";
+import type { LaunchEntry } from "../../src/domains/sessions/new-session-defaults";
+import type {
+  Repository,
+  SessionInfo,
+  Worktree,
+} from "../../src/contracts/schemas";
+import { base, branch } from "./shell-fixture";
+import {
+  enableCreationFeatures,
+  resetCreationFeatures,
+} from "./feature-fixture";
+
+// HTTP assertions can finish before response decoding and preference writes.
+// Join the real creation helpers before resetting this suite's local settings.
+const submissions = vi.hoisted(() => ({ pending: [] as Promise<unknown>[] }));
+vi.mock(
+  "../../src/domains/sessions/new-session-defaults",
+  async (importOriginal) => {
+    const original =
+      await importOriginal<
+        typeof import("../../src/domains/sessions/new-session-defaults")
+      >();
+    return {
+      ...original,
+      submitNewSessionRequest: (
+        ...args: Parameters<typeof original.submitNewSessionRequest>
+      ) => {
+        const pending = original.submitNewSessionRequest(...args);
+        submissions.pending.push(pending);
+        return pending;
+      },
+    };
+  },
+);
 
 const config = {
   id: "abcdefg2",
@@ -46,6 +78,13 @@ const mainTree: Worktree = {
   hasUntracked: false,
   hasIgnored: false,
   error: "",
+  upstream: null,
+  ahead: null,
+  behind: null,
+  upstreamGone: false,
+  lastCommit: null,
+  changes: { staged: 0, unstaged: 0, untracked: 0, conflicted: 0 },
+  operation: null,
 };
 const repository = {
   id: "repo-1",
@@ -55,6 +94,7 @@ const repository = {
   availability: "available",
   error: "",
   checkedAt: "2026-10-23T00:00:00Z",
+  lastFetchedAt: null,
   initInstruction: "",
   worktrees: [mainTree],
 } satisfies Repository;
@@ -114,8 +154,9 @@ let acpConflict: unknown = null;
 let sessionFailures = 0;
 const origin = location.pathname + location.search;
 
-beforeEach(() => {
+beforeEach(async () => {
   localStorage.clear();
+  await enableCreationFeatures();
   created = [];
   worktrees = [];
   removed = [];
@@ -174,20 +215,9 @@ beforeEach(() => {
       }
       if (path === "/api/repositories/repo-1/branches") {
         return Response.json({
-          branches: [
-            {
-              name: "main",
-              head: "a".repeat(40),
-              worktreePaths: ["/repos/project"],
-            },
-          ],
-          bases: [
-            {
-              name: "refs/heads/main",
-              head: "a".repeat(40),
-              subject: "initial",
-            },
-          ],
+          branches: [branch("main", "a".repeat(40), ["/repos/project"])],
+          bases: [base("refs/heads/main", "a".repeat(40), "initial")],
+          tags: [],
           defaultBase: "a".repeat(40),
           defaultBaseSubject: "initial",
           defaultBranch: "main",
@@ -225,11 +255,13 @@ beforeEach(() => {
 
 afterEach(async () => {
   try {
+    await Promise.allSettled(submissions.pending.splice(0));
     await cleanup();
     await userEvent.cleanup();
   } finally {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    resetCreationFeatures();
     localStorage.clear();
     history.replaceState(null, "", origin);
   }
@@ -487,6 +519,10 @@ test("the keyboard picks a launch config and submits its exact ID", async () => 
   open({ status: "ready", configs: [config, otherConfig] });
   launchField().element().focus();
   await userEvent.keyboard("{Enter}");
+  const search = page.getByRole("combobox", { name: "启动方式", exact: true });
+  await expect.element(search).toHaveFocus();
+  await userEvent.keyboard(otherConfig.name);
+  await expect.element(option(config.name)).not.toBeInTheDocument();
   await expect.element(option(otherConfig.name)).toBeVisible();
   await userEvent.keyboard("{ArrowDown}{Enter}");
   await expect.element(option(otherConfig.name)).not.toBeInTheDocument();
@@ -1117,6 +1153,31 @@ test.each(["/repos/project/subdir", "/other-project"])(
 );
 
 test("a first message and the repository instruction go with the new session", async () => {
+  const chatConfig = { ...otherConfig, chat: true };
+  const withInstruction = { ...repository, initInstruction: "先读 AGENTS.md" };
+  open(
+    { status: "ready", configs: [chatConfig] },
+    {
+      repositories: [withInstruction],
+      entry: { kind: "worktree", repositoryId: "repo-1", worktreeId: "main" },
+    },
+  );
+  await page.getByRole("radio", { name: "从聊天开始", exact: true }).click();
+  await expect.element(page.getByLabelText("使用初始化指令")).toBeChecked();
+  await page.getByLabelText("用户指令", { exact: false }).fill("  修复排序 ");
+  await submit().click();
+  await vi.waitFor(() => expect(created).toHaveLength(1));
+  expect(created[0]).toEqual({
+    workspace: { repositoryId: "repo-1", worktreeId: "main" },
+    configId: "hijklm23",
+    name: "",
+    view: "chat",
+    prompt: "修复排序",
+    useInitInstruction: true,
+  });
+});
+
+test("a terminal start leaves the instruction unticked by default", async () => {
   const withInstruction = { ...repository, initInstruction: "先读 AGENTS.md" };
   open(
     { status: "ready", configs: [config] },
@@ -1125,17 +1186,10 @@ test("a first message and the repository instruction go with the new session", a
       entry: { kind: "worktree", repositoryId: "repo-1", worktreeId: "main" },
     },
   );
-  await expect.element(page.getByLabelText("使用初始化指令")).toBeChecked();
-  await page.getByLabelText("用户指令", { exact: false }).fill("  修复排序 ");
+  await expect.element(page.getByLabelText("使用初始化指令")).not.toBeChecked();
   await submit().click();
   await vi.waitFor(() => expect(created).toHaveLength(1));
-  expect(created[0]).toEqual({
-    workspace: { repositoryId: "repo-1", worktreeId: "main" },
-    configId: "abcdefg2",
-    name: "",
-    prompt: "修复排序",
-    useInitInstruction: true,
-  });
+  expect(created[0]).not.toHaveProperty("useInitInstruction");
 });
 
 test("the instruction is offered only where the repository has one and can be left out", async () => {
@@ -1151,16 +1205,165 @@ test("the instruction is offered only where the repository has one and can be le
 });
 
 test("an unticked instruction is not sent", async () => {
+  const chatConfig = { ...otherConfig, chat: true };
   const withInstruction = { ...repository, initInstruction: "先读 AGENTS.md" };
   open(
-    { status: "ready", configs: [config] },
+    { status: "ready", configs: [chatConfig] },
     {
       repositories: [withInstruction],
       entry: { kind: "worktree", repositoryId: "repo-1", worktreeId: "main" },
     },
   );
+  await page.getByRole("radio", { name: "从聊天开始", exact: true }).click();
   await page.getByLabelText("使用初始化指令").click();
   await submit().click();
   await vi.waitFor(() => expect(created).toHaveLength(1));
   expect(created[0]).not.toHaveProperty("useInitInstruction");
+});
+
+test("core creates cwd and custom argv without waiting for disabled launch resources", async () => {
+  await enableCreationFeatures([]);
+  open({ status: "loading" });
+  expect(launchField().elements()).toHaveLength(0);
+  expect(locationField().elements()).toHaveLength(0);
+  await directory().fill("/existing");
+  await command().fill("bash -lc 'printf hello'");
+  await submit().click();
+  await vi.waitFor(() => expect(created).toHaveLength(1));
+  expect(created[0]).toEqual({
+    cwd: "/existing",
+    cmd: ["bash", "-lc", "printf hello"],
+    name: "",
+  });
+  expect(
+    vi
+      .mocked(fetch)
+      .mock.calls.every(
+        ([input]) =>
+          new URL(String(input), location.href).pathname === "/api/sessions",
+      ),
+  ).toBe(true);
+});
+
+test("core split drops workspace ownership even when the entry remembers it", async () => {
+  await enableCreationFeatures([]);
+  const oncreated = vi.fn();
+  open(
+    { status: "loading" },
+    {
+      split: true,
+      oncreated,
+      repositories: [repository],
+      entry: {
+        kind: "directory",
+        cwd: "/repos/project",
+        workspace: {
+          repositoryId: repository.id,
+          worktreeId: mainTree.id,
+          worktreePath: "/repos/project",
+        },
+      },
+    },
+  );
+  await command().fill("bash");
+  await page
+    .getByRole("button", { name: "创建并加入分屏 →", exact: true })
+    .click();
+  await vi.waitFor(() => expect(oncreated).toHaveBeenCalledOnce());
+  expect(created[0]).toEqual({
+    cwd: "/repos/project",
+    cmd: ["bash"],
+    name: "",
+  });
+});
+
+test("disabled remembered config asks for a new command instead of inferring argv", async () => {
+  await enableCreationFeatures([]);
+  localStorage.setItem("webmux.lastLaunch", "config:abcdefg2");
+  open({ status: "loading" });
+  await expect.element(page.getByText(/启动配置功能未启用/)).toBeVisible();
+  await expect.element(submit()).toBeDisabled();
+  expect(created).toEqual([]);
+  await command().fill("bash");
+  await submit().click();
+  await vi.waitFor(() => expect(created).toHaveLength(1));
+  expect(created[0]).toEqual({ cwd: "/work", cmd: ["bash"], name: "" });
+});
+
+test("core reports a missing directory without offering or requesting mkdir", async () => {
+  await enableCreationFeatures([]);
+  open({ status: "loading" });
+  vi.mocked(fetch).mockResolvedValueOnce(
+    Response.json(
+      {
+        error: "directory: stat /missing: no such file or directory",
+      },
+      { status: 400 },
+    ),
+  );
+  await directory().fill("/missing");
+  await command().fill("bash");
+  await submit().click();
+  await expect
+    .element(page.getByRole("alert"))
+    .toMatchTextContent(/no such file or directory/);
+  expect(page.getByRole("alertdialog").elements()).toHaveLength(0);
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(1);
+});
+
+test("launch-only keeps saved launches with direct cwd and no workspace provider", async () => {
+  await enableCreationFeatures(["launch"]);
+  open({ status: "ready", configs: [config] });
+  expect(locationField().elements()).toHaveLength(0);
+  await expect.element(launchField()).toMatchTextContent(/Claude 恢复/);
+  await directory().fill("/existing");
+  await submit().click();
+  await vi.waitFor(() => expect(created).toHaveLength(1));
+  expect(created[0]).toEqual({
+    cwd: "/existing",
+    configId: config.id,
+    name: "",
+  });
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(1);
+});
+
+test("workspace-only creates a custom command in its worktree without launch or files", async () => {
+  await enableCreationFeatures(["workspace"]);
+  open(
+    { status: "loading" },
+    {
+      repositories: [repository],
+      entry: {
+        kind: "worktree",
+        repositoryId: repository.id,
+        worktreeId: mainTree.id,
+      },
+    },
+  );
+  await expect.element(locationField()).toMatchTextContent(/project/);
+  expect(launchField().elements()).toHaveLength(0);
+  await command().fill("bash");
+  await submit().click();
+  await vi.waitFor(() => expect(created).toHaveLength(1));
+  expect(created[0]).toEqual({
+    workspace: { repositoryId: repository.id, worktreeId: mainTree.id },
+    cmd: ["bash"],
+    name: "",
+  });
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(1);
+});
+
+test("files-only offers directory browsing without consulting workspace or launch", async () => {
+  await enableCreationFeatures(["files"]);
+  open({ status: "loading" });
+  await expect
+    .element(page.getByRole("button", { name: "浏览目录", exact: true }))
+    .toBeVisible();
+  expect(locationField().elements()).toHaveLength(0);
+  expect(launchField().elements()).toHaveLength(0);
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(0);
+  await command().fill("bash");
+  await submit().click();
+  await vi.waitFor(() => expect(created).toHaveLength(1));
+  expect(created[0]).toEqual({ cwd: "/work", cmd: ["bash"], name: "" });
 });

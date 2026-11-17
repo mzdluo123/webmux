@@ -66,7 +66,7 @@
 
 - `Manager.CreateShell(input, driver)`：登记外壳，可选地立即启动第一个运行。`input.ID` 可选，用于恢复时沿用记录中的 ID。
 - `Manager.SetIDReserver(r)` 在 `cmd/` 装配时注入，随机生成 ID 时跳过记录中保留的 ID。
-- `Shell.StartRun(argv)` / `Shell.EndRun(ctx)`：在同一 ID 下启动新运行，或结束当前运行。运行结束时，如果驱动声明“这是切换”，就不发布退出帧，而是以 **4409（会话已移到另一端）** 关闭全部终端连接并清空订阅者。新运行使用新代际，客户端按现有续接协议收到 `reset`。
+- `Shell.StartRun(argv)` / `Shell.EndRun(ctx)`：在同一 ID 下启动新运行，或结束当前运行。运行结束时，如果驱动声明“这是切换”，就以 **4409（会话已移到另一端）** 关闭全部终端连接并清空订阅者。新运行使用新代际，客户端按现有续接协议收到 `reset`。
 - `Shell.SetOverlay(fn)`：由驱动写入 `Info.Hybrid`，以及聊天端的 `Status`、`Attention`、`Preview`。仍经由 `updates()` 中的 `sameDisplay` 比较后发布到列表，推送因此无需改动。
 - `driver.Close()`：`Manager.Close(id)` 遇到驱动外壳时交给驱动，按“关闭”语义处理（先按切换流程中断，再记录 `closed`）。这样 API、CLI 与 `Shutdown` 的现有调用点都不用分支。
 

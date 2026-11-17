@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rainchan/webmux/internal/agentprofile/agents"
+
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/cmd/internal/assemble"
 	"github.com/rainchan/webmux/internal/api"
@@ -25,8 +27,12 @@ import (
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/featureapi"
+	"github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/files"
+	"github.com/rainchan/webmux/internal/hub"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 	"github.com/rainchan/webmux/internal/settings"
 	"github.com/rainchan/webmux/internal/workspace"
 )
@@ -60,15 +66,31 @@ func newFixture() *fixture {
 	c.StateDir = filepath.Join(root, "state")
 	c.Token = token
 	c.ScrollbackBytes = capacity
+	c.Features.Enabled = []string{"workspace", "code", "files"}
 
 	must(c.Validate())
-	f.manager = session.NewManager(assemble.SessionOptions(c))
+	f.manager = session.NewManager(assemble.SessionOptions(c, agents.Default()))
 	f.workspace = workspace.New(c.StateDir, f.manager, nil, root)
 	f.folders = artifacts.New(artifacts.Options{TempDir: root, StateDir: c.StateDir, Manager: f.manager})
 	f.folders.Start(func(string) bool { return false })
 	f.code = codeview.New(f.manager, f.folders)
+	f.code.UseWorkspace(f.workspace)
 	f.preferences = settings.Open(c.StateDir)
-	f.server = httptest.NewServer(api.New(api.Deps{Settings: f.preferences, Config: c, Manager: f.manager, Workspace: f.workspace, Code: f.code, Files: files.New(c.DefaultCwd), Artifacts: f.folders}))
+	projection := featurewire.Projection{Workspace: f.workspace}
+	controllers := featureapi.Bind(featureapi.Deps{
+		Config: c, Manager: f.manager, Settings: f.preferences,
+		Workspace: f.workspace, Code: f.code, Files: files.New(c.DefaultCwd), Artifacts: f.folders,
+		ProjectSession: projection.Session,
+	})
+	f.server = httptest.NewServer(api.New(api.Deps{
+		Settings: f.preferences, Config: c, Manager: f.manager,
+		Create:        sessioncreate.New(f.manager, sessioncreate.Options{DefaultCwd: c.DefaultCwd, Locations: f.workspace, Files: f.folders}),
+		Contributions: controllers.Contributions(), Sessions: controllers,
+		ProjectSession:    projection.Session,
+		SessionProjection: hub.Options{Project: projection.Session, Terminal: projection.Terminal, SubscribeForwards: projection.SubscribeForwards, Forwards: projection.Forwards},
+		EnrichDetails:     controllers.EnrichDetails, KeepSessionPin: controllers.KeepSessionPin,
+		EnrichConfig: controllers.EnrichConfig, Renamed: controllers.Renamed,
+	}))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	f.stopSignals = stop
 	go func() { <-ctx.Done(); f.close() }()

@@ -1,0 +1,15 @@
+{
+  "status": 409,
+  "body": {
+    "currentDraft": {
+      "body": "draft body line",
+      "repositoryId": "<id#1>",
+      "revision": 1,
+      "subject": "feat: wire commit draft",
+      "updatedAt": "<time>",
+      "worktreeId": "<id#2>"
+    },
+    "error": "提交说明草稿已在其他设备或标签页更新，请选择保留本机内容、采用远端版本或合并两份内容",
+    "reason": "draft_conflict"
+  }
+}

@@ -2,7 +2,11 @@
 
 ## Purpose
 
-让同一 WebMux 实例上的主题、输出预览、快捷指令、代码阅读偏好与主页工作树选择脱离单个浏览器，统一保存在服务端并在所有已认证客户端之间同步；同时把 token、推送订阅、草稿与上次选择等必须留在设备的数据划出清晰边界，并在设置存储损坏、被占用或暂时不可达时保持终端与会话可用。
+将同一 WebMux 实例上的跨设备偏好统一保存在服务端并在所有已认证客户端之间实时同步：
+
+- 同步范围涵盖输出预览、快捷指令、代码阅读偏好、主页工作树选择与底部工具栏偏好；
+- 把界面语言、主题、终端字号、token、推送订阅、草稿与上次选择等必须留在当前设备的数据划出清晰边界；
+- 在设置存储损坏、被占用或暂时不可达时，保持终端与会话照常可用。
 
 ## Requirements
 
@@ -10,23 +14,23 @@
 
 系统 SHALL 把用户偏好划分为三类，并 SHALL 只把第一类放进服务端设置文档与设置 API：
 
-- 跨客户端同步：`theme`、`preview`、`codeReader.lineNumbers`、`codeReader.diffOverflow`、`quickCommands`、`homeWorktrees`、`forceSoftKeys`。
-- 仅当前设备：浏览器中保存的终端字号（`fontSize`，屏幕尺寸因设备而异）、token 输入、Web Push 订阅标识、草稿与暂存正文、`draftPersistence` 开关、`recentDirs`、`lastLaunch`、`customCommand`、`clientId`、`clientLive`。
+- 跨客户端同步：`preview`、`codeReader.lineNumbers`、`codeReader.diffOverflow`、`quickCommands`、`homeWorktrees`、`forceSoftKeys`。
+- 仅当前设备：浏览器中保存的界面语言（`locale`）、明暗主题（`theme`，设备使用光线各异）、终端字号（`fontSize`，屏幕尺寸因设备而异）、token 输入、Web Push 订阅标识、草稿与暂存正文、`draftPersistence` 开关、`recentDirs`、`lastLaunch`、`customCommand`、`clientId`、`clientLive`。
 - 部署默认与全局策略：`listen`、`token`、`state_dir`、`allowed_origins`、`tunnel.*`、`default_cwd`、`scrollback_bytes`、`idle_after_seconds`、`prompt_patterns`、`agent_protocol`、`bell_attention`、`push.*`。
 
-设置接口 SHALL NOT 返回或接受第二类与第三类字段；PATCH 中出现 `token`、`push`、`draft`、`listen` 等未知键时 SHALL 返回 400。服务端 SHALL NOT 因为本能力修改 `config.toml` 或改变上述 TOML 项的生效方式。
+设置接口 SHALL NOT 返回或接受第二类与第三类字段；PATCH 中出现 `theme`、`fontSize`、`token`、`push`、`draft`、`listen` 等未知键时 SHALL 返回 400。服务端 SHALL NOT 因为本能力修改 `config.toml` 或改变上述 TOML 项的生效方式。
 
 已有公网访问配置 SHALL 保持独立：`tunnel.*` 提供 TOML 部署默认值，现有专用服务通过 `tunnel-settings.json` 持久化并即时应用开关、模式、凭据和主机名的覆盖，`cloudflared` 与下载镜像仍只由 TOML 管理。通用设置文档、快照和更新帧 SHALL NOT 包含隧道凭据，本能力 SHALL NOT 改变既有隧道入口或优先级。
 
 #### Scenario: 跨设备读取同一偏好
 
-- **WHEN** 用户在桌面浏览器把主题改为深色并新增一条快捷指令，随后在手机上打开同一实例
-- **THEN** 手机在认证后取得同一份设置快照，显示深色主题与该快捷指令，不依赖手机本地曾经保存的值
+- **WHEN** 用户在桌面浏览器隐藏代码行号并新增一条快捷指令，随后在手机上打开同一实例
+- **THEN** 手机在认证后取得同一份设置快照，隐藏代码行号并显示该快捷指令，不依赖手机本地曾经保存的值；桌面与手机各自的明暗主题保持互不影响
 
 #### Scenario: 设备本地项不进入设置接口
 
 - **WHEN** 客户端读取 `GET /api/settings` 或服务端写入 `settings.json`
-- **THEN** 响应与文件都不包含浏览器 token、Web Push 订阅、草稿正文、最近目录或上次启动选择
+- **THEN** 响应与文件都不包含浏览器主题、终端字号、token、Web Push 订阅、草稿正文、最近目录或上次启动选择
 
 #### Scenario: TOML 策略不经 API 修改
 
@@ -46,7 +50,7 @@
 
 - 设置文件不存在时，服务端 SHALL 视为所有键为 `null`、`revision` 为 0，且 SHALL NOT 创建文件；第一次成功 PATCH 才创建。
 - 每次变更 SHALL 通过同目录临时文件写入、`fsync`、关闭、`rename` 与目录同步原子替换。
-- 写入失败时 SHALL 保留最后已确认的内存快照并返回 503，禁止后续写入。
+- 写入失败时 SHALL 保留最后已确认的内存快照并返回 503，后续写入返回存储故障。
 - 重命名成功但目录同步失败 SHALL 报告 commit_uncertain，不宣称磁盘已回滚。
 
 读取到异常文件：
@@ -83,11 +87,10 @@
 
 - `revision` SHALL 为从 0 开始的单调递增整数，每次成功 PATCH 加 1。
 - `updatedAt` SHALL 为 UTC RFC 3339 时间，未写入过时为空字符串。
-- `values` SHALL 始终包含 `theme`、`preview`、`codeReader`、`quickCommands`、`homeWorktrees`、`forceSoftKeys`，未设置的键为 `null`。
+- `values` SHALL 始终包含 `preview`、`codeReader`、`quickCommands`、`homeWorktrees`、`forceSoftKeys`，未设置的键为 `null`。
 
 设置值 SHALL 满足以下约束：
 
-- `theme`：`"light"`、`"dark"` 或 `null`；
 - `preview`：`{lines, skip}`，`lines` 为 1–50 的整数，`skip` 为 0–50 的整数，或 `null`；
 - `codeReader`：`{lineNumbers, diffOverflow}`，`lineNumbers` 为 `"show"` 或 `"hide"`，`diffOverflow` 为 `"scroll"` 或 `"wrap"`，或 `null`；
 - `quickCommands`：0–50 条，每条 `id` 为 1–64 字符且列表内唯一，`name` 去首尾空白后不超过 40 字符，`command` 去首尾空白后非空且不超过 4096 字符，`enter` 为布尔，或 `null`；
@@ -98,7 +101,7 @@
 - 快捷指令保存时 SHALL 把 CRLF/CR 统一为 LF 并移除正文末尾换行；服务端 SHALL 执行相同规范化。
 - PATCH 请求体 SHALL 不超过 2 MiB；设置文件 SHALL 不超过 4 MiB。
 - 任意值越界、类型错误或包含未知字段时 SHALL 返回 400，且 SHALL NOT 写入任何部分内容。
-- 已退役的 `artifactPrompt`（临时文件夹提示词模板，其说明已移入 `{{webmux}}`）SHALL 视为未知字段：PATCH 中出现时返回 400；旧 `settings.json` 中遗留的该键 SHALL 在读取时忽略，并在下一次写入时移除。
+- 已移回本机或退役的 `theme`、`fontSize`、`chatIdleSleepMinutes` 与 `artifactPrompt`（临时文件夹提示词模板，其说明已移入 `{{webmux}}`）SHALL 视为未知字段：PATCH 中出现时返回 400；旧 `settings.json` 中遗留的这些键 SHALL 在读取时忽略，并在下一次写入时移除。
 
 #### Scenario: 默认快照
 
@@ -112,7 +115,7 @@
 
 #### Scenario: 越界与非法值
 
-- **WHEN** PATCH 同时包含合法主题与 51 条快捷指令，或包含 `theme: "blue"`、重复的快捷指令 ID、已退役的 `artifactPrompt`
+- **WHEN** PATCH 同时包含合法预览与 51 条快捷指令，或包含重复的快捷指令 ID、已迁回本机的 `theme` 或已退役的 `artifactPrompt`
 - **THEN** 服务端返回 400，修订号与所有设置保持原值，后续读取看不到部分更新
 
 #### Scenario: 请求体上限
@@ -137,8 +140,8 @@ PATCH 的状态码 SHALL 如下：
 
 #### Scenario: 部分更新保留其他键
 
-- **WHEN** 当前设置为 `theme: "dark"`、`preview: {lines: 15, skip: 1}`，客户端 PATCH `{baseRevision: 3, changes: {theme: "light"}}`
-- **THEN** 返回 200，`theme` 变为 `"light"`，`preview` 仍为 `{lines: 15, skip: 1}`，`revision` 变为 4
+- **WHEN** 当前设置为 `forceSoftKeys: false`、`preview: {lines: 15, skip: 1}`，客户端 PATCH `{baseRevision: 3, changes: {forceSoftKeys: true}}`
+- **THEN** 返回 200，`forceSoftKeys` 变为 `true`，`preview` 仍为 `{lines: 15, skip: 1}`，`revision` 变为 4
 
 #### Scenario: 修订号冲突
 
@@ -167,8 +170,8 @@ PATCH 的状态码 SHALL 如下：
 
 #### Scenario: 两台设备实时同步
 
-- **WHEN** 桌面端修改主题，手机端的 `/ws/settings` 已连接
-- **THEN** 手机端在收到 `settings.update` 后无需刷新即可应用新主题，修订号与桌面端一致
+- **WHEN** 桌面端开启强制底部工具栏，手机端的 `/ws/settings` 已连接
+- **THEN** 手机端在收到 `settings.update` 后无需刷新即可应用新设置，修订号与桌面端一致
 
 #### Scenario: 建立连接时恰好发生一次修改
 
@@ -191,8 +194,8 @@ PATCH 的状态码 SHALL 如下：
 
 #### Scenario: 旧键与新快照共存
 
-- **WHEN** 旧浏览器保存了主题和快捷指令，新服务端对应值为 null
-- **THEN** 页面使用默认值和预置指令，不上传旧值、不修改服务端 revision
+- **WHEN** 旧浏览器保存了预览设置和快捷指令，新服务端对应值为 null
+- **THEN** 页面使用服务端默认预览和预置指令，不上传旧值、不修改服务端 revision
 
 #### Scenario: 缓存损坏
 
@@ -201,14 +204,14 @@ PATCH 的状态码 SHALL 如下：
 
 ### Requirement: 服务端设置不可用时的降级
 
-浏览器 SHALL 把最近一次成功同步的快照保存在本地只读缓存中，用于首屏主题，以及设置服务不可用时展示最后已知值。缓存 SHALL 包含 `v`、`revision` 与 `values`，损坏、版本不符或字段非法时 SHALL 被忽略并删除。
+浏览器 SHALL 把最近一次成功同步的快照保存在本地只读缓存中，用于设置服务不可用时展示最后已知值；明暗主题与终端字号直接从当前浏览器本地存储读取。缓存 SHALL 包含 `v`、`revision` 与 `values`，损坏、版本不符或字段非法时 SHALL 被忽略并删除。
 
-设置接口返回 503 或网络不可达时，页面 SHALL 使用缓存或默认值只读展示：
+设置接口返回 503 或网络不可达时，页面 SHALL 对服务端设置使用缓存或默认值只读展示：
 
-- 设置页 SHALL 显示不可用原因与服务端返回的状态文件路径，禁用写入并提供重新读取入口。
+- 设置页 SHALL 显示不可用原因与服务端返回的状态文件路径，禁用服务端设置写入并提供重新读取入口；界面语言、主题与字体大小等本机偏好 SHALL 保持可切换。
 - 快捷指令菜单 SHALL 使用缓存列表只读展示；没有缓存时显示预置指令并说明暂不可保存。
 
-认证失败时 SHALL 进入现有登录流程。登录页可以使用缓存主题渲染，但 SHALL NOT 展示缓存中的快捷指令。
+认证失败时 SHALL 进入现有登录流程。登录页可以使用本机保存的主题渲染，但 SHALL NOT 展示缓存中的快捷指令。
 
 设置不可用 SHALL NOT 阻止会话创建、终端连接、终端输入输出、草稿或主页浏览。
 
@@ -217,7 +220,7 @@ PATCH 的状态码 SHALL 如下：
 #### Scenario: 设置文件损坏
 
 - **WHEN** `settings.json` 损坏，用户打开设置页和终端
-- **THEN** 设置页显示不可用原因与文件路径，写入被禁用；终端仍使用缓存中的主题与本机保存的字号，快捷指令菜单可用但不可保存
+- **THEN** 设置页显示不可用原因与文件路径，服务端设置写入被禁用，本机主题与字号仍可修改；终端使用本机保存的主题与字号，快捷指令菜单可用但不可保存
 
 #### Scenario: 离线后恢复
 
@@ -227,18 +230,18 @@ PATCH 的状态码 SHALL 如下：
 #### Scenario: 首次使用就没有缓存
 
 - **WHEN** 新浏览器第一次打开页面时设置接口不可用
-- **THEN** 页面使用默认主题与“恢复会话”“新会话”“WebMux 工具”三条预置指令，不因设置失败而阻塞登录后的终端
+- **THEN** 页面使用默认跟随系统的本机主题与“恢复会话”“新会话”“WebMux 工具”三条预置指令，不因设置失败而阻塞登录后的终端
 
 ### Requirement: 设置页与共享偏好入口
 
 设置页 SHALL 说明服务端同步与设备本地的边界，并 SHALL 提供两张卡片：
 
-- “外观与阅读”卡片：主题（跟随系统 / 浅色 / 深色）、字体大小 8–20、输出预览行数 1–50 与跳过行数 0–50、代码行号显示、Diff 换行以及强制底部工具栏。
+- “外观与阅读”卡片：本机偏好（界面语言、主题跟随系统 / 浅色 / 深色、字体大小 8–20）与服务端同步偏好（输出预览行数 1–50 与跳过行数 0–50、代码行号显示、Diff 换行以及强制底部工具栏）。
 - 快捷指令卡片：说明内容保存在服务端并在所有设备间共享，同时保留既有新建、编辑、排序、删除、上限和删除确认行为。
 
-所有入口 SHALL 读写同一份设置快照。入口包括：终端顶栏的主题切换与字体大小菜单、代码阅读器的行号与 Diff 换行开关、主页工作树的添加与移除、设置页控件。
+所有服务端偏好入口 SHALL 读写同一份设置快照。入口包括：代码阅读器的行号与 Diff 换行开关、主页工作树的添加与移除、设置页服务端偏好控件。侧栏底部与设置页的主题切换 SHALL 读写同一份本机 `webmux.theme` 存储，并通过浏览器 `storage` 事件在同一浏览器的多标签页及独立代码窗口间即时同步。
 
-修改的处理流程：
+修改服务端偏好的处理流程：
 
 1. 先更新本地状态并发送 PATCH。
 2. PATCH 失败时 SHALL 回滚显示并给出错误。
@@ -260,13 +263,13 @@ PATCH 的状态码 SHALL 如下：
 
 #### Scenario: 一处修改多处生效
 
-- **WHEN** 用户在设置页把字体改为 18px，随后在终端顶栏的主题菜单切换为浅色
-- **THEN** 两个修改都写入服务端，设置页与终端立即显示新值，另一台已连接设备也收到更新
+- **WHEN** 用户在设置页启用强制底部工具栏，随后在代码阅读器隐藏行号
+- **THEN** 两个修改都写入服务端，设置页与对应视图立即显示新值，另一台已连接设备也收到更新
 
 #### Scenario: 写入失败回滚
 
-- **WHEN** 用户切换主题时设置服务端返回 503
-- **THEN** 界面恢复切换前的主题，显示不可用原因，不把这次修改写入本地缓存为已同步值
+- **WHEN** 用户切换强制底部工具栏时设置服务端返回 503
+- **THEN** 界面恢复切换前的值，显示不可用原因，不把这次修改写入本地缓存为已同步值
 
 #### Scenario: 恢复预览默认值
 
@@ -340,3 +343,25 @@ PATCH 的状态码 SHALL 如下：
 
 - **WHEN** 检查 `settings.json`
 - **THEN** 文件不包含浏览器 token、Web Push 订阅端点和草稿内容，权限为 0600
+
+### Requirement: XR 与 TV 显示偏好仅保存在设备本地
+
+TV 模式、头显浏览器模式开关与 VR 面板布局 SHALL 属于仅当前设备的显示偏好，SHALL NOT 进入服务端设置文档、设置 API、设置 WebSocket 或跨客户端同步。
+系统 SHALL 使用现有设备本地存储与运行时校验保存这些偏好，存储不可用或内容损坏 SHALL NOT 阻止会话与终端使用。
+
+这些偏好 SHALL NOT 包含 token、推送订阅、草稿正文、终端输出、代码内容或其他会话敏感数据。另一浏览器 SHALL 使用自己的 TV/XR 显示选择，不继承源设备布局。
+
+#### Scenario: 设置快照不包含显示布局
+
+- **WHEN** 用户开启 TV 模式并保存 VR 面板布局后读取 `GET /api/settings` 或设置同步帧
+- **THEN** 响应、文件和帧不包含 TV/头显浏览器模式、面板位置、大小或会话排列字段
+
+#### Scenario: 两台设备独立显示
+
+- **WHEN** 用户在头显中保存 VR 布局，随后在电视浏览器打开同一 WebMux 实例
+- **THEN** 电视不应用头显的 VR 布局，其 TV 模式仍由本设备自己的选择决定
+
+#### Scenario: 本地布局损坏
+
+- **WHEN** 当前浏览器中的 TV/XR 显示偏好损坏或版本不兼容
+- **THEN** 系统忽略无效偏好并使用可用的默认显示模式，终端连接、草稿和服务端会话不受影响

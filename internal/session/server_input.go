@@ -43,14 +43,18 @@ func (s *Session) SubmitServer(ctx context.Context, in ServerInput) (SubmissionS
 		return SubmissionStatus{}, ErrNoRun
 	}
 	record := s.submissions.add(in.RequestID, client, now)
+	var body []byte
+	if len(in.Body) > 0 {
+		body = pasteBody(in.Body, s.preview.BracketedPaste())
+	}
 	controller := &Controller{ClientID: client, Label: in.Label, Since: now}
 	s.control, s.controlSub = controller, nil
 	s.broadcastLocked(s.controlLocked())
 	s.mu.Unlock()
 
 	status := SubmissionStatus{ID: in.RequestID, State: SubmissionWritten}
-	if len(in.Body) > 0 || len(in.Submit) > 0 {
-		written, err := s.writeRun(ctx, r, inputUser, in.Body, in.Submit)
+	if len(body) > 0 || len(in.Submit) > 0 {
+		written, err := s.writeRunDelay(ctx, r, inputUser, s.submitGap(), body, in.Submit)
 		if err != nil {
 			status.State, status.Error = SubmissionFailed, "write"
 			if written > 0 {

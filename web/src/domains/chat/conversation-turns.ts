@@ -1,0 +1,65 @@
+import { m } from "$lib/paraglide/messages.js";
+import type { TimelineEntry } from "./chat-model";
+
+export type ConversationTurnItem = {
+  id: string;
+  /** Every visible message represented by this tick, in transcript order. */
+  messageIds: string[];
+  role: "user" | "agent";
+  /** Zero identifies an agent reply whose user prompt fell out of the cache. */
+  turn: number;
+  summary: string;
+};
+
+/** One tick per user prompt and one for its agent replies, across work steps. */
+export function conversationTurns(
+  entries: readonly TimelineEntry[],
+): ConversationTurnItem[] {
+  const items: ConversationTurnItem[] = [];
+  let turn = 0;
+  for (const entry of entries) {
+    if (entry.type !== "message" || entry.role === "thought") continue;
+    if (entry.role === "user") turn++;
+    const compact = entry.text.replace(/\s+/g, " ").trim();
+    if (entry.role === "agent" && !compact && !entry.truncated) continue;
+    const previous = items.at(-1);
+    if (entry.role === "agent" && previous?.role === "agent") {
+      previous.messageIds.push(entry.id);
+      continue;
+    }
+    let end = 80;
+    if (
+      compact.charCodeAt(end - 1) >= 0xd800 &&
+      compact.charCodeAt(end - 1) <= 0xdbff
+    )
+      end--;
+    const summary =
+      compact.length > 80 ? `${compact.slice(0, end).trimEnd()}…` : compact;
+    items.push({
+      id: entry.id,
+      messageIds: [entry.id],
+      role: entry.role,
+      turn,
+      summary:
+        summary ||
+        (entry.role === "user" && entry.attachments?.length
+          ? m.s3_turn_user_attachment()
+          : entry.role === "user"
+            ? m.s3_turn_empty_message()
+            : m.s3_turn_content_truncated()),
+    });
+  }
+  return items;
+}
+
+/** Bound the rail's density without discarding any message anchors. */
+export function conversationTurnGroups(
+  items: readonly ConversationTurnItem[],
+  capacity: number,
+): ConversationTurnItem[][] {
+  const size = Math.max(1, Math.ceil(items.length / Math.max(1, capacity)));
+  const groups: ConversationTurnItem[][] = [];
+  for (let index = 0; index < items.length; index += size)
+    groups.push(items.slice(index, index + size));
+  return groups;
+}

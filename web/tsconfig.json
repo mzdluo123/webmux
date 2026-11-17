@@ -21,7 +21,7 @@
     "noEmit": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "types": ["node", "vite/client"]
+    "types": ["node", "vite/client", "webxr"]
   },
   "include": ["src", "vite.config.ts"]
 }

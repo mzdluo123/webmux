@@ -1,11 +1,23 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  connect,
-  protocols,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
+import { connect, protocols } from "../src/platform/ws";
+import {
   setWsCompression,
   wsCompression,
-  type SocketConnection,
-} from "../src/ws";
+} from "../src/platform/ws-compression";
+import type { SocketConnection } from "../src/platform/ws-contracts";
+import {
+  applyRelayAuth,
+  clearRelayAuth,
+  relayAuthRevision,
+  resetRelayAuth,
+} from "../src/platform/relay-auth";
 
 const sendBudget = 1024 * 1024;
 
@@ -57,6 +69,7 @@ describe("WebSocket upstream send budget", () => {
 
   afterEach(() => {
     connection.close();
+    resetRelayAuth();
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
@@ -196,6 +209,36 @@ describe("WebSocket upstream send budget", () => {
 
     expect(connection.send(0, new Uint8Array([65]))).toBe(false);
     expect(socket.sent).toEqual([]);
+  });
+
+  it("suspends owner sockets and resumes the existing controller without replaying input", () => {
+    connection.close();
+    const session = {
+      authenticated: true,
+      relay: true,
+      csrfToken: "owner",
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+    };
+    applyRelayAuth(session, relayAuthRevision());
+    connection = connect("/ws/s/test", vi.fn(), vi.fn(), vi.fn());
+    socket = MockWebSocket.instances.at(-1)!;
+    expect(connection.send(0, new Uint8Array([65]))).toBe(true);
+    clearRelayAuth("reconnecting");
+    expect(socket.readyState).toBe(3);
+    expect(connection.send(0, new Uint8Array([66]))).toBe(false);
+    window.dispatchEvent(new Event("online"));
+    vi.advanceTimersByTime(60_000);
+    expect(MockWebSocket.instances.at(-1)).toBe(socket);
+    applyRelayAuth(session, relayAuthRevision());
+    const recovered = MockWebSocket.instances.at(-1)!;
+    expect(recovered).not.toBe(socket);
+    expect(recovered.sent).toEqual([]);
+    expect(connection.send(0, new Uint8Array([67]))).toBe(true);
+    expect(recovered.sent).toEqual([new Uint8Array([0, 67])]);
+    connection.close();
+    clearRelayAuth("reconnecting");
+    applyRelayAuth(session, relayAuthRevision());
+    expect(MockWebSocket.instances.at(-1)).toBe(recovered);
   });
 });
 

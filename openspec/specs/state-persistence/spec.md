@@ -1,6 +1,7 @@
 # state-persistence Specification
 
 ## Purpose
+
 为状态目录中的各类持久化文件提供统一的存储登记、私有权限、严格有界解码、独立锁与原子提交，按领域区分故障处理并在破坏性布局变更时不静默暴露或遗忘外部入口。
 
 ## Requirements
@@ -51,7 +52,7 @@
 #### Scenario: Directory sync fails after publication
 
 - **WHEN** rename 或 unlink 已完成但父目录同步失败
-- **THEN** 标记 commit_uncertain，禁止后续写入，不声称旧值已回滚
+- **THEN** 标记 commit_uncertain，后续写入返回存储故障，不声称旧值已回滚
 - **AND** 重启重新读取后才恢复可用状态
 
 ### Requirement: Preserve data and fail closed by domain

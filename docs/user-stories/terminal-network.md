@@ -1,6 +1,6 @@
-# 网络压缩用户故事
+# 网络压缩与 P2P 直连用户故事
 
-本页延续手机、平板与触摸操作组（H 组）的 US-H10–US-H11，描述移动网络等慢速链路上的实时连接与页面加载压缩。
+本页延续手机、平板与触摸操作组（H 组）的 US-H10–US-H12，描述慢速与高延迟中转网络上的实时连接压缩、页面加载压缩及机会性 WebRTC DataChannel P2P 直连升级。
 完整索引见[终端、输入与移动端](terminal.md)。
 
 - **US-H10 压缩实时连接**：作为在移动网络等慢速链路上使用终端的使用者，我希望实时连接压缩在手机上默认开启，并可按设备调整，以便减少回放与输出流量而不拖慢输入。
@@ -19,27 +19,65 @@
   - 服务时不实时压缩，仅在客户端拒绝两种编码时一次性解出原文；
   - 压缩版本不能按 `.br`/`.gz` 路径直接访问；
   - WOFF2 与 PNG 本身已压缩，按原样提供。
+- **US-H12 机会性 P2P 直连升级与双路径测速**：作为经高延迟中转入口连接 WebMux 的使用者，我希望先走现有连接立即打开会话，后台探测并优先无感升级到快速路径；收益显著时允许短暂重连并同步画面，以便降低仍留在旧路径的实时流延迟。
+  验收要点：
+  - 默认配置与网页持久化覆盖：
+    - `[p2p]` 默认开启（`enabled = true`、`port_mapping = true`）；
+    - 默认 STUN 列表包含 `stun:stun.miwifi.com:3478`、`stun:stun.chat.bilibili.com:3478`、`stun:stun.cloudflare.com:3478` 与 `stun:stun.l.google.com:19302`；
+    - 设置页“网络”分区可在线开关直连升级、路由器自动端口映射（UPnP IGD / NAT-PMP / PCP）并编辑 `stun:`/`stuns:` 列表（拒绝 `turn:`/`turns:`）；
+    - 网页覆盖保存在 `<state_dir>/p2p-settings.json`（目录 0700、文件 0600、独占锁）并立即生效，支持“恢复配置文件默认”；
+  - 浏览器访问主机为本机回环、RFC1918/CGNAT/链路本地内网、`.ts.net` 或连续 3 次基线探测 RTT 中位数 `< 15 ms` 时自动跳过协商（`?p2p=force` 仅当前标签页强制探测）；
+  - 普通 Token 连接的信令复用现有 Bearer Token + Host + Origin 校验下的 HTTP 接口（`/api/p2p`、`/api/p2p/settings`、`/api/p2p/ping`、`/api/p2p/sessions`），不依赖外部信令服务器；日志不输出终端内容、Token 或完整 SDP 正文；
+  - 服务端使用单端口 ICE UDP 复用同时收集 IPv4 与 IPv6 候选，并在开启端口映射时自动续期、关闭或退出时清理外部映射；普通 Token 连接选中 `relay`（TURN）时立即关闭该 PeerConnection 并保持基线，授权 Relay 所有者连接遵循下述混合路径规则；
+  - 后台协商总窗口为 30 秒，候选按会话串行批量交换，并约每秒拉取服务器新增候选；本地候选收集完成后仍能收到晚到的远端候选，成功、失败或取消后停止信令轮询；
+  - 控制通道完成版本握手后，以同轮应用层往返测量比较路径；连续 3 次满足“至少降低 `10 ms` 且不高于基线 `85%`”，或绝对降低超过 `100 ms`，才升级；保留 30 秒切换冷却；
+    `?p2p=force` 仅当前标签页强制探测并豁免 RTT 比较，健康或权限失效时仍回退。
+  - 普通 Token 直连生效后承载全部实时流（`/ws/s/{id}`、`/ws/sessions`、`/ws/s/{id}/chat`、`/ws/settings`、`/ws/voice`）以及 `/api/*` 请求与分块文件上传，单条应用消息按 32 KiB 分片重组并保留业务关闭码（如 `4404`、`4409`）；
+  - 终端流采用先建后拆（make-before-break）：新 DataChannel 以 `resume=offset&mode=append` 就绪前旧 WebSocket 不断开，按重叠字节裁剪实现零丢字节、零重复渲染且不触发清屏重放；
+  - 同一已验证快速路径连续 3 轮比基线低超过 `100 ms` 时，持续补迁移尚未升级的终端、聊天与会话列表流；恰好 `100 ms` 不触发强制补迁移，已在目标路径或正在向同一目标迁移的流不重复断开；
+  - 强收益补迁移优先先建后拆；候选快照、输入屏障或等待超时导致无缝迁移失败时，可短暂断开旧流，经当前仍有效的快速传输重连并同步快照/游标。关闭、撤权或路径变化使旧迁移失效，上传下载不参与补迁移；
+  - P2P 断开、心跳超时或浏览器报告切网（`online` / Network Information `change`）时立即退回 WebSocket 基线，取消旧协商并合并 1 秒内的网络事件，以新的 PeerConnection 重收集候选；旧请求的迟到结果不得覆盖新路径，关闭开关或停止客户端立即取消活动协商；
+  - 回到前台时验证活动路径；未使用直连时重新评估，包括此前直连成功但收益不足的情形；浏览器不提供网络变化事件时依靠连接状态与心跳恢复；
+  - 普通 Token 连接在侧栏底部“主机状态详情”与设置页“网络”分区展示当前路径（`P2P 直连` / `WebSocket 基线`）、候选类型（`host`/`srflx`/`prflx`）、IP 族、端口映射、基线与直连 RTT、升级耗时与切换次数；
+  - 提供一键“双路径回显测速”，对比两条路径的中位/最小 RTT；
+  - 打开设置页与端口映射状态轮询只更新诊断，不重建正常直连，也不取消进行中的 ICE 协商或双路径测速；保存或恢复 P2P 配置时才重新评估连接，服务端报告关闭或不支持时仍立即回退并取消协商；
+  - 设置页诊断区分“未能建立直连”和“直连成功，延迟收益不足”，后者保留候选类型、IP 族与实测 RTT，不计作穿透失败；
+  - 支持 `-tags nop2p` 编译裁剪 WebRTC 依赖，裁剪构建下 `/api/p2p` 返回 `supported: false`、信令返回 `501`，其余 HTTP/WebSocket 功能照常运行。
+  - 官方 Relay 所有者 Cookie 连接先使用 WSS，再依据应用层往返测量在 WSS、WebRTC 直连和授权 TURN 之间选择交互路径；TCP/TLS、SDP/DTLS 与授权生命周期仍需分别成立，TURN 不替代 WSS 登录；
+  - 仅 `p2p` 功能已选择且构建提供 P2P 时可自动优化，不要求改变本机 P2P 开关；功能未选择或裁剪时不导入 Pion、不探测，保留可用 WSS 并说明优化不可用；
+  - Relay 文件上传、下载和全部 `/forward/*` 始终走 WSS 批量角色，不能因交互路径切换或批量角色故障被挤入交互连接；
+  - TURN 凭据按当前所有者浏览器会话与 PeerConnection 签发，禁止匿名 Allocate；实际选中 `relay` 才显示 TURN 路径，诊断不公开候选 IP、SDP 或凭据；
+  - Relay 路径切换保持单写者及既有 generation/offset 续接；结果未知的输入不能重放，初始化失败、队列等待、超时及输出完整性不能从性能结果中排除；
+  - 终端无缝切换先等待候选位置与快照，再以旧连接的唯一查询回执证明此前 PTY 写入已完成；持续输入仍走旧连接，新输入需要更新屏障，不能被候选路径超越。普通收益的屏障失败只取消候选；强收益允许断开重同步，但结果未知的输入始终不自动重发；
+  - UDP 黑洞、TURN 不可达或权限失效时保留或恢复 WSS；会话退出与撤销关闭派生路径，不结束 PTY。
 
 ## 取舍
 
 - 实时连接压缩在手机与平板上默认开启：这类设备常走移动网络，带宽是瓶颈；桌面默认关闭，因为本机与局域网访问时压缩只增加 CPU 与每连接约 1.3 MB 服务端内存。默认值只在用户未选择时生效，选择一次后固定。
-- 以主指针是否为粗指针判断设备，而不是 UA 或屏幕宽度：窄窗口的桌面浏览器与带触摸屏的笔记本（主指针为鼠标）不受影响。
+- 以主指针是否为粗指针判断设备：窄窗口的桌面浏览器与带触摸屏的笔记本（主指针为鼠标）不受影响。
 - 开关按设备保存而非跨设备同步：手机走移动网络、桌面走局域网时可分别选择。
 - 静态资源压缩没有开关：压缩在构建期完成，服务时只返回已有字节，不增加首个请求的延迟。
 - 同时保留 brotli 与 gzip：Chrome 在非本机的纯 HTTP 地址上不提议 `br`，经 VPN 的 HTTP 访问仍需 gzip。
+- 普通 Token P2P 升级坚持“基线先行、零中继成本”：首屏与鉴权始终走现有 HTTP/WebSocket，UDP 被拦截或对称 NAT 打洞失败不阻塞打开会话；这一路径拒绝 `relay` 候选，不要求 TURN。官方 Relay 所有者连接使用单独授权的混合策略，仍以 WSS 为可用基线。
+- 本机、局域网、Tailscale 与 `< 15 ms` 低延迟链路默认跳过 P2P：这些场景下直接 TCP/WebSocket 已经足够快，跳过可避免无意义的 ICE 探测与端口映射开销。
 
 ## 代码依据
 
-- [实时连接压缩开关](../../web/src/components/NetworkSettings.svelte)
-- [连接与重连](../../web/src/ws.ts)
-- [握手协商](../../internal/api/router.go)
-- [协商用例](../../internal/api/compression_test.go)
-- [构建期预压缩](../../web/scripts/embed-assets.ts)
-- [静态资源协商](../../internal/api/static.go)
-- [静态资源用例](../../internal/api/static_test.go)
+- [实时连接压缩开关](../../web/src/components/settings/NetworkSettings.svelte)
+- [P2P 直连面板与双路径测速](../../web/src/components/settings/P2PSettings.svelte)、[P2P 设置 Hook](../../web/src/hooks/settings/p2p-settings.svelte.ts)
+- [前端路径管理与握手](../../web/src/platform/p2p.svelte.ts)、[Peer 会话](../../web/src/platform/p2p-session.ts)、[DataChannel 传输与 RPC](../../web/src/platform/p2p-transport.ts)、[流分片协议](../../web/src/platform/p2p-framing.ts)
+- [连接与无感切换](../../web/src/platform/ws.ts)、[候选回放与输入屏障](../../web/src/platform/ws-handoff.ts)、[终端重叠裁剪](../../web/src/domains/terminal/terminal-protocol.ts)、[终端连接切换](../../web/src/hooks/terminal/terminal-socket.svelte.ts)
+- [WebRTC 引擎](../../internal/p2p/service_webrtc.go)、[流连接封装](../../internal/p2p/stream_conn.go)、[路由器端口映射](../../internal/p2p/portmap.go)、[`nop2p` 裁剪构建](../../internal/p2p/service_nop2p.go)
+- [P2P 持久设置](../../internal/p2psettings/store.go)、[P2P 路由贡献](../../internal/featureapi/p2p.go)、[P2P 控制器](../../cmd/webmux/p2pctl.go)、[纯传输帧](../../internal/streamproto/stream.go)
+- [握手协商](../../internal/api/router.go)、[协商用例](../../internal/api/compression_test.go)、[P2P API 用例](../../internal/api/p2p_test.go)
+- [构建期预压缩](../../web/scripts/embed-assets.ts)、[静态资源协商](../../internal/api/static.go)、[静态资源用例](../../internal/api/static_test.go)
 - [协议说明](../protocol/websocket.md#压缩)
+- [移动网络部署与验收](../deployment/remote-access.md#移动网络上的-p2p-直连)
 
 ## 验证范围
 
-Go 用例覆盖握手协商与编码选择；隔离实例中用 Chromium 核对了开关、重连 URL 与 `Sec-WebSocket-Extensions` 响应头。
-未做真机移动网络测速。
+Go 用例覆盖握手协商、编码选择、DataChannel 分片背压、端口映射生命周期、真实 Pion 双端打洞、`/api/*` RPC 转发与 `nop2p` 构建；前端与隔离实例 Chromium 用例覆盖开关、先建后拆无缺口续接、真实 WebRTC 直连升级、双路径测速与断连回落。
+隔离 Chromium 手机视口已通过合成 GitHub 授权与真实 PostgreSQL、WSS/smux、原版 coturn 完成登录及终端验证。
+WSS 出站附加 150 ms 延迟、浏览器 ICE 限定 relay 候选时选中 relay/relay；切换期间逐键输入保持顺序，真实 Vim 保存字节一致、Ctrl-C 和回落后新输入通过，注销拒绝访问且保留同代际 PTY。
+该场景不代表真实手机、自然公网 RTT、CLI agent 或长时性能验收。
+未做跨运营商对称 NAT 与移动蜂窝真机测速。

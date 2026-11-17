@@ -1,10 +1,15 @@
 package hybrid
 
 import (
+	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
-	"github.com/rainchan/webmux/internal/agentprofile/omp"
+	"github.com/rainchan/webmux/internal/acp"
+	"github.com/rainchan/webmux/internal/agent/agy"
+	"github.com/rainchan/webmux/internal/agent/kimi"
+	"github.com/rainchan/webmux/internal/agent/omp"
 	"github.com/rainchan/webmux/internal/attentionkind"
 )
 
@@ -148,14 +153,50 @@ func TestWorkRunningOnlyForInProgress(t *testing.T) {
 	}
 }
 
+func TestWorkBackgroundInput(t *testing.T) {
+	tests := []struct {
+		name   string
+		update acp.Update
+		want   bool
+	}{
+		{name: "Kimi", update: &acp.ToolCallUpdate{RawInput: json.RawMessage(`{"run_in_background":true}`)}, want: true},
+		{name: "agy", update: &acp.ToolCall{RawInput: json.RawMessage(`{"IsDaemon":true}`)}, want: true},
+		{name: "foreground", update: &acp.ToolCallUpdate{RawInput: json.RawMessage(`{"run_in_background":false,"IsDaemon":false}`)}},
+		{name: "unrelated", update: &acp.ToolCallUpdate{RawInput: json.RawMessage(`{"command":"sleep 2"}`)}},
+		{name: "malformed", update: &acp.ToolCallUpdate{RawInput: json.RawMessage(`{`)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var w workTracker
+			w.noteBackground(tt.update)
+			if w.unfinished() != tt.want {
+				t.Fatalf("unfinished=%v, want %v", w.unfinished(), tt.want)
+			}
+			w.endTurn()
+			if w.unfinished() {
+				t.Fatal("background state leaked into the next turn")
+			}
+		})
+	}
+}
+
 func TestTurnWithBackgroundCommandIsDoneOnlyAfterItEnds(t *testing.T) {
 	h := newHarness(t, 0)
 	h.fast()
-	s := h.create(h.input(omp.Name, SideACP))
+	s := h.create(h.input(agy.Name, SideACP))
 	id := s.Info().ID
 	st := h.follow(id)
 	prompt(t, h, id, "hi /background")
-	st.until("turn end", hasKind(EventTurnEnd))
+	events := st.until("turn end", hasKind(EventTurnEnd))
+	foundUnfinished := false
+	for _, event := range events {
+		if event.TurnEnd != nil && event.TurnEnd.Unfinished {
+			foundUnfinished = true
+		}
+	}
+	if !foundUnfinished {
+		t.Fatal("turn-end event must carry the authoritative background-work state")
+	}
 	if a := s.Info().Attention; a != nil {
 		t.Fatalf("attention %+v while the command still runs", a)
 	}
@@ -166,6 +207,41 @@ func TestTurnWithBackgroundCommandIsDoneOnlyAfterItEnds(t *testing.T) {
 		a := s.Info().Attention
 		return a != nil && a.Kind == attentionkind.Done
 	})
+	if got := h.replayedUsers(id); !slices.Equal(got, []string{"hi /background", agy.BackgroundStatusPrompt}) {
+		t.Fatalf("background refresh prompts %q", got)
+	}
+	if h.chatState(id).Turn.Unfinished {
+		t.Fatal("refresh must clear the unfinished turn state")
+	}
+	if actorState(h, id, func(a *actor) bool { return a.bgCancel != nil }) {
+		t.Fatal("completed background input must not start another refresh")
+	}
+}
+
+func TestTurnWithStartedBackgroundCommandIsDoneOnlyAfterItEnds(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	s := h.create(h.input(kimi.Name, SideACP))
+	id := s.Info().ID
+	st := h.follow(id)
+	prompt(t, h, id, "hi /background-started")
+	st.until("turn end", hasKind(EventTurnEnd))
+	if a := s.Info().Attention; a != nil {
+		t.Fatalf("attention %+v while the command still runs", a)
+	}
+	if !h.chatState(id).Turn.Unfinished {
+		t.Fatal("completed start call must not hide the running background command")
+	}
+	waitFor(t, "done once the command ended", func() bool {
+		a := s.Info().Attention
+		return a != nil && a.Kind == attentionkind.Done
+	})
+	if h.chatState(id).Turn.Unfinished {
+		t.Fatal("completed background command must clear the unfinished turn state")
+	}
+	if got := h.replayedUsers(id); !slices.Equal(got, []string{"hi /background-started"}) {
+		t.Fatalf("Kimi must not start an agy-specific refresh: %q", got)
+	}
 }
 
 func TestTurnWithOpenToolWithoutNewProcessBecomesDoneAfterQuietPolls(t *testing.T) {
@@ -231,7 +307,7 @@ func TestHybridWorkDetailDuringTurn(t *testing.T) {
 			select {
 			case ev := <-listSub.Out:
 				if ev.Type == "updated" && ev.Session != nil && ev.Session.ID == id &&
-					ev.Session.Hybrid != nil && ev.Session.Hybrid.Work == "Read file" {
+					h.svc.Metadata(ev.Session.ID) != nil && h.svc.Metadata(ev.Session.ID).Work == "Read file" {
 					return true
 				}
 			default:
@@ -245,7 +321,7 @@ func TestHybridWorkDetailDuringTurn(t *testing.T) {
 			select {
 			case ev := <-listSub.Out:
 				if ev.Type == "updated" && ev.Session != nil && ev.Session.ID == id &&
-					ev.Session.Hybrid != nil && ev.Session.Hybrid.Work == "" {
+					h.svc.Metadata(ev.Session.ID) != nil && h.svc.Metadata(ev.Session.ID).Work == "" {
 					return true
 				}
 			default:

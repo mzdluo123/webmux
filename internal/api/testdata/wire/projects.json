@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "body": [
+    {
+      "availability": "available",
+      "error": "",
+      "id": "<id#1>",
+      "name": "wire project",
+      "path": "<repo>/wire project",
+      "repositoryId": ""
+    }
+  ]
+}

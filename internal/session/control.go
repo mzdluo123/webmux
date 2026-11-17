@@ -171,8 +171,10 @@ func (l *submissionLog) forgetWatcher(client string) {
 }
 
 // Submit writes a body and its submit key as one input critical section, so
-// input from other connections cannot interleave between them. A repeated ID
-// is never written again; the caller receives the recorded status instead.
+// input from other connections cannot interleave between them, not even
+// during the submit gap that keeps the key out of a TUI's paste burst. The
+// client has already prepared body as a paste. A repeated ID is never
+// written again; the caller receives the recorded status instead.
 // Status frames go to every connection of the submitting client, including
 // one that reconnected while the write was in progress.
 func (s *Session) Submit(ctx context.Context, sub *Subscriber, id, generation string, body, submit []byte) SubmissionStatus {
@@ -196,7 +198,7 @@ func (s *Session) Submit(ctx context.Context, sub *Subscriber, id, generation st
 	s.notifyClientLocked(record)
 	s.mu.Unlock()
 
-	written, err := s.writeRun(ctx, r, inputUser, body, submit)
+	written, err := s.writeRunDelay(ctx, r, inputUser, s.submitGap(), body, submit)
 	status := SubmissionStatus{ID: id, State: SubmissionWritten}
 	if err != nil {
 		status.State, status.Error = SubmissionFailed, "write"

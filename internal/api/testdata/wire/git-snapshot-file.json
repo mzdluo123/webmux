@@ -1,0 +1,23 @@
+{
+  "status": 200,
+  "body": {
+    "checkedAt": "<time>",
+    "document": {
+      "absolutePath": "",
+      "contentVersion": "0185309bf791fc792c3b2d631a09e26131bd9615522623b11fd4c65978891865",
+      "downloadable": true,
+      "kind": "text",
+      "lineCount": 2,
+      "mediaType": "",
+      "nodeId": "c3ViL2IudHh0",
+      "oid": "de4296d3c6d9c4821c0fe09931f8422d01be768c",
+      "path": "sub/b.txt",
+      "reason": "",
+      "referenceable": false,
+      "size": 14,
+      "source": "commit:ecc8da449d18daa48261db409c9e0af26550cf64",
+      "text": "bee\nbutterfly\n"
+    },
+    "snapshotId": "<snapshotId#2>"
+  }
+}

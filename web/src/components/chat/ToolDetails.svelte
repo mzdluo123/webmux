@@ -1,13 +1,16 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
   import { ListButton } from "$lib/components/ui/list-button";
-  import { diffStats, type ToolEntry } from "../../chat-model";
+  import { m } from "$lib/paraglide/messages.js";
+  import { diffStats, type ToolEntry } from "../../domains/chat/chat-model";
   import {
     isExternalLink,
     parseChatCodeLink,
     type ChatCodeLink,
-  } from "../../markdown-link";
+    type ChatCodeLinkHandler,
+  } from "../../domains/code/markdown-link";
   import DiffCount from "./DiffCount.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   // What a tool call produced: output text, diffs, resource links and the
   // locations it touched. Diffs open in the code panel.
@@ -18,9 +21,9 @@
   }: {
     tool: ToolEntry;
     /** Opens a changed file in the code panel. */
-    onreview: (path: string) => void;
+    onreview?: (path: string) => void;
     /** Opens a referenced code file or line in the code panel. */
-    onopenlocation?: (target: ChatCodeLink) => void;
+    onopenlocation?: ChatCodeLinkHandler;
   } = $props();
 
   const blocks = $derived(
@@ -29,6 +32,12 @@
       stats: block.type === "diff" ? diffStats(block) : null,
     })),
   );
+  let linkFailure = $state("");
+  async function openLocation(target: ChatCodeLink) {
+    linkFailure = "";
+    const failure = await onopenlocation?.(target);
+    if (failure) linkFailure = failure;
+  }
 </script>
 
 {#each blocks as { block, stats }, i (i)}
@@ -41,10 +50,10 @@
         >{block.path}</span
       >
       {#if stats}<DiffCount added={stats.added} removed={stats.removed} />{/if}
-      {#if block.path}
+      {#if block.path && onreview}
         {@const path = block.path}
-        <Button variant="outline" size="xs" onclick={() => onreview(path)}
-          >在代码面板中查看</Button
+        <Button variant="outline" size="xs" onclick={() => onreview?.(path)}
+          >{m.s3_view_in_code_panel()}</Button
         >
       {/if}
     </div>
@@ -63,20 +72,29 @@
       </p>
     {:else if target}
       <p>
-        <ListButton variant="code-link" onclick={() => onopenlocation?.(target)}
-          >{label}</ListButton
+        <ListButton
+          variant="code-link"
+          onclick={() => void openLocation(target)}>{label}</ListButton
         >
       </p>
     {:else}
       <p class="font-mono text-xs break-all">{label}</p>
     {/if}
   {:else}
-    <p>不支持的内容：{block.unsupported || "未知类型"}</p>
+    <p>
+      {m.s3_unsupported_content({
+        type: block.unsupported || m.s3_unknown_type(),
+      })}
+    </p>
   {/if}
-  {#if block.truncated}<p class="text-xs">（内容过长，已截断）</p>{/if}
+  {#if block.truncated}<p class="text-xs">
+      {m.s3_content_too_long_truncated()}
+    </p>{/if}
 {:else}
   <p>
-    {tool.partial ? "这次调用开始得更早，详情已不在缓存中。" : "没有输出。"}
+    {tool.partial
+      ? m.s3_tool_started_earlier_uncached()
+      : m.s3_tool_no_output()}
   </p>
 {/each}
 {#each tool.locations as location, i (i)}
@@ -86,7 +104,7 @@
       <ListButton
         variant="code-link"
         onclick={() =>
-          onopenlocation({
+          void openLocation({
             path: location.path,
             ...(location.line !== undefined && location.line >= 1
               ? { line: location.line }
@@ -98,3 +116,6 @@
     <p class="font-mono text-xs break-all">{label}</p>
   {/if}
 {/each}
+{#if linkFailure}<InlineNotice tone="warning" class="mt-1"
+    >{linkFailure}</InlineNotice
+  >{/if}

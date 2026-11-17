@@ -1,8 +1,9 @@
 {
   "body": {
     "changes": {
+      "forceSoftKeys": true,
       "quickCommands": [],
-      "theme": "dark"
+      "sessionPins": []
     },
     "revision": 1,
     "type": "settings.update",

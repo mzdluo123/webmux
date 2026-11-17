@@ -1,12 +1,13 @@
 <script lang="ts">
-  import { useDockMotion } from "../../hooks/dock-motion.svelte";
+  import { m } from "$lib/paraglide/messages.js";
+  import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconCircle from "~icons/tabler/circle";
   import IconCircleCheck from "~icons/tabler/circle-check";
   import IconLoader2 from "~icons/tabler/loader-2";
   import { Button } from "$lib/components/ui/button";
   import * as Collapsible from "$lib/components/ui/collapsible";
-  import type { ChatPlan } from "../../schemas";
+  import type { ChatPlan } from "../../contracts/schemas";
 
   // The agent's plan. "dock" sits above the input as "计划 x/y" with the step
   // in progress, expanding to every step. "panel" is the always-open side
@@ -37,17 +38,17 @@
         {#if entry.status === "completed"}
           <IconCircleCheck
             class="mt-0.5 size-4 shrink-0 text-success"
-            aria-label="完成"
+            aria-label={m.s3_status_completed()}
           />
         {:else if entry.status === "in_progress"}
           <IconLoader2
             class="mt-0.5 size-4 shrink-0 animate-spin text-info"
-            aria-label="进行中"
+            aria-label={m.s3_status_in_progress()}
           />
         {:else}
           <IconCircle
             class="mt-0.5 size-4 shrink-0 text-muted-foreground"
-            aria-label="待办"
+            aria-label={m.s3_status_todo()}
           />
         {/if}
         <span
@@ -63,7 +64,7 @@
 {#if variant === "panel"}
   <section
     class="pointer-events-auto flex max-h-full min-h-0 flex-col rounded-lg border bg-card text-sm"
-    aria-label="计划"
+    aria-label={m.s3_plan_label()}
     data-chat-plan="panel"
   >
     <h2
@@ -77,7 +78,7 @@
       {:else}
         <IconCircleCheck class="size-3.5 text-success" aria-hidden="true" />
       {/if}
-      计划 {done}/{plan.entries.length}
+      {m.s3_plan_progress({ done, total: plan.entries.length })}
     </h2>
     <div class="min-h-0 overflow-y-auto">{@render steps()}</div>
   </section>
@@ -97,7 +98,9 @@
             {:else}
               <IconCircleCheck class="text-success" aria-hidden="true" />
             {/if}
-            <span class="shrink-0">计划 {done}/{plan.entries.length}</span>
+            <span class="shrink-0"
+              >{m.s3_plan_progress({ done, total: plan.entries.length })}</span
+            >
             {#if current}<span class="min-w-0 truncate text-foreground"
                 >{current.content}</span
               >{/if}

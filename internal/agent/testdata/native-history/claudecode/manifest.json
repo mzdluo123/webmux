@@ -1,0 +1,226 @@
+{
+  "agent": "claudecode",
+  "sourceLayout": "~/.claude/projects/<encoded-project>/<session-id>.jsonl or ~/.claude/projects/<encoded-project>/<session-id>/subagents/agent-<agent-id>.jsonl",
+  "provenance": {
+    "kind": "sanitized excerpts of real pre-existing local native session recordings",
+    "statement": "Every fixture line is derived from an actual source JSONL record; no events, roles, calls, tool results, branches, or compaction records were synthesized.",
+    "excerpts": [
+      {
+        "file": "session.jsonl",
+        "sampleKind": "history-excerpt",
+        "source": "local-recording-1",
+        "sourceRecords": 48,
+        "sourceLines": [
+          28,
+          31,
+          32,
+          33,
+          36,
+          37,
+          40,
+          42,
+          43,
+          44,
+          46
+        ],
+        "recordTypes": {
+          "user": 5,
+          "assistant": 6
+        },
+        "messageRoles": {
+          "user": 5,
+          "assistant": 6
+        },
+        "contentOrCallTypes": {
+          "text": 4,
+          "thinking": 3,
+          "tool_use": 2,
+          "tool_result": 2
+        },
+        "toolNames": [
+          "Bash"
+        ],
+        "gaps": "Only the listed original JSONL records are retained in original order; every other source record is omitted. References into omitted history are remapped but not reconnected or invented."
+      },
+      {
+        "file": "compaction.jsonl",
+        "sampleKind": "compaction-excerpt",
+        "source": "local-recording-2",
+        "sourceRecords": 264,
+        "sourceLines": [
+          223,
+          224,
+          225,
+          226,
+          227,
+          228,
+          229,
+          230,
+          231,
+          232,
+          233,
+          234,
+          235,
+          236,
+          237,
+          238,
+          239,
+          240,
+          241
+        ],
+        "recordTypes": {
+          "assistant": 10,
+          "user": 8,
+          "system": 1
+        },
+        "messageRoles": {
+          "assistant": 10,
+          "user": 8
+        },
+        "contentOrCallTypes": {
+          "thinking": 1,
+          "text": 1,
+          "tool_use": 8,
+          "tool_result": 8
+        },
+        "toolNames": [
+          "Bash"
+        ],
+        "gaps": "Only the listed original JSONL records are retained in original order; every other source record is omitted. References into omitted history are remapped but not reconnected or invented."
+      }
+    ]
+  },
+  "versionEvidence": {
+    "observed": [
+      {
+        "source": "local-recording-1",
+        "field": "native record version",
+        "values": [
+          "2.1.316"
+        ]
+      },
+      {
+        "source": "local-recording-2",
+        "field": "native record version",
+        "values": [
+          "2.1.316"
+        ]
+      }
+    ],
+    "installedBinaryVersion": "unknown; no binary was executed"
+  },
+  "sanitization": [
+    "All non-structural strings are replaced with explicit safe placeholders; known native type/role/status enums and tool names are retained.",
+    "JSON-encoded tool-argument strings are parsed, recursively sanitized, and re-encoded; ordinary custom-tool input strings are replaced in full.",
+    "Original IDs and retained-source revisions/hashes are consistently remapped to synthetic UUIDs within each source; separate sources use separate namespaces.",
+    "Timestamp values are shifted per source to a 2000-01-01 baseline, preserving representation, relative timing, and equality. Native booleans and non-identifying numeric counters/metrics remain; numeric error identifiers are replaced.",
+    "Native object/array envelopes, ordering, field presence, nulls, enum values, message roles, call/result links, and parent references are retained. Opaque signatures/encrypted payloads are placeholders rather than valid cryptographic data.",
+    "Only sanitized fixture files and this manifest are written to the repository; no raw source content, real usernames, session IDs, account IDs, or original absolute source paths are included."
+  ],
+  "coverage": [
+    {
+      "file": "session.jsonl",
+      "sampleKind": "history-excerpt",
+      "source": "local-recording-1",
+      "sourceRecords": 48,
+      "sourceLines": [
+        28,
+        31,
+        32,
+        33,
+        36,
+        37,
+        40,
+        42,
+        43,
+        44,
+        46
+      ],
+      "recordTypes": {
+        "user": 5,
+        "assistant": 6
+      },
+      "messageRoles": {
+        "user": 5,
+        "assistant": 6
+      },
+      "contentOrCallTypes": {
+        "text": 4,
+        "thinking": 3,
+        "tool_use": 2,
+        "tool_result": 2
+      },
+      "toolNames": [
+        "Bash"
+      ],
+      "gaps": "Only the listed original JSONL records are retained in original order; every other source record is omitted. References into omitted history are remapped but not reconnected or invented."
+    },
+    {
+      "file": "compaction.jsonl",
+      "sampleKind": "compaction-excerpt",
+      "source": "local-recording-2",
+      "sourceRecords": 264,
+      "sourceLines": [
+        223,
+        224,
+        225,
+        226,
+        227,
+        228,
+        229,
+        230,
+        231,
+        232,
+        233,
+        234,
+        235,
+        236,
+        237,
+        238,
+        239,
+        240,
+        241
+      ],
+      "recordTypes": {
+        "assistant": 10,
+        "user": 8,
+        "system": 1
+      },
+      "messageRoles": {
+        "assistant": 10,
+        "user": 8
+      },
+      "contentOrCallTypes": {
+        "thinking": 1,
+        "text": 1,
+        "tool_use": 8,
+        "tool_result": 8
+      },
+      "toolNames": [
+        "Bash"
+      ],
+      "gaps": "Only the listed original JSONL records are retained in original order; every other source record is omitted. References into omitted history are remapped but not reconnected or invented."
+    }
+  ],
+  "limitations": [
+    "Sanitized historical excerpts, not complete resumable sessions. No agent was installed, started, or queried; no runtime, reader, or API support is claimed.",
+    "Messages, prompts, instructions, tool input/output, paths, URLs, models, signatures, and encrypted content are placeholders; semantic replay and cryptographic validation are intentionally impossible.",
+    "Source files were read only. No authentication/configuration files, environment-variable dumps, or whole stores were copied. Context files were not opened.",
+    "Original parent/call/message relationships are retained through deterministic per-source ID remapping; references to omitted entries remain external and are not fabricated.",
+    "The dialogue excerpt begins at source line 28, whose parent is omitted. Compaction retains the actual eighteen preserved messages and compact_boundary; the first preserved message can refer to earlier omitted context. isSidechain is preserved where observed, but no parent-session file is included."
+  ],
+  "files": [
+    {
+      "path": "session.jsonl",
+      "format": "jsonl",
+      "records": 11,
+      "sha256": "8b6e2c5e92be71926fa91f286a55d3f20a30a6d6caeea5ff3382c0e91c399dc7"
+    },
+    {
+      "path": "compaction.jsonl",
+      "format": "jsonl",
+      "records": 19,
+      "sha256": "8f3c46f331e61cf77d01cfd5ad5cfa06375e0bcfe06cb1b495c9c918a3eea028"
+    }
+  ]
+}

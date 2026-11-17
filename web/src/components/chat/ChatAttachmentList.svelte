@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import { onMount, tick } from "svelte";
   import { animate } from "motion/mini";
   import IconFile from "~icons/tabler/file";
   import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
-  import type { ChatUploads } from "../../hooks/upload.svelte";
+  import type { ChatUploads } from "../../hooks/shared/upload.svelte";
   import ChatAttachmentImage from "./ChatAttachmentImage.svelte";
 
   // The attachments waiting to go with the next message, at the top of an
@@ -111,7 +112,10 @@
 </script>
 
 <div bind:this={list} hidden={!uploads.attachments.length}>
-  <ul class="flex flex-wrap gap-1 border-b px-2 py-1.5" aria-label="待发送附件">
+  <ul
+    class="flex flex-wrap gap-1 border-b px-2 py-1.5"
+    aria-label={m.s3_pending_attachments_label()}
+  >
     {#each uploads.attachments as item (item.path)}
       <li
         class="flex max-w-full min-w-0 items-center gap-1.5 rounded-sm border bg-muted/50 px-2 py-1 text-xs"
@@ -129,8 +133,10 @@
         <Button
           variant="quiet"
           size="icon-xs"
-          aria-label={`移除附件 ${item.name ?? item.path}`}
-          title="移除附件"
+          aria-label={m.s3_remove_attachment_named({
+            name: item.name ?? item.path,
+          })}
+          title={m.s3_remove_attachment()}
           {disabled}
           onclick={() => uploads.remove(item.path)}
           ><IconX aria-hidden="true" /></Button

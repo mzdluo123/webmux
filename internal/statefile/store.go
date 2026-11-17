@@ -133,7 +133,11 @@ func readSnapshot[T any](dir string, d Descriptor, validate func(T) error) (T, e
 	if int64(len(data)) > d.MaxBytes {
 		return value, fault(d, p, "read", TooLarge, nil)
 	}
-	err = decodeDocument(data, d, &value, validate)
+	minVersion := d.MinReadVersion
+	if minVersion == 0 {
+		minVersion = d.Version
+	}
+	err = decodeDocument(data, d, minVersion, &value, validate)
 	if err != nil {
 		return value, fault(d, p, "decode", decodeKind(err), nil)
 	}
@@ -148,7 +152,7 @@ func decodeKind(err error) Kind {
 	}
 	return Corrupt
 }
-func decodeDocument[T any](data []byte, d Descriptor, out *T, validate func(T) error) error {
+func decodeDocument[T any](data []byte, d Descriptor, minVersion int, out *T, validate func(T) error) error {
 	if err := Decode(data, out); err != nil {
 		return err
 	}
@@ -157,7 +161,7 @@ func decodeDocument[T any](data []byte, d Descriptor, out *T, validate func(T) e
 		return err
 	}
 	var version int
-	if json.Unmarshal(object[d.VersionKey], &version) != nil || version != d.Version {
+	if json.Unmarshal(object[d.VersionKey], &version) != nil || version < minVersion || version > d.Version {
 		return errVersion
 	}
 	if err := jsonutil.Required(data, out); err != nil {
@@ -196,7 +200,7 @@ func (h *Handle[T]) Commit(value T) error {
 		return fault(h.desc, h.path, "encode", TooLarge, nil)
 	}
 	var checked T
-	if err = decodeDocument(data, h.desc, &checked, h.validate); err != nil {
+	if err = decodeDocument(data, h.desc, h.desc.Version, &checked, h.validate); err != nil {
 		return fault(h.desc, h.path, "validate", decodeKind(err), nil)
 	}
 	// Reject a newly replaced symlink/non-regular target too.

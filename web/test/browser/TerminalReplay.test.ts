@@ -1,11 +1,12 @@
+import { z } from "zod";
 // Output budget, snapshot replay and stream continuity, exit restoration,
 // hidden pages and OSC 52 copies.
-import { expect, test, vi } from "vitest";
-import { page } from "vitest/browser";
+import { expect, test, vi } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
 import { Terminal } from "@xterm/xterm";
-import { resumeTimeout } from "../../src/ws";
-import type { TerminalController } from "../../src/hooks/terminal.svelte";
+import { handoffLiveSockets, resumeTimeout } from "../../src/platform/ws";
+import type { TerminalController } from "../../src/hooks/terminal/terminal.svelte";
 import Harness from "./TerminalHarness.svelte";
 import {
   domText,
@@ -478,4 +479,114 @@ test("manual resync after exit clears unsafe history using the final safe replay
   expect(fetched).not.toHaveBeenCalled();
   expect(api.error).toBe("");
   expect(sockets).toHaveLength(2);
+});
+
+function acknowledgeHandoff(socket: FixtureSocket) {
+  const id = socket.sent
+    .flatMap((frame) => {
+      if (frame[0] !== 4) return [];
+      return z
+        .object({ ids: z.array(z.string()) })
+        .parse(JSON.parse(new TextDecoder().decode(frame.subarray(1)))).ids;
+    })
+    .filter((value) => value.startsWith("hf-"))
+    .at(-1)!;
+  socket.receive(5, JSON.stringify({ id, state: "missing" }));
+}
+
+test("make-before-break handoff deduplicates overlapping append bytes without duplicate output or state flicker", async () => {
+  observeGlyphPixels(true);
+  const { socket: first, api } = await openSyncedTerminal();
+  const baseOffset = byteLength(snapshot);
+
+  handoffLiveSockets();
+  expect(sockets).toHaveLength(2);
+  const candidate = sockets[1]!;
+  expect(new URL(candidate.url).searchParams.get("offset")).toBe(
+    String(baseOffset),
+  );
+  // While the P2P candidate stream is connecting, the baseline socket continues
+  // delivering live bytes ("OVERLAP-"), advancing the client's rendered offset.
+  const overlap = "OVERLAP-";
+  first.receive(0, overlap);
+  await expectDomText("OVERLAP-");
+  expect(first.closeCount).toBe(0);
+
+  // Candidate opens and sends append starting from baseOffset ("OVERLAP-TAIL\r\n").
+  candidate.open();
+  expect(first.closeCount).toBe(0);
+  await expect
+    .element(page.getByRole("status", { name: "Terminal connection" }))
+    .toHaveTextContent("connected");
+
+  const replayed = "OVERLAP-TAIL\r\n";
+  candidate.receive(
+    4,
+    position("append", baseOffset, baseOffset + byteLength(replayed)),
+  );
+  expect(first.closeCount).toBe(0);
+  acknowledgeHandoff(first);
+  expect(first.closeCount).toBe(1);
+  candidate.receive(0, replayed);
+  candidate.receive(0, "LIVE-AFTER\r\n");
+
+  await expectDomText("LIVE-AFTER");
+  const text = domText();
+  expect(text).toContain("OVERLAP-TAIL");
+  expect(text).not.toContain("OVERLAP-OVERLAP-");
+  expect(api.error).toBe("");
+});
+
+test("a candidate behind the live offset requests a reset without stealing the input writer", async () => {
+  observeGlyphPixels(true);
+  const { socket: baseline, api } = await openSyncedTerminal();
+  const base = byteLength(snapshot);
+  handoffLiveSockets();
+  const candidate = sockets[1]!;
+  candidate.open();
+  baseline.receive(0, "NEW-LIVE\r\n");
+  await expectDomText("NEW-LIVE");
+  candidate.receive(4, position("append", base, base));
+  expect(baseline.closeCount).toBe(0);
+  expect(candidate.sent.filter((frame) => frame[0] === 2)).toHaveLength(1);
+  expect(api.send("x")).toBe(true);
+  expect(inputText(baseline)).toBe("x");
+  expect(inputText(candidate)).toBe("");
+  // The old candidate suffix must not contaminate the fresh reset stream.
+  candidate.receive(0, "STALE-SUFFIX\r\n");
+  candidate.receive(4, position("reset", 0, byteLength("AUTHORITATIVE\r\n")));
+  expect(baseline.closeCount).toBe(0);
+  candidate.receive(1, "AUTHORITATIVE\r\n");
+  expect(baseline.closeCount).toBe(0);
+  acknowledgeHandoff(baseline);
+  expect(baseline.closeCount).toBe(1);
+  await expectDomText("AUTHORITATIVE");
+  expect(domText()).not.toContain("STALE-SUFFIX");
+  expect(inputText(candidate)).toBe("");
+  expect(api.error).toBe("");
+});
+
+test("continuous terminal input stays on the old lane until a fence covers the latest key", async () => {
+  observeGlyphPixels(true);
+  const { socket: baseline, api } = await openSyncedTerminal();
+  const base = byteLength(snapshot);
+  expect(api.send("TURN_")).toBe(true);
+  handoffLiveSockets();
+  const candidate = sockets[1]!;
+  candidate.open();
+  candidate.receive(4, position("append", base, base));
+  for (const key of "ACTUAL_") expect(api.send(key)).toBe(true);
+  acknowledgeHandoff(baseline);
+  expect(baseline.closeCount).toBe(0);
+  for (const key of "OK") expect(api.send(key)).toBe(true);
+  acknowledgeHandoff(baseline);
+  expect(baseline.closeCount).toBe(0);
+  expect(inputText(baseline)).toBe("TURN_ACTUAL_OK");
+  expect(inputText(candidate)).toBe("");
+  acknowledgeHandoff(baseline);
+  expect(baseline.closeCount).toBe(1);
+  expect(api.send("\n")).toBe(true);
+  expect(inputText(baseline)).toBe("TURN_ACTUAL_OK");
+  expect(inputText(candidate)).toBe("\n");
+  expect(api.error).toBe("");
 });

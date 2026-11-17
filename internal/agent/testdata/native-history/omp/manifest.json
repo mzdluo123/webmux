@@ -1,0 +1,266 @@
+{
+  "agent": "omp",
+  "sourceLayout": "~/.omp/agent/sessions/<project-directory>/<session-file>.jsonl or ~/.omp/agent/sessions/<project-directory>/<nested-session-directory>/<session-file>.jsonl",
+  "provenance": {
+    "kind": "sanitized excerpts of real pre-existing local native session recordings",
+    "statement": "Every fixture line is derived from an actual source JSONL record; no events, roles, calls, tool results, branches, or compaction records were synthesized.",
+    "excerpts": [
+      {
+        "file": "session.jsonl",
+        "sampleKind": "history-excerpt",
+        "source": "local-recording-1",
+        "sourceRecords": 16,
+        "sourceLines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16
+        ],
+        "recordTypes": {
+          "title": 1,
+          "session": 1,
+          "model_change": 1,
+          "thinking_level_change": 1,
+          "message": 9,
+          "custom": 3
+        },
+        "messageRoles": {
+          "user": 2,
+          "assistant": 5,
+          "toolResult": 2
+        },
+        "contentOrCallTypes": {
+          "text": 5,
+          "thinking": 1,
+          "toolCall": 2
+        },
+        "toolNames": [
+          "read",
+          "write"
+        ],
+        "gaps": "Only the listed original JSONL records are retained in original order; every other source record is omitted. References into omitted history are remapped but not reconnected or invented."
+      },
+      {
+        "file": "compaction.jsonl",
+        "sampleKind": "compaction-excerpt",
+        "source": "local-recording-2",
+        "sourceRecords": 74,
+        "sourceLines": [
+          2,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74
+        ],
+        "recordTypes": {
+          "session": 1,
+          "message": 15,
+          "custom": 9,
+          "model_usage": 1,
+          "compaction": 1
+        },
+        "messageRoles": {
+          "assistant": 7,
+          "toolResult": 8
+        },
+        "contentOrCallTypes": {
+          "thinking": 7,
+          "toolCall": 8,
+          "text": 9
+        },
+        "toolNames": [
+          "grep",
+          "read"
+        ],
+        "gaps": "Only the listed original JSONL records are retained in original order; every other source record is omitted. References into omitted history are remapped but not reconnected or invented."
+      }
+    ]
+  },
+  "versionEvidence": {
+    "observed": [
+      {
+        "source": "local-recording-1",
+        "sessionSchemaVersion": 3,
+        "runtimeVersions": [],
+        "softwareVersion": "unknown"
+      },
+      {
+        "source": "local-recording-2",
+        "sessionSchemaVersion": 3,
+        "runtimeVersions": [
+          "18.12.2"
+        ],
+        "softwareVersion": "18.12.2 (native runtime.version)"
+      }
+    ],
+    "installedBinaryVersion": "unknown; no binary was executed"
+  },
+  "sanitization": [
+    "All non-structural strings are replaced with explicit safe placeholders; known native type/role/status enums and tool names are retained.",
+    "JSON-encoded tool-argument strings are parsed, recursively sanitized, and re-encoded; ordinary custom-tool input strings are replaced in full.",
+    "Original IDs and retained-source revisions/hashes are consistently remapped to synthetic UUIDs within each source; separate sources use separate namespaces.",
+    "Timestamp values are shifted per source to a 2000-01-01 baseline, preserving representation, relative timing, and equality. Native booleans and non-identifying numeric counters/metrics remain; numeric error identifiers are replaced.",
+    "Native object/array envelopes, ordering, field presence, nulls, enum values, message roles, call/result links, and parent references are retained. Opaque signatures/encrypted payloads are placeholders rather than valid cryptographic data.",
+    "Only sanitized fixture files and this manifest are written to the repository; no raw source content, real usernames, session IDs, account IDs, or original absolute source paths are included."
+  ],
+  "coverage": [
+    {
+      "file": "session.jsonl",
+      "sampleKind": "history-excerpt",
+      "source": "local-recording-1",
+      "sourceRecords": 16,
+      "sourceLines": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16
+      ],
+      "recordTypes": {
+        "title": 1,
+        "session": 1,
+        "model_change": 1,
+        "thinking_level_change": 1,
+        "message": 9,
+        "custom": 3
+      },
+      "messageRoles": {
+        "user": 2,
+        "assistant": 5,
+        "toolResult": 2
+      },
+      "contentOrCallTypes": {
+        "text": 5,
+        "thinking": 1,
+        "toolCall": 2
+      },
+      "toolNames": [
+        "read",
+        "write"
+      ],
+      "gaps": "Only the listed original JSONL records are retained in original order; every other source record is omitted. References into omitted history are remapped but not reconnected or invented."
+    },
+    {
+      "file": "compaction.jsonl",
+      "sampleKind": "compaction-excerpt",
+      "source": "local-recording-2",
+      "sourceRecords": 74,
+      "sourceLines": [
+        2,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74
+      ],
+      "recordTypes": {
+        "session": 1,
+        "message": 15,
+        "custom": 9,
+        "model_usage": 1,
+        "compaction": 1
+      },
+      "messageRoles": {
+        "assistant": 7,
+        "toolResult": 8
+      },
+      "contentOrCallTypes": {
+        "thinking": 7,
+        "toolCall": 8,
+        "text": 9
+      },
+      "toolNames": [
+        "grep",
+        "read"
+      ],
+      "gaps": "Only the listed original JSONL records are retained in original order; every other source record is omitted. References into omitted history are remapped but not reconnected or invented."
+    }
+  ],
+  "limitations": [
+    "Sanitized historical excerpts, not complete resumable sessions. No agent was installed, started, or queried; no runtime, reader, or API support is claimed.",
+    "Messages, prompts, instructions, tool input/output, paths, URLs, models, signatures, and encrypted content are placeholders; semantic replay and cryptographic validation are intentionally impossible.",
+    "Source files were read only. No authentication/configuration files, environment-variable dumps, or whole stores were copied. Context files were not opened.",
+    "Original parent/call/message relationships are retained through deterministic per-source ID remapping; references to omitted entries remain external and are not fabricated.",
+    "The compacted excerpt retains the native firstKeptEntryId and providerReplayThroughEntryId targets plus the intervening tail. The first retained entry has an omitted ancestor; parentSession refers to an omitted source session. session.version=3 is a file-format version, not a CLI software version."
+  ],
+  "files": [
+    {
+      "path": "session.jsonl",
+      "format": "jsonl",
+      "records": 16,
+      "sha256": "fa117c6d7a1c0386158a6330d9866f8b3773e29f812a4310ae6a2c330fa3a93d"
+    },
+    {
+      "path": "compaction.jsonl",
+      "format": "jsonl",
+      "records": 27,
+      "sha256": "817fb63b6a9096c7ba2e21e50c388a0ebabead4417158f51ff0638d7377f9111"
+    }
+  ]
+}

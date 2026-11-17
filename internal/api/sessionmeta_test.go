@@ -42,7 +42,7 @@ func TestLocalCreateRecordsParentAndLabels(t *testing.T) {
 	m := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
 	t.Cleanup(func() { m.Shutdown(context.Background()) })
 	parent, pid := leaderPID(t, m)
-	local := NewLocal(testDeps(t, Deps{Manager: m}), Local{Status: func() contract.StatusV1 { return contract.StatusV1{V: 1} }})
+	local := NewLocal(testDeps(t, testServices{Manager: m}), Local{Status: func() contract.StatusV1 { return contract.StatusV1{V: 1} }})
 
 	body := `{"cmd":["/bin/sh","-c","sleep 60"],"labels":{"run":"7"}}`
 	req := httptest.NewRequest("POST", "/api/sessions", strings.NewReader(body))
@@ -58,7 +58,7 @@ func TestLocalCreateRecordsParentAndLabels(t *testing.T) {
 	}
 
 	// The request body cannot name a parent, and the TCP listener records none.
-	tcp := New(testDeps(t, Deps{Manager: m}))
+	tcp := New(testDeps(t, testServices{Manager: m}))
 	req = httptest.NewRequest("POST", "/api/sessions", strings.NewReader(`{"cmd":["/bin/sh","-c","sleep 60"],"parentId":"`+parent+`"}`))
 	req.Host = "127.0.0.1:7681"
 	w = httptest.NewRecorder()

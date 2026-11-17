@@ -3,20 +3,18 @@ package clicmd
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/attach"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/localclient"
+	"github.com/rainchan/webmux/internal/sessionobserve"
 )
 
 // sessionStates are the values of --until and --wait.
@@ -36,8 +34,14 @@ func parseStates(value string) ([]string, error) {
 }
 
 // inState reports whether s is in any of states.
-func inState(s contract.SessionInfo, states []string) bool {
+func inState(s contract.SessionInfo, states []string, exited bool) bool {
 	for _, state := range states {
+		if state == "exited" {
+			if exited {
+				return true
+			}
+			continue
+		}
 		if state == "attention" && s.Attention != nil {
 			return true
 		}
@@ -48,54 +52,21 @@ func inState(s contract.SessionInfo, states []string) bool {
 	return false
 }
 
-// errSessionRemoved ends a wait whose session left the server.
-var errSessionRemoved = errors.New("the session was removed")
-
 // errTimeout ends a wait that ran out of time.
 var errTimeout = errors.New("timed out")
 
-// sessionWatch is one /ws/sessions subscription that tracks the latest
-// SessionInfo of every session.
+// sessionWatch owns CLI-only multi-session and timing policies; the shared
+// subscription owns list facts, missing/removed targets and exit decisions.
 type sessionWatch struct {
-	conn     *websocket.Conn
-	sessions map[string]contract.SessionInfo
+	subscription *sessionobserve.SessionSubscription
 }
 
 func watchSessions(ctx context.Context, client *localclient.Client) (*sessionWatch, error) {
-	conn, err := client.DialWebSocket(ctx, "/ws/sessions")
+	subscription, err := sessionobserve.OpenSessions(ctx, client, 64<<20)
 	if err != nil {
 		return nil, err
 	}
-	conn.SetReadLimit(64 << 20)
-	return &sessionWatch{conn: conn, sessions: map[string]contract.SessionInfo{}}, nil
-}
-
-func (w *sessionWatch) close() { _ = w.conn.CloseNow() }
-
-// next reads one event and applies it; it returns the event.
-func (w *sessionWatch) next(ctx context.Context) (contract.SessionEvent, error) {
-	_, data, err := w.conn.Read(ctx)
-	if err != nil {
-		return contract.SessionEvent{}, err
-	}
-	var event contract.SessionEvent
-	if err := json.Unmarshal(data, &event); err != nil {
-		return contract.SessionEvent{}, fmt.Errorf("session event: %w", err)
-	}
-	switch event.Type {
-	case "snapshot":
-		w.sessions = map[string]contract.SessionInfo{}
-		for _, s := range event.Sessions {
-			w.sessions[s.ID] = s
-		}
-	case "created", "updated":
-		if event.Session != nil {
-			w.sessions[event.Session.ID] = *event.Session
-		}
-	case "removed":
-		delete(w.sessions, event.ID)
-	}
-	return event, nil
+	return &sessionWatch{subscription: subscription}, nil
 }
 
 // waitOptions say when waitFor returns.
@@ -122,9 +93,9 @@ func (w *sessionWatch) waitFor(ctx context.Context, opts waitOptions) ([]contrac
 	baseline := map[string]string{}
 	if opts.primed {
 		for _, id := range opts.ids {
-			s, ok := w.sessions[id]
-			if !ok {
-				return nil, fmt.Errorf("%w: %s", errSessionRemoved, id)
+			s, err := w.subscription.Session(id)
+			if err != nil {
+				return nil, err
 			}
 			baseline[id] = stateKey(s)
 		}
@@ -136,7 +107,7 @@ func (w *sessionWatch) waitFor(ctx context.Context, opts waitOptions) ([]contrac
 		if !since.IsZero() {
 			readCtx, cancel = context.WithDeadline(ctx, since.Add(opts.stable))
 		}
-		event, err := w.next(readCtx)
+		event, err := w.subscription.Read(readCtx)
 		if cancel != nil {
 			cancel()
 		}
@@ -152,13 +123,14 @@ func (w *sessionWatch) waitFor(ctx context.Context, opts waitOptions) ([]contrac
 		}
 		if err == nil {
 			if event.Type == "removed" && slices.Contains(opts.ids, event.ID) {
-				return nil, fmt.Errorf("%w: %s", errSessionRemoved, event.ID)
+				_, err := w.subscription.Session(event.ID)
+				return nil, err
 			}
 			if event.Type == "snapshot" {
 				for _, id := range opts.ids {
-					s, ok := w.sessions[id]
-					if !ok {
-						return nil, fmt.Errorf("%w: %s", errSessionRemoved, id)
+					s, err := w.subscription.Session(id)
+					if err != nil {
+						return nil, err
 					}
 					baseline[id] = stateKey(s)
 				}
@@ -193,8 +165,8 @@ func stateKey(s contract.SessionInfo) string {
 func (w *sessionWatch) matching(opts waitOptions, baseline map[string]string) []contract.SessionInfo {
 	var out []contract.SessionInfo
 	for _, id := range opts.ids {
-		s, ok := w.sessions[id]
-		if !ok {
+		s, exited, err := w.subscription.Exit(id)
+		if err != nil {
 			continue
 		}
 		// --changed: the state must differ from the one at subscription.
@@ -203,7 +175,7 @@ func (w *sessionWatch) matching(opts waitOptions, baseline map[string]string) []
 		if opts.changed && baseline[id] != "" && baseline[id] != stateKey(s) {
 			baseline[id] = ""
 		}
-		if !inState(s, opts.states) || opts.changed && baseline[id] == stateKey(s) {
+		if !inState(s, opts.states, exited) || opts.changed && baseline[id] == stateKey(s) {
 			continue
 		}
 		if opts.changed {
@@ -339,194 +311,4 @@ func (s *stripper) Flush() error {
 	_, err := s.w.Write(s.line)
 	s.line = s.line[:0]
 	return err
-}
-
-// chatStream is one /ws/s/{id}/chat subscription.
-type chatStream struct {
-	conn  *websocket.Conn
-	state *contract.ChatState
-	next  uint64
-}
-
-func openChat(ctx context.Context, client *localclient.Client, id string) (*chatStream, error) {
-	conn, err := client.DialWebSocket(ctx, "/ws/s/"+url.PathEscape(id)+"/chat")
-	if err != nil {
-		return nil, err
-	}
-	conn.SetReadLimit(64 << 20)
-	return &chatStream{conn: conn}, nil
-}
-
-func (c *chatStream) close() { _ = c.conn.CloseNow() }
-
-func (c *chatStream) read(ctx context.Context) (contract.ChatFrame, error) {
-	_, data, err := c.conn.Read(ctx)
-	if err != nil {
-		if websocket.CloseStatus(err) == 4404 {
-			return contract.ChatFrame{}, errors.New("the session has no chat view or no longer exists")
-		}
-		return contract.ChatFrame{}, err
-	}
-	var frame contract.ChatFrame
-	if err := json.Unmarshal(data, &frame); err != nil {
-		return contract.ChatFrame{}, fmt.Errorf("chat frame: %w", err)
-	}
-	if frame.State != nil {
-		c.state = frame.State
-	}
-	if frame.Type == contract.ChatFrameSnapshot {
-		c.next = frame.Next
-	}
-	return frame, nil
-}
-
-// turnResult is the outcome of one tracked turn.
-type turnResult struct {
-	StopReason string               `json:"stopReason"`
-	Error      string               `json:"error,omitempty"`
-	Reply      string               `json:"reply"`
-	Events     []contract.ChatEvent `json:"events"`
-	// Request is an open permission request or form when the wait stopped
-	// for it.
-	Request *contract.ChatRequest `json:"request,omitempty"`
-}
-
-// turnWatch selects the turn turnWait tracks: the first whose turn.start
-// passes accept. current names a turn already running: when its turn.start
-// is not in the replayed history (the log dropped it), it is adopted once
-// the replay is over. gone, when set, ends the wait with its error once a
-// state frame shows the turn can no longer start (a queued prompt was
-// removed).
-type turnWatch struct {
-	current       string
-	accept        func(contract.ChatTurnStart) bool
-	gone          func(*contract.ChatState) error
-	stopAtRequest bool
-}
-
-// turnWait tracks one turn and collects its events until turn.end, or
-// until a request opens when stopAtRequest.
-func (c *chatStream) turnWait(ctx context.Context, w turnWatch) (turnResult, error) {
-	var result turnResult
-	turn := ""
-	accept := w.accept
-	if w.current != "" {
-		accept = func(t contract.ChatTurnStart) bool { return t.TurnID == w.current }
-	}
-	messages := map[string]*strings.Builder{}
-	var order []string
-	// Requests of the tracked turn still open; a replayed request that was
-	// already answered is closed again within the same history.
-	open := map[string]contract.ChatRequest{}
-	var opened []string
-	for {
-		frame, err := c.read(ctx)
-		if err != nil {
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return result, errTimeout
-			}
-			return result, err
-		}
-		if turn == "" && frame.State != nil && w.gone != nil {
-			if err := w.gone(frame.State); err != nil {
-				return result, err
-			}
-		}
-		for _, ev := range frame.Items {
-			if turn == "" {
-				if ev.Kind == contract.ChatEventTurnStart && ev.TurnStart != nil && accept(*ev.TurnStart) {
-					turn = ev.TurnStart.TurnID
-					result.Events = append(result.Events, ev)
-				}
-				continue
-			}
-			result.Events = append(result.Events, ev)
-			switch ev.Kind {
-			case contract.ChatEventMessage:
-				if ev.Message != nil && ev.Message.Role == "agent" {
-					b, ok := messages[ev.Message.MessageID]
-					if !ok {
-						b = &strings.Builder{}
-						messages[ev.Message.MessageID] = b
-						order = append(order, ev.Message.MessageID)
-					}
-					b.WriteString(ev.Message.Text)
-				}
-			case contract.ChatEventRequest:
-				if ev.Request != nil {
-					open[ev.Request.RequestID] = *ev.Request
-					opened = append(opened, ev.Request.RequestID)
-				}
-			case contract.ChatEventResolved:
-				if ev.Resolved != nil {
-					delete(open, ev.Resolved.RequestID)
-				}
-			case contract.ChatEventTurnEnd:
-				if ev.TurnEnd != nil && ev.TurnEnd.TurnID == turn {
-					result.StopReason = ev.TurnEnd.StopReason
-					result.Error = ev.TurnEnd.Error
-					result.Reply = lastReply(messages, order)
-					return result, nil
-				}
-			}
-		}
-		// A request still open once the whole frame is read waits for an
-		// answer.
-		if w.stopAtRequest {
-			for _, id := range opened {
-				if request, ok := open[id]; ok {
-					result.Request = &request
-					result.Reply = lastReply(messages, order)
-					return result, nil
-				}
-			}
-		}
-		// The replay is the events frame right after the snapshot; a running
-		// turn whose start it no longer holds is followed from here.
-		if turn == "" && w.current != "" && frame.Type == contract.ChatFrameEvents {
-			turn = w.current
-		}
-	}
-}
-
-func lastReply(messages map[string]*strings.Builder, order []string) string {
-	if len(order) == 0 {
-		return ""
-	}
-	return strings.TrimSpace(messages[order[len(order)-1]].String())
-}
-
-// reportTurn prints a tracked turn and returns the exit status:
-// end_turn is 0, a stop for a request or any other reason is 1.
-func (e Env) reportTurn(result turnResult, asJSON bool) int {
-	if asJSON {
-		writeJSON(e.Stdout, result)
-	} else if result.Reply != "" {
-		_, _ = fmt.Fprintln(e.Stdout, result.Reply)
-	}
-	if result.Request != nil {
-		_, _ = fmt.Fprintf(e.Stderr, "webmux: the agent is waiting for an answer: request %s (%s) %s\n",
-			result.Request.RequestID, result.Request.Kind, result.Request.Title)
-		for _, option := range result.Request.Options {
-			_, _ = fmt.Fprintf(e.Stderr, "webmux:   --option %s\t%s\n", option.OptionID, option.Name)
-		}
-		_, _ = fmt.Fprintln(e.Stderr, "webmux: answer with webmux chat answer SESSION", result.Request.RequestID, "(see webmux chat status), or in the Web UI")
-		return contract.ExitError
-	}
-	if result.StopReason != "end_turn" {
-		reason := result.StopReason
-		if result.Error != "" {
-			reason += ": " + result.Error
-		}
-		_, _ = fmt.Fprintln(e.Stderr, "webmux: the turn ended with", reason)
-		return contract.ExitError
-	}
-	return contract.ExitOK
-}
-
-func writeJSON(w io.Writer, v any) {
-	encoder := json.NewEncoder(w)
-	encoder.SetEscapeHTML(false)
-	encoder.SetIndent("", "  ")
-	_ = encoder.Encode(v)
 }

@@ -1,0 +1,193 @@
+<script lang="ts">
+  import { untrack } from "svelte";
+  import { Button } from "$lib/components/ui/button";
+  import { Input } from "$lib/components/ui/input";
+  import { Label } from "$lib/components/ui/label";
+  import { Textarea } from "$lib/components/ui/textarea";
+  import * as Select from "$lib/components/ui/select";
+  import { m } from "$lib/paraglide/messages.js";
+  import {
+    emptyHandoffLocation,
+    type HandoffEditor,
+  } from "../../hooks/sessions/handoff.svelte";
+  import type { TargetKind } from "../../domains/sessions/new-session-defaults";
+  import { getShell } from "../../hooks/shared/shell.svelte";
+  import { getFeatureContributions } from "../../features/context";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
+  import HandoffPreviewCard from "./HandoffPreviewCard.svelte";
+  let { editor: e, fork }: { editor: HandoffEditor; fork: boolean } = $props();
+  const shell = getShell();
+  const { LocationPicker, WorktreeCreateFields } =
+    getFeatureContributions().creation;
+  const workspaceAvailable = featureAvailable("workspace.manage");
+  const agents = $derived(
+    shell.launchConfigs?.state.status === "ready"
+      ? shell.launchConfigs.state.configs.filter((item) => item.chat)
+      : [],
+  );
+  const repositories = $derived(shell.repositories?.list ?? []);
+  const agent = $derived(agents.find((item) => item.id === e.configId));
+  const repository = $derived(
+    repositories.find((item) => item.id === e.location.repositoryId),
+  );
+  let worktreeFields = $state<{ isReady: () => boolean }>();
+  let managedPath = $state("");
+  const locationReady = $derived(
+    e.targetSessionId !== "" ||
+      (e.locationKind === "directory"
+        ? !!e.location.cwd.trim()
+        : e.locationKind === "new-worktree"
+          ? (worktreeFields?.isReady() ?? false)
+          : !!e.location.repositoryId),
+  );
+  function kind(next: TargetKind) {
+    e.locationKind = next;
+    const old = untrack(() => e.location);
+    e.location =
+      next === "directory"
+        ? { ...emptyHandoffLocation(), cwd: old.cwd }
+        : { ...emptyHandoffLocation(), repositoryId: old.repositoryId };
+  }
+  function repositoryId(value: string) {
+    e.location = { ...emptyHandoffLocation(), repositoryId: value };
+  }
+  function worktreeId(value: string) {
+    e.location = {
+      ...untrack(() => e.location),
+      worktreeId: value,
+      cwd: "",
+      newWorktreeBranch: "",
+      newWorktreeBase: "",
+    };
+  }
+</script>
+
+<div class="min-w-0 space-y-4" data-handoff-form>
+  {#if e.error}<InlineNotice tone="danger">{e.error}</InlineNotice>{/if}
+  <fieldset class="min-w-0 space-y-3" disabled={e.busy || e.active}>
+    {#if !fork}<div class="space-y-2">
+        <Label for="handoff-target">{m.handoff_existing_target()}</Label><Input
+          id="handoff-target"
+          bind:value={e.targetSessionId}
+        />
+      </div>{/if}
+    {#if !e.targetSessionId}
+      <div class="space-y-2">
+        <Label for="handoff-agent">{m.s3_handoff_target_agent()}</Label>
+        <Select.Root type="single" bind:value={e.configId}>
+          <Select.Trigger id="handoff-agent"
+            >{agent?.name ?? m.s3_handoff_select_target_agent()}</Select.Trigger
+          >
+          <Select.Content
+            >{#each agents as item (item.id)}<Select.Item
+                value={item.id}
+                label={item.name}>{item.name}</Select.Item
+              >{/each}</Select.Content
+          >
+        </Select.Root>
+      </div>
+      <div class="space-y-2">
+        <Label for="handoff-model">{m.s3_handoff_model_optional()}</Label><Input
+          id="handoff-model"
+          bind:value={e.model}
+        />
+      </div>
+      {#if workspaceAvailable && LocationPicker}
+        <LocationPicker
+          {repositories}
+          recent={[]}
+          preferredRepositoryId={e.source?.workspace?.repositoryId ?? ""}
+          createdTree={null}
+          newWorktreeSummary={e.location.newWorktreeBranch ||
+            m.s3_handoff_create_worktree_on_send()}
+          bind:kind={() => e.locationKind, kind}
+          bind:cwd={
+            () => e.location.cwd,
+            (value) =>
+              (e.location = { ...untrack(() => e.location), cwd: value })
+          }
+          bind:repositoryId={() => e.location.repositoryId, repositoryId}
+          bind:worktreeId={() => e.location.worktreeId, worktreeId}
+          disabled={e.busy || e.active}
+        />
+      {:else}
+        <div class="min-w-0 space-y-2">
+          <Label for="handoff-cwd">{m.s3_working_directory()}</Label>
+          <Input
+            id="handoff-cwd"
+            value={e.location.cwd}
+            oninput={(event) => {
+              e.location = {
+                ...emptyHandoffLocation(),
+                cwd: event.currentTarget.value,
+              };
+              e.locationKind = "directory";
+            }}
+            placeholder={m.s3_enter_abs_dir_placeholder()}
+            autocomplete="off"
+            disabled={e.busy || e.active}
+          />
+        </div>
+      {/if}
+      {#if workspaceAvailable && WorktreeCreateFields && e.locationKind === "new-worktree" && repository}
+        {#key repository.id}<WorktreeCreateFields
+            bind:this={worktreeFields}
+            {repository}
+            deferred
+            preset={{
+              mode: "new",
+              name: e.location.newWorktreeBranch,
+              base: e.location.newWorktreeBase,
+            }}
+            mode="new"
+            bind:path={managedPath}
+            bind:branch={
+              () => e.location.newWorktreeBranch,
+              (value) =>
+                (e.location = {
+                  ...untrack(() => e.location),
+                  newWorktreeBranch: value,
+                })
+            }
+            bind:base={
+              () => e.location.newWorktreeBase,
+              (value) =>
+                (e.location = {
+                  ...untrack(() => e.location),
+                  newWorktreeBase: value,
+                })
+            }
+            disabled={e.busy || e.active}
+          />{/key}
+        <p class="text-xs text-muted-foreground">
+          {m.s3_handoff_worktree_deferred_hint()}
+        </p>
+      {/if}
+    {/if}
+    <div class="space-y-2">
+      <Label for="handoff-task">{m.s3_user_instruction()}</Label><Textarea
+        id="handoff-task"
+        rows={4}
+        bind:value={e.task}
+      />
+    </div>
+  </fieldset>
+  <div class="flex flex-wrap gap-2">
+    <Button
+      variant="outline"
+      disabled={e.loading ||
+        e.busy ||
+        e.active ||
+        (!e.targetSessionId && !agent) ||
+        !locationReady}
+      onclick={() => void e.generate()}
+      >{m.s3_handoff_generate_preview()}</Button
+    >
+    <Button
+      disabled={e.busy || e.active || e.sealed || !e.preview || e.choiceChanged}
+      onclick={() => void e.send()}>{m.s3_handoff_send()}</Button
+    >
+  </div>
+  <HandoffPreviewCard editor={e} />
+</div>

@@ -1,44 +1,37 @@
 <script lang="ts">
-  import { tick, untrack, type Snippet } from "svelte";
-  import IconArrowDown from "~icons/tabler/arrow-down";
-  import IconCircleCheck from "~icons/tabler/circle-check";
-  import IconHandStop from "~icons/tabler/hand-stop";
-  import IconLoader2 from "~icons/tabler/loader-2";
-  import IconX from "~icons/tabler/x";
-  import {
-    Button,
-    type ButtonSize,
-    type ButtonVariant,
-  } from "$lib/components/ui/button";
+  import { m } from "$lib/paraglide/messages.js";
+  import { untrack, type Snippet } from "svelte";
+  import { createChatScrollMode } from "../../hooks/chat/chat-scroll-mode.svelte";
+  import type { ButtonSize, ButtonVariant } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import FileDropZone from "../FileDropZone.svelte";
-  import { InlineNotice } from "$lib/components/ui/inline-notice";
-  import ConnectorInstallHint from "../ConnectorInstallHint.svelte";
-  import { outdatedText } from "../../hybrid";
-  import type { ChatActions, RequestAnswer } from "../../chat-api";
-  import { groupTimeline, type ChatModel } from "../../chat-model";
-  import { errorMessage } from "../../error";
-  import type { ChatUploads } from "../../hooks/upload.svelte";
-  import type { ChatCodeLink } from "../../markdown-link";
-  import type { ChatState, SessionInfo } from "../../schemas";
+  import FileDropZone from "../shared/FileDropZone.svelte";
+  import JumpToLatestButton from "../shared/JumpToLatestButton.svelte";
+  import type { ChatActions, RequestAnswer } from "../../platform/chat-api";
+  import { groupTimeline, type ChatModel } from "../../domains/chat/chat-model";
+  import { conversationTurns } from "../../domains/chat/conversation-turns";
+  import { errorMessage } from "../../platform/error";
+  import type { ChatUploads } from "../../hooks/shared/upload.svelte";
+  import { observeTranscriptResize } from "../../hooks/chat/transcript-resize";
+  import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
+  import type { ChatState, SessionInfo } from "../../contracts/schemas";
   import type {
     TerminalDraft,
     TerminalDrafts,
-  } from "../../terminal-draft.svelte";
-  import type { Connection } from "../../ws";
+  } from "../../domains/terminal/terminal-draft.svelte";
+  import type { Connection } from "../../platform/ws-contracts";
   import ChatComposer from "./ChatComposer.svelte";
   import ChatLocation from "./ChatLocation.svelte";
   import ChatPlan from "./ChatPlan.svelte";
   import ChatQueue from "./ChatQueue.svelte";
+  import ChatTurnStatus from "./ChatTurnStatus.svelte";
+  import ConversationTurns from "./ConversationTurns.svelte";
   import FormPrompt from "./FormPrompt.svelte";
   import PermissionPrompt from "./PermissionPrompt.svelte";
-  import TimelineItem from "./TimelineItem.svelte";
+  import ChatTranscript from "./ChatTranscript.svelte";
 
-  // The chat side of a hybrid session, in the pane the terminal fills
-  // otherwise: the transcript, then a dock with the plan, the queue, a
-  // pending request or the input.
   let {
     sessionId,
+    visible = true,
     model,
     chat,
     connection,
@@ -57,6 +50,7 @@
     oneditchange,
   }: {
     sessionId?: string;
+    visible?: boolean;
     model: ChatModel;
     chat: ChatState | undefined;
     connection: Connection;
@@ -64,24 +58,15 @@
     drafts: TerminalDrafts;
     uploads: ChatUploads;
     actions: ChatActions;
-    /** Why the page holds input back (a switch in progress); "" otherwise. */
     unavailable?: string;
-    /** Why uploads are refused (session gone or exited); "" otherwise. */
     uploadUnavailable?: string;
-    /** Where the session runs, shown read-only above the input. */
     location?: Pick<SessionInfo, "workspace" | "cwd"> &
       Partial<Pick<SessionInfo, "view">>;
-    /** Opens a changed file in the code panel. */
-    onreview: (path: string) => void;
-    /** Opens a code-location link in the code panel. */
-    onopenlocation?: (target: ChatCodeLink) => void;
-    /** Moves the session to its terminal, such as to log in there. */
+    onreview?: (path: string) => void;
+    onopenlocation?: ChatCodeLinkHandler;
     onterminal: () => void;
-    /** The quick-command menu, shown beside the send button. */
     quickMenu?: Snippet<["top" | "bottom", ButtonSize?, ButtonVariant?]>;
-    /** Scrolls the document instead of the internal viewport while resting. */
     documentScroll?: boolean;
-    /** Reports whether an editable control or composer portal inside is active. */
     oneditchange?: (editing: boolean) => void;
   } = $props();
 
@@ -90,67 +75,42 @@
   let transcript = $state<HTMLDivElement | null>(null);
   let dock = $state<HTMLDivElement | null>(null);
   let stick = $state(true);
-  let editing = $state(false);
+  let activeTurnId = $state("");
   let error = $state("");
   let answering = $state(false);
-  let now = $state(Date.now());
   let composer = $state<ChatComposer>();
+  let resizeFollower: ReturnType<typeof observeTranscriptResize> | undefined;
+  const scrollMode = createChatScrollMode({
+    root: () => root,
+    viewport: () => scroller,
+    scrollRoot,
+    documentScroll: () => documentScroll,
+    following: () => stick,
+    scrollToBottom,
+    follow,
+    onEditingChange: (value) => oneditchange?.(value),
+  });
   export function focus() {
     composer?.focus();
   }
   export function setVoiceError(message: string) {
     error = message;
   }
-  const EDITABLE_SELECTOR =
-    'textarea, input, select, [contenteditable]:not([contenteditable="false"])';
-  const OPEN_PORTAL_SELECTOR =
-    '[data-slot="popover-content"][data-state="open"], [data-slot="dropdown-menu-content"][data-state="open"]';
-  function isEditableElement(node: Node | null): node is HTMLElement {
-    return node instanceof HTMLElement && node.matches(EDITABLE_SELECTOR);
-  }
-  function hasOpenPortal(): boolean {
-    return !!document.querySelector(OPEN_PORTAL_SELECTOR);
-  }
-  let lastScrollOffset = 0;
-  let pendingScrollOffset: number | null = null;
-  function setEditing(next: boolean) {
-    if (next === editing) return;
-    if (next && documentScroll) pendingScrollOffset = lastScrollOffset;
-    else if (!next && !documentScroll)
-      pendingScrollOffset = scroller?.scrollTop ?? lastScrollOffset;
-    editing = next;
-    oneditchange?.(next);
-  }
-  function syncEditing() {
-    const active = document.activeElement;
-    const focusedInside =
-      !!root && active instanceof Node && root.contains(active);
-    if (focusedInside && isEditableElement(active)) {
-      setEditing(true);
-      return;
-    }
-    if (editing && hasOpenPortal()) return;
-    setEditing(false);
+  export function getError() {
+    return error;
   }
   export function releaseEditing() {
-    const active = document.activeElement;
-    if (root && active instanceof HTMLElement && root.contains(active))
-      active.blur();
-    setEditing(false);
+    scrollMode.releaseEditing();
   }
-  $effect(() => {
-    if (!editing) return;
-    const check = () => {
-      requestAnimationFrame(syncEditing);
-    };
-    window.addEventListener("pointerdown", check, true);
-    window.addEventListener("keydown", check, true);
-    return () => {
-      window.removeEventListener("pointerdown", check, true);
-      window.removeEventListener("keydown", check, true);
-    };
-  });
+  export function editKey(input: string) {
+    composer?.editKey(input);
+  }
+  export function submitDraft() {
+    composer?.submitDraft();
+  }
   const entries = $derived(groupTimeline(model.entries));
+  const turns = $derived(conversationTurns(model.entries));
+  const turnIds = $derived(new Set(turns.flatMap((item) => item.messageIds)));
   const request = $derived(chat?.requests[0]);
   const requestTool = $derived.by(() => {
     const at = request?.toolCallId
@@ -167,85 +127,14 @@
   const blocked = $derived(
     unavailable ||
       (chat?.recovery
-        ? "会话已中断，请先恢复"
+        ? m.s3_blocked_interrupted_resume()
         : connection !== "connected" || !chat
-          ? "正在连接聊天…"
+          ? m.s3_connecting_chat()
           : location?.view === "terminal"
-            ? "会话不在聊天端"
+            ? m.s3_blocked_not_on_chat()
             : ""),
   );
   const uploadBlocked = $derived(blocked || uploadUnavailable);
-  const turnStartedAt = $derived(
-    chat?.turn.startedAt ? Date.parse(chat.turn.startedAt) : undefined,
-  );
-  const turnEndedAt = $derived(
-    chat?.turn.endedAt ? Date.parse(chat.turn.endedAt) : undefined,
-  );
-  const turnElapsed = $derived.by(() => {
-    if (turnStartedAt === undefined) return undefined;
-    const end = chat?.turn.running ? now : turnEndedAt;
-    return end === undefined ? undefined : Math.max(0, end - turnStartedAt);
-  });
-
-  function formatDuration(milliseconds: number) {
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const seconds = totalSeconds % 60;
-    const totalMinutes = Math.floor(totalSeconds / 60);
-    const minutes = totalMinutes % 60;
-    const hours = Math.floor(totalMinutes / 60);
-    if (hours)
-      return `${hours} 小时 ${String(minutes).padStart(2, "0")} 分 ${String(seconds).padStart(2, "0")} 秒`;
-    if (totalMinutes)
-      return `${totalMinutes} 分 ${String(seconds).padStart(2, "0")} 秒`;
-    return `${seconds} 秒`;
-  }
-
-  // Some agents (agy) end the turn while a backgrounded command still runs and
-  // never report it finished over ACP; "已完成" would then be wrong. The server
-  // records `turn.unfinished` on the state so a truncated or reset timeline
-  // still keeps the label.
-  const turnHasOpenTools = $derived.by(() => {
-    if (chat?.turn.unfinished) return true;
-    for (let i = model.entries.length - 1; i >= 0; i--) {
-      const entry = model.entries[i];
-      if (entry?.type === "message" && entry.role === "user") return false;
-      if (entry?.type === "tool" && entry.status === "in_progress") return true;
-    }
-    return false;
-  });
-  const turnCompletionLabel = $derived(
-    chat?.turn.stopReason === "end_turn"
-      ? turnHasOpenTools
-        ? "本轮已结束，仍有任务未完成"
-        : "已完成"
-      : chat?.turn.stopReason === "cancelled"
-        ? "已中断"
-        : "已结束",
-  );
-  const turnFailed = $derived(
-    chat?.turn.stopReason === "error" ||
-      chat?.turn.stopReason === "refusal" ||
-      chat?.turn.stopReason === "auth_required",
-  );
-  const turnCompletionAnnouncement = $derived.by(() => {
-    if (
-      !chat ||
-      chat.turn.running ||
-      turnElapsed === undefined ||
-      turnEndedAt === undefined
-    )
-      return "";
-    return `${turnCompletionLabel} · 用时 ${formatDuration(turnElapsed)}`;
-  });
-
-  // Server timestamps keep the duration correct across reconnects and devices.
-  // Only the live display ticks; the total is derived from the final timestamp.
-  $effect(() => {
-    if (!chat?.turn.running || turnStartedAt === undefined) return;
-    now = Date.now();
-    const timer = window.setInterval(() => (now = Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  });
 
   function scrollRoot(): HTMLElement | null {
     return documentScroll
@@ -256,45 +145,105 @@
   function scrollToBottom() {
     const target = scrollRoot();
     if (!target) return;
+    stick = true;
     if (documentScroll) window.scrollTo(0, target.scrollHeight);
     else target.scrollTop = target.scrollHeight;
-    lastScrollOffset = documentScroll ? window.scrollY : target.scrollTop;
+    scrollMode.recordOffset(documentScroll ? window.scrollY : target.scrollTop);
+  }
+  let activeTurnFrame = 0;
+  let turnJumpFrame = 0;
+  let jumpingToTurn = false;
+  $effect(() => () => cancelAnimationFrame(turnJumpFrame));
+  function updateActiveTurn() {
+    const target = scrollRoot();
+    if (!target || !transcript || !turns.length) {
+      activeTurnId = "";
+      return;
+    }
+    const viewportTop = documentScroll ? 0 : target.getBoundingClientRect().top;
+    const readingLine = viewportTop + (documentScroll ? 64 : 16);
+    const elements = transcript.querySelectorAll<HTMLElement>(
+      "[data-conversation-message]",
+    );
+    let current = elements[0]?.dataset.conversationMessage ?? "";
+    for (const element of elements) {
+      if (element.getBoundingClientRect().top > readingLine) break;
+      current = element.dataset.conversationMessage ?? current;
+    }
+    // Scrolled to the end, the last message can sit below the reading line
+    // (a compact transcript where tools are folded shows several turns at
+    // once); mark it anyway so the current tick converges to the newest
+    // message instead of stalling on an earlier turn.
+    const top = documentScroll ? window.scrollY : target.scrollTop;
+    const height = documentScroll ? window.innerHeight : target.clientHeight;
+    if (top + height >= target.scrollHeight - 32)
+      current =
+        elements[elements.length - 1]?.dataset.conversationMessage ?? current;
+    activeTurnId = current;
+  }
+  function scheduleActiveTurn() {
+    if (activeTurnFrame) return;
+    activeTurnFrame = requestAnimationFrame(() => {
+      activeTurnFrame = 0;
+      updateActiveTurn();
+    });
   }
   function follow() {
     const target = scrollRoot();
     if (!target) return;
     const top = documentScroll ? window.scrollY : target.scrollTop;
     const height = documentScroll ? window.innerHeight : target.clientHeight;
-    lastScrollOffset = top;
-    stick = top + height >= target.scrollHeight - 32;
+
+    const sameOffset = top === scrollMode.offset;
+    if (scrollMode.recordOffset(top)) resizeFollower?.interrupt();
+    stick = jumpingToTurn
+      ? false
+      : (stick && (sameOffset || scrollMode.layoutOnlyScroll)) ||
+        top + height >= target.scrollHeight - 32;
+    scheduleActiveTurn();
   }
-  let previousDocumentScroll = untrack(() => documentScroll);
-  $effect.pre(() => {
-    if (documentScroll === previousDocumentScroll) return;
-    if (pendingScrollOffset === null) {
-      pendingScrollOffset = lastScrollOffset;
-    }
-    previousDocumentScroll = documentScroll;
-  });
   $effect(() => {
-    void documentScroll;
-    if (pendingScrollOffset === null) return;
-    const saved = pendingScrollOffset;
-    const wasStick = untrack(() => stick);
-    pendingScrollOffset = null;
-    void tick().then(() => {
-      if (documentScroll) {
-        if (wasStick) scrollToBottom();
-        else window.scrollTo(0, saved);
-      } else {
-        window.scrollTo(0, 0);
-        if (scroller) {
-          scroller.scrollTop = wasStick ? scroller.scrollHeight : saved;
-        }
-      }
-      follow();
-    });
+    void turns;
+    scheduleActiveTurn();
+    return () => {
+      cancelAnimationFrame(activeTurnFrame);
+      activeTurnFrame = 0;
+    };
   });
+  function jumpToTurn(id: string) {
+    const message = transcript?.querySelector<HTMLElement>(
+      `[data-conversation-message="${CSS.escape(id)}"]`,
+    );
+    const target = scrollRoot();
+    if (!message || !target || !message.getClientRects().length) return false;
+    // Historical reading must not be undone by the next streaming update.
+    // Keep the pause through the jump's scroll event, including when the
+    // target is clamped to the maximum scroll offset.
+    cancelAnimationFrame(turnJumpFrame);
+    jumpingToTurn = true;
+    stick = false;
+    activeTurnId = id;
+    const viewportTop = documentScroll
+      ? 0
+      : target.getBoundingClientRect().top + target.clientTop;
+    const margin = Number.parseFloat(getComputedStyle(message).scrollMarginTop);
+    const top =
+      (documentScroll ? window.scrollY : target.scrollTop) +
+      message.getBoundingClientRect().top -
+      viewportTop -
+      margin;
+    // Scroll only the owner viewport, never its clipped pane or the page.
+    if (documentScroll) window.scrollTo({ top, behavior: "instant" });
+    else target.scrollTo({ top, behavior: "instant" });
+    follow();
+    turnJumpFrame = requestAnimationFrame(() => {
+      turnJumpFrame = requestAnimationFrame(() => {
+        turnJumpFrame = 0;
+        jumpingToTurn = false;
+      });
+    });
+    return true;
+  }
   // The viewport belongs to ScrollArea, which takes no scroll handler.
   $effect(() => {
     if (documentScroll) {
@@ -307,10 +256,11 @@
     return () => element.removeEventListener("scroll", follow);
   });
   function latest() {
-    const target = scrollRoot();
-    if (documentScroll) window.scrollTo({ top: target?.scrollHeight ?? 0 });
-    else target?.scrollTo({ top: target.scrollHeight });
+    cancelAnimationFrame(turnJumpFrame);
+    turnJumpFrame = 0;
+    jumpingToTurn = false;
     stick = true;
+    scrollToBottom();
   }
   // New output keeps the newest entry in view unless the reader scrolled up.
   $effect(() => {
@@ -322,22 +272,22 @@
   // The composer growing (a tap on the compact bar) or the on-screen keyboard
   // shrinks the transcript from below: a reader at the end stays at the end.
   $effect(() => {
-    const element = scroller;
-    if (!element) return;
-    let frame = 0;
-    // Scrolling in the callback itself can loop; wait for the next frame.
-    const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        if (stick) scrollToBottom();
-      });
+    if (!scroller) return;
+    const follower = observeTranscriptResize({
+      viewport: scroller,
+      transcript,
+      dock,
+      scrollRoot,
+      following: () => stick,
+      jumping: () => jumpingToTurn,
+      scrollToBottom,
+      onResize: scheduleActiveTurn,
+      onManualScroll: scrollMode.markManualScroll,
     });
-    observer.observe(element);
-    if (transcript) observer.observe(transcript);
-    if (dock) observer.observe(dock);
+    resizeFollower = follower;
     return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
+      follower.dispose();
+      resizeFollower = undefined;
     };
   });
 
@@ -359,19 +309,18 @@
   data-chat-view
   data-document-scroll={documentScroll ? "true" : undefined}
   role="region"
-  aria-label="聊天"
+  aria-label={m.s3_view_chat()}
   {uploads}
   blocked={!!uploadBlocked}
-  label="松开以上传文件到聊天"
-  onfocusin={(event) => {
-    if (isEditableElement(event.target as Node | null)) setEditing(true);
-  }}
+  label={m.s3_drop_files_to_chat()}
+  onfocusin={scrollMode.focusEditing}
   onfocusout={() => {
-    requestAnimationFrame(syncEditing);
+    requestAnimationFrame(scrollMode.syncEditing);
   }}
 >
   <div class="relative flex min-h-0 flex-1 flex-col">
     <ScrollArea
+      data-chat-transcript-scroll
       bind:viewportRef={scroller}
       type="hover"
       class="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]>div]:!block"
@@ -381,83 +330,31 @@
         bind:this={transcript}
         class="mx-auto flex max-w-3xl flex-col gap-2.5 px-4 py-6"
       >
-        {#if model.truncated}
-          <InlineNotice>更早的历史未缓存，可切到终端查看</InlineNotice>
-        {/if}
-        {#each chat?.outdated ?? [] as item (item.name)}
-          <InlineNotice tone="warning">{outdatedText(item)}</InlineNotice>
-        {/each}
-        {#if chat?.unsupported.length}
-          <InlineNotice tone="warning"
-            >聊天视图不支持该参数：{chat.unsupported.join(" ")}</InlineNotice
-          >
-        {/if}
-        <ol class="flex flex-col gap-2.5" aria-label="对话">
-          {#each entries as entry (`${entry.type}:${entry.id}`)}
-            <li class="min-w-0">
-              <TimelineItem
-                {entry}
-                {sessionId}
-                preview={(path) => uploads.preview?.(path)}
-                {waiting}
-                {onreview}
-                {onopenlocation}
-              />
-            </li>
-          {/each}
-        </ol>
-        <!-- A persistent live region announces only the final duration. The
-             visible per-second ticker stays out of every live region. -->
-        <p class="sr-only" role="status">{turnCompletionAnnouncement}</p>
-        {#if !chat}
-          <p
-            class="flex items-center gap-2 text-sm text-muted-foreground"
-            role="status"
-          >
-            <IconLoader2 class="size-3.5 animate-spin" aria-hidden="true" />
-            正在连接聊天…
-          </p>
-        {:else if chat.turn.running && !request}
-          <p
-            class="flex items-center gap-2 text-sm text-muted-foreground"
-            role="status"
-          >
-            <IconLoader2 class="size-3.5 animate-spin" aria-hidden="true" />
-            正在工作…
-            {#if turnElapsed !== undefined}
-              <span class="tabular-nums" aria-hidden="true"
-                >· {formatDuration(turnElapsed)}</span
-              >
-            {/if}
-          </p>
-        {:else if turnElapsed !== undefined && turnEndedAt !== undefined}
-          <p
-            class="flex items-center gap-2 text-sm text-muted-foreground"
-            aria-hidden="true"
-            data-turn-result={chat.turn.stopReason}
-          >
-            {#if chat.turn.stopReason === "end_turn" && turnHasOpenTools}
-              <IconLoader2 class="size-3.5 text-info" aria-hidden="true" />
-            {:else if chat.turn.stopReason === "end_turn"}
-              <IconCircleCheck
-                class="size-3.5 text-success"
-                aria-hidden="true"
-              />
-            {:else if chat.turn.stopReason === "cancelled"}
-              <IconHandStop class="size-3.5 text-warning" aria-hidden="true" />
-            {:else if turnFailed}
-              <IconX class="size-3.5 text-destructive" aria-hidden="true" />
-            {:else}
-              <IconCircleCheck class="size-3.5" aria-hidden="true" />
-            {/if}
-            {turnCompletionLabel}
-            <span class="tabular-nums"
-              >· 用时 {formatDuration(turnElapsed)}</span
-            >
-          </p>
-        {/if}
+        <ChatTurnStatus mode="notices" truncated={model.truncated} {chat} />
+        <ChatTranscript
+          {sessionId}
+          {visible}
+          {entries}
+          {turnIds}
+          {documentScroll}
+          preview={(path) => uploads.preview?.(path)}
+          {waiting}
+          {onreview}
+          {onopenlocation}
+          onjump={jumpToTurn}
+        />
+        <ChatTurnStatus {chat} entries={model.entries} {request} />
       </div>
     </ScrollArea>
+    {#if turns.length > 1}
+      <ConversationTurns
+        items={turns}
+        entries={model.entries}
+        activeId={activeTurnId}
+        {documentScroll}
+        onselect={jumpToTurn}
+      />
+    {/if}
     {#if chat?.plan?.entries.length}
       <!-- Wide panes leave empty space right of the centred transcript: pin
            the plan there instead of stacking it above the input. -->
@@ -469,56 +366,29 @@
     {/if}
     {#if !stick && !documentScroll}
       <!-- Anchored to the message area, so a taller composer never covers it. -->
-      <Button
-        variant="outline"
-        size="sm"
-        raised
+      <JumpToLatestButton
         class="absolute bottom-3 left-1/2 z-10 -translate-x-1/2"
-        onclick={latest}><IconArrowDown aria-hidden="true" />回到最新</Button
-      >
+        onclick={latest}
+      />
     {/if}
   </div>
   <div
     bind:this={dock}
     data-chat-dock
-    class="relative mx-auto w-full max-w-3xl space-y-2 px-3 pb-safe-2 sm:px-4 [@media(height<480px)]:max-h-full [@media(height<480px)]:overflow-y-auto"
+    class={[
+      "relative mx-auto w-full max-w-3xl space-y-2 px-3 pb-safe-2 sm:px-4",
+      !documentScroll &&
+        "[@media(height<480px)]:max-h-full [@media(height<480px)]:overflow-y-auto",
+    ]}
   >
     {#if !stick && documentScroll}
       <div
         class="pointer-events-none absolute inset-x-0 bottom-full pb-3 text-center"
       >
-        <Button
-          variant="outline"
-          size="sm"
-          raised
-          class="pointer-events-auto"
-          onclick={latest}><IconArrowDown aria-hidden="true" />回到最新</Button
-        >
+        <JumpToLatestButton class="pointer-events-auto" onclick={latest} />
       </div>
     {/if}
-    {#if error}<InlineNotice tone="danger">{error}</InlineNotice>{/if}
-    {#if chat?.connectorMissing}
-      <ConnectorInstallHint connector={chat.connectorMissing}>
-        {#snippet actions()}<Button
-            size="sm"
-            variant="outline"
-            disabled={!!unavailable}
-            onclick={onterminal}>切到终端</Button
-          >{/snippet}
-      </ConnectorInstallHint>
-    {/if}
-    {#if chat?.authRequired}
-      <InlineNotice tone="danger">
-        <span class="flex flex-wrap items-center gap-2"
-          >Agent 需要登录，请在终端中完成登录。<Button
-            size="sm"
-            variant="outline"
-            disabled={!!unavailable}
-            onclick={onterminal}>切到终端登录</Button
-          ></span
-        >
-      </InlineNotice>
-    {/if}
+    <ChatTurnStatus mode="dock" {error} {unavailable} {onterminal} {chat} />
     {#if chat?.plan?.entries.length}
       <div class="@[82rem]:hidden"><ChatPlan plan={chat.plan} /></div>
     {/if}
@@ -556,6 +426,7 @@
         {draft}
         {drafts}
         {chat}
+        entries={model.entries}
         {uploads}
         {location}
         unavailable={blocked}

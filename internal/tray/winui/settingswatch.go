@@ -96,7 +96,7 @@ func (a *App) apply(next tray.Settings, fromFile bool) bool {
 		if old.Distro != next.Distro {
 			prefix = "切换发行版需要停止 WebMux，"
 		}
-		if !confirmSessions(prefix, snap.Sessions) {
+		if !confirmStop(prefix, snap) {
 			if !fromFile {
 				return false
 			}

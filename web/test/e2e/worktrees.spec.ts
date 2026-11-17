@@ -13,9 +13,13 @@ import {
   useCustomCommand,
   useDirectory,
   backToList,
-  revealSidebar,
 } from "./fixtures";
-import { expectHomeWorktrees, repositoryMenu } from "./repository-menu";
+import {
+  allRepositoriesMenu,
+  expectHomeWorktrees,
+  openAllRepositoriesMenu,
+  repositoryMenu,
+} from "./repository-menu";
 import { startE2EServer } from "./server.mjs";
 
 const exec = promisify(execFile);
@@ -42,8 +46,7 @@ async function repository(root: string, name = "project with spaces") {
   return path;
 }
 async function register(page: Page, path: string) {
-  await revealSidebar(page);
-  await page.getByRole("button", { name: "添加仓库", exact: true }).click();
+  await allRepositoriesMenu(page, "添加仓库…");
   const dialog = page.getByRole("dialog", { name: "添加仓库" });
   await dialog.getByLabel("仓库目录").fill(path);
   await dialog.getByRole("button", { name: "添加仓库", exact: true }).click();
@@ -151,7 +154,7 @@ test("repository → two worktrees → shared PTYs → guarded force removal ret
   ).toBe(409);
   await alphaGroup.getByRole("button", { name: /工作树菜单/ }).click();
   await page
-    .getByRole("menuitem", { name: "删除 worktree", exact: true })
+    .getByRole("menuitem", { name: "删除 worktree…", exact: true })
     .click();
   await expect(page.getByText("安全删除被阻止", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "取消", exact: true }).click();
@@ -161,7 +164,7 @@ test("repository → two worktrees → shared PTYs → guarded force removal ret
   ).not.toBe("exited");
   await alphaGroup.getByRole("button", { name: /工作树菜单/ }).click();
   await page
-    .getByRole("menuitem", { name: "删除 worktree", exact: true })
+    .getByRole("menuitem", { name: "删除 worktree…", exact: true })
     .click();
   await page
     .getByRole("button", { name: "进入强制删除确认", exact: true })
@@ -319,10 +322,11 @@ test("without Git an isolated real service still starts and runs a direct shell"
   const isolated = await startE2EServer({ noGit: true });
   try {
     await page.goto(isolated.baseURL);
-    const closedDrawer = await revealSidebar(page);
+    const closedDrawer = await openAllRepositoriesMenu(page);
     await expect(
-      page.getByRole("button", { name: "添加仓库", exact: true }),
+      page.getByRole("menuitem", { name: "添加仓库…", exact: true }),
     ).toBeDisabled();
+    await page.keyboard.press("Escape");
     if (closedDrawer) await page.keyboard.press("Escape");
     const config = await (await fetch(isolated.apiURL + "/api/config")).json();
     expect(config.workspace.gitAvailable).toBe(false);
@@ -433,8 +437,7 @@ test("multiple repositories keep every session visible through local failure, co
       .getByRole("region", { name: "直接会话", exact: true })
       .getByRole("link", { name: "Second shell", exact: true }),
   ).toBeVisible();
-  await revealSidebar(page);
-  await page.getByRole("button", { name: "添加仓库", exact: true }).click();
+  await allRepositoriesMenu(page, "添加仓库…");
   const addDialog = page.getByRole("dialog", { name: "添加仓库" });
   await addDialog.getByLabel("仓库目录").fill(workDir);
   await addDialog
@@ -552,7 +555,7 @@ test("existing branch creation, safe removal and stale destructive confirmation 
   await expand(page.locator(`[data-repository-id="${repo.id}"]`));
   await group.getByRole("button", { name: /工作树菜单/ }).click();
   await page
-    .getByRole("menuitem", { name: "删除 worktree", exact: true })
+    .getByRole("menuitem", { name: "删除 worktree…", exact: true })
     .click();
   await expect(
     page.getByRole("button", { name: "确认安全删除", exact: true }),
@@ -709,30 +712,43 @@ test("direct launch still offers explicit directory creation without registering
   workDir,
 }) => {
   const path = join(workDir, "new direct directory");
-  await page.goto("/");
-  await page
-    .getByRole("main")
-    .getByRole("button", { name: "＋ 新建会话", exact: true })
-    .first()
-    .click();
-  await useDirectory(page, path);
-  await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
-  await page.getByRole("button", { name: "创建并进入 →", exact: true }).click();
-  await expect(page.getByRole("alertdialog")).toBeVisible();
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: "取消", exact: true })
-    .click();
-  await expect(access(path)).rejects.toThrow();
-  await page.getByRole("button", { name: "创建并进入 →", exact: true }).click();
-  await page
-    .getByRole("button", { name: "创建目录并启动", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/s\/[a-z0-9]+$/);
-  const sessions = await (await request.get("/api/sessions")).json();
-  expect(sessions).toHaveLength(1);
-  expect(sessions[0]).toMatchObject({ cwd: path, workspace: null });
-  expect(await (await request.get("/api/repositories")).json()).toEqual([]);
+  const isolated = await startE2EServer({ features: ["files", "launch"] });
+  try {
+    await page.goto(isolated.baseURL);
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: /^(＋ )?新建会话$/ })
+      .first()
+      .click();
+    await useDirectory(page, path);
+    await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
+    await page
+      .getByRole("button", { name: "创建并进入 →", exact: true })
+      .click();
+    await expect(page.getByRole("alertdialog")).toBeVisible();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "取消", exact: true })
+      .click();
+    await expect(access(path)).rejects.toThrow();
+    await page
+      .getByRole("button", { name: "创建并进入 →", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "创建目录并启动", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/s\/[a-z0-9]+$/);
+    const sessions = await (
+      await request.get(isolated.apiURL + "/api/sessions")
+    ).json();
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]).toMatchObject({ cwd: path, workspace: null });
+    expect(
+      (await request.get(isolated.apiURL + "/api/repositories")).status(),
+    ).toBe(404);
+  } finally {
+    await isolated.close();
+  }
 });
 
 test("batch worktree management cleans unpinned and prunable worktrees while skipping blocked ones and keeping branches", async ({
@@ -754,24 +770,31 @@ test("batch worktree management cleans unpinned and prunable worktrees while ski
   const group = page.locator("[data-repository-id]");
   await expect(group).toHaveCount(1);
 
+  // "管理工作树…" opens the repository panel at its worktrees section, where
+  // batch cleanup is a selection mode of the list.
   await repositoryMenu(page, "管理工作树…");
-  const dialog = page.getByRole("dialog", { name: "管理工作树 · batch-repo" });
+  const dialog = page.getByRole("dialog", { name: "batch-repo" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByRole("checkbox", { name: "main" })).toBeDisabled();
+  await expect(dialog.getByRole("tab", { name: "工作树" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   await expect(dialog).toContainText("Git 登记待清理");
   await expect(dialog).toContainText("未添加到主页");
+  await dialog.getByRole("button", { name: "批量清理", exact: true }).click();
+  await expect(dialog.getByRole("checkbox", { name: "main" })).toBeDisabled();
 
   await dialog.getByRole("button", { name: "选中全部可安全清理（2）" }).click();
   await dialog.getByRole("checkbox", { name: "wt/batch-dirty" }).click();
   await dialog.getByRole("button", { name: "下一步：预览删除 (3)" }).click();
 
-  const previewDialog = page.getByRole("dialog", {
-    name: "确认批量清理 · batch-repo",
-  });
-  await expect(previewDialog).toContainText("可安全清理 2 个");
-  await expect(previewDialog).toContainText("有阻塞 1 个");
-  await previewDialog.getByRole("button", { name: "确认安全删除 (2)" }).click();
-  await expect(previewDialog).toBeHidden();
+  await expect(
+    dialog.getByRole("heading", { name: "确认批量清理" }),
+  ).toBeVisible();
+  await expect(dialog).toContainText("可安全清理 2 个");
+  await expect(dialog).toContainText("有阻塞 1 个");
+  await dialog.getByRole("button", { name: "确认安全删除 (2)" }).click();
+  await expect(dialog.getByText("已删除 2 个工作树。")).toBeVisible();
 
   await expect(access(cleanPath)).rejects.toThrow();
   await access(dirtyPath);

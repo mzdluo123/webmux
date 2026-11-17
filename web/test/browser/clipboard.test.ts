@@ -1,5 +1,5 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { copyText } from "../../src/clipboard";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { copyText } from "../../src/platform/clipboard";
 
 afterEach(() => {
   vi.restoreAllMocks();

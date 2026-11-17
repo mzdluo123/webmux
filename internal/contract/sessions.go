@@ -2,8 +2,8 @@ package contract
 
 import "time"
 
-// The REST and WebSocket shapes below mirror web/src/schemas.ts. Field
-// names, omitempty and nil-versus-empty behavior are part of the wire
+// The REST and WebSocket shapes below mirror web/src/contracts/schemas.ts.
+// Field names, omitempty and nil-versus-empty behavior are part of the wire
 // contract and are pinned by internal/api/testdata/wire.
 
 // SessionStatus is the display state of a session. waiting means the session
@@ -203,9 +203,11 @@ type NewWorktree struct {
 // set only when the request created one; ConfigWarnings name each
 // AgentConfig item the agent did not take.
 type CreateSessionResult struct {
-	Session        SessionInfo `json:"session"`
-	Worktree       *Worktree   `json:"worktree,omitempty"`
-	ConfigWarnings []string    `json:"configWarnings"`
+	// InitialInput is present only when creation submitted an initial chat prompt.
+	InitialInput   *SessionInputResult `json:"initialInput,omitempty"`
+	Session        SessionInfo         `json:"session"`
+	Worktree       *Worktree           `json:"worktree,omitempty"`
+	ConfigWarnings []string            `json:"configWarnings"`
 }
 
 // Create steps, as CreateSessionFailure.Step.

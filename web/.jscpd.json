@@ -6,6 +6,7 @@
     "**/node_modules/**",
     "**/dist/**",
     "**/src/lib/components/ui/**",
+    "**/src/lib/paraglide/**",
     "**/src/fonts.css",
     "**/src/fonts-terminal.css",
     "**/*.test.*",

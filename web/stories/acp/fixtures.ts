@@ -1,7 +1,10 @@
-import { applyFrame, emptyChat, type ChatModel } from "../../src/chat-model";
+import {
+  applyFrame,
+  emptyChat,
+  type ChatModel,
+} from "../../src/domains/chat/chat-model";
 import {
   ChatFrameSchema,
-  ChatStateSchema,
   CodeChangeSchema,
   type AgentConnector,
   type ChatEvent,
@@ -10,16 +13,17 @@ import {
   type AgentCandidate,
   type SessionView,
   type TransitionPhase,
-} from "../../src/schemas";
+} from "../../src/contracts/schemas";
 
 // Sample data for the hybrid session stories: the chat channel's frames as
 // the server sends them (docs/protocol/http-hybrid.md), validated by the
 // production schemas and reduced by the production reducer. No ACP process,
 // PTY or API request is involved.
 
-export type Agent = "omp" | "opencode" | "claudecode";
+export type Agent = "omp" | "opencode" | "claudecode" | "devin";
 export type Scenario =
   | "conversation"
+  | "long-conversation"
   | "permission"
   | "commands"
   | "cancelled"
@@ -77,6 +81,13 @@ export const agentMetadata: Record<
     steering: true,
     forceSwitchNote:
       "cancel 只中断当前回合，后台 Bash 或子任务可能继续运行；强制切换会终止连接器并等待受管后代退出",
+  },
+  devin: {
+    title: "Devin CLI",
+    icon: "devin",
+    executable: "devin",
+    steering: false,
+    forceSwitchNote: "已输出的部分可能丢失",
   },
 };
 
@@ -157,6 +168,7 @@ const worktreesDiff = {
 };
 
 const history: EventBody[] = [
+  { kind: "turn.start", turnStart: { turnId: "turn-1", promptId: "u1" } },
   user("u1", "修复首页搜索的排序：置顶的工作区应排在最前。", [
     {
       path: "/tmp/webmux-upload-story/home-order.png",
@@ -197,7 +209,7 @@ const history: EventBody[] = [
     [],
     [{ path: "web/src/homeWorktrees.ts", line: 15 }],
   ),
-  tool("read-2", "read", "web/src/session-list.ts", "completed"),
+  tool("read-2", "read", "web/src/hooks/sessions/session-list.ts", "completed"),
   tool("search-0", "search", "sortWorkspaces", "completed"),
   agentText(
     "a1",
@@ -294,8 +306,9 @@ export const configs: Record<Agent, ChatState["config"]> = {
       type: "select",
       value: "sonnet",
       options: [
-        { value: "sonnet", name: "Sonnet" },
-        { value: "opus", name: "Opus" },
+        { value: "sonnet", name: "Sonnet", description: "均衡的速度与推理" },
+        { value: "opus", name: "Opus", description: "深度思考与复杂任务" },
+        { value: "haiku", name: "Haiku", description: "快速响应" },
       ],
     },
     {
@@ -324,6 +337,80 @@ export const configs: Record<Agent, ChatState["config"]> = {
       ].map((value) => ({ value, name: value })),
     },
   ],
+  // Devin's catalog as `devin acp` advertises it, after the launch command's
+  // --permission-mode dangerous seed selects Bypass Permissions.
+  devin: [
+    {
+      id: "mode",
+      name: "Session Mode",
+      category: "mode",
+      type: "select",
+      value: "bypass",
+      options: [
+        {
+          value: "accept-edits",
+          name: "Code",
+          description: "Write and edit code",
+        },
+        {
+          value: "smart",
+          name: "Smart",
+          description: "Auto-approve actions the model judges safe",
+        },
+        {
+          value: "ask",
+          name: "Ask",
+          description: "Answer questions without code changes",
+        },
+        {
+          value: "plan",
+          name: "Plan",
+          description: "Plan changes before implementing",
+        },
+        {
+          value: "bypass",
+          name: "Bypass Permissions",
+          description:
+            "Auto-approve all tool calls unless your organization's policy requires approval",
+        },
+      ],
+    },
+    {
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select",
+      value: "swe-2-high",
+      options: [
+        { value: "adaptive", name: "Adaptive" },
+        { value: "swe-2-high", name: "SWE-2 High" },
+        { value: "swe-2-flash-medium", name: "SWE-2 Flash" },
+        { value: "claude-fable-5-2-medium", name: "Claude Fable" },
+      ],
+    },
+    {
+      id: "thought_level",
+      name: "Thinking Level",
+      category: "thought_level",
+      type: "select",
+      value: "medium",
+      options: ["low", "medium", "high"].map((value) => ({
+        value,
+        name: value,
+      })),
+    },
+    {
+      id: "speed",
+      name: "Speed",
+      category: "speed",
+      type: "select",
+      value: "standard",
+      options: [
+        { value: "standard", name: "Standard" },
+        { value: "fast", name: "Fast" },
+      ],
+    },
+  ],
 };
 
 const commonCommands: ChatState["commands"] = [
@@ -339,6 +426,7 @@ const commonCommands: ChatState["commands"] = [
 const commands: Record<Agent, ChatState["commands"]> = {
   omp: commonCommands,
   opencode: commonCommands,
+  devin: commonCommands,
   claudecode: [
     ...commonCommands,
     { name: "context", description: "查看当前上下文" },
@@ -362,7 +450,16 @@ const plan = (done: boolean): ChatState["plan"] => ({
 const queued = [
   {
     id: "q1",
-    text: "然后把 README 里的排序说明也更新一下",
+    text: [
+      "然后把 README 里的排序说明也更新一下：",
+      "1. 先解释置顶工作区始终排在最前的规则；",
+      "2. 再说明同组内按最近活动时间倒序；",
+      "3. 补充归档记录不会参与排序的说明；",
+      "4. 写清工作区分组与直接会话各自的排序键；",
+      "5. 对照 docs/user-stories 里的验收要点检查措辞；",
+      "6. 检查示例截图里的顺序是否还成立，过期的重新截；",
+      "7. 最后通读一遍，删掉与新规则冲突的旧段落。",
+    ].join("\n"),
     createdAt: at,
     attachments: [
       {
@@ -385,6 +482,7 @@ export const sessionIds: Record<Agent, { current: string; previous: string }> =
       current: "01a18715-8504-7020-9f3d-257900000000",
       previous: "019f8765-4321-7090-8a1b-250000000000",
     },
+    devin: { current: "freckle-seeder", previous: "amber-falcon" },
   };
 
 /** The chat channel of one scenario: its timeline and its latest state. */
@@ -400,12 +498,49 @@ export function chatFixture(scenario: Scenario, agent: Agent) {
   const idleScenarios: Scenario[] = [
     "commands",
     "cancelled",
+    "long-conversation",
     "connector-missing",
     "recovery-failure",
     ...terminalScenarios,
   ];
   const running = !idleScenarios.includes(scenario);
   const events = [...history];
+  if (scenario === "long-conversation") {
+    for (let index = 0; index < 40; index++) {
+      const round = index + 2;
+      const replyCount = [1, 2, 4, 8][index % 4]!;
+      events.push(
+        user(`long-u${index}`, `第 ${round} 轮：继续完善排序和测试。`),
+        agentText(`long-a${index}`, `第 ${round} 轮回复：已保留排序和测试。`),
+      );
+      for (let reply = 1; reply < replyCount; reply++) {
+        events.push(
+          {
+            kind: "message.append",
+            message: {
+              messageId: `long-t${index}-${reply}`,
+              role: "thought",
+              text: "检查已有实现。",
+            },
+          },
+          tool(
+            `long-r${index}-${reply}`,
+            "read",
+            `检查第 ${round} 轮改动`,
+            "completed",
+          ),
+          agentText(
+            `long-a${index}-${reply}`,
+            `补充 ${reply}：回归用例已保留。`,
+          ),
+        );
+      }
+      events.push(
+        agentText(`long-empty${index}`, ""),
+        agentText(`long-space${index}`, " \n "),
+      );
+    }
+  }
   if (scenario === "compaction") events.push(...compaction);
   if (scenario === "mode-fallback")
     events.push({
@@ -436,6 +571,20 @@ export function chatFixture(scenario: Scenario, agent: Agent) {
     );
     if (scenario === "commands")
       events.push(
+        tool("edit-3", "edit", "编辑 Home.svelte 的另一片段", "completed", [
+          {
+            path: homeDiff.path,
+            oldText: "const pinnedFirst = false;\n",
+            newText: "const pinnedFirst = true;\n",
+          },
+        ]),
+        tool("delete-1", "delete", "移除旧排序模块", "completed", [
+          {
+            path: "web/src/legacy-sort.ts",
+            oldText: "export const legacySort = true;\n",
+            newText: "",
+          },
+        ]),
         agentText(
           "a2",
           "已修复排序并补充测试，12 个用例全部通过。置顶的工作区现在始终排在最前。",
@@ -449,12 +598,15 @@ export function chatFixture(scenario: Scenario, agent: Agent) {
       },
     });
   }
-  const start = applyFrame(emptyChat(), {
-    type: "snapshot",
-    generation: "story",
-    from: 0,
-    state: ChatStateSchema.parse(baseState(agent)),
-  });
+  const start = applyFrame(
+    emptyChat(),
+    ChatFrameSchema.parse({
+      type: "snapshot",
+      generation: "story",
+      from: 0,
+      state: baseState(agent),
+    }),
+  );
   const model = withEvents(start, events);
   const phase: TransitionPhase | undefined =
     scenario === "switching"
@@ -485,43 +637,56 @@ export function chatFixture(scenario: Scenario, agent: Agent) {
   const view: SessionView = terminalScenarios.includes(scenario)
     ? "terminal"
     : "chat";
-  const state = ChatStateSchema.parse({
-    ...baseState(agent),
-    eligibility,
-    config,
-    turn: running
-      ? {
-          running: true,
-          startedAt: new Date(Date.now() - 65_000).toISOString(),
-        }
-      : scenario === "commands" || scenario === "cancelled"
+  const state = ChatFrameSchema.parse({
+    type: "state",
+    state: {
+      ...baseState(agent),
+      eligibility,
+      config,
+      turn: running
         ? {
-            running: false,
-            stopReason: scenario === "cancelled" ? "cancelled" : "end_turn",
-            startedAt: "2026-01-01T11:57:54Z",
-            endedAt: at,
+            running: true,
+            startedAt: new Date(Date.now() - 65_000).toISOString(),
           }
-        : { running: false },
-    requests: scenario === "permission" ? [permissionRequest] : [],
-    plan: plan(scenario === "commands"),
-    queue: {
-      paused: scenario === "cancelled",
-      items:
-        scenario === "conversation" || scenario === "cancelled" ? queued : [],
-    },
-    idChange:
-      scenario === "terminal" ? { from: ids.previous, to: ids.current } : null,
-    connectorMissing:
-      scenario === "connector-missing"
-        ? (agentMetadata[agent].connector ?? codexConnector)
-        : undefined,
-    switchError:
-      scenario === "recovery-failure"
-        ? "恢复会话失败：无法加载保存的 agent 会话"
-        : undefined,
-    recovery: scenario === "recovery-failure" ? { state: "interrupted" } : null,
-  } satisfies ChatState);
-  return { model, state, view, phase, agentSessionId: ids.current };
+        : scenario === "commands" || scenario === "cancelled"
+          ? {
+              running: false,
+              stopReason: scenario === "cancelled" ? "cancelled" : "end_turn",
+              startedAt: "2026-01-01T11:57:54Z",
+              endedAt: at,
+            }
+          : { running: false },
+      requests: scenario === "permission" ? [permissionRequest] : [],
+      plan: plan(scenario === "commands"),
+      queue: {
+        paused: scenario === "cancelled",
+        items:
+          scenario === "conversation" || scenario === "cancelled" ? queued : [],
+      },
+      idChange:
+        scenario === "terminal"
+          ? { from: ids.previous, to: ids.current }
+          : null,
+      connectorMissing:
+        scenario === "connector-missing"
+          ? (agentMetadata[agent].connector ?? codexConnector)
+          : undefined,
+      switchError:
+        scenario === "recovery-failure"
+          ? "恢复会话失败：无法加载保存的 agent 会话"
+          : undefined,
+      recovery:
+        scenario === "recovery-failure" ? { state: "interrupted" } : null,
+    } satisfies ChatState,
+  });
+  if (state.type !== "state") throw new Error("expected state frame");
+  return {
+    model,
+    state: state.state,
+    view,
+    phase,
+    agentSessionId: ids.current,
+  };
 }
 
 // The third-party connector Codex CLI's chat view runs through.

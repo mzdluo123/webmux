@@ -1,0 +1,37 @@
+<script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
+  import RepositoryMenuItems from "../workspace/RepositoryMenuItems.svelte";
+  import SidebarRowMenu from "./SidebarRowMenu.svelte";
+
+  // The "⋯" action menu on a repository row in the workbench tree.
+  let {
+    label,
+    tabindex,
+    unavailable = false,
+    onnewworktree,
+    onhome,
+    onmanage,
+    ondetails,
+    ongit,
+  }: {
+    label: string;
+    tabindex?: number;
+    unavailable?: boolean;
+    onnewworktree: () => void;
+    onhome: () => void;
+    onmanage: () => void;
+    ondetails: () => void;
+    ongit?: () => void;
+  } = $props();
+</script>
+
+<SidebarRowMenu ariaLabel={m.s1_repository_actions({ label })} {tabindex}>
+  <RepositoryMenuItems
+    {unavailable}
+    {onnewworktree}
+    {onhome}
+    {onmanage}
+    {ondetails}
+    {ongit}
+  />
+</SidebarRowMenu>

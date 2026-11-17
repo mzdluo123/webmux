@@ -1,0 +1,21 @@
+{
+  "status": 200,
+  "body": {
+    "amended": true,
+    "authorEmail": "ada@example.com",
+    "authorName": "Ada Lovelace",
+    "commitOid": "e1a44d3f9e2472de4f251ee9c56351c59225a847",
+    "committerEmail": "wire@example.invalid",
+    "committerName": "Wire test",
+    "expectedTreeOid": "b367b6e9c470d37107d6dc2a9c9d86c588667aa1",
+    "operationId": "<operationId#9>",
+    "outcome": "matched",
+    "parents": [
+      "6b5037970e016738e5af49d0ccb3ca6d59c0390e",
+      "9c24118c598731b8fb442d64bdd273f66062b9e6"
+    ],
+    "reviewReasons": [],
+    "subject": "feat: amend merge commit with author override",
+    "treeOid": "b367b6e9c470d37107d6dc2a9c9d86c588667aa1"
+  }
+}

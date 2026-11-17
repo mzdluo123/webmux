@@ -8,7 +8,7 @@ import (
 // Terminal WebSocket (/ws/s/{id}) frames are binary: one type byte, then a
 // payload. Output, snapshot, input and reply payloads are raw terminal
 // bytes; the others are the JSON types below. The numbering matches
-// web/src/hooks/terminal-socket.svelte.ts.
+// web/src/hooks/terminal/terminal-socket.svelte.ts.
 const (
 	// Server to client.
 	FrameOutput     byte = 0 // raw output bytes
@@ -138,4 +138,18 @@ func (e SessionEvent) MarshalJSON() ([]byte, error) {
 	}
 	type plain SessionEvent
 	return json.Marshal(plain(e))
+}
+
+// TerminalOutput is a bounded raw retained-output page. Offsets are decimal
+// strings and Data is base64; no synthetic terminal recovery bytes are included.
+type TerminalOutput struct {
+	Generation       string `json:"generation"`
+	Start            string `json:"start"`
+	End              string `json:"end"`
+	NextOffset       string `json:"nextOffset"`
+	Encoding         string `json:"encoding"`
+	Data             string `json:"data"`
+	Reset            bool   `json:"reset"`
+	HistoryTruncated bool   `json:"historyTruncated"`
+	Limited          bool   `json:"limited"`
 }

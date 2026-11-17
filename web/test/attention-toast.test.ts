@@ -1,9 +1,9 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import {
   attentionKey,
   buildAttentionToast,
   cleanAttentionTitle,
-} from "../src/attention-toast";
+} from "../src/domains/notifications/attention-toast";
 
 test("cleanAttentionTitle strips control characters, falls back to WebMux, and truncates long titles", () => {
   expect(cleanAttentionTitle("")).toBe("WebMux");

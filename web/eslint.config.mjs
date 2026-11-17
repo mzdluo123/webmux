@@ -30,8 +30,7 @@ const RAW_TO_DS = {
   textarea: "<Textarea> ($lib/components/ui/textarea)",
   select: "<NativeSelect> ($lib/components/ui/native-select)",
   dialog:
-    "<Dialog> ($lib/components/ui/dialog) or <ResponsiveDialog> " +
-    "($lib/components/ui/responsive-dialog)",
+    "<Dialog> ($lib/components/ui/dialog) or <ResponsiveDialog> ($lib/components/ui/responsive-dialog)",
   label: "<Label> ($lib/components/ui/label)",
 };
 const rawMessage = (element) =>
@@ -69,6 +68,7 @@ export default defineConfig([
       "test-results/**",
       ".vitest/**",
       "reports/**",
+      "src/lib/paraglide/**",
       // shadcn-svelte helper; its disable comments name typescript-eslint rules.
       "src/lib/utils.ts",
     ],
@@ -126,11 +126,17 @@ export default defineConfig([
             // component's <style> targets (sizes, overflow and visibility).
             {
               pattern: "^Pane$",
-              allow: ["layout", "terminal-pane", "draft-pane", "code-pane"],
+              allow: [
+                "layout",
+                "terminal-pane",
+                "draft-pane",
+                "code-pane",
+                "git-pane",
+              ],
             },
             {
               pattern: "^ResizableHandle$",
-              allow: ["layout", "draft-divider", "code-divider"],
+              allow: ["layout", "draft-divider", "code-divider", "git-divider"],
             },
           ],
         },
@@ -180,15 +186,15 @@ export default defineConfig([
   {
     // The rule cannot see nested controller properties accessed through `t`.
     files: [
-      "src/components/TerminalHeader.svelte",
-      "src/components/TerminalNotices.svelte",
-      "src/components/TerminalViewport.svelte",
+      "src/components/terminal/TerminalHeader.svelte",
+      "src/components/terminal/TerminalNotices.svelte",
+      "src/components/terminal/TerminalViewport.svelte",
     ],
     rules: { "svelte/no-unused-props": "off" },
   },
   {
     // marked output is sanitized by the dedicated DOMPurify instance and hooks.
-    files: ["src/components/CodeMarkdownPreview.svelte"],
+    files: ["src/components/code/CodeMarkdownPreview.svelte"],
     rules: { "svelte/no-at-html-tags": "off" },
   },
 ]);

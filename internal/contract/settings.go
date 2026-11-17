@@ -17,11 +17,11 @@ type SettingsCommand struct {
 	Enter   bool   `json:"enter"`
 }
 type SettingsValues struct {
-	Theme           *string             `json:"theme"`
 	Preview         *SettingsPreview    `json:"preview"`
 	CodeReader      *SettingsCodeReader `json:"codeReader"`
 	QuickCommands   *[]SettingsCommand  `json:"quickCommands"`
 	HomeWorktrees   map[string][]string `json:"homeWorktrees"`
+	SessionPins     []string            `json:"sessionPins"`
 	ForceSoftKeys   *bool               `json:"forceSoftKeys"`
 	IgnoreHighPorts *bool               `json:"ignoreHighPorts"`
 }

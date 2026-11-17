@@ -1,0 +1,7 @@
+{
+  "status": 409,
+  "body": {
+    "error": "仓库正被其他 Git 进程占用，请稍后重试",
+    "reason": "busy"
+  }
+}

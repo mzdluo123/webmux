@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "body": {
+    "browseAvailable": false,
+    "contextId": "<contextId#1>",
+    "diffAvailable": false,
+    "ignoreAvailable": false,
+    "reason": "未选定可用工作树，当前处于只读仓库上下文（仅可查看提交历史、分支引用与历史对象比较，工作区浏览与暂存不可用）",
+    "rootKind": "repository",
+    "rootPath": "",
+    "writableAvailable": false
+  }
+}

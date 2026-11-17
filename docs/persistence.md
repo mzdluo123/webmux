@@ -13,9 +13,17 @@
 | bootstrap           | config.toml              | none                          | internal/config + cmd/webmux | 配置错误阻止启动      | 否       |
 | launch              | launch-configs.json      | launch-configs.json.lock      | internal/launch              | unavailable           | 是       |
 | repositories        | repositories.json        | repositories.json.lock        | internal/workspace           | unavailable           | 是       |
+| projects            | projects.json            | projects.json.lock            | internal/workspace           | unavailable           | 是       |
+| project-clones      | project-clones.json      | project-clones.json.lock      | internal/workspace           | unavailable           | 是       |
+| git-operations      | git-operations.json      | git-operations.json.lock      | internal/workspace           | unavailable           | 是       |
+| git-task-baselines  | git-task-baselines.json  | git-task-baselines.json.lock  | internal/workspace           | unavailable           | 是       |
+| git-workbench-state | git-workbench-state.json | git-workbench-state.json.lock | internal/workspace           | unavailable           | 是       |
 | tunnel              | tunnel-settings.json     | tunnel-settings.json.lock     | internal/tunnelsettings      | fail_closed           | 是       |
 | tailscale-settings  | tailscale-settings.json  | tailscale-settings.json.lock  | internal/tailscalesettings   | fail_closed           | 是       |
 | voice-settings      | voice-settings.json      | voice-settings.json.lock      | internal/voicesettings       | fail_closed           | 是       |
+| p2p-settings        | p2p-settings.json        | p2p-settings.json.lock        | internal/p2psettings         | fail_closed           | 是       |
+| relay               | relay-settings.json      | relay-settings.json.lock      | internal/relaysetting        | fail_closed           | 是       |
+| relay-machine       | relay-machine.json       | relay-machine.json.lock       | internal/relaysetting        | pairing_unavailable   | 否       |
 | tailscale-ownership | tailscale-ownership.json | tailscale-ownership.json.lock | cmd/webmux                   | block_start           | 否       |
 | push                | push.json                | push.json.lock                | internal/push                | unavailable           | 是       |
 | runtime             | run/server.json          | run/server.json.lock          | internal/runtime             | local_api_unavailable | 否       |
@@ -27,25 +35,68 @@
 
 这份表的机器来源是 `internal/archtest/persistence_inventory.json`；`make persistence-check` 精确比较表格各单元格（允许 Markdown 对齐空格变化），拒绝遗漏、重复或过时条目。
 
+项目克隆操作使用独立账本；提供幂等克隆提交、状态查询及登记失败后的恢复接口。
+重启把未完成克隆标为 interrupted，把已发布但未登记的操作标为 registration_failed；保留目录，不自动重试或清理。
+
+### 功能选择与数据保留
+
+这份清单列出二进制支持的全部存储，不表示每次启动都打开。生成配置只选择核心；未选择的功能不构造服务、不取得锁、不写默认值、不迁移或启动清扫。
+`launch` 拥有启动配置；`workspace` 拥有仓库登记及独立项目目录清单（可经项目 API 登记，尚无网页入口），Git 工作台存储需 `workspace` + `code`；`chat` 拥有 hybrid 与 agent-options；其余专属设置随对应功能打开。
+禁用不删除既有数据，重新选择并重启后仍按原来的版本、锁与故障规则读取。只有启用 `launch` 且文件不存在时才写预设，已存在空列表也不补写。
+核心 `settings.json` 继续保存 inactive 字段；API 拒绝写入禁用功能拥有的字段，不把它们重置为空。字段所有权见 [偏好协议](protocol/settings.md#原子更新)。
+`files` 开启而 `chat` 关闭时，无法确认归属的旧会话产物保守保留，不通过读取禁用的聊天数据库推断清理资格。
+停服先取消并等待创建、恢复和 handoff 等生产者，再停止 PTY/连接，最后释放存储锁。选择配置见 [内置功能选择](deployment/configuration.md#内置功能选择)。
+
+## 旧会话数据库与升级
+
+新版使用 Agent 原生历史和进程内交接预览。`conversations.sqlite`、journal、WAL、SHM 与旧生命周期锁保留为离线原件。
+普通聊天与原生恢复使用 `hybrid-sessions.json` 中已有的身份、命令与目录记录。
+启动提示说明旧草稿、独立快照和回执可通过旧版本读取。
+
+升级前停止旧进程，备份完整 `state_dir`；仅保存在旧数据库的正文可先通过旧版本检查和导出。
+回滚时停止新进程，再恢复旧版本及匹配的完整备份。
+新版交接预览限五分钟、32 项、64 MiB，结果缓存限 256 项、完成十五分钟后失效。
+原生 SQLite 仍由对应的 Agent history 读取器只读访问。
+接口与生命周期见[交接协议](protocol/http-handoff.md)。
+
 ## 统一行为与故障隔离
 
 - 每个 JSON 存储通过 `statefile.Open[T]` 取得注册 handle 和独立生命周期锁；数据与锁均为 0600、目录 0700。正常关闭显式解锁但不删除锁文件。`state_dir` 可为指向真实目录的符号链接；数据文件与锁自身仍拒绝符号链接。
-- 每个存储都有条数与字节双重上限：写入前用 `Handle.Fits` 判断，超限时淘汰可丢弃的记录（hybrid 记录、agent 选项缓存）或以无效输入拒绝（启动配置、仓库登记），不会让存储进入 `TooLarge` 失败。延迟合并写入失败时记录错误日志，I/O 类失败每 30 秒重试。
+- 每个 JSON 存储都有条数与字节双重上限：写入前用 `Handle.Fits` 判断，超限时淘汰可丢弃的记录（hybrid 记录、agent 选项缓存、已终结的 Git 操作记录）或以无效输入拒绝（启动配置、仓库登记），不会让存储进入 `TooLarge` 失败。延迟合并写入失败时记录错误日志，I/O 类失败每 30 秒重试。
+- `git-operations.json` 记录受控 Git 写操作的实例状态、幂等键与脱敏输出摘要：
+  - 覆盖基础与序列操作（`commit`、`push`、`fetch`、`fast_forward`、`switch`、`merge`、`rebase`、`cherry_pick`、`revert`、`continue`、`abort`）；
+  - 覆盖贮藏、受控丢弃与智能切换等操作（`stash_push`、`stash_apply`、`stash_pop`、`stash_drop`、`discard`、`smart_checkout`、`branch_rename`、`branch_upstream`、`tag_create`、`tag_delete`、`remote_add`、`remote_update`、`remote_remove`）；
+  - 单条输出上限 4 KiB，单库最多 100 条、全局最多 1000 条、已终结记录保留 7 天，且整体受 2 MiB `Fits` 上界约束；
+  - 移除仓库登记时同步清理该仓库记录，不保存环境变量、原始凭据、Diff 或文件正文；
+  - 服务启动时对遗留的 `pending`/`running` 条目结合本地 reflog、分支/标签/`refs/stash` 引用、远程配置、`.git/MERGE_HEAD` / `rebase-merge` / `CHERRY_PICK_HEAD` / `REVERT_HEAD` 与恢复锚点 `refs/webmux/recovery/<worktreeId>/<kind>` 执行只读对账，绝不自动重试或 `git reset`。
+- `git-task-baselines.json` 记录各工作树的固定任务审阅基线（`baselineId`、`repositoryId`、`worktreeId`、`worktreePath`、`baseOid` / `unborn`、`capturedAt`、`source`、`cleanAtStart` 与启动前脏改动计数摘要）：
+  - 新建工作树或显式设定任务起点时写入并同步维护仓库私有保护引用 `refs/webmux/baselines/<worktreeId>`（`unborn` 基线不伪造空 OID 且不保留旧引用），全局最多 2000 条并受 2 MiB `Fits` 上界约束；
+  - 归档单个会话不删除基线；工作树移除（`remove`、`batch-remove`、`release`）、仓库取消登记（`DELETE /api/repositories/{id}`）或显式清除（`DELETE .../task-baseline`）时同步清理记录与私有引用，不保存文件或 Diff 正文。
+- `git-workbench-state.json` 记录各工作树的跨设备提交草稿与绑定内容身份的已审阅标记（整体受 2 MiB `Fits` 上界约束）：
+  - 提交草稿保存 `revision`、`subject`、`body` 与 `updatedAt`（单工作树草稿上限 32 KiB）；已审阅标记保存 `scope`、`area`、`path`、`oldPath`、两侧模式与 blob OID / SHA-256 摘要（单工作树最多 1000 条标记、全局最多 500 个工作树）；
+  - 提交草稿仅在真实提交成功落盘（`ExecuteCommit` 或启动对账确认为 `matched` / `needs_review`）后清空，预览过期、钩子报错、`uncertain` 或取消推送均保留草稿，且应用日志从不记录草稿正文；
+  - 工作树移除（`remove`、`batch-remove`、`release`）或仓库取消登记（`DELETE /api/repositories/{id}`）时同步清理该工作树或仓库的草稿与审阅记录。
 - 读取有大小限制，拒绝符号链接、非普通文件、重复/未知/大小写变体键、缺失必需字段、非法 UTF-8、错误版本、尾随值与过深嵌套。损坏原文件保留。
 - Commit 和 Remove 强制目录同步。发布前失败保留旧状态；发布后同步失败报告 `commit_uncertain` 并冻结写入，不广播成功、不用旧内存覆盖已发布文件。
 - `unavailable` 只禁用对应功能；push 不再改名重建密钥。首次确认文件不存在时仍可初始化。
 - `fail_closed` 表示覆盖文件异常时关闭对应入口，不能从 TOML 回退为启用；紧急关闭仍可停止当前入口，但写盘失败必须报告未持久化。
-- `tunnel-settings.json`、`tailscale-settings.json` 与 `voice-settings.json` 共用 `internal/settingsstore` 的打开、读取、提交与 fail-closed 骨架；文件结构、校验与关闭方式由各自包注入，盘点中登记为 `entry-settings` 例外。
+- `tunnel-settings.json`、`tailscale-settings.json`、`voice-settings.json` 与 `p2p-settings.json` 共用 `internal/settingsstore` 的打开、读取、提交与 fail-closed 骨架；文件结构、校验与关闭方式由各自包注入，盘点中登记为 `entry-settings` 例外。
 - `tailscale-settings.json` 保存用户希望的 mode/port/provider；`tailscale-ownership.json` 保存本实例实际创建的外部入口（精确目标、端口、pending/active），供撤销和重启对账。它们的职责、权限和失败策略不同。
+- `relay-settings.json` 只接受并写入 v3，不再读取或迁移 v1/v2；旧格式 fail-closed 并保留原文件，不恢复旧身份或启用意图。破坏性升级先备份清理旧绑定状态，再全新配对；其他状态文件的版本门禁不变。
+- `relay-machine.json` 使用严格 v1 格式，首次配对前才生成并提交 32 字节随机机器 ID；打开服务只取得生命周期锁，不创建身份。删除绑定或删除 `relay-settings.json` 均保留该文件，机器 ID 不能恢复旧绑定或代替 GitHub 授权。
+- 机器 ID 只用于同账号配对判重，不是凭据，也不来自硬件指纹；不会进入状态响应、URL 或日志。身份损坏、锁冲突或 I/O 失败时保留原件、阻止新配对，不生成替代 ID，不影响本地 PTY；修复后重启服务再配对。
 - 旧 `tailscale.json` 即使损坏或与新文件并存，也在监听前阻止启动。先停止旧版本并核实/撤销其精确外部入口，再整理旧文件；不执行全局 reset。旧 `tunnel.json` 使 Cloudflare 保持关闭。新版不自动迁移文件或旧浏览器偏好。
 - `run/server.json.lock` 仅保护运行时记录和本机控制面；锁冲突退化为 TCP 服务，不能与 Tailscale 安全阻止启动混淆。
 - 升级前停止全部旧进程并备份；新旧版本不得共用状态目录并发运行，改名后的锁无法与旧锁互斥。
 - Windows 托盘、日志、下载缓存、会话临时文件夹（含上传文件与快速开始的暂存上传）、代码树文件操作（写入用户工作区或临时文件夹）、`webmux repo settings --edit` 交给编辑器的临时文件与 baseline 结果属于独立生命周期，保持逐项登记的例外。
 - 外部 agent 的锁与 Claude 进程注册记录不属于 WebMux 存储；适配器只进行有界只读核对，不创建或修改这些文件，也不把路径、记录正文或进程事实写入 WebMux 状态。
-- 例外是 `agent_pretrust`（默认开启）：启动 Claude Code、Codex、Copilot CLI、Antigravity CLI、Qoder 或 QoderCN 会话前，`internal/agenttrust` 在该 agent 自己的配置文件里追加启动目录的“信任此文件夹”记录，见 [CLI agent 接入](cli-agents.md#文件夹信任预写)。
-  - 写入走临时文件加改名，保留原权限与其他内容。
-  - 不触碰 WebMux 状态目录。
-  - 主目录、其上级目录和文件系统根永不写入。
+- Kimi ACP 会话切到 TUI 前是写入例外：适配器只把当前会话 `wire.jsonl` 的 `acp:<会话ID>` 环境绑定改为 `local`，避免 2.5.2 工具注册丢失。首次修改保留 `wire.jsonl.before-local-binding` 备份，临时文件原子替换，其他事件不变；这不属于 WebMux 存储。
+- 例外是选择 `launch` 启动集成后的 `agent_pretrust`（默认开启），见 [CLI agent 接入](cli-agents.md#文件夹信任预写)；未选择时不写入这些记录：
+  - 启动 Claude Code、Codex、Copilot CLI、Antigravity CLI、Qoder、QoderCN 或 Devin 会话前，`internal/agenttrust` 在该 agent 自己的配置文件里追加启动目录的“信任此文件夹”记录；Devin 的文件缺失时连父目录一起创建为最小 JSON。
+  - 启动 Kimi 时改为注入进程级 `KIMI_CODE_TRUST_WORKSPACE=1`。
+  - 配置写入走临时文件加改名，保留原权限与其他内容。
+  - 不触碰 WebMux 状态目录；Kimi 不写持久信任记录。
+  - 主目录、其上级目录和文件系统根永不写入或注入。
 
 ## 磁盘与活进程诊断
 

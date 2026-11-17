@@ -1,0 +1,37 @@
+{
+  "status": 200,
+  "body": {
+    "conflicted": [],
+    "headOid": "ecc8da449d18daa48261db409c9e0af26550cf64",
+    "staged": [],
+    "unborn": false,
+    "unstaged": [
+      {
+        "area": "unstaged",
+        "hunkStageAvailable": true,
+        "identity": {
+          "area": "unstaged",
+          "baseMode": "100644",
+          "baseOid": "814f4a422927b82f5f8a43f8fab6d3839e3983f2",
+          "path": "a.txt",
+          "targetMode": "100644",
+          "targetSha256": "c9b0fb1fa00b3a5ce714c876c35bb18f21eed970d33d9093a3cbd7cf0c9db3dc"
+        },
+        "path": "a.txt",
+        "status": "M"
+      },
+      {
+        "area": "unstaged",
+        "hunkStageAvailable": true,
+        "identity": {
+          "area": "unstaged",
+          "path": "new.txt",
+          "targetMode": "100644",
+          "targetSha256": "02db0d2659c9d48bc15f81a388594fc0e3cf4c780fdc27ea21e0671afc37de19"
+        },
+        "path": "new.txt",
+        "status": "?"
+      }
+    ]
+  }
+}

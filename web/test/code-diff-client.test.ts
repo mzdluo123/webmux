@@ -1,6 +1,6 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { computeDiff } from "../src/code-diff";
-import { calculateDiff } from "../src/code-diff-client";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { computeDiff } from "../src/domains/code/code-diff";
+import { calculateDiff } from "../src/domains/code/code-diff-client";
 
 class FakeWorker {
   static instances: FakeWorker[] = [];
@@ -66,5 +66,7 @@ test("reports a stalled or unavailable Worker and releases it", async () => {
   aborted.abort();
   await expect(
     calculateDiff("s", "", "", aborted.signal),
-  ).rejects.toMatchObject({ name: "AbortError" });
+  ).rejects.toMatchObject({
+    name: "AbortError",
+  });
 });

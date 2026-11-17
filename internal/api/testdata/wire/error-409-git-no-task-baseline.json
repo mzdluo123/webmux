@@ -1,0 +1,7 @@
+{
+  "status": 409,
+  "body": {
+    "error": "当前工作树尚未设定任务起点基线，可将当前 HEAD 或历史提交设为任务起点。",
+    "reason": "no_task_baseline"
+  }
+}

@@ -84,7 +84,7 @@ provider = "auto"     # auto | linux | windows
 7. 移除只针对本次记录：执行 `tailscale serve --https=<port> off`。该命令同时移除 handler 与 Funnel 标记；先执行 `funnel ... off` 会让随后的 `serve off` 因 `handler does not exist` 失败。重复移除同一端口视为成功。绝不调用 `tailscale serve reset` 或 `tailscale funnel reset`，因为它们会清除用户的其他入口。
 8. 启动时按 `<state_dir>/tailscale.json` 对账：记录存在但入口缺失则重建；target 或端口变化则移除旧精确目标后再应用；模式变化（serve↔funnel）先移除旧目标，确保旧端口不再公开；入口存在且与记录精确匹配则复用。记录丢失或入口与记录不匹配时失败关闭，等待人工处理；不得仅凭 target 相同就把用户手工创建的入口当作自己的。
 9. 退出时在短超时内移除本次入口；移除成功后删除状态记录，CLI 不可用或超时则记录警告并保留记录（含 `pending`/`active`），下次启动对账。不结束 tailscaled，不阻塞会话清理超过既定超时。
-10. 状态文件 `tailscale.json` 使用 0600、版本字段、原子替换与独立 flock。文件损坏、不可读或锁冲突时失败关闭：不删除任何入口、不应用新目标；如果没有入口指向当前监听端口与 target，本地 HTTP 继续并报告存储故障；如果有匹配入口，按上述启动清理规则拒绝启动。不要用状态文件推断其他 Serve 入口的所有权。
+10. 状态文件 `tailscale.json` 使用 0600、版本字段、原子替换与独立 flock。文件损坏、不可读或锁冲突时失败关闭：不删除任何入口、不应用新目标；如果没有入口指向当前监听端口与 target，本地 HTTP 继续并报告存储故障；如果有匹配入口，按上述启动清理规则拒绝启动。其他 Serve 入口的所有权通过实际监听端口与 target 匹配判断。
 
 `tailscale serve --bg` 的持久性意味着 WebMux 崩溃后入口会短暂指向死端口。文档必须说明这一点，并给出等价的手工检查与移除命令；启动对账是主要修复路径。
 
@@ -109,7 +109,7 @@ Windows 主机上的 Tailscale 是 WebMux 进程之外的全局状态，serve/fu
 - 来源在 Tailscale 命令成功且回读确认后登记；停止、失败、模式切换前先撤销。撤销后旧公网请求立即 403。
 - `allowed_origins` 仍是手工部署的后备；托管 Tailscale 不需要用户添加，但文档说明手工配置时必须写带端口的完整 origin。
 - 不信任 `X-Forwarded-Host` / `X-Forwarded-Proto`。Tailscale 终止 TLS 后到达 WebMux 的是 http，但 Host 与 Origin 仍是 ts.net；判定只依赖已登记的 authority 与 origin。
-- 推送来源判定保持现状：Quick Tunnel 仍返回 `quick_tunnel`，Tailscale 返回 `unsupported_origin`（Tailscale 的推送支持留待后续变更）；不要把 Tailscale 来源加入推送白名单。
+- 推送来源判定保持现状：Quick Tunnel 仍返回 `quick_tunnel`，Tailscale 返回 `unsupported_origin`（Tailscale 的推送支持留待后续变更）；推送白名单保持当前来源集合。
 
 ### 6. 设置页：只读状态而不是假开关
 
@@ -163,7 +163,7 @@ Windows 主机上的 Tailscale 是 WebMux 进程之外的全局状态，serve/fu
 - 默认 `mode = "off"`；从未使用过 Tailscale 的现有部署行为完全不变，不创建状态文件、不调用 CLI。若状态目录中已有本实例记录（崩溃恢复或配置改回 off），启动时按对账规则清理其精确入口。
 - 首次设置 `mode = "serve"` 或 `"funnel"` 时，若无 Token 则本次进程生成；若显式 Token 少于 43 字符则拒绝启动。用户需要在重启前保存工作。
 - 现有 `listen` 为 Tailscale IP 的部署：托管 Serve/Funnel 会失败并提示改为 `127.0.0.1:<port>` 或 `0.0.0.0:<port>`；改为回环后通过 `https://<node>.ts.net` 访问，旧 `http://100.x.y.z:7681` 不再可用。文档提供迁移步骤。
-- 首次尝试应用前创建 `<state_dir>/tailscale.json` 的 `pending` 记录，命令与回读成功后标记 `active`；回滚到旧版本会忽略该文件，但旧版本不会对账，可能留下 `--bg` 入口。回滚前应手工执行 `tailscale serve --https=<port> off`（同时清除 Funnel 标记），不要执行 `reset`。
+- 首次尝试应用前创建 `<state_dir>/tailscale.json` 的 `pending` 记录，命令与回读成功后标记 `active`；回滚到旧版本会忽略该文件，但旧版本不会对账，可能留下 `--bg` 入口。回滚前应手工执行 `tailscale serve --https=<port> off`（同时清除 Funnel 标记），按端口清理对应入口。
 - WSL Windows provider 首次使用需要显式 `provider = "windows"` 且 mirrored；修改 `.wslconfig` 后 `wsl --shutdown` 会结束所有会话，文档要求先保存工作。
 - 配置校验失败或进程在清理阶段之前退出时不会进入清理阶段；若此前留下 `--bg` 入口，修复配置后下次启动会清理，或按文档手工移除。配置错误本身不应触发 Tailscale 写命令。
 - 文档、协议、配置示例、架构包表与用户故事在同一实现 PR 更新；真实 Tailscale Serve/Funnel 与 WSL Windows 主机验收仍为手工步骤，CI 只使用 fake CLI。

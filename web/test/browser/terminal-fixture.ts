@@ -1,11 +1,11 @@
-import { terminalFont } from "../../src/hooks/terminal-font-preference.svelte";
+import { terminalFont } from "../../src/hooks/terminal/terminal-font-preference.svelte";
 import { seedSettings } from "./settings-fixture";
 // Shared harness for the Terminal*.test.ts browser suites.
 import type { ComponentProps } from "svelte";
-import { afterEach, beforeEach, expect, vi } from "vitest";
-import { commands, page, userEvent } from "vitest/browser";
+import { afterEach, beforeEach, expect, vi } from "vite-plus/test";
+import { commands, page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
-import type { TerminalController } from "../../src/hooks/terminal.svelte";
+import type { TerminalController } from "../../src/hooks/terminal/terminal.svelte";
 import Harness from "./TerminalHarness.svelte";
 
 declare module "vitest/internal/browser" {
@@ -35,6 +35,8 @@ export class FixtureSocket extends EventTarget {
   bufferedAmount = 0;
   sent: Uint8Array[] = [];
   closeCount = 0;
+  // Healthy peers answer unknown receipt IDs; zombie/recovery tests stay silent.
+  answerMissingQueries = false;
 
   constructor(url: string | URL) {
     super();
@@ -60,6 +62,18 @@ export class FixtureSocket extends EventTarget {
       throw new Error("Fixture socket is not open");
     }
     this.sent.push(new Uint8Array(data));
+    if (this.answerMissingQueries && data[0] === 4) {
+      const query = JSON.parse(new TextDecoder().decode(data.subarray(1))) as {
+        ids: string[];
+      };
+      for (const id of query.ids) {
+        // A network reply follows send(), after the caller arms its probe.
+        queueMicrotask(() => {
+          if (this.readyState === FixtureSocket.OPEN)
+            this.receive(5, JSON.stringify({ id, state: "missing" }));
+        });
+      }
+    }
   }
 
   // The real server gives control to the first client of a session.
@@ -418,7 +432,10 @@ export function geometry(socket: FixtureSocket) {
   const resize = socket.sent.filter((frame) => frame[0] === 1).at(-1)!;
   const { cols, rows } = JSON.parse(
     new TextDecoder().decode(resize.subarray(1)),
-  ) as { cols: number; rows: number };
+  ) as {
+    cols: number;
+    rows: number;
+  };
   const bounds = host().querySelector(".xterm-screen")!.getBoundingClientRect();
   return {
     row: bounds.height / rows,

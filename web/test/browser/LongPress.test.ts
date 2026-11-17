@@ -1,5 +1,5 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { longPress } from "../../src/hooks/long-press";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { longPress } from "../../src/hooks/shared/long-press";
 
 const touch = (type: string) =>
   new PointerEvent(type, {

@@ -1,7 +1,23 @@
-import { describe, expect, test } from "vitest";
-import { forwardAuthNext, matchRoute } from "../src/route";
+import { describe, expect, test } from "vite-plus/test";
+import {
+  buildGitRouteHref,
+  forwardAuthNext,
+  matchRoute,
+  parseGitRouteQuery,
+  routeFeature,
+} from "../src/hooks/shared/route";
 
 describe("route matching", () => {
+  test("keeps terminal routes core and assigns optional deep links locally", () => {
+    expect(routeFeature(matchRoute("/"))).toBeUndefined();
+    expect(routeFeature(matchRoute("/s/abcdefgh"))).toBeUndefined();
+    expect(routeFeature(matchRoute("/new"))).toBe("chat");
+    expect(routeFeature(matchRoute("/git"))).toBe("workspace");
+    expect(routeFeature(matchRoute("/code/abcdefgh"))).toBe("code");
+    expect(routeFeature(matchRoute("/settings/tailscale"))).toBe("tailscale");
+    expect(routeFeature(matchRoute("/settings/tunnel"))).toBe("cloudflare");
+    expect(routeFeature(matchRoute("/forward-auth"))).toBe("forward");
+  });
   test("matches a valid session id", () => {
     expect(matchRoute("/s/abcdefgh")).toEqual({
       name: "terminal",
@@ -26,6 +42,7 @@ describe("route matching", () => {
       name: "settings-tailscale",
     });
     expect(matchRoute("/settings/tunnel")).toEqual({ name: "settings-tunnel" });
+    expect(matchRoute("/settings/relay")).toEqual({ name: "settings-relay" });
   });
 
   test("matches the forward authentication page", () => {
@@ -53,6 +70,75 @@ describe("route matching", () => {
     expect(matchRoute("/s/12345678")).toEqual({ name: "sessions" });
     expect(matchRoute("/s/abcdefg")).toEqual({ name: "sessions" });
     expect(matchRoute("/code/ABCDEFGH")).toEqual({ name: "sessions" });
+  });
+
+  test("matches standalone /git routes and rejects malformed segments", () => {
+    expect(matchRoute("/git")).toEqual({ name: "git", repositoryId: "" });
+    expect(matchRoute("/git/repo_01")).toEqual({
+      name: "git",
+      repositoryId: "repo_01",
+    });
+    const hexRepo = "0123456789abcdef0123456789abcdef";
+    const hexWt = "fedcba9876543210fedcba9876543210";
+    expect(matchRoute(`/git/${hexRepo}/worktrees/${hexWt}`)).toEqual({
+      name: "git",
+      repositoryId: hexRepo,
+      worktreeId: hexWt,
+    });
+    expect(matchRoute("/git/")).toEqual({ name: "sessions" });
+    expect(matchRoute("/git/repo_01/")).toEqual({ name: "sessions" });
+    expect(matchRoute("/git/repo_01/worktrees/")).toEqual({ name: "sessions" });
+    expect(matchRoute("/git/../etc")).toEqual({ name: "sessions" });
+  });
+});
+
+describe("git workbench query contract", () => {
+  test("parses deep-link query params including scope=task", () => {
+    expect(
+      parseGitRouteQuery(
+        "?view=commit&scope=task&branch=feat%2Fshell&commit=0123456789abcdef&q=router&returnSession=abcdefgh",
+      ),
+    ).toEqual({
+      view: "commit",
+      scope: "task",
+      branch: "feat/shell",
+      commit: "0123456789abcdef",
+      q: "router",
+      returnSession: "abcdefgh",
+    });
+    expect(
+      buildGitRouteHref({
+        repositoryId: "repo-1",
+        worktreeId: "wt-2",
+        view: "log",
+        scope: "task",
+      }),
+    ).toBe("/git/repo-1/worktrees/wt-2?view=log&scope=task");
+    expect(
+      parseGitRouteQuery("?view=invalid&scope=nope&returnSession=BAD"),
+    ).toEqual({});
+  });
+
+  test("builds canonical /git hrefs preserving explicit view and omitting default scope", () => {
+    expect(buildGitRouteHref({ repositoryId: "" })).toBe("/git");
+    expect(buildGitRouteHref({ repositoryId: "repo-1", scope: "all" })).toBe(
+      "/git/repo-1",
+    );
+    expect(
+      buildGitRouteHref({ repositoryId: "repo-1", view: "log", scope: "all" }),
+    ).toBe("/git/repo-1?view=log");
+    expect(
+      buildGitRouteHref({
+        repositoryId: "repo-1",
+        worktreeId: "wt-2",
+        view: "commit",
+        scope: "to-push",
+        branch: "feat/route",
+        returnSession: "abcdefgh",
+      }),
+    ).toBe(
+      "/git/repo-1/worktrees/wt-2?view=commit&scope=to-push&branch=feat%2Froute&returnSession=abcdefgh",
+    );
   });
 });
 

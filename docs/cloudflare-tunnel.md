@@ -34,6 +34,7 @@ WebMux 启动并管理 `cloudflared` 子进程；Cloudflare 边缘把公共主�
 
 ## 3. 前置条件
 
+- 先 [选择 `cloudflare` 功能](deployment/configuration.md#内置功能选择) 并重启；网页开关或 `--tunnel` 不会隐式选中它。
 - 一个 Cloudflare 账号。
 - 一个已添加到 Cloudflare 并生效的域名。Cloudflare 只会为已接入的域名提供公共主机名。
 - WebMux 已能正常运行。隧道模式下若显式配置根 `token`，至少需要 43 个字符；留空则每次启动自动生成。`webmux config init` 生成的 Token 满足要求。
@@ -52,7 +53,7 @@ WebMux 启动并管理 `cloudflared` 子进程；Cloudflare 边缘把公共主�
 
 打开刚创建的隧道，进入 **Overview → Add a replica**。安装命令中形如 `eyJ...` 的长字符串就是隧道 Token。
 
-复制它，但**不要运行这条安装命令**。WebMux 会自己启动 `cloudflared`，再运行 Cloudflare 的安装命令只会多出一个不受管理的连接器。
+复制 Token。WebMux 使用该 Token 启动并管理 `cloudflared`。
 
 如果需要更换凭据，可在同一页面刷新 Token，然后在 WebMux 网页“设置 → 公网访问”填写新凭据并保存；不需要重启 WebMux。
 
@@ -72,7 +73,7 @@ Service URL 的端口必须与 WebMux 的 `listen` 一致。如果 `listen` 改�
 
 打开 WebMux **设置 → 公网访问 → Named Tunnel**：
 
-1. 公共主机名填写第 4.3 步发布的 `term.example.com`，不要带协议、端口、路径或通配符；
+1. 公共主机名填写第 4.3 步发布的 `term.example.com`，使用纯主机名；
 2. Cloudflare 隧道凭据填写第 4.2 步取得的 Token，不是 WebMux 登录 Token；
 3. 点击 **保存并应用**。凭据只写不读，保存成功后输入框清空；之后留空表示保留已保存凭据；
 4. 点击 **启用公网访问**，阅读公开 Shell 风险并确认。开启状态会保存，服务下次启动时自动恢复。
@@ -88,7 +89,7 @@ Service URL 的端口必须与 WebMux 的 `listen` 一致。如果 `listen` 改�
 
 保存、启停、更换凭据和主机名都无需重启 WebMux，不结束终端会话。切换配置会重启 cloudflared，公网连接可能短暂中断；若从当前公网入口操作，确认框会提示断线风险。本机或 VPN 访问不受影响。
 
-网页复制的链接不含登录 Token，需要在新设备登录。运行时开启不在日志打印登录 Token；显式启动隧道时仍沿用原有链接与二维码输出规则。
+网页复制的链接不含登录 Token，需要在新设备登录。运行时与显式启动输出的链接和二维码也都不含登录 Token，可用 `webmux status --json --reveal-token` 查看。
 
 ### 4.6 运维配置与持久化优先级
 
@@ -154,7 +155,7 @@ Web Push 可从通过 Host/Origin 校验的 HTTPS 入口开启，包括 Named Tu
 - **根 `token`**：WebMux 的登录 Token，隧道模式下至少 43 个字符。拿到它就能以服务用户身份执行命令。
 - **`[tunnel].token`**：Cloudflare 隧道凭据，能让连接器接入你的 Cloudflare 隧道。它不能用于登录 WebMux。WebMux 通过 `TUNNEL_TOKEN` 环境变量把它传给 `cloudflared`，不出现在进程命令行和 `ps` 输出中；启动 Quick Tunnel 时也会清除继承的同名变量。
 - 两者泄露的后果不同：根 Token 泄露等于 shell 泄露；隧道凭据泄露则可能被他人接入隧道。发现泄露后应立即更换：根 Token 修改配置后重启，隧道凭据在 Cloudflare 控制台刷新后通过网页保存并应用。
-- 带 Token 的链接和二维码会出现在启动日志、托盘剪贴板或手机浏览历史中；以 systemd / launchd 运行时请限制日志访问权限。
+- 启动链接和二维码不含 Token，不进入启动日志。托盘复制的带 Token 链接仍可能留在剪贴板或手机浏览历史中，应按敏感凭据保管并利用自动清除。
 - Quick Tunnel 没有 Cloudflare Access，任何拿到链接和 Token 的人都能访问。Named Tunnel 可以额外叠加 Cloudflare Access，但 WebMux 仍会要求自己的 Token。
 - 不需要公网访问时，在网页、托盘或本机 API 关闭。网页隧道凭据只在认证写请求体及服务端受限状态文件中保存，不进入响应、日志或浏览器持久化。
 
@@ -164,7 +165,7 @@ Web Push 可从通过 Host/Origin 校验的 HTTPS 入口开启，包括 Named Tu
 | -------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | Cloudflare 显示 1033 或隧道未连接                                    | `cloudflared` 没有启动、凭据无效或出站网络被拦截               | 查看 WebMux 日志；检查出站 7844 与 HTTPS；在 Cloudflare 控制台刷新 Token 后更新配置      |
 | 打开域名显示 502 Bad Gateway                                         | Service URL 端口与 `listen` 不一致，或 WebMux 没有运行         | 把 Service URL 改为 `http://127.0.0.1:<listen 端口>`，确认 WebMux 正在监听               |
-| 域名返回 403                                                         | 生效主机名与 Cloudflare 公共主机名不一致，或使用了未授权的来源 | 在网页保存正确主机名并检查 Cloudflare 回源；不要用其他域名或 HTTP 访问                   |
+| 域名返回 403                                                         | 生效主机名与 Cloudflare 公共主机名不一致，或使用了未授权的来源 | 在网页保存正确主机名并检查 Cloudflare 回源，通过该主机名的 HTTPS 地址访问                |
 | `tunnel.hostname is required when tunnel.token is set`               | 配置了隧道凭据但没有写 `hostname`                              | 补充 `hostname`，或清空 `token` 改用 Quick Tunnel                                        |
 | `tunnel mode requires the webmux token to be at least 43 characters` | 根 `token` 太短                                                | 在现有配置中把根 `token` 改为至少 43 个字符，或删除该行自动生成，然后重启                |
 | `tunnel.hostname ... must be a bare hostname such as ...`            | `hostname` 带了协议、端口、路径或空格                          | 只保留公共主机名，例如 `term.example.com`                                                |

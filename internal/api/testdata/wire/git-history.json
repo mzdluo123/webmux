@@ -1,0 +1,64 @@
+{
+  "status": 200,
+  "body": {
+    "nextCursor": "",
+    "refsChanged": false,
+    "rows": [
+      {
+        "activeLanes": [
+          0
+        ],
+        "authorAt": "2026-01-02T03:04:05Z",
+        "authorEmail": "wire@example.invalid",
+        "authorName": "Wire test",
+        "committerAt": "2026-01-02T03:04:05Z",
+        "committerName": "Wire test",
+        "directParentsMissing": false,
+        "edges": [
+          {
+            "fromLane": 0,
+            "kind": "direct",
+            "targetOid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+            "toLane": 0
+          }
+        ],
+        "lane": 0,
+        "oid": "ecc8da449d18daa48261db409c9e0af26550cf64",
+        "parents": [
+          "2de8fe1f09b18871f913bbafa26fee479279c2b6"
+        ],
+        "refs": [
+          {
+            "kind": "head",
+            "name": "HEAD -> main",
+            "worktreeId": "<id#2>"
+          },
+          {
+            "kind": "local",
+            "name": "main"
+          }
+        ],
+        "shortOid": "ecc8da44",
+        "subject": "feat: expand b.txt"
+      },
+      {
+        "activeLanes": [],
+        "authorAt": "2026-01-02T03:04:05Z",
+        "authorEmail": "wire@example.invalid",
+        "authorName": "Wire test",
+        "committerAt": "2026-01-02T03:04:05Z",
+        "committerName": "Wire test",
+        "directParentsMissing": false,
+        "edges": [],
+        "lane": 0,
+        "oid": "2de8fe1f09b18871f913bbafa26fee479279c2b6",
+        "parents": [],
+        "refs": [],
+        "shortOid": "2de8fe1f",
+        "subject": "initial"
+      }
+    ],
+    "scope": "all",
+    "status": "ready"
+  }
+}

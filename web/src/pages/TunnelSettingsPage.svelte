@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import SettingsPageHeader from "../components/SettingsPageHeader.svelte";
-  import TunnelManager from "../components/TunnelManager.svelte";
-  import { setBrowserChrome } from "../browser-chrome";
-  onMount(() => {
-    setBrowserChrome("WebMux · 公网访问", false);
+  import { m } from "$lib/paraglide/messages.js";
+  import SettingsPageHeader from "../components/settings/SettingsPageHeader.svelte";
+  import TunnelManager from "../components/settings/TunnelManager.svelte";
+  import { setBrowserChrome } from "../platform/browser-chrome";
+  $effect(() => {
+    setBrowserChrome(m.s1_chrome_public_access(), false);
   });
 </script>
 
@@ -13,10 +13,10 @@
   <main class="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-8 sm:py-10">
     <div>
       <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">
-        公网访问
+        {m.s1_public_access()}
       </h1>
       <p class="mt-2 text-sm text-muted-foreground">
-        配置 Cloudflare Tunnel，跨设备保存设置，无需重启终端服务。
+        {m.s1_public_access_desc()}
       </p>
     </div>
     <TunnelManager />

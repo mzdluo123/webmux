@@ -115,7 +115,7 @@ func TestRaiseAttentionOnTheChatSide(t *testing.T) {
 	m := shellManager(t)
 	s := createShell(t, m, newFakeDriver())
 	id := s.Info().ID
-	s.SetOverlay(&Overlay{Hybrid: &HybridInfo{Side: "acp", State: "active"}, Status: StatusIdle})
+	s.SetOverlay(&Overlay{Destination: "acp", Status: StatusIdle})
 	info, err := m.RaiseAttention(id, attentionkind.Question, "need a decision")
 	if err != nil {
 		t.Fatal(err)
@@ -124,11 +124,11 @@ func TestRaiseAttentionOnTheChatSide(t *testing.T) {
 		t.Fatalf("chat side: %+v %s", info.Attention, info.Status)
 	}
 	// The same overlay reported again keeps it; a new turn drops it.
-	s.SetOverlay(&Overlay{Hybrid: &HybridInfo{Side: "acp", State: "active"}, Status: StatusIdle})
+	s.SetOverlay(&Overlay{Destination: "acp", Status: StatusIdle})
 	if s.Info().Attention == nil {
 		t.Fatal("an unchanged overlay dropped cli attention")
 	}
-	s.SetOverlay(&Overlay{Hybrid: &HybridInfo{Side: "acp", State: "active"}, Status: StatusRunning})
+	s.SetOverlay(&Overlay{Destination: "acp", Status: StatusRunning})
 	if got := s.Info(); got.Attention != nil || got.Status != StatusRunning {
 		t.Fatalf("a running turn kept cli attention: %+v %s", got.Attention, got.Status)
 	}
@@ -136,8 +136,8 @@ func TestRaiseAttentionOnTheChatSide(t *testing.T) {
 	if _, err := m.RaiseAttention(id, attentionkind.Done, "old"); err != nil {
 		t.Fatal(err)
 	}
-	s.SetOverlay(&Overlay{Hybrid: &HybridInfo{Side: "tui", State: "active"}})
-	s.SetOverlay(&Overlay{Hybrid: &HybridInfo{Side: "acp", State: "active"}, Status: StatusIdle})
+	s.SetOverlay(&Overlay{Destination: "tui"})
+	s.SetOverlay(&Overlay{Destination: "acp", Status: StatusIdle})
 	if got := s.Info().Attention; got != nil {
 		t.Fatalf("cli attention survived a side change: %+v", got)
 	}

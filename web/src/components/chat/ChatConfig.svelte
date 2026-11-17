@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from "$lib/paraglide/messages.js";
   import type { Component } from "svelte";
   import IconAdjustments from "~icons/tabler/adjustments";
   import IconAdjustmentsHorizontal from "~icons/tabler/adjustments-horizontal";
@@ -7,8 +8,9 @@
   import IconSettings from "~icons/tabler/settings";
   import { Label } from "$lib/components/ui/label";
   import { Switch } from "$lib/components/ui/switch";
-  import type { ConfigValue } from "../../chat-api";
-  import type { ChatConfig } from "../../schemas";
+  import type { ConfigValue } from "../../platform/chat-api";
+  import { isModelOption } from "../../domains/chat/chat-permission";
+  import type { ChatConfig } from "../../contracts/schemas";
   import ChatSelect from "./ChatSelect.svelte";
 
   // The agent's session options below the input: selects show the current
@@ -38,13 +40,16 @@
 {#each config as option (option.id)}
   {@const OptionIcon = iconFor(option.category)}
   {#if option.type === "boolean"}
-    {@const state = option.enabled ? "已开启" : "已关闭"}
-    <Label size="sm" class="mx-1 shrink-0" title={`${option.name}：${state}`}>
+    {@const state = option.enabled
+      ? m.s3_option_enabled()
+      : m.s3_option_disabled()}
+    {@const stateLabel = m.s3_option_state_label({ name: option.name, state })}
+    <Label size="sm" class="mx-1 shrink-0" title={stateLabel}>
       <OptionIcon aria-hidden="true" />
       <Switch
         size="sm"
         checked={!!option.enabled}
-        aria-label={`${option.name}：${state}`}
+        aria-label={stateLabel}
         {disabled}
         onCheckedChange={(enabled) => onchange(option.id, { enabled })}
       />
@@ -56,6 +61,7 @@
       choices={option.options}
       {disabled}
       labeled
+      searchable={isModelOption(option)}
       onchange={(value) => onchange(option.id, { value })}
     >
       {#snippet icon()}<OptionIcon aria-hidden="true" />{/snippet}

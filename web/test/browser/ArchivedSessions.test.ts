@@ -1,10 +1,14 @@
-import { afterEach, expect, test, vi } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
-import ArchivedSessions from "../../src/components/ArchivedSessions.svelte";
-import type { ArchiveActions } from "../../src/archived";
-import type { ResumeOutcome } from "../../src/recoverable";
-import type { ArchivedSession, SessionInfo, Worktree } from "../../src/schemas";
+import ArchivedSessions from "../../src/components/sessions/ArchivedSessions.svelte";
+import type { ArchiveActions } from "../../src/domains/sessions/archived";
+import type { ResumeOutcome } from "../../src/domains/sessions/recoverable";
+import type {
+  ArchivedSession,
+  SessionInfo,
+  Worktree,
+} from "../../src/contracts/schemas";
 
 afterEach(async () => {
   await cleanup();
@@ -52,13 +56,12 @@ function show(
   records: ArchivedSession[],
   resume: (...args: unknown[]) => Promise<ResumeOutcome>,
   patch: Partial<ArchiveActions> & {
-    groupPath?: string;
     worktree?: Worktree;
   } = {},
 ) {
   const remove = vi.fn(async () => {});
   const onresumed = vi.fn();
-  const { groupPath, worktree, ...actions } = patch;
+  const { worktree, ...actions } = patch;
   const archive: ArchiveActions = {
     now,
     filtering: false,
@@ -70,7 +73,6 @@ function show(
   render(ArchivedSessions, {
     title: "main",
     records,
-    groupPath,
     worktree,
     archive,
   });
@@ -81,10 +83,8 @@ const expand = () =>
   group()
     .getByRole("button", { name: /已归档/ })
     .click();
-const removeRecord = async () => {
-  await page.getByRole("button", { name: "更多操作 修复排序" }).click();
-  await page.getByRole("menuitem", { name: "删除记录" }).click();
-};
+const removeRecord = () =>
+  page.getByRole("button", { name: "删除 修复排序", exact: true }).click();
 
 test("is hidden without records and collapsed by default with a count", async () => {
   show([], vi.fn());
@@ -106,9 +106,9 @@ test("is hidden without records and collapsed by default with a count", async ()
     vi.fn(),
   );
   await expect.element(group()).toMatchTextContent(/已归档\s*2\s*1 条已中断/);
-  expect(page.getByRole("button", { name: "恢复到聊天" }).elements()).toEqual(
-    [],
-  );
+  expect(
+    page.getByRole("button", { name: "恢复", exact: true }).elements(),
+  ).toEqual([]);
   await expand();
   await expect.element(group().getByText("已中断")).toBeVisible();
   await expect.element(group().getByText("已关闭")).toBeVisible();
@@ -125,26 +125,55 @@ test("is hidden without records and collapsed by default with a count", async ()
   await expect.element(group().getByText(/有 2 条排队消息/)).toBeVisible();
 });
 
-test("shows each session's title", async () => {
-  show([record, { ...record, id: "hybrid33", title: "旧会话名称" }], vi.fn());
+test("shows each session's title and falls back to the agent name", async () => {
+  show(
+    [
+      record,
+      { ...record, id: "hybrid33", title: "旧会话名称" },
+      { ...record, id: "hybrid44", title: "" },
+    ],
+    vi.fn(),
+  );
   await expand();
   await expect.element(group().getByText("修复排序")).toBeVisible();
   await expect.element(group().getByText("旧会话名称")).toBeVisible();
+  await expect
+    .element(page.getByRole("button", { name: "删除 omp", exact: true }))
+    .toBeVisible();
 });
 
-test("resumes to either view", async () => {
-  const resume = vi.fn(async () => ({
-    status: "resumed" as const,
-    session: resumed,
-  }));
-  const { onresumed } = show([record], resume);
+test("an unknown agent icon draws no terminal fallback", async () => {
+  show([{ ...record, agent: { ...record.agent, icon: "" } }], vi.fn());
   await expand();
-  await page.getByRole("button", { name: "恢复到终端" }).click();
-  expect(resume).toHaveBeenCalledWith("hybrid22", "terminal", {});
-  await vi.waitFor(() => expect(onresumed).toHaveBeenCalledWith(resumed));
-  await page.getByRole("button", { name: "恢复到聊天" }).click();
-  expect(resume).toHaveBeenLastCalledWith("hybrid22", "chat", {});
+  const card = group().elements()[0].querySelector("[data-archived-id]");
+  expect(card?.querySelector("[data-launch-icon]")).toBeNull();
 });
+
+test("long directory paths truncate inline above sm with a full-path title", async () => {
+  const longCwd =
+    "/home/developer/workspaces/webmux.worktrees/feat-archived-card-meta-very-long-directory-path";
+  show([{ ...record, cwd: longCwd }], vi.fn());
+  await expand();
+  const pathEl = group().getByTitle(longCwd, { exact: true }).element();
+  expect(pathEl.textContent).toBe(longCwd);
+  expect(pathEl.classList.contains("truncate")).toBe(true);
+  expect(pathEl.classList.contains("sm:flex-1")).toBe(true);
+});
+
+test.each(["chat", "terminal"] as const)(
+  "resumes on the recorded %s view without asking for a view",
+  async (view) => {
+    const resume = vi.fn(async () => ({
+      status: "resumed" as const,
+      session: resumed,
+    }));
+    const { onresumed } = show([{ ...record, view }], resume);
+    await expand();
+    await page.getByRole("button", { name: "恢复", exact: true }).click();
+    expect(resume).toHaveBeenCalledWith("hybrid22", view, {});
+    await vi.waitFor(() => expect(onresumed).toHaveBeenCalledWith(resumed));
+  },
+);
 
 test("asks which agent session to use when the recorded one is gone", async () => {
   const resume = vi
@@ -164,7 +193,7 @@ test("asks which agent session to use when the recorded one is gone", async () =
     .mockResolvedValueOnce({ status: "resumed", session: resumed });
   const { onresumed } = show([record], resume);
   await expand();
-  await page.getByRole("button", { name: "恢复到聊天" }).click();
+  await page.getByRole("button", { name: "恢复", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
   await expect.element(dialog).toMatchTextContent(/01a 已不存在/);
   await dialog
@@ -185,9 +214,9 @@ test("confirms resuming without the deleted launch config's environment", async 
       message: "启动配置已删除",
     })
     .mockResolvedValueOnce({ status: "resumed", session: resumed });
-  show([record], resume);
+  show([{ ...record, view: "terminal" }], resume);
   await expand();
-  await page.getByRole("button", { name: "恢复到终端" }).click();
+  await page.getByRole("button", { name: "恢复", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
   await expect
     .element(dialog)
@@ -215,7 +244,7 @@ test("a second question keeps the first answer", async () => {
     .mockResolvedValueOnce({ status: "resumed", session: resumed });
   const { onresumed } = show([record], resume);
   await expand();
-  await page.getByRole("button", { name: "恢复到聊天" }).click();
+  await page.getByRole("button", { name: "恢复", exact: true }).click();
   await page
     .getByRole("alertdialog")
     .getByRole("button", { name: "确认" })
@@ -237,9 +266,18 @@ test("a second question keeps the first answer", async () => {
 test("removing needs confirmation and failures stay inline", async () => {
   const { remove } = show([record], vi.fn());
   await expand();
+  expect(
+    page.getByRole("button", { name: "更多操作 修复排序" }).elements(),
+  ).toEqual([]);
+  await expect
+    .element(page.getByRole("button", { name: "删除 修复排序", exact: true }))
+    .toHaveClass("text-destructive");
   await removeRecord();
   const dialog = page.getByRole("alertdialog");
   await expect.element(dialog).toMatchTextContent(/修复排序/);
+  await expect
+    .element(dialog.getByRole("button", { name: "确认" }))
+    .toHaveClass("text-destructive");
   await dialog.getByRole("button", { name: "取消" }).click();
   expect(remove).not.toHaveBeenCalled();
   await removeRecord();
@@ -265,13 +303,13 @@ test("removing needs confirmation and failures stay inline", async () => {
     vi.fn(async () => Promise.reject(new Error("网络中断"))),
   );
   await expand();
-  await page.getByRole("button", { name: "恢复到聊天" }).click();
+  await page.getByRole("button", { name: "恢复", exact: true }).click();
   await expect
     .element(page.getByRole("alert"))
     .toMatchTextContent(/无法恢复“修复排序”：网络中断/);
 });
 
-test("hides the directory a group already names and pages long lists", async () => {
+test("shows each record's directory and pages long lists", async () => {
   const records = Array.from({ length: 7 }, (_, i) => ({
     ...record,
     id: `hybrid${i}0`,
@@ -281,12 +319,11 @@ test("hides the directory a group already names and pages long lists", async () 
   show(
     [...records, { ...record, id: "hybridsu", cwd: "/repos/project/web" }],
     vi.fn(),
-    { groupPath: "/repos/project" },
   );
   await expand();
-  expect(
-    group().getByText("/repos/project", { exact: true }).elements(),
-  ).toEqual([]);
+  await expect
+    .element(group().getByText("/repos/project", { exact: true }).first())
+    .toBeVisible();
   await expect.element(group().getByText("记录 4")).toBeVisible();
   expect(group().getByText("记录 5").elements()).toEqual([]);
   await group().getByRole("button", { name: "显示全部 8 条" }).click();
@@ -310,6 +347,13 @@ const linked: Worktree = {
   hasUntracked: false,
   hasIgnored: false,
   error: "",
+  upstream: null,
+  ahead: null,
+  behind: null,
+  upstreamGone: false,
+  lastCommit: null,
+  changes: { staged: 0, unstaged: 0, untracked: 0, conflicted: 0 },
+  operation: null,
 };
 
 test("deleting a linked worktree's record leaves the worktree alone", async () => {
@@ -332,13 +376,16 @@ test("deleting a record and its worktree opens the worktree confirmation", async
   const removeRecordAndWorktree = vi.fn();
   show([record], vi.fn(), { worktree: linked, removeRecordAndWorktree });
   await expand();
+  await expect
+    .element(page.getByRole("button", { name: "删除 修复排序", exact: true }))
+    .toBeVisible();
   await page.getByRole("button", { name: "更多操作 修复排序" }).click();
   expect(
     page
       .getByRole("menuitem")
       .elements()
       .map((item) => item.textContent?.trim()),
-  ).toEqual(["删除记录", "删除记录和工作树"]);
+  ).toEqual(["删除记录和工作树"]);
   await page.getByRole("menuitem", { name: "删除记录和工作树" }).click();
   expect(removeRecordAndWorktree).toHaveBeenCalledWith(record, linked);
 });
@@ -346,7 +393,7 @@ test("deleting a record and its worktree opens the worktree confirmation", async
 test("filters open the section on their own", async () => {
   show([record], vi.fn(), { filtering: true });
   await expect
-    .element(group().getByRole("button", { name: "恢复到聊天" }))
+    .element(group().getByRole("button", { name: "恢复", exact: true }))
     .toBeVisible();
 });
 
@@ -366,6 +413,13 @@ const feature: Worktree = {
   hasUntracked: false,
   hasIgnored: true,
   error: "",
+  upstream: null,
+  ahead: null,
+  behind: null,
+  upstreamGone: false,
+  lastCommit: null,
+  changes: { staged: 0, unstaged: 0, untracked: 0, conflicted: 0 },
+  operation: null,
 };
 const released: HybridRecord = {
   ...record,
@@ -409,19 +463,43 @@ function stubRebuild(preview: Record<string, unknown>) {
 const rebuildCalls = (fetch: ReturnType<typeof stubRebuild>) =>
   fetch.mock.calls.filter(([input]) => String(input).endsWith("/rebuild"));
 
-test("offers releasing a linked worktree's space between resuming and deleting", async () => {
+test("offers releasing a linked worktree's space beside the direct delete button", async () => {
   const release = vi.fn();
-  show([record], vi.fn(), { worktree: feature, release });
+  const removeRecordAndWorktree = vi.fn();
+  show([record], vi.fn(), {
+    worktree: feature,
+    release,
+    removeRecordAndWorktree,
+  });
   await expand();
-  expect(await menuItems()).toEqual(["释放空间", "删除记录"]);
+  const resumeBox = page
+    .getByRole("button", { name: "恢复", exact: true })
+    .element()
+    .getBoundingClientRect();
+  const deleteBox = page
+    .getByRole("button", { name: "删除 修复排序", exact: true })
+    .element()
+    .getBoundingClientRect();
+  const moreBox = page
+    .getByRole("button", { name: "更多操作 修复排序" })
+    .element()
+    .getBoundingClientRect();
+  expect(deleteBox.height).toBe(resumeBox.height);
+  expect(moreBox.height).toBe(resumeBox.height);
+  expect(await menuItems()).toEqual(["释放空间", "删除记录和工作树"]);
   await page.getByRole("menuitem", { name: "释放空间" }).click();
   expect(release).toHaveBeenCalledWith(feature);
 
-  // Outside a releasable worktree only the deletion is offered.
+  // Outside a releasable worktree only the direct delete button is offered.
   await cleanup();
   show([record], vi.fn(), { release });
   await expand();
-  expect(await menuItems()).toEqual(["删除记录"]);
+  await expect
+    .element(page.getByRole("button", { name: "删除 修复排序", exact: true }))
+    .toBeVisible();
+  expect(
+    page.getByRole("button", { name: "更多操作 修复排序" }).elements(),
+  ).toEqual([]);
 });
 
 test("a released record is marked and deleting it removes only the record", async () => {
@@ -435,12 +513,16 @@ test("a released record is marked and deleting it removes only the record", asyn
   await expand();
   const badge = group().getByTitle(
     `原路径 /repos/project-wt · 提交 ${"c".repeat(12)}`,
-    { exact: true },
+    {
+      exact: true,
+    },
   );
   await expect.element(badge).toBeVisible();
   expect(badge.element().textContent).toContain("已释放空间");
-  expect(await menuItems()).toEqual(["删除记录"]);
-  await page.getByRole("menuitem", { name: "删除记录" }).click();
+  expect(
+    page.getByRole("button", { name: "更多操作 修复排序" }).elements(),
+  ).toEqual([]);
+  await removeRecord();
   await page
     .getByRole("alertdialog")
     .getByRole("button", { name: "确认" })
@@ -459,7 +541,7 @@ test("a released record rebuilds its worktree after confirmation, then resumes",
   const onrebuilt = vi.fn();
   const { onresumed } = show([released], resume, { onrebuilt });
   await expand();
-  await page.getByRole("button", { name: "恢复到聊天" }).click();
+  await page.getByRole("button", { name: "恢复", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect.element(dialog).toMatchTextContent(/\/repos\/project-wt/);
   await expect.element(dialog).toMatchTextContent("c".repeat(12));
@@ -487,7 +569,7 @@ test("cancelling the rebuild changes nothing, and blockers disable it", async ()
   const resume = vi.fn();
   show([released], resume);
   await expand();
-  await page.getByRole("button", { name: "恢复到终端" }).click();
+  await page.getByRole("button", { name: "恢复", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect
     .element(dialog)
@@ -498,7 +580,7 @@ test("cancelling the rebuild changes nothing, and blockers disable it", async ()
   expect(rebuildCalls(fetch)).toEqual([]);
 
   stubRebuild({ blockers: ["原路径已存在其他目录"] });
-  await page.getByRole("button", { name: "恢复到终端" }).click();
+  await page.getByRole("button", { name: "恢复", exact: true }).click();
   await expect
     .element(page.getByRole("dialog"))
     .toMatchTextContent(/原路径已存在其他目录/);
@@ -518,7 +600,7 @@ test("a resume failing after the rebuild hands its reason to the refresh", async
     { onrebuilt },
   );
   await expand();
-  await page.getByRole("button", { name: "恢复到聊天" }).click();
+  await page.getByRole("button", { name: "恢复", exact: true }).click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "重建并恢复" })
@@ -542,7 +624,7 @@ test("the refresh after a rebuild waits for the questions the resume asks", asyn
   }));
   show([released], resume, { onrebuilt });
   await expand();
-  await page.getByRole("button", { name: "恢复到聊天" }).click();
+  await page.getByRole("button", { name: "恢复", exact: true }).click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "重建并恢复" })

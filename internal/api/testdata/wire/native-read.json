@@ -1,0 +1,44 @@
+{
+  "status": 200,
+  "body": {
+    "agent": "omp",
+    "boundary": "fixed",
+    "branch": "",
+    "contentHash": "1a3a3c7ae8c2ef492d3dc4f68fa1d000857824132c744a25e983f86f774847a9",
+    "expiresAt": "",
+    "files": [],
+    "format": "wire-v1",
+    "gaps": [],
+    "more": false,
+    "nativeId": "wire-native",
+    "nextPosition": "1",
+    "nextTextOffset": "0",
+    "parser": "wire-v1",
+    "pending": false,
+    "recordCount": 1,
+    "records": [
+      {
+        "attachments": [],
+        "byteLength": "23",
+        "callId": "",
+        "end": "0",
+        "hash": "89e846bf05ef5c8315f9f912b2e84a599936e19c41f680c8913da799e29f7fd7",
+        "id": "aabd8d45c9777617d08dba310ed62ebddc63292279fa85ed43a980962cae4458",
+        "kind": "prose",
+        "nativeCallId": "",
+        "nativeId": "",
+        "nextTextOffset": "23",
+        "offset": "0",
+        "parentId": "",
+        "position": "1",
+        "role": "user",
+        "status": "",
+        "text": "中文 original history",
+        "toolName": "",
+        "truncated": false
+      }
+    ],
+    "snapshotId": "<snapshotId#2>",
+    "truncated": false
+  }
+}
