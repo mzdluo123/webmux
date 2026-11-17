@@ -183,18 +183,32 @@ Claude Code 的 ACP 进程无参数执行 `claude-agent-acp`，`initialize` 固�
 
 ## 聊天视图的输入
 
-会话在聊天视图时，`POST /api/sessions/{id}/input` 的 `{clientRequestId, text, attachments?, mode?}` 是一条提示：`mode` 为 `auto`（缺省，空闲且未暂停时立即发送，否则排队）或 `steer`（插话）；`attachments` 为上传接口返回的 `{path}` 数组；`submit` 被忽略，带 `keys` 返回 409 `wrong_view`。
+会话在聊天视图时，`POST /api/sessions/{id}/input` 的 `{clientRequestId, text, attachments?, mode?}` 是一条提示。
+`attachments` 为上传接口返回的 `{path}` 数组；`submit` 被忽略，带 `keys` 返回 409 `wrong_view`。
+
+- `auto`（缺省）：无运行回合、连接可用、队列为空且未暂停时开始新回合，否则排队；适合下一项独立任务。
+- `steer`（插话）：用于运行中工作的补充、纠正或协调；先核对实际 `steering` 能力和运行回合，不取消当前回合，不保证模型立即处理。
+- `refuse`：适合不能排队的自动化；立即发送条件同 `auto`，不满足时返回 409 `busy`，不排队。
+- `now`（取消后立即发送）：明确停止替换当前工作时使用，可能打断工作。有运行回合时将提示放到队首并取消当前回合，结束后优先发送；无运行回合且连接可用时直接发送，未连接时返回 409 `busy`。
+
+各模式仍受会话状态、输入校验与队列容量限制；`now` 会恢复暂停的队列。
 会话在终端视图时，带 `attachments` 或 `mode` 的输入返回 409 `wrong_view`，不写入终端。
 
-发送结果 `{view: "chat", queued, itemId?, turnId?, promptId?}`：
+发送结果 `{view: "chat", queued, itemId?, position?, turnId?, promptId?}`：
 
 - 排队时给出 `itemId`，之后发送它的回合在 `turn.start` 中带同一个 `queueItemId`；
 - 立即发送时给出与 `turn.start` 相同的 `turnId` 与 `promptId`；
-- 插话两者都不给出。
+- 插话通常不给出这些 ID；成功回执不证明 agent 已理解、回合结束或业务完成。
 
 `text` 不超过 64 KiB；有附件时可以只发附件。ACP 自动重连期间提交的自动发送消息进入队列等待连接恢复。回合以 `cancelled`、错误、`refusal` 或 `auth_required` 结束时，非空队列暂停。
 
-插话只在档案声明、agent 在 `initialize` 中声明支持且有回合运行时可用；omp、Codex 与 Claude Code 的档案声明该能力。
+插话先检查连接与视图状态，再检查档案实现、agent 声明的 `steering` 能力及运行回合；后面三项任一不满足返回 `steering_unavailable`。
+omp、Codex 与 Claude Code 的档案声明该能力，实际可用性仍以当前会话状态为准。
+只有支持 outcome 协议的适配器报告 `promptRequired` 时，回合结束竞态中的文本才会回到队首，待队列可发送时开始下一回合；报告 `startedNewTurn` 会提示该回合不受 WebMux 跟踪。
+
+迁移自己的排队项为插话前，先核对队列当前状态，确认原项仍排队并成功删除后，再核对插话能力与运行回合。
+删除与插话非原子操作；删除返回 `sent` 或结果不明时先核对队列与回合记录，避免重复发送。
+同一操作重试复用原 `clientRequestId` 和相同负载，删除与改变模式后的发送分别使用新 ID；去重窗口到期、淘汰或服务重启后先核对状态。
 
 Claude 的 `session/cancel` 只结束当前 ACP 回合，不表示后台任务或整个进程树已清理。
 
@@ -229,7 +243,7 @@ agent 声明 `promptCapabilities.image` 时图片以 `image` 块（base64 与原
 - 对象已变化：`answered`（请求已被其他设备答复）、`sent`（队列条目已发送或已删除）。
 - 其余：`steering_unavailable`、`session_missing`、`config_missing`、`limit`。
 
-Codex 与 Claude Code 的插话带 `_meta.steering.idleBehavior = "promptRequired"`：回合在注入前结束时，消息排到队首作为下一回合发送；agent 回答 `failed` 时请求以 502 失败。
+Codex 与 Claude Code 的插话带 `_meta.steering.idleBehavior = "promptRequired"`：适配器报告 `promptRequired` 时消息排到队首；agent 回答 `failed` 时请求以 502 失败。
 
 agent 调用失败返回 502；`hybrid-sessions.json` 不可用返回 503 并附文件路径，普通会话不受影响。
 
