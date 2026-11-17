@@ -122,6 +122,9 @@ test.describe("desktop sidebar", () => {
     await expect(
       page.getByRole("main").getByRole("heading", { level: 1 }),
     ).toHaveText("tree-repo · main");
+    await expect(
+      page.getByRole("main").getByText("主工作区", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole("link", { name: "pnpm dev" })).toBeVisible();
     await expect(page.locator("[data-worktree-id]:visible")).toHaveCount(1);
     // The worktree stays open down to its live session row on the home view.

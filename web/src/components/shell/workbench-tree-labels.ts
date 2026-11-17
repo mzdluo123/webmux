@@ -53,17 +53,21 @@ export function treeNodeAriaLabel(
     return m.s1_node_with_state({ label: node.label, state: stateText });
   }
   if (node.reason) return m.s1_node_unavailable({ label: node.label });
+  const label =
+    node.worktree?.kind === "main"
+      ? m.s1_node_main_worktree({ label: node.label })
+      : node.label;
   if (node.waiting) {
     return m.s1_node_sessions_waiting({
-      label: node.label,
+      label,
       count: node.count,
       waiting: node.waiting,
     });
   }
   if (node.count) {
-    return m.s1_node_sessions_count({ label: node.label, count: node.count });
+    return m.s1_node_sessions_count({ label, count: node.count });
   }
-  return node.label;
+  return label;
 }
 
 export function treeNodeTitle(node: TreeNode, status: RowStatus | undefined) {

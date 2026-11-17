@@ -100,7 +100,7 @@
           <span class="min-w-0 flex-1 space-y-0.5">
             <span class="flex flex-wrap items-center gap-1.5">
               <span class="font-medium break-all">{worktreeTitle(tree)}</span>
-              {#if tree.kind === "main"}<Badge variant="secondary"
+              {#if tree.kind === "main"}<Badge variant="outline"
                   >{m.s8_badge_main_worktree()}</Badge
                 >{/if}
               {#if active.has(tree.id) && !pinned.has(tree.id)}<Badge

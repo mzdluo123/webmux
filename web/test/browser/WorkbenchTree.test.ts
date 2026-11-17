@@ -266,10 +266,47 @@ test("a linked worktree's menu offers its details, a branch switch and removal",
   expect(handlers.onswitchbranch).toHaveBeenCalledWith("repo1", "otter");
 });
 
-test("the main worktree's menu has no removal", async () => {
-  const handlers = renderTree([]);
+test("the main worktree row carries a compact badge clear of its hover menu and its menu has no removal", async () => {
+  const handlers = renderTree([], {
+    repositories: [
+      repository({
+        worktrees: [
+          worktree({
+            branch: "codex/very-long-branch-name-checked-out-in-main-worktree",
+          }),
+          worktree({
+            id: "otter",
+            kind: "linked",
+            branch: "wt/brisk-otter",
+            path: "/repos/webmux.worktrees/brisk-otter",
+          }),
+        ],
+      }),
+    ],
+  });
   await tree().getByRole("button", { name: "展开webmux" }).click();
-  await tree().getByRole("button", { name: "工作树操作：main" }).click();
+  const mainRow = item(
+    "codex/very-long-branch-name-checked-out-in-main-worktree",
+  );
+  await expect
+    .element(mainRow)
+    .toHaveAccessibleName(
+      "codex/very-long-branch-name-checked-out-in-main-worktree，主工作区",
+    );
+  const badge = mainRow.getByText("主", { exact: true });
+  await expect.element(badge).toBeVisible();
+  expect(badge.element().getAttribute("title")).toBe("主工作区");
+  expect(
+    item("wt/brisk-otter").getByText("主", { exact: true }).elements(),
+  ).toEqual([]);
+  const menu = tree().getByRole("button", {
+    name: "工作树操作：codex/very-long-branch-name-checked-out-in-main-worktree",
+  });
+  await menu.hover();
+  expect(badge.element().getBoundingClientRect().right).toBeLessThanOrEqual(
+    menu.element().getBoundingClientRect().left,
+  );
+  await menu.click();
   expect(
     page
       .getByRole("menuitem")

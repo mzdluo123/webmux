@@ -615,11 +615,11 @@
       </StripNotice>
     </div>
     <div class="flex flex-wrap gap-2">
-      <Badge variant="secondary">主工作区</Badge><Badge variant="outline"
-        >已锁定</Badge
-      ><Badge variant="warning">有修改</Badge><Badge variant="info"
-        >未跟踪文件</Badge
-      >
+      <Badge variant="outline">主工作区</Badge><Badge variant="secondary"
+        >Bare 仓库</Badge
+      ><Badge variant="outline">已锁定</Badge><Badge variant="warning"
+        >有修改</Badge
+      ><Badge variant="info">未跟踪文件</Badge>
     </div>
   {:else if section === "surfaces"}
     <Tabs.Root value="workspace">

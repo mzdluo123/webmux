@@ -31,6 +31,7 @@
   import IconGitBranch from "~icons/tabler/git-branch";
   import IconLayoutDashboard from "~icons/tabler/layout-dashboard";
   import IconLoader2 from "~icons/tabler/loader-2";
+  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { ListButton } from "$lib/components/ui/list-button";
@@ -316,6 +317,7 @@
   {@const stateText = treeNodeStateText(node, resuming, status)}
   {@const open = isOpen(node)}
   {@const upstream = notableUpstream(node)}
+  {@const mainWorktree = node.worktree?.kind === "main"}
   <li
     role="none"
     class={`flex items-center ${node.level === 3 ? "pl-8" : node.level === 2 ? "pl-4" : ""}`}
@@ -357,10 +359,16 @@
               : ""}
             size="xs"
           />{/if}
-        <span
-          class={`min-w-0 flex-1 truncate ${node.kind === "repository" ? "font-medium" : ""} ${node.reason || status === "ended" ? "text-muted-foreground" : ""}`}
-          >{node.label}</span
-        >
+        <span class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+          <span
+            class={`min-w-0 truncate ${node.kind === "repository" ? "font-medium" : ""} ${node.reason || status === "ended" ? "text-muted-foreground" : ""}`}
+            >{node.label}</span
+          >
+          {#if mainWorktree}<Badge
+              variant="outline"
+              title={m.s8_badge_main_worktree()}>{m.s7_wt_main_badge()}</Badge
+            >{/if}
+        </span>
         {#if upstream}<span class="flex shrink-0 items-center gap-1"
             ><UpstreamStatus state={upstream} indicator /></span
           >{/if}
@@ -385,7 +393,7 @@
             (node.kind === "all" && !!onaddrepository) ||
               (node.kind === "repository" && !node.reason && canCreate) ||
               node.kind === "worktree",
-            !!upstream,
+            !!upstream || mainWorktree,
           )}{/if}
       </ListButton>
       {#if node.kind === "all" && onaddrepository}

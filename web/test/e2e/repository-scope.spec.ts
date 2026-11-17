@@ -121,7 +121,7 @@ test("repository scope limits the home list, composes with filters and survives 
     page.getByRole("status").filter({ hasText: "个仓库" }),
   ).toHaveText("1 个仓库 · 1 个会话");
   const repo = page.locator("[data-repository-id]:visible");
-  await expect(repo.getByText("主工作区", { exact: true })).toBeHidden();
+  await expect(repo.getByText("主工作区", { exact: true })).toBeVisible();
   await expect(repo.getByText("已跟踪文件干净", { exact: true })).toBeHidden();
   await repositoryMenu(page, "仓库详情…");
   // A closed phone drawer stays in the DOM; only the open dialog counts.
