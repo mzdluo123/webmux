@@ -1,5 +1,6 @@
 <script lang="ts" module>
-  type SessionPageModule = typeof import("./pages/Terminal.svelte");
+  import type * as TerminalModule from "./pages/Terminal.svelte";
+  type SessionPageModule = typeof TerminalModule;
   // Kept after the first visit. A resolved import still paints `{#await}`'s
   // pending branch, so later opens must render the module directly.
   let sessionPage: SessionPageModule | undefined;
@@ -19,10 +20,10 @@
 
 <script lang="ts">
   import ConnectionGate from "./components/shell/ConnectionGate.svelte";
+  import RelayAuthGate from "./components/shell/RelayAuthGate.svelte";
   import {
     startSettings,
     stopSettings,
-    settings,
   } from "./domains/settings/settings.svelte";
   import { errorMessage } from "./platform/error";
   import { onMount } from "svelte";
@@ -41,11 +42,15 @@
   import SessionSwitcher from "./components/shell/SessionSwitcher.svelte";
   import type TerminalPage from "./pages/Terminal.svelte";
   import {
-    isSessionSwitcherShortcut,
+    watchSessionSwitcherShortcut,
     provideSessionSwitcher,
   } from "./hooks/shared/session-switcher";
   import SessionList from "./pages/SessionList.svelte";
-  import { matchRoute, routeFeature, type Route } from "./hooks/shared/route";
+  import {
+    matchRoute,
+    routeFeature,
+    shellRouteFor,
+  } from "./hooks/shared/route";
   import { enterHome, openSession } from "./hooks/shared/shell.svelte";
   import { createTerminalDrafts } from "./domains/terminal/terminal-draft.svelte";
   import { browserDraftStorage } from "./domains/terminal/draft-storage";
@@ -61,7 +66,6 @@
     featureAvailable,
     setFeatureCapabilities,
     resetFeatureCapabilities,
-    requestFeatureHostRefresh,
   } from "./platform/feature-host.svelte";
   import {
     loadFeatureContributions,
@@ -74,7 +78,10 @@
   import { tvInput } from "./hooks/shared/tv-input.svelte";
   import { xrPresentation } from "./hooks/shared/xr-presentation.svelte";
   import InlineNotice from "./components/shared/InlineNotice.svelte";
-  import { clearRelayAuth } from "./platform/relay-auth";
+  import { clearRelayAuth, resetRelayAuth } from "./platform/relay-auth";
+  import { relayAuth } from "./platform/relay-auth.svelte";
+  import { createRelayAuthRecovery } from "./hooks/shared/relay-auth-recovery";
+  import { useHostSettingsRecovery } from "./hooks/shared/settings-reconnect.svelte";
   import { prepareHostAuthentication } from "./hooks/shared/host-authentication";
   import { useRouteFocus } from "./hooks/shared/route-focus";
   import { createAppLinkHandler } from "./app/app-link-navigation";
@@ -98,6 +105,16 @@
   let discoveryFailureCause = $state("");
   let bootstrapEpoch = 0;
   let bootstrapAbort: AbortController | undefined;
+  let recovering = $state(false);
+  const relayBlocked = $derived(relayAuth.relay && !relayAuth.authenticated);
+  const onRecovered = useHostSettingsRecovery(
+    () => ready,
+    () => void check(),
+  );
+  const recovery = createRelayAuthRecovery({
+    onChecking: (value) => (recovering = value),
+    onRecovered,
+  });
   const route = $derived(matchRoute(path));
   const contributions = $derived(featureContributions.entries);
   const requiredFeature = $derived(routeFeature(route));
@@ -108,22 +125,11 @@
         (route.name === "git" && !featureAvailable("workspace.git-workbench"))),
   );
   const sessionId = $derived(route.name === "terminal" ? route.id : "");
-  const shellRoute = $derived(
-    route.name === "sessions" ||
-      route.name === "quick-start" ||
-      route.name === "handoff" ||
-      route.name === "terminal" ||
-      route.name === "git"
-      ? (route as Extract<
-          Route,
-          {
-            name: "sessions" | "quick-start" | "terminal" | "handoff" | "git";
-          }
-        >)
-      : null,
-  );
+  const shellRoute = $derived(shellRouteFor(route));
   const canSwitch = $derived(
-    ready && (shellRoute !== null || route.name === "settings"),
+    ready &&
+      !relayBlocked &&
+      (shellRoute !== null || route.name === "settings"),
   );
   let shell = $state<AppShell>();
   let terminal = $state<TerminalPage>();
@@ -136,24 +142,6 @@
     switcherOpen = true;
   }
   provideSessionSwitcher(openSwitcher);
-
-  function switcherShortcut(event: KeyboardEvent) {
-    if (
-      xrPresentation.active ||
-      !canSwitch ||
-      switcherOpen ||
-      !isSessionSwitcherShortcut(event) ||
-      document.querySelector(
-        '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [role="menu"][data-state="open"], dialog[open]',
-      )
-    )
-      return;
-    // xterm and the pane shortcuts must never receive this chord.
-    event.preventDefault();
-    event.stopPropagation();
-    const active = document.activeElement;
-    openSwitcher(active instanceof HTMLElement ? active : null);
-  }
 
   function restoreSwitcherFocus() {
     if (switcherInvoker?.isConnected) switcherInvoker.focus();
@@ -194,17 +182,6 @@
     void sessionId;
     return cachedSessionPage();
   });
-  // Settings can reconnect while no shell session feed is mounted.
-  let settingsHadConnection = false;
-  let settingsWasConnected = false;
-  $effect(() => {
-    const connected = settings.connected;
-    if (ready && connected && !settingsWasConnected && settingsHadConnection)
-      void requestFeatureHostRefresh();
-    if (connected) settingsHadConnection = true;
-    settingsWasConnected = connected;
-  });
-
   async function check(preferToken = false) {
     checking = true;
     bootstrapAbort?.abort();
@@ -220,8 +197,10 @@
           controller.signal,
           () => epoch === bootstrapEpoch,
         ))
-      )
+      ) {
+        if (relayAuth.reason === "reconnecting") recovery.start();
         return;
+      }
       discoveryError = "";
       discoveryFailureCause = "";
       try {
@@ -274,25 +253,35 @@
       if (pathChanged) focusRoute();
     };
     const auth = () => {
-      clearRelayAuth();
+      const relay = relayAuth.relay;
+      if (relay && relayAuth.authenticated) clearRelayAuth("reconnecting");
+      else if (!relay) {
+        recovery.cancel();
+        clearRelayAuth();
+      }
       bootstrapEpoch++;
       bootstrapAbort?.abort();
       featureRefresh.cancel();
+      stopSettings();
+      checking = false;
+      switcherOpen = false;
+      error = "";
+      if (relay) {
+        if (relayAuth.reason === "reconnecting") recovery.start();
+        else recovery.cancel();
+        return;
+      }
       disposeFeatureContributions();
       rebuildingFeatures = false;
       resetFeatureCapabilities();
-      stopSettings();
       drafts.clearAll();
       clearHomeCache();
       clearSessionListSnapshot();
       uploadNotice = "";
       pendingSessionOpen = "";
       ready = false;
-      switcherOpen = false;
       switcherInvoker = null;
-      checking = false;
       authFailed = true;
-      error = "";
     };
     const link = createAppLinkHandler({
       sessionId: () => sessionId,
@@ -306,18 +295,23 @@
     });
     document.addEventListener("click", link);
     window.addEventListener("popstate", change);
-    window.addEventListener("keydown", switcherShortcut, true);
+    const disconnectShortcut = watchSessionSwitcherShortcut(
+      () => !xrPresentation.active && canSwitch && !switcherOpen,
+      openSwitcher,
+    );
     window.addEventListener("webmux:auth", auth);
+    window.addEventListener("webmux:relay-check", auth);
     const tokenFromFragment = consumeTokenFragment();
     if (tokenFromFragment) token = stored("token");
     const disconnectPins = sessionPins.connect();
     const disconnectHost = onActiveHostChange(() => {
+      resetRelayAuth();
       auth();
       token = stored("token");
       void check();
     });
     const featureRefresh = watchFeatureHostRefresh({
-      ready: () => ready,
+      ready: () => ready && !relayBlocked,
       epoch: () => bootstrapEpoch,
       context: () => ({
         forwardAuth: route.name === "forward-auth",
@@ -331,6 +325,7 @@
     });
     void check(tokenFromFragment);
     return () => {
+      recovery.cancel();
       disconnectPins();
       disconnectHost();
       featureRefresh.dispose();
@@ -342,8 +337,9 @@
       drafts.clearAll();
       document.removeEventListener("click", link);
       window.removeEventListener("popstate", change);
-      window.removeEventListener("keydown", switcherShortcut, true);
+      disconnectShortcut();
       window.removeEventListener("webmux:auth", auth);
+      window.removeEventListener("webmux:relay-check", auth);
     };
   });
 </script>
@@ -356,79 +352,94 @@
   </div>
 {/if}
 
-{#if !ready}
-  <ConnectionGate
-    {checking}
-    error={authFailed ? m.s1_token_invalid() : error}
-    bind:token
-    onconnect={() => {
-      store("token", token);
-      void check(true);
-    }}
-  />
-{:else if rebuildingFeatures}
-  <main class="mx-auto max-w-xl p-6" aria-busy="true">
-    <InlineNotice>{m.s1_reconnecting_capabilities()}</InlineNotice>
-  </main>
-{:else if routeUnavailable}
-  <main class="mx-auto max-w-xl space-y-4 p-6">
-    <h1 class="text-2xl font-semibold">{m.s1_feature_disabled()}</h1>
-    <InlineNotice tone="warning"
-      >{requiredFeature && featureContributions.errors[requiredFeature]
-        ? m.s1_feature_load_failed({
-            feature: requiredFeature,
-            error: featureContributions.errors[requiredFeature],
-          })
-        : route.name === "git" && featureEnabled("workspace")
-          ? m.s1_git_workbench_requires_features()
-          : m.s1_page_requires_feature({
-              feature: String(requiredFeature ?? ""),
-            })}</InlineNotice
-    >
-    <Button href="/">{m.s1_back_to_sessions()}</Button>
-  </main>
-{:else if route.name === "settings"}
-  <LazyPage
-    load={() => import("./pages/Settings.svelte")}
-    label={m.s1_settings()}
-  >
-    {#snippet children(page)}<page.default />{/snippet}
-  </LazyPage>
-{:else if route.name === "settings-relay"}
-  <LazyPage
-    load={() => import("./pages/RelaySettingsPage.svelte")}
-    label={m.relay_title()}
-  >
-    {#snippet children(page)}<page.default />{/snippet}
-  </LazyPage>
-{:else if !shellRoute}
-  <FeaturePage {route} {search} />
-{:else if shellRoute}
-  <AppShell bind:this={shell} route={shellRoute} {drafts}>
-    {#if sessionId}
-      {#if openedPage}
-        {@render session(openedPage)}
-      {:else}
-        <LazyPage
-          load={loadSessionPage}
-          label={pageLabel}
-          errorMessage={(loadError) =>
-            loadError instanceof Error
-              ? loadError.message
-              : m.s1_page_load_failed({ label: pageLabel })}
-        >
-          {#snippet children(page)}
-            {@render session(page)}
-          {/snippet}
-        </LazyPage>
-      {/if}
-    {:else if route.name !== "sessions" || contributions.workspace}
-      <FeaturePage {route} {search} />
-    {:else}
-      <SessionList />
-    {/if}
-  </AppShell>
+{#if relayBlocked}
+  <div class="fixed inset-0 z-[100] overflow-y-auto bg-background">
+    <RelayAuthGate
+      reason={relayAuth.reason}
+      checking={recovering}
+      returnTo={path + search + location.hash}
+      onretry={() => recovery.start()}
+    />
+  </div>
 {/if}
+
+<div class="contents" inert={relayBlocked} aria-hidden={relayBlocked}>
+  {#if !ready}
+    {#if !relayBlocked}
+      <ConnectionGate
+        {checking}
+        error={authFailed ? m.s1_token_invalid() : error}
+        bind:token
+        onconnect={() => {
+          store("token", token);
+          void check(true);
+        }}
+      />
+    {/if}
+  {:else if rebuildingFeatures}
+    <main class="mx-auto max-w-xl p-6" aria-busy="true">
+      <InlineNotice>{m.s1_reconnecting_capabilities()}</InlineNotice>
+    </main>
+  {:else if routeUnavailable}
+    <main class="mx-auto max-w-xl space-y-4 p-6">
+      <h1 class="text-2xl font-semibold">{m.s1_feature_disabled()}</h1>
+      <InlineNotice tone="warning"
+        >{requiredFeature && featureContributions.errors[requiredFeature]
+          ? m.s1_feature_load_failed({
+              feature: requiredFeature,
+              error: featureContributions.errors[requiredFeature],
+            })
+          : route.name === "git" && featureEnabled("workspace")
+            ? m.s1_git_workbench_requires_features()
+            : m.s1_page_requires_feature({
+                feature: String(requiredFeature ?? ""),
+              })}</InlineNotice
+      >
+      <Button href="/">{m.s1_back_to_sessions()}</Button>
+    </main>
+  {:else if route.name === "settings"}
+    <LazyPage
+      load={() => import("./pages/Settings.svelte")}
+      label={m.s1_settings()}
+    >
+      {#snippet children(page)}<page.default />{/snippet}
+    </LazyPage>
+  {:else if route.name === "settings-relay"}
+    <LazyPage
+      load={() => import("./pages/RelaySettingsPage.svelte")}
+      label={m.relay_title()}
+    >
+      {#snippet children(page)}<page.default />{/snippet}
+    </LazyPage>
+  {:else if !shellRoute}
+    <FeaturePage {route} {search} />
+  {:else if shellRoute}
+    <AppShell bind:this={shell} route={shellRoute} {drafts}>
+      {#if sessionId}
+        {#if openedPage}
+          {@render session(openedPage)}
+        {:else}
+          <LazyPage
+            load={loadSessionPage}
+            label={pageLabel}
+            errorMessage={(loadError) =>
+              loadError instanceof Error
+                ? loadError.message
+                : m.s1_page_load_failed({ label: pageLabel })}
+          >
+            {#snippet children(page)}
+              {@render session(page)}
+            {/snippet}
+          </LazyPage>
+        {/if}
+      {:else if route.name !== "sessions" || contributions.workspace}
+        <FeaturePage {route} {search} />
+      {:else}
+        <SessionList />
+      {/if}
+    </AppShell>
+  {/if}
+</div>
 
 {#if ready && (discoveryError || discoveryFailureCause)}
   <div class="fixed inset-x-2 bottom-2 z-50">

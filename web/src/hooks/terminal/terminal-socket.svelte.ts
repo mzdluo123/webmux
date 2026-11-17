@@ -23,7 +23,8 @@ import {
   resolveAppendOverlap,
   trimOverlapChunk,
 } from "../../domains/terminal/terminal-protocol";
-import { connect, wsCompression } from "../../platform/ws";
+import { connect } from "../../platform/ws";
+import { wsCompression } from "../../platform/ws-compression";
 import type { Connection, SocketConnection } from "../../platform/ws-contracts";
 import { createOutputBudget } from "../../domains/terminal/terminal-output";
 import {

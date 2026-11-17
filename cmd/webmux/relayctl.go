@@ -103,10 +103,10 @@ func newRelayController(ctx context.Context, c config.Config, public *transport.
 func (rc *relayController) authSnapshot() (relaysetting.AuthBinding, bool) {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
-	if !rc.status.ControlReady || rc.settings.Binding == nil {
+	if rc.settings.Binding == nil {
 		return relaysetting.AuthBinding{}, false
 	}
-	return relaysetting.AuthBinding{Binding: *rc.settings.Binding, Scope: rc.scope, ControlOrigin: rc.settings.Config.ControlEndpoint}, true
+	return relaysetting.AuthBinding{Binding: *rc.settings.Binding, Scope: rc.scope, ControlOrigin: rc.settings.Config.ControlEndpoint}, rc.status.ControlReady
 }
 
 func (rc *relayController) Status() contract.RelayStatus {
@@ -192,7 +192,7 @@ func (rc *relayController) Update(_ context.Context, req contract.RelayUpdate) (
 	return rc.finishOperation(nil, false)
 }
 
-func (rc *relayController) Reconnect(_ context.Context) (contract.RelayStatus, error) {
+func (rc *relayController) Reconnect(requestCtx context.Context) (contract.RelayStatus, error) {
 	rc.op.Lock()
 	defer rc.op.Unlock()
 	rc.beginOperation("reconnect")
@@ -202,9 +202,12 @@ func (rc *relayController) Reconnect(_ context.Context) (contract.RelayStatus, e
 	if !enabled || rc.client == nil || rc.store.Unavailable() != nil {
 		return rc.finishOperation(relaysetting.ErrEnableBlocked, false)
 	}
-	ctx, cancel := context.WithTimeout(rc.ctx, protocol.RequestTimeout)
+	ctx, cancel := context.WithTimeout(requestCtx, protocol.RequestTimeout)
 	defer cancel()
-	rc.stop(ctx)
+	rc.stopTransport()
+	if rc.auth != nil {
+		_ = rc.auth.SuspendAll(ctx)
+	}
 	rc.mu.Lock()
 	rc.settings.Config.Enabled = true
 	rc.mu.Unlock()
@@ -234,6 +237,13 @@ func (rc *relayController) finishOperation(err error, uncertain bool) (contract.
 }
 
 func (rc *relayController) stop(ctx context.Context) {
+	rc.stopTransport()
+	if rc.auth != nil {
+		_ = rc.auth.InvalidateAll(ctx)
+	}
+}
+
+func (rc *relayController) stopTransport() {
 	rc.mu.Lock()
 	rc.generation++
 	rc.public.Clear("relay")
@@ -249,9 +259,6 @@ func (rc *relayController) stop(ctx context.Context) {
 	rc.status.State = "off"
 	rc.scope = protocol.Scope{}
 	rc.mu.Unlock()
-	if rc.auth != nil {
-		_ = rc.auth.InvalidateAll(ctx)
-	}
 }
 
 func (rc *relayController) restart() {
@@ -423,7 +430,7 @@ func (rc *relayController) disconnected(gen uint64) {
 	if rc.auth != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), protocol.RequestTimeout)
 		defer cancel()
-		_ = rc.auth.InvalidateAll(ctx)
+		_ = rc.auth.SuspendAll(ctx)
 	}
 }
 

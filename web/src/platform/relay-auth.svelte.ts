@@ -5,6 +5,8 @@ export const relayAuth = $state<RelayAuthState>({
   authenticated: false,
   csrfToken: "",
   expiresAt: 0,
+  relay: false,
+  reason: undefined,
 });
 
 subscribeRelayAuth((state) => Object.assign(relayAuth, state));

@@ -290,6 +290,38 @@ func TestControlUnionAndBrowserAuthority(t *testing.T) {
 	}
 }
 
+func TestControlResumeUnionAndScope(t *testing.T) {
+	scope := Scope{HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, ControlEpoch: vectorToken, NodeEpoch: vectorToken}
+	m := ControlMessage{Version: V1, Type: ControlResume, RequestID: vectorToken, Scope: scope, ExpiresAt: vectorNow.Add(time.Minute).Unix(), Resume: &LoginResume{GrantID: vectorToken}}
+	if err := m.Validate(scope, vectorNow); err != nil {
+		t.Fatal(err)
+	}
+	var decoded ControlMessage
+	var wire bytes.Buffer
+	if err := WriteFrame(&wire, m, MaxControlBytes); err != nil {
+		t.Fatal(err)
+	}
+	if err := ReadFrame(&wire, &decoded, MaxControlBytes); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Type != ControlResume || decoded.Resume == nil || *decoded.Resume != *m.Resume {
+		t.Fatal("resume wire round trip lost payload")
+	}
+	m.Resume.GrantID = ""
+	requireCode(t, m.Validate(scope, vectorNow), Invalid)
+	m.Resume.GrantID = vectorToken
+	m.Exchange = &LoginExchange{}
+	requireCode(t, m.Validate(scope, vectorNow), Invalid)
+	m.Exchange = nil
+	m.Type = ControlICERequest
+	requireCode(t, m.Validate(scope, vectorNow), Invalid)
+	m.Type = ControlResume
+	other := scope
+	other.ConnectorGeneration++
+	requireCode(t, m.Validate(other, vectorNow), StaleGeneration)
+	requireCode(t, m.Validate(scope, vectorNow.Add(time.Minute)), Expired)
+}
+
 func TestControlMessageExpiry(t *testing.T) {
 	scope := Scope{HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, ControlEpoch: vectorToken, NodeEpoch: vectorToken}
 	for _, kind := range []ControlType{ControlPing, ControlPong} {

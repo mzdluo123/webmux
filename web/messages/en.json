@@ -5126,5 +5126,15 @@
   "handoff_preview_stats": "Selected {selected}, omitted {omitted}, source gaps {gaps}",
   "handoff_history_budget": "History budget {used} / {total}; expires {expires}",
   "handoff_operation_state": "Operation state: {state}",
-  "handoff_read_original": "Read frozen originals"
+  "handoff_read_original": "Read frozen originals",
+  "relay_auth_title": "Connect through Official Relay",
+  "relay_auth_description": "This address uses your WebMux console login.",
+  "relay_auth_reconnecting": "Reconnecting to this host. Your browser session is being checked automatically.",
+  "relay_auth_retry_stopped": "The host is still unavailable. Automatic checks have paused; try again when the connection returns.",
+  "relay_auth_expired": "Your relay login has expired. Sign in again to continue.",
+  "relay_auth_revoked": "Relay access was revoked or you signed out. Sign in again only if this host is still shared with you.",
+  "relay_auth_unauthenticated": "Sign in through the official relay to access this host.",
+  "relay_auth_drafts_kept": "Keep this tab open to preserve your current page and unsent drafts. Interrupted actions are not sent again automatically.",
+  "relay_auth_check_again": "Check connection again",
+  "relay_auth_login": "Sign in with WebMux console"
 }

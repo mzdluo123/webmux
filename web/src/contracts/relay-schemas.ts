@@ -146,11 +146,20 @@ export const RelayEnrollmentRequestSchema = z
     confirmPublic: z.boolean(),
   })
   .strict();
+export const RelayAuthReasonSchema = z.enum([
+  "reconnecting",
+  "expired",
+  "revoked",
+  "unauthenticated",
+]);
+export type RelayAuthReason = z.infer<typeof RelayAuthReasonSchema>;
 export const RelayAuthSessionSchema = z
   .object({
     authenticated: z.boolean(),
     csrfToken: z.string(),
     expiresAt: z.number().int().min(0),
+    relay: z.boolean().optional(),
+    reason: RelayAuthReasonSchema.optional(),
   })
   .refine(
     (value) =>

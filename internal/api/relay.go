@@ -64,6 +64,32 @@ func relayFailure(w http.ResponseWriter, err error) {
 	}
 }
 
+// Browser failures carry recovery hints only on the authenticated connector
+// ingress. CSRF/origin failures are not a signal to discard a valid login.
+func (s *Server) relayBrowserFailure(w http.ResponseWriter, r *http.Request, err error) {
+	var remote protocol.Error
+	origin := s.relayOrigin(r)
+	if origin == "" || s.Relay.Auth == nil || !errors.As(err, &remote) || (remote.Code != protocol.Unauthenticated && remote.Code != protocol.Expired && remote.Code != protocol.Unavailable) {
+		relayFailure(w, err)
+		return
+	}
+	cookie := ""
+	if value, cookieErr := r.Cookie(relaysetting.AuthCookieName); cookieErr == nil {
+		cookie = value.Value
+	}
+	status := s.Relay.Auth.Probe(cookie, origin)
+	reason := status.Reason
+	if status.Authenticated {
+		// This operation lost its old epoch while another request recovered.
+		reason = "reconnecting"
+	}
+	httpStatus := http.StatusUnauthorized
+	if reason == "reconnecting" {
+		httpStatus = http.StatusServiceUnavailable
+	}
+	reply(w, httpStatus, contract.RelayAuthFailure{Error: string(remote.Code), Relay: true, Reason: reason})
+}
+
 func (s *Server) relayRoutes(mux *http.ServeMux) {
 	if s.Relay == nil {
 		return
@@ -157,6 +183,7 @@ func (s *Server) relayRoutes(mux *http.ServeMux) {
 			relayFailure(w, err)
 			return
 		}
+		v.Relay = s.relayOrigin(r) != ""
 		reply(w, 200, wire.RelayAuthSession(v))
 	})
 	mux.HandleFunc("POST /api/relay/auth/logout", func(w http.ResponseWriter, r *http.Request) {
@@ -196,6 +223,9 @@ func (s *Server) relayOrigin(r *http.Request) string {
 		return ""
 	}
 	origin := s.Public.SourceOrigin("relay")
+	if origin == "" && s.Relay.Auth != nil {
+		origin = s.Relay.Auth.PublicOrigin()
+	}
 	if origin == "https://"+r.Host {
 		return origin
 	}
@@ -218,7 +248,12 @@ func (s *Server) relayStart(w http.ResponseWriter, r *http.Request) {
 		failure(w, 403, errors.New("relay origin required"))
 		return
 	}
-	v, err := s.Relay.Auth.Start(r.Context(), origin)
+	query := r.URL.Query()
+	if len(query) > 1 || len(query["returnTo"]) > 1 || len(query) == 1 && len(query["returnTo"]) != 1 {
+		failure(w, http.StatusBadRequest, errors.New("invalid relay destination"))
+		return
+	}
+	v, err := s.Relay.Auth.Start(r.Context(), origin, query.Get("returnTo"))
 	if err != nil {
 		relayFailure(w, err)
 		return
@@ -251,24 +286,53 @@ func (s *Server) relayCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{Name: "__Host-webmux-relay-tx", Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: -1})
 	relaySetCookie(w, v.Cookie)
-	http.Redirect(w, r, "/app", http.StatusSeeOther)
+	http.Redirect(w, r, v.ReturnTo, http.StatusSeeOther)
 }
 
 // withRelayBrowser authenticates only the dedicated connector transport. A
 // forged Host/forwarded header on the ordinary listener cannot mint this context.
 func (s *Server) withRelayBrowser(w http.ResponseWriter, r *http.Request, next http.Handler) bool {
-	origin := s.relayOrigin(r)
-	if origin == "" {
+	if s.Relay == nil || !transport.IsTrustedRelay(r.Context()) {
+		return false
+	}
+	if !strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/ws/") && r.URL.Path != "/mcp" && !strings.HasPrefix(r.URL.Path, "/mcp/") && r.URL.Path != "/forward" && !strings.HasPrefix(r.URL.Path, "/forward/") {
 		return false
 	}
 	relayAuthHeaders(w)
-	cookie, err := r.Cookie("__Host-webmux-relay")
-	if err != nil {
-		return false
+	if s.Relay.Auth == nil {
+		relayFailure(w, protocol.Error{Code: protocol.Unavailable})
+		return true
 	}
-	p, err := s.Relay.Auth.Authenticate(cookie.Value, origin)
+	origin := s.relayOrigin(r)
+	if origin == "" {
+		failure(w, http.StatusForbidden, errors.New("relay origin required"))
+		return true
+	}
+	cookie := ""
+	if value, err := r.Cookie(relaysetting.AuthCookieName); err == nil {
+		cookie = value.Value
+	}
+	if r.URL.Path == "/api/relay/auth/session" && r.Method == http.MethodGet {
+		if requestOrigin := r.Header.Get("Origin"); requestOrigin != "" && requestOrigin != origin {
+			failure(w, http.StatusForbidden, errors.New("origin not allowed"))
+			return true
+		}
+		reply(w, http.StatusOK, wire.RelayAuthSession(s.Relay.Auth.Probe(cookie, origin)))
+		return true
+	}
+	if r.URL.Path == "/api/relay/auth/logout" && r.Method == http.MethodPost {
+		if err := s.Relay.Auth.LogoutBrowser(r.Context(), cookie, r.Header.Get("Origin"), r.Header.Get("X-WebMux-CSRF")); err != nil {
+			s.relayBrowserFailure(w, r, err)
+			return true
+		}
+		http.SetCookie(w, &http.Cookie{Name: relaysetting.AuthCookieName, Path: "/", Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: -1})
+		w.WriteHeader(http.StatusNoContent)
+		return true
+	}
+	p, err := s.Relay.Auth.Authenticate(cookie, origin)
 	if err != nil {
-		return false
+		s.relayBrowserFailure(w, r, err)
+		return true
 	}
 	if r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS" {
 		err = s.Relay.Auth.CheckMutation(p, r.Header.Get("Origin"), r.Header.Get("X-WebMux-CSRF"))
@@ -276,11 +340,7 @@ func (s *Server) withRelayBrowser(w http.ResponseWriter, r *http.Request, next h
 		err = s.Relay.Auth.CheckOrigin(p, r.Header.Get("Origin"))
 	}
 	if err != nil {
-		relayFailure(w, err)
-		return true
-	}
-	if r.URL.Path == "/api/relay/auth/logout" {
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), relayPrincipalKey{}, p)))
+		s.relayBrowserFailure(w, r, err)
 		return true
 	}
 	ctx, cancel := context.WithCancel(r.Context())
@@ -291,7 +351,7 @@ func (s *Server) withRelayBrowser(w http.ResponseWriter, r *http.Request, next h
 	release, err := s.Relay.Auth.RegisterAccess(p, cancel, done)
 	if err != nil {
 		close(done)
-		relayFailure(w, err)
+		s.relayBrowserFailure(w, r, err)
 		return true
 	}
 	defer release()

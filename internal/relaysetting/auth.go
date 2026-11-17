@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +26,7 @@ const (
 // AuthClient is implemented by the authenticated connector control channel.
 type AuthClient interface {
 	Exchange(context.Context, protocol.LoginExchange) (protocol.BrowserGrant, error)
+	Resume(context.Context, protocol.LoginResume) (protocol.BrowserGrant, error)
 	ICE(context.Context, protocol.ICERequest) (protocol.ICEConfig, error)
 	Scope() (protocol.Scope, bool)
 }
@@ -43,7 +46,8 @@ type AuthConfig struct {
 }
 
 type AuthDependencies struct {
-	Client   AuthClient
+	Client AuthClient
+	// Snapshot may retain binding identity while its readiness result is false.
 	Snapshot func() (AuthBinding, bool)
 	Now      func() time.Time
 	Random   io.Reader
@@ -66,6 +70,7 @@ type AuthStart struct {
 type AuthFinish struct {
 	Cookie    AuthCookie
 	Principal AuthPrincipal
+	ReturnTo  string
 }
 
 type authTransaction struct {
@@ -74,6 +79,7 @@ type authTransaction struct {
 	binding    AuthBinding
 	expires    time.Time
 	generation uint64
+	returnTo   string
 }
 
 // Auth owns only ephemeral browser authority. Closing it never terminates PTYs.
@@ -86,6 +92,7 @@ type Auth struct {
 	csrfKey      [32]byte
 	transactions map[[32]byte]authTransaction
 	sessions     map[[32]byte]*AuthSession
+	failures     map[[32]byte]authFailure
 	generation   uint64
 	closed       bool
 	stop         chan struct{}
@@ -117,12 +124,22 @@ func NewAuth(config AuthConfig, deps AuthDependencies) (*Auth, error) {
 	if deps.Random == nil {
 		deps.Random = rand.Reader
 	}
-	a := &Auth{config: config, deps: deps, transactions: make(map[[32]byte]authTransaction), sessions: make(map[[32]byte]*AuthSession), stop: make(chan struct{}), done: make(chan struct{})}
+	a := &Auth{config: config, deps: deps, transactions: make(map[[32]byte]authTransaction), sessions: make(map[[32]byte]*AuthSession), failures: make(map[[32]byte]authFailure), stop: make(chan struct{}), done: make(chan struct{})}
 	if _, err := io.ReadFull(deps.Random, a.csrfKey[:]); err != nil {
 		return nil, fmt.Errorf("initialize relay browser authentication: %w", err)
 	}
 	a.workers.Go(a.cleanTransactions)
 	return a, nil
+}
+
+// PublicOrigin is binding identity, not authorization or transport readiness.
+// Only a trusted connector ingress may use it when the control link is down.
+func (a *Auth) PublicOrigin() string {
+	binding, _ := a.deps.Snapshot()
+	if binding.Binding.Validate() != nil {
+		return ""
+	}
+	return binding.Binding.PublicURL
 }
 
 func (a *Auth) snapshot() (AuthBinding, error) {
@@ -164,8 +181,40 @@ func ClearAuthCookie(name string) AuthCookie {
 	return AuthCookie{Name: name, MaxAge: -1, Expires: time.Unix(1, 0)}
 }
 
-func (a *Auth) Start(ctx context.Context, publicOrigin string) (AuthStart, error) {
+var authAppRoute = regexp.MustCompile(`^(/|/app|/(s|code|handoff)/[a-z2-7]{8}|/git(/[A-Za-z0-9_-]{1,64}(/worktrees/[A-Za-z0-9_-]{1,64})?)?|/new|/settings(/(relay|tailscale|tunnel))?)$`)
+
+// authReturnTo accepts only application routes, never credentials or endpoints.
+func authReturnTo(destination string) (string, error) {
+	if destination == "" {
+		return "/app", nil
+	}
+	u, err := url.Parse(destination)
+	if err != nil || len(destination) > protocol.MaxURLBytes || u.IsAbs() || u.Host != "" || u.User != nil || u.Opaque != "" || u.RawPath != "" || u.ForceQuery || u.Fragment != "" || strings.ContainsAny(destination, "\\\x00\r\n\t") || !authAppRoute.MatchString(u.Path) {
+		return "", protocol.Error{Code: protocol.Invalid}
+	}
+	query, err := url.ParseQuery(u.RawQuery)
+	if err != nil || len(query) > 0 && u.Path != "/git" && !strings.HasPrefix(u.Path, "/git/") {
+		return "", protocol.Error{Code: protocol.Invalid}
+	}
+	for key, values := range query {
+		switch key {
+		case "view", "scope", "branch", "commit", "q", "author", "since", "until", "path", "returnSession":
+		default:
+			return "", protocol.Error{Code: protocol.Invalid}
+		}
+		if len(values) != 1 || strings.ContainsAny(values[0], "\x00\r\n") {
+			return "", protocol.Error{Code: protocol.Invalid}
+		}
+	}
+	return destination, nil
+}
+
+func (a *Auth) Start(ctx context.Context, publicOrigin, returnTo string) (AuthStart, error) {
 	if err := ctx.Err(); err != nil {
+		return AuthStart{}, err
+	}
+	returnTo, err := authReturnTo(returnTo)
+	if err != nil {
 		return AuthStart{}, err
 	}
 	binding, err := a.snapshot()
@@ -204,7 +253,7 @@ func (a *Auth) Start(ctx context.Context, publicOrigin string) (AuthStart, error
 	if _, exists := a.transactions[key]; exists {
 		return AuthStart{}, protocol.Error{Code: protocol.Conflict}
 	}
-	a.transactions[key] = authTransaction{state: authDigest(state), verifier: verifier, binding: binding, expires: expires, generation: a.generation}
+	a.transactions[key] = authTransaction{state: authDigest(state), verifier: verifier, binding: binding, expires: expires, generation: a.generation, returnTo: returnTo}
 	return AuthStart{URL: binding.ControlOrigin + protocol.PathLoginAuthorize + "?" + query.Encode(), Cookie: authCookie(AuthTransactionCookieName, handle, now, expires)}, nil
 }
 
@@ -264,7 +313,9 @@ func (a *Auth) Finish(ctx context.Context, publicOrigin, transactionCookie, stat
 	if err != nil {
 		return AuthFinish{}, err
 	}
-	return a.newSession(handle, grant, binding, tx.generation, now)
+	finish, err := a.newSession(handle, grant, binding, tx.generation, now)
+	finish.ReturnTo = tx.returnTo
+	return finish, err
 }
 
 func authDigestBytes(value string) []byte {
@@ -296,6 +347,7 @@ func (a *Auth) cleanTransactions() {
 		case <-ticker.C:
 			a.mu.Lock()
 			a.pruneTransactionsLocked(a.deps.Now())
+			a.pruneSessionsLocked(a.deps.Now())
 			a.mu.Unlock()
 		}
 	}

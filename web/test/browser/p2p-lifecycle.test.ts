@@ -43,6 +43,8 @@ vi.mock("../../src/platform/p2p-framing", async (original) => ({
 }));
 vi.mock("../../src/platform/ws", () => ({
   handoffLiveSockets: vi.fn(),
+}));
+vi.mock("../../src/platform/ws-registry", () => ({
   observeManagedStreams: () => () => {},
 }));
 
