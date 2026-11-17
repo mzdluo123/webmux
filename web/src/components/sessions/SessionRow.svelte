@@ -93,6 +93,7 @@
 >
   <a
     data-session-link
+    class:pb-4={!compact && chat}
     class="group flex h-full w-full min-w-0 flex-col rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     aria-label={session.title}
     href={`/s/${session.id}`}
@@ -111,7 +112,10 @@
       }
     }}
   >
-    <div class={compact ? "min-w-0 px-3 py-3" : "min-w-0 px-4 py-4"}>
+    <div
+      class:pb-4={!compact && (!chat || Boolean(session.preview))}
+      class={compact ? "min-w-0 px-3 py-3" : "min-w-0 px-4 pt-4"}
+    >
       <!-- The status follows the title, so a status change grows only to
            the right and moves nothing else; the facts below stay put. Large
            text on a narrow card moves the status under the title. -->
@@ -198,7 +202,7 @@
         {#if session.preview}
           <p
             aria-label={m.s3_latest_msg_preview_label()}
-            class="mb-4 line-clamp-3 min-w-0 px-4 text-sm leading-6 wrap-break-word whitespace-pre-line text-foreground/85"
+            class="line-clamp-3 min-w-0 px-4 text-sm leading-6 wrap-break-word whitespace-pre-line text-foreground/85"
           >
             {session.preview}
           </p>
