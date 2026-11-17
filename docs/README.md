@@ -65,10 +65,10 @@
 - [架构分层与线上契约](architecture/layers.md)：R0–R11、Relay 公开协议子模块边界与 wire 快照维护。
 - [原生 Agent 历史夹具](native-history-fixtures.md)：真实会话脱敏样本、离线读取器开发与缺失覆盖说明。
 - [API 与协议](protocol.md)：REST、WebSocket 帧与错误码（按主题分页）。
-  - [交接操作](hybrid-sessions/handoff.md)：换 Agent、新聊天位置、草稿与恢复。
-  - [交接预览](protocol/http-handoff.md)：整项历史选择、预算、revision 与 stale。
+  - [交接操作](hybrid-sessions/handoff.md)：默认历史图片、显式文本、新聊天位置与单次发送。
+  - [交接预览](protocol/http-handoff.md)：冻结图片页集、独立预算、能力检查与操作状态。
   - [只读历史 MCP](protocol/handoff-mcp.md)：目标 scope、分页恢复、可用性和生命周期。
-  - [Codex 原生历史](protocol/handoff-native.md)：已核实的版本、角色、独立用户 turn 与 unknown 恢复。
+  - [交接原生身份](protocol/handoff-native.md)：来源身份、冻结内容发送与操作生命周期。
   - [持久对话历史](protocol/http-conversation.md)：Activity 分页、长文本余文、完整性和 portable projection。
 - [配置与持久化清单](persistence.md)：状态目录中每类文件的格式与治理。
 - [OpenSpec 规格索引](specs.md)：按主题列出 `openspec/specs/` 下的全部 capability。
@@ -79,7 +79,7 @@
 
 - [Relay 真实公网验证](relay-validation-604.md)：issue #604 的传输筛选、BBR、业务与证据边界。
 - [Relay 终端优先补测](relay-terminal-validation-604.md)：CLI/TUI 网络负载下的按键、输出完整性与恢复。
-- [交接故障矩阵与性能验收](protocol/handoff-validation.md)：迁移清理、unknown、全局关闭、SQLite 与 selector 实测。
+- [交接故障矩阵与检查](protocol/handoff-validation.md)：来源冻结、图片覆盖、发送状态与测试入口。
 - [布局稳定性与 4× CPU 回归](performance.md)：性能测试的测量方式与阈值。
 - [页面性能与连接稳定性验证](page-performance.md)：页面加载与重连的实测记录。
 - [内嵌二进制体积](binary-size.md)：发布二进制的体积对比。

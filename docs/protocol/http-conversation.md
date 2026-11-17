@@ -32,8 +32,8 @@ omp 的 list 仅读取有界标题和 session 头，分支在 freeze 校验正�
 无关会话的不兼容正文不影响目标；同一原生 ID 出现在多个候选文件时仍返回 409。
 action=read 使用 snapshotId、afterPosition 与 textOffset 分页。
 action=project 使用 snapshotId、currentTask 与可选 outputRunes 生成机械文本。
-action=render 使用同一范围生成显式图片实验结果。
-预览缓存有效五分钟、最多 32 项，manifest 与预览文本共用 64 MiB 上限。
+action=render 使用同一范围生成显式开发渲染结果；生产默认图片交接使用[交接预览接口](http-handoff.md)。
+预览缓存有效五分钟、最多 32 项，manifest、预览文本与图片表示共同计入 64 MiB 上限。
 
 ## 来源校验与错误
 

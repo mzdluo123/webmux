@@ -31,6 +31,12 @@ type PromptInput struct {
 	TitleSource          string
 	Mode                 string
 	Attachments          []Attachment
+	Images               []PromptImage
+}
+
+type promptDispatch struct {
+	result          PromptResult
+	acknowledgement *promptAcknowledgement
 }
 
 // QueueEdit changes a queued prompt: new Text and/or Move MoveUp.
@@ -99,6 +105,9 @@ func agentCommand(ctx context.Context, s *Service, id, requestID, name string, p
 // ModeNow cancels the running turn and sends the prompt next. The text is
 // at most MaxPromptBytes and may be blank when the prompt has attachments.
 func (s *Service) Prompt(ctx context.Context, id string, in PromptInput) (PromptResult, error) {
+	if len(in.Images) > 0 && (in.Mode != ModeRefuse || len(in.Attachments) > 0) {
+		return PromptResult{}, fmt.Errorf("%w: 冻结图片仅支持直接发送", ErrInvalid)
+	}
 	a, err := s.actor(id)
 	if err != nil {
 		return PromptResult{}, err
@@ -138,15 +147,15 @@ func (s *Service) Prompt(ctx context.Context, id string, in PromptInput) (Prompt
 		})
 		return PromptResult{}, err
 	case ModeRefuse:
-		return once(ctx, &a.recent, in.ClientRequestID, "prompt-refuse", func(ctx context.Context) (PromptResult, error) {
+		dispatch, err := once(ctx, &a.recent, in.ClientRequestID, "prompt-refuse", func(ctx context.Context) (promptDispatch, error) {
 			attachments, err := resolveAttachments(s.uploadCheck(id), in.Attachments)
 			if err != nil {
-				return PromptResult{}, err
+				return promptDispatch{}, err
 			}
-			if err := validText(in.Text, len(attachments)); err != nil {
-				return PromptResult{}, err
+			if err := validText(in.Text, len(attachments)+len(in.Images)); err != nil {
+				return promptDispatch{}, err
 			}
-			var acknowledgement <-chan error
+			var acknowledgement *promptAcknowledgement
 			result, err := call(ctx, a, func() (PromptResult, error) {
 				if in.ExpectedIdentity != "" {
 					rec, ok := s.records.get(id)
@@ -158,22 +167,25 @@ func (s *Service) Prompt(ctx context.Context, id string, in PromptInput) (Prompt
 				if in.ExpectedUsage != nil && (a.chat.Usage == nil || a.chat.Usage.Used != in.ExpectedUsage.Used || a.chat.Usage.Size != in.ExpectedUsage.Size) {
 					return PromptResult{}, ErrConflict
 				}
-				result, err := a.promptRefuse(in.Text, in.TitleSource, attachments)
+				result, err := a.promptRefuse(in.Text, in.TitleSource, attachments, in.Images)
 				if err == nil && a.turn != nil {
 					acknowledgement = a.turn.acknowledgement
 				}
 				return result, err
 			})
-			if err != nil || !in.AwaitAcknowledgement || acknowledgement == nil {
-				return result, err
-			}
-			select {
-			case err := <-acknowledgement:
-				return result, err
-			case <-ctx.Done():
-				return result, ctx.Err()
-			}
+			return promptDispatch{result: result, acknowledgement: acknowledgement}, err
 		})
+		if err != nil || !in.AwaitAcknowledgement || dispatch.acknowledgement == nil {
+			return dispatch.result, err
+		}
+		// Receipt observation follows the turn, not the 30-second dispatch
+		// deadline. Cancelling observation never submits a second prompt.
+		select {
+		case <-dispatch.acknowledgement.done:
+			return dispatch.result, dispatch.acknowledgement.err
+		case <-ctx.Done():
+			return dispatch.result, ctx.Err()
+		}
 	case ModeNow:
 		return once(ctx, &a.recent, in.ClientRequestID, "prompt-now", func(ctx context.Context) (PromptResult, error) {
 			attachments, err := resolveAttachments(s.uploadCheck(id), in.Attachments)

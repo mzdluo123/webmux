@@ -41,6 +41,20 @@ describe("ephemeral handoff protocol", () => {
       request.userText,
     );
   });
+  it("rejects invalid image selection budgets and representation", () => {
+    for (const maxPages of [-1, 1.5, 9]) {
+      expect(
+        HandoffPreviewRequestSchema.safeParse({ ...request, maxPages }).success,
+      ).toBe(false);
+    }
+    expect(
+      HandoffPreviewRequestSchema.safeParse({ ...request, format: "automatic" })
+        .success,
+    ).toBe(false);
+    expect(
+      HandoffPreviewRequestSchema.parse({ ...request, format: "text" }).format,
+    ).toBe("text");
+  });
   it("rejects retired draft controls", () => {
     expect(
       HandoffPreviewRequestSchema.safeParse({

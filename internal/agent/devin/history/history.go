@@ -22,7 +22,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const ParserVersion = "devin-sqlite-1"
+const ParserVersion = "devin-sqlite-2"
 
 type boundary struct {
 	NativeID, Branch, Digest, Instance string
@@ -33,6 +33,78 @@ type node struct {
 	id             int64
 	parent         sql.NullInt64
 	body, metadata string
+}
+
+type nativeToolCall struct {
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments"`
+}
+
+type toolState struct {
+	Status    string          `json:"status"`
+	Title     string          `json:"title"`
+	Content   json.RawMessage `json:"content"`
+	RawInput  json.RawMessage `json:"rawInput"`
+	RawOutput json.RawMessage `json:"rawOutput"`
+}
+
+func parseToolState(raw string) (toolState, bool, error) {
+	var state toolState
+	var fields map[string]json.RawMessage
+	if json.Unmarshal([]byte(raw), &fields) != nil {
+		return state, false, historysource.ErrFormat
+	}
+	gap := false
+	for key, value := range fields {
+		switch key {
+		case "status":
+			if json.Unmarshal(value, &state.Status) != nil {
+				return state, false, historysource.ErrFormat
+			}
+		case "title":
+			if json.Unmarshal(value, &state.Title) != nil {
+				return state, false, historysource.ErrFormat
+			}
+		case "content":
+			state.Content = value
+		case "rawInput":
+			state.RawInput = value
+		case "rawOutput":
+			state.RawOutput = value
+		case "toolCallId", "kind", "_meta":
+		default:
+			gap = gap || string(value) != "null"
+		}
+	}
+	return state, gap, nil
+}
+
+func parseToolCall(raw json.RawMessage) (nativeToolCall, bool, error) {
+	var call nativeToolCall
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil {
+		return call, false, historysource.ErrFormat
+	}
+	gap := false
+	for key, value := range fields {
+		switch key {
+		case "id":
+			if json.Unmarshal(value, &call.ID) != nil {
+				return call, false, historysource.ErrFormat
+			}
+		case "name":
+			if json.Unmarshal(value, &call.Name) != nil {
+				return call, false, historysource.ErrFormat
+			}
+		case "arguments":
+			call.Arguments = value
+		case "index", "kind":
+		default:
+			gap = gap || string(value) != "null"
+		}
+	}
+	return call, gap, nil
 }
 
 // Read follows sessions.main_chain_id inside one read-only transaction. Frozen
@@ -144,6 +216,7 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 	}
 	hash := sha256.New()
 	_, _ = fmt.Fprintf(hash, "%q %d %t", req.Source.NativeID, b.Head, b.Empty)
+	calls := make(map[string]historysource.Record)
 	for i := len(nodes) - 1; i >= 0; i-- {
 		if ctx.Err() != nil {
 			return out, ctx.Err()
@@ -151,10 +224,10 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 		n := nodes[i]
 		_, _ = fmt.Fprintf(hash, "%d %v %q %q", n.id, n.parent, n.body, n.metadata)
 		var msg struct {
-			Role       string                      `json:"role"`
-			Content    json.RawMessage             `json:"content"`
-			ToolCallID string                      `json:"tool_call_id"`
-			ToolCalls  []struct{ ID, Name string } `json:"tool_calls"`
+			Role       string            `json:"role"`
+			Content    json.RawMessage   `json:"content"`
+			ToolCallID string            `json:"tool_call_id"`
+			ToolCalls  []json.RawMessage `json:"tool_calls"`
 		}
 		if json.Unmarshal([]byte(n.body), &msg) != nil {
 			return out, historysource.ErrFormat
@@ -184,17 +257,44 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 			out.Gaps = append(out.Gaps, historysource.Gap{RecordID: id, Category: "system-omitted"})
 			continue
 		}
-		text, e := contentText(msg.Content)
+		text, gap, e := contentText(msg.Content)
 		if e != nil {
 			return out, e
 		}
-		kind := "message"
-		if msg.Role == "tool" {
-			kind = "tool-result"
+		if gap {
+			out.Gaps = append(out.Gaps, historysource.Gap{RecordID: id, Category: "unsupported-content"})
 		}
-		out.Records = append(out.Records, historysource.Record{ID: id, NativeID: id, ParentID: parent, Kind: kind, Role: msg.Role, Text: text, CallID: msg.ToolCallID, Offset: n.id, End: n.id + 1})
-		for j, c := range msg.ToolCalls {
-			out.Records = append(out.Records, historysource.Record{ID: fmt.Sprintf("%s/call/%d", id, j), NativeID: id, ParentID: id, Kind: "tool-call", Role: "assistant", CallID: c.ID, ToolName: c.Name, Offset: n.id, End: n.id + 1})
+		if strings.TrimSpace(text) != "" {
+			record := historysource.Record{ID: id, NativeID: id, ParentID: parent, Kind: "message", Role: msg.Role, Text: text, CallID: msg.ToolCallID, NativeCallID: msg.ToolCallID, Offset: n.id, End: n.id + 1}
+			if msg.Role == "tool" {
+				record.Kind = "tool-result"
+				record.ToolName = calls[msg.ToolCallID].ToolName
+				record.Status = calls[msg.ToolCallID].Status
+			}
+			out.Records = append(out.Records, record)
+		}
+		for j, rawCall := range msg.ToolCalls {
+			c, gap, e := parseToolCall(rawCall)
+			if e != nil {
+				return out, e
+			}
+			if gap {
+				out.Gaps = append(out.Gaps, historysource.Gap{RecordID: fmt.Sprintf("%s/call/%d", id, j), Category: "unsupported-tool-call"})
+			}
+			args, e := valueText(c.Arguments)
+			if e != nil {
+				return out, e
+			}
+			record := historysource.Record{ID: fmt.Sprintf("%s/call/%d", id, j), NativeID: id, ParentID: id, Kind: "tool-call", Role: "assistant", Text: args, CallID: c.ID, NativeCallID: c.ID, ToolName: c.Name, Offset: n.id, End: n.id + 1}
+			if c.ID == "" && c.Name == "" && strings.TrimSpace(args) == "" {
+				continue
+			}
+			out.Records = append(out.Records, record)
+			callIndex := len(out.Records) - 1
+			if c.ID == "" {
+				out.Gaps = append(out.Gaps, historysource.Gap{RecordID: record.ID, Category: "tool-call-identity"})
+				continue
+			}
 			var initial, update, sources sql.NullString
 			e = tx.QueryRowContext(ctx, "SELECT substr(CAST(tool_call_json AS BLOB),1,4194305),substr(CAST(tool_call_update_json AS BLOB),1,4194305),substr(CAST(source_node_ids AS BLOB),1,4194305) FROM tool_call_state WHERE session_id=? AND tool_call_id=?", req.Source.NativeID, c.ID).Scan(&initial, &update, &sources)
 			if e != nil && !errors.Is(e, sql.ErrNoRows) {
@@ -206,14 +306,67 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 					return out, historysource.ErrLimit
 				}
 				_, _ = fmt.Fprintf(hash, "%q %q %q %q", c.ID, initial.String, update.String, sources.String)
-				var state struct {
-					Status string `json:"status"`
+				for k, raw := range []sql.NullString{initial, update} {
+					if !raw.Valid || raw.String == "" {
+						continue
+					}
+					state, gap, e := parseToolState(raw.String)
+					if e != nil {
+						return out, e
+					}
+					if gap {
+						out.Gaps = append(out.Gaps, historysource.Gap{RecordID: record.ID, Category: "unsupported-tool-state"})
+					}
+					if state.Status != "" {
+						out.Records[callIndex].Status = state.Status
+					}
+					input, e := valueText(state.RawInput)
+					if e != nil {
+						return out, e
+					}
+					if input != "" && input != out.Records[callIndex].Text {
+						if out.Records[callIndex].Text == "" {
+							out.Records[callIndex].Text = input
+						} else {
+							extra := record
+							extra.ID = fmt.Sprintf("%s/state/%d/input", record.ID, k)
+							extra.Text = input
+							out.Records = append(out.Records, extra)
+						}
+					}
+					body, gap, e := contentText(state.Content)
+					if e != nil {
+						return out, e
+					}
+					if gap {
+						out.Gaps = append(out.Gaps, historysource.Gap{RecordID: record.ID, Category: "unsupported-tool-content"})
+					}
+					output, e := valueText(state.RawOutput)
+					if e != nil {
+						return out, e
+					}
+					for field, text := range []string{body, output} {
+						if strings.TrimSpace(text) == "" || (field == 1 && text == body) {
+							continue
+						}
+						extra := record
+						extra.ID = fmt.Sprintf("%s/state/%d/%d", record.ID, k, field)
+						extra.Kind, extra.Role, extra.Text = "tool-result", "tool", text
+						if k == 0 && field == 0 {
+							extra.Kind, extra.Role = "tool", "assistant"
+						}
+						extra.Status = out.Records[callIndex].Status
+						out.Records = append(out.Records, extra)
+					}
+					if strings.TrimSpace(state.Title) != "" && out.Records[callIndex].Text == "" && body == "" && output == "" {
+						out.Records[callIndex].Text = state.Title
+					}
 				}
-				if update.Valid && json.Unmarshal([]byte(update.String), &state) != nil {
-					return out, historysource.ErrFormat
-				}
-				out.Records[len(out.Records)-1].Status = state.Status
 			}
+			for k := callIndex + 1; k < len(out.Records); k++ {
+				out.Records[k].Status = out.Records[callIndex].Status
+			}
+			calls[c.ID] = out.Records[callIndex]
 		}
 		if len(out.Records)+len(out.Gaps) > historysource.MaxRecords {
 			return out, historysource.ErrLimit
@@ -238,26 +391,6 @@ func Read(ctx context.Context, req historysource.Request) (out historysource.Doc
 	return out, nil
 }
 
-func contentText(raw json.RawMessage) (string, error) {
-	if len(raw) == 0 || string(raw) == "null" {
-		return "", nil
-	}
-	var text string
-	if json.Unmarshal(raw, &text) == nil {
-		return text, nil
-	}
-	var blocks []struct{ Type, Text string }
-	if json.Unmarshal(raw, &blocks) != nil {
-		return "", historysource.ErrFormat
-	}
-	var b strings.Builder
-	for _, v := range blocks {
-		if v.Type == "text" {
-			b.WriteString(v.Text)
-		}
-	}
-	return b.String(), nil
-}
 func open(ctx context.Context, path string) (*sql.DB, error) {
 	abs, e := filepath.Abs(path)
 	if e != nil {
