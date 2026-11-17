@@ -185,3 +185,27 @@
 - 通过临时程序运行本分支真实 MCP Registry 的 initialize、tools/list 和 guide_read，离线导出工具及主题说明，观察到模式条件、`steering_unavailable`、竞态及回执边界；程序随后删除。
 - `make format` 已执行；文档治理在格式化后再次通过。
 - 本次为说明修正，未创建收费模型会话，也未重启或部署生产服务。
+
+## Kimi 与 QoderCN 原生来源读取（US-Q19、US-Q20）
+
+### 行为与兼容证据
+
+- Kimi 保留 wire 1.4，增加 CLI 2.5.3 实录的 wire 1.5 与 state v2 身份校验；过滤 injection、子 agent 与正文镜像，保留 Read 参数、结果及调用关联。
+- Qoder/QoderCN 共用已观察 writer 1.1.81、1.1.84 的有界规则；工具 input 归一化为消费者可见的 `tool_arguments`，保持活动祖先链、错误状态、安全过滤与冻结分支/parser 校验。
+- 国际 Qoder 共享夹具测试覆盖新增实录，但这些实录来自 QoderCN；本轮未运行国际 Qoder CLI。
+- 原有夹具保持，新增两种 reader 的合成正文与 Read 工具实录；manifest 区分原生版本、安装版本、脱敏与尚未覆盖的场景。
+
+### 已执行验证
+
+- `go test -race ./internal/agent/kimi/history ./internal/agent/qodercn/history ./internal/agent/qoder/history ./internal/historyimport ./internal/historyprojection`：Kimi、QoderCN、导入和投影通过；国际 Qoder 旧测试对共享夹具数量的假设失败。
+- 用户扩大共享 reader 范围后更新国际 Qoder 消费测试；`go test -race ./internal/agent/qoder/history ./internal/agent/qodercn/history ./internal/historyimport` 全部通过。
+- 三个 reader 的 `go vet` 与 `go test ./internal/archtest` 通过；`make web` 及隔离 Go 服务构建通过。
+- 独立 loopback 服务创建 Kimi/QoderCN 来源，真实 ACP 各读取仅含合成事实的 `fact.txt`；原生历史返回完整正文、工具参数/结果与相同 call ID。
+- 两个预览均含完整工具事实及参数，发送 operation succeeded；OpenCode 实际公布的 `opencode-go/deepseek-v4.1-flash` 接收目标各在 t1/end_turn 恢复合成校验码、中文项目、端口和文件名，目标未调用工具。
+- Kimi 目标实际回复 `RECOVERED SYNTHETIC_TOOL_FACT=WMX-KIMI-TOOL-7c92 project=青鹭 port=49367 file=fact.txt`；QoderCN 目标恢复 `WMX-QODER-TOOL-8d41`、`白鹭`、`49369` 及来源文件名。
+- 本地证据位于 `/tmp/webmux-kimi-qodercn-compat/`：`acceptance.json`、各来源的 native/preview/operation/target-log JSON 和 `cleanup.json`；四个测试会话关闭成功，生产服务未部署或重启。
+
+### 验收边界
+
+- 本轮覆盖文本来源读取、预览、真实工具链与跨 Agent 恢复；图片 UI、图片投影与发送管线保持原样。
+- CLI 的已有认证由 Agent 自身使用；未读取 Token、执行登录或处理 Claude 的 `auth_required`。

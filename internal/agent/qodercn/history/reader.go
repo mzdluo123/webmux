@@ -13,11 +13,13 @@ import (
 	"github.com/rainchan/webmux/internal/historysource"
 )
 
-const ParserVersion = "qodercn-jsonl/1"
+const ParserVersion = "qodercn-jsonl/2"
 
-// ObservedWriterVersion is CLI evidence from the real fixtures, not a native
-// format version or a connector/injection protocol version.
-const ObservedWriterVersion = "1.1.84"
+// Writer releases are evidence for this unversioned record format. Only the
+// captured releases are accepted; intermediate or future releases need evidence.
+func supportedWriter(version string) bool {
+	return version == "1.1.81" || version == "1.1.84"
+}
 
 type envelope struct {
 	Type      string `json:"type"`
@@ -37,7 +39,7 @@ type node struct {
 	envelope
 	offset, end int64
 }
-type boundary struct{ End, Fingerprint string }
+type boundary struct{ End, Fingerprint, Branch, Parser string }
 
 func Read(ctx context.Context, req historysource.Request) (historysource.Document, error) {
 	return ReadAs(ctx, req, "qodercn")
@@ -53,7 +55,10 @@ func ReadAs(ctx context.Context, req historysource.Request, agent string) (histo
 	frozen := boundary{}
 	if req.Cursor != "" {
 		data, err := base64.RawURLEncoding.DecodeString(req.Cursor)
-		if err != nil || json.Unmarshal(data, &frozen) != nil || frozen.End == "" || frozen.Fingerprint == "" {
+		if err != nil || json.Unmarshal(data, &frozen) != nil || frozen.End == "" || frozen.Fingerprint == "" || frozen.Branch == "" || frozen.Parser != ParserVersion {
+			return empty, historysource.ErrChanged
+		}
+		if req.Source.Branch != "" && req.Source.Branch != frozen.Branch {
 			return empty, historysource.ErrChanged
 		}
 	}
@@ -74,7 +79,7 @@ func ReadAs(ctx context.Context, req historysource.Request, agent string) (histo
 			identity = true
 		}
 		if e.Version != "" {
-			if e.Version != ObservedWriterVersion {
+			if !supportedWriter(e.Version) {
 				return historysource.ErrFormat
 			}
 			version = e.Version
@@ -105,13 +110,16 @@ func ReadAs(ctx context.Context, req historysource.Request, agent string) (histo
 	if req.Source.Branch != "" {
 		leaf = req.Source.Branch
 	}
+	if frozen.Branch != "" {
+		leaf = frozen.Branch
+	}
 	if leaf == "" {
 		return empty, historysource.ErrFormat
 	}
 	doc.Source.Branch = leaf
 	doc.FormatVersion = "qoder-jsonl/unversioned"
 	doc.ParserVersion = ParserVersion
-	b, _ := json.Marshal(boundary{doc.Cursor, doc.Fingerprint})
+	b, _ := json.Marshal(boundary{doc.Cursor, doc.Fingerprint, leaf, ParserVersion})
 	doc.Cursor = base64.RawURLEncoding.EncodeToString(b)
 	chain := make([]node, 0)
 	seen := make(map[string]bool)
@@ -150,6 +158,9 @@ func ReadAs(ctx context.Context, req historysource.Request, agent string) (histo
 				continue
 			}
 			r.Kind = "message"
+			if len(n.Message.Content) == 0 || string(n.Message.Content) == "null" {
+				return empty, historysource.ErrFormat
+			}
 			r.Role = n.Type
 			var text string
 			if json.Unmarshal(n.Message.Content, &text) == nil {
@@ -157,6 +168,7 @@ func ReadAs(ctx context.Context, req historysource.Request, agent string) (histo
 			} else {
 				var parts []struct {
 					Type, Text, ID, Name string
+					Input                json.RawMessage `json:"input"`
 					ToolUseID            string          `json:"tool_use_id"`
 					Content              json.RawMessage `json:"content"`
 					IsError              bool            `json:"is_error"`
@@ -179,11 +191,28 @@ func ReadAs(ctx context.Context, req historysource.Request, agent string) (histo
 					case "tool_use", "tool_result":
 						tool := historysource.Record{ID: n.ID + ":" + strconv.Itoa(j), NativeID: n.ID, ParentID: n.ID, Kind: p.Type, Role: n.Type, CallID: p.ID, ToolName: p.Name, Offset: n.offset, End: n.end}
 						if p.Type == "tool_use" {
+							tool.Kind = "tool_arguments"
+							if p.ID == "" || p.Name == "" || len(p.Input) == 0 || p.Input[0] != '{' {
+								return empty, historysource.ErrFormat
+							}
+							if _, exists := calls[p.ID]; exists {
+								return empty, historysource.ErrFormat
+							}
+							tool.Text = string(p.Input)
 							calls[p.ID] = p.Name
 						} else {
+							if len(p.Content) == 0 || string(p.Content) == "null" {
+								return empty, historysource.ErrFormat
+							}
+							if p.ToolUseID == "" {
+								return empty, historysource.ErrFormat
+							}
 							tool.Role = "tool"
 							tool.CallID = p.ToolUseID
 							tool.ToolName = calls[p.ToolUseID]
+							if tool.ToolName == "" {
+								doc.Gaps = append(doc.Gaps, historysource.Gap{RecordID: tool.ID, Category: "missing-tool-call", Offset: n.offset})
+							}
 							tool.Status = "completed"
 							if p.IsError {
 								tool.Status = "error"
@@ -195,14 +224,27 @@ func ReadAs(ctx context.Context, req historysource.Request, agent string) (histo
 								}
 								var text strings.Builder
 								for _, part := range output {
-									if part.Type == "text" {
+									switch part.Type {
+									case "text":
 										text.WriteString(part.Text)
+									case "image", "document":
+										doc.Gaps = append(doc.Gaps, historysource.Gap{RecordID: tool.ID, Category: "attachment", Offset: n.offset})
+									case "thinking", "redacted_thinking":
+										// Never export reasoning embedded in tool results.
+									default:
+										return empty, historysource.ErrFormat
 									}
 								}
 								tool.Text = text.String()
 							}
 						}
 						doc.Records = append(doc.Records, tool)
+					case "thinking", "redacted_thinking":
+						// Provider reasoning and encrypted state are not exportable.
+					case "image", "document":
+						doc.Gaps = append(doc.Gaps, historysource.Gap{RecordID: n.ID, Category: "attachment", Offset: n.offset})
+					default:
+						return empty, historysource.ErrFormat
 					}
 					if len(doc.Records) > historysource.MaxRecords {
 						return empty, historysource.ErrLimit

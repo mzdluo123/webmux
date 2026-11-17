@@ -1,14 +1,27 @@
 {
   "agent": "qodercn",
   "sourceLayout": "~/.qoder-cn/projects/<encoded-workspace>/<session-id>.jsonl",
-  "provenance": "Two complete existing local QoderCN transcript files, read without starting the agent; record envelopes, ordering, scalar types and reference equality retained.",
-  "versionEvidence": "Both selected transcripts contain version=1.1.84; installed version.txt also reports 1.1.84.",
+  "provenance": "Two existing local 1.1.84 transcripts plus the explicitly authorized isolated handoff-live QoderCN 1.1.81 session and a newly captured isolated Read-tool session. Native files were read without launching or authenticating a reader; the additional tool session was generated separately with only Read enabled.",
+  "versionEvidence": "session-1.jsonl and session-2.jsonl contain version=1.1.84 (installed version.txt also reported 1.1.84 at their capture). Both new 1.1.81 fixtures preserve version=1.1.81 from every version-bearing envelope; the tool run also reported qodercli_version=1.1.81 and success/end_turn in CLI evidence.",
   "sanitization": [
     "All free-form strings, prompts, outputs, titles, skills, agent names, paths and model identities replaced with fixed placeholders.",
     "Session/message/prompt/request IDs mapped consistently to deterministic fixture IDs by encounter order, not hashes of private IDs.",
     "Timestamps normalized to a fixed instant, git branch replaced, request/response token anchors zeroed.",
     "Thinking and signature strings emptied; no original reasoning, credentials, configuration or workspace state copied."
   ],
+  "compatibility": {
+    "acceptedSharedReaderWriters": ["1.1.81", "1.1.84"],
+    "formatVersion": "qoder-jsonl/unversioned",
+    "parserVersion": "qodercn-jsonl/2",
+    "differences": [
+      "1.1.81 user content is a text-block array; the earlier 1.1.84 fixture uses a string. Both are supported without losing text.",
+      "1.1.81 includes mcp_instructions_delta attachments and usage inside the final assistant message, lacks responseGroupId/container/context_management, and has a null-rooted acyclic ancestry.",
+      "Both captures use uuid/parentUuid/active-leaf ancestry, separate reasoning/text assistant records, and shared message IDs. Envelope UUIDs, not shared message IDs, identify records.",
+      "Only the two captured releases are accepted. Unknown content blocks and malformed tool calls fail closed; reasoning, signatures, environment, MCP instructions and token anchors are not exported.",
+      "Tool input JSON is emitted as exportable tool_arguments, textual results as tool_result; call IDs, names and error status are retained. A real 1.1.81 Read call/result supplements synthetic error, multipart, attachment and malformed-shape mutations.",
+      "Frozen cursors bind parser version and branch as well as source fingerprint and complete prefix; appends cannot replace the selected history."
+    ]
+  },
   "coverage": [
     {
       "file": "session-1.jsonl",
@@ -34,11 +47,47 @@
         "assistant": 2,
         "last-prompt": 1
       }
+    },
+    {
+      "file": "session-1.1.81.jsonl",
+      "recordTypes": {
+        "active-leaf": 5,
+        "user": 1,
+        "attachment": 5,
+        "assistant": 2,
+        "last-prompt": 1,
+        "workspace-directories": 1,
+        "runtime-config": 1
+      },
+      "sourceEvidence": {
+        "capture": "Explicitly authorized isolated handoff-live/qodercn session, captured 2026-11-17; source basename and workspace replaced in the fixture.",
+        "writer": "1.1.81",
+        "recordCount": 16,
+        "sanitization": "Every ID mapped by encounter order, free-form strings replaced, timestamps normalized, thinking/signatures emptied, token anchors zeroed. Public synthetic Unicode project/port and a replacement marker retain observable user/assistant correspondence. No live source path, prompt, request ID or configuration body retained."
+      }
+    },
+    {
+      "file": "session-tools-1.1.81.jsonl",
+      "recordTypes": {
+        "workspace-directories": 2,
+        "runtime-config": 2,
+        "user": 2,
+        "attachment": 2,
+        "active-leaf": 6,
+        "assistant": 4,
+        "last-prompt": 1
+      },
+      "sourceEvidence": {
+        "capture": "Authorized isolated CLI session generated 2026-11-17 with only Read enabled and allowed, reading a synthetic fact.txt; terminal result success/end_turn/ACK. CLI stream is evidence only, not the native parser input.",
+        "writer": "1.1.81",
+        "recordCount": 19,
+        "sanitization": "Same ID/path/timestamp/reasoning/anchor redaction as the text capture; tool_use.id, tool_use_id and sourceToolAssistantUUID mapped consistently. Read name and JSON argument keys retained, file path replaced, synthetic output marker replaced while keeping numbered lines and Unicode project text."
+      }
     }
   ],
   "limitations": [
-    "No tool_use/tool_result records occurred in these actual local QoderCN samples; no tool, fork, compaction or attachment-binary coverage is claimed.",
-    "The first file has metadata and user records but no assistant reply; the second has user and assistant text, empty redacted thinking and native metadata/attachment envelopes.",
+    "The initial three captures have no tools. session-tools-1.1.81.jsonl contains one real Read tool call with object input and string tool_result plus sourceToolAssistantUUID/toolUseResult metadata; no native error, fork, compaction or binary attachment coverage is claimed.",
+    "The first 1.1.84 file has metadata and user records but no assistant reply; the second has user and assistant text with a cycle in system ancestry. The 1.1.81 capture has one user text block, one reasoning-only assistant record, one assistant text reply and five metadata attachments.",
     "Dates, payload lengths, token anchors, titles, model values and hashes are not native integrity evidence after redaction.",
     "These are Chinese-edition captures. The maintainer approved provisional reuse for qoder reader development, but they do not prove international-edition compatibility."
   ],
@@ -54,6 +103,18 @@
       "format": "jsonl",
       "records": 27,
       "sha256": "ceb41ffedd7eef996d1a8bbeffe2ebfff95dc60459809d981db9ed05dde10452"
+    },
+    {
+      "path": "session-1.1.81.jsonl",
+      "format": "jsonl",
+      "records": 16,
+      "sha256": "16fd7741d65c712b34f6c57ac67c89ebd5d44f1e45e758d244d7ef476369dc50"
+    },
+    {
+      "path": "session-tools-1.1.81.jsonl",
+      "format": "jsonl",
+      "records": 19,
+      "sha256": "bdbc9e3703129e2862e6b6b6000feb8134c58338a00feb06e10f8c2c29d88093"
     }
   ]
 }

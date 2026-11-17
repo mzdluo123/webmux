@@ -26,14 +26,20 @@ Qoder 的 `fixtureSource` 指向 QoderCN manifest，共用文件与哈希，不�
 | Claude Code | JSONL；2.1.316                                | Bash 调用/拒绝/结果、compact_boundary 与保留消息；节选外祖先不补造。                                     |
 | omp         | JSONL；文件格式 3                             | 旧实录覆盖工具、错误与 compaction；runtime 18.12.2、18.22.0，另有一份版本未知。                          |
 | OpenCode    | 两代 SQLite SQL；会话版本 1.18.3、2.1.4       | project/session/message/part 与 session_v2/session_message；同库新 schema 不冒充旧版原始 schema。        |
-| Kimi        | state.json + agents/main/wire.jsonl；协议 1.4 | 一轮对话、7 组工具调用/结果、end_turn；应用版本未知，无独立 context 文件。                               |
+| Kimi        | state.json + agents/main/wire.jsonl；协议 1.4/1.5 | 1.4 工具闭环；CLI 2.5.3 的 1.5 合成实录包含正文、Read 参数/结果和镜像事件。 |
 | agy         | 原生 SQLite；新增 1.5.7 实录                  | 旧六步样本覆盖工具；新两步样本保留 cascade 与 trajectory 不同的身份关系，正文无工具调用。                |
 | Devin       | SQLite SQL + ATIF-v1.7 JSON                   | 主消息链、工具状态、独立 transcript 前缀；transcript 明示 3000.12.57，SQLite 写入版本未知。              |
-| QoderCN     | JSONL；1.1.84                                 | 两份真实文件、用户/助手与元数据；源样本无工具调用或 compaction。                                         |
+| QoderCN     | JSONL；1.1.81、1.1.84 | 旧版两份文件及 1.1.81 合成实录；后者覆盖正文与 Read 工具参数/结果，无 compaction 实录。 |
 | Qoder       | 暂共用 QoderCN JSONL                          | 维护者确认的临时开发基线；国际版格式与路径尚未实测。                                                     |
 
 各 Agent 的实际文件清单和记录覆盖以各自 manifest 为准。
 版本证据必须区分记录自带版本与当前安装版本；当前安装版本不能证明旧会话由该版本生成。
+
+2026-11-17 的 Kimi/QoderCN 补样来自专门创建的合成会话；其中工具样本只读取测试目录的 `fact.txt`。
+旧样本保持原样，新文件独立记录来源版本、脱敏映射和工具覆盖；安装版本与原生记录内版本分别登记。
+Kimi 1.5 的 injection 与 message 镜像按语义过滤；QoderCN 工具 input 投影为可导出的参数记录，与结果按 call ID 关联。
+Qoder 与 QoderCN 共用上述有界解析规则；国际版仍只有中国版夹具的临时复用证据，未完成国际 CLI 实录验收。
+未知版本、未知不兼容正文结构和冻结来源变化仍产生错误。
 SQLite 样本保留真实 DDL 与经过脱敏的最小记录集合。
 
 ## 离线重建 SQLite
