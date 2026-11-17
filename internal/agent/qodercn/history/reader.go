@@ -231,8 +231,10 @@ func ReadAs(ctx context.Context, req historysource.Request, agent string) (histo
 										doc.Gaps = append(doc.Gaps, historysource.Gap{RecordID: tool.ID, Category: "attachment", Offset: n.offset})
 									case "thinking", "redacted_thinking":
 										// Never export reasoning embedded in tool results.
-									default:
+									case "":
 										return empty, historysource.ErrFormat
+									default:
+										doc.Gaps = append(doc.Gaps, historysource.Gap{RecordID: tool.ID, Category: "unsupported-content", Offset: n.offset})
 									}
 								}
 								tool.Text = text.String()
@@ -243,8 +245,10 @@ func ReadAs(ctx context.Context, req historysource.Request, agent string) (histo
 						// Provider reasoning and encrypted state are not exportable.
 					case "image", "document":
 						doc.Gaps = append(doc.Gaps, historysource.Gap{RecordID: n.ID, Category: "attachment", Offset: n.offset})
-					default:
+					case "":
 						return empty, historysource.ErrFormat
+					default:
+						doc.Gaps = append(doc.Gaps, historysource.Gap{RecordID: n.ID + ":" + strconv.Itoa(j), Category: "unsupported-content", Offset: n.offset})
 					}
 					if len(doc.Records) > historysource.MaxRecords {
 						return empty, historysource.ErrLimit

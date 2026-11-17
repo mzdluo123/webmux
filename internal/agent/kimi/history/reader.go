@@ -85,18 +85,14 @@ func identity(ctx context.Context, source historysource.Source) ([]byte, error) 
 		return nil, historysource.ErrLimit
 	}
 	var state struct {
-		ID      string `json:"id"`
-		Version *int   `json:"version"`
-		Agents  map[string]struct {
+		ID     string `json:"id"`
+		Agents map[string]struct {
 			Home   string  `json:"homedir"`
 			Type   string  `json:"type"`
 			Parent *string `json:"parentAgentId"`
 		} `json:"agents"`
 	}
 	if json.Unmarshal(data, &state) != nil {
-		return nil, historysource.ErrFormat
-	}
-	if state.Version != nil && *state.Version != 2 {
 		return nil, historysource.ErrFormat
 	}
 	if state.ID != "" && state.ID != source.NativeID {
@@ -117,6 +113,12 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 	state, err := identity(ctx, req.Source)
 	if err != nil {
 		return empty, err
+	}
+	var header struct {
+		Version *int `json:"version"`
+	}
+	if json.Unmarshal(state, &header) != nil || (header.Version != nil && *header.Version != 2) {
+		return empty, historysource.ErrFormat
 	}
 	sum := sha256.Sum256(state)
 	stateHash := hex.EncodeToString(sum[:])
@@ -167,19 +169,20 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 		switch row.Type {
 		case "context.append_message":
 			m := row.Message
-			if m.Origin.Kind != "" && m.Origin.Kind != "user" && m.Role == "user" {
-				return nil
-			}
-			if m.Origin.Kind == "injection" {
-				return nil
-			}
-			if m.Role != "user" && m.Role != "assistant" && m.Role != "tool" {
-				return nil
-			}
 			if m.ID != "" {
 				r.ID = m.ID
 			} else if m.UUID != "" {
 				r.ID = m.UUID
+			}
+			if m.Origin.Kind == "injection" {
+				return nil
+			}
+			if m.Role == "user" && m.Origin.Kind != "" && m.Origin.Kind != "user" {
+				gaps = append(gaps, historysource.Gap{RecordID: r.ID, Category: "unsupported-message-origin", Offset: offset})
+				return nil
+			}
+			if m.Role != "user" && m.Role != "assistant" && m.Role != "tool" {
+				return nil
 			}
 			if representedMessages[r.ID] {
 				return nil

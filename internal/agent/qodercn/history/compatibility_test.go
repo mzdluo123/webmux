@@ -162,18 +162,23 @@ func TestUnsupportedWriterAndContent(t *testing.T) {
 		})
 	}
 	for name, content := range map[string]string{
-		"unknown-block":        `[{"type":"future_payload","text":"do not silently drop"}]`,
-		"null-message":         `null`,
-		"object-message":       `{"text":"wrong shape"}`,
-		"missing-call-id":      `[{"type":"tool_use","name":"Read","input":{}}]`,
-		"missing-call-name":    `[{"type":"tool_use","id":"tool","input":{}}]`,
-		"missing-call-input":   `[{"type":"tool_use","id":"tool","name":"Read"}]`,
-		"null-call-input":      `[{"type":"tool_use","id":"tool","name":"Read","input":null}]`,
-		"array-call-input":     `[{"type":"tool_use","id":"tool","name":"Read","input":[]}]`,
-		"duplicate-call-id":    `[{"type":"tool_use","id":"tool","name":"Read","input":{}},{"type":"tool_use","id":"tool","name":"Read","input":{}}]`,
-		"missing-result-id":    `[{"type":"tool_result","content":"done"}]`,
-		"null-result":          `[{"type":"tool_result","tool_use_id":"tool","content":null}]`,
-		"unknown-result-block": `[{"type":"tool_result","tool_use_id":"tool","content":[{"type":"future_payload","text":"unknown"}]}]`,
+		"missing-block-type":  `[{"text":"missing type"}]`,
+		"empty-block-type":    `[{"type":"","text":"empty type"}]`,
+		"null-block":          `[null]`,
+		"scalar-block":        `[17]`,
+		"null-message":        `null`,
+		"object-message":      `{"text":"wrong shape"}`,
+		"missing-call-id":     `[{"type":"tool_use","name":"Read","input":{}}]`,
+		"missing-call-name":   `[{"type":"tool_use","id":"tool","input":{}}]`,
+		"missing-call-input":  `[{"type":"tool_use","id":"tool","name":"Read"}]`,
+		"null-call-input":     `[{"type":"tool_use","id":"tool","name":"Read","input":null}]`,
+		"array-call-input":    `[{"type":"tool_use","id":"tool","name":"Read","input":[]}]`,
+		"duplicate-call-id":   `[{"type":"tool_use","id":"tool","name":"Read","input":{}},{"type":"tool_use","id":"tool","name":"Read","input":{}}]`,
+		"missing-result-id":   `[{"type":"tool_result","content":"done"}]`,
+		"null-result":         `[{"type":"tool_result","tool_use_id":"tool","content":null}]`,
+		"missing-result-type": `[{"type":"tool_result","tool_use_id":"tool","content":[{"text":"missing type"}]}]`,
+		"null-result-block":   `[{"type":"tool_result","tool_use_id":"tool","content":[null]}]`,
+		"scalar-result-block": `[{"type":"tool_result","tool_use_id":"tool","content":[17]}]`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			source := fixture(t, "session-1.1.81.jsonl", liveFixtureID)
@@ -256,5 +261,51 @@ func TestMissingToolCallRemainsVisibleGap(t *testing.T) {
 	}
 	if len(doc.Records) != 1 || doc.Records[0].Text != "available result" || doc.Records[0].CallID != "outside" || len(doc.Gaps) != 1 || doc.Gaps[0].Category != "missing-tool-call" {
 		t.Fatalf("missing call was invented or result dropped: %+v", doc)
+	}
+}
+
+func TestOpaqueContentGapsRemainConsumable(t *testing.T) {
+	for _, agent := range []string{"qodercn", "qoder"} {
+		t.Run(agent, func(t *testing.T) {
+			ctx := context.Background()
+			source := fixture(t, "session-1.1.81.jsonl", liveFixtureID)
+			source.Agent = agent
+			appendRecords(t, source, `{"type":"assistant","uuid":"opaque-call","message":{"role":"assistant","content":[{"type":"text","text":"读取文件"},{"type":"future_payload","text":"UNSAFE_UNKNOWN_BODY","data":{"secret":"UNSAFE_UNKNOWN_STATE"}},{"type":"tool_use","id":"read-opaque","name":"Read","input":{"file_path":"fact.txt"}}]}}`+"\n"+
+				`{"type":"user","uuid":"opaque-result","parentUuid":"opaque-call","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"read-opaque","content":[{"type":"text","text":"known result"},{"type":"future_tool_payload","text":"UNSAFE_UNKNOWN_RESULT","data":{"secret":"UNSAFE_UNKNOWN_RESULT_STATE"}},{"type":"text","text":" 完成"}]}]}}`+"\n"+
+				`{"type":"assistant","uuid":"opaque-answer","parentUuid":"opaque-result","message":{"role":"assistant","content":"ACK"}}`+"\n"+
+				`{"type":"active-leaf","leafUuid":"opaque-answer"}`+"\n")
+			reader := func(ctx context.Context, request historysource.Request) (historysource.Document, error) {
+				return ReadAs(ctx, request, agent)
+			}
+			svc := historyimport.New(historyimport.Options{Readers: map[string]historysource.ReadFunc{agent: reader}})
+			scope, err := svc.FreezeScope(ctx, source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			page, err := svc.Page(ctx, scope.ID, historysource.PageRequest{MaxBytes: 64 << 10})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if page.More || len(page.Records) != 4 || len(page.Snapshot.Gaps) != 2 {
+				t.Fatalf("known content or opaque gaps lost: %+v", page)
+			}
+			for _, gap := range page.Snapshot.Gaps {
+				if gap.Category != "unsupported-content" || gap.RecordID == "" || gap.Offset == 0 {
+					t.Fatalf("unlocated opaque content gap: %+v", gap)
+				}
+			}
+			for _, record := range page.Records {
+				if strings.Contains(record.Text, "UNSAFE") {
+					t.Fatalf("opaque body exported: %+v", record)
+				}
+			}
+			text, call, result, answer := page.Records[0], page.Records[1], page.Records[2], page.Records[3]
+			if text.Kind != "message" || text.Text != "读取文件" || answer.Kind != "message" || answer.Text != "ACK" {
+				t.Fatalf("known text lost around opaque parts: %+v", page.Records)
+			}
+			if call.Kind != "tool_arguments" || call.Text != `{"file_path":"fact.txt"}` || call.ToolName != "Read" || result.Kind != "tool_result" || result.Text != "known result 完成" || result.Status != "completed" || result.ToolName != "Read" || call.CallID == "" || call.CallID != result.CallID || call.NativeCallID != "read-opaque" || result.NativeCallID != call.NativeCallID {
+				t.Fatalf("known tool chain lost around opaque parts: %+v", page.Records)
+			}
+		})
 	}
 }

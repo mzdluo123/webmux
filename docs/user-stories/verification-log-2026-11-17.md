@@ -194,6 +194,8 @@
 - Qoder/QoderCN 共用已观察 writer 1.1.81、1.1.84 的有界规则；工具 input 归一化为消费者可见的 `tool_arguments`，保持活动祖先链、错误状态、安全过滤与冻结分支/parser 校验。
 - 国际 Qoder 共享夹具测试覆盖新增实录，但这些实录来自 QoderCN；本轮未运行国际 Qoder CLI。
 - 原有夹具保持，新增两种 reader 的合成正文与 Read 工具实录；manifest 区分原生版本、安装版本、脱敏与尚未覆盖的场景。
+- 审查补充边界：Kimi 未知 state 版本只在读取时拒绝，保留混合目录的发现能力；未知用户 origin 标记缺口，正文保持过滤。
+- Qoder 未建模但结构有效的内容块标记缺口并保留其他已知内容；未知 writer 与畸形字段仍拒绝，缺口正文不会被导出。
 
 ### 已执行验证
 
@@ -204,6 +206,7 @@
 - 两个预览均含完整工具事实及参数，发送 operation succeeded；OpenCode 实际公布的 `opencode-go/deepseek-v4.1-flash` 接收目标各在 t1/end_turn 恢复合成校验码、中文项目、端口和文件名，目标未调用工具。
 - Kimi 目标实际回复 `RECOVERED SYNTHETIC_TOOL_FACT=WMX-KIMI-TOOL-7c92 project=青鹭 port=49367 file=fact.txt`；QoderCN 目标恢复 `WMX-QODER-TOOL-8d41`、`白鹭`、`49369` 及来源文件名。
 - 本地证据位于 `/tmp/webmux-kimi-qodercn-compat/`：`acceptance.json`、各来源的 native/preview/operation/target-log JSON 和 `cleanup.json`；四个测试会话关闭成功，生产服务未部署或重启。
+- 首轮 PR CI 的构建、Go race、四组 E2E、Linux/Windows 打包与测试汇总通过；审查门禁要求上述发现范围与未知内容处理调整。
 
 ### 验收边界
 

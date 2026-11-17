@@ -27,7 +27,11 @@ func fixture15(t *testing.T) historysource.Source {
 
 func fixtureSession(t *testing.T, workspace, id string) historysource.Source {
 	t.Helper()
-	root := t.TempDir()
+	return fixtureSessionAtRoot(t, t.TempDir(), workspace, id)
+}
+
+func fixtureSessionAtRoot(t *testing.T, root, workspace, id string) historysource.Source {
+	t.Helper()
 	source := filepath.Join("..", "..", "testdata", "native-history", "kimi", workspace, id)
 	home := filepath.Join(root, workspace, id, "agents", "main")
 	if err := os.MkdirAll(home, 0700); err != nil {
@@ -398,6 +402,7 @@ func TestUnknownProtocolAndStateRejected(t *testing.T) {
 		want      error
 	}{
 		{"unknown-state", "version", 3, historysource.ErrFormat},
+		{"malformed-state-version", "version", "future", historysource.ErrFormat},
 		{"wrong-state-id", "id", "session-other", historysource.ErrIdentity},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -423,7 +428,11 @@ func TestUnknownProtocolAndStateRejected(t *testing.T) {
 				t.Fatal(err)
 			}
 			root := filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(filepath.Dir(s.Path)))))
-			if _, err := Discover(context.Background(), root); !errors.Is(err, tc.want) {
+			wantDiscover := tc.want
+			if tc.key == "version" {
+				wantDiscover = nil
+			}
+			if _, err := Discover(context.Background(), root); !errors.Is(err, wantDiscover) {
 				t.Fatal(err)
 			}
 		})
@@ -518,5 +527,87 @@ func TestProtocol15RealToolTranscript(t *testing.T) {
 	sources, err := Discover(context.Background(), root)
 	if err != nil || len(sources) != 1 || sources[0].NativeID != s.NativeID {
 		t.Fatal(sources, err)
+	}
+}
+
+func TestDiscoverMixedStateVersions(t *testing.T) {
+	root := t.TempDir()
+	target := fixtureSessionAtRoot(t, root, "wd_fixture_0001", "session_00000000-0000-4000-8000-000000000001")
+	unsupported := fixtureSessionAtRoot(t, root, "wd_fixture_0002", "session_00000000-0000-4000-8000-000000000002")
+	path := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(unsupported.Path))), "state.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state map[string]any
+	if err := json.Unmarshal(data, &state); err != nil {
+		t.Fatal(err)
+	}
+	state["version"] = 3
+	data, err = json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	sources, err := Discover(ctx, root)
+	if err != nil || len(sources) != 2 {
+		t.Fatal("unsupported state poisoned discovery", sources, err)
+	}
+	found := make(map[string]bool)
+	for _, source := range sources {
+		found[source.NativeID] = true
+		doc, err := Read(ctx, historysource.Request{Source: source})
+		switch source.NativeID {
+		case target.NativeID:
+			if err != nil || len(doc.Records) == 0 {
+				t.Fatal("supported target became unreadable", doc, err)
+			}
+		case unsupported.NativeID:
+			if !errors.Is(err, historysource.ErrFormat) || len(doc.Records) != 0 {
+				t.Fatal("unsupported state lost precise rejection", doc, err)
+			}
+		default:
+			t.Fatal("unexpected source", source)
+		}
+	}
+	if !found[target.NativeID] || !found[unsupported.NativeID] {
+		t.Fatal("discovery silently omitted a source", sources)
+	}
+}
+
+func TestUnknownUserOriginProducesSafeGap(t *testing.T) {
+	s := fixture15(t)
+	info, err := os.Stat(s.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendWire(t, s.Path,
+		`{"type":"context.append_message","agentId":"main","message":{"id":"future-origin","role":"user","origin":{"kind":"future-origin"},"content":[{"type":"text","text":"HIDDEN_UNKNOWN_ORIGIN"}]}}`+"\n"+
+			`{"type":"context.append_message","agentId":"main","message":{"id":"known-injection","role":"user","origin":{"kind":"injection"},"content":[{"type":"text","text":"HIDDEN_KNOWN_INJECTION"}]}}`+"\n")
+	ctx := context.Background()
+	doc, err := Read(ctx, historysource.Request{Source: s})
+	if err != nil || len(doc.Records) != 3 || len(doc.Gaps) != 1 {
+		t.Fatal(doc, err)
+	}
+	gap := doc.Gaps[0]
+	if gap.RecordID != "future-origin" || gap.Category != "unsupported-message-origin" || gap.Offset != info.Size() {
+		t.Fatal("unknown origin was silently discarded", gap)
+	}
+	service := historyimport.New(historyimport.Options{Readers: map[string]historysource.ReadFunc{"kimi": Read}})
+	scope, err := service.FreezeScope(ctx, s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := service.Page(ctx, scope.ID, historysource.PageRequest{})
+	if err != nil || len(page.Snapshot.Gaps) != 1 {
+		t.Fatal("consumer lost unsupported-origin gap", page, err)
+	}
+	for _, record := range page.Records {
+		if strings.Contains(record.Text, "HIDDEN") {
+			t.Fatal("unknown origin or injection exported as body", record)
+		}
 	}
 }

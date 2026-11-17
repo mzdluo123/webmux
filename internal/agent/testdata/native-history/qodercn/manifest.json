@@ -17,7 +17,7 @@
       "1.1.81 user content is a text-block array; the earlier 1.1.84 fixture uses a string. Both are supported without losing text.",
       "1.1.81 includes mcp_instructions_delta attachments and usage inside the final assistant message, lacks responseGroupId/container/context_management, and has a null-rooted acyclic ancestry.",
       "Both captures use uuid/parentUuid/active-leaf ancestry, separate reasoning/text assistant records, and shared message IDs. Envelope UUIDs, not shared message IDs, identify records.",
-      "Only the two captured releases are accepted. Unknown content blocks and malformed tool calls fail closed; reasoning, signatures, environment, MCP instructions and token anchors are not exported.",
+      "Only the two captured releases are accepted. Unknown nonempty content types produce explicit gaps without exporting their bodies; malformed blocks and tool calls fail closed. Reasoning, signatures, environment, MCP instructions and token anchors are not exported.",
       "Tool input JSON is emitted as exportable tool_arguments, textual results as tool_result; call IDs, names and error status are retained. A real 1.1.81 Read call/result supplements synthetic error, multipart, attachment and malformed-shape mutations.",
       "Frozen cursors bind parser version and branch as well as source fingerprint and complete prefix; appends cannot replace the selected history."
     ]
