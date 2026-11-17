@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/rainchan/webmux/internal/builtin"
 	"github.com/rainchan/webmux/internal/contract"
@@ -80,6 +81,7 @@ func (c *Client) Capabilities(ctx context.Context) (contract.Capabilities, error
 			}
 		}
 	}
+	normalizeMessagingFeature(&snapshot)
 	if err := ValidateCapabilities(snapshot); err != nil {
 		return contract.Capabilities{}, err
 	}
@@ -125,10 +127,6 @@ func decodeCapabilitiesV1(raw json.RawMessage) (contract.Capabilities, error) {
 		if snapshot.Capabilities[i].Reason == reasonFeatureDisabledV1 {
 			snapshot.Capabilities[i].Reason = contract.CapabilityReasonFeatureDisabled
 		}
-	}
-	// Messaging was introduced after the retired v1 catalog.
-	if len(snapshot.Features) == 13 {
-		snapshot.Features = append(snapshot.Features, contract.FeatureStatus{ID: "messaging", Status: contract.FeatureStatusDisabled, Reason: contract.CapabilityReasonFeatureDisabled})
 	}
 	return snapshot, nil
 }
@@ -297,4 +295,24 @@ func RequireSnapshotCapability(snapshot contract.Capabilities, id string) error 
 		}
 	}
 	return &CapabilityError{ID: id, Reason: contract.CapabilityReasonServiceUnavailable}
+}
+
+// A still-running pre-messaging service has the preceding complete catalog.
+// Validation after normalization still rejects missing or duplicate older IDs.
+func normalizeMessagingFeature(snapshot *contract.Capabilities) {
+	for _, feature := range snapshot.Features {
+		if feature.ID == "messaging" {
+			return
+		}
+	}
+	// Earlier instances may still advertise the retired VR feature. Strip only
+	// this known retired surface; it grants no authority in the updated client.
+	if len(snapshot.Features) == len(builtin.Catalog()) {
+		snapshot.Features = slices.DeleteFunc(snapshot.Features, func(feature contract.FeatureStatus) bool { return feature.ID == "immersive" })
+		snapshot.Capabilities = slices.DeleteFunc(snapshot.Capabilities, func(capability contract.Capability) bool { return capability.ID == "immersive.xr" })
+	}
+	if len(snapshot.Features) != len(builtin.Catalog())-1 {
+		return
+	}
+	snapshot.Features = append(snapshot.Features, contract.FeatureStatus{ID: "messaging", Status: contract.FeatureStatusDisabled, Reason: contract.CapabilityReasonFeatureDisabled})
 }

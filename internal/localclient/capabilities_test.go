@@ -149,3 +149,35 @@ func TestCombinedCapabilityRequiresBothOwners(t *testing.T) {
 		t.Fatal("combined workbench advertised without code feature")
 	}
 }
+
+func TestPreMessagingV2ServiceRemainsDiscoverable(t *testing.T) {
+	snapshot := coreCapabilities()
+	snapshot.Features = snapshot.Features[:len(snapshot.Features)-1]
+	data, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	normalized, err := capabilityClient(t, string(data)).Capabilities(t.Context())
+	if err != nil || len(normalized.Features) != len(builtin.Catalog()) || FeatureEnabled(normalized, "messaging") {
+		t.Fatalf("pre-messaging v2: %+v %v", normalized, err)
+	}
+	snapshot.Features = append(snapshot.Features, contract.FeatureStatus{ID: "immersive", Enabled: true, Status: contract.FeatureStatusReady})
+	snapshot.Capabilities = append(snapshot.Capabilities, contract.Capability{ID: "immersive.xr", Available: true})
+	data, err = json.Marshal(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	normalized, err = capabilityClient(t, string(data)).Capabilities(t.Context())
+	if err != nil || len(normalized.Features) != len(builtin.Catalog()) || CapabilityAvailable(normalized, "immersive.xr") {
+		t.Fatalf("pre-VR-removal v2: %+v %v", normalized, err)
+	}
+	// Removing an older feature still fails, including at the same catalog size.
+	snapshot.Features[0].ID = "missing-launch"
+	data, err = json.Marshal(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := capabilityClient(t, string(data)).Capabilities(t.Context()); err == nil {
+		t.Fatal("normalization accepted a corrupt older catalog")
+	}
+}

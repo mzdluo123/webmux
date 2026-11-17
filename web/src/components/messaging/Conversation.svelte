@@ -47,6 +47,8 @@
   }
   $effect(() => {
     void view.messages.length;
+    void view.sending;
+    void view.failed;
     const loading = view.loading;
     const sent = view.notice;
     if (loading) return;
@@ -93,7 +95,7 @@
   aria-label={m.messaging_conversation({ name: view.channel })}
 >
   <header
-    class="flex min-h-(--app-header-height) shrink-0 items-center gap-2 border-b bg-card px-3 py-2 sm:px-5"
+    class="app-header flex min-h-(--app-header-height) shrink-0 items-center gap-2 border-b bg-card px-3 py-2 sm:px-5"
   >
     <Button
       variant="ghost"
@@ -243,7 +245,10 @@
       {/if}
     </div>
   </div>
-  <div class="shrink-0 border-t bg-card px-3 pt-3 pb-safe-4 sm:px-5 sm:pb-4">
+  <div
+    data-bottom-dock
+    class="shrink-0 border-t bg-card px-3 pt-3 pb-safe-4 sm:px-5 sm:pb-4"
+  >
     <form
       class="mx-auto max-w-3xl"
       onsubmit={(event) => {

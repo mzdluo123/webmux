@@ -3,6 +3,7 @@ package messaging
 import (
 	"errors"
 	"fmt"
+	"github.com/rainchan/webmux/internal/statefile"
 	"os"
 	"path/filepath"
 	"sync"
@@ -135,6 +136,9 @@ func TestCorruptOrLockedStoreIsPreserved(t *testing.T) {
 	defer first.Close()
 	second := Open(dir)
 	defer second.Close()
+	if !statefile.IsKind(second.Unavailable(), statefile.Locked) {
+		t.Fatal("lost lock diagnostic", second.Unavailable())
+	}
 	if !errors.Is(second.Unavailable(), ErrUnavailable) {
 		t.Fatal("second writer acquired the store")
 	}
@@ -146,6 +150,9 @@ func TestCorruptOrLockedStoreIsPreserved(t *testing.T) {
 	}
 	broken := Open(dir)
 	defer broken.Close()
+	if !statefile.IsKind(broken.Unavailable(), statefile.UnsupportedVersion) {
+		t.Fatal("lost version diagnostic", broken.Unavailable())
+	}
 	if !errors.Is(broken.Unavailable(), ErrUnavailable) {
 		t.Fatal("corrupt store was accepted")
 	}
@@ -155,5 +162,17 @@ func TestCorruptOrLockedStoreIsPreserved(t *testing.T) {
 	got, err := os.ReadFile(path)
 	if err != nil || string(got) != string(original) {
 		t.Fatal("corrupt store overwritten")
+	}
+}
+
+func TestCorruptDiagnosticRetainsStateKind(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "messaging.json"), []byte(`{"v":1,"channels":[]}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s := Open(dir)
+	defer s.Close()
+	if !statefile.IsKind(s.Unavailable(), statefile.Corrupt) || !errors.Is(s.Unavailable(), ErrUnavailable) {
+		t.Fatalf("corrupt diagnostic: %v", s.Unavailable())
 	}
 }

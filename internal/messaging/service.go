@@ -3,6 +3,7 @@ package messaging
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"slices"
 	"strconv"
@@ -112,8 +113,11 @@ func (s *Service) Unavailable() error {
 }
 
 func (s *Service) unavailableLocked() error {
-	if s.broken != nil || s.store.Err() != nil {
-		return ErrUnavailable
+	if s.broken != nil {
+		return fmt.Errorf("%w: %w", ErrUnavailable, s.broken)
+	}
+	if err := s.store.Err(); err != nil {
+		return fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	return nil
 }

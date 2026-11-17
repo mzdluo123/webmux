@@ -52,6 +52,15 @@ test("reading is the default and channel creation opens only on request", async 
     getComputedStyle(box().element().closest('[data-slot="input-group"]')!)
       .opacity,
   ).toBe("1");
+  const header = box()
+    .element()
+    .closest("[data-messaging-workspace]")!
+    .querySelector("header")!;
+  expect(
+    getComputedStyle(header).getPropertyValue("--app-header-height").trim(),
+  ).not.toBe("");
+  expect(box().element().closest("[data-bottom-dock]")).not.toBeNull();
+
   await page.getByRole("button", { name: "创建频道", exact: true }).click();
   await expect
     .element(page.getByRole("textbox", { name: "频道名称", exact: true }))
@@ -334,4 +343,55 @@ test("new agent replies arrive automatically while the draft stays intact", asyn
     .element(page.getByText("Review complete", { exact: true }))
     .toBeVisible();
   await expect.element(box()).toHaveValue("My unfinished question");
+});
+
+test("pending and failed messages stay visible when reading at the bottom", async () => {
+  await enableCreationFeatures(["messaging"]);
+  let rejectSend: ((response: Response) => void) | undefined;
+  const backlog = Array.from({ length: 40 }, (_, i) =>
+    message(
+      String(i + 1),
+      `Long discussion ${i}\n${"Context line\n".repeat(8)}`,
+    ),
+  );
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async (input, init) => {
+      if (init?.method === "POST")
+        return new Promise<Response>((resolve) => {
+          rejectSend = resolve;
+        });
+      return Response.json(
+        String(input).endsWith("/channels") ? channels : backlog,
+      );
+    }),
+  );
+  render(Messaging);
+  await expect
+    .element(page.getByText("Long discussion 39", { exact: false }))
+    .toBeVisible();
+  const last = page.getByText("Long discussion 39", { exact: false }).element();
+  let container = last.parentElement;
+  while (container && getComputedStyle(container).overflowY !== "auto")
+    container = container.parentElement;
+  expect(container).not.toBeNull();
+  const history = container!;
+  await expect
+    .poll(() => history.scrollHeight - history.clientHeight - history.scrollTop)
+    .toBeLessThan(64);
+  await box().fill("A pending request");
+  await page.getByRole("button", { name: "发送消息", exact: true }).click();
+  await expect
+    .poll(() => history.scrollHeight - history.clientHeight - history.scrollTop)
+    .toBeLessThan(64);
+  expect(rejectSend).toBeDefined();
+  rejectSend!(
+    Response.json({ error: "temporarily unavailable" }, { status: 503 }),
+  );
+  await expect
+    .element(page.getByRole("button", { name: "重试发送", exact: true }))
+    .toBeVisible();
+  await expect
+    .poll(() => history.scrollHeight - history.clientHeight - history.scrollTop)
+    .toBeLessThan(64);
 });

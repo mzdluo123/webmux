@@ -4,6 +4,8 @@
 
 内置功能选择与 TCP 相同：`GET /api/capabilities` 走同 UID 认证，禁用功能 API/WS 返回 404，不因本机身份重新启用。`/mcp` 是 TCP owner 专属路径，在本机套接字不提供。
 
+升级后的本机客户端可读取尚未重启的旧版 v1/v2 功能目录：未提供的 `messaging` 归为禁用，已退役的 VR 条目在客户端视图中移除；其他未知或缺失条目继续拒绝。
+
 ```sh
 curl --unix-socket ~/.local/state/webmux/run/webmux.sock http://webmux/api/sessions
 ```
