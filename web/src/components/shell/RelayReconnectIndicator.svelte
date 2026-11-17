@@ -20,15 +20,38 @@
   const statusLabel = $derived(
     checking ? m.s1_disconnected_reconnecting() : m.relay_reconnect_paused(),
   );
+
+  // Views that keep chrome at the bottom edge (chat composer dock, terminal
+  // soft keys, draft pane) mark its top boundary with data-bottom-dock. The
+  // draft pane is user-resizable, so a fixed lift cannot clear it; the pill
+  // measures the real stack and sits above it instead of swallowing taps.
+  let lift = $state(0);
+
+  $effect(() => {
+    const measure = () => {
+      let top = Number.POSITIVE_INFINITY;
+      for (const dock of document.querySelectorAll("[data-bottom-dock]")) {
+        const rect = dock.getBoundingClientRect();
+        if (rect.height > 0 && rect.bottom > 0) top = Math.min(top, rect.top);
+      }
+      lift = Number.isFinite(top) ? Math.max(0, window.innerHeight - top) : 0;
+    };
+    measure();
+    const timer = setInterval(measure, 400);
+    window.addEventListener("resize", measure);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("resize", measure);
+    };
+  });
 </script>
 
-<!-- Touch layouts keep soft keys and the chat composer at the bottom edge;
-     the pill lifts above them so it never swallows their taps. -->
 <div
   class={cn(
-    "fixed bottom-2 z-50 max-sm:bottom-16 any-pointer-coarse:bottom-16",
+    "fixed bottom-[calc(var(--reconnect-lift,0px)+0.5rem)] z-50",
     className ?? "left-2",
   )}
+  style:--reconnect-lift={`${lift}px`}
 >
   <Popover.Root>
     <Popover.Trigger>

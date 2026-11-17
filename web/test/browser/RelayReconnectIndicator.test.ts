@@ -50,3 +50,35 @@ test("reconnecting stays a corner indicator that opens status details", async ()
   await retry.click();
   expect(onretry).toHaveBeenCalledOnce();
 });
+
+test("lifts above bottom-docked chrome so it never covers composers", async () => {
+  const dock = document.createElement("div");
+  dock.setAttribute("data-bottom-dock", "");
+  Object.assign(dock.style, {
+    position: "fixed",
+    left: "0",
+    right: "0",
+    bottom: "0",
+    height: "120px",
+    background: "transparent",
+  });
+  document.body.appendChild(dock);
+  try {
+    await render(RelayReconnectIndicator, {
+      checking: true,
+      returnTo: "/s/aaaaaaaa",
+      onretry: () => {},
+    });
+    const trigger = page.getByRole("button", {
+      name: "重连状态：连接已断开，重连中…",
+    });
+    await expect.element(trigger).toBeVisible();
+    const gap =
+      dock.getBoundingClientRect().top -
+      trigger.element().getBoundingClientRect().bottom;
+    expect(gap).toBeGreaterThanOrEqual(7);
+    expect(gap).toBeLessThanOrEqual(9);
+  } finally {
+    dock.remove();
+  }
+});
