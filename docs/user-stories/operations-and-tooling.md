@@ -145,7 +145,7 @@
   验收要点：
   - `[features] enabled = []` 只运行核心；新生成的默认配置显式使用空数组。旧配置缺表或缺 `enabled` 时启用固定的旧功能集合，不随未来新增功能扩张；
   - 启动时自动将旧 `[plugins]` 迁移为 `[features]`，保留原功能选择和其他配置值，原文以 0600 备份到配置路径加 `.pre-features.bak`；新旧两表并存时报错且原文件不变；再次启动不重写已迁移文件，`config show` / `validate` 保持只读；
-  - 可选 ID 为 `launch`、`workspace`、`code`、`files`、`chat`、`notifications`、`quick-commands`、`voice`、`forward`、`cloudflare`、`tailscale`、`p2p`、`mcp`、`immersive`；
+  - 可选 ID 为 `launch`、`workspace`、`code`、`files`、`chat`、`notifications`、`quick-commands`、`voice`、`forward`、`cloudflare`、`tailscale`、`p2p`、`mcp`、`immersive`、`messaging`；
   - 未知、重复 ID 与缺少依赖在启动前拒绝，不自动补依赖；`chat` 要求显式选择 `launch`、`files`，Git 工作台要求同时选择 `workspace`、`code`；
   - 功能选择变更须重启，网页设置不安装功能、不热切换选择，也不加载远程脚本。
 - **US-K19 不启用功能也能工作**：作为只需要终端的使用者，我希望核心模式仍能创建和接续 Shell，以便不依赖仓库或 agent 业务服务。
@@ -287,6 +287,7 @@
   - 中途 401、上传失败重试、重复提交、Dialog 焦点循环和列表断线恢复各有失败路径回归；
   - `AGENTS.md` 与 `CONTRIBUTING.md` 提供入口；
   - 文件遵守 20–400 行与 48 KiB 的文档治理限制。
+  - UI 设计通过[设计系统](../design-system.md#design-principles)与[UI skill](../../.agents/skills/webmux-ui/SKILL.md)从用户目的、任务路径、操作可发现性和上下文连续性出发，按任务选择页面与交互形态。
 - **US-L10 持久化清单守卫**：作为贡献者，我希望新增存储和文件写入入口遗漏登记时自动失败，以便配置与状态清单不会继续漂移。
   验收要点：
   - `make persistence-check`、`make check` 和 CI 检查全部平台生产 Go 源码中的 JSON/锁名及选定写入函数引用；

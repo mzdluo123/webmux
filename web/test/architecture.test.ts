@@ -155,7 +155,7 @@ describe("frontend architecture", () => {
 
   test("domain logic, controllers and business components have topic ownership", () => {
     const topics =
-      "sessions|terminal|chat|code|workspace|settings|notifications";
+      "sessions|terminal|chat|code|workspace|settings|notifications|messaging";
     const owned = new RegExp(
       `^src/(domains/(?:${topics})|hooks/(?:${topics}|shared)|` +
         `components/(?:${topics}|shared|shell))/[^/]+`,

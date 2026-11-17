@@ -136,8 +136,7 @@ export type SettingsContribution =
         | "agent-tools"
         | "access"
         | "tailscale"
-        | "push"
-        | "messaging";
+        | "push";
       label: string;
       Component: Component;
     };

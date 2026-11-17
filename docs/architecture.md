@@ -86,6 +86,7 @@ MCP 会话、并发额度和 typed RPC ID 在内存管理，额度保留到响�
 | `internal/p2psettings`                        | P2P 直连网页设置持久化（`p2p-settings.json`）、独立文件锁、校验与故障关闭                                  |
 | `internal/wsl`                                | 共享的 WSL 判定与 `wslinfo --networking-mode` 探测                                                         |
 | `internal/codeview`                           | 只读文件浏览、Git 修改列表、内容快照与变化检测；根内文件操作与目录 ZIP                                     |
+| `internal/messaging`                          | 独立频道与消息历史、原子快照、幂等发送与容量限制                                                           |
 | `internal/push`                               | Web Push 订阅存储、注意力提醒与出站推送                                                                    |
 | `internal/archtest`                           | 只含测试：分层清单与架构规则 R0–R11                                                                        |
 | `internal/docguard`                           | 只含测试：文档与 spec 的行数、体积、目录扇出与树状组织规则                                                 |
@@ -179,7 +180,7 @@ flowchart LR
 
 ## 核心与内置功能
 
-核心保留 PTY、创建/列表/输入/控制/回放、认证、设置与运行时控制。14 个内置功能随二进制发布，覆盖后端、前端、存储和生命周期；不是市场、远程脚本、热加载或安全沙箱。
+核心保留 PTY、创建/列表/输入/控制/回放、认证、设置与运行时控制。15 个内置功能随二进制发布，覆盖后端、前端、存储和生命周期；不是市场、远程脚本、热加载或安全沙箱。
 生成配置显式 `features.enabled=[]`，只启用核心；缺省字段保留固定旧版全量选择，不随未来目录增长。未知、重复或缺少依赖启动失败；`chat` 必须显式同时选择 `launch`、`files`。
 `workspace` 单独提供仓库/worktree 管理，Git 工作台需同时选择 `workspace` 与 `code`。选择修改必须重启；禁用不打开、初始化、迁移或清扫所属存储，也不删除历史。
 功能 ID、配置例子见 [内置功能选择](deployment/configuration.md#内置功能选择)；实时可用性而非健康状态见 [能力发现](protocol.md#能力发现)。

@@ -2,6 +2,7 @@
   import { onDestroy, untrack, type Snippet } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import IconLayoutSidebarLeftExpand from "~icons/tabler/layout-sidebar-left-expand";
+  import IconMessages from "~icons/tabler/messages";
   import IconMessagePlus from "~icons/tabler/message-plus";
   import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
@@ -55,7 +56,15 @@
   }: {
     route: Extract<
       Route,
-      { name: "sessions" | "quick-start" | "terminal" | "handoff" | "git" }
+      {
+        name:
+          | "sessions"
+          | "quick-start"
+          | "terminal"
+          | "handoff"
+          | "git"
+          | "messaging";
+      }
     >;
     drafts: TerminalDrafts;
     children: Snippet;
@@ -359,6 +368,17 @@
           aria-hidden="true"
         />{:else}<IconPlus aria-hidden="true" />{/if}</Button
     >
+    {#if contributions.messaging}
+      <Button
+        href="/messages"
+        variant="ghost"
+        size="icon-touch"
+        aria-label={m.messaging_title()}
+        title={m.messaging_title()}
+        aria-current={route.name === "messaging" ? "page" : undefined}
+        ><IconMessages aria-hidden="true" /></Button
+      >
+    {/if}
     <SidebarRailSessions
       sessions={sessions.sessions.filter(
         (item) => item.state === "active" && item.status !== "exited",

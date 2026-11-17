@@ -17,6 +17,7 @@ const DOMAIN_DEPENDENCIES = {
   notifications: ["sessions"],
   code: ["terminal"],
   chat: [],
+  messaging: [],
 };
 
 /** @type {import('dependency-cruiser').IConfiguration} */

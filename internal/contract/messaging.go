@@ -2,9 +2,12 @@ package contract
 
 // Messaging DTOs describe local channels and their messages.
 type MessagingChannel struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Topic string `json:"topic"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Topic        string `json:"topic"`
+	LatestText   string `json:"latestText"`
+	LatestAt     string `json:"latestAt"`
+	MessageCount int    `json:"messageCount"`
 }
 
 type MessagingCreateChannel struct {

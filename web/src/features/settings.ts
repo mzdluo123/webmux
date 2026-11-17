@@ -19,12 +19,6 @@ type SettingsEntry =
 // These fixed imports are runtime feature entries, not core dependencies.
 const entries: SettingsEntry[] = [
   {
-    feature: "messaging",
-    id: "messaging",
-    label: () => m.messaging_title(),
-    load: () => import("../components/settings/MessagingPanel.svelte"),
-  },
-  {
     feature: "code",
     id: "code-reader",
     label: () => m.s1_settings_nav_code_reader(),

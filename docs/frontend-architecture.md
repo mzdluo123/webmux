@@ -32,7 +32,7 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 | 页面           | `src/pages/`             | 以上各层；由 `App.svelte` 组合                               |
 | 应用贡献       | `src/features/`          | 显式动态入口、页面/组件及以上各层；底层不反向依赖它          |
 
-主题包括 `sessions`、`terminal`、`chat`、`code`、`workspace`、`settings` 与 `notifications`。领域目录把相同业务概念的纯算法与响应式状态放在一起；资源生命周期与跨主题流程放在 hooks。
+主题包括 `messaging`、`sessions`、`terminal`、`chat`、`code`、`workspace`、`settings` 与 `notifications`。领域目录把相同业务概念的纯算法与响应式状态放在一起；资源生命周期与跨主题流程放在 hooks。
 
 跨主题复用组件放在 `components/shared/`，应用导航与侧栏放在 `components/shell/`，通用资源控制器放在 `hooks/shared/`。业务代码保存在拥有该概念的主题下，其他主题直接导入。
 

@@ -33,9 +33,12 @@ var channelPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 var requestPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{8,128}$`)
 
 type Channel struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Topic string `json:"topic"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Topic        string `json:"topic"`
+	LatestText   string `json:"-"`
+	LatestAt     string `json:"-"`
+	MessageCount int    `json:"-"`
 }
 
 type Message struct {
@@ -112,7 +115,17 @@ func (s *Service) Channels() ([]Channel, error) {
 	if err := s.unavailableLocked(); err != nil {
 		return nil, err
 	}
-	return slices.Clone(s.data.Channels), nil
+	out := slices.Clone(s.data.Channels)
+	indices := make(map[string]int, len(out))
+	for i, c := range out {
+		indices[c.Name] = i
+	}
+	for _, m := range s.data.Messages {
+		i := indices[m.Channel]
+		out[i].LatestText, out[i].LatestAt = m.Text, m.CreatedAt
+		out[i].MessageCount++
+	}
+	return out, nil
 }
 
 func (s *Service) CreateChannel(name, topic string) (Channel, error) {

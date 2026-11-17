@@ -236,6 +236,12 @@
     display: none;
   }
 }
+.messaging-page {
+  position: fixed;
+  inset-block: 0;
+  left: var(--app-sidebar-width, 0px);
+  right: 0;
+}
 .app-shell-main {
   padding-left: var(--app-sidebar-width);
 }

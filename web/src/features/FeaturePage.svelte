@@ -7,7 +7,14 @@
   const entries = $derived(featureContributions.entries);
 </script>
 
-{#if route.name === "code" && entries.code}
+{#if route.name === "messaging" && entries.messaging}
+  <LazyPage
+    load={entries.messaging.pages.workspace}
+    label={m.messaging_title()}
+  >
+    {#snippet children(page)}<page.default />{/snippet}
+  </LazyPage>
+{:else if route.name === "code" && entries.code}
   <LazyPage
     load={entries.code.pages.popout}
     label={m.s1_feature_page_code()}

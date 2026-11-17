@@ -17,9 +17,11 @@ import type * as ForwardEntry from "./entries/forward";
 import type * as P2PEntry from "./entries/p2p";
 import type * as CodeEntry from "./entries/code";
 import type * as CloudflareEntry from "./entries/cloudflare";
+import type * as MessagingEntry from "./entries/messaging";
 import type * as TailscaleEntry from "./entries/tailscale";
 
 const entries = {
+  messaging: () => import("./entries/messaging"),
   workspace: () => import("./entries/workspace"),
   launch: () => import("./entries/launch"),
   chat: () => import("./entries/chat"),
@@ -32,6 +34,7 @@ const entries = {
 } as const;
 
 interface Entries {
+  messaging?: typeof MessagingEntry;
   workspace?: typeof WorkspaceEntry;
   launch?: typeof LaunchEntry;
   chat?: typeof ChatEntry;

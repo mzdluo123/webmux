@@ -6,7 +6,7 @@ import (
 )
 
 func MessagingChannel(item messaging.Channel) contract.MessagingChannel {
-	return contract.MessagingChannel{ID: item.ID, Name: item.Name, Topic: item.Topic}
+	return contract.MessagingChannel{ID: item.ID, Name: item.Name, Topic: item.Topic, LatestText: item.LatestText, LatestAt: item.LatestAt, MessageCount: item.MessageCount}
 }
 
 func MessagingChannels(items []messaging.Channel) []contract.MessagingChannel {

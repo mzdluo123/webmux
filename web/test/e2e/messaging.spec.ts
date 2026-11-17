@@ -11,31 +11,47 @@ test("local channel creation, sending and reload preserve history", async ({
   request,
   server,
 }) => {
-  await page.goto("/settings#messaging");
-  const panel = page.locator("#messaging");
+  await page.goto("/messages");
+  const workspace = page.locator("[data-messaging-workspace]");
   const name = `channel-${Date.now()}`;
-  await panel
+  await workspace
+    .getByRole("button", { name: "创建频道", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog
     .getByRole("textbox", { name: "频道名称", exact: true })
     .fill(name);
-  await panel
+  await dialog
     .getByRole("textbox", { name: "频道主题（可选）", exact: true })
     .fill("Local coordination");
-  await panel.getByRole("button", { name: "创建频道", exact: true }).click();
-  await expect(panel.getByRole("combobox")).toHaveValue(name);
-  await panel
+  await dialog.getByRole("button", { name: "创建频道", exact: true }).click();
+  await workspace
     .getByRole("textbox", { name: "消息", exact: true })
     .fill("A persistent local message");
-  await panel.getByRole("button", { name: "发送消息", exact: true }).click();
-  await expect(panel.getByText("消息已发送。", { exact: true })).toBeVisible();
+  await workspace
+    .getByRole("button", { name: "发送消息", exact: true })
+    .click();
   await expect(
-    panel.getByRole("textbox", { name: "消息", exact: true }),
+    workspace.getByText("消息已发送。", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    workspace.getByRole("textbox", { name: "消息", exact: true }),
   ).toHaveValue("");
   await server.restart();
   await page.reload();
-  await panel.getByRole("combobox").selectOption(name);
   await expect(
-    panel.getByText("A persistent local message", { exact: true }),
+    workspace
+      .getByRole("region", { name: `频道 ${name} 的对话`, exact: true })
+      .getByText("A persistent local message", { exact: true }),
   ).toBeVisible();
+  const channelList = await request.get("/api/messaging/channels");
+  expect(await channelList.json()).toContainEqual(
+    expect.objectContaining({
+      name,
+      messageCount: 1,
+      latestText: "A persistent local message",
+    }),
+  );
   const messages = await request.get(
     `/api/messaging/channels/${name}/messages`,
   );

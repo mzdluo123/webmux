@@ -56,7 +56,7 @@ func TestChannelAndHistoryPersistAcrossRestart(t *testing.T) {
 	s = Open(dir)
 	defer s.Close()
 	channels, err := s.Channels()
-	if err != nil || len(channels) != 2 || channels[0].Topic != "Team" {
+	if err != nil || len(channels) != 2 || channels[0].Topic != "Team" || channels[0].MessageCount != 65 || channels[0].LatestText != "hello 64" {
 		t.Fatalf("channels after restart: %+v %v", channels, err)
 	}
 	retry, err := s.Send("general", first.Text, first.ClientRequestID)

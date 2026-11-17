@@ -9,6 +9,8 @@ import type { FeatureID } from "../../contracts/feature-schemas";
 /** Only built-in route ownership; the server never supplies script locations. */
 export function routeFeature(route: Route): FeatureID | undefined {
   switch (route.name) {
+    case "messaging":
+      return "messaging";
     case "code":
       return "code";
     case "git":
@@ -50,6 +52,7 @@ export type Route =
   | { name: "code"; id: string }
   | { name: "handoff"; sourceId: string }
   | { name: "git"; repositoryId: string; worktreeId?: string }
+  | { name: "messaging" }
   | { name: "settings" }
   | { name: "settings-tailscale" }
   | { name: "settings-tunnel" }
@@ -62,6 +65,7 @@ export type Route =
 
 export function shellRouteFor(route: Route) {
   switch (route.name) {
+    case "messaging":
     case "sessions":
     case "quick-start":
     case "handoff":
@@ -106,6 +110,7 @@ export function matchRoute(pathname: string): Route {
   if (pathname === "/settings/relay") return { name: "settings-relay" };
   if (pathname === "/forward-auth") return { name: "forward-auth" };
   if (pathname === "/new") return { name: "quick-start" };
+  if (pathname === "/messages") return { name: "messaging" };
   if (pathname === "/settings") return { name: "settings" };
   return { name: "sessions" };
 }

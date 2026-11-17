@@ -8,6 +8,9 @@ export const MessagingCreateChannelSchema = z.object({
 });
 export const MessagingChannelSchema = MessagingCreateChannelSchema.extend({
   id: z.string().min(1),
+  latestText: z.string().default(""),
+  latestAt: z.string().default(""),
+  messageCount: z.number().int().nonnegative().default(0),
 });
 export const MessagingMessageSchema = z.object({
   id: z.string().min(1),
@@ -31,3 +34,7 @@ export const MessagingChannelsSchema = z.array(MessagingChannelSchema);
 export const MessagingMessagesSchema = z.array(MessagingMessageSchema);
 export type MessagingChannel = z.infer<typeof MessagingChannelSchema>;
 export type MessagingMessage = z.infer<typeof MessagingMessageSchema>;
+
+export const MessagingViewSchema = z.object({
+  channel: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/),
+});
