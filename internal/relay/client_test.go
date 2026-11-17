@@ -338,3 +338,55 @@ func TestEnrollmentRejectsRetiredResponseVersions(t *testing.T) {
 		t.Fatal("retired poll response accepted")
 	}
 }
+
+func TestRelayRetryAfter(t *testing.T) {
+	now := time.Date(2026, time.November, 17, 12, 0, 0, 500000000, time.UTC)
+	for _, tt := range []struct {
+		name string
+		give string
+		want uint32
+	}{
+		{"seconds", "7", 7},
+		{"date", now.Add(8 * time.Second).Format(http.TimeFormat), 8},
+		{"past", now.Add(-time.Minute).Format(http.TimeFormat), 0},
+		{"negative", "-1", 0},
+		{"invalid", "later", 0},
+		{"bounded", "999999", 24 * 60 * 60},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := relayRetryAfter(tt.give, now); got != tt.want {
+				t.Fatalf("Retry-After %q=%d want %d", tt.give, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEnrollmentPollRetainsHTTPRetryAfterWithoutReplay(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		body string
+		want uint32
+		code protocol.Code
+	}{
+		{"header", `{"code":"rate_limited","retryAfterSeconds":3}`, 7, protocol.RateLimited},
+		{"body", `{"code":"rate_limited","retryAfterSeconds":9}`, 9, protocol.RateLimited},
+		{"unstructured", `upstream busy`, 7, protocol.Unavailable},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			id := newTestIdentity(t)
+			var requests atomic.Int32
+			srv := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				w.Header().Set("Retry-After", "7")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_, _ = io.WriteString(w, tt.body)
+			}), false)
+			client := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+			_, err := client.Poll(t.Context(), testToken(t))
+			var remote protocol.Error
+			if !errors.As(err, &remote) || remote.Code != tt.code || remote.RetryAfterSeconds != tt.want || requests.Load() != 1 {
+				t.Fatalf("poll error=%v Retry-After=%d requests=%d", err, remote.RetryAfterSeconds, requests.Load())
+			}
+		})
+	}
+}

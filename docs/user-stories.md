@@ -6,6 +6,7 @@
 
 固定多 TCP 与服务端单点准入变更覆盖 US-A09、US-A10，详见[连接与启动](user-stories/access-and-sessions/connection-and-launch.md)。
 机器身份独立持久化、仅全新配对、破坏性旧绑定清理及所有者直接删除覆盖 US-A08–US-A10；删除记录与旧访问关闭分别报告，不改变故事数量或既有编号。
+Relay 页内配对与宿主授权生命周期覆盖 US-A10：刷新恢复、暂时失败继续查询、未知结果核对及删除/关闭证据分别呈现，编号和总数保持不变。
 
 本次局部核对（2026-11-03）：
 
@@ -96,3 +97,4 @@
 | [verification-log-2026-11-12](user-stories/verification-log-2026-11-12.md)                             | 2026-11-12 起                     |
 | [verification-log-2026-11-git-workbench](user-stories/verification-log-2026-11-git-workbench.md)       | 2026-11-12 起的 Git 工作台核对    |
 | [verification-log-2026-11-15](user-stories/verification-log-2026-11-15.md)                             | 2026-11-15 起                     |
+| [verification-log-2026-11-17](user-stories/verification-log-2026-11-17.md)                             | 2026-11-17 起的 Relay 配对核对    |

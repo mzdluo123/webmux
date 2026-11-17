@@ -18,9 +18,9 @@ type RelayControl interface {
 	Status() contract.RelayStatus
 	Update(context.Context, contract.RelayUpdate) (contract.RelayStatus, error)
 	Reconnect(context.Context) (contract.RelayStatus, error)
-	Enroll(context.Context, contract.RelayEnrollmentRequest) (contract.RelayEnrollment, error)
-	Poll(context.Context, protocol.Token) (contract.RelayStatus, error)
-	Cancel(context.Context, protocol.Token) error
+	Pairing() contract.RelayPairing
+	Enroll(context.Context, contract.RelayEnrollmentRequest) (contract.RelayPairing, error)
+	Cancel(context.Context) (contract.RelayPairing, error)
 	Delete(context.Context) (contract.RelayStatus, error)
 }
 
@@ -48,7 +48,7 @@ func relayPrincipal(r *http.Request) (relaysetting.AuthPrincipal, bool) {
 
 func relayFailure(w http.ResponseWriter, err error) {
 	var remote protocol.Error
-	if errors.As(err, &remote) {
+	if errors.As(err, &remote) && remote.Code.Valid() {
 		failure(w, protocol.HTTPStatus(remote.Code), errors.New(string(remote.Code)))
 		return
 	}
@@ -69,7 +69,10 @@ func (s *Server) relayRoutes(mux *http.ServeMux) {
 		return
 	}
 	c := s.Relay.Control
-	mux.HandleFunc("GET /api/relay", func(w http.ResponseWriter, r *http.Request) { reply(w, 200, c.Status()) })
+	mux.HandleFunc("GET /api/relay", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		reply(w, 200, c.Status())
+	})
 	mux.HandleFunc("PUT /api/relay", func(w http.ResponseWriter, r *http.Request) {
 		var req contract.RelayUpdate
 		if !decodeStrict(w, r, &req, 4096, errors.New("invalid relay settings")) {
@@ -103,7 +106,12 @@ func (s *Server) relayRoutes(mux *http.ServeMux) {
 		}
 		reply(w, 200, v)
 	})
+	mux.HandleFunc("GET /api/relay/enrollments", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		reply(w, 200, c.Pairing())
+	})
 	mux.HandleFunc("POST /api/relay/enrollments", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
 		var req contract.RelayEnrollmentRequest
 		if !decodeStrict(w, r, &req, 4096, errors.New("invalid relay enrollment")) {
 			return
@@ -115,28 +123,18 @@ func (s *Server) relayRoutes(mux *http.ServeMux) {
 		}
 		reply(w, 201, v)
 	})
-	mux.HandleFunc("POST /api/relay/enrollments/poll", func(w http.ResponseWriter, r *http.Request) {
-		var req contract.RelayEnrollmentPoll
-		if !decodeStrict(w, r, &req, 4096, errors.New("invalid relay poll")) {
+	mux.HandleFunc("DELETE /api/relay/enrollments", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		var req contract.RelayEnrollmentCancel
+		if !decodeStrict(w, r, &req, 4096, errors.New("invalid relay cancel")) {
 			return
 		}
-		v, err := c.Poll(r.Context(), req.Handle)
+		v, err := c.Cancel(r.Context())
 		if err != nil {
 			relayFailure(w, err)
 			return
 		}
 		reply(w, 200, v)
-	})
-	mux.HandleFunc("DELETE /api/relay/enrollments", func(w http.ResponseWriter, r *http.Request) {
-		var req contract.RelayEnrollmentPoll
-		if !decodeStrict(w, r, &req, 4096, errors.New("invalid relay cancel")) {
-			return
-		}
-		if err := c.Cancel(r.Context(), req.Handle); err != nil {
-			relayFailure(w, err)
-			return
-		}
-		w.WriteHeader(204)
 	})
 	mux.HandleFunc("DELETE /api/relay/binding", func(w http.ResponseWriter, r *http.Request) {
 		v, err := c.Delete(r.Context())

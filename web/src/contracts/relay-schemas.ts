@@ -28,6 +28,13 @@ const PublicURLSchema = z.string().refine(
 );
 
 export const RelayStatusSchema = z.object({
+  operation: z.object({
+    kind: z.enum(["idle", "enable", "disable", "reconnect", "delete"]),
+    phase: z.enum(["idle", "submitting", "completed", "failed", "uncertain"]),
+    error: z.string(),
+    deleted: z.boolean(),
+    accessClosed: z.boolean(),
+  }),
   enabled: z.boolean(),
   paired: z.boolean(),
   ownerId: z
@@ -90,14 +97,25 @@ export const RelayStatusSchema = z.object({
 });
 export type RelayStatus = z.infer<typeof RelayStatusSchema>;
 
-export const RelayEnrollmentSchema = z.object({
-  version: z.literal(2),
-  handle: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
-  userCode: z.string().min(1).max(64),
-  verificationUrl: z
-    .string()
-    .url()
-    .refine((value) => {
+export const RelayPairingSchema = z.object({
+  phase: z.enum([
+    "idle",
+    "preparing",
+    "waiting",
+    "retrying",
+    "uncertain",
+    "cancelling",
+    "cancelled",
+    "paired",
+    "denied",
+    "expired",
+    "interrupted",
+    "failed",
+  ]),
+  userCode: z.string().max(64),
+  verificationUrl: z.string().refine((value) => {
+    if (!value) return true;
+    try {
       const url = new URL(value);
       return (
         url.protocol === "https:" &&
@@ -107,11 +125,16 @@ export const RelayEnrollmentSchema = z.object({
         !url.search &&
         !url.hash
       );
-    }),
-  expiresAt: z.number().int().positive(),
-  pollIntervalSeconds: z.number().int().min(1).max(60),
+    } catch {
+      return false;
+    }
+  }),
+  expiresAt: z.number().int().nonnegative(),
+  pollIntervalSeconds: z.number().int().nonnegative(),
+  retryAt: z.number().int().nonnegative(),
+  error: z.string(),
 });
-export type RelayEnrollment = z.infer<typeof RelayEnrollmentSchema>;
+export type RelayPairing = z.infer<typeof RelayPairingSchema>;
 export const RelayUpdateSchema = z
   .object({
     enabled: z.boolean(),
@@ -123,16 +146,6 @@ export const RelayEnrollmentRequestSchema = z
     confirmPublic: z.boolean(),
   })
   .strict();
-export const RelayPollRequestSchema = z
-  .object({
-    handle: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
-  })
-  .strict();
-const RelayPendingSchema = z.object({ error: z.literal("pending") });
-export const RelayPollResultSchema = z.union([
-  RelayStatusSchema,
-  RelayPendingSchema,
-]);
 export const RelayAuthSessionSchema = z
   .object({
     authenticated: z.boolean(),

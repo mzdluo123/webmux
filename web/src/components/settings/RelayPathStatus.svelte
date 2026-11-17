@@ -21,7 +21,7 @@
 </script>
 
 <section class="space-y-3" aria-label={m.relay_paths_aria()}>
-  <h2 class="text-base font-semibold">{m.relay_paths_title()}</h2>
+  <h3 class="text-base font-semibold">{m.relay_paths_title()}</h3>
   <p class="text-sm text-muted-foreground">
     {m.relay_paths_description()}
   </p>

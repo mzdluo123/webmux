@@ -3,6 +3,7 @@
 ## Purpose
 
 WebMux 宿主通过独立中继密钥与官方 Relay 配对，以固定 HTTPS 地址提供低配置公网访问，并在连接断开时立即撤销入口授权、自动恢复连接，同时保持现有 Cloudflare、Tailscale、Web Push 和 P2P 能力的独立行为。
+设备配对、机器身份与页内设置操作遵循 [official-relay-pairing](../official-relay-pairing/spec.md)。
 
 ## Requirements
 
@@ -21,42 +22,6 @@ WebMux 宿主通过独立中继密钥与官方 Relay 配对，以固定 HTTPS �
 
 - **WHEN** 已配对主机当前登录 Token 少于 43 字符
 - **THEN** 启用被拒绝并给出修复方式，本机服务继续运行
-
-### Requirement: 仅全新主机配对
-
-WebMux SHALL 在本机生成并保存独立的 Ed25519 中继密钥对。配对 SHALL 使用 v2 接口、有效机器 ID 和新公钥，返回官方验证地址、一次性用户码和有效期供用户完成 GitHub 授权；WebMux 登录 Token MUST NOT 出现在请求中。
-私钥、轮询句柄和 GitHub 凭据 MUST NOT 出现在状态响应、诊断、日志或浏览器持久化中。配对失败或过期 SHALL 允许重试，不得改写 WebMux 登录 Token。
-已有绑定 SHALL 要求先通过已授权删除，再进行全新配对；客户端 MUST NOT 提供保留域名恢复、rebind 或同机自动换钥。明确拒绝 SHALL 清理待配对密钥及 pending 状态；不确定网络、上游或限流失败 SHALL 保留有效句柄、密钥和取消入口。
-
-#### Scenario: 从设置页完成配对
-
-- **WHEN** 用户打开 Relay 设置、开始配对并在官方页面完成 GitHub 授权
-- **THEN** 显示已配对和固定公共地址，本机不保存 GitHub 访问凭据
-
-#### Scenario: 配对接口不包含登录 Token
-
-- **WHEN** 创建或轮询配对请求
-- **THEN** 只包含机器 ID、公钥或配对材料，不包含 WebMux 登录 Token
-
-#### Scenario: 账号已有绑定
-
-- **WHEN** 同账号仍存在绑定，即使机器 ID 相同
-- **THEN** 普通配对冲突，提示先删除旧绑定，不提供恢复按钮
-
-#### Scenario: 轮询明确拒绝后重试
-
-- **WHEN** 配对轮询返回当前尝试已失败的明确错误
-- **THEN** 清理当前句柄和待配对密钥，允许用户重新发起全新配对
-
-#### Scenario: 轮询遇到不确定网络失败
-
-- **WHEN** 轮询遇到网络、上游或限流失败
-- **THEN** 保留句柄、密钥和取消入口，不自动换钥
-
-#### Scenario: 取消返回已终止
-
-- **WHEN** 取消当前配对返回句柄已终止的明确错误
-- **THEN** 清理当前尝试并刷新状态，允许重新配对；不因不确定取消失败丢弃句柄
 
 ### Requirement: 新版绑定持久化与安全降级
 
@@ -132,24 +97,6 @@ Relay 就绪后，固定公共地址 SHALL 出现在现有访问 URL 汇总、�
 
 - **WHEN** 手机通过就绪的 Relay HTTPS 地址打开 WebMux 并开启通知
 - **THEN** 订阅关联该固定来源，重启 WebMux 并重连 Relay 后通知仍指向同一地址
-
-### Requirement: 设置操作与删除绑定
-
-WebMux SHALL 在公网访问设置中提供开始配对、启停、刷新状态和删除绑定操作，并显示期望开关、运行状态、地址及失败原因；MUST NOT 提供恢复或重新绑定入口。
-
-删除绑定 SHALL 停止自己的连接与派生访问；官方 Relay 确认记录已删除后，SHALL 清除本地绑定、私钥和待配对密钥，即使旧访问关闭未确认。无法确认删除时 SHALL 保留本地身份以便重试。界面 SHALL 区分记录删除和旧 P2P 访问关闭，不伪造关闭证明，并明确告知新配对取得新地址。
-
-设置操作 SHALL 保留现有 API 认证和 Origin 校验；界面在桌面与手机布局可用，并在当前操作会断开正在使用的公网页面时给出确认提示。
-
-#### Scenario: 成功删除绑定
-
-- **WHEN** 用户确认删除且官方 Relay 确认记录已删除
-- **THEN** 自己的连接停止、公共来源撤权、本地私钥与绑定被清除；旧访问未确认关闭时明确警告
-
-#### Scenario: 删除时官方服务不可达
-
-- **WHEN** 用户删除绑定但 Relay 控制面无法确认记录已删除
-- **THEN** 本地连接保持关闭，绑定信息保留用于重试，不声称删除或旧访问关闭
 
 ### Requirement: GitHub 跳转与宿主浏览器会话
 
@@ -363,17 +310,3 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 - **WHEN** 验收混合数据面的生产实现
 - **THEN** SHALL 在真实手机及桌面浏览器完成同 GitHub 账户免 Token 打开、Vim/CLI agent、重输出、Ctrl-C、切换续接、权限撤销和长时稳定性验证，记录失败及未覆盖边界，不引用旧实验充当 TURN 验证
-
-### Requirement: 独立持久机器身份
-
-宿主 SHALL 首次配对前生成具有至少 128 位随机熵的机器 ID，并独立于 Relay 绑定与私钥持久化。解绑或重新生成中继密钥 SHALL 保留机器 ID。机器 ID SHALL 仅用于同账号判重，MUST NOT 来自硬件指纹或替代 GitHub 授权。损坏或不可写的机器身份 SHALL 阻止新配对并保留原文件。
-
-#### Scenario: 丢失绑定后同机恢复
-
-- **WHEN** Relay 设置丢失而独立机器身份文件仍完整，用户重新完成同账号授权
-- **THEN** 新请求复用原机器 ID，恢复原 host ID 和固定域名，原密钥与派生授权失效
-
-#### Scenario: 机器身份损坏
-
-- **WHEN** 独立机器身份文件格式非法、被锁定或写入失败
-- **THEN** 配对明确失败，不静默生成替代 ID，不影响现有本地 PTY

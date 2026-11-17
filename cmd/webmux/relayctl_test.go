@@ -71,6 +71,9 @@ func TestRelayDisableRevokesWhenPersistenceFails(t *testing.T) {
 	if state.Enabled || state.ControlReady || state.PublicURL != "" || public.SourceOrigin("relay") != "" {
 		t.Fatalf("failed save retained public access: %+v", state)
 	}
+	if receipt := state.Operation; receipt.Kind != "disable" || receipt.Phase != "failed" || receipt.Error != "storage-unavailable" {
+		t.Fatalf("failed durable disable receipt=%+v", receipt)
+	}
 	if public.SourceOrigin("cloudflare") != "https://other.example.com" {
 		t.Fatal("disabling relay revoked independent origin")
 	}

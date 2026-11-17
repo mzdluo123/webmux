@@ -146,7 +146,8 @@
 - [session-port-detection](../openspec/specs/session-port-detection/spec.md)：按会话进程发现监听端口
 - [remote-access-wizard](../openspec/specs/remote-access-wizard/spec.md)：规划：统一远程访问配置向导
 - [client-transport](../openspec/specs/client-transport/spec.md)：HTTP、WebSocket 与 P2P 客户端传输
-- [official-relay-client](../openspec/specs/official-relay-client/spec.md)：官方 Relay 配对与宿主连接
+- [official-relay-client](../openspec/specs/official-relay-client/spec.md)：官方 Relay 宿主连接、认证与数据面
+- [official-relay-pairing](../openspec/specs/official-relay-pairing/spec.md)：全新配对、机器身份、可恢复授权与页内设置
 - [official-relay-node-management](../openspec/specs/official-relay-node-management/spec.md)：官方 Relay 节点登记与管理
 - [official-relay-service](../openspec/specs/official-relay-service/spec.md)：独立 Relay 服务仓库的控制面与数据面契约
 
