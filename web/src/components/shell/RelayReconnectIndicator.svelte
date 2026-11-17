@@ -3,7 +3,7 @@
   import { Button } from "$lib/components/ui/button";
   import { cn } from "$lib/utils";
   import { m } from "$lib/paraglide/messages.js";
-  import { relayLoginHref } from "../../hooks/shared/relay-login";
+  import RelayReconnectDetails from "./RelayReconnectDetails.svelte";
 
   let {
     checking = false,
@@ -20,12 +20,16 @@
   const statusLabel = $derived(
     checking ? m.s1_disconnected_reconnecting() : m.relay_reconnect_paused(),
   );
-  const detail = $derived(
-    checking ? m.relay_auth_reconnecting() : m.relay_auth_retry_stopped(),
-  );
 </script>
 
-<div class={cn("fixed bottom-2 z-50", className ?? "left-2")}>
+<!-- Touch layouts keep soft keys and the chat composer at the bottom edge;
+     the pill lifts above them so it never swallows their taps. -->
+<div
+  class={cn(
+    "fixed bottom-2 z-50 max-sm:bottom-16 any-pointer-coarse:bottom-16",
+    className ?? "left-2",
+  )}
+>
   <Popover.Root>
     <Popover.Trigger>
       {#snippet child({ props })}
@@ -53,21 +57,7 @@
       aria-label={m.s1_host_status()}
       class="w-[min(20rem,calc(100vw-2rem))] gap-3"
     >
-      <p role="status" class="leading-relaxed">{detail}</p>
-      <p class="text-xs text-muted-foreground">
-        {m.relay_auth_drafts_kept()}
-      </p>
-      <div class="flex flex-wrap justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={checking}
-          onclick={onretry}>{m.relay_auth_check_again()}</Button
-        >
-        <Button size="sm" href={relayLoginHref(returnTo)}
-          >{m.relay_auth_login()}</Button
-        >
-      </div>
+      <RelayReconnectDetails {checking} {returnTo} {onretry} />
     </Popover.Content>
   </Popover.Root>
 </div>

@@ -351,7 +351,10 @@
 <RelayAccessOverlay
   checking={reconnect.checking}
   returnTo={path + search + location.hash}
-  hasShell={shellRoute !== null}
+  hasShell={ready &&
+    !rebuildingFeatures &&
+    !routeUnavailable &&
+    shellRoute !== null}
   onretry={() => reconnect.start()}
 />
 

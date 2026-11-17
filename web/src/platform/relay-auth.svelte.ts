@@ -22,3 +22,10 @@ export function relayGate() {
 export function relayReconnecting() {
   return relayBlocked() && relayAuth.reason === "reconnecting";
 }
+
+/** The props every reconnect surface (pill, sidebar footer) renders. */
+export interface RelayReconnection {
+  checking: boolean;
+  returnTo: string;
+  onretry: () => void;
+}
