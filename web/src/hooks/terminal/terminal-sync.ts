@@ -120,7 +120,6 @@ export interface SnapshotRestoreContext {
   setRestoring(value: boolean): void;
   setDrawn(run: string): void;
   isRecovering(): boolean;
-  isImmersive?(): boolean;
 }
 
 export function restoreTerminalSnapshot(
@@ -153,11 +152,6 @@ export function restoreTerminalSnapshot(
     if (ctx.isCurrent(version)) ctx.setReplaying(false);
     if (payload.length && run) ctx.setDrawn(run);
     if (ctx.isDisposed() || !ctx.isCurrent(version)) return;
-    if (ctx.isImmersive?.()) {
-      ctx.scrollToBottom();
-      ctx.setRestoring(ctx.isRecovering());
-      return;
-    }
     setRestoreFrame(
       requestAnimationFrame(() => {
         if (ctx.isDisposed() || !ctx.isCurrent(version)) return;

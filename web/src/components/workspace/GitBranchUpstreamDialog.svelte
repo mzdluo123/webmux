@@ -5,8 +5,8 @@
   import * as NativeSelect from "$lib/components/ui/native-select";
   import { m } from "$lib/paraglide/messages.js";
   import type { GitBranchItem } from "../../contracts/git-workbench-schemas";
-  import InlineNotice from "../shared/InlineNotice.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   let {
     branchName,

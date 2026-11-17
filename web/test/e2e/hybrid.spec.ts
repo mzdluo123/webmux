@@ -822,6 +822,15 @@ test.describe("hybrid sessions with the fake agent", () => {
     );
 
     // Scroll up to a reading offset and verify sticky header/dock and jump button.
+    // Real reader input cancels pending automatic following from the last turn.
+    const jump = page.getByRole("button", { name: "回到最新", exact: true });
+    const beforeWheel = await page.evaluate(() => Math.round(window.scrollY));
+    await page.mouse.move(195, 300);
+    await page.mouse.wheel(0, -240);
+    await expect
+      .poll(() => page.evaluate(() => Math.round(window.scrollY)))
+      .toBeLessThan(beforeWheel);
+    await expect(jump).toBeVisible();
     await page.evaluate(() => {
       window.scrollTo(0, 120);
       window.dispatchEvent(new Event("scroll"));
@@ -829,7 +838,6 @@ test.describe("hybrid sessions with the fake agent", () => {
     await expect
       .poll(() => page.evaluate(() => Math.round(window.scrollY)))
       .toBe(120);
-    const jump = page.getByRole("button", { name: "回到最新", exact: true });
     await expect(jump).toBeVisible();
     const stickyBounds = await page.evaluate(() => ({
       headerTop: Math.round(

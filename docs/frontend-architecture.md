@@ -10,11 +10,31 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 
 按顺序查找并复用已有组件：
 
-1. `web/src/lib/components/ui/`：shadcn-svelte 基础组件（Button、Input、Dialog、DropdownMenu 等）。
-2. `web/src/components/<主题>/` 与 `web/src/components/shared/`：业务复合组件与跨主题组件（ResponsiveDialog、InlineNotice、SessionStatus 等）。
+1. `web/src/lib/components/ui/`：shadcn-svelte 基础组件及不依赖业务的公共组合组件（ResponsiveDialog、InlineNotice 等）。
+2. `web/src/components/<主题>/` 与 `web/src/components/shared/`：业务复合组件与跨主题组件（SessionStatus、SessionRow 等）。
 3. shadcn-svelte registry：`pnpm --dir web exec shadcn-svelte add <name>`，生成后审查本地差异。
 
 三处都没有，才新建组件。需要新外观时，在 `ui/` 对应组件的 `tv()` 中增加 variant 或 size。
+
+公共组合组件也从 `$lib/components/ui/<name>` 的命名导出引用，不在业务目录保留转发副本。
+它们与基础组件共享主题、焦点和尺寸约定，但属于项目维护的组件；更新 shadcn-svelte 时保留这些本地扩展。
+
+| 组件             | 入口                   | 用途                               |
+| ---------------- | ---------------------- | ---------------------------------- |
+| InlineNotice     | `ui/inline-notice`     | 带图标的说明、成功、警告和错误提示 |
+| StripNotice      | `ui/strip-notice`      | 带可选操作和关闭入口的紧凑提示条   |
+| ResponsiveDialog | `ui/responsive-dialog` | 桌面弹窗、手机抽屉与处理中关闭保护 |
+| PickerField      | `ui/picker-field`      | 桌面浮层、手机原位展开的选择字段   |
+| InfoHint         | `ui/info-hint`         | 按需展开的帮助说明                 |
+| AdvancedSection  | `ui/advanced-section`  | 带当前值摘要的折叠表单区           |
+| KeyValueSummary  | `ui/key-value-summary` | 标签与值对齐的摘要                 |
+
+公共组件通过 props、snippet 和回调接收内容与操作，不读取 API、领域状态或设备持久化设置。
+业务状态映射留在 `components/`，例如 SessionStatus 将会话状态映射为 Badge；ConfirmDialog 负责异步操作的错误转换。
+
+手工公共组合默认接受命名、499 行体量、重复外观、循环依赖和未使用代码检查，包括 ListButton、SegmentedControl 与 `tabs/indicator.ts`。
+设计系统实现拥有外观与底层元素封装职责，因此沿用 `ui/` 的模板外观、原生控件及原语导入豁免；语义色、圆角和 Svelte 规则继续检查。
+生成代码的文件级豁免清单是 `web/ui-generated-files.json`，依赖守卫、Knip 和架构测试共用该清单；新增文件默认接受检查。生成文件增删时同步审查清单，架构测试检查清单排序、唯一性和文件存在性。
 
 ## 分层
 
@@ -34,7 +54,7 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 
 主题包括 `sessions`、`terminal`、`chat`、`code`、`workspace`、`settings` 与 `notifications`。领域目录把相同业务概念的纯算法与响应式状态放在一起；资源生命周期与跨主题流程放在 hooks。
 
-跨主题复用组件放在 `components/shared/`，应用导航与侧栏放在 `components/shell/`，通用资源控制器放在 `hooks/shared/`。业务代码保存在拥有该概念的主题下，其他主题直接导入。
+跨主题业务组件放在 `components/shared/`，不依赖业务的公共 UI 组合放在 `lib/components/ui/`。应用导航与侧栏放在 `components/shell/`，通用资源控制器放在 `hooks/shared/`。业务代码保存在拥有该概念的主题下，其他主题直接导入。
 
 领域主题只能引用配置中登记的其他主题，不允许循环。`settings`、`chat` 不依赖其他主题；`sessions` 依赖 `settings`；`workspace`、`terminal` 依赖 `settings` 与 `sessions`；`notifications` 依赖 `sessions`；`code` 依赖 `terminal`。
 
@@ -60,26 +80,16 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 终端可以预载已选择但暂不可用的本地贡献；控件和业务 I/O 必须按当前 `featureAvailable` 派生，能力恢复时复用原有 PTY、owner 与草稿，不以临时不可用作为永久缺少实现的快照。
 禁用功能不仅隐藏入口：不得加载实现 chunk、调用其 REST/WS、启动计时器、后台探测或 provider。单个可选 chunk 失败留在该功能内，不使 PTY 终端整体失败。
 加载错误提示可收起且不会遮断其他设置；收起提示不清除错误事实或伪造模块恢复。可选编辑器缺失时，启动配置的其他字段保存不得丢掉已读取的混合或提醒选项。
-打开聊天连接的 effect 只跟踪流需求与可用性，连接内部读取模型时使用 `untrack`，避免每个聊天帧都触发关闭和重连。草稿对账保留当前路由及 `terminal-draft-owners.ts` 登记的二维/VR 所有者；列表暂缺不等于规范删除，已释放资源的旧回调不得回收新宿主的草稿。
+打开聊天连接的 effect 只跟踪流需求与可用性，连接内部读取模型时使用 `untrack`，避免每个聊天帧都触发关闭和重连。草稿对账保留当前路由及 `terminal-draft-owners.ts` 登记的二维所有者；列表暂缺不等于规范删除，已释放资源的旧回调不得回收新宿主的草稿。
 核心新建对话框可直接填写 argv 与 cwd，无需 launch/workspace/files；缺少 launch 时，旧浏览器记住的 `configId` 不能猜成命令，必须重新显式填写。
 选择与组合规则见 [配置](deployment/configuration.md#内置功能选择)，后端事实与功能状态不是同一个布尔值，见 [能力发现](protocol.md#能力发现)。
 
-### XR 与设备模式边界
+### 设备模式边界
 
 - `hooks/shared/` 拥有 TV/头显显式开关、设备偏好和 TV 导航生命周期；`platform/spatial-navigation.ts` 只计算几何候选。根属性由应用外壳设置，呈现使用共享设计系统令牌，不由设备 UA 推断业务模式。
 - 复合控件用 `data-tv-native-keys` 保留自己的键盘协议；聊天内联菜单在 `webmux:tv-back` 的 capture 阶段，仅消费自己拥有焦点时的返回，再由根导航释放编辑。
-- `hooks/terminal/terminal.svelte.ts` 的 `TerminalController` 保有唯一 xterm emulator、输入路由与 socket。DOM renderer 和 XR Canvas 共用这个解析模型；`setImmersive` 暂停 DOM 适配，退出后恢复，不建立第二个 PTY 或输入控制器。
-- `domains/terminal/` 放共享按键编码、XR 文本/面板契约与布局校验；`domains/code/` 放代码/Diff 的只读 XR 适配。`hooks/terminal/` 协调会话来源、异步 XR 所有权、Canvas、射线、场景与资源清理，不让领域依赖渲染层。
-- Three.js 运行时只允许在 XR 专属 `hooks/terminal/xr-*` 场景模块中导入。`xr-session.svelte.ts` 在用户手势请求会话后动态导入 `xr-workspace.ts`；普通页面与领域契约不得静态导入该场景入口或初始化 3D renderer。
-- XR 布局 version 2 经 Zod 校验并通过设备偏好存储，读取时迁移有效 version 1；区分会话、内容来源与视图实例，只保存 ID、类型、会话和来源引用、位置、尺寸与可见性，不保存标题、输出、草稿、代码、游标或 token。
-
-XR 面板姿态、纹理尺寸与每眼帧缓冲只影响呈现；PTY 网格仍由共享控制权流程管理，只有用户明确确认逻辑网格变化才可提交 resize。返回 2D、关闭面板和 XR 资源清理均不拥有服务端会话销毁权。
-
-同深度 XR 面板按统一表面顺序绘制和命中；终端子平面与所属面板共面，使用组内顺序覆盖背景。真实前后关系仍交给深度测试，控制器射线单独置顶，不用改变持久化姿态解决遮挡。
-
-`Terminal.svelte` 按会话键挂载 2D 与 VR 观察成员的去重并集；`TerminalSessionHost` 在引用转移时保留原 `SessionTerminal`。离屏成员在附着前取得 immersive，不参与 2D 几何与自动 fitting，原输入编辑器仍可显式聚焦。
-
-`xr-view-state.ts` 拥有有界绑定、观察事务与实例选择；来源只派生一次内容再分发给独立面板。输入按选中实例解析唯一来源，异步聚焦检查目标和所有者代际，失效后撤销捕获；只读聊天历史不复用通用输入动作。
+- `hooks/terminal/terminal.svelte.ts` 的 `TerminalController` 保有唯一 xterm emulator、输入路由与 socket；视图切换保留解析模型和连接。
+- `Terminal.svelte` 按会话键挂载 2D 窗格；`TerminalSessionHost` 在分屏与视图状态变化时保留原 `SessionTerminal`。
 
 ## 检查项
 
@@ -111,6 +121,8 @@ Git 工作台分栏使用 `git-pane` 与 `git-divider` 布局钩子类，只在�
 组件需要由样式表控制布局时，优先用 `data-*` 属性作为选择器（如 `DirectoryPicker` 的 `data-directory-picker`），只在样式表中写布局；外观仍通过 variant 表达。
 
 常用的设计系统扩展：
+
+`InlineNotice` 提供 `size="default"`（12px 内边距）和 `size="compact"`（水平 12px、垂直 6px）；紧凑提示通过 size 选择。
 
 | 组件                | variant / size                                              | 用途                                                                                                                                                                                            |
 | ------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

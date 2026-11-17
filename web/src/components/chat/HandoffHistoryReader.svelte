@@ -4,7 +4,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import { threadAPI } from "../../platform/thread-api";
   import { errorMessage } from "../../platform/error";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   let { sourceId, snapshotId }: { sourceId: string; snapshotId: string } =
     $props();
   let text = $state("");

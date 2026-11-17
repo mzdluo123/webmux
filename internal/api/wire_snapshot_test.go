@@ -107,7 +107,11 @@ func wireSchema(name string) wireRules {
 		add("", "id", "id", "instanceId", "operationId", "sourceSessionId", "snapshotId")
 		add("/request", "id", "configId", "targetSessionId")
 		add("", "time", "createdAt", "expiresAt")
-		add("", "path", "text")
+		add("", "path", "text", "historyText")
+		add("/pages/*", "id", "data", "sha256")
+		add("/pages/*", "dimension", "width", "height")
+		add("/pages/*", "measured", "bytes")
+		add("/imageBudget", "measured", "bytes")
 	case "native-freeze", "native-read":
 		add("", "id", "snapshotId")
 		add("", "time", "expiresAt")
@@ -588,7 +592,7 @@ func (n *wireNormalizer) value(rules wireRules, path string, v any) any {
 		switch rules[path] {
 		case "hostStat", "measured":
 			return 0.0
-		case "hostCPUs":
+		case "hostCPUs", "dimension":
 			return 1.0
 		}
 	case string:
@@ -1862,7 +1866,7 @@ func wireNativeHandoff(f *wireFixture) {
 	if err != nil {
 		f.t.Fatal(err)
 	}
-	source, err := f.hybrids.Create(f.ctx, hybrid.CreateInput{ConfigID: cfg.ID, Cmd: cfg.Cmd, Cwd: f.root, StartSide: hybrid.SideACP, Env: map[string]string{"FAKEAGENT_STORE": f.t.TempDir()}})
+	source, err := f.hybrids.Create(f.ctx, hybrid.CreateInput{ConfigID: cfg.ID, Cmd: cfg.Cmd, Cwd: f.root, StartSide: hybrid.SideACP, Env: map[string]string{"FAKEAGENT_STORE": f.t.TempDir(), "FAKEAGENT_PROMPT_IMAGE": "1"}})
 	if err != nil {
 		f.t.Fatal(err)
 	}

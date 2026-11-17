@@ -8,7 +8,7 @@
   import IconTrash from "~icons/tabler/trash";
   import IconX from "~icons/tabler/x";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { Button } from "$lib/components/ui/button";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import { Label } from "$lib/components/ui/label";

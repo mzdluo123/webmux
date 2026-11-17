@@ -6,7 +6,7 @@
   import { Button } from "$lib/components/ui/button";
   import { m } from "$lib/paraglide/messages.js";
   import type { GitPrecedingCommit } from "../../contracts/git-workbench-schemas";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   export interface GitPushRecoveryCallbacks {
     onFetchRemote?: () => void;

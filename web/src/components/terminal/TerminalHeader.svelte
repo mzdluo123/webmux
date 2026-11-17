@@ -28,7 +28,6 @@
   import SessionSwitcherTrigger from "../shell/SessionSwitcherTrigger.svelte";
   import { tvMode } from "../../hooks/shared/tv-mode.svelte";
   import TerminalDisplayControls from "./TerminalDisplayControls.svelte";
-  import type { XrHeaderControl } from "../../domains/terminal/xr-workspace";
 
   interface HeaderTerminal {
     readonly info: SessionInfo | undefined;
@@ -72,7 +71,6 @@
     hybrid,
     openPanels,
     chatActions,
-    xr,
     keyboard,
   }: {
     features?: TerminalFeatures;
@@ -102,7 +100,6 @@
     hybrid?: HeaderHybrid;
     openPanels: () => void;
     chatActions?: Snippet;
-    xr?: XrHeaderControl;
     keyboard?: () => void;
   } = $props();
   // A rename reaches the session list first; the list title wins here so
@@ -278,7 +275,7 @@
         : m.s4_enter_fullscreen()}
       aria-pressed={fullscreen.active}
       aria-busy={fullscreen.busy}
-      disabled={fullscreen.busy || xr?.busy || xr?.active}
+      disabled={fullscreen.busy}
       onclick={() => {
         void fullscreen.toggle();
       }}
@@ -286,11 +283,7 @@
       {#if fullscreen.active}<IconMinimize class="size-4" aria-hidden="true" />
       {:else}<IconMaximize class="size-4" aria-hidden="true" />{/if}
     </Button>{/if}
-  <TerminalDisplayControls
-    {xr}
-    {fullscreen}
-    keyboard={terminalShown ? keyboard : undefined}
-  />
+  <TerminalDisplayControls keyboard={terminalShown ? keyboard : undefined} />
   <DropdownMenu.Root>
     <DropdownMenu.Trigger>
       {#snippet child({ props })}<Button
@@ -317,14 +310,14 @@
       <!-- Grouped by purpose. Below 640px the header keeps only the view
            switch and this menu, so the entries of the hidden buttons live
            here (marked sm:hidden). -->
-      <TerminalDisplayControls {xr} {fullscreen} menu />
+      <TerminalDisplayControls menu />
       {#if tvMode.enabled && terminalShown}
         {@render quickMenu("bottom", "sm", "ghost", true)}
       {/if}
       <DropdownMenu.Separator />
       {#if fullscreen.offered}<DropdownMenu.Item
           class={tvMode.enabled ? undefined : "sm:hidden"}
-          disabled={fullscreen.busy || xr?.busy || xr?.active}
+          disabled={fullscreen.busy}
           onSelect={() => {
             void fullscreen.toggle();
           }}

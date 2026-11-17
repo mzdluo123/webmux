@@ -16,7 +16,11 @@
   import { HealthSchema, type Health } from "../../contracts/schemas";
   import { toggleTheme } from "../../hooks/settings/theme";
   import type { Connection } from "../../platform/ws-contracts";
-  import { relayAuth } from "../../platform/relay-auth.svelte";
+  import {
+    relayAuth,
+    type RelayReconnection,
+  } from "../../platform/relay-auth.svelte";
+  import RelayReconnectDetails from "./RelayReconnectDetails.svelte";
   import { m } from "$lib/paraglide/messages.js";
   const p2pState = $derived(
     featureContributions.entries.p2p?.p2pState ?? {
@@ -37,6 +41,7 @@
     hostname,
     setupSettled,
     rail = false,
+    reconnection,
     onforward,
   }: {
     connection: Connection;
@@ -44,6 +49,9 @@
     setupSettled: boolean;
     /** The collapsed rail stacks the buttons and drops the host text. */
     rail?: boolean;
+    /** Relay retry state: on the expanded sidebar this footer is the
+        lower-left reconnect surface, so its details live here. */
+    reconnection?: RelayReconnection;
     onforward: () => void;
   } = $props();
 
@@ -250,6 +258,15 @@
           </dd>
         {/if}
       </dl>
+      {#if reconnection}
+        <div class="space-y-3 border-t pt-3">
+          <RelayReconnectDetails
+            checking={reconnection.checking}
+            returnTo={reconnection.returnTo}
+            onretry={reconnection.onretry}
+          />
+        </div>
+      {/if}
     </Popover.Content>
   </Popover.Root>
   {#if forward}<forward.Button onclick={onforward} />{/if}

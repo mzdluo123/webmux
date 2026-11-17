@@ -111,6 +111,13 @@ func (s *Service) send(ctx context.Context, e *operationEntry) {
 		s.finish(e, "failed", recordErr)
 		return
 	}
+	if p.Format == "image" {
+		capability, err := s.imageCapability(ctx, target)
+		if err != nil || capability != "supported" {
+			s.finish(e, "failed", errors.New("目标 agent 未确认支持图片，消息未发送；请选择文本模式重新预览"))
+			return
+		}
+	}
 	s.mu.Lock()
 	s.history[target+"_"+p.SnapshotID] = historyBinding{scopeID: p.SnapshotID, identity: runtimeIdentity(targetRecord)}
 	s.mu.Unlock()
@@ -122,9 +129,13 @@ func (s *Service) send(ctx context.Context, e *operationEntry) {
 	if p.Request.TargetSessionID != "" {
 		expectedIdentity = p.targetIdentity
 	}
-	_, err = s.options.Hybrid.Prompt(ctx, target, hybrid.PromptInput{ClientRequestID: rand.Text(), Text: p.Text, TitleSource: p.UserText, Mode: hybrid.ModeRefuse, ExpectedIdentity: expectedIdentity, AwaitAcknowledgement: true, ExpectedUsage: expectedUsage})
+	input := hybrid.PromptInput{ClientRequestID: rand.Text(), Text: p.Text, TitleSource: p.UserText, Mode: hybrid.ModeRefuse, ExpectedIdentity: expectedIdentity, AwaitAcknowledgement: true, ExpectedUsage: expectedUsage}
+	if p.Format == "image" {
+		input.Images = previewImages(p)
+	}
+	_, err = s.options.Hybrid.Prompt(ctx, target, input)
 	if err != nil {
-		if errors.Is(err, hybrid.ErrBusy) || errors.Is(err, hybrid.ErrWrongSide) || errors.Is(err, hybrid.ErrSwitching) || errors.Is(err, hybrid.ErrInvalid) || errors.Is(err, hybrid.ErrConflict) {
+		if errors.Is(err, hybrid.ErrBusy) || errors.Is(err, hybrid.ErrWrongSide) || errors.Is(err, hybrid.ErrSwitching) || errors.Is(err, hybrid.ErrInvalid) || errors.Is(err, hybrid.ErrConflict) || errors.Is(err, hybrid.ErrTooLarge) {
 			s.finish(e, "failed", err)
 		} else {
 			s.finish(e, "unknown", errors.New("可能已发送，请检查目标会话"))

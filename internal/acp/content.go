@@ -60,8 +60,14 @@ type resourceBlockJSON[R any] struct {
 
 // ImageBlock returns an "image" block carrying data base64-encoded.
 func ImageBlock(data []byte, mimeType, uri string) ContentBlock {
+	return Base64ImageBlock(base64.StdEncoding.EncodeToString(data), mimeType, uri)
+}
+
+// Base64ImageBlock carries already encoded image data without decoding and
+// re-encoding it. The caller validates the data and its resource limits.
+func Base64ImageBlock(data, mimeType, uri string) ContentBlock {
 	raw, _ := json.Marshal(imageBlockJSON{
-		Type: ContentImage, Data: base64.StdEncoding.EncodeToString(data), MimeType: mimeType, URI: uri,
+		Type: ContentImage, Data: data, MimeType: mimeType, URI: uri,
 	})
 	return ContentBlock{Type: ContentImage, MimeType: mimeType, Raw: raw}
 }

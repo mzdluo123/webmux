@@ -8,8 +8,8 @@
   import type { GitWorktreeContext } from "../../contracts/git-workbench-schemas";
   import { validateAuthorOverrideInput } from "../../domains/workspace/git-v2-adapter";
   import type { GitAmendDraftPrompt } from "../../hooks/workspace/git-commit-options.svelte";
-  import AdvancedSection from "../shared/AdvancedSection.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { AdvancedSection } from "$lib/components/ui/advanced-section";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   let {
     context,

@@ -4,8 +4,8 @@
   import { m } from "$lib/paraglide/messages.js";
   import { containsRedactedRemoteMask } from "../../domains/workspace/git-v2-adapter";
   import type { GitRemotesController } from "../../hooks/workspace/git-remotes-controller.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import GitDialogFooter from "./GitDialogFooter.svelte";
 
   let { remotes }: { remotes: GitRemotesController } = $props();

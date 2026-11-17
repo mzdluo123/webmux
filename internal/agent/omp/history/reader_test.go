@@ -19,7 +19,7 @@ func TestNativeFixtures(t *testing.T) {
 	for _, tc := range []struct {
 		name, id       string
 		calls, results int
-	}{{"session", "00000001-0000-4000-8000-000000000001", 2, 2}, {"compaction", "00000002-0000-4000-8000-000000000001", 8, 8}} {
+	}{{"session", "00000001-0000-4000-8000-000000000001", 2, 2}, {"compaction", "00000002-0000-4000-8000-000000000001", 8, 8}, {"session-18.22.0", "00000003-0000-4000-8000-000000000001", 0, 0}} {
 		t.Run(tc.name, func(t *testing.T) {
 			doc, err := Read(context.Background(), hs.Request{Source: source(fixture(tc.name), tc.id)})
 			if err != nil {
@@ -121,11 +121,11 @@ func TestFrozenAppendIdentityCancellation(t *testing.T) {
 
 func TestDiscoverNativeIdentity(t *testing.T) {
 	sources, err := Discover(context.Background(), filepath.Dir(fixture("session")))
-	if err != nil || len(sources) != 2 {
+	if err != nil || len(sources) != 3 {
 		t.Fatalf("discovery: %v %v", sources, err)
 	}
 	for _, s := range sources {
-		if s.Agent != "omp" || s.NativeID == "" || s.Branch == "" {
+		if s.Agent != "omp" || s.NativeID == "" {
 			t.Fatalf("incomplete identity: %+v", s)
 		}
 	}

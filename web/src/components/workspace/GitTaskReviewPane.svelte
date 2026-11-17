@@ -15,7 +15,7 @@
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
   import { emptyTaskReviewState } from "../../hooks/workspace/git-task-review.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitPanelToolbar from "./GitPanelToolbar.svelte";
   import GitTaskDeliverySummary from "./GitTaskDeliverySummary.svelte";
 

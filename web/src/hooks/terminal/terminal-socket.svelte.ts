@@ -59,8 +59,8 @@ export function createTerminalSocket(id: string, manageChrome = true) {
   // terminal waits for the new run's first bytes before showing the pane.
   let drawn = $state<string>();
   let terminal: Terminal | undefined;
-  let graphicsUnsupported = $state(false);
   let socket: SocketConnection | undefined;
+  let replaying = false;
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   const identity = clientIdentity();
@@ -95,7 +95,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     let restoreFrame = 0;
     let restoreVersion = 0;
     terminal = term;
-    let replaying = false;
+    replaying = false;
     let graphics: TerminalGraphics | undefined;
     const writeOutput = (data: Uint8Array, parsed: () => void) => {
       if (graphics) graphics.write(data, parsed);
@@ -122,7 +122,6 @@ export function createTerminalSocket(id: string, manageChrome = true) {
           resetFind: () => view.resetFind(),
           scrollToBottom: () => view.scrollToBottom(),
           isDisposed: () => disposed,
-          isImmersive: () => view.isImmersive(),
           isCurrent: (v) => v === restoreVersion,
           setReplaying: (v) => (replaying = v),
           setRestoring: (v) => (restoring = v),
@@ -141,7 +140,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
       const size = `${term.cols}:${term.rows}`;
       if (
         controlling() &&
-        (view.isVisible() || view.isImmersive()) &&
+        view.isVisible() &&
         term.cols > 0 &&
         term.rows > 0 &&
         sentSize !== size &&
@@ -184,8 +183,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
             appending && view.preserveViewport()
               ? term.buffer.active.viewportY
               : undefined;
-          // Immersive sessions keep parsing even when their DOM document hides.
-          if ((document.hidden && !view.isImmersive()) || stale) stale = true;
+          if (document.hidden || stale) stale = true;
           else if (output.write(payload)) {
             offset += payload.length;
             const run = generation ?? info?.generation;
@@ -236,7 +234,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
           const position = resetPosition;
           resetPosition = undefined;
           // A hidden page keeps its terminal and resume point unchanged.
-          if (document.hidden && !view.isImmersive()) stale = true;
+          if (document.hidden) stale = true;
           else {
             stale = false;
             restore(payload, position?.generation ?? info?.generation);
@@ -277,8 +275,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
           exitCode = ExitSchema.parse(
             JSON.parse(decoder.decode(payload)),
           ).exitCode;
-          if (stale && (!document.hidden || view.isImmersive()))
-            restoreExited();
+          if (stale && !document.hidden) restoreExited();
         }
       },
       (state) => {
@@ -322,13 +319,9 @@ export function createTerminalSocket(id: string, manageChrome = true) {
       },
     );
     socket = ws;
-    graphics = attachTerminalGraphics(
-      term,
-      (text) => {
-        if (!replaying) ws.send(6, encoder.encode(text));
-      },
-      (active) => (graphicsUnsupported = active),
-    );
+    graphics = attachTerminalGraphics(term, (text) => {
+      if (!replaying) ws.send(6, encoder.encode(text));
+    });
     const resize = term.onResize(sendSize);
     const disposeProtocol = registerTerminalProtocolHandlers(
       term,
@@ -344,17 +337,13 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     }
     const visible = () => {
       // Live sessions reattach automatically; exited ones need explicit recovery.
-      if ((!document.hidden || view.isImmersive()) && stale && exited) {
+      if (!document.hidden && stale && exited) {
         restoreExited();
       }
     };
     document.addEventListener("visibilitychange", visible);
 
     return {
-      presentationChanged() {
-        if (!disposed && stale && (!document.hidden || view.isImmersive()))
-          ws.reconnect();
-      },
       themeChanged() {
         if (disposed) return;
         if (
@@ -381,9 +370,6 @@ export function createTerminalSocket(id: string, manageChrome = true) {
   }
 
   return {
-    get graphicsUnsupported() {
-      return graphicsUnsupported;
-    },
     get info() {
       return info;
     },
@@ -436,7 +422,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     },
     // Sends one of xterm's automatic replies to a device query.
     sendReply(reply: string) {
-      socket?.send(6, encoder.encode(reply));
+      if (!replaying) socket?.send(6, encoder.encode(reply));
     },
     // Takes input and grid control for this browser tab.
     claim() {

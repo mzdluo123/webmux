@@ -18,6 +18,24 @@
     "reason": "Installed executable is a stripped ELF with no adjacent package manifest/version file. Its embedded release notes mention 1.5.8, but that alone does not establish the executable or source-session version. No agent/version command was executed.",
     "descriptorSource": "Installed executable protobuf descriptors; no source path, executable hash, or private source hash retained."
   },
+  "currentCapture": {
+    "version": "1.5.7",
+    "versionEvidence": "The user identified the authorized synthetic source conversation as agy 1.5.7. During isolated acceptance on 2026-11-17, agy --version independently returned 1.5.7; this installed version evidence does not establish the legacy capture's writer version.",
+    "selection": "Only the single user-authorized synthetic SQLite database was opened read-only for this capture. Its trajectory_meta has distinct cascade_id and trajectory_id values and its steps table contains two completed protobuf records.",
+    "nativeIdentity": "The ACP runtime ID is trajectory_meta.cascade_id. trajectory_meta.trajectory_id identifies the ordered native steps. Discovery reads cascade IDs from database content, independent of the filename. Read requires exactly one row with both IDs present and bounded.",
+    "frozenIdentity": "Parser version 2 binds both cascade and trajectory into record IDs and the frozen digest. agy3 cursors reject previous cursor formats. An identity remap or frozen-prefix body edit is rejected; later appends remain outside the frozen range.",
+    "discovery": "Unrelated unsupported databases are isolated. Every readable cascade candidate remains visible even when the trajectory mapping or step format is unsupported, so duplicates still reject runtime selection and a unique unsupported target reaches the reader's format error. Directory, cancellation and limit failures remain errors.",
+    "sanitization": "Descriptor-known messages were recursively rebuilt using protobuf-schema.json. UUIDs were consistently remapped; all other non-synthetic strings were redacted. The synthetic prompt and ACK retain the project 蓝鹭 and port 48273, with the synthetic marker normalized to WMX-agy-capture. Numeric non-enum metadata was zeroed and timestamps normalized. Unknown fields and opaque bytes were omitted.",
+    "omittedFields": [
+      ".exa.cortex_pb.CortexStepPlannerResponse field 14: no retained descriptor"
+    ],
+    "coverage": "Two completed native steps: user input (14) and planner response (15). The preserved legacy six-step capture separately covers real tool arguments, results and linkage; the 1.5.7 source did not call tools.",
+    "limitations": "No original database pages, account/configuration records, executor/generator metadata, private reasoning or authentication material are retained. No application-level acceptance or checks were run during capture.",
+    "files": [
+      "conversation-1.5.7.sql",
+      "conversation-1.5.7.decoded.json"
+    ]
+  },
   "sanitization": {
     "freeText": "All prompt, response, reasoning, system, tool output, environment, account, path and URL string values are replaced. No original free-text body is retained.",
     "identifiers": "Global deterministic replacement map shared by trajectory/cascade/execution/message/tool-call IDs and sender/recipient values; UUID-shaped inputs receive fixture UUIDs. No original ID or source-derived hash is retained.",
@@ -94,6 +112,18 @@
       "format": "json",
       "records": 49,
       "sha256": "d96b700b23f4a37bc81fa4aead9381c0a18889c037d46d21f6f1536f2fe38463"
+    },
+    {
+      "path": "conversation-1.5.7.sql",
+      "format": "sqlite-sql",
+      "records": 3,
+      "sha256": "bc5d9d519f1f91f1b958196abced9307ce9f25938beeca2c30efb4faeaaca56c"
+    },
+    {
+      "path": "conversation-1.5.7.decoded.json",
+      "format": "json",
+      "records": 2,
+      "sha256": "3e9f228be078e89755f93343c7ffccfe1c7ea6d5320862b90d5204edde2b3ed4"
     }
   ]
 }

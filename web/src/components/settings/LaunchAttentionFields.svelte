@@ -4,7 +4,10 @@
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import type {
     AttentionMode,
     AttentionSettings,
@@ -153,7 +156,7 @@
         <Label for="launch-config-attention-mode"
           >{m.s2_launch_attn_scope()}</Label
         >
-        <SegmentedControl.Root
+        <SegmentedControl
           id="launch-config-attention-mode"
           aria-label={m.s2_launch_attn_scope()}
           size="form"
@@ -161,11 +164,11 @@
           bind:value={attentionMode}
         >
           {#each LAUNCH_ATTENTION_MODE_OPTIONS as option (option.value)}
-            <SegmentedControl.Item value={option.value}>
+            <SegmentedControlItem value={option.value}>
               {option.label}
-            </SegmentedControl.Item>
+            </SegmentedControlItem>
           {/each}
-        </SegmentedControl.Root>
+        </SegmentedControl>
         <p class="text-xs text-muted-foreground">
           {attentionModeDescription}
         </p>

@@ -24,7 +24,7 @@ function quickMessage(state: SubmissionProgress): string | undefined {
   return undefined;
 }
 
-export interface SessionQuickCommandContext {
+interface SessionQuickCommandContext {
   id: string;
   isMounted: () => boolean;
   isChatView: () => boolean;

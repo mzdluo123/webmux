@@ -2,7 +2,10 @@
   import { m } from "$lib/paraglide/messages.js";
   import type { WorktreeBatchFilter } from "../../domains/workspace/worktree-batch";
   import { Button } from "$lib/components/ui/button";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import ListSearchInput from "../shared/ListSearchInput.svelte";
 
   let {
@@ -54,7 +57,7 @@
     placeholder={m.s8_wt_search_placeholder()}
   />
 
-  <SegmentedControl.Root
+  <SegmentedControl
     value={statusFilter}
     onValueChange={(value) => {
       const next = filters.find((item) => item.id === value);
@@ -65,15 +68,15 @@
     wrap
   >
     {#each filters as filter (filter.id)}
-      <SegmentedControl.Item value={filter.id} class="min-h-9">
+      <SegmentedControlItem value={filter.id} class="min-h-9">
         {filter.label}
         <span
           class="inline-block w-[3ch] text-right font-mono text-xs tabular-nums opacity-60"
           >{filter.count}</span
         >
-      </SegmentedControl.Item>
+      </SegmentedControlItem>
     {/each}
-  </SegmentedControl.Root>
+  </SegmentedControl>
 
   <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
     <span class="text-muted-foreground tabular-nums">

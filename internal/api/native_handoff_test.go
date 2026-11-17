@@ -28,6 +28,9 @@ type handoffRuntime struct{ calls atomic.Int32 }
 func (*handoffRuntime) Record(id string) (hybrid.Record, error) {
 	return hybrid.Record{ID: id, Agent: "omp", AgentSessionID: "native", HistoryRoot: "/native", Cwd: "/work", ConfigID: "cfg", Side: hybrid.SideACP, State: hybrid.StateActive}, nil
 }
+func (*handoffRuntime) ImageCapabilities(context.Context, string) (hybrid.PromptCapabilities, error) {
+	return hybrid.PromptCapabilities{Image: true}, nil
+}
 func (r *handoffRuntime) Prompt(context.Context, string, hybrid.PromptInput) (hybrid.PromptResult, error) {
 	r.calls.Add(1)
 	return hybrid.PromptResult{TurnID: "turn"}, nil

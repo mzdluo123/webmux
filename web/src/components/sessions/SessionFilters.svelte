@@ -3,7 +3,10 @@
   import IconSearch from "~icons/tabler/search";
   import { Button } from "$lib/components/ui/button";
   import * as InputGroup from "$lib/components/ui/input-group";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import type { SessionInfo } from "../../contracts/schemas";
   import {
@@ -109,7 +112,7 @@
       <kbd class="border px-1" aria-hidden="true">/</kbd>
     </InputGroup.Addon>
   </InputGroup.Root>
-  <SegmentedControl.Root
+  <SegmentedControl
     bind:ref={group}
     value={statusFilter}
     onValueChange={(value) => {
@@ -121,15 +124,15 @@
     class="no-scrollbar w-full justify-start overflow-x-auto overflow-y-hidden md:w-fit md:overflow-visible"
   >
     {#each filters as filter (filter.id)}
-      <SegmentedControl.Item value={filter.id} class="min-h-9 shrink-0">
+      <SegmentedControlItem value={filter.id} class="min-h-9 shrink-0">
         {filter.label}
         <span
           class="inline-block w-[3ch] text-right font-mono text-xs tabular-nums opacity-60"
           >{filter.count}</span
         >
-      </SegmentedControl.Item>
+      </SegmentedControlItem>
     {/each}
-  </SegmentedControl.Root>
+  </SegmentedControl>
 </div>
 {#if filtered}
   <div class="flex items-center gap-2 text-xs text-muted-foreground">

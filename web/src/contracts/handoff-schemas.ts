@@ -1,4 +1,5 @@
 import { z } from "zod";
+export const handoffMaxPages = 8;
 const HandoffLocationSchema = z.object({
   cwd: z.string(),
   repositoryId: z.string(),
@@ -8,6 +9,13 @@ const HandoffLocationSchema = z.object({
 });
 export const HandoffPreviewRequestSchema = z
   .object({
+    format: z.enum(["image", "text"]).default("image"),
+    maxPages: z
+      .number()
+      .int()
+      .min(0)
+      .max(handoffMaxPages)
+      .default(handoffMaxPages),
     configId: z.string(),
     targetSessionId: z.string(),
     agentConfig: z.record(z.string(), z.string()),
@@ -27,6 +35,28 @@ const HandoffBudgetSchema = z.object({
 });
 export const HandoffPreviewSchema = z.object({
   id: z.string(),
+  format: z.enum(["image", "text"]),
+  pages: z.array(
+    z.object({
+      index: z.number().int().nonnegative(),
+      mimeType: z.literal("image/png"),
+      data: z.string(),
+      sha256: z.string(),
+      width: z.number().int().positive(),
+      height: z.number().int().positive(),
+      bytes: z.number().int().nonnegative(),
+    }),
+  ),
+  imageBudget: z.object({
+    maxPages: z.number().int(),
+    pages: z.number().int(),
+    bytes: z.number().int(),
+    maxBytes: z.number().int(),
+    maxRequestBytes: z.number().int(),
+  }),
+  blockedReason: z.string(),
+  capability: z.enum(["supported", "unsupported", "pending"]),
+  historyText: z.string(),
   instanceId: z.string(),
   operationId: z.string().min(1),
   sourceSessionId: z.string(),

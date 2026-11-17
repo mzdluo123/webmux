@@ -20,7 +20,7 @@
 
 <script lang="ts">
   import ConnectionGate from "./components/shell/ConnectionGate.svelte";
-  import RelayAuthGate from "./components/shell/RelayAuthGate.svelte";
+  import RelayAccessOverlay from "./components/shell/RelayAccessOverlay.svelte";
   import {
     startSettings,
     stopSettings,
@@ -76,12 +76,15 @@
   import { onActiveHostChange } from "./platform/storage";
   import { useDeviceShell } from "./hooks/shared/device-shell.svelte";
   import { tvInput } from "./hooks/shared/tv-input.svelte";
-  import { xrPresentation } from "./hooks/shared/xr-presentation.svelte";
-  import InlineNotice from "./components/shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { clearRelayAuth, resetRelayAuth } from "./platform/relay-auth";
-  import { relayAuth } from "./platform/relay-auth.svelte";
-  import { createRelayAuthRecovery } from "./hooks/shared/relay-auth-recovery";
-  import { useHostSettingsRecovery } from "./hooks/shared/settings-reconnect.svelte";
+  import {
+    relayAuth,
+    relayBlocked,
+    relayGate,
+    relayReconnecting,
+  } from "./platform/relay-auth.svelte";
+  import { useRelayAuthRecovery } from "./hooks/shared/relay-auth-recovery.svelte";
   import { prepareHostAuthentication } from "./hooks/shared/host-authentication";
   import { useRouteFocus } from "./hooks/shared/route-focus";
   import { createAppLinkHandler } from "./app/app-link-navigation";
@@ -105,16 +108,10 @@
   let discoveryFailureCause = $state("");
   let bootstrapEpoch = 0;
   let bootstrapAbort: AbortController | undefined;
-  let recovering = $state(false);
-  const relayBlocked = $derived(relayAuth.relay && !relayAuth.authenticated);
-  const onRecovered = useHostSettingsRecovery(
+  const reconnect = useRelayAuthRecovery(
     () => ready,
     () => void check(),
   );
-  const recovery = createRelayAuthRecovery({
-    onChecking: (value) => (recovering = value),
-    onRecovered,
-  });
   const route = $derived(matchRoute(path));
   const contributions = $derived(featureContributions.entries);
   const requiredFeature = $derived(routeFeature(route));
@@ -127,9 +124,7 @@
   const sessionId = $derived(route.name === "terminal" ? route.id : "");
   const shellRoute = $derived(shellRouteFor(route));
   const canSwitch = $derived(
-    ready &&
-      !relayBlocked &&
-      (shellRoute !== null || route.name === "settings"),
+    ready && !relayGate() && (shellRoute !== null || route.name === "settings"),
   );
   let shell = $state<AppShell>();
   let terminal = $state<TerminalPage>();
@@ -198,7 +193,7 @@
           () => epoch === bootstrapEpoch,
         ))
       ) {
-        if (relayAuth.reason === "reconnecting") recovery.start();
+        if (relayAuth.reason === "reconnecting") reconnect.start();
         return;
       }
       discoveryError = "";
@@ -256,7 +251,7 @@
       const relay = relayAuth.relay;
       if (relay && relayAuth.authenticated) clearRelayAuth("reconnecting");
       else if (!relay) {
-        recovery.cancel();
+        reconnect.cancel();
         clearRelayAuth();
       }
       bootstrapEpoch++;
@@ -267,8 +262,8 @@
       switcherOpen = false;
       error = "";
       if (relay) {
-        if (relayAuth.reason === "reconnecting") recovery.start();
-        else recovery.cancel();
+        if (relayAuth.reason === "reconnecting") reconnect.start();
+        else reconnect.cancel();
         return;
       }
       disposeFeatureContributions();
@@ -296,7 +291,7 @@
     document.addEventListener("click", link);
     window.addEventListener("popstate", change);
     const disconnectShortcut = watchSessionSwitcherShortcut(
-      () => !xrPresentation.active && canSwitch && !switcherOpen,
+      () => canSwitch && !switcherOpen,
       openSwitcher,
     );
     window.addEventListener("webmux:auth", auth);
@@ -311,7 +306,7 @@
       void check();
     });
     const featureRefresh = watchFeatureHostRefresh({
-      ready: () => ready && !relayBlocked,
+      ready: () => ready && !relayBlocked(),
       epoch: () => bootstrapEpoch,
       context: () => ({
         forwardAuth: route.name === "forward-auth",
@@ -325,7 +320,7 @@
     });
     void check(tokenFromFragment);
     return () => {
-      recovery.cancel();
+      reconnect.cancel();
       disconnectPins();
       disconnectHost();
       featureRefresh.dispose();
@@ -344,7 +339,7 @@
   });
 </script>
 
-{#if tvInput.message && !xrPresentation.active}
+{#if tvInput.message}
   <div
     class="pointer-events-none fixed inset-x-6 top-6 z-[100] mx-auto w-fit max-w-[calc(100%-3rem)] rounded-lg bg-background shadow-lg"
   >
@@ -352,20 +347,19 @@
   </div>
 {/if}
 
-{#if relayBlocked}
-  <div class="fixed inset-0 z-[100] overflow-y-auto bg-background">
-    <RelayAuthGate
-      reason={relayAuth.reason}
-      checking={recovering}
-      returnTo={path + search + location.hash}
-      onretry={() => recovery.start()}
-    />
-  </div>
-{/if}
+<RelayAccessOverlay
+  checking={reconnect.checking}
+  returnTo={path + search + location.hash}
+  hasShell={ready &&
+    !rebuildingFeatures &&
+    !routeUnavailable &&
+    shellRoute !== null}
+  onretry={() => reconnect.start()}
+/>
 
-<div class="contents" inert={relayBlocked} aria-hidden={relayBlocked}>
+<div class="contents" inert={relayGate()} aria-hidden={relayGate()}>
   {#if !ready}
-    {#if !relayBlocked}
+    {#if !relayBlocked()}
       <ConnectionGate
         {checking}
         error={authFailed ? m.s1_token_invalid() : error}
@@ -414,7 +408,18 @@
   {:else if !shellRoute}
     <FeaturePage {route} {search} />
   {:else if shellRoute}
-    <AppShell bind:this={shell} route={shellRoute} {drafts}>
+    <AppShell
+      bind:this={shell}
+      route={shellRoute}
+      {drafts}
+      reconnection={relayReconnecting()
+        ? {
+            checking: reconnect.checking,
+            returnTo: path + search + location.hash,
+            onretry: () => reconnect.start(),
+          }
+        : undefined}
+    >
       {#if sessionId}
         {#if openedPage}
           {@render session(openedPage)}

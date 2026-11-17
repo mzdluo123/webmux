@@ -78,14 +78,15 @@ test("agent attention survives spinner output and clears on user input", async (
   ).toMatchObject({ kind: "bell", source: "terminal" });
 });
 
-// omp queries terminal modes and sizes at startup. Opening the page replays
-// those queries into xterm.js, whose automatic replies reach the PTY; they
-// must not count as the user answering.
+// Historical queries stay local to replay. Live replies reach the PTY while
+// preserving the agent's question; step files trigger them without user input.
 const queryingAgent = String.raw`
-printf '\033[?2026$p\033[18t\033[14t\033[16t\033[c\033[6n'
+query() { printf '\033[?2026$p\033[18t\033[14t\033[16t\033[c\033[6n'; }
+query
 printf '\033]777;notify;warp://cli-agent;{"v":1,"agent":"e2e","event":"question_asked"}\007'
 stty -echo -icanon min 1
 ( while :; do printf '\r| waiting'; sleep 0.1; printf '\r/ waiting'; sleep 0.1; done ) &
+( for step in 1 2; do until [ -e "query$step" ]; do sleep 0.05; done; query; done ) &
 cat > replies.bin
 `;
 
@@ -107,17 +108,31 @@ test("opening a session does not clear attention through terminal replies", asyn
     (await (await request.get(`/api/sessions/${id}`)).json()).attention;
   await expect.poll(attention).toMatchObject({ kind: "question" });
 
+  let previousReplies = "";
   for (const visit of [1, 2]) {
     await page.goto(`/s/${id}`);
     await expectConnected(page);
     await expect(page.locator(".restore-overlay")).toBeHidden();
-    // Give the replayed queries' replies time to reach the PTY.
+    expect(await readFile(join(workDir, "replies.bin"), "latin1")).toBe(
+      previousReplies,
+    );
+    await writeFile(join(workDir, `query${visit}`), "");
     await expect
-      .poll(() => readFile(join(workDir, "replies.bin"), "latin1"), {
-        message: `visit ${visit} replies`,
-      })
-      .toMatch(/\$y/);
-    await page.waitForTimeout(800);
+      .poll(
+        async () => {
+          const replies = await readFile(
+            join(workDir, "replies.bin"),
+            "latin1",
+          );
+          return {
+            count: replies.split("$y").length - 1,
+            complete: replies.endsWith("R"),
+          };
+        },
+        { message: `visit ${visit} live replies` },
+      )
+      .toEqual({ count: visit, complete: true });
+    previousReplies = await readFile(join(workDir, "replies.bin"), "latin1");
     expect(await attention(), `visit ${visit}`).toMatchObject({
       kind: "question",
       source: "agent",

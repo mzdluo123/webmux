@@ -30,7 +30,6 @@ const primaryCapabilities: Record<FeatureID, string> = {
   tailscale: "tailscale.manage",
   p2p: "p2p.direct",
   mcp: "mcp.control",
-  immersive: "immersive.xr",
 };
 
 export async function enableCreationFeatures(

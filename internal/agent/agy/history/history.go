@@ -21,7 +21,7 @@ import (
 )
 
 const FormatVersion = "agy-sqlite-step-protobuf-v1"
-const ParserVersion = "1"
+const ParserVersion = "2"
 
 func decimal(n int64) string { return strconv.FormatInt(n, 10) }
 
@@ -64,21 +64,31 @@ func open(ctx context.Context, path string) (*sql.DB, os.FileInfo, error) {
 	return db, info, nil
 }
 
-func identity(ctx context.Context, tx *sql.Tx) (string, error) {
-	rows, err := tx.QueryContext(ctx, "SELECT CASE WHEN length(trajectory_id)<=1024 THEN trajectory_id ELSE NULL END FROM trajectory_meta LIMIT 2")
+// A cascade is the runtime ACP conversation; its trajectory identifies the
+// ordered steps stored in this database. Neither ID is inferred from the path.
+type nativeIdentity struct {
+	CascadeID    string
+	TrajectoryID string
+}
+
+func identity(ctx context.Context, tx *sql.Tx) (nativeIdentity, error) {
+	var id nativeIdentity
+	rows, err := tx.QueryContext(ctx, `SELECT
+		CASE WHEN typeof(cascade_id)='text' AND length(CAST(cascade_id AS BLOB))<=1024 THEN cascade_id END,
+		CASE WHEN typeof(trajectory_id)='text' AND length(CAST(trajectory_id AS BLOB))<=1024 THEN trajectory_id END
+		FROM trajectory_meta LIMIT 2`)
 	if err != nil {
-		return "", err
+		return id, historysource.ErrFormat
 	}
 	defer func() { _ = rows.Close() }()
-	var id string
 	if !rows.Next() {
-		return "", historysource.ErrFormat
+		return id, historysource.ErrFormat
 	}
-	if err = rows.Scan(&id); err != nil {
-		return "", err
+	if err = rows.Scan(&id.CascadeID, &id.TrajectoryID); err != nil {
+		return nativeIdentity{}, historysource.ErrFormat
 	}
-	if id == "" || len(id) > 1024 || rows.Next() {
-		return "", historysource.ErrFormat
+	if strings.TrimSpace(id.CascadeID) == "" || strings.TrimSpace(id.TrajectoryID) == "" || rows.Next() {
+		return nativeIdentity{}, historysource.ErrFormat
 	}
 	return id, rows.Err()
 }
@@ -109,18 +119,18 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 	if err != nil {
 		return fail(err)
 	}
-	if id != req.Source.NativeID {
+	if id.CascadeID != req.Source.NativeID {
 		return fail(historysource.ErrIdentity)
 	}
 	var boundary int64
 	var expected string
 	if req.Cursor == "" {
 		if err = tx.QueryRowContext(ctx, "SELECT coalesce(max(idx),-1) FROM steps").Scan(&boundary); err != nil {
-			return fail(err)
+			return fail(historysource.ErrFormat)
 		}
 	} else {
 		parts := strings.SplitN(req.Cursor, ":", 4)
-		if len(parts) != 4 || parts[0] != "agy2" || parts[3] != out.Generation || len(parts[2]) != 64 {
+		if len(parts) != 4 || parts[0] != "agy3" || parts[3] != out.Generation || len(parts[2]) != 64 {
 			return fail(historysource.ErrChanged)
 		}
 		boundary, err = strconv.ParseInt(parts[1], 10, 64)
@@ -132,7 +142,7 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 	var count, total, maxSize int64
 	err = tx.QueryRowContext(ctx, `SELECT count(*),coalesce(sum(coalesce(length(step_payload),0)+coalesce(length(metadata),0)),0),coalesce(max(max(coalesce(length(step_payload),0),coalesce(length(metadata),0))),0) FROM steps WHERE idx<=?`, boundary).Scan(&count, &total, &maxSize)
 	if err != nil {
-		return fail(err)
+		return fail(historysource.ErrFormat)
 	}
 	if count > historysource.MaxRecords || total > historysource.MaxBytes || maxSize > historysource.MaxRecordBytes {
 		return fail(historysource.ErrLimit)
@@ -141,13 +151,14 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 	if st, ok := before.Sys().(*syscall.Stat_t); ok {
 		_, _ = fmt.Fprintf(hash, "%d:%d:", st.Dev, st.Ino)
 	}
-	_, _ = fmt.Fprintf(hash, "%d:%s:%d:", len(id), id, boundary)
+	_, _ = fmt.Fprintf(hash, "%d:%s:%d:%s:%d:", len(id.CascadeID), id.CascadeID, len(id.TrajectoryID), id.TrajectoryID, boundary)
 	rows, err := tx.QueryContext(ctx, `SELECT idx,step_type,status,has_subtrajectory,step_format,coalesce(metadata,x''),coalesce(step_payload,x'') FROM steps WHERE idx<=? ORDER BY idx LIMIT ?`, boundary, historysource.MaxRecords+1)
 	if err != nil {
-		return fail(err)
+		return fail(historysource.ErrFormat)
 	}
 	var previous int64 = -1
 	var parent string
+	recordPrefix := id.CascadeID + "/trajectory/" + id.TrajectoryID + "/step/"
 	for rows.Next() {
 		if err = ctx.Err(); err != nil {
 			_ = rows.Close()
@@ -157,7 +168,7 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 		var meta, payload []byte
 		if err = rows.Scan(&idx, &typ, &status, &sub, &format, &meta, &payload); err != nil {
 			_ = rows.Close()
-			return fail(err)
+			return fail(historysource.ErrFormat)
 		}
 		if idx < 0 || idx <= previous || format != 0 {
 			_ = rows.Close()
@@ -167,7 +178,7 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 		hash.Write(meta)
 		_, _ = fmt.Fprintf(hash, ":%d:", len(payload))
 		hash.Write(payload)
-		r := historysource.Record{ID: id + "/step/" + decimal(idx), NativeID: decimal(idx), ParentID: parent, Status: stepStatus(status), Offset: idx, End: idx + 1}
+		r := historysource.Record{ID: recordPrefix + decimal(idx), NativeID: decimal(idx), ParentID: parent, Status: stepStatus(status), Offset: idx, End: idx + 1}
 		if idx != previous+1 {
 			out.Gaps = append(out.Gaps, historysource.Gap{RecordID: r.ID, Category: "missing-step", Offset: idx})
 		}
@@ -201,7 +212,7 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 	// Parent-reference payloads have no recovered schema. Never infer their chain.
 	var external int
 	if err = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM parent_references)").Scan(&external); err != nil {
-		return fail(err)
+		return fail(historysource.ErrFormat)
 	}
 	if external != 0 {
 		out.Gaps = append(out.Gaps, historysource.Gap{Category: "external-parent-unresolved"})
@@ -211,7 +222,7 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 	if expected != "" && expected != digest {
 		return fail(historysource.ErrChanged)
 	}
-	out.Cursor = "agy2:" + decimal(boundary) + ":" + digest + ":" + out.Generation
+	out.Cursor = "agy3:" + decimal(boundary) + ":" + digest + ":" + out.Generation
 	if err = tx.Commit(); err != nil {
 		return fail(err)
 	}
@@ -237,8 +248,42 @@ func stepStatus(status int64) string {
 	}
 }
 
+// Discovery retains identifiable candidates even if their body or trajectory
+// mapping is unsupported. Read validates the unique candidate in a transaction.
+func discoverIDs(ctx context.Context, path string) ([]string, error) {
+	db, _, err := open(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = db.Close() }()
+	rows, err := db.QueryContext(ctx, `SELECT
+		CASE WHEN typeof(cascade_id)='text' AND length(CAST(cascade_id AS BLOB))<=1024 THEN cascade_id END
+		FROM trajectory_meta LIMIT 1001`)
+	if err != nil {
+		return nil, safeError(ctx, historysource.ErrFormat)
+	}
+	defer func() { _ = rows.Close() }()
+	var ids []string
+	for count := 0; rows.Next(); count++ {
+		if count == 1000 {
+			return nil, historysource.ErrLimit
+		}
+		var id sql.NullString
+		if err := rows.Scan(&id); err != nil {
+			return nil, safeError(ctx, historysource.ErrFormat)
+		}
+		if id.Valid && strings.TrimSpace(id.String) != "" {
+			ids = append(ids, id.String)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, safeError(ctx, err)
+	}
+	return ids, nil
+}
+
 // Discover examines only the explicitly supplied data root, with bounded depth
-// and entries. IDs come from trajectory_meta, never filenames or prompt titles.
+// and entries. Runtime IDs come from trajectory_meta.cascade_id, never filenames.
 func Discover(ctx context.Context, root string) ([]historysource.Source, error) {
 	var sources []historysource.Source
 	entries := 0
@@ -281,24 +326,20 @@ func Discover(ctx context.Context, root string) ([]historysource.Source, error) 
 				if d.Type()&os.ModeSymlink != 0 || filepath.Ext(path) != ".db" {
 					continue
 				}
-				db, _, err := open(ctx, path)
+				ids, err := discoverIDs(ctx, path)
 				if err != nil {
-					return err
+					if ctx.Err() != nil || err == historysource.ErrLimit {
+						return err
+					}
+					// An unrelated database without a readable identity is not
+					// a candidate. Unsupported bodies with an ID remain visible.
+					continue
 				}
-				tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
-				if err != nil {
-					_ = db.Close()
-					return safeError(ctx, err)
-				}
-				id, err := identity(ctx, tx)
-				_ = tx.Rollback()
-				_ = db.Close()
-				if err != nil {
-					return safeError(ctx, err)
-				}
-				sources = append(sources, historysource.Source{Agent: "agy", Path: path, NativeID: id})
-				if len(sources) > 1000 {
-					return historysource.ErrLimit
+				for _, id := range ids {
+					sources = append(sources, historysource.Source{Agent: "agy", Path: path, NativeID: id})
+					if len(sources) > 1000 {
+						return historysource.ErrLimit
+					}
 				}
 			}
 			if readErr == io.EOF {

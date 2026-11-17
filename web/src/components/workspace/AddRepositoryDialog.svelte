@@ -11,7 +11,7 @@
   import { Label } from "$lib/components/ui/label";
   import { getFeatureContributions } from "../../features/context";
   const DirectoryPicker = getFeatureContributions().creation.DirectoryPicker;
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   let {
     defaultCwd,
     onclose,

@@ -14,7 +14,10 @@
   import * as NativeSelect from "$lib/components/ui/native-select";
   import * as Popover from "$lib/components/ui/popover";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import type {
     GitConflictFileDetail,
@@ -32,7 +35,7 @@
     type GitConflictDraftState,
   } from "../../domains/workspace/git-conflict-model";
   import type { GitConflictController } from "../../hooks/workspace/git-conflict-controller.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitConflictMobilePane from "./GitConflictMobilePane.svelte";
   import GitConflictTextPane from "./GitConflictTextPane.svelte";
   import GitConflictVariantCard from "./GitConflictVariantCard.svelte";
@@ -209,7 +212,7 @@
       {/if}
 
       {#if desktop.current && detail?.textMergeable}
-        <SegmentedControl.Root
+        <SegmentedControl
           wrap
           value={baseCompareMode}
           onValueChange={(val) => {
@@ -220,16 +223,16 @@
           }}
           aria-label={m.s6_conflict_base_mode_aria()}
         >
-          <SegmentedControl.Item value="off">
+          <SegmentedControlItem value="off">
             {m.s6_conflict_hide_base()}
-          </SegmentedControl.Item>
-          <SegmentedControl.Item value="left_base">
+          </SegmentedControlItem>
+          <SegmentedControlItem value="left_base">
             {m.s6_conflict_left_vs_base()}
-          </SegmentedControl.Item>
-          <SegmentedControl.Item value="right_base">
+          </SegmentedControlItem>
+          <SegmentedControlItem value="right_base">
             {m.s6_conflict_right_vs_base()}
-          </SegmentedControl.Item>
-        </SegmentedControl.Root>
+          </SegmentedControlItem>
+        </SegmentedControl>
 
         <Popover.Root>
           <Popover.Trigger>

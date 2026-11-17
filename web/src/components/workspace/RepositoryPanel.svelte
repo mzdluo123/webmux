@@ -47,7 +47,7 @@
   import RepositoryPanelHeaderActions from "./RepositoryPanelHeaderActions.svelte";
   import RepositoryRemotes from "./RepositoryRemotes.svelte";
   import RepositoryWorktrees from "./RepositoryWorktrees.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import SwitchBranch, { type SwitchSource } from "./SwitchBranch.svelte";
   import WorktreeDetails from "./WorktreeDetails.svelte";
   import { switchableWorktree } from "../../domains/workspace/worktree-sync";

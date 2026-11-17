@@ -2,7 +2,7 @@
   import { Button } from "$lib/components/ui/button";
   import { m } from "$lib/paraglide/messages.js";
   import type { PreviewFlow } from "../../hooks/workspace/preview-flow.svelte";
-  import InlineNotice from "./InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   // What a branch flow's preview is doing: reading, failed to read, or read
   // again after an execution failed or found the state changed.

@@ -32,7 +32,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import SplitDirectionChoice from "../terminal/SplitDirectionChoice.svelte";
-  import AdvancedSection from "../shared/AdvancedSection.svelte";
+  import { AdvancedSection } from "$lib/components/ui/advanced-section";
   import DirectoryInput from "../shared/DirectoryInput.svelte";
   import FirstMessageFields from "./FirstMessageFields.svelte";
   import CustomCommandField from "./CustomCommandField.svelte";

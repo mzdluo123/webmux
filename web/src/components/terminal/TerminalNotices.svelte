@@ -6,7 +6,7 @@
   import type { HybridNotice } from "../../hooks/sessions/hybrid.svelte";
   import type { UploadProgress } from "../../hooks/shared/upload.svelte";
   import type { TerminalFeatures } from "../../features/terminal";
-  import StripNotice from "../shared/StripNotice.svelte";
+  import { StripNotice } from "$lib/components/ui/strip-notice";
   import type { ControlState, ListeningPort } from "../../contracts/schemas";
   import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";
   import type { Connection } from "../../platform/ws-contracts";

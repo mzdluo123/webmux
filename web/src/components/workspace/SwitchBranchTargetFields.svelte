@@ -4,11 +4,14 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import type { Branches } from "../../contracts/schemas";
   import type { CommitChoice } from "../../domains/workspace/commit-choices";
   import BranchCommandList from "./BranchCommandList.svelte";
-  import PickerField from "../shared/PickerField.svelte";
+  import { PickerField } from "$lib/components/ui/picker-field";
   import SwitchBranchCommitSelect from "./SwitchBranchCommitSelect.svelte";
 
   export type SwitchTargetMode = "existing" | "new" | "detach";
@@ -99,7 +102,7 @@
   {/if}
 {/snippet}
 
-<SegmentedControl.Root
+<SegmentedControl
   size="form"
   wrap
   value={mode}
@@ -107,16 +110,16 @@
   disabled={busy}
   aria-label={m.s8_switch_target_aria()}
 >
-  <SegmentedControl.Item value="existing"
-    >{m.s8_switch_mode_existing()}</SegmentedControl.Item
+  <SegmentedControlItem value="existing"
+    >{m.s8_switch_mode_existing()}</SegmentedControlItem
   >
-  <SegmentedControl.Item value="new"
-    >{m.s8_switch_mode_new()}</SegmentedControl.Item
+  <SegmentedControlItem value="new"
+    >{m.s8_switch_mode_new()}</SegmentedControlItem
   >
-  <SegmentedControl.Item value="detach"
-    >{m.s8_switch_mode_detach()}</SegmentedControl.Item
+  <SegmentedControlItem value="detach"
+    >{m.s8_switch_mode_detach()}</SegmentedControlItem
   >
-</SegmentedControl.Root>
+</SegmentedControl>
 
 {#if loadError}
   <p role="alert" class="text-sm break-all text-destructive">

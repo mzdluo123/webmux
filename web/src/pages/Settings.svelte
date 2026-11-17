@@ -12,7 +12,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
-  import InfoHint from "../components/shared/InfoHint.svelte";
+  import { InfoHint } from "$lib/components/ui/info-hint";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Card from "$lib/components/ui/card";
   import { api, navigate } from "../platform/api";

@@ -23,7 +23,6 @@
   import * as NativeSelect from "$lib/components/ui/native-select";
   import * as Tabs from "$lib/components/ui/tabs";
   import IconPhoto from "~icons/tabler/photo";
-  import { xrNavigatorPanel } from "../../domains/code/xr-code-navigation";
 
   let {
     id,
@@ -131,27 +130,6 @@
       changesTop,
       clipboard: actions ? actions.capture() : restored?.clipboard,
     };
-  }
-  const xrNavigation = $derived(
-    xrNavigatorPanel({
-      nav,
-      treePanel: tree?.xrPanel(),
-      pending,
-      navStatus,
-      changesError,
-      changesEntries: changes?.entries,
-      changesNextCursor: changes?.nextCursor,
-      changesEnabled,
-      openDiff,
-      switchMode: async () => {
-        nav = nav === "files" ? "changes" : "files";
-        await load();
-      },
-      loadMoreChanges: () => load(true),
-    }),
-  );
-  export function xrPanel() {
-    return xrNavigation;
   }
 
   // Files dragged from the system onto the workspace upload into the folder

@@ -181,13 +181,16 @@ CLI 与 MCP 共用逻辑操作 ID、去重边界、完成证据、授权范围�
   "sessionId": "SESSION_ID",
   "request": {
     "clientRequestId": "followup-20261113",
-    "text": "补充测试",
-    "mode": "auto"
+    "text": "当前修改还需补充错误路径测试",
+    "mode": "steer"
   }
 }
 ```
 
-- 聊天返回 turnId/promptId，排队时返回 itemId/position；steer 插话不创建独立回合。
+- 上例适用于当前工作补充，先核对实际 `steering` 能力及运行回合；下一项独立任务用默认 `auto`，明确停止替换用 `now`，不能排队用 `refuse`。
+- 聊天开始新回合时返回 turnId/promptId，排队时返回 itemId/position；steer 回执通常没有 turnId/promptId，成功不证明理解或完成。
+- 插话能力不足或无运行回合时返回 `steering_unavailable`（先检查连接与视图）；只有适配器报告 `promptRequired` 的竞态才回队首，`startedNewTurn` 会提示回合不受跟踪。
+- 立即发送条件、`now` 的中断风险与错误见[聊天输入协议](../protocol/http-hybrid.md#聊天视图的输入)。已有排队项先核对状态，迁移需通过有能力的 CLI/API 删除自己的未发送项；control MCP 没有队列删除工具。
 - 终端视图使用 `submit`（追加回车，对应 CLI 的 `--enter`）与 `keys`；只发 `text` 会把文字留在输入行而不执行。写入回执仅证明输入已写入，不证明命令执行或任务完成。
 - `session_interrupt` 接受 sessionId/clientRequestId，按当前视图取消回合或写入中断键，不删除会话。
 - 输入与中断的去重、错误和视图限制完全沿用服务端；重试复用同一个 clientRequestId。

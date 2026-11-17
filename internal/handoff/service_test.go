@@ -28,6 +28,9 @@ type testBackend struct {
 	text        string
 	promptCalls int
 	readWait    <-chan struct{}
+	images      []hybrid.PromptImage
+	image       bool
+	history     []historysource.Record
 }
 
 func (b *testBackend) Record(id string) (hybrid.Record, error) {
@@ -44,11 +47,12 @@ func (b *testBackend) Prompt(ctx context.Context, id string, in hybrid.PromptInp
 	defer b.mu.Unlock()
 	b.promptCalls++
 	b.text = in.Text
+	b.images = append([]hybrid.PromptImage(nil), in.Images...)
 	return hybrid.PromptResult{TurnID: "turn-1"}, b.promptErr
 }
 func (b *testBackend) read(ctx context.Context, req historysource.Request) (historysource.Document, error) {
 	b.mu.Lock()
-	body, wait := b.body, b.readWait
+	body, wait, records := b.body, b.readWait, append([]historysource.Record(nil), b.history...)
 	b.mu.Unlock()
 	if wait != nil {
 		select {
@@ -64,7 +68,10 @@ func (b *testBackend) read(ctx context.Context, req historysource.Request) (hist
 		}
 		body = body[:end]
 	}
-	return historysource.Document{Source: req.Source, Cursor: fmt.Sprint(len(body)), Generation: "1", Fingerprint: "inode-1", FormatVersion: "v1", ParserVersion: "v1", Records: []historysource.Record{{ID: "native-message-1", Kind: "prose", Role: "user", Text: body}}}, nil
+	if records == nil {
+		records = []historysource.Record{{ID: "native-message-1", Kind: "prose", Role: "user", Text: body}}
+	}
+	return historysource.Document{Source: req.Source, Cursor: fmt.Sprint(len(body)), Generation: "1", Fingerprint: "inode-1", FormatVersion: "v1", ParserVersion: "v1", Records: records}, nil
 }
 
 type testConfig struct{}
@@ -74,7 +81,7 @@ func (testConfig) Get(string) (launch.Config, error) {
 }
 func newTestService(t *testing.T) (*Service, *testBackend) {
 	t.Helper()
-	b := &testBackend{records: map[string]hybrid.Record{}, body: "历史内容\n  code()"}
+	b := &testBackend{records: map[string]hybrid.Record{}, body: "历史内容\n  code()", image: true}
 	for _, id := range []string{"source", "target"} {
 		b.records[id] = hybrid.Record{ID: id, ConfigID: "config", Agent: "test", AgentSessionID: id + "-native", HistoryRoot: "/native", Cwd: "/work", State: hybrid.StateActive, Side: hybrid.SideACP}
 	}
@@ -91,7 +98,7 @@ func newTestService(t *testing.T) (*Service, *testBackend) {
 }
 func previewTarget(t *testing.T, s *Service) Preview {
 	t.Helper()
-	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", UserText: "当前任务\n\tkeep  spacing"})
+	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", Format: "text", UserText: "当前任务\n\tkeep  spacing"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,7 +267,7 @@ func TestOperationAndPreviewCapacity(t *testing.T) {
 	for range maxPreviews {
 		previewTarget(t, s)
 	}
-	if _, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target"}); !errors.Is(err, historysource.ErrLimit) && !errors.Is(err, ErrLimit) {
+	if _, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", Format: "text"}); !errors.Is(err, historysource.ErrLimit) && !errors.Is(err, ErrLimit) {
 		t.Fatalf("full preview cache: %v", err)
 	}
 	s2, _ := newTestService(t)
@@ -281,7 +288,7 @@ func TestCreationErrorPreservesResourcesAndSingleCall(t *testing.T) {
 		calls.Add(1)
 		return sessioncreate.Result{}, &sessioncreate.Error{Step: sessioncreate.StepSession, Location: &sessioncreate.Location{WorktreeID: "new-tree", Path: "/work/new-tree"}, Err: errors.New("agent startup failed")}
 	}
-	p, err := s.Preview(context.Background(), "source", Request{ConfigID: "config", Location: Location{Cwd: "/work"}, UserText: "task"})
+	p, err := s.Preview(context.Background(), "source", Request{ConfigID: "config", Format: "text", Location: Location{Cwd: "/work"}, UserText: "task"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,4 +334,10 @@ func TestProviderBudgetChangeRequiresPreview(t *testing.T) {
 	if b.promptCalls != 0 {
 		t.Fatalf("calls=%d", b.promptCalls)
 	}
+}
+
+func (b *testBackend) ImageCapabilities(context.Context, string) (hybrid.PromptCapabilities, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return hybrid.PromptCapabilities{Image: b.image}, nil
 }

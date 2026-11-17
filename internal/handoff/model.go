@@ -41,6 +41,8 @@ type Request struct {
 	ConfigID, TargetSessionID, UserText string
 	Location                            Location
 	AgentConfig                         map[string]string
+	Format                              string
+	MaxPages                            int
 }
 type Preview struct {
 	sourceIdentity                                                           string
@@ -51,6 +53,19 @@ type Preview struct {
 	Budget                                                                   Budget
 	targetIdentity, configHash                                               string
 	consumed                                                                 bool
+	Format, BlockedReason, Capability, HistoryText                           string
+	Pages                                                                    []ImagePage
+	ImageBudget                                                              ImageBudget
+}
+
+type ImagePage struct {
+	Index                  int
+	MimeType, Data, SHA256 string
+	Width, Height, Bytes   int
+}
+
+type ImageBudget struct {
+	MaxPages, Pages, Bytes, MaxBytes, MaxRequestBytes int
 }
 type Operation struct {
 	ID, PreviewID, InstanceID, State, TargetSessionID, Error string

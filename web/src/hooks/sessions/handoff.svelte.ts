@@ -2,6 +2,7 @@ import { m } from "$lib/paraglide/messages.js";
 import { APIError } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import { threadAPI } from "../../platform/thread-api";
+import { handoffMaxPages } from "../../contracts/handoff-schemas";
 import type {
   HandoffLocation,
   HandoffPreview,
@@ -22,6 +23,8 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
   let targetSessionId = $state("");
   let model = $state("");
   let task = $state("");
+  let format = $state<"image" | "text">("image");
+  let maxPages = $state<number>(handoffMaxPages);
   let location = $state<HandoffLocation>(emptyHandoffLocation());
   let locationKind = $state<TargetKind>("directory");
   let preview = $state<HandoffPreview | null>(null);
@@ -35,6 +38,8 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
   let disposed = false;
   const lifetime = new AbortController();
   const request = $derived({
+    format,
+    maxPages,
     configId: targetSessionId ? "" : configId,
     targetSessionId,
     agentConfig: (model ? { model } : {}) as Record<string, string>,
@@ -118,15 +123,13 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     }
   }
   async function send() {
-    if (!preview || busy || sealed || choiceChanged) return;
+    if (!preview || preview.blockedReason || busy || sealed || choiceChanged)
+      return;
     const reviewed = preview;
-    let attempted = false;
     busy = true;
     error = "";
     // One request starts the operation. Reconnection only observes its handle.
     try {
-      await threadAPI.get(reviewed.id, lifetime.signal);
-      attempted = true;
       operation = await threadAPI.send(
         reviewed.id,
         reviewed.operationId,
@@ -134,10 +137,12 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       );
     } catch (e) {
       if (!disposed) {
-        error = attempted
-          ? m.handoff_unknown_result() + " " + errorMessage(e)
-          : errorMessage(e);
-        if (attempted) {
+        const rejected =
+          e instanceof APIError && [400, 409, 410].includes(e.status);
+        error = rejected
+          ? errorMessage(e)
+          : m.handoff_unknown_result() + " " + errorMessage(e);
+        if (!rejected) {
           uncertainOperationId = reviewed.operationId;
           uncertainInstanceId = reviewed.instanceId;
         }
@@ -159,6 +164,20 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     }
   }
   return {
+    get format() {
+      return format;
+    },
+    set format(v: "image" | "text") {
+      format = v;
+    },
+    get maxPages() {
+      return maxPages;
+    },
+    set maxPages(v: number) {
+      maxPages = Number.isFinite(v)
+        ? Math.min(handoffMaxPages, Math.max(1, Math.trunc(v)))
+        : handoffMaxPages;
+    },
     get source() {
       return source;
     },

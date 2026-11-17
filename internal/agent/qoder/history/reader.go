@@ -1,4 +1,4 @@
-// Package history provisionally reads the QoderCN 1.1.84 layout for Qoder.
+// Package history provisionally reads the QoderCN 1.1.81/1.1.84 layouts for Qoder.
 // International-edition compatibility is an explicit assumption, not a tested
 // runtime claim; the real fixtures were captured from the Chinese edition only.
 package history
@@ -9,7 +9,7 @@ import (
 	"github.com/rainchan/webmux/internal/historysource"
 )
 
-const ParserVersion = "qoder-provisional-jsonl/1"
+const ParserVersion = "qoder-provisional-jsonl/2"
 
 func Read(ctx context.Context, req historysource.Request) (historysource.Document, error) {
 	doc, err := cn.ReadAs(ctx, req, "qoder")
