@@ -308,5 +308,13 @@ func (s *connection) runPhysical(role protocol.Role) {
 
 func permanentError(err error) bool {
 	var p protocol.Error
-	return errors.As(err, &p) && p.Code != protocol.Unavailable && p.Code != protocol.RateLimited && p.Code != protocol.StaleGeneration && p.Code != protocol.Expired
+	if !errors.As(err, &p) {
+		return false
+	}
+	switch p.Code {
+	case protocol.Forbidden, protocol.Unauthenticated, protocol.WrongAudience, protocol.InvalidSignature, protocol.Incompatible, protocol.InvalidConfig:
+		return true
+	default:
+		return false
+	}
 }
