@@ -150,3 +150,5 @@
 - 最终真实服务检查六种视口、浅深主题共 12 组，无页面横向溢出，输入区和发送按钮均留在视口内；320×568 的创建浮层完整可见。
 - [桌面](../images/messaging/desktop-light.png)、[平板](../images/messaging/tablet-light.png)、[手机对话](../images/messaging/phone-light.png)和[手机频道列表](../images/messaging/phone-list-light.png)为最终工作区。
 - [最终创建与发送录像](../images/messaging/create-send.gif)展示创建弹窗、键盘聚焦与 Enter 发送，正常速度播放；无头验证未覆盖真机键盘、真实悬停或粗指针。
+
+完整快速门禁：`umask 0022; make test-fast` 通过，包含全仓库 Go race、97 个 Node 测试文件的 1295 项测试，以及 127 个浏览器测试文件的 984 项测试。
