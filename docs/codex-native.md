@@ -48,10 +48,10 @@ Snapcompact 负责工具输出截断、空白规范化与文本预算，当前�
 | ----------- | ------------------------------------------------------------ | --------------------------------------- |
 | Codex       | rollout JSONL、消息及工具闭环、compacted replacement history | 0.77.0、0.157.1、0.162.1、0.169.0       |
 | Claude Code | projects JSONL、parent 图及 compact_boundary                 | 真实样本 2.1.316                        |
-| omp         | session JSONL、父链与 compaction 保留范围                    | 文件格式 3；一份 runtime 18.12.2        |
+| omp         | session JSONL、父链与 compaction 保留范围                    | 文件格式 3；runtime 18.12.2、18.22.0    |
 | OpenCode    | 两代 SQLite 原生表、消息及 part                              | 会话版本 1.18.3 / 2.1.4                 |
 | Kimi        | state.json 与 wire.jsonl                                     | wire 1.4；应用版本未知                  |
-| agy         | SQLite BLOB、已恢复 descriptor 的 protobuf 字段              | 应用版本未知，仅六步实录证据            |
+| agy         | SQLite BLOB、已恢复 descriptor 的 protobuf 字段              | 旧六步实录版本未知；新增 1.5.7 两步实录 |
 | Devin       | SQLite committed 主链，排除 inference siblings               | SQLite 写入版本未知；不与独立 ATIF 混合 |
 | QoderCN     | projects JSONL，按活动祖先链恢复                             | 实录 1.1.84；样本无工具调用             |
 | Qoder       | 暂复用 QoderCN 读取器和 fixtureSource                        | 国际版路径/格式尚未经实录确认           |

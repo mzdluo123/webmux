@@ -5,7 +5,7 @@
     "file": "session-18.22.0.jsonl",
     "runtimeVersion": "18.22.0",
     "sessionSchema": 3,
-    "sha256": "c2a9c0ca90012e9595f414a13d462cee041a6ca77bcca114939101f7f9a7080e",
+    "sha256": "5db3080871aff56e2b033c2caf856c07ee965276663772fc97b53e43774dd94c",
     "provenance": "Complete ten-record synthetic handoff session captured locally on 2026-11-17; source read only.",
     "sanitization": "Native IDs consistently remapped; paths, timestamps, custom payload strings, signatures, credential identifiers and hashes replaced. Synthetic user fact and acknowledgement retained with a replacement marker. Field presence and event ordering retained.",
     "coverage": "Current title-before-session header, schema 3, user and assistant text, native parent edges and omitted custom/provider state. Tool calls/results remain covered by the preserved older captures and separate synthetic regressions."
@@ -263,7 +263,7 @@
       "path": "session-18.22.0.jsonl",
       "format": "jsonl",
       "records": 10,
-      "sha256": "c2a9c0ca90012e9595f414a13d462cee041a6ca77bcca114939101f7f9a7080e"
+      "sha256": "5db3080871aff56e2b033c2caf856c07ee965276663772fc97b53e43774dd94c"
     },
     {
       "path": "session.jsonl",

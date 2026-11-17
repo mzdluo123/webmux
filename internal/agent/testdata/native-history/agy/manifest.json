@@ -20,7 +20,7 @@
   },
   "currentCapture": {
     "version": "1.5.7",
-    "versionEvidence": "The user identified the authorized synthetic source conversation as agy 1.5.7. No CLI/version command was run.",
+    "versionEvidence": "The user identified the authorized synthetic source conversation as agy 1.5.7. During isolated acceptance on 2026-11-17, agy --version independently returned 1.5.7; this installed version evidence does not establish the legacy capture's writer version.",
     "selection": "Only the single user-authorized synthetic SQLite database was opened read-only for this capture. Its trajectory_meta has distinct cascade_id and trajectory_id values and its steps table contains two completed protobuf records.",
     "nativeIdentity": "The ACP runtime ID is trajectory_meta.cascade_id. trajectory_meta.trajectory_id identifies the ordered native steps. Discovery reads cascade IDs from database content, independent of the filename. Read requires exactly one row with both IDs present and bounded.",
     "frozenIdentity": "Parser version 2 binds both cascade and trajectory into record IDs and the frozen digest. agy3 cursors reject previous cursor formats. An identity remap or frozen-prefix body edit is rejected; later appends remain outside the frozen range.",
