@@ -32,6 +32,10 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 公共组件通过 props、snippet 和回调接收内容与操作，不读取 API、领域状态或设备持久化设置。
 业务状态映射留在 `components/`，例如 SessionStatus 将会话状态映射为 Badge；ConfirmDialog 负责异步操作的错误转换。
 
+手工公共组合默认接受命名、499 行体量、重复外观、循环依赖和未使用代码检查，包括 ListButton、SegmentedControl 与 `tabs/indicator.ts`。
+设计系统实现拥有外观与底层元素封装职责，因此沿用 `ui/` 的模板外观、原生控件及原语导入豁免；语义色、圆角和 Svelte 规则继续检查。
+生成代码的文件级豁免清单是 `web/ui-generated-files.json`，依赖守卫、Knip 和架构测试共用该清单；新增文件默认接受检查。生成文件增删时同步审查清单，架构测试检查清单排序、唯一性和文件存在性。
+
 ## 分层
 
 源码按「层 + 业务主题」组织，根目录只保留 `App.svelte`、`main.ts`、声明与全局样式。dependency-cruiser 同时检查运行时与 type-only 导入：
@@ -50,7 +54,7 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 
 主题包括 `sessions`、`terminal`、`chat`、`code`、`workspace`、`settings` 与 `notifications`。领域目录把相同业务概念的纯算法与响应式状态放在一起；资源生命周期与跨主题流程放在 hooks。
 
-跨主题复用组件放在 `components/shared/`，应用导航与侧栏放在 `components/shell/`，通用资源控制器放在 `hooks/shared/`。业务代码保存在拥有该概念的主题下，其他主题直接导入。
+跨主题业务组件放在 `components/shared/`，不依赖业务的公共 UI 组合放在 `lib/components/ui/`。应用导航与侧栏放在 `components/shell/`，通用资源控制器放在 `hooks/shared/`。业务代码保存在拥有该概念的主题下，其他主题直接导入。
 
 领域主题只能引用配置中登记的其他主题，不允许循环。`settings`、`chat` 不依赖其他主题；`sessions` 依赖 `settings`；`workspace`、`terminal` 依赖 `settings` 与 `sessions`；`notifications` 依赖 `sessions`；`code` 依赖 `terminal`。
 

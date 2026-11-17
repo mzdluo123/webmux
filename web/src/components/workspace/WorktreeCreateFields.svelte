@@ -28,7 +28,10 @@
   } from "../../contracts/schemas";
   import WorktreeAdvancedFields from "./WorktreeAdvancedFields.svelte";
   import WorktreeBranchFields from "./WorktreeBranchFields.svelte";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { untrack } from "svelte";
   import type { z } from "zod";
   let {
@@ -314,18 +317,18 @@
 
 <div class="space-y-3 rounded-lg border p-3">
   {#if !deferred}
-    <SegmentedControl.Root
+    <SegmentedControl
       value={mode}
       onValueChange={handleModeChange}
       aria-label={m.s8_worktree_branch_aria()}
     >
-      <SegmentedControl.Item value="new"
-        >{m.s8_create_new_branch()}</SegmentedControl.Item
+      <SegmentedControlItem value="new"
+        >{m.s8_create_new_branch()}</SegmentedControlItem
       >
-      <SegmentedControl.Item value="existing"
-        >{m.s8_use_existing_branch()}</SegmentedControl.Item
+      <SegmentedControlItem value="existing"
+        >{m.s8_use_existing_branch()}</SegmentedControlItem
       >
-    </SegmentedControl.Root>
+    </SegmentedControl>
   {/if}
   {#if loading}<p role="status" class="text-sm">
       {m.s8_reading_local_branches()}

@@ -5,7 +5,10 @@
   import IconGitBranch from "~icons/tabler/git-branch";
   import * as Command from "$lib/components/ui/command";
   import * as Popover from "$lib/components/ui/popover";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import { api } from "../../platform/api";
   import ChoiceDetails from "../shared/ChoiceDetails.svelte";
@@ -201,7 +204,7 @@
     </Popover.Trigger>
     <Popover.Content align="start" class="w-72 gap-0 overflow-hidden p-0">
       <div class="border-b px-2 py-1.5">
-        <SegmentedControl.Root
+        <SegmentedControl
           value={targetMode}
           onValueChange={(next) => {
             if (next === "new") ontargetmodechange("new");
@@ -211,15 +214,15 @@
           aria-label={m.s3_qs_worktree_mode_label()}
           class="w-full"
         >
-          <SegmentedControl.Item value="new" disabled={sending}
-            >{m.s3_qs_new_worktree_tab()}</SegmentedControl.Item
+          <SegmentedControlItem value="new" disabled={sending}
+            >{m.s3_qs_new_worktree_tab()}</SegmentedControlItem
           >
-          <SegmentedControl.Item
+          <SegmentedControlItem
             value="existing"
             disabled={sending || !defaultWorktree}
-            >{m.s3_qs_existing_worktree_tab()}</SegmentedControl.Item
+            >{m.s3_qs_existing_worktree_tab()}</SegmentedControlItem
           >
-        </SegmentedControl.Root>
+        </SegmentedControl>
       </div>
       {#if targetMode === "existing"}
         <Command.Root

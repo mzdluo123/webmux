@@ -7,7 +7,10 @@
   import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import type {
@@ -83,7 +86,7 @@
         </Button>
       {/if}
 
-      <SegmentedControl.Root
+      <SegmentedControl
         wrap
         value={scope}
         onValueChange={(val) => {
@@ -99,22 +102,22 @@
         }}
         aria-label={m.s6_filter_scope_aria()}
       >
-        <SegmentedControl.Item value="all">
+        <SegmentedControlItem value="all">
           {m.s6_filter_scope_all()}
-        </SegmentedControl.Item>
-        <SegmentedControl.Item value="branch">
+        </SegmentedControlItem>
+        <SegmentedControlItem value="branch">
           {m.s6_log_tree_current_branch()}
-        </SegmentedControl.Item>
-        <SegmentedControl.Item value="task">
+        </SegmentedControlItem>
+        <SegmentedControlItem value="task">
           {m.s6_filter_scope_task()}
-        </SegmentedControl.Item>
-        <SegmentedControl.Item value="to-push">
+        </SegmentedControlItem>
+        <SegmentedControlItem value="to-push">
           {m.s6_filter_scope_to_push()}
-        </SegmentedControl.Item>
-        <SegmentedControl.Item value="incoming">
+        </SegmentedControlItem>
+        <SegmentedControlItem value="incoming">
           {m.s6_filter_scope_incoming()}
-        </SegmentedControl.Item>
-      </SegmentedControl.Root>
+        </SegmentedControlItem>
+      </SegmentedControl>
     </div>
 
     <div class="flex items-center gap-1">

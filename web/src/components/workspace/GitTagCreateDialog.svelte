@@ -2,7 +2,10 @@
   import { m } from "$lib/paraglide/messages.js";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { Textarea } from "$lib/components/ui/textarea";
   import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import GitDialogFooter from "./GitDialogFooter.svelte";
@@ -61,7 +64,7 @@
       {/if}
     </div>
 
-    <SegmentedControl.Root
+    <SegmentedControl
       wrap
       value={tagKind}
       onValueChange={(val) => {
@@ -69,13 +72,13 @@
       }}
       aria-label={m.s7_tag_kind_aria()}
     >
-      <SegmentedControl.Item value="annotated">
+      <SegmentedControlItem value="annotated">
         {m.s7_tag_kind_annotated_tab()}
-      </SegmentedControl.Item>
-      <SegmentedControl.Item value="lightweight">
+      </SegmentedControlItem>
+      <SegmentedControlItem value="lightweight">
         {m.s7_tag_kind_lightweight_tab()}
-      </SegmentedControl.Item>
-    </SegmentedControl.Root>
+      </SegmentedControlItem>
+    </SegmentedControl>
 
     <div class="space-y-1.5">
       <Label for="git-tag-name-input">{m.s7_tag_name_label()}</Label>

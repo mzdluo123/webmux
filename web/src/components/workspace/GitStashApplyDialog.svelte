@@ -2,7 +2,10 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import type {
     GitStashApplyPreview,
@@ -58,7 +61,7 @@
   onclose={onClose}
 >
   <div class="space-y-3" data-testid="git-stash-apply-dialog">
-    <SegmentedControl.Root
+    <SegmentedControl
       wrap
       value={mode}
       onValueChange={(val) => {
@@ -66,13 +69,13 @@
       }}
       aria-label={m.s6_stash_apply_mode_aria()}
     >
-      <SegmentedControl.Item value="pop">
+      <SegmentedControlItem value="pop">
         {m.s6_stash_mode_pop()}
-      </SegmentedControl.Item>
-      <SegmentedControl.Item value="apply">
+      </SegmentedControlItem>
+      <SegmentedControlItem value="apply">
         {m.s6_stash_mode_apply()}
-      </SegmentedControl.Item>
-    </SegmentedControl.Root>
+      </SegmentedControlItem>
+    </SegmentedControl>
 
     {#if entry}
       <div class="space-y-1 rounded-lg border bg-background p-3 text-xs">
