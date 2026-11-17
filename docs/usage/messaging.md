@@ -38,6 +38,7 @@ enabled = ["messaging"]
 | `GET /api/messaging/channels/{name}/messages`  | 默认最近 50 条，可传 `limit=1..100` 与 `before=<本频道消息 ID>`         |
 | `POST /api/messaging/channels/{name}/messages` | 发送；正文为 `{"text":"hello","clientRequestId":"unique-request-0001"}` |
 
+频道响应的 `latestText`、`latestAt` 与 `messageCount` 是服务端计算的最近消息与数量。
 读取消息按递增 ID 返回，`before` 排除游标本身。ID 以字符串表示；发送请求 ID 为 8–128 个字母、数字、连字符或下划线。
 同一请求 ID 与频道、正文完全一致时返回原消息；改变正文或频道返回 409。频道名称冲突同样返回 409。
 发送者由服务端确定；请求中额外加入发送者字段会返回 400。

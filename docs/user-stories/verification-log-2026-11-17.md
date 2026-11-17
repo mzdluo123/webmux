@@ -111,7 +111,7 @@
 - 首轮 CI 发现新增正则触发控制字符 lint，已有 attention 用例要求历史查询回写；前者改用可读转义标记匹配，后者改为通过步骤文件触发实时查询，验证应答到达 PTY 后提醒仍保留，并验证重开页面没有额外应答。
 - 修订后运行 `pnpm --dir web lint` 通过；Playwright 按 `opening a session does not clear attention|reopening suppresses` 筛选两个文件，桌面与 iPhone SE 共 4 项通过。
 
-## 独立频道消息（US-S26、US-K18–US-K21）
+## 独立频道消息初版（US-S26、US-K18–US-K21）
 
 ### 行为
 
@@ -129,8 +129,24 @@
 - 功能选择 E2E 的 40 项通过，包含独立 `messaging` 和固定旧版选择；`test/capabilities.test.ts`、`test/wire-contract.test.ts`、`test/wire-arrays.test.ts` 的 437 项通过。
 - `go vet` 对涉及的后端包通过；使用 Go 1.27.4 构建的固定 golangci-lint v2.15.0 检查全仓库，0 issues。
 - 真实隔离服务检查 1280×900、768×800、390×844、375×667、320×568、667×375 六种视口，浅色/深色共 12 组均无页面横向溢出；320px 下长连续文本可换行。
-- [桌面浅色](../images/messaging/desktop-light.png)、[桌面深色](../images/messaging/desktop-dark.png)来自真实消息面板。
-- [平板浅色](../images/messaging/tablet-light.png)、[平板深色](../images/messaging/tablet-dark.png)来自真实消息面板。
-- [手机浅色](../images/messaging/phone-light.png)、[手机深色](../images/messaging/phone-dark.png)来自真实消息面板。
-- [创建与发送录像](../images/messaging/create-send.gif)使用隔离频道，展示创建、键盘 Tab 焦点与 Enter 发送；发送按钮的 focus-visible 已验证。
+- [桌面浅色](../images/messaging/before-desktop-light.png)、[桌面深色](../images/messaging/before-desktop-dark.png)来自真实消息面板。
+- [平板浅色](../images/messaging/before-tablet-light.png)、[平板深色](../images/messaging/before-tablet-dark.png)来自真实消息面板。
+- [手机浅色](../images/messaging/before-phone-light.png)、[手机深色](../images/messaging/before-phone-dark.png)来自真实消息面板。
+- [创建与发送录像](../images/messaging/before-create-send.gif)使用隔离频道，展示创建、键盘 Tab 焦点与 Enter 发送；发送按钮的 focus-visible 已验证。
 - 无头浏览器未验证真实悬停、粗指针与 iOS/Android 真机键盘。
+
+## User-first 指南与消息工作区（US-L09、US-S26）
+
+- 设计系统和 `webmux-ui` skill 以用户目的、任务路径、操作可发现性、上下文连续性和真实反馈为通用指导，替换原有克制风格指导；skill 验证通过。
+- 消息移到侧栏独立入口与 `/messages`，桌面显示频道导航和对话，手机在列表与对话之间进入和返回；原设置入口随迁移移除。
+- 创建频道按需弹出，搜索与最近消息预览辅助定位；底部输入区支持 Enter、换行与输入法组合，失败内容就近重试。
+- 最近频道在当前浏览器按主机保存；当前页面保留频道草稿与阅读位置。日期、本地时间、头像与消息反馈支持阅读。
+- 修复 InputGroup 对禁用发送按钮的整体淡化：输入仍可编辑时保持正常外观，新增真实浏览器回归和 Storybook 示例。
+- `pnpm --dir web check:test`、`check:storybook`、`lint`、`check:arch` 与生产构建通过；架构和依赖检查共 46 项通过。
+- 消息工作区与设置导航的 13 项浏览器测试通过，覆盖默认阅读、创建弹窗、搜索、手机返回、草稿、历史分页、重试身份和输入法保护。
+- 消息与功能选择 E2E 共 46 项通过；消息场景验证重启后恢复最近频道与持久历史、服务端频道预览、Token 与 Origin 拒绝。
+- `go test -race ./internal/clicmd ./internal/messaging ./internal/featureapi ./internal/archtest ./internal/docguard` 通过；固定 golangci-lint 全仓库 0 issues。
+- 同步主分支通用 UI 壳迁移，修复初版合并 CI 中的组件路径失效；补齐 CLI 能力夹具的新功能映射并检查漏登。
+- 最终真实服务检查六种视口、浅深主题共 12 组，无页面横向溢出，输入区和发送按钮均留在视口内；320×568 的创建浮层完整可见。
+- [桌面](../images/messaging/desktop-light.png)、[平板](../images/messaging/tablet-light.png)、[手机对话](../images/messaging/phone-light.png)和[手机频道列表](../images/messaging/phone-list-light.png)为最终工作区。
+- [最终创建与发送录像](../images/messaging/create-send.gif)展示创建弹窗、键盘聚焦与 Enter 发送，正常速度播放；无头验证未覆盖真机键盘、真实悬停或粗指针。

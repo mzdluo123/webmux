@@ -16,6 +16,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
   import { Input } from "$lib/components/ui/input";
+  import * as InputGroup from "$lib/components/ui/input-group";
   import { Textarea } from "$lib/components/ui/textarea";
   import { Label } from "$lib/components/ui/label";
   import { Switch } from "$lib/components/ui/switch";
@@ -386,6 +387,20 @@
             指令以原文发送，执行前请检查目标会话。
           </p>
         </div>
+        <div class="space-y-2">
+          <Label for="ds-message">消息输入 · 空内容可继续编辑</Label>
+          <InputGroup.Root>
+            <InputGroup.Textarea
+              id="ds-message"
+              placeholder="输入消息…"
+              rows={2}
+            />
+            <InputGroup.Addon align="block-end" class="justify-end"
+              ><Button disabled>发送</Button></InputGroup.Addon
+            >
+          </InputGroup.Root>
+        </div>
+
         <div class="space-y-2">
           <Label for="ds-readonly">只读信息</Label><Input
             id="ds-readonly"

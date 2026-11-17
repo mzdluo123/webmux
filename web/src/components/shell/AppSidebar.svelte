@@ -3,6 +3,7 @@
   import IconMessages from "~icons/tabler/messages";
   import IconMessagePlus from "~icons/tabler/message-plus";
   import IconPlus from "~icons/tabler/plus";
+  import { ListButton } from "$lib/components/ui/list-button";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { errorMessage } from "../../platform/error";
@@ -245,15 +246,14 @@
   </div>
   {#if featureContributions.entries.messaging}
     <div class="px-2 pt-2">
-      <Button
-        variant="ghost"
-        size="sm-touch"
-        class="w-full justify-start"
+      <ListButton
+        variant="navigation"
+        class="w-full"
         aria-current={route.name === "messaging" ? "page" : undefined}
         onclick={() => openPage("/messages")}
       >
         <IconMessages aria-hidden="true" />{m.messaging_title()}
-      </Button>
+      </ListButton>
     </div>
   {/if}
   {#if !workspace}

@@ -375,7 +375,7 @@
         size="icon-touch"
         aria-label={m.messaging_title()}
         title={m.messaging_title()}
-        aria-current={route.name === "messaging" ? "page" : undefined}
+        aria-current={route.name === "messaging" ? "true" : undefined}
         ><IconMessages aria-hidden="true" /></Button
       >
     {/if}

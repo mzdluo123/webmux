@@ -48,6 +48,10 @@ test("reading is the default and channel creation opens only on request", async 
   await expect
     .element(page.getByRole("textbox", { name: "频道名称", exact: true }))
     .not.toBeInTheDocument();
+  expect(
+    getComputedStyle(box().element().closest('[data-slot="input-group"]')!)
+      .opacity,
+  ).toBe("1");
   await page.getByRole("button", { name: "创建频道", exact: true }).click();
   await expect
     .element(page.getByRole("textbox", { name: "频道名称", exact: true }))

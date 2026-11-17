@@ -22,7 +22,7 @@
 >
   <header
     class={[
-      "flex min-h-(--app-header-height) shrink-0 items-center gap-2 border-b bg-card px-3 sm:px-5",
+      "flex min-h-(--app-header-height) shrink-0 items-center gap-2 border-b bg-card px-3 py-3 sm:px-5",
       state.showConversation && "max-sm:hidden",
     ]}
   >
