@@ -96,3 +96,4 @@
 | [verification-log-2026-11-12](user-stories/verification-log-2026-11-12.md)                             | 2026-11-12 起                     |
 | [verification-log-2026-11-git-workbench](user-stories/verification-log-2026-11-git-workbench.md)       | 2026-11-12 起的 Git 工作台核对    |
 | [verification-log-2026-11-15](user-stories/verification-log-2026-11-15.md)                             | 2026-11-15 起                     |
+| [verification-log-2026-11-17](user-stories/verification-log-2026-11-17.md)                             | 2026-11-17 起                     |
