@@ -337,3 +337,4 @@
 - 实际 CLI 非交互调用返回完整确认 JSON 并以 1 退出；显式 `--upstream=latest|local` 创建的分支分别指向上游和本地提交。
 - 真实应用检查桌面 1280×900、平板 768×800、手机 390×844、375×667、320×568 与横屏 667×375 的明暗主题；所有确认浮层留在视口内，页面无横向溢出，键盘可操作。
 - 截图和创建/确认/取消 GIF 保存于 `.github/pr-assets/worktree-upstream/`。未验证真实设备与真实粗指针行为；无头浏览器的悬停未触发行尾控件显隐，本轮使用键盘打开菜单。
+- 首轮 PR CI 的前端、四组 E2E、Storybook、性能与打包通过；Go gate 暴露 Git 历史隔离夹具未处理上游确认，迁移为显式保留本地并校验精确 HEAD 后，`TestGitReadAPIHistoryCommitDetailAndIsolation` 的 race 复测通过。
