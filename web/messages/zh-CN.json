@@ -4423,5 +4423,7 @@
   "relay_auth_unauthenticated": "请通过官方中继登录后访问此主机。",
   "relay_auth_drafts_kept": "保持此标签页打开可保留当前页面和未发送的草稿。中断的操作不会自动重发。",
   "relay_auth_check_again": "再次检查连接",
-  "relay_auth_login": "通过 WebMux 控制台登录"
+  "relay_auth_login": "通过 WebMux 控制台登录",
+  "relay_reconnect_paused": "无法连接主机，重连已暂停",
+  "relay_reconnect_status_aria": "重连状态：{status}"
 }

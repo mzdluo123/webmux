@@ -5136,5 +5136,7 @@
   "relay_auth_unauthenticated": "Sign in through the official relay to access this host.",
   "relay_auth_drafts_kept": "Keep this tab open to preserve your current page and unsent drafts. Interrupted actions are not sent again automatically.",
   "relay_auth_check_again": "Check connection again",
-  "relay_auth_login": "Sign in with WebMux console"
+  "relay_auth_login": "Sign in with WebMux console",
+  "relay_reconnect_paused": "Cannot reach the host; reconnect paused",
+  "relay_reconnect_status_aria": "Reconnect status: {status}"
 }
