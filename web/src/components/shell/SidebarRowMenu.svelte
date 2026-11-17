@@ -21,14 +21,23 @@
 
   // The trigger is the row's second tab stop; ArrowLeft steps back to the
   // row item, the way the row's own arrow handling treats it as a sibling.
-  function triggerKeydown(event: KeyboardEvent) {
-    if (event.key !== "ArrowLeft") return;
-    const row = (event.currentTarget as HTMLElement)
-      .closest("li")
-      ?.querySelector<HTMLElement>("[data-tree-key]");
-    if (!row) return;
-    event.preventDefault();
-    row.focus();
+  // Other keys stay with the primitive's handler (Enter/Space toggle,
+  // ArrowDown opens), which an attribute after {...props} would replace.
+  function triggerKeydown(
+    event: KeyboardEvent,
+    onkeydown?: (event: KeyboardEvent) => void,
+  ) {
+    if (event.key === "ArrowLeft") {
+      const row = (event.currentTarget as HTMLElement)
+        .closest("li")
+        ?.querySelector<HTMLElement>("[data-tree-key]");
+      if (row) {
+        event.preventDefault();
+        row.focus();
+        return;
+      }
+    }
+    onkeydown?.(event);
   }
 </script>
 
@@ -45,7 +54,11 @@
         aria-label={ariaLabel}
         title={ariaLabel}
         {tabindex}
-        onkeydown={triggerKeydown}><IconDots aria-hidden="true" /></ListButton
+        onkeydown={(event) =>
+          triggerKeydown(
+            event,
+            props.onkeydown as ((event: KeyboardEvent) => void) | undefined,
+          )}><IconDots aria-hidden="true" /></ListButton
       >
     {/snippet}
   </DropdownMenu.Trigger>

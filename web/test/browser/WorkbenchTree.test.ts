@@ -219,6 +219,21 @@ test("the all-repositories row's menu opens the add-repository dialog", async ()
   expect(handlers.onaddrepository).toHaveBeenCalled();
 });
 
+test("a row menu trigger steps back to its row on ArrowLeft and still opens on ArrowDown", async () => {
+  renderTree([]);
+  const trigger = tree().getByRole("button", { name: "仓库操作：全部仓库" });
+  (trigger.element() as HTMLElement).focus();
+  await expect.element(trigger).toHaveFocus();
+  await userEvent.keyboard("{ArrowLeft}");
+  await expect.element(item("全部仓库")).toHaveFocus();
+  // Every other key stays with the primitive: ArrowDown opens the menu.
+  (trigger.element() as HTMLElement).focus();
+  await userEvent.keyboard("{ArrowDown}");
+  await expect
+    .element(page.getByRole("menuitem", { name: "添加仓库…" }))
+    .toBeVisible();
+});
+
 test("a linked worktree's menu offers its details, a branch switch and removal", async () => {
   const handlers = renderTree([]);
   await expect
