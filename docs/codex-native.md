@@ -46,7 +46,7 @@ Snapcompact 负责工具输出截断、空白规范化与文本预算，当前�
 
 | Agent       | 原生存储证据                                                 | 版本边界                                |
 | ----------- | ------------------------------------------------------------ | --------------------------------------- |
-| Codex       | rollout JSONL、消息及工具闭环、compacted replacement history | 0.77.0、0.157.1、0.162.1                |
+| Codex       | rollout JSONL、消息及工具闭环、compacted replacement history | 0.77.0、0.157.1、0.162.1、0.169.0       |
 | Claude Code | projects JSONL、parent 图及 compact_boundary                 | 真实样本 2.1.316                        |
 | omp         | session JSONL、父链与 compaction 保留范围                    | 文件格式 3；一份 runtime 18.12.2        |
 | OpenCode    | 两代 SQLite 原生表、消息及 part                              | 会话版本 1.18.3 / 2.1.4                 |
@@ -75,9 +75,14 @@ Codex 0.77 基线固定上游 `112f40e91c12af0f7146d7e03f20283516a8af0b`：
 [持久化策略](https://github.com/openai/codex/blob/112f40e91c12af0f7146d7e03f20283516a8af0b/codex-rs/core/src/rollout/policy.rs)、
 [resume/fork](https://github.com/openai/codex/blob/112f40e91c12af0f7146d7e03f20283516a8af0b/codex-rs/core/src/codex.rs)。
 `response_item` 是正文来源，`event_msg` 镜像不重复计入；配对证据不足保留 `mirror_pairing_unverified`。
+0.169.0 capture（ACP 2.6.0 环境）保留 `response_item` 正文；`item_completed` 镜像、reasoning、工具定义与 provider 状态不重复导入。
+`content_item_kinds` 明确标记的纯环境上下文不作为用户正文；未知或混合 provenance 的用户消息仍保留。
+本次合成 capture 未调用工具；工具关联回归使用旧实录 envelope 补充，不视为当前版本工具实测证据。
 `replacement_history` 改变模型上下文，不删除 rollout 中仍存在的旧原文；重复的原生 ID 按来源版本处理，不按文本合并执行。
 独立物化 fork 可读取；较新的 `history_base` 等引用 lineage 尚不冒充旧版独立文件支持。
 Codex 发现保留原有独立预算：元信息 64 KiB、累计 16 MiB、最多 20000 次遍历 / 10000 个结果，达到列表上限返回 `truncated=true`。
+发现仅用 `session_meta` 内容确认身份，保留未知版本与引用 lineage 候选；唯一目标读取时返回格式错误并保留原生版本原因。
+文件名不证明身份；同 ID 多候选仍返回身份错误，即使其中一份的正文版本尚不支持。
 
 <a id="投影图片与当前迁移边界"></a>
 

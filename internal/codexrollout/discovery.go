@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"unicode/utf8"
 )
 
 const MaxMetadata = 64 << 10
@@ -171,13 +172,12 @@ func inspect(ctx context.Context, path string, remaining *int) (Metadata, error)
 		break
 	}
 	var e envelope
-	if json.Unmarshal(line, &e) != nil || e.Type != "session_meta" {
+	if !utf8.Valid(line) || json.Unmarshal(line, &e) != nil || e.Type != "session_meta" {
 		return m, ErrFormat
 	}
-	result := Result{}
-	rec := Record{}
-	if err := decode(e, &result, &rec); err != nil {
+	m, err = parseMetadata(e.Payload)
+	if err != nil {
 		return m, err
 	}
-	return result.Metadata, nil
+	return m, validateMetadata(e.Payload, m)
 }
