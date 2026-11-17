@@ -146,7 +146,7 @@
 | agy   | `qm5soray` | `hdkwvzw7` | `HANDOFF_OK WMX-agy-4e929a7a 青鹭 49367`   |
 
 - 三个指定目标 t1 均收到 `turn.end` / `end_turn`；回复逐项核对校验码、项目名及端口。
-- 六个自建会话关闭后，逐个 GET 确认 `state=closed`、`status=exited`；随后隔离服务正常退出，退出码 0。
+- 六个自建会话的 kill 均成功；随后逐个 GET 确认 `state=closed`、`status=exited`。exit 观察因会话先移出 active 返回 1，未取得进程退出码证明；隔离服务之后正常退出，退出码 0。
 - 完整本地证据：`/tmp/webmux-native-history-identity/evidence-complete.json`；清理证据：同目录 `cleanup.json`。
 - 此轮证明三种来源到 OpenCode 的文本交接；工具链由 reader 回归覆盖，图片交接与 Claude 账号认证不在本次验收范围。
 
