@@ -1,6 +1,6 @@
 import "../../src/styles.css";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import App from "../../src/App.svelte";
 import { api, navigate } from "../../src/platform/api";
@@ -94,6 +94,7 @@ beforeEach(() => {
   discoveryReads = 0;
   history.replaceState(null, "", "/");
   shellUi.setMode("workbench");
+  shellUi.setCollapsed(false);
   clearHomeCache();
   root = document.createElement("div");
   root.id = "app";
@@ -463,10 +464,40 @@ test("relay recovery keeps the terminal, route and unsent draft without replayin
   const commandCount = commands().length;
   const pending = Promise.withResolvers<Response>();
   respond(/^GET \/api\/relay\/auth\/session$/, () => pending.promise);
+  const feed = await socketAt("/ws/sessions");
+  feed.drop(1006);
   terminal.drop(1006);
+  const indicator = page.getByRole("button", {
+    name: "重连状态：连接已断开，重连中…",
+  });
+  // The expanded sidebar's footer is the lower-left reconnect surface:
+  // it announces the drop and its details popover carries retry and the
+  // official login, so the floating pill stays hidden beside it.
+  expect(indicator.elements()).toEqual([]);
+  const hostStatus = page.getByRole("button", {
+    name: "查看主机状态：连接已断开，重连中…",
+  });
+  await expect.element(hostStatus).toBeVisible();
+  await hostStatus.click();
   await expect
-    .element(page.getByRole("heading", { name: "通过官方中继连接" }))
+    .element(page.getByRole("button", { name: "再次检查连接" }))
     .toBeVisible();
+  await expect
+    .element(page.getByRole("link", { name: "通过 WebMux 控制台登录" }))
+    .toHaveAttribute("href", "/auth/relay/start?returnTo=%2Fs%2Faaaaaaaa");
+  await userEvent.keyboard("{Escape}");
+  // Collapsed to the rail there is no visible footer label, so the pill
+  // returns, always starting past the sidebar that is actually rendered.
+  shellUi.setCollapsed(true);
+  await expect.element(indicator).toBeVisible();
+  const indicatorBox = (await indicator.element()).getBoundingClientRect();
+  const sidebarBox = [...document.querySelectorAll(".app-sidebar")]
+    .map((element) => element.getBoundingClientRect())
+    .find((rect) => rect.width > 0)!;
+  expect(indicatorBox.left).toBeGreaterThanOrEqual(sidebarBox.right);
+  expect(
+    page.getByRole("heading", { name: "通过官方中继连接" }).elements(),
+  ).toEqual([]);
   expect(document.querySelector('input[type="password"]')).toBeNull();
   expect(relayAuthStatus()).toMatchObject({
     relay: true,

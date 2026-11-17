@@ -108,7 +108,11 @@ Relay 就绪后，固定公共地址 SHALL 出现在现有访问 URL 汇总、�
 
 成功后宿主 SHALL 创建绝对有效期不超过 12 小时的内存会话，使用 host-only、Secure、HttpOnly、SameSite=Lax、Path=/ 的 `__Host-` Cookie；MUST NOT 写入 localStorage、sessionStorage 或 URL。回调 SHALL 禁缓存、禁止 Referer 泄露并跳至无凭据 URL。长期 WebMux Token MUST NOT 参与跳转或自动下发。
 
-认证门禁 SHALL 区分中转暂时重连、登录过期、授权撤销与直连 Token 无效。中转登录入口 SHALL 保留经过校验的同源应用路径，完成 state、PKCE 和一次性 code 校验后返回原页面；外部地址、认证端点和携带凭据的路径 SHALL 被拒绝。
+认证呈现 SHALL 区分中转暂时重连、登录过期、授权撤销与直连 Token 无效：
+
+- 暂时重连 SHALL 保留已挂载页面并以角落状态指示呈现，提供再次检查与官方登录入口；
+- 登录过期、授权撤销与未登录 SHALL 以门禁页呈现；
+- 中转登录入口 SHALL 保留经过校验的同源应用路径，完成 state、PKCE 和一次性 code 校验后返回原页面；外部地址、认证端点和携带凭据的路径 SHALL 被拒绝。
 
 #### Scenario: 新设备免 Token 打开面板
 

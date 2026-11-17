@@ -71,6 +71,7 @@
               )}
               onResize={(size) => (composerSize = size)}
               class="draft-pane"
+              data-bottom-dock
             >
               {@render draftPane()}
             </Resizable.Pane>

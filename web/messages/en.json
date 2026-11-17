@@ -5137,6 +5137,8 @@
   "relay_auth_drafts_kept": "Keep this tab open to preserve your current page and unsent drafts. Interrupted actions are not sent again automatically.",
   "relay_auth_check_again": "Check connection again",
   "relay_auth_login": "Sign in with WebMux console",
+  "relay_reconnect_paused": "Cannot reach the host; reconnect paused",
+  "relay_reconnect_status_aria": "Reconnect status: {status}",
   "messaging_desc": "Create channels, read history and send messages on this WebMux server.",
   "messaging_config_hint": "Message storage is unavailable. Check the server state directory and restart after repair.",
   "messaging_channel": "Channel",

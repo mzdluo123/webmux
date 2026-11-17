@@ -9,6 +9,7 @@
   import { errorMessage } from "../../platform/error";
   import { sessionPins } from "../../domains/sessions/session-pins.svelte";
   import type { Route } from "../../hooks/shared/route";
+  import type { RelayReconnection } from "../../platform/relay-auth.svelte";
   import type {
     ArchivedSession,
     HybridRelease,
@@ -50,6 +51,7 @@
   let {
     route,
     collapsible = false,
+    reconnection,
     onmode,
     onprimary,
   }: {
@@ -67,6 +69,7 @@
     >;
     /** Desktop only; the drawer closes on its own. */
     collapsible?: boolean;
+    reconnection?: RelayReconnection;
     onmode: (mode: ShellMode) => void;
     onprimary: () => void;
   } = $props();
@@ -392,6 +395,7 @@
     connection={shell.sessions.connection}
     hostname={setup.hostname}
     setupSettled={shell.setup.settled}
+    {reconnection}
     onforward={shell.forward}
   />
 </nav>

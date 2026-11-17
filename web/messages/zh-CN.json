@@ -4424,6 +4424,8 @@
   "relay_auth_drafts_kept": "保持此标签页打开可保留当前页面和未发送的草稿。中断的操作不会自动重发。",
   "relay_auth_check_again": "再次检查连接",
   "relay_auth_login": "通过 WebMux 控制台登录",
+  "relay_reconnect_paused": "无法连接主机，重连已暂停",
+  "relay_reconnect_status_aria": "重连状态：{status}",
   "messaging_desc": "在此 WebMux 服务上创建频道、查看历史并发送消息。",
   "messaging_config_hint": "消息存储不可用，请检查服务端状态目录，修复后重启。",
   "messaging_channel": "频道",
