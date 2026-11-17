@@ -125,6 +125,30 @@ func TestHostPurposeDomainSeparation(t *testing.T) {
 	requireCode(t, VerifyHost(pub, c, p, vectorNow), InvalidSignature)
 }
 
+func TestChallengeClockSkew(t *testing.T) {
+	key, pub := vectorKey(t)
+	receiverNow := vectorNow.Add(-3 * time.Second)
+	connector := vectorChallenge()
+	proof, err := SignConnector(key, connector, receiverNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyConnector(pub, connector, proof, vectorNow); err != nil {
+		t.Fatal(err)
+	}
+	host := HostChallenge{Version: V1, Audience: "control-test", HostID: vectorHost, BindingGeneration: 7, Purpose: PurposeAssignment, Nonce: vectorToken, ExpiresAt: vectorNow.Add(NonceTTL).Unix(), ControlEpoch: vectorToken}
+	hostProof, err := SignHost(key, host, receiverNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyHost(pub, host, hostProof, vectorNow); err != nil {
+		t.Fatal(err)
+	}
+	expires := time.Unix(host.ExpiresAt, 0)
+	requireCode(t, VerifyHost(pub, host, hostProof, expires), Expired)
+	requireCode(t, VerifyConnector(pub, connector, proof, expires), Expired)
+}
+
 func TestStrictJSONAndCounter(t *testing.T) {
 	tests := []string{
 		`{"version":1,"version":2,"handle":"` + string(vectorToken) + `"}`,
@@ -276,14 +300,12 @@ func TestControlMessageExpiry(t *testing.T) {
 			}
 		}
 		requireCode(t, m.Validate(scope, vectorNow.Add(time.Minute)), Expired)
-		for _, lead := range []time.Duration{1370 * time.Millisecond, 5 * time.Second} {
+		for _, lead := range []time.Duration{1370 * time.Millisecond, 5 * time.Second, time.Hour} {
 			m.ExpiresAt = vectorNow.Add(ControlMessageTTL + lead).Unix()
 			if err := m.Validate(scope, vectorNow); err != nil {
 				t.Fatalf("%s sender clock ahead by %s: %v", kind, lead, err)
 			}
 		}
-		m.ExpiresAt = vectorNow.Add(ControlMessageTTL + 6*time.Second).Unix()
-		requireCode(t, m.Validate(scope, vectorNow), Expired)
 		m.ExpiresAt = vectorNow.Unix()
 		requireCode(t, m.Validate(scope, vectorNow), Expired)
 	}

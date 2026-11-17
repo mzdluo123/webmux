@@ -124,7 +124,7 @@ func (a Assignment) Validate(now time.Time) error {
 	if err := a.ControlEpoch.Validate(); err != nil {
 		return err
 	}
-	if !validUntil(now, a.ExpiresAt, ControlLease) {
+	if !validUntil(now, a.ExpiresAt) {
 		return Error{Code: Expired}
 	}
 	if err := a.Binding.Validate(); err != nil {
@@ -232,7 +232,7 @@ func (g BrowserGrant) Validate(now time.Time) error {
 	if !decimalID(g.OwnerID) || g.BindingGeneration == 0 || g.ConnectorGeneration == 0 {
 		return Error{Code: Invalid}
 	}
-	if !validUntil(now, g.ExpiresAt, BrowserSessionTTL) {
+	if !validUntil(now, g.ExpiresAt) {
 		return Error{Code: Expired}
 	}
 	u, err := secureURL(g.Origin, "https", true)
@@ -288,7 +288,7 @@ func (c ICEConfig) Validate(now time.Time) error {
 	if err := c.PeerConnectionID.Validate(); err != nil {
 		return err
 	}
-	if !validUntil(now, c.ExpiresAt, MaxICETTL) {
+	if !validUntil(now, c.ExpiresAt) {
 		return Error{Code: Expired}
 	}
 	if c.Browser.Role != "browser" || c.Host.Role != "host" {
@@ -298,7 +298,7 @@ func (c ICEConfig) Validate(now time.Time) error {
 		if len(e.Servers) != 1 {
 			return Error{Code: Invalid}
 		}
-		if !validUntil(now, e.ExpiresAt, MaxICETTL) {
+		if !validUntil(now, e.ExpiresAt) {
 			return Error{Code: Expired}
 		}
 		for _, s := range e.Servers {
