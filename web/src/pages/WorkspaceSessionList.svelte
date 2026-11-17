@@ -257,13 +257,11 @@
 
 {#snippet actions()}
   <WorkspaceHeaderActions
-    canAddRepository={setup.gitReady && setup.registryReady}
     {compact}
     {refreshing}
     repo={shell.settingsRepository}
     {selectedWorktree}
     {selectedPinned}
-    onaddrepository={() => shell.addRepository()}
     oncompactchange={setCompact}
     onrefresh={() => void shell.repositories?.refresh(true)}
     ongit={featureAvailable("workspace.git-workbench")

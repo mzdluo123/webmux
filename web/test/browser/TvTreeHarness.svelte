@@ -40,6 +40,7 @@
     onremoveworktree={() => {}}
     onworktreedetails={() => {}}
     onswitchbranch={() => {}}
+    onaddrepository={() => {}}
     onrename={() => {}}
     onclose={() => {}}
     onresume={() => {}}

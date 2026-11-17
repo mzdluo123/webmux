@@ -14,7 +14,12 @@ import {
   useDirectory,
   backToList,
 } from "./fixtures";
-import { expectHomeWorktrees, repositoryMenu } from "./repository-menu";
+import {
+  allRepositoriesMenu,
+  expectHomeWorktrees,
+  openAllRepositoriesMenu,
+  repositoryMenu,
+} from "./repository-menu";
 import { startE2EServer } from "./server.mjs";
 
 const exec = promisify(execFile);
@@ -41,7 +46,7 @@ async function repository(root: string, name = "project with spaces") {
   return path;
 }
 async function register(page: Page, path: string) {
-  await page.getByRole("button", { name: "添加仓库", exact: true }).click();
+  await allRepositoriesMenu(page, "添加仓库…");
   const dialog = page.getByRole("dialog", { name: "添加仓库" });
   await dialog.getByLabel("仓库目录").fill(path);
   await dialog.getByRole("button", { name: "添加仓库", exact: true }).click();
@@ -317,9 +322,12 @@ test("without Git an isolated real service still starts and runs a direct shell"
   const isolated = await startE2EServer({ noGit: true });
   try {
     await page.goto(isolated.baseURL);
+    const closedDrawer = await openAllRepositoriesMenu(page);
     await expect(
-      page.getByRole("button", { name: "添加仓库", exact: true }),
+      page.getByRole("menuitem", { name: "添加仓库…", exact: true }),
     ).toBeDisabled();
+    await page.keyboard.press("Escape");
+    if (closedDrawer) await page.keyboard.press("Escape");
     const config = await (await fetch(isolated.apiURL + "/api/config")).json();
     expect(config.workspace.gitAvailable).toBe(false);
     expect(config).not.toHaveProperty("token");
@@ -429,7 +437,7 @@ test("multiple repositories keep every session visible through local failure, co
       .getByRole("region", { name: "直接会话", exact: true })
       .getByRole("link", { name: "Second shell", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "添加仓库", exact: true }).click();
+  await allRepositoriesMenu(page, "添加仓库…");
   const addDialog = page.getByRole("dialog", { name: "添加仓库" });
   await addDialog.getByLabel("仓库目录").fill(workDir);
   await addDialog

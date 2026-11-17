@@ -340,6 +340,7 @@
             ? (repositoryId, worktreeId, view) =>
                 openGitWorkbench({ repositoryId, worktreeId, view })
             : undefined}
+          onaddrepository={() => shell.addRepository()}
           onrename={shell.rename}
           onclose={shell.close}
           records={shell.archived?.records ?? []}

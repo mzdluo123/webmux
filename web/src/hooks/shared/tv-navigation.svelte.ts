@@ -200,10 +200,18 @@ export function useTvNavigation(back: () => boolean) {
       const field = textField(active);
       if (active?.closest(editable) && (!field || editing === field)) return;
       const widget = active?.closest(roving);
+      // A tree row's "⋯" button sits inside the tree but is not a treeitem;
+      // the tree's own keys only move between items, so keep TV arrows.
+      const treePeer =
+        widget?.matches('[role="tree"]') &&
+        active instanceof HTMLElement &&
+        active.matches('button, a[href], [role="button"]') &&
+        !active.closest('[role="treeitem"]');
       // Inline composites can leave on their unused axis after native selection.
       if (
         (widget &&
           !field &&
+          !treePeer &&
           !widget.matches(
             '[role="tablist"], [role="radiogroup"], [role="listbox"][aria-orientation]:not([data-state]), [role="combobox"][aria-expanded="false"]',
           )) ||
@@ -378,6 +386,10 @@ export function useTvNavigation(back: () => boolean) {
           control instanceof HTMLElement &&
           control.matches('button, a[href], [role="button"]') &&
           (!native ||
+            // A tree row's "⋯" button is a sibling control, not a treeitem:
+            // the tree's own keys only move between items.
+            (native.matches('[role="tree"]') &&
+              !control.closest('[role="treeitem"]')) ||
             native.matches('[role="combobox"][aria-expanded="false"]'))
         ) {
           // Enter activates a closed popup; its arrows remain TV navigation.

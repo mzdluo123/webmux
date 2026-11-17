@@ -127,6 +127,23 @@ test("production tree keeps expand/collapse keys and a leaf can exit into the ma
     .toHaveFocus();
 });
 
+test("a row's ⋯ trigger keeps remote arrows instead of opening its menu", async () => {
+  await page.viewport(1280, 720);
+  await render(TreeHarness);
+  const trigger = page.getByRole("button", { name: "仓库操作：全部仓库" });
+  await expect.element(trigger).toBeVisible();
+  (trigger.element() as HTMLElement).focus();
+  await expect.element(trigger).toHaveFocus();
+  await userEvent.keyboard("{ArrowDown}");
+  // The trigger is a sibling control, not a treeitem: remote arrows keep
+  // moving spatially and the menu stays shut.
+  await userEvent.keyboard("{ArrowLeft}");
+  await expect
+    .element(page.getByRole("treeitem", { name: /^全部仓库/ }))
+    .toHaveFocus();
+  expect(page.getByRole("menuitem").elements()).toEqual([]);
+});
+
 test("immersive input bypasses TV Back and restores TV capture focus on exit", async () => {
   await render(Harness);
   xrPresentation.active = true;
