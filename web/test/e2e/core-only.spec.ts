@@ -12,7 +12,7 @@ import { CapabilitiesSchema } from "../../src/contracts/feature-schemas";
 // These are production lazy-entry asset names, not source-content assertions.
 // Observe actual browser requests, including preload fetches and WebSockets.
 const featureChunk =
-  /\/(?:terminal-(?:chat|files|code|forward|immersive|quick-commands|voice|workspace|git)|chat|code|workspace|launch|forward|notifications|p2p|cloudflare|tailscale|LaunchPicker|LocationPicker|WorktreeCreateFields|DirectoryPicker|ConnectorInstallHint|P2PSettings|QuickCommandsSettings|VoiceSettings|LaunchConfigsSettings|TunnelSettings|TailscaleSettings|PushSettings|GitWorkbench|CodePopout|Handoff|QuickStart)-[^/]+\.js$/;
+  /\/(?:terminal-(?:chat|files|code|forward|quick-commands|voice|workspace|git)|chat|code|workspace|launch|forward|notifications|p2p|cloudflare|tailscale|LaunchPicker|LocationPicker|WorktreeCreateFields|DirectoryPicker|ConnectorInstallHint|P2PSettings|QuickCommandsSettings|VoiceSettings|LaunchConfigsSettings|TunnelSettings|TailscaleSettings|PushSettings|GitWorkbench|CodePopout|Handoff|QuickStart)-[^/]+\.js$/;
 
 test("core-only ignores stale feature preferences and creates, types into, and replays a real PTY", async ({
   page,

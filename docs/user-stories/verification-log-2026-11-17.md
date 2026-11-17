@@ -168,3 +168,28 @@
 - [桌面成员](../images/messaging/agents-desktop-light.png)、[平板成员](../images/messaging/agents-tablet-light.png)、[手机成员](../images/messaging/agents-phone-light.png)及[邀请与收发录像](../images/messaging/agents-invite-send.gif)来自真实隔离应用与 stdio 假 Agent；无头检查未覆盖真机键盘及粗指针。
 - 消息、插件与功能选择 E2E 最终共 48 项通过；手机空状态的两个创建动作改用不同名称后，创建、发送、重启恢复路径通过。
 - 补充 101 条安静 Agent 状态消息后的新请求回归：通知扫描独立于 100 条收件箱分页，后续任务仍能唤醒订阅 Agent。
+
+## 移除沉浸式 VR 模式（US-H15、US-K18、US-L02）
+
+### 范围与兼容性
+
+- 删除 WebXR 会话、Three.js 场景、空间面板、VR 键盘及终端、聊天、代码与 Diff 的 XR 适配；TV 和头显 2D 模式保留。
+- 删除 `immersive` / `immersive.xr`、中英文案、专用测试及 IWER/Three.js 依赖；US-H15 标记为已退役，保留历史编号。
+- 显式包含 `immersive` 的旧配置需要删除该项。使用隔离配置实际启动，返回 `features.enabled: unknown feature "immersive"`。
+- 能力快照调整为 13 个功能和 18 项能力，严格目录校验与静态发现回归通过。
+
+### 已执行验证
+
+- `make check` 通过，包括前端构建、类型与测试类型、格式、文档、持久化、架构、Oxlint、Go vet 和 golangci-lint。
+- `umask 0022; NO_PROXY=localhost,127.0.0.1 no_proxy=localhost,127.0.0.1 make test` 通过：Go race 与 Relay、1249 项单元、935 项浏览器组件、137 项 Storybook、558 项 E2E（52 跳过）及 18 项性能测试（2 跳过）。
+- 初始 `umask 0077` 使两个未主动设置文件权限的既有测试失败；改为 `0022` 后原用例与完整门禁通过。Storybook 预览探测受本地代理影响，设置本地地址 `NO_PROXY` 后 137 项通过。
+- 一次高负载 E2E 运行中，代码阅读用例在创建 Shell 时收到 129；该用例随后在桌面和手机项目均单独通过，最终完整 E2E 为 558 通过、52 跳过。
+- 真实隔离应用的桌面、平板、手机明暗主题前后截图使用相同会话、功能选择与菜单状态；所有删除后视口保留 TV/头显入口、没有 VR 入口，且无页面横向溢出。
+- 未验证真实头显/TV 硬件、真实悬停或粗指针行为。本次为静态入口删除，无交互动画 GIF。
+
+## 同步主分支 VR 移除
+
+合入 `cdcf67d3`，保留 Agent 消息插件与任务式 UI 指南；当前目录为 14 项，省略选择时保留的旧版集合为 13 项。
+功能目录、能力数量、v1 本机客户端兼容、前端契约与部署文档同步更新；此前验证记录保留其执行时的数量。
+合并后相关 Go race（目录、本机客户端、API、CLI、MCP、架构、文档）、前端类型/架构、格式和生产构建通过。
+类型检查的旧 VR 生成缓存移至临时目录后重新生成，源文件无额外修改。

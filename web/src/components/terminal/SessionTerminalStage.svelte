@@ -24,7 +24,6 @@
   import TerminalWorkspace from "./TerminalWorkspace.svelte";
   import type { createHeaderTerminalView } from "../../domains/terminal/session-terminal-io";
   import type { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
-  import type { XrHeaderControl } from "../../domains/terminal/xr-workspace";
   import { useTvTerminalBack } from "../../hooks/terminal/tv-terminal-back.svelte";
   import type { TerminalFeatures } from "../../features/terminal";
   import type ChatViewComponent from "../chat/ChatView.svelte";
@@ -99,7 +98,6 @@
     onChatEditChange,
     onChooseSwitch,
     container = $bindable(),
-    xr,
   }: {
     id: string;
     features: TerminalFeatures;
@@ -169,7 +167,6 @@
     onChatEditChange: (value: boolean) => void;
     onChooseSwitch: () => void;
     container: HTMLDivElement | undefined;
-    xr?: XrHeaderControl;
   } = $props();
 
   let findPanel = $state<TerminalFindBar>();
@@ -200,15 +197,6 @@
   }
   export function focusChat() {
     chatView?.focus();
-  }
-  export function editChatKey(input: string) {
-    chatView?.editKey(input);
-  }
-  export function sendChatDraft() {
-    chatView?.submitDraft();
-  }
-  export function getChatError() {
-    return chatView?.getError() ?? "";
   }
   export function focusComposer() {
     composer?.focus();
@@ -305,7 +293,6 @@
   bind:this={header}
   {features}
   {chatActions}
-  {xr}
   keyboard={holdBegin}
   {openPanels}
   terminal={headerTerminal}
@@ -333,7 +320,6 @@
 <TerminalWorkspace
   {codeShown}
   {desktop}
-  immersive={xr?.active ?? false}
   draftOpen={draft.enabled && hybrid.view === "terminal"}
   onfind={hybrid.view === "terminal" ? showFind : undefined}
 >

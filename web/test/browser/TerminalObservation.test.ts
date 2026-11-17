@@ -65,9 +65,6 @@ test.each([false, true])(
           ),
         ),
     ).toBe(false);
-    expect(
-      page.getByRole("button", { name: "进入 VR", exact: true }).elements(),
-    ).toEqual([]);
     feed.frame({ type: "removed", id: info.id } as never);
     terminal.drop(4404);
     await expect

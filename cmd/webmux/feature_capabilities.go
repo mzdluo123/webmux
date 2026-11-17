@@ -20,7 +20,6 @@ var featureCapabilities = [...]struct{ feature, capability string }{
 	{"tailscale", "tailscale.manage"},
 	{"p2p", "p2p.direct"},
 	{"mcp", "mcp.control"},
-	{"immersive", "immersive.xr"},
 	{"messaging", "messaging.messages"},
 }
 

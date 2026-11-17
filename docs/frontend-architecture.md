@@ -76,26 +76,16 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 终端可以预载已选择但暂不可用的本地贡献；控件和业务 I/O 必须按当前 `featureAvailable` 派生，能力恢复时复用原有 PTY、owner 与草稿，不以临时不可用作为永久缺少实现的快照。
 禁用功能不仅隐藏入口：不得加载实现 chunk、调用其 REST/WS、启动计时器、后台探测或 provider。单个可选 chunk 失败留在该功能内，不使 PTY 终端整体失败。
 加载错误提示可收起且不会遮断其他设置；收起提示不清除错误事实或伪造模块恢复。可选编辑器缺失时，启动配置的其他字段保存不得丢掉已读取的混合或提醒选项。
-打开聊天连接的 effect 只跟踪流需求与可用性，连接内部读取模型时使用 `untrack`，避免每个聊天帧都触发关闭和重连。草稿对账保留当前路由及 `terminal-draft-owners.ts` 登记的二维/VR 所有者；列表暂缺不等于规范删除，已释放资源的旧回调不得回收新宿主的草稿。
+打开聊天连接的 effect 只跟踪流需求与可用性，连接内部读取模型时使用 `untrack`，避免每个聊天帧都触发关闭和重连。草稿对账保留当前路由及 `terminal-draft-owners.ts` 登记的二维所有者；列表暂缺不等于规范删除，已释放资源的旧回调不得回收新宿主的草稿。
 核心新建对话框可直接填写 argv 与 cwd，无需 launch/workspace/files；缺少 launch 时，旧浏览器记住的 `configId` 不能猜成命令，必须重新显式填写。
 选择与组合规则见 [配置](deployment/configuration.md#内置功能选择)，后端事实与功能状态不是同一个布尔值，见 [能力发现](protocol.md#能力发现)。
 
-### XR 与设备模式边界
+### 设备模式边界
 
 - `hooks/shared/` 拥有 TV/头显显式开关、设备偏好和 TV 导航生命周期；`platform/spatial-navigation.ts` 只计算几何候选。根属性由应用外壳设置，呈现使用共享设计系统令牌，不由设备 UA 推断业务模式。
 - 复合控件用 `data-tv-native-keys` 保留自己的键盘协议；聊天内联菜单在 `webmux:tv-back` 的 capture 阶段，仅消费自己拥有焦点时的返回，再由根导航释放编辑。
-- `hooks/terminal/terminal.svelte.ts` 的 `TerminalController` 保有唯一 xterm emulator、输入路由与 socket。DOM renderer 和 XR Canvas 共用这个解析模型；`setImmersive` 暂停 DOM 适配，退出后恢复，不建立第二个 PTY 或输入控制器。
-- `domains/terminal/` 放共享按键编码、XR 文本/面板契约与布局校验；`domains/code/` 放代码/Diff 的只读 XR 适配。`hooks/terminal/` 协调会话来源、异步 XR 所有权、Canvas、射线、场景与资源清理，不让领域依赖渲染层。
-- Three.js 运行时只允许在 XR 专属 `hooks/terminal/xr-*` 场景模块中导入。`xr-session.svelte.ts` 在用户手势请求会话后动态导入 `xr-workspace.ts`；普通页面与领域契约不得静态导入该场景入口或初始化 3D renderer。
-- XR 布局 version 2 经 Zod 校验并通过设备偏好存储，读取时迁移有效 version 1；区分会话、内容来源与视图实例，只保存 ID、类型、会话和来源引用、位置、尺寸与可见性，不保存标题、输出、草稿、代码、游标或 token。
-
-XR 面板姿态、纹理尺寸与每眼帧缓冲只影响呈现；PTY 网格仍由共享控制权流程管理，只有用户明确确认逻辑网格变化才可提交 resize。返回 2D、关闭面板和 XR 资源清理均不拥有服务端会话销毁权。
-
-同深度 XR 面板按统一表面顺序绘制和命中；终端子平面与所属面板共面，使用组内顺序覆盖背景。真实前后关系仍交给深度测试，控制器射线单独置顶，不用改变持久化姿态解决遮挡。
-
-`Terminal.svelte` 按会话键挂载 2D 与 VR 观察成员的去重并集；`TerminalSessionHost` 在引用转移时保留原 `SessionTerminal`。离屏成员在附着前取得 immersive，不参与 2D 几何与自动 fitting，原输入编辑器仍可显式聚焦。
-
-`xr-view-state.ts` 拥有有界绑定、观察事务与实例选择；来源只派生一次内容再分发给独立面板。输入按选中实例解析唯一来源，异步聚焦检查目标和所有者代际，失效后撤销捕获；只读聊天历史不复用通用输入动作。
+- `hooks/terminal/terminal.svelte.ts` 的 `TerminalController` 保有唯一 xterm emulator、输入路由与 socket；视图切换保留解析模型和连接。
+- `Terminal.svelte` 按会话键挂载 2D 窗格；`TerminalSessionHost` 在分屏与视图状态变化时保留原 `SessionTerminal`。
 
 ## 检查项
 

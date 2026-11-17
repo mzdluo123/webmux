@@ -24,7 +24,7 @@ var capabilityFeatures = map[string]string{
 	"workspace.clone":         "workspace",
 	"workspace.github":        "workspace",
 	"relay.hybrid":            "p2p",
-	"tailscale.manage":        "tailscale", "p2p.direct": "p2p", "mcp.control": "mcp", "immersive.xr": "immersive",
+	"tailscale.manage":        "tailscale", "p2p.direct": "p2p", "mcp.control": "mcp",
 }
 
 // CapabilityError distinguishes disabled features from old or broken servers.
@@ -127,7 +127,7 @@ func decodeCapabilitiesV1(raw json.RawMessage) (contract.Capabilities, error) {
 		}
 	}
 	// Messaging was introduced after the retired v1 catalog.
-	if len(snapshot.Features) == 14 {
+	if len(snapshot.Features) == 13 {
 		snapshot.Features = append(snapshot.Features, contract.FeatureStatus{ID: "messaging", Status: contract.FeatureStatusDisabled, Reason: contract.CapabilityReasonFeatureDisabled})
 	}
 	return snapshot, nil

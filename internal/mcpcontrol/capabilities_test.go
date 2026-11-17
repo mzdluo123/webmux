@@ -13,7 +13,7 @@ import (
 
 func testCapabilities(enabled []string) contract.Capabilities {
 	snapshot := contract.Capabilities{Version: contract.CapabilitiesVersion, Features: []contract.FeatureStatus{}, Capabilities: []contract.Capability{{ID: "terminal.pty", Available: true}}}
-	owners := map[string]string{"launch": "launch.configs", "workspace": "workspace.manage", "chat": "chat.acp", "files": "files.upload", "code": "code.browse", "notifications": "notifications.push", "quick-commands": "quick-commands.send", "voice": "voice.recognize", "forward": "forward.ports", "cloudflare": "cloudflare.manage", "tailscale": "tailscale.manage", "p2p": "p2p.direct", "mcp": "mcp.control", "immersive": "immersive.xr", "messaging": "messaging.messages"}
+	owners := map[string]string{"launch": "launch.configs", "workspace": "workspace.manage", "chat": "chat.acp", "files": "files.upload", "code": "code.browse", "notifications": "notifications.push", "quick-commands": "quick-commands.send", "voice": "voice.recognize", "forward": "forward.ports", "cloudflare": "cloudflare.manage", "tailscale": "tailscale.manage", "p2p": "p2p.direct", "mcp": "mcp.control", "messaging": "messaging.messages"}
 	for _, p := range builtin.Catalog() {
 		on := builtin.Has(enabled, p.ID)
 		status, reason := contract.FeatureStatusDisabled, contract.CapabilityReasonFeatureDisabled

@@ -25,7 +25,7 @@ API 以 `/api` 为前缀，WebSocket 以 `/ws` 为前缀。禁用或未知 API/W
 `GET /api/capabilities` 返回 `{version: 2, features: [...], capabilities: [...]}`，在 TCP、本机套接字与已建立 P2P RPC 上提供，同样遵循各传输认证策略。
 `/api/health` 和 `webmux status` 说明实例是否健康、会话数与连接入口，不是功能发现接口。CLI、托盘和 MCP 用当前实例能力决定入口；不能靠端点试错或磁盘配置猜测。
 
-- `features` 固定列出 15 个 ID；每项含 `id`、`enabled`、`status`（`disabled` / `ready` / `unavailable`）及可选 `reason`。
+- `features` 固定列出 14 个 ID；每项含 `id`、`enabled`、`status`（`disabled` / `ready` / `unavailable`）及可选 `reason`。
 - `capabilities` 每项含 `id`、`available` 和可选 `reason`；核心 `terminal.pty` 始终可用，组合能力含 `workspace.git-workbench`。
 - `enabled` 是启动选择；`ready` 不等于业务开关打开、外部命令存在或每个 agent 连接器可用。具体入口还须读取对应业务状态。
 - 原因码仅为 `feature_disabled`、`configuration_off`、`unsupported`、`storage_unavailable`、`command_unavailable`、`service_unavailable`，不包含命令、凭据、路径或底层错误正文。

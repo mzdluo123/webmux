@@ -9,7 +9,6 @@ import type * as FilesContribution from "./terminal-files";
 import type * as CodeContribution from "./terminal-code";
 import type * as QuickContribution from "./terminal-quick-commands";
 import type * as VoiceContribution from "./terminal-voice";
-import type * as ImmersiveContribution from "./terminal-immersive";
 import type * as ForwardContribution from "./terminal-forward";
 import type * as WorkspaceContribution from "./terminal-workspace";
 import type * as GitContribution from "./terminal-git";
@@ -20,7 +19,6 @@ export interface TerminalFeatures {
   code?: typeof CodeContribution;
   quickCommands?: typeof QuickContribution;
   voice?: typeof VoiceContribution;
-  immersive?: typeof ImmersiveContribution;
   forward?: typeof ForwardContribution;
   workspace?: typeof WorkspaceContribution;
   git?: typeof GitContribution;
@@ -44,9 +42,6 @@ export function availableTerminalFeatures(
       ? selected.quickCommands
       : undefined,
     voice: featureAvailable("voice.recognize") ? selected.voice : undefined,
-    immersive: featureAvailable("immersive.xr")
-      ? selected.immersive
-      : undefined,
     forward: featureAvailable("forward.ports") ? selected.forward : undefined,
     workspace,
     git:
@@ -69,36 +64,25 @@ export async function loadTerminalFeatures(): Promise<TerminalFeatures> {
       return undefined;
     }
   }
-  const [
-    chat,
-    files,
-    code,
-    quickCommands,
-    voice,
-    immersive,
-    forward,
-    workspace,
-    git,
-  ] = await Promise.all([
-    load("chat", () => import("./terminal-chat")),
-    load("files", () => import("./terminal-files")),
-    load("code", () => import("./terminal-code")),
-    load("quick-commands", () => import("./terminal-quick-commands")),
-    load("voice", () => import("./terminal-voice")),
-    load("immersive", () => import("./terminal-immersive")),
-    load("forward", () => import("./terminal-forward")),
-    load("workspace", () => import("./terminal-workspace")),
-    featureEnabled("code")
-      ? load("workspace", () => import("./terminal-git"))
-      : undefined,
-  ]);
+  const [chat, files, code, quickCommands, voice, forward, workspace, git] =
+    await Promise.all([
+      load("chat", () => import("./terminal-chat")),
+      load("files", () => import("./terminal-files")),
+      load("code", () => import("./terminal-code")),
+      load("quick-commands", () => import("./terminal-quick-commands")),
+      load("voice", () => import("./terminal-voice")),
+      load("forward", () => import("./terminal-forward")),
+      load("workspace", () => import("./terminal-workspace")),
+      featureEnabled("code")
+        ? load("workspace", () => import("./terminal-git"))
+        : undefined,
+    ]);
   return {
     chat: files ? chat : undefined,
     files,
     code,
     quickCommands,
     voice,
-    immersive,
     forward,
     workspace,
     git: code ? git : undefined,
