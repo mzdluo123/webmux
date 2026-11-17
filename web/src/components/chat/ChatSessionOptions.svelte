@@ -14,7 +14,7 @@
     permissionChoices,
   } from "../../chat-permission";
   import type { ChatConfig, ChatPermissionMode } from "../../schemas";
-  import InlineNotice from "../InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   // Low-frequency options share one entry inside the mobile composer. The
   // temporary sheet shows names and current values without adding a bottom row.

@@ -12,7 +12,7 @@
   import { Switch } from "$lib/components/ui/switch";
   import * as Card from "$lib/components/ui/card";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
-  import InlineNotice from "./InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   const code = $derived(settings.values.codeReader ?? defaultCodeReader);
   let fontDraft = $state<number | undefined>(undefined);
   const fontInput = $derived(fontDraft ?? terminalFont.size);

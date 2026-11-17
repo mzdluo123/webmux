@@ -11,7 +11,7 @@
   import * as RadioGroup from "$lib/components/ui/radio-group";
   import ChoiceDetails from "./ChoiceDetails.svelte";
   import LaunchConfigIcon from "./LaunchConfigIcon.svelte";
-  import PickerField from "./PickerField.svelte";
+  import { PickerField } from "$lib/components/ui/picker-field";
 
   // The "what" row of the new-session dialog: saved launch configs and a
   // custom command in one list. Switching keeps both the chosen config and

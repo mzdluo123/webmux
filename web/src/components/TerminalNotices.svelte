@@ -5,7 +5,7 @@
   import type { HybridNotice } from "../hooks/hybrid.svelte";
   import type { UploadProgress } from "../hooks/upload.svelte";
   import FileUploadProgress from "./FileUploadProgress.svelte";
-  import StripNotice from "./StripNotice.svelte";
+  import { StripNotice } from "$lib/components/ui/strip-notice";
   import TerminalPortPrompts from "./TerminalPortPrompts.svelte";
   import type { ControlState, ListeningPort } from "../schemas";
   import type { TerminalDraft } from "../terminal-draft.svelte";

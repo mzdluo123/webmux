@@ -1,5 +1,5 @@
 <script lang="ts">
-  import ResponsiveDialog from "../../src/components/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   let {
     busy = false,

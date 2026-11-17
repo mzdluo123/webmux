@@ -10,8 +10,8 @@
   import { measureWorktree } from "../recoverable";
   import type { SessionInfo, Worktree, WorktreeUsage } from "../schemas";
   import { countSessions } from "../session-status";
-  import InlineNotice from "./InlineNotice.svelte";
-  import ResponsiveDialog from "./ResponsiveDialog.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   // What a group of the home page stands for: its path, the worktree's Git
   // state, the session totals and, for a worktree, a disk size that is only

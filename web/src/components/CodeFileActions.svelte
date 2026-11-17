@@ -33,7 +33,7 @@
   import { Separator } from "$lib/components/ui/separator";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import FileUploadProgress from "./FileUploadProgress.svelte";
-  import ResponsiveDialog from "./ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import UploadFileInput from "./UploadFileInput.svelte";
   import IconClipboard from "~icons/tabler/clipboard";
   import IconCopy from "~icons/tabler/copy";

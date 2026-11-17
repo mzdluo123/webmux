@@ -5,7 +5,7 @@
   import IconExternalLink from "~icons/tabler/external-link";
   import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
-  import InlineNotice from "./InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { useCopied } from "../hooks/copied.svelte";
   import { connectorMissingText } from "../hybrid";
   import type { AgentConnector } from "../schemas";

@@ -18,7 +18,7 @@ description: Use for any WebMux UI change — components, layout, styling, icons
 
 1. **先理解现状。** 读相关组件及其 Storybook story。用户给出 CSS 选择器或 HTML 片段时，先定位对应 Svelte 组件，再查同类界面的写法，避免只修一处造成不一致。
 2. **按顺序找组件，找到就复用：**
-   1. `web/src/lib/components/ui/`
+   1. `web/src/lib/components/ui/`：基础控件及公共组合（如 ResponsiveDialog、InlineNotice、PickerField）。
    2. `web/src/components/`
    3. shadcn-svelte registry（`pnpm --dir web exec shadcn-svelte add <name>`，生成后审查差异）
 

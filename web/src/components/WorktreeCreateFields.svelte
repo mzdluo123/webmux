@@ -22,10 +22,10 @@
   import { Label } from "$lib/components/ui/label";
   import * as Select from "$lib/components/ui/select";
   import IconRefresh from "~icons/tabler/refresh";
-  import AdvancedSection from "./AdvancedSection.svelte";
+  import { AdvancedSection } from "$lib/components/ui/advanced-section";
   import BranchCommandList from "./BranchCommandList.svelte";
   import IconGitBranch from "~icons/tabler/git-branch";
-  import PickerField from "./PickerField.svelte";
+  import { PickerField } from "$lib/components/ui/picker-field";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
   import type { z } from "zod";
   let {

@@ -22,10 +22,15 @@
   import * as Drawer from "$lib/components/ui/drawer";
   import { ListButton } from "$lib/components/ui/list-button";
   import ChatSelect from "../src/components/chat/ChatSelect.svelte";
-  import InlineNotice from "../src/components/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import SessionStatus from "../src/components/SessionStatus.svelte";
   import SessionRow from "../src/components/SessionRow.svelte";
-  import ResponsiveDialog from "../src/components/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
+  import { StripNotice } from "$lib/components/ui/strip-notice";
+  import { InfoHint } from "$lib/components/ui/info-hint";
+  import { AdvancedSection } from "$lib/components/ui/advanced-section";
+  import { KeyValueSummary } from "$lib/components/ui/key-value-summary";
+  import { PickerField } from "$lib/components/ui/picker-field";
   import { session, now } from "./fixtures";
   import type { SessionInfo } from "../src/schemas";
 
@@ -49,6 +54,7 @@
   let wrapping = $state(true);
   let name = $state("检查构建");
   let repository = $state("webmux");
+  let pickerOpen = $state(false);
   const sections = {
     foundations: [
       "设计基础",
@@ -451,6 +457,38 @@
         <ListButton variant="navigation">更新文档</ListButton>
       </Card.Content>
     </Card.Root>
+    <Card.Root>
+      <Card.Header><Card.Title>公共表单组合</Card.Title></Card.Header>
+      <Card.Content class="space-y-4">
+        <div class="flex items-center gap-2">
+          <Label for="example-picker">示例目录</Label>
+          <InfoHint label="示例目录">选择本次操作使用的目录。</InfoHint>
+        </div>
+        <PickerField id="example-picker" bind:open={pickerOpen}>
+          {#snippet trigger()}{repository}{/snippet}
+          <div class="p-2">
+            {#each ["webmux", "demo"] as choice (choice)}
+              <ListButton
+                onclick={() => {
+                  repository = choice;
+                  pickerOpen = false;
+                }}>{choice}</ListButton
+              >
+            {/each}
+          </div>
+        </PickerField>
+        <AdvancedSection title="高级选项" summary="使用默认配置">
+          <Label for="example-note">备注</Label>
+          <Input id="example-note" placeholder="可选备注" />
+        </AdvancedSection>
+        <KeyValueSummary
+          rows={[
+            { label: "目录", value: `/workspace/${repository}`, mono: true },
+            { label: "配置", value: "默认" },
+          ]}
+        />
+      </Card.Content>
+    </Card.Root>
   {:else if section === "feedback"}
     <Card.Root>
       <Card.Header
@@ -473,6 +511,17 @@
       <InlineNotice tone="danger"
         >无法访问工作区。请检查目录是否存在，然后重新选择路径。</InlineNotice
       >
+      <InlineNotice size="compact">紧凑提示使用组件的统一尺寸。</InlineNotice>
+      <StripNotice tone="warning" label="连接提示">
+        连接已断开，正在重连。
+        {#snippet actions()}
+          <Button
+            variant="outline"
+            size="sm"
+            onclick={() => (notice = "正在重试连接")}>重试</Button
+          >
+        {/snippet}
+      </StripNotice>
     </div>
     <div class="flex flex-wrap gap-2">
       <Badge variant="secondary">主工作区</Badge><Badge variant="outline"

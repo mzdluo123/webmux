@@ -10,7 +10,7 @@
     WEBMUX_REFERENCE_NAME,
   } from "../quick-commands";
   import { INIT_INSTRUCTION_MAX, type QuickCommand } from "../schemas";
-  import InlineNotice from "./InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   // The repository init instruction: a template quick start sends before the
   // first message. `{{name}}` references a quick command; the counter turns

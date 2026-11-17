@@ -8,7 +8,7 @@
   import { Input } from "$lib/components/ui/input";
   import { ListButton } from "$lib/components/ui/list-button";
   import SplitDirectionChoice from "./SplitDirectionChoice.svelte";
-  import ResponsiveDialog from "./ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import { errorMessage } from "../error";
 
   let {

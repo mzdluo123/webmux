@@ -17,7 +17,7 @@
   import { Label } from "$lib/components/ui/label";
   import { ListButton } from "$lib/components/ui/list-button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
-  import InfoHint from "../components/InfoHint.svelte";
+  import { InfoHint } from "$lib/components/ui/info-hint";
   import SettingsRowMenu from "../components/SettingsRowMenu.svelte";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Card from "$lib/components/ui/card";
@@ -57,7 +57,7 @@
   import QuickCommandDialog from "../components/QuickCommandDialog.svelte";
   import QuickCommandPresetMenu from "../components/QuickCommandPresetMenu.svelte";
   import LaunchConfigDialog from "../components/LaunchConfigDialog.svelte";
-  import InlineNotice from "../components/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import PendingUpdateNotice from "../components/PendingUpdateNotice.svelte";
   import TunnelSettings from "../components/TunnelSettings.svelte";
   import { setBrowserChrome } from "../browser-chrome";

@@ -7,7 +7,7 @@
   import * as Card from "$lib/components/ui/card";
   import { voicePreference } from "../hooks/voice-preference.svelte";
   import { useVoiceSettings } from "../hooks/voice-settings.svelte";
-  import InlineNotice from "./InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import VoiceConfiguration from "./VoiceConfiguration.svelte";
 
   const protocolDoc =

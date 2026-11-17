@@ -1,5 +1,5 @@
 <script lang="ts">
-  import InlineNotice from "../components/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import LazyDialog from "../components/LazyDialog.svelte";
   import { onMount } from "svelte";
   import SessionSwitcherTrigger from "../components/SessionSwitcherTrigger.svelte";

@@ -29,9 +29,9 @@
   import * as InputGroup from "$lib/components/ui/input-group";
   import { Label } from "$lib/components/ui/label";
   import * as SegmentedControl from "$lib/components/ui/segmented-control";
-  import InlineNotice from "./InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import ManageWorktreesPreview from "./ManageWorktreesPreview.svelte";
-  import ResponsiveDialog from "./ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   let {
     repository,

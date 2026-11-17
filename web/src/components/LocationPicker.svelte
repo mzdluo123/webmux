@@ -11,7 +11,7 @@
   import { Label } from "$lib/components/ui/label";
   import ChoiceDetails from "./ChoiceDetails.svelte";
   import DirectoryPicker from "./DirectoryPicker.svelte";
-  import PickerField from "./PickerField.svelte";
+  import { PickerField } from "$lib/components/ui/picker-field";
   import {
     directoryName,
     selectableWorktree,

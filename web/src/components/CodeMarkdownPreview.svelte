@@ -143,7 +143,7 @@
   import IconCheck from "~icons/tabler/check";
   import IconCopy from "~icons/tabler/copy";
   import { Button } from "$lib/components/ui/button";
-  import InlineNotice from "./InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { copyText } from "../clipboard";
   import { loadFenceLanguage } from "../code-language";
   import { highlightInto } from "../code-highlight";
@@ -634,8 +634,10 @@
   <div class="flex h-full min-h-0 flex-col">
     {#if notice || retryable}
       <div class="flex shrink-0 flex-wrap items-center gap-2 p-2">
-        {#if notice}<InlineNotice tone="warning" class="min-w-0 flex-1 py-1.5"
-            >{notice}</InlineNotice
+        {#if notice}<InlineNotice
+            tone="warning"
+            size="compact"
+            class="min-w-0 flex-1">{notice}</InlineNotice
           >{/if}
         {#if retryable}<Button
             variant="outline"

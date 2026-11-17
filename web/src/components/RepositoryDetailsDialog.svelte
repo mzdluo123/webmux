@@ -11,7 +11,7 @@
     SessionInfo,
   } from "../schemas";
   import { statusSummary } from "../session-status";
-  import ResponsiveDialog from "./ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   // Where a repository lives and what its home page shows: path, how many
   // worktrees are listed, the session summary and the Git read time. Removing

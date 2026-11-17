@@ -1,7 +1,7 @@
 <script lang="ts" generics="T">
   import { untrack, type Snippet } from "svelte";
   import { Button } from "$lib/components/ui/button";
-  import InlineNotice from "./InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   let {
     load,

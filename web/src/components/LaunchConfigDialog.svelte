@@ -10,7 +10,7 @@
   import * as Dialog from "$lib/components/ui/dialog";
   import * as Select from "$lib/components/ui/select";
   import ConnectorInstallHint from "./ConnectorInstallHint.svelte";
-  import InlineNotice from "./InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import LaunchConfigIcon from "./LaunchConfigIcon.svelte";
   import { api, APIError } from "../api";
   import {

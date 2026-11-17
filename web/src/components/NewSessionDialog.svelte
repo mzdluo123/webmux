@@ -42,12 +42,12 @@
   import { Label } from "$lib/components/ui/label";
   import SplitDirectionChoice from "./SplitDirectionChoice.svelte";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
-  import AdvancedSection from "./AdvancedSection.svelte";
+  import { AdvancedSection } from "$lib/components/ui/advanced-section";
   import FirstMessageFields from "./FirstMessageFields.svelte";
   import LaunchPicker from "./LaunchPicker.svelte";
   import LocationPicker from "./LocationPicker.svelte";
   import LazyDialog from "./LazyDialog.svelte";
-  import ResponsiveDialog from "./ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import WorktreeCreateFields from "./WorktreeCreateFields.svelte";
   import type { SplitDirection } from "../terminal-layout";
 

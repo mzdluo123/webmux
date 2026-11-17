@@ -5,9 +5,9 @@
   import { previewRebuild, rebuildWorktree } from "../recoverable";
   import type { HybridRelease, RebuildPreview } from "../schemas";
   import BlockerList from "./BlockerList.svelte";
-  import KeyValueSummary from "./KeyValueSummary.svelte";
+  import { KeyValueSummary } from "$lib/components/ui/key-value-summary";
   import PreviewForm from "./PreviewForm.svelte";
-  import ResponsiveDialog from "./ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   // The second confirmation before a released record resumes: its worktree
   // comes back at the original path, on its branch when that still points at

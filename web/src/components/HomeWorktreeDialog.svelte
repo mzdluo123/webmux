@@ -10,7 +10,7 @@
     Repository,
     SessionInfo,
   } from "../schemas";
-  import ResponsiveDialog from "./ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   // Which of a repository's worktrees the home page lists. Every worktree is
   // one checkable row; a worktree with sessions stays listed whatever its

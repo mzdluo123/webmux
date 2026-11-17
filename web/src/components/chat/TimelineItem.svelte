@@ -2,7 +2,7 @@
   import IconFile from "~icons/tabler/file";
   import IconHandStop from "~icons/tabler/hand-stop";
   import CodeMarkdownPreview from "../CodeMarkdownPreview.svelte";
-  import InlineNotice from "../InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import type { DisplayEntry } from "../../chat-model";
   import type { ChatCodeLink } from "../../markdown-link";
   import type { StopReason } from "../../schemas";

@@ -11,7 +11,7 @@
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import HybridRecordHints from "./HybridRecordHints.svelte";
   import HybridResumeActions from "./HybridResumeActions.svelte";
-  import InlineNotice from "./InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import ReleasedBadge from "./ReleasedBadge.svelte";
   import { errorMessage } from "../error";
   import type { ArchiveActions } from "../archived";

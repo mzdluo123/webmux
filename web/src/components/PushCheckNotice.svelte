@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { PushCheck } from "../schemas";
-  import InlineNotice from "./InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   // Whether the commit a removal or release keeps is contained in a
   // remote-tracking ref. The server reads local refs only, so an unpushed

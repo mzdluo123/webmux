@@ -1,5 +1,5 @@
 <script lang="ts">
-  import InlineNotice from "./InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { untrack } from "svelte";
   import IconBolt from "~icons/tabler/bolt";
   import { Button } from "$lib/components/ui/button";

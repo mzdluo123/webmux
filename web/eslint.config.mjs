@@ -29,7 +29,9 @@ const RAW_TO_DS = {
     "($lib/components/ui/checkbox) for checkboxes",
   textarea: "<Textarea> ($lib/components/ui/textarea)",
   select: "<NativeSelect> ($lib/components/ui/native-select)",
-  dialog: "<Dialog> or ResponsiveDialog ($lib/components/ui/dialog)",
+  dialog:
+    "<Dialog> ($lib/components/ui/dialog) or <ResponsiveDialog> " +
+    "($lib/components/ui/responsive-dialog)",
   label: "<Label> ($lib/components/ui/label)",
 };
 const rawMessage = (element) =>

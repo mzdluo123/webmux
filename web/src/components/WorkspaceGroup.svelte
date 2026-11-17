@@ -10,7 +10,7 @@
   import WorktreeControls from "./WorktreeControls.svelte";
   import SessionRow from "./SessionRow.svelte";
   import ArchivedSessions from "./ArchivedSessions.svelte";
-  import InlineNotice from "./InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import LazyDialog from "./LazyDialog.svelte";
   let {
     title,

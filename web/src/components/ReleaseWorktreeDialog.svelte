@@ -5,11 +5,11 @@
   import { previewRelease, releaseWorktree } from "../recoverable";
   import type { ReleasePreview, Worktree } from "../schemas";
   import BlockerList from "./BlockerList.svelte";
-  import InlineNotice from "./InlineNotice.svelte";
-  import KeyValueSummary from "./KeyValueSummary.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
+  import { KeyValueSummary } from "$lib/components/ui/key-value-summary";
   import PreviewForm from "./PreviewForm.svelte";
   import PushCheckNotice from "./PushCheckNotice.svelte";
-  import ResponsiveDialog from "./ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   // Frees the disk space of a linked worktree whose sessions are archived:
   // the directory and its Git registration go, the branch, the archived

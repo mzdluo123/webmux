@@ -12,7 +12,7 @@
   } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import FileDropZone from "../FileDropZone.svelte";
-  import InlineNotice from "../InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import ConnectorInstallHint from "../ConnectorInstallHint.svelte";
   import { outdatedText } from "../../hybrid";
   import type { ChatActions, RequestAnswer } from "../../chat-api";

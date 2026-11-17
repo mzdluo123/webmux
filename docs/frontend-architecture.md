@@ -10,11 +10,27 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 
 按顺序查找，找到就复用，不要重新实现：
 
-1. `web/src/lib/components/ui/`：shadcn-svelte 基础组件（Button、Input、Dialog、DropdownMenu 等）。
-2. `web/src/components/`：业务复合组件（ResponsiveDialog、InlineNotice、SessionStatus 等）。
+1. `web/src/lib/components/ui/`：shadcn-svelte 基础组件，以及不依赖业务的公共组合组件。
+2. `web/src/components/`：依赖会话、仓库等领域概念的业务组件（SessionStatus、SessionRow 等）。
 3. shadcn-svelte registry：`pnpm --dir web exec shadcn-svelte add <name>`，生成后审查本地差异。
 
 三处都没有，才新建组件。需要新外观时，在 `ui/` 对应组件的 `tv()` 中增加 variant 或 size，而不是在使用处用 class 覆盖。
+
+公共组合组件也从 `$lib/components/ui/<name>` 的命名导出引用，不在业务目录保留转发副本。
+它们与基础组件共享主题、焦点和尺寸约定，但属于项目维护的组件；更新 shadcn-svelte 时保留这些本地扩展。
+
+| 组件             | 入口                   | 用途                               |
+| ---------------- | ---------------------- | ---------------------------------- |
+| InlineNotice     | `ui/inline-notice`     | 带图标的说明、成功、警告和错误提示 |
+| StripNotice      | `ui/strip-notice`      | 带可选操作和关闭入口的紧凑提示条   |
+| ResponsiveDialog | `ui/responsive-dialog` | 桌面弹窗、手机抽屉与处理中关闭保护 |
+| PickerField      | `ui/picker-field`      | 桌面浮层、手机原位展开的选择字段   |
+| InfoHint         | `ui/info-hint`         | 按需展开的帮助说明                 |
+| AdvancedSection  | `ui/advanced-section`  | 带当前值摘要的折叠表单区           |
+| KeyValueSummary  | `ui/key-value-summary` | 标签与值对齐的摘要                 |
+
+公共组件通过 props、snippet 和回调接收内容与操作，不读取 API、领域状态或设备持久化设置。
+业务状态映射留在 `components/`，例如 SessionStatus 将会话状态映射为 Badge；ConfirmDialog 负责异步操作的错误转换。
 
 ## 分层
 
@@ -55,6 +71,8 @@ Oxlint（`pnpm --dir web lint`）仍是通用 lint。它只读取 `.svelte` 的 
 组件需要由样式表控制布局时，优先用 `data-*` 属性作为选择器（如 `DirectoryPicker` 的 `data-directory-picker`），只在样式表中写布局；外观仍通过 variant 表达。
 
 常用的设计系统扩展：
+
+`InlineNotice` 提供 `size="default"`（12px 内边距）和 `size="compact"`（水平 12px、垂直 6px）；紧凑提示通过 size 选择，不在使用处覆盖 padding。
 
 | 组件                | variant / size                                              | 用途                                                                                                                                         |
 | ------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |

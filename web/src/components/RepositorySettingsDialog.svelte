@@ -11,7 +11,7 @@
   } from "../schemas";
   import { Button } from "$lib/components/ui/button";
   import InitInstructionField from "./InitInstructionField.svelte";
-  import ResponsiveDialog from "./ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   // Edits a repository's settings from the home toolbar: today the init
   // instruction template; saving it empty removes it.

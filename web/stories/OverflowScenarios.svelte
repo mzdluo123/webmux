@@ -6,7 +6,7 @@
   import TerminalInputComposer from "../src/components/TerminalInputComposer.svelte";
   import ScratchPanel from "../src/components/ScratchPanel.svelte";
   import CodeChangesList from "../src/components/CodeChangesList.svelte";
-  import ResponsiveDialog from "../src/components/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import { Button } from "../src/lib/components/ui/button";
   import { createTerminalDrafts } from "../src/terminal-draft.svelte";
   import {

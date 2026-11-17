@@ -5,7 +5,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
-  import InlineNotice from "./InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import PushCheckNotice from "./PushCheckNotice.svelte";
   import WorktreeSessionList from "./WorktreeSessionList.svelte";
 

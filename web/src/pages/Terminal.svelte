@@ -15,7 +15,7 @@
   import { chatDocumentScroll, isStandalone } from "../capabilities";
   import { setBrowserChrome, resetBrowserChrome } from "../browser-chrome";
   import TerminalSplitMenu from "../components/TerminalSplitMenu.svelte";
-  import InlineNotice from "../components/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { hasTouchInput } from "../touch-input";
   import { useViewport } from "../hooks/viewport.svelte";
   import type { TerminalDrafts } from "../terminal-draft.svelte";
