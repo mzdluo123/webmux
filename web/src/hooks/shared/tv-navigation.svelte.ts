@@ -1,6 +1,5 @@
 import { SvelteMap } from "svelte/reactivity";
 import { m } from "$lib/paraglide/messages.js";
-import { xrPresentation } from "./xr-presentation.svelte";
 import {
   spatialCandidate,
   type SpatialDirection,
@@ -137,7 +136,6 @@ export function useTvNavigation(back: () => boolean) {
       return event.defaultPrevented;
     }
     function keydown(event: KeyboardEvent) {
-      if (xrPresentation.active) return;
       if (
         event.defaultPrevented ||
         synthetic.has(event) ||
@@ -263,12 +261,7 @@ export function useTvNavigation(back: () => boolean) {
       focus(next);
     }
     function restore() {
-      if (
-        xrPresentation.active ||
-        redirecting ||
-        document.activeElement !== document.body
-      )
-        return;
+      if (redirecting || document.activeElement !== document.body) return;
       redirecting = true;
       const target =
         last?.isConnected && visible(last)
@@ -282,7 +275,6 @@ export function useTvNavigation(back: () => boolean) {
       redirecting = false;
     }
     function captureBack(event: KeyboardEvent) {
-      if (xrPresentation.active) return;
       if (event.defaultPrevented || event.isComposing) return;
       if (
         event.key === "Tab" &&

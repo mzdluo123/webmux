@@ -73,7 +73,7 @@ test.each([
 ])("invalid versioned device data cannot block the workspace: %s", (raw) => {
   vi.spyOn(Storage.prototype, "getItem").mockReturnValue(raw);
   const preference = deviceObjectPreference(
-    "xr-layout",
+    "panel-layout",
     LayoutSchema,
     defaultLayout,
   );
@@ -90,7 +90,7 @@ test("versioned device data remains editable when storage writes are denied", ()
     throw new DOMException("Storage disabled", "SecurityError");
   });
   const preference = deviceObjectPreference(
-    "xr-layout",
+    "panel-layout",
     LayoutSchema,
     defaultLayout,
   );

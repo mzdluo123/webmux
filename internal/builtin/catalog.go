@@ -27,7 +27,6 @@ var definitions = []Definition{
 	{ID: "tailscale"},
 	{ID: "p2p"},
 	{ID: "mcp"},
-	{ID: "immersive"},
 }
 
 // Keep this upgrade default fixed: future catalog additions must not silently
@@ -35,7 +34,7 @@ var definitions = []Definition{
 var legacyIDs = []string{
 	"launch", "workspace", "code", "files", "chat", "notifications",
 	"quick-commands", "voice", "forward", "cloudflare", "tailscale",
-	"p2p", "mcp", "immersive",
+	"p2p", "mcp",
 }
 
 // Catalog returns an independent copy in the stable catalog order.

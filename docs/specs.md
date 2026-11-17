@@ -174,5 +174,4 @@
 ## 头显与电视
 
 - [headset-browser-support](../openspec/specs/headset-browser-support/spec.md)：头显浏览器的二维工作区适配
-- [immersive-xr-terminal](../openspec/specs/immersive-xr-terminal/spec.md)：沉浸式 XR 终端交互
 - [tv-browser-support](../openspec/specs/tv-browser-support/spec.md)：电视浏览器的大屏和遥控器操作

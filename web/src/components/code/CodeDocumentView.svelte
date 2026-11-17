@@ -28,7 +28,6 @@
   } from "../../domains/code/code-image";
   import { pdfMediaType, previewFormat } from "../../domains/code/code-preview";
   import type { TextInsertion } from "../../domains/terminal/terminal-draft.svelte";
-  import { xrCodePanel } from "../../domains/code/xr-code-panel";
 
   let {
     id,
@@ -160,16 +159,6 @@
     !shownDiff && doc?.kind === "text" ? previewFormat(doc.path) : undefined,
   );
   const formatPreview = $derived(formatView === "preview" && !!formatFile);
-  const xrContent = $derived(
-    xrCodePanel(
-      contextId,
-      doc,
-      shownDiff,
-      diffReady ? fileDiff : undefined,
-      calculationReason,
-    ),
-  );
-  export const xrPanel = () => xrContent;
   const pdfFile = $derived(
     !shownDiff && !!doc && doc.mediaType === pdfMediaType,
   );

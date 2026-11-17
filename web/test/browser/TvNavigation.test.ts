@@ -7,14 +7,11 @@ import TreeHarness from "./TvTreeHarness.svelte";
 import RadioHarness from "./TvRadioHarness.svelte";
 import TextareaHarness from "./TvTextareaHarness.svelte";
 import { tvMode } from "../../src/hooks/shared/tv-mode.svelte";
-import { tick } from "svelte";
-import { xrPresentation } from "../../src/hooks/shared/xr-presentation.svelte";
 
 afterEach(async () => {
   await cleanup();
   await userEvent.cleanup();
   tvMode.enabled = false;
-  xrPresentation.active = false;
   localStorage.removeItem("webmux.workbenchTree");
 });
 
@@ -142,28 +139,6 @@ test("a row's ⋯ trigger keeps remote arrows instead of opening its menu", asyn
     .element(page.getByRole("treeitem", { name: /^全部仓库/ }))
     .toHaveFocus();
   expect(page.getByRole("menuitem").elements()).toEqual([]);
-});
-
-test("immersive input bypasses TV Back and restores TV capture focus on exit", async () => {
-  await render(Harness);
-  xrPresentation.active = true;
-  await tick();
-  const helper = document.querySelector<HTMLTextAreaElement>(
-    ".xterm-helper-textarea",
-  )!;
-  helper.focus();
-  await userEvent.keyboard("{Escape}{ArrowUp}");
-  expect(document.activeElement).toBe(helper);
-  await expect
-    .element(page.getByRole("status", { name: "发送字节" }))
-    .toHaveTextContent('"\\u001b\\u001b[A"');
-  await expect
-    .element(page.getByRole("status", { name: "路由返回" }))
-    .toHaveTextContent("0");
-  xrPresentation.active = false;
-  await expect
-    .element(page.getByRole("button", { name: "终端输入", exact: true }))
-    .toHaveFocus();
 });
 
 test("TV text fields navigate until confirmed, then preserve caret editing", async () => {
