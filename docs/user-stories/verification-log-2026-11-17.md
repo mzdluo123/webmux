@@ -312,3 +312,19 @@
 
 - 本轮覆盖文本来源读取、预览、真实工具链与跨 Agent 恢复；图片 UI、图片投影与发送管线保持原样。
 - CLI 的已有认证由 Agent 自身使用；未读取 Token、执行登录或处理 Claude 的 `auth_required`。
+
+## OMP 扩展消息交接兼容（US-Q20）
+
+### 行为与边界
+
+- OMP 扩展消息支持 developer/custom 文本、Bash/Python 命令与输出、执行状态；排除上下文的执行只保留图节点和省略说明，文件提及只保留引用。
+- 复用主分支的标题/session 头发现机制；其他会话的未知角色、损坏正文和重复消息节点不影响当前来源。
+- 重复会话身份仍返回身份冲突；选中的未知格式仍返回格式错误，原生分支与冻结游标校验保留。
+- 解析版本提升为 `omp-jsonl-4`，私有思考、归属元数据和附加执行状态保持排除。
+
+### 已执行验证
+
+- 回归覆盖扩展角色、安全省略、冻结重读、来源发现隔离，以及从运行时身份冻结到实际文本投影的链路。
+- 基于最新主分支执行 `go test -race ./internal/agent/omp/history ./internal/historyimport ./internal/historyprojection ./internal/handoff`，全部通过。
+- `go test -count=1 ./internal/docguard ./internal/archtest` 通过。
+- 验证使用隔离的合成原生文件；本轮未启动真实 Agent、发送模型请求或操作生产会话。

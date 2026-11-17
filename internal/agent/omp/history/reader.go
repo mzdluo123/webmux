@@ -18,7 +18,7 @@ import (
 	hs "github.com/rainchan/webmux/internal/historysource"
 )
 
-const ParserVersion = "omp-jsonl-3"
+const ParserVersion = "omp-jsonl-4"
 const FormatVersion = "omp-session-3"
 
 type entry struct {
@@ -34,12 +34,22 @@ type entry struct {
 	offset, end   int64
 }
 type message struct {
-	Role    string          `json:"role"`
-	Content json.RawMessage `json:"content"`
-	CallID  string          `json:"toolCallId"`
-	Tool    string          `json:"toolName"`
-	Error   bool            `json:"isError"`
-	Stop    string          `json:"stopReason"`
+	Role               string          `json:"role"`
+	Content            json.RawMessage `json:"content"`
+	CallID             string          `json:"toolCallId"`
+	Tool               string          `json:"toolName"`
+	Error              bool            `json:"isError"`
+	Stop               string          `json:"stopReason"`
+	Command            string          `json:"command"`
+	Code               string          `json:"code"`
+	Output             string          `json:"output"`
+	ExitCode           *int            `json:"exitCode"`
+	Cancelled          bool            `json:"cancelled"`
+	Truncated          bool            `json:"truncated"`
+	ExcludeFromContext bool            `json:"excludeFromContext"`
+	Files              []struct {
+		Path string `json:"path"`
+	} `json:"files"`
 }
 type block struct {
 	Type      string          `json:"type"`
@@ -177,14 +187,38 @@ func Read(ctx context.Context, req hs.Request) (hs.Document, error) {
 			r.Role = e.Message.Role
 			r.Status = e.Message.Stop
 			switch r.Role {
-			case "user", "assistant", "toolResult":
-			case "bashExecution":
-				// Local shell executions are graph nodes outside model messages.
-				// Their command/output fields have no exported message contract.
-				r.Kind, r.Role, r.Status = "metadata", "", ""
-				gaps = append(gaps, hs.Gap{RecordID: e.ID, Category: "local_execution_omitted", Offset: e.offset})
-				records = append(records, r)
-				continue
+			case "user", "assistant", "toolResult", "developer":
+			case "custom":
+				r.Role = "system"
+			case "bashExecution", "pythonExecution":
+				if e.Message.ExcludeFromContext {
+					r.Kind, r.Role, r.Status = "metadata", "", ""
+					gaps = append(gaps, hs.Gap{RecordID: e.ID, Category: "excluded_from_context", Offset: e.offset})
+					break
+				}
+				r.Kind, r.Role = "tool_result", "tool"
+				r.ToolName, r.Text = "bash", e.Message.Command
+				if e.Message.Role == "pythonExecution" {
+					r.ToolName, r.Text = "python", e.Message.Code
+				}
+				r.Text += "\n" + e.Message.Output
+				r.Status = "completed"
+				if e.Message.Cancelled {
+					r.Status = "cancelled"
+				} else if e.Message.ExitCode == nil {
+					r.Status = "unknown"
+				} else if *e.Message.ExitCode != 0 {
+					r.Status = "error"
+				}
+				if e.Message.Truncated {
+					gaps = append(gaps, hs.Gap{RecordID: e.ID, Category: "truncated_output", Offset: e.offset})
+				}
+			case "fileMention":
+				r.Role = "user"
+				for _, file := range e.Message.Files {
+					r.Attachments = append(r.Attachments, hs.Attachment{Name: file.Path})
+				}
+				gaps = append(gaps, hs.Gap{RecordID: e.ID, Category: "attachment_body_omitted", Offset: e.offset})
 			default:
 				return hs.Document{}, hs.ErrFormat
 			}
@@ -197,6 +231,10 @@ func Read(ctx context.Context, req hs.Request) (hs.Document, error) {
 				if e.Message.Error {
 					r.Status = "error"
 				}
+			}
+			// Execution and file-mention payloads have dedicated safe projections.
+			if e.Message.Role == "bashExecution" || e.Message.Role == "pythonExecution" || e.Message.Role == "fileMention" {
+				break
 			}
 			var text string
 			if json.Unmarshal(e.Message.Content, &text) == nil {
