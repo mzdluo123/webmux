@@ -7,6 +7,7 @@
   import * as Empty from "$lib/components/ui/empty";
   import SidebarButton from "../components/shell/SidebarButton.svelte";
   import ChannelList from "../components/messaging/ChannelList.svelte";
+  import MembersDialog from "../components/messaging/MembersDialog.svelte";
   import Conversation from "../components/messaging/Conversation.svelte";
   import CreateChannelDialog from "../components/messaging/CreateChannelDialog.svelte";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
@@ -78,3 +79,5 @@
   </div>
 </div>
 {#if state.createOpen}<CreateChannelDialog {messaging} />{/if}
+
+{#if state.membersOpen}<MembersDialog {messaging} />{/if}

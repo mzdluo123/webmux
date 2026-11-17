@@ -39,7 +39,8 @@ const (
 
 // Options configure a Service. Only cmd/ builds them.
 type Options struct {
-	HistoryReader func(context.Context, string) []acp.MCPServer
+	HistoryReader     func(context.Context, string) []acp.MCPServer
+	SessionMCPServers func(context.Context, string, *agentprofile.Profile) []acp.MCPServer
 	// Agents is the selected runtime registry. Nil enables no agents.
 	Agents *agentprofile.Registry
 	// NativeRoot resolves the native history directory from the actual launch environment.
@@ -91,11 +92,12 @@ var defaultTiming = timing{
 
 // Service owns the hybrid sessions of one server.
 type Service struct {
-	historyReader func(context.Context, string) []acp.MCPServer
-	mcpServers    func(context.Context) []acp.MCPServer
-	nativeRoot    func(agent string, env map[string]string) string
-	manager       *session.Manager
-	records       *records
+	sessionMCPServers func(context.Context, string, *agentprofile.Profile) []acp.MCPServer
+	historyReader     func(context.Context, string) []acp.MCPServer
+	mcpServers        func(context.Context) []acp.MCPServer
+	nativeRoot        func(agent string, env map[string]string) string
+	manager           *session.Manager
+	records           *records
 	// options remembers each launch config's agent options for display
 	// before a session starts (agent-options.json).
 	options    *agentOptions
@@ -150,7 +152,7 @@ func New(o Options) *Service {
 	}
 	userHome, _ := os.UserHomeDir()
 	s := &Service{
-		mcpServers: o.MCPServers, historyReader: o.HistoryReader, manager: o.Manager, records: openRecords(o.StateDir), options: openAgentOptions(o.StateDir), capacity: capacity, version: o.Version, log: log,
+		sessionMCPServers: o.SessionMCPServers, mcpServers: o.MCPServers, historyReader: o.HistoryReader, manager: o.Manager, records: openRecords(o.StateDir), options: openAgentOptions(o.StateDir), capacity: capacity, version: o.Version, log: log,
 		uploads: o.Uploads, userHome: userHome, agents: o.Agents,
 		nativeRoot: o.NativeRoot,
 		metadata:   make(map[string]*Metadata),

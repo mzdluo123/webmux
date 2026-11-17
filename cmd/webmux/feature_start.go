@@ -12,9 +12,11 @@ import (
 	"slices"
 
 	"github.com/rainchan/webmux/cmd/internal/assemble"
+	"github.com/rainchan/webmux/internal/acp"
 	"github.com/rainchan/webmux/internal/agentcatalog"
 	"github.com/rainchan/webmux/internal/agentcheck"
 	"github.com/rainchan/webmux/internal/agentguide"
+	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/codeview"
 	"github.com/rainchan/webmux/internal/files"
@@ -80,7 +82,37 @@ func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Mana
 				return rt.listener.Addr().String()
 			})
 		}
+		if p.messaging != nil {
+			servers := messagingMCPServers(p.messaging, serverExecutable(), func() string {
+				rt := localAPI()
+				if rt == nil || rt.listener == nil {
+					return ""
+				}
+				return rt.listener.Addr().String()
+			})
+			options.SessionMCPServers = func(ctx context.Context, id string, profile *agentprofile.Profile) []acp.MCPServer {
+				records, err := p.chat.Records(false)
+				if err != nil {
+					return nil
+				}
+				ids := []string{id}
+				for _, rec := range records {
+					ids = append(ids, rec.ID)
+				}
+				if err := p.messaging.RetainSessions(ids); err != nil {
+					return nil
+				}
+				return servers(ctx, id, profile)
+			}
+
+		}
 		p.chat = hybrid.New(options)
+		if p.messaging != nil {
+			messageCtx, cancel := context.WithCancel(ctx)
+			p.stopMessaging = cancel
+			p.messagingDone = make(chan struct{})
+			go func() { defer close(p.messagingDone); p.messaging.Run(messageCtx, wakeMessagingAgent(p.chat)) }()
+		}
 		if err := p.chat.Unavailable(); err != nil {
 			slog.Warn("hybrid records unreadable; session artifacts folders kept", "error", err)
 		}

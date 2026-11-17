@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"github.com/rainchan/webmux/internal/agentcheck"
 	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/artifacts"
@@ -29,6 +30,8 @@ import (
 // container. A disabled feature has no service instance or lifetime to release.
 type featureServices struct {
 	messaging         *messaging.Service
+	stopMessaging     context.CancelFunc
+	messagingDone     chan struct{}
 	agents            *agentprofile.Registry
 	launch            *launch.Service
 	agentTools        *agentcheck.Service
@@ -61,6 +64,10 @@ type featureServices struct {
 // stop joins producers before the processes and stores they can still use.
 // It is also used on partially initialized startup failures.
 func (p *featureServices) stop() {
+	if p.stopMessaging != nil {
+		p.stopMessaging()
+		<-p.messagingDone
+	}
 	if p.workspace != nil {
 		p.workspace.StopProjectClones()
 	}

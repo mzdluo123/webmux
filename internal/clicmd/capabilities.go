@@ -33,6 +33,8 @@ func RequiredCapabilities(name string) []string {
 		return []string{"p2p.direct"}
 	case "dir":
 		return []string{"files.upload"}
+	case "message-plugin":
+		return []string{"messaging.messages"}
 	case "mcp":
 		return []string{"mcp.control"}
 	case "tunnel":

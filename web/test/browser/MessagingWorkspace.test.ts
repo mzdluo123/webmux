@@ -240,3 +240,98 @@ test("Enter sends, Shift+Enter and input composition preserve editing", async ()
     .toBeVisible();
   expect(posts).toBe(1);
 });
+
+test("channel agents are invited and removed in place", async () => {
+  await enableCreationFeatures(["messaging"]);
+  const members: {
+    id: string;
+    name: string;
+    profile: string;
+    channel: string;
+    cursor: string;
+  }[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/agents"))
+        return Response.json([
+          { sessionId: "worker", name: "Review changes", profile: "codex" },
+        ]);
+      if (url.includes("/members/worker") && init?.method === "DELETE") {
+        members.length = 0;
+        return Response.json({ ok: true });
+      }
+      if (url.endsWith("/members")) {
+        if (init?.method === "POST") {
+          const member = {
+            id: "session:worker",
+            name: "Codex",
+            profile: "codex",
+            channel: "general",
+            cursor: "0",
+          };
+          members.push(member);
+          return Response.json(member, { status: 201 });
+        }
+        return Response.json([...members]);
+      }
+      if (url.endsWith("/channels")) return Response.json(channels);
+      return Response.json([message("1", "Current discussion")]);
+    }),
+  );
+  render(Messaging);
+  await expect
+    .element(page.getByText("Current discussion", { exact: true }))
+    .toBeVisible();
+  await page.getByRole("button", { name: "频道 Agent", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByRole("button", { name: "邀请 Review changes", exact: true })
+    .click();
+  await expect
+    .element(dialog.getByRole("button", { name: "移除 Codex", exact: true }))
+    .toBeVisible();
+  await dialog.getByRole("button", { name: "移除 Codex", exact: true }).click();
+  await expect
+    .element(
+      dialog.getByRole("button", { name: "邀请 Review changes", exact: true }),
+    )
+    .toBeVisible();
+});
+
+test("new agent replies arrive automatically while the draft stays intact", async () => {
+  await enableCreationFeatures(["messaging"]);
+  let replied = false;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async (input) =>
+      Response.json(
+        String(input).endsWith("/channels")
+          ? channels
+          : [
+              message("1", "Current discussion"),
+              ...(replied
+                ? [
+                    {
+                      ...message("2", "Review complete"),
+                      agentId: "session:worker",
+                      agentName: "Codex",
+                    },
+                  ]
+                : []),
+            ],
+      ),
+    ),
+  );
+  render(Messaging);
+  await expect
+    .element(page.getByText("Current discussion", { exact: true }))
+    .toBeVisible();
+  await box().fill("My unfinished question");
+  replied = true;
+  await expect
+    .element(page.getByText("Review complete", { exact: true }))
+    .toBeVisible();
+  await expect.element(box()).toHaveValue("My unfinished question");
+});

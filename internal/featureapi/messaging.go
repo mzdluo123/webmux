@@ -12,6 +12,7 @@ import (
 )
 
 func (s *Server) messagingRoutes(mux transport.Registrar) {
+	s.messagingAgentRoutes(mux)
 	mux.HandleFunc("GET /api/messaging/channels", func(w http.ResponseWriter, r *http.Request) {
 		if !s.messagingReady(w) {
 			return

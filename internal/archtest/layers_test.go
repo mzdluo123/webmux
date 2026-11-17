@@ -104,6 +104,7 @@ var webmux = manifest{
 		"internal/localclient":    client,
 		"internal/sessionobserve": client,
 		"internal/threadread":     client,
+		"internal/messageplugin":  client,
 		"internal/mcpstdio":       client,
 		"internal/mcpcontrol":     client,
 		"internal/attach":         client,

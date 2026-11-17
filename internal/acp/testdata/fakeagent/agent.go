@@ -841,6 +841,7 @@ func (a *agent) pause(ctx context.Context) bool {
 }
 
 func (a *agent) turn(ctx context.Context, sid, text, id string) (reply, stop string) {
+	a.handleMessageWake(sid, text)
 	if strings.HasPrefix(text, "The background processes from the previous turn have exited.") {
 		done := acp.ToolCompleted
 		a.update(sid, &acp.ToolCallUpdate{ToolCallID: "bg_1", Status: &done, RawInput: json.RawMessage(`{"IsDaemon":true}`)})

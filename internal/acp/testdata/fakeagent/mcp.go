@@ -10,13 +10,18 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/rainchan/webmux/internal/acp"
 )
 
 type mcpChild struct {
-	pid int
+	pid  int
+	name string
+	mu   sync.Mutex
+	call func(string, any) (json.RawMessage, error)
 
 	in     io.WriteCloser
 	cancel context.CancelFunc
@@ -38,7 +43,7 @@ func (c *mcpChild) close() {
 // Configuration and returned text are fixture artifacts, never application logs.
 func (a *agent) configureMCP(sid, method string, servers []acp.MCPServer) {
 	for _, server := range servers {
-		if server.Name != "webmux-history" && !(server.Name == "webmux" && os.Getenv("FAKEAGENT_CONTROL_MCP") == "1") {
+		if !(strings.HasPrefix(server.Name, "webmux-messages-") && os.Getenv("FAKEAGENT_MESSAGES_MCP") == "1") && server.Name != "webmux-history" && !(server.Name == "webmux" && os.Getenv("FAKEAGENT_CONTROL_MCP") == "1") {
 			continue
 		}
 		child, result, err := runFixtureMCP(server)
@@ -57,6 +62,9 @@ func (a *agent) configureMCP(sid, method string, servers []acp.MCPServer) {
 			continue
 		}
 		prefix := "mcp-"
+		if strings.HasPrefix(server.Name, "webmux-messages-") {
+			prefix = "mcp-messages-"
+		}
 		if server.Name == "webmux" {
 			prefix = "mcp-control-"
 		}
@@ -96,7 +104,7 @@ func runFixtureMCP(server acp.MCPServer) (*mcpChild, []json.RawMessage, error) {
 		_ = in.Close()
 		return nil, nil, err
 	}
-	c := &mcpChild{pid: cmd.Process.Pid, in: in, cancel: cancel, done: make(chan struct{})}
+	c := &mcpChild{name: server.Name, pid: cmd.Process.Pid, in: in, cancel: cancel, done: make(chan struct{})}
 	go func() { _ = cmd.Wait(); close(c.done) }()
 	timer := time.AfterFunc(8*time.Second, cancel)
 	defer timer.Stop()
@@ -135,6 +143,10 @@ func runFixtureMCP(server acp.MCPServer) (*mcpChild, []json.RawMessage, error) {
 	if err != nil {
 		return fail(err)
 	}
+	if strings.HasPrefix(server.Name, "webmux-messages-") {
+		c.call = call
+		return c, []json.RawMessage{listed}, nil
+	}
 	if server.Name == "webmux" {
 		value, err := call("tools/call", map[string]any{"name": "capabilities", "arguments": map[string]any{}})
 		if err != nil {
@@ -171,4 +183,49 @@ func runFixtureMCP(server acp.MCPServer) (*mcpChild, []json.RawMessage, error) {
 		after = result.Value.Next
 	}
 	return fail(fmt.Errorf("MCP too many pages"))
+}
+
+// A deterministic model fixture uses the advertised tools after a wake prompt.
+func (a *agent) handleMessageWake(sid, text string) {
+	if os.Getenv("FAKEAGENT_MESSAGES_MCP") != "1" || !strings.HasPrefix(text, "New channel messages in #") {
+		return
+	}
+	channel := strings.SplitN(strings.TrimPrefix(text, "New channel messages in #"), ".", 2)[0]
+	a.mu.Lock()
+	ls := a.live[sid]
+	var children []*mcpChild
+	if ls != nil {
+		children = append(children, ls.mcps...)
+	}
+	a.mu.Unlock()
+	for _, child := range children {
+		if child.call == nil || !strings.HasPrefix(child.name, "webmux-messages-") {
+			continue
+		}
+		child.mu.Lock()
+		result, err := child.call("tools/call", map[string]any{"name": "messages_read", "arguments": map[string]any{"channel": channel}})
+		var inbox struct {
+			IsError bool `json:"isError"`
+			Data    struct {
+				Messages []struct {
+					ID   string `json:"id"`
+					Text string `json:"text"`
+				} `json:"messages"`
+				Through string `json:"through"`
+			} `json:"structuredContent"`
+		}
+		if err == nil {
+			err = json.Unmarshal(result, &inbox)
+		}
+		if err == nil && !inbox.IsError && len(inbox.Data.Messages) > 0 {
+			_, err = child.call("tools/call", map[string]any{"name": "message_send", "arguments": map[string]any{"channel": channel, "text": "Handled: " + inbox.Data.Messages[0].Text, "clientRequestId": "fixture-message-" + inbox.Data.Through}})
+			if err == nil {
+				_, err = child.call("tools/call", map[string]any{"name": "messages_ack", "arguments": map[string]any{"channel": channel, "through": inbox.Data.Through}})
+			}
+		}
+		child.mu.Unlock()
+		if err != nil {
+			a.st.event("message tools failed", "wake")
+		}
+	}
 }

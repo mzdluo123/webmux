@@ -23,6 +23,8 @@ type PromptResult struct {
 // of the temporary first-prompt title (Text may carry an instruction
 // prefix).
 type PromptInput struct {
+	// QueueKey coalesces host notifications while a prior task with this key is queued.
+	QueueKey             string
 	ExpectedIdentity     string
 	AwaitAcknowledgement bool
 	ExpectedUsage        *Usage
@@ -116,7 +118,21 @@ func (s *Service) Prompt(ctx context.Context, id string, in PromptInput) (Prompt
 				return PromptResult{}, err
 			}
 			return call(ctx, a, func() (PromptResult, error) {
-				return a.prompt(in.Text, in.TitleSource, attachments)
+				if in.QueueKey != "" {
+					for i, item := range a.chat.Queue.Items {
+						if item.ID == a.notificationQueue[in.QueueKey] {
+							return PromptResult{Queued: true, ItemID: item.ID, Position: i + 1}, nil
+						}
+					}
+				}
+				result, err := a.prompt(in.Text, in.TitleSource, attachments)
+				if err == nil && in.QueueKey != "" && result.Queued {
+					if a.notificationQueue == nil {
+						a.notificationQueue = map[string]string{}
+					}
+					a.notificationQueue[in.QueueKey] = result.ItemID
+				}
+				return result, err
 			})
 		})
 	case ModeSteer:

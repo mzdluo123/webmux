@@ -7,6 +7,9 @@ import (
 
 func (a *actor) sessionMCPServers(ctx context.Context) ([]acp.MCPServer, string) {
 	var out []acp.MCPServer
+	if a.svc.sessionMCPServers != nil {
+		out = append(out, a.svc.sessionMCPServers(ctx, a.id, a.cmd.Profile)...)
+	}
 	if a.svc.mcpServers != nil {
 		out = append(out, a.svc.mcpServers(ctx)...)
 	}

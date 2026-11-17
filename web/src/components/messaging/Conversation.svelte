@@ -6,6 +6,7 @@
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconRefresh from "~icons/tabler/refresh";
+  import IconUsers from "~icons/tabler/users";
   import IconMessages from "~icons/tabler/messages";
   import { Button } from "$lib/components/ui/button";
   import * as InputGroup from "$lib/components/ui/input-group";
@@ -118,6 +119,15 @@
           {channel.topic}
         </p>{/if}
     </div>
+    <Button
+      variant="ghost"
+      size="sm-touch"
+      aria-label={m.messaging_members()}
+      title={m.messaging_members()}
+      onclick={() => void messaging.openMembers()}
+    >
+      <IconUsers aria-hidden="true" /><span>{channel?.memberCount ?? 0}</span>
+    </Button>
     <Button
       variant="ghost"
       size="icon-touch"

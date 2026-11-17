@@ -5178,5 +5178,14 @@
   "messaging_send_short": "Send",
   "messaging_welcome": "A place to keep the conversation going",
   "messaging_welcome_desc": "Create a channel for your project, review or team discussion. Messages stay with this WebMux instance.",
-  "messaging_first_channel": "Create your first channel"
+  "messaging_first_channel": "Create your first channel",
+  "messaging_members": "Channel agents",
+  "messaging_members_title": "Agents in #{name}",
+  "messaging_members_desc": "Invite an agent running in chat mode. New messages wake idle agents and queue while they are busy.",
+  "messaging_subscribed": "Subscribed agents",
+  "messaging_available_agents": "Invite an agent",
+  "messaging_no_available_agents": "Open a supported agent in chat mode, then return to invite it. Subscribed agents appear above.",
+  "messaging_invite_agent": "Invite {name}",
+  "messaging_remove_agent": "Remove {name}",
+  "messaging_remove": "Remove"
 }

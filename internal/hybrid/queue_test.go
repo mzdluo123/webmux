@@ -579,3 +579,28 @@ func TestDedupeBounds(t *testing.T) {
 		t.Fatalf("failed command ran %d times", calls)
 	}
 }
+
+func TestHostNotificationsCoalesceWhileQueued(t *testing.T) {
+	h := newHarness(t, 0)
+	id, st := slowChat(t, h, omp.Name)
+	ctx := ctxT(t)
+	prompt(t, h, id, "first")
+	var first PromptResult
+	for i := range 10 {
+		result, err := h.svc.Prompt(ctx, id, PromptInput{Text: "Read the channel inbox", ClientRequestID: rid(), QueueKey: "messages:general"})
+		if err != nil || !result.Queued {
+			t.Fatalf("notification %d: %+v %v", i, result, err)
+		}
+		if i == 0 {
+			first = result
+		} else if result.ItemID != first.ItemID {
+			t.Fatal("same notification created another queued task")
+		}
+	}
+	st.until("one coalesced task", func([]Event) bool { return len(st.state.Queue.Items) == 1 })
+	st.until("notification handled", func([]Event) bool { return len(st.state.Queue.Items) == 0 && !st.state.Turn.Running })
+	result, err := h.svc.Prompt(ctx, id, PromptInput{Text: "A later channel request", ClientRequestID: rid(), QueueKey: "messages:general"})
+	if err != nil || result.Queued || result.TurnID == "" {
+		t.Fatalf("subsequent idle notification: %+v %v", result, err)
+	}
+}

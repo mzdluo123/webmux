@@ -11,6 +11,12 @@ import {
   MessagingSendSchema,
   MessagingCreateChannelSchema,
   MessagingViewSchema,
+  MessagingMembersSchema,
+  MessagingMemberSchema,
+  MessagingAgentsSchema,
+  MessagingAckSchema,
+  type MessagingMember,
+  type MessagingAgent,
   type MessagingChannel,
   type MessagingMessage,
 } from "../../contracts/messaging-schemas";
@@ -38,6 +44,12 @@ export function useMessaging() {
     newName: "",
     newTopic: "",
     createOpen: false,
+    membersOpen: false,
+    membersLoading: false,
+    memberBusy: "",
+    memberError: "",
+    members: [] as MessagingMember[],
+    agents: [] as MessagingAgent[],
     createError: "",
     loading: false,
     sending: false,
@@ -51,6 +63,8 @@ export function useMessaging() {
   let mounted = false;
   let load: AbortController | undefined;
   let mutation: AbortController | undefined;
+  let membersLoad: AbortController | undefined;
+  let syncLoad: AbortController | undefined;
   const attempts: Record<string, { text: string; id: string } | undefined> =
     Object.create(null);
   const drafts: Record<string, string | undefined> = Object.create(null);
@@ -115,6 +129,7 @@ export function useMessaging() {
   function select(channel: string) {
     if (state.sending || state.creating) return;
     state.showConversation = true;
+    state.membersOpen = false;
     remember(channel);
     if (channel === state.channel) return;
     drafts[state.channel] = state.draft;
@@ -226,15 +241,190 @@ export function useMessaging() {
     }
   }
 
+  const memberPath = (channel: string) =>
+    `/messaging/channels/${encodeURIComponent(channel)}/members`;
+  async function openMembers() {
+    membersLoad?.abort();
+    const controller = new AbortController();
+    membersLoad = controller;
+    const channel = state.channel;
+    state.membersOpen = true;
+    state.membersLoading = true;
+    state.memberError = "";
+    try {
+      const [agents, members] = await Promise.all([
+        api(
+          "/messaging/agents",
+          MessagingAgentsSchema,
+          "GET",
+          undefined,
+          controller.signal,
+        ),
+        api(
+          memberPath(channel),
+          MessagingMembersSchema,
+          "GET",
+          undefined,
+          controller.signal,
+        ),
+      ]);
+      if (!mounted || membersLoad !== controller || state.channel !== channel)
+        return;
+      state.agents = agents;
+      state.members = members;
+    } catch (cause) {
+      if (mounted && !controller.signal.aborted)
+        state.memberError = errorMessage(cause);
+    } finally {
+      if (mounted && membersLoad === controller) state.membersLoading = false;
+    }
+  }
+  async function changeMember(sessionId: string, remove = false) {
+    if (state.memberBusy) return;
+    const channel = state.channel;
+    const controller = new AbortController();
+    membersLoad = controller;
+    state.memberBusy = sessionId;
+    state.memberError = "";
+    try {
+      if (remove) {
+        await api(
+          memberPath(channel) + "/" + encodeURIComponent(sessionId),
+          MessagingAckSchema,
+          "DELETE",
+          undefined,
+          controller.signal,
+        );
+        if (!mounted || state.channel !== channel) return;
+        state.members = state.members.filter(
+          (member) => member.id !== "session:" + sessionId,
+        );
+      } else {
+        const member = await api(
+          memberPath(channel),
+          MessagingMemberSchema,
+          "POST",
+          { sessionId },
+          controller.signal,
+        );
+        if (!mounted || state.channel !== channel) return;
+        state.members = [
+          ...state.members.filter((item) => item.id !== member.id),
+          member,
+        ];
+      }
+      state.channels = state.channels.map((item) =>
+        item.name === channel
+          ? { ...item, memberCount: state.members.length }
+          : item,
+      );
+    } catch (cause) {
+      if (mounted && !controller.signal.aborted)
+        state.memberError = errorMessage(cause);
+    } finally {
+      if (mounted) state.memberBusy = "";
+    }
+  }
+  async function sync() {
+    if (
+      document.hidden ||
+      state.loading ||
+      state.sending ||
+      state.creating ||
+      syncLoad
+    )
+      return;
+    const controller = new AbortController();
+    syncLoad = controller;
+    const channel = state.channel;
+    const observedLoad = load;
+    const observedMutation = mutation;
+    try {
+      const channels = await api(
+        "/messaging/channels",
+        MessagingChannelsSchema,
+        "GET",
+        undefined,
+        controller.signal,
+      );
+      let messages = channel
+        ? await api(
+            path(channel),
+            MessagingMessagesSchema,
+            "GET",
+            undefined,
+            controller.signal,
+          )
+        : [];
+      const latest = state.messages.at(-1)?.id;
+      let pageSize = messages.length;
+      while (latest && pageSize === 50 && messages.length < 10000) {
+        const oldest = messages[0]?.id;
+        if (
+          !oldest ||
+          oldest.length < latest.length ||
+          (oldest.length === latest.length && oldest <= latest)
+        )
+          break;
+        const earlier = await api(
+          path(channel) + "?before=" + encodeURIComponent(oldest),
+          MessagingMessagesSchema,
+          "GET",
+          undefined,
+          controller.signal,
+        );
+        pageSize = earlier.length;
+        messages = [...earlier, ...messages];
+      }
+      if (
+        !mounted ||
+        state.channel !== channel ||
+        load !== observedLoad ||
+        mutation !== observedMutation ||
+        state.loading ||
+        state.sending ||
+        state.creating
+      )
+        return;
+      state.error = "";
+      state.channels = channels;
+      const seen = state.messages.map((item) => item.id);
+      const arrivals = messages.filter((item) => !seen.includes(item.id));
+      if (arrivals.length) {
+        state.notice = "";
+        state.messages = [...state.messages, ...arrivals].sort(
+          (a, b) => a.id.length - b.id.length || a.id.localeCompare(b.id),
+        );
+      }
+    } catch {
+      /* Manual refresh exposes connection failures without disturbing the draft. */
+    } finally {
+      if (syncLoad === controller) syncLoad = undefined;
+    }
+  }
+
   onMount(() => {
     mounted = true;
     void refresh();
+    const timer = setInterval(() => void sync(), 2000);
     return () => {
+      clearInterval(timer);
+      membersLoad?.abort();
+      syncLoad?.abort();
       mounted = false;
       load?.abort();
       mutation?.abort();
     };
   });
-  return { state, refresh, select, send, createChannel, positions };
+  return {
+    state,
+    refresh,
+    select,
+    send,
+    createChannel,
+    positions,
+    openMembers,
+    changeMember,
+  };
 }
 export type MessagingController = ReturnType<typeof useMessaging>;

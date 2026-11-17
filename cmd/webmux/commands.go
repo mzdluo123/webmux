@@ -152,6 +152,16 @@ func opsCommands() clicmd.Registry {
 			SeeAlso: []string{"webmux status"},
 		},
 		{
+			Name: "message-plugin", Group: g, NoGlobal: true,
+			Summary:     "Serve session-scoped channel tools for a coding agent.",
+			Description: "WebMux configures each supported ACP agent with its own message plugin and ephemeral identity. Joining a channel subscribes the agent to wake tasks.",
+			Bind:        func(fs *flag.FlagSet) clicmd.Action { fs.String("socket", "", "local API socket `PATH`"); return nil },
+			Env:         []clicmd.Item{{Name: "WEBMUX_MESSAGES_CREDENTIAL", Text: "Host-assigned message plugin credential."}},
+			Output:      "MCP JSON-RPC on stdout.", Exit: exitClient,
+			Examples: []clicmd.Example{{Command: "webmux help message-plugin", Text: "Show the host-managed plugin options."}, {Command: "webmux message-plugin --socket /path/webmux.sock", Text: "Serve the identity from the host-provided credential environment."}},
+			SeeAlso:  []string{"webmux mcp"},
+		},
+		{
 			Name: "mcp-serve", Group: g, NoGlobal: true,
 			Summary: "Serve scoped read-only handoff history over MCP stdio.",
 			Bind: func(fs *flag.FlagSet) clicmd.Action {

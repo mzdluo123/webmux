@@ -11,6 +11,7 @@ export const MessagingChannelSchema = MessagingCreateChannelSchema.extend({
   latestText: z.string().default(""),
   latestAt: z.string().default(""),
   messageCount: z.number().int().nonnegative().default(0),
+  memberCount: z.number().int().nonnegative().default(0),
 });
 export const MessagingMessageSchema = z.object({
   id: z.string().min(1),
@@ -38,3 +39,22 @@ export type MessagingMessage = z.infer<typeof MessagingMessageSchema>;
 export const MessagingViewSchema = z.object({
   channel: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/),
 });
+
+export const MessagingMemberSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  profile: z.string(),
+  channel: z.string(),
+  cursor: z.string(),
+});
+export const MessagingMembersSchema = z.array(MessagingMemberSchema);
+export const MessagingAgentsSchema = z.array(
+  z.object({
+    sessionId: z.string(),
+    name: z.string(),
+    profile: z.string(),
+  }),
+);
+export const MessagingAckSchema = z.object({ ok: z.boolean() });
+export type MessagingMember = z.infer<typeof MessagingMemberSchema>;
+export type MessagingAgent = z.infer<typeof MessagingAgentsSchema>[number];

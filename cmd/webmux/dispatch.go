@@ -60,6 +60,8 @@ func dispatch(args []string, stdout, stderr io.Writer) int {
 		return statusCommand(args[1:], stdout, stderr)
 	case "stop":
 		return stopCommand(args[1:], stdout, stderr)
+	case "message-plugin":
+		return messagePluginCommand(args[1:], os.Stdin, stdout, stderr)
 	case "mcp-serve":
 		return mcpCommand(args[1:], os.Stdin, stdout, stderr)
 	case "bridge":
@@ -83,7 +85,7 @@ func dispatch(args []string, stdout, stderr io.Writer) int {
 func isOps(name string) bool {
 	first, _, _ := strings.Cut(name, " ")
 	switch first {
-	case "serve", "start", "version", "status", "stop", "bridge", "mcp-serve", "config", "service", "update", "help":
+	case "serve", "start", "version", "status", "stop", "bridge", "mcp-serve", "message-plugin", "config", "service", "update", "help":
 		return true
 	}
 	return false

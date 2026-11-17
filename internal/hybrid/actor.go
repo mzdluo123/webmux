@@ -37,6 +37,7 @@ var errMissingCapability = errors.New("agent 未声明 session/load 或 session/
 // on the actor to preserve completed operations' recovery contract, but never
 // hold the record state lock during filesystem I/O.
 type actor struct {
+	notificationQueue    map[string]string
 	nativeContinue       bool
 	replayOwnedMessageID string
 	replayOwnedMessage   bool

@@ -84,7 +84,7 @@
                 onclick={() => (view.createOpen = true)}
                 ><IconPlus
                   aria-hidden="true"
-                />{m.messaging_new_channel()}</Button
+                />{m.messaging_first_channel()}</Button
               ></Empty.Content
             >{/if}
         </Empty.Root>

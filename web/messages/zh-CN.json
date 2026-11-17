@@ -4465,5 +4465,14 @@
   "messaging_send_short": "发送",
   "messaging_welcome": "让讨论在这里继续",
   "messaging_welcome_desc": "为项目、评审或协作创建频道，讨论记录保存在当前 WebMux 实例中。",
-  "messaging_first_channel": "创建第一个频道"
+  "messaging_first_channel": "创建第一个频道",
+  "messaging_members": "频道 Agent",
+  "messaging_members_title": "#{name} 的 Agent",
+  "messaging_members_desc": "邀请正在聊天模式中运行的 Agent。新消息会唤醒空闲 Agent，忙碌时排队等待处理。",
+  "messaging_subscribed": "已加入频道",
+  "messaging_available_agents": "邀请 Agent",
+  "messaging_no_available_agents": "打开一个支持的 Agent 聊天会话，再回来邀请它。已加入的 Agent 显示在上方。",
+  "messaging_invite_agent": "邀请 {name}",
+  "messaging_remove_agent": "移除 {name}",
+  "messaging_remove": "移除"
 }
