@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
-  import IconFolderPlus from "~icons/tabler/folder-plus";
   import IconMoon from "~icons/tabler/moon";
   import IconSettings from "~icons/tabler/settings";
   import IconSun from "~icons/tabler/sun";
@@ -29,20 +28,16 @@
     },
   );
   const forward = $derived(featureContributions.entries.forward);
-  const workspace = $derived(featureContributions.entries.workspace);
 
   // The sidebar's global footer, shared by both modes: the connection and
-  // host, adding a repository, port forwarding, settings and the theme. A
-  // healthy connection is only the host and a dot; reconnecting says so in
-  // words.
+  // host, port forwarding, settings and the theme. A healthy connection is
+  // only the host and a dot; reconnecting says so in words.
   let {
     connection,
     hostname,
     setupSettled,
     rail = false,
     onforward,
-    onadd,
-    canAdd = true,
   }: {
     connection: Connection;
     hostname: string;
@@ -50,10 +45,6 @@
     /** The collapsed rail stacks the buttons and drops the host text. */
     rail?: boolean;
     onforward: () => void;
-    /** Opens the add-repository dialog. */
-    onadd: () => void;
-    /** Git and the registry can take a new repository. */
-    canAdd?: boolean;
   } = $props();
 
   let dark = $state(document.documentElement.classList.contains("dark"));
@@ -261,16 +252,6 @@
       </dl>
     </Popover.Content>
   </Popover.Root>
-  {#if workspace}
-    <Button
-      variant="ghost"
-      size="icon-touch"
-      aria-label={m.s1_add_repository()}
-      title={m.s1_add_repository()}
-      disabled={!canAdd}
-      onclick={() => onadd()}><IconFolderPlus aria-hidden="true" /></Button
-    >
-  {/if}
   {#if forward}<forward.Button onclick={onforward} />{/if}
   <Button
     href="/settings"

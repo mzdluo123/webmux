@@ -340,6 +340,7 @@
             ? (repositoryId, worktreeId, view) =>
                 openGitWorkbench({ repositoryId, worktreeId, view })
             : undefined}
+          onaddrepository={() => shell.addRepository()}
           onrename={shell.rename}
           onclose={shell.close}
           records={shell.archived?.records ?? []}
@@ -370,8 +371,6 @@
     hostname={setup.hostname}
     setupSettled={shell.setup.settled}
     onforward={shell.forward}
-    onadd={shell.addRepository}
-    canAdd={setup.gitReady && setup.registryReady}
   />
 </nav>
 

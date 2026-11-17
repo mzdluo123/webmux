@@ -1,4 +1,5 @@
 import { test, expect, revealSidebar } from "./fixtures";
+import { allRepositoriesMenu } from "./repository-menu";
 import { settled } from "../performance/performance";
 
 // Published UI evidence uses an isolated fixture identity.
@@ -38,8 +39,7 @@ test("workspace defers settings and management forms until requested", async ({
   expect(scripts.some((url) => /\/NewSessionDialog-/.test(url))).toBe(true);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toBeHidden();
-  await revealSidebar(page);
-  await page.getByRole("button", { name: "添加仓库", exact: true }).click();
+  await allRepositoriesMenu(page, "添加仓库…");
   await expect(page.getByRole("dialog", { name: "添加仓库" })).toBeVisible();
   expect(scripts.some((url) => /\/AddRepositoryDialog-/.test(url))).toBe(true);
   await page.keyboard.press("Escape");

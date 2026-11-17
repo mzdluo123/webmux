@@ -65,6 +65,7 @@ function renderTree(
     onremoveworktree: vi.fn(),
     onworktreedetails: vi.fn(),
     onswitchbranch: vi.fn(),
+    onaddrepository: vi.fn(),
     onrename: vi.fn(),
     onclose: vi.fn(),
     onresume: vi.fn(),
@@ -198,9 +199,24 @@ test("each available repository offers new-worktree and manage-worktrees actions
   await cleanup();
   renderTree([], { canCreate: false });
   await expect.element(item("webmux")).toBeVisible();
-  expect(page.getByRole("button", { name: /仓库操作：/ }).elements()).toEqual(
-    [],
-  );
+  // Repository rows lose their menus entirely; the "全部仓库" row keeps its
+  // registry menu, with the add-repository item disabled.
+  expect(
+    page
+      .getByRole("button", { name: /仓库操作：(webmux|legacy-api)/ })
+      .elements(),
+  ).toEqual([]);
+  await tree().getByRole("button", { name: "仓库操作：全部仓库" }).click();
+  await expect
+    .element(page.getByRole("menuitem", { name: "添加仓库…" }))
+    .toBeDisabled();
+});
+
+test("the all-repositories row's menu opens the add-repository dialog", async () => {
+  const handlers = renderTree([]);
+  await tree().getByRole("button", { name: "仓库操作：全部仓库" }).click();
+  await page.getByRole("menuitem", { name: "添加仓库…" }).click();
+  expect(handlers.onaddrepository).toHaveBeenCalled();
 });
 
 test("a linked worktree's menu offers its details, a branch switch and removal", async () => {

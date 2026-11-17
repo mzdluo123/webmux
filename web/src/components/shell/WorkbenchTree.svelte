@@ -32,6 +32,7 @@
   import IconLayoutDashboard from "~icons/tabler/layout-dashboard";
   import IconLoader2 from "~icons/tabler/loader-2";
   import { Button } from "$lib/components/ui/button";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { ListButton } from "$lib/components/ui/list-button";
   import { store, stored } from "../../platform/api";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
@@ -80,6 +81,7 @@
     onswitchbranch,
     onbranchoperation,
     onopengit,
+    onaddrepository,
     onrename,
     onclose,
     onresume,
@@ -125,6 +127,8 @@
       worktreeId?: string,
       view?: "commit",
     ) => void;
+    /** Opens the add-repository dialog from the "全部仓库" row's menu. */
+    onaddrepository?: () => void;
     onrename: (session: SessionInfo) => void;
     onclose: (session: SessionInfo) => void;
     /** Resumes an archived record, rebuilding a released worktree first. */
@@ -378,12 +382,24 @@
         {:else if status}<RowStatus {status} />
         {:else}{@render counts(
             node,
-            (node.kind === "repository" && !node.reason && canCreate) ||
+            (node.kind === "all" && !!onaddrepository) ||
+              (node.kind === "repository" && !node.reason && canCreate) ||
               node.kind === "worktree",
             !!upstream,
           )}{/if}
       </ListButton>
-      {#if node.kind === "repository" && canCreate}
+      {#if node.kind === "all" && onaddrepository}
+        <SidebarRowMenu
+          ariaLabel={m.s1_repository_actions({
+            label: m.s1_all_repositories(),
+          })}
+          tabindex={tabStop === node.key ? 0 : -1}
+        >
+          <DropdownMenu.Item disabled={!canCreate} onSelect={onaddrepository}
+            >{m.s8_menu_add_repository()}</DropdownMenu.Item
+          >
+        </SidebarRowMenu>
+      {:else if node.kind === "repository" && canCreate}
         <SidebarRepositoryMenu
           unavailable={!!node.reason}
           label={node.label}
