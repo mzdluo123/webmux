@@ -1,5 +1,5 @@
 import "../../src/styles.css";
-import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import RelayAuthGate from "../../src/components/shell/RelayAuthGate.svelte";
@@ -21,11 +21,9 @@ test.each([
 ] as const)(
   "%s offers official login without a misleading Token error",
   async (reason, message) => {
-    const onretry = vi.fn();
     await render(RelayAuthGate, {
       reason,
       returnTo: "/s/aaaaaaaa?message=turn-1",
-      onretry,
     });
     await expect
       .element(
@@ -41,33 +39,5 @@ test.each([
     expect(
       page.getByRole("button", { name: "再次检查连接" }).elements(),
     ).toEqual([]);
-    expect(onretry).not.toHaveBeenCalled();
   },
 );
-
-test("reconnecting explains draft preservation and permits an explicit retry after checks stop", async () => {
-  const onretry = vi.fn();
-  const view = await render(RelayAuthGate, {
-    reason: "reconnecting",
-    checking: true,
-    returnTo: "/s/aaaaaaaa",
-    onretry,
-  });
-  const retry = page.getByRole("button", { name: "再次检查连接" });
-  await expect.element(retry).toBeDisabled();
-  await expect
-    .element(
-      page.getByText(
-        "保持此标签页打开可保留当前页面和未发送的草稿。中断的操作不会自动重发。",
-      ),
-    )
-    .toBeVisible();
-  await view.rerender({ checking: false });
-  await expect
-    .element(
-      page.getByText("主机仍不可用，自动检查已暂停。连接恢复后可再次检查。"),
-    )
-    .toBeVisible();
-  await retry.click();
-  expect(onretry).toHaveBeenCalledOnce();
-});

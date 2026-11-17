@@ -464,9 +464,18 @@ test("relay recovery keeps the terminal, route and unsent draft without replayin
   const pending = Promise.withResolvers<Response>();
   respond(/^GET \/api\/relay\/auth\/session$/, () => pending.promise);
   terminal.drop(1006);
-  await expect
-    .element(page.getByRole("heading", { name: "通过官方中继连接" }))
-    .toBeVisible();
+  const indicator = page.getByRole("button", {
+    name: "重连状态：连接已断开，重连中…",
+  });
+  await expect.element(indicator).toBeVisible();
+  const indicatorBox = (await indicator.element()).getBoundingClientRect();
+  const sidebarBox = document
+    .querySelector(".app-sidebar")!
+    .getBoundingClientRect();
+  expect(indicatorBox.left).toBeGreaterThanOrEqual(sidebarBox.right);
+  expect(
+    page.getByRole("heading", { name: "通过官方中继连接" }).elements(),
+  ).toEqual([]);
   expect(document.querySelector('input[type="password"]')).toBeNull();
   expect(relayAuthStatus()).toMatchObject({
     relay: true,

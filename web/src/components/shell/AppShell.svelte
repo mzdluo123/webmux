@@ -38,6 +38,7 @@
   import { featureContributions } from "../../features/registry.svelte";
   import { createShellSessionResources } from "../../features/shell-resources";
   import AppSidebar from "./AppSidebar.svelte";
+  import RelayReconnectIndicator from "./RelayReconnectIndicator.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
   import SidebarRailSessions from "./SidebarRailSessions.svelte";
   import { m } from "$lib/paraglide/messages.js";
@@ -51,6 +52,7 @@
   let {
     route,
     drafts,
+    reconnection,
     children,
   }: {
     route: Extract<
@@ -58,6 +60,11 @@
       { name: "sessions" | "quick-start" | "terminal" | "handoff" | "git" }
     >;
     drafts: TerminalDrafts;
+    reconnection?: {
+      checking: boolean;
+      returnTo: string;
+      onretry: () => void;
+    };
     children: Snippet;
   } = $props();
 
@@ -397,6 +404,16 @@
   <div class="app-shell-main">
     {@render children()}
   </div>
+  {#if reconnection}
+    <!-- The content area's lower left, always past the sidebar and its own
+         status footer; --app-sidebar-width lives on .app-shell. -->
+    <RelayReconnectIndicator
+      checking={reconnection.checking}
+      returnTo={reconnection.returnTo}
+      onretry={reconnection.onretry}
+      class="left-[calc(var(--app-sidebar-width)+0.5rem)]"
+    />
+  {/if}
 </div>
 {#if contributions.notifications}<contributions.notifications.Toasts />{/if}
 
