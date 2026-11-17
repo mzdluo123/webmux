@@ -46,7 +46,7 @@ type AuthConfig struct {
 }
 
 type AuthDependencies struct {
-	Client   AuthClient
+	Client AuthClient
 	// Snapshot may retain binding identity while its readiness result is false.
 	Snapshot func() (AuthBinding, bool)
 	Now      func() time.Time
