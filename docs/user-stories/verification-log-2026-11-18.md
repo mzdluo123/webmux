@@ -34,6 +34,11 @@
 - `go test -race -count=1 ./internal/codexrollout ./internal/agent/codex/history ./internal/historyimport ./internal/historysource ./internal/historyprojection ./internal/handoff` 六个包通过，覆盖默认分页图片、任务原文、来源冻结与预览到期。
 - `make docs-check` 通过。
 
+## T047 草稿恢复操作（US-F05）
+
+- 隔离 Chromium 模拟 390 × 390 可视区域，发送、部分写入、结果未知、重发、转回草稿和取消清空前后的编辑区高度均为 32 px，选区保留在 8–14。
+- `composer.spec.ts` 的桌面和 iPhone SE Chromium 用例覆盖真实 PTY 输入隔离和草稿编辑。未测试真机软键盘。
+
 ## 原生历史最低版本基线（US-Q19、US-Q20）
 
 - `go test -race -count=1 ./internal/codexrollout ./internal/agent/{codex,kimi,omp,qoder,qodercn,opencode,agy,claudecode,devin}/history ./internal/{historyimport,historysource,historyprojection,handoff}` 的 14 个包通过。
@@ -64,8 +69,3 @@
   - `go test -race -count=1 ./cmd/... ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过；
   - Playwright E2E `agent-tools.spec.ts`、`relay-settings.spec.ts` 与 `worktrees.spec.ts`（直接目录创建降级）共 10 项通过。
-
-### T047 草稿恢复操作（US-F05）
-
-- 隔离 Chromium 模拟 390 × 390 可视区域，发送、部分写入、结果未知、重发、转回草稿和取消清空前后的编辑区高度均为 32 px，选区保留在 8–14。
-- `composer.spec.ts` 的桌面和 iPhone SE Chromium 用例覆盖真实 PTY 输入隔离和草稿编辑。未测试真机软键盘。
