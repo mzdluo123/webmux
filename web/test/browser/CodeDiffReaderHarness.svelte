@@ -6,10 +6,12 @@
     fileDiff,
     restore,
     hidden = false,
+    width = 650,
   }: {
     fileDiff: FileDiffMetadata;
     restore?: CodeDiffReaderState;
     hidden?: boolean;
+    width?: number;
   } = $props();
   let reader = $state<CodeDiffReader>();
   let selected = $state("");
@@ -19,7 +21,8 @@
 </script>
 
 <div
-  style="height:500px;width:650px;flex-direction:column"
+  style="height:500px;flex-direction:column"
+  style:width={`${width}px`}
   style:display={hidden ? "none" : "flex"}
 >
   <CodeDiffReader

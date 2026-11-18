@@ -194,3 +194,104 @@ test("SidebarFooter host status popover reflects P2P direct mode and RTT", async
     .toBeVisible();
   await expect.element(dialog.getByText("9 ms", { exact: true })).toBeVisible();
 });
+test("STUN validation and feedback keep actions stationary without an idle error gap", async () => {
+  serveP2P();
+  const container = Object.assign(document.createElement("section"), {
+    style: "width: 390px; max-width: 100%; margin: 0 auto",
+  });
+  document.body.append(container);
+  try {
+    render(P2PSettings, { target: container });
+    const input = page.getByLabelText(/STUN 服务器/);
+    await expect.element(input).toBeEnabled();
+    expect(container.querySelector('[data-slot="scroll-area"]')).toBeNull();
+    const save = page.getByRole("button", { name: "保存 STUN 列表" });
+    const reset = page.getByRole("button", { name: "恢复配置文件默认" });
+    const top = (element: Element) =>
+      element.getBoundingClientRect().top -
+      container.getBoundingClientRect().top;
+    await input.fill("turn:" + "long-invalid.example".repeat(15) + ":3478");
+    const before = [top(save.element()), top(reset.element())];
+    await save.click();
+    await expect
+      .element(page.getByText(/必须以 stun: 或 stuns: 开头/))
+      .toBeVisible();
+    expect(container.querySelector('[data-slot="scroll-area"]')).not.toBeNull();
+    const invalid = [top(save.element()), top(reset.element())];
+    await input.fill("stun:another.example.test:3478");
+    await save.click();
+    await expect.element(reset).toBeEnabled();
+    expect(container.querySelector('[data-slot="scroll-area"]')).toBeNull();
+    const saved = [top(save.element()), top(reset.element())];
+    expect(invalid).toEqual(before);
+    expect(saved).toEqual(before);
+  } finally {
+    container.remove();
+  }
+});
+
+test("renders storage warning above disabled switches when web settings storage is unavailable", async () => {
+  serveP2P({
+    ...baseStatus,
+    storageAvailable: false,
+    storageError: "read-only state dir",
+  });
+  render(P2PSettings);
+  const warning = page.getByText("网页设置不可写：read-only state dir");
+  const enableSwitch = page.getByRole("switch", {
+    name: "自动尝试 P2P 直连升级",
+  });
+  await expect.element(warning).toBeVisible();
+  await expect.element(enableSwitch).toBeDisabled();
+  expect(warning.element().getBoundingClientRect().bottom).toBeLessThanOrEqual(
+    enableSwitch.element().getBoundingClientRect().top,
+  );
+});
+
+test("a probing status reply cannot replace a newer failed STUN save", async () => {
+  const probing = {
+    ...baseStatus,
+    portMap: { state: "probing" as const },
+  };
+  const poll = Promise.withResolvers<Response>();
+  const write = Promise.withResolvers<Response>();
+  let reads = 0;
+  let writing = false;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>((input, init) => {
+      const path = new URL(String(input), location.href).pathname;
+      if (path === "/api/p2p") {
+        reads++;
+        return reads === 2
+          ? poll.promise
+          : Promise.resolve(Response.json(probing));
+      }
+      if (path === "/api/p2p/settings" && init?.method === "PUT") {
+        writing = true;
+        return write.promise;
+      }
+      return Promise.resolve(
+        Response.json({ error: "not found" }, { status: 404 }),
+      );
+    }),
+  );
+  render(P2PSettings);
+  const input = page.getByLabelText(/STUN 服务器/);
+  await expect.element(input).toBeEnabled();
+  const draft = "stuns:private-stun.example.test";
+  await input.fill(draft);
+  await vi.waitFor(() => expect(reads).toBe(2), { timeout: 3000 });
+  await page.getByRole("button", { name: "保存 STUN 列表" }).click();
+  await vi.waitFor(() => expect(writing).toBe(true));
+  write.resolve(
+    Response.json({ error: "newer settings error" }, { status: 502 }),
+  );
+  await expect.element(page.getByText("newer settings error")).toBeVisible();
+  poll.resolve(
+    Response.json({ ...probing, stunServers: ["stun:older.example.test"] }),
+  );
+  await vi.waitFor(() => expect(reads).toBe(3), { timeout: 3000 });
+  await expect.element(page.getByText("newer settings error")).toBeVisible();
+  await expect.element(input).toHaveValue(draft);
+});

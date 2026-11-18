@@ -14,16 +14,19 @@
   let {
     mode,
     disabled,
+    preventScroll,
     onchange,
   }: {
     mode: ChatPermissionMode;
     disabled: boolean;
+    preventScroll?: boolean;
     onchange: (mode: ChatPermissionMode) => void;
   } = $props();
 </script>
 
 <ChatSelect
   name={m.s3_permission_name()}
+  {preventScroll}
   value={mode}
   choices={permissionChoices}
   {disabled}

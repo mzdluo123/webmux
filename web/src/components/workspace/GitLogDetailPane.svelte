@@ -14,6 +14,7 @@
   } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import { resolveCommitParentFiles } from "../../domains/workspace/git-workbench-state";
+  import { tick, untrack } from "svelte";
   import type {
     GitCommitDetail,
     GitCompareViewState,
@@ -45,6 +46,32 @@
   } = $props();
 
   let copiedOid = $state<string | null>(null);
+  let detailViewport = $state<HTMLElement | null>(null);
+  const comparing = $derived(Boolean(compareMode));
+  let previousMode: boolean | undefined;
+  let commitReadingPosition: { oid: string; top: number } | undefined;
+
+  $effect.pre(() => {
+    const viewport = detailViewport;
+    const next = comparing;
+    if (!viewport || next === previousMode) return;
+    const changed = previousMode !== undefined;
+    previousMode = next;
+
+    const oid = untrack(() => detail?.oid);
+    if (next && oid) commitReadingPosition = { oid, top: viewport.scrollTop };
+    if (!changed) return;
+
+    const top =
+      !next && commitReadingPosition?.oid === oid
+        ? (commitReadingPosition?.top ?? 0)
+        : 0;
+    if (!next) commitReadingPosition = undefined;
+    void tick().then(() => {
+      if (detailViewport === viewport && comparing === next)
+        viewport.scrollTop = top;
+    });
+  });
 
   const resolvedParent = $derived(
     detail
@@ -79,9 +106,11 @@
   aria-label={m.s6_log_detail_aria()}
 >
   <div
-    class="flex items-center justify-between gap-2 border-b bg-background px-2.5 py-1.5"
+    class="flex shrink-0 items-center justify-between gap-2 border-b bg-background px-2.5 py-1.5"
   >
-    <span class="text-xs font-semibold text-foreground">
+    <span
+      class="flex min-h-(--control-sm) items-center text-xs font-semibold text-foreground"
+    >
       {compareMode
         ? m.s6_log_detail_compare_heading()
         : m.s6_log_detail_commit_heading()}
@@ -108,7 +137,7 @@
     {/if}
   </div>
 
-  <ScrollArea class="min-h-8 flex-1">
+  <ScrollArea bind:viewportRef={detailViewport} class="min-h-8 flex-1">
     <div class="space-y-2.5 p-3 text-xs">
       {#if compareMode}
         <div class="space-y-2">

@@ -19,10 +19,12 @@
   let {
     config,
     disabled,
+    preventScroll,
     onchange,
   }: {
     config: ChatConfig[];
     disabled: boolean;
+    preventScroll?: boolean;
     onchange: (configId: string, value: ConfigValue) => void;
   } = $props();
   const icons: Record<string, Component> = {
@@ -57,6 +59,7 @@
   {:else}
     <ChatSelect
       name={option.name}
+      {preventScroll}
       value={option.value ?? ""}
       choices={option.options}
       {disabled}

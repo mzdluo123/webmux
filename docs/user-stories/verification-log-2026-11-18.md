@@ -2,6 +2,12 @@
 
 承接 [verification-log-2026-11-17](verification-log-2026-11-17.md)（已接近 400 行文件上限），收录 2026-11-18 起的局部核对记录；索引见 [WebMux User Stories](../user-stories.md#核对记录)。
 
+## 2026-11-19：批量管理工作树返回原选择行（US-J14）
+
+- 隔离 Chromium 实测选择→预览→返回，以及确认→长结果→返回。验证桌面、平板、手机与手机减少动态效果。
+- `RepositoryPanel.test.ts` 及 `worktrees.spec.ts` 的批量清理用例通过，E2E 覆盖桌面及 iPhone SE Chromium。
+- 本轮使用无头 Linux Chromium，未在物理触屏或真机浏览器核对。
+
 ## 2026-11-18：会话上传读取响应头安全收敛（US-Q15）
 
 ### 范围
@@ -41,6 +47,11 @@
 - `go test -race -count=1 ./internal/codexrollout ./internal/agent/{codex,kimi,omp,qoder,qodercn,opencode,agy,claudecode,devin}/history ./internal/{historyimport,historysource,historyprojection,handoff}` 的 14 个包通过。
 - 派生样本覆盖 Codex 0.170.0 和 9.99.0、Kimi Wire 1.10 和 2.0 与状态 v3、omp session v4、Qoder/QoderCN 较高版本，并核对正文和工具关联。OpenCode 在同一数据库内读取两种 SQLite 表结构。
 
+## T049 终端端口提示（US-R04）
+
+- `TerminalNotices.test.ts` 通过，验证晚发现的较小端口保留现有按钮位置与焦点，并可点击「查看全部」。
+- `port-forwarding.spec.ts` 的桌面与 iPhone SE Chromium 两项通过。隔离 Chromium 中交错发现三个端口并输入 abc，字符按顺序交付 xterm。
+
 ## 侧栏添加仓库入口（US-C16）
 
 - 「添加仓库」从「全部仓库」行菜单移到侧栏底部；按会话、按分支、窄栏及移动端抽屉共用登记弹窗和可用性条件。
@@ -54,6 +65,15 @@
 - `make e2e-runtime` 成功；`session-creation.spec.ts` 与 `workbench-session-queue.spec.ts` 的相关桌面和 iPhone SE Chromium 用例共 6 项通过。
 - 隔离 Chromium 中核对了 6 个视口的明暗主题、长标题和页面横向溢出，以及桌面键盘焦点与悬停提示。未验证实体触屏或真机。
 - [手机上为隐藏的项目创建首个会话](../images/pr/sidebar-session-groups/interaction-phone.gif)。
+
+## 2026-11-19：启动和回合改动的阅读位置（US-Q18、US-B01、US-Q05）
+
+- 隔离 Chromium 复测 T026、T030、T037、T038。320×568 下，更新初始化指令引用提示时，输入与发送按钮坐标保持稳定，浮层留在视口内。
+- 320×568 的项目列表与运行设置往返后，分别恢复项目列表滚动和设置页的 205px 滚动位置，并保留搜索、命令、名称及配置焦点。
+- 隔离浏览器展开两个补丁或换到单补丁时，三个文件头的坐标一致。服务端假 Agent 的 Playwright 探针也确认桌面及移动 Chromium 展开两个补丁时，所选文件头的坐标保持不变。
+- 缺快照、计算中与着色差异共用 256px 桌面边界。快照替换后保留第 19 行选区和首个可见行。
+- `make e2e-runtime` 构建成功。`playwright test` 在 `quick-start.spec.ts`、`session-creation.spec.ts`、`hybrid.spec.ts` 的相关桌面与手机场景通过 19 项，跳过 1 项桌面快捷键用例的手机版。
+- `pnpm --dir web test:unit test/turn-changes.test.ts test/chat-model.test.ts test/code-diff.test.ts` 的 38 项通过。减少动态效果模式在 320×568 独立复测。触屏交互使用 Chromium 模拟，实体设备和悬停待真机验证。
 
 ## 2026-11-19：关闭配置文件功能开关并固定启用全部内置模块（US-K18 退役、US-K03）
 

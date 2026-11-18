@@ -474,6 +474,56 @@ test("a missing connector offers its install hint and the terminal; outdated par
     .toHaveTextContent("1");
 });
 
+test("repeated chat failures leave room to read and edit on short screens", async () => {
+  await page.viewport(667, 375);
+  try {
+    const socket = await open();
+    const host = document.querySelector<HTMLElement>(
+      "[data-chat-test-host] > div",
+    )!;
+    host.style.height = "calc(100dvh - 32px)";
+    socket.frame(
+      snapshot(
+        chatState({
+          authRequired: true,
+          connectorMissing: {
+            executable: "codex-acp",
+            title: "Codex ACP 适配器",
+            installCommand: "npm install " + "package ".repeat(240),
+            docsUrl: "https://github.com/agentclientprotocol/codex-acp",
+          },
+        }),
+      ),
+    );
+    const detail = "诊断内容 ".repeat(360);
+    let failures = 0;
+    respond(/^POST .*\/sessions\/hybrid22\/input$/, () =>
+      Response.json(
+        { error: `发送失败 ${++failures} ${detail}` },
+        { status: 503 },
+      ),
+    );
+    const input = page.getByRole("textbox", { name: "消息" });
+    await input.fill("保留这段草稿");
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      await userEvent.keyboard("{Control>}{Enter}{/Control}");
+      await expect
+        .element(page.getByText(new RegExp(`^发送失败 ${attempt} `)))
+        .toBeVisible();
+      await expect.element(input).toHaveValue("保留这段草稿");
+    }
+    const diagnostic = page.getByText(/^发送失败 3 /).element();
+    expect(diagnostic.scrollHeight).toBeGreaterThan(diagnostic.clientHeight);
+    const transcript = document.querySelector(
+      "[data-chat-transcript-scroll] [data-slot=scroll-area-viewport]",
+    )!;
+    expect(transcript.clientHeight).toBeGreaterThanOrEqual(60);
+    await expect.element(input).toHaveFocus();
+  } finally {
+    await page.viewport(1024, 900);
+  }
+});
+
 test("renders the attachments of a user prompt", async () => {
   const png = new Uint8Array([
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
@@ -1498,6 +1548,46 @@ test("a merged tick stays active when its later reply ends a compact transcript"
   }
 });
 
+test("keeps the active command visible on a short screen without moving the caret", async () => {
+  await page.viewport(667, 375);
+  try {
+    const socket = await open();
+    socket.frame(
+      snapshot(
+        chatState({
+          commands: Array.from({ length: 40 }, (_, i) => ({
+            name: `cmd${i}`,
+            description: "示例命令",
+          })),
+        }),
+      ),
+    );
+
+    const input = page.getByRole("textbox", { name: "消息" });
+    const menu = page.getByRole("listbox", { name: "命令" });
+    await input.fill("/cmd");
+    await expect.element(menu).toBeVisible();
+    await userEvent.keyboard("{ArrowLeft}{ArrowUp}");
+
+    const active = menu.getByRole("option", { selected: true });
+    await expect.element(active).toMatchTextContent(/^\/cmd39/);
+    const menuBox = menu.element().getBoundingClientRect();
+    const activeBox = active.element().getBoundingClientRect();
+    expect(menuBox.height).toBeLessThan(110);
+    expect(activeBox.top).toBeGreaterThanOrEqual(menuBox.top);
+    expect(activeBox.bottom).toBeLessThanOrEqual(menuBox.bottom);
+    expect((input.element() as HTMLTextAreaElement).selectionStart).toBe(3);
+    await expect.element(input).toHaveFocus();
+
+    await userEvent.keyboard("{Escape}");
+    await expect.element(menu).not.toBeInTheDocument();
+    await expect.element(input).toHaveValue("/cmd");
+    await expect.element(input).toHaveFocus();
+  } finally {
+    await page.viewport(1024, 900);
+  }
+});
+
 test("typing / lists and filters published commands without authentication flows", async () => {
   const socket = await open();
   socket.frame(
@@ -2469,3 +2559,65 @@ test("recalls sent text and slash commands without taking over the caret", async
   await userEvent.keyboard("{ArrowUp}{ArrowDown}");
   await expect.element(input).toHaveValue("未发送的草稿");
 });
+
+test.each(["permission", "form"] as const)(
+  "a long %s request keeps a readable transcript and actions within the chat pane",
+  async (kind) => {
+    await page.viewport(390, 844);
+    try {
+      const socket = await open();
+      const request: ChatRequest =
+        kind === "permission"
+          ? {
+              ...permission,
+              options: Array.from({ length: 24 }, (_, index) => ({
+                optionId: String(index),
+                name: `选项 ${index}：${"较长的示例说明".repeat(8)}`,
+                kind: "allow_once",
+              })),
+            }
+          : {
+              requestId: "long-form",
+              kind: "form",
+              form: {
+                message: "请填写以下字段。",
+                supported: true,
+                fields: Array.from({ length: 24 }, (_, index) => ({
+                  name: `field${index}`,
+                  title: `字段 ${index}`,
+                  description: "较长的字段说明。".repeat(8),
+                  type: "string",
+                  required: false,
+                })),
+              },
+            };
+      socket.frame(
+        snapshot(chatState({ turn: { running: true }, requests: [request] })),
+      );
+      const dock = document.querySelector<HTMLElement>("[data-chat-dock]")!;
+      const transcript = document.querySelector<HTMLElement>(
+        "[data-chat-transcript-scroll]",
+      )!;
+      await expect
+        .element(
+          page.getByText(kind === "form" ? "请填写以下字段。" : "等待授权", {
+            exact: true,
+          }),
+        )
+        .toBeVisible();
+      const dockHeight = dock.getBoundingClientRect().height;
+      const transcriptHeight = transcript.getBoundingClientRect().height;
+      expect(dockHeight).toBeLessThanOrEqual(450);
+      expect(transcriptHeight).toBeGreaterThan(100);
+      const finalControl =
+        kind === "form"
+          ? page.getByRole("textbox", { name: "字段 23" })
+          : page.getByRole("button", { name: /选项 23/ });
+      await finalControl.click();
+      if (kind === "form")
+        expect(document.activeElement).toBe(finalControl.element());
+    } finally {
+      await page.viewport(1024, 900);
+    }
+  },
+);

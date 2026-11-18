@@ -6,6 +6,8 @@ export function useDockMotion(
   element: () => HTMLElement | null,
   expanded: () => boolean,
   items: () => string = () => "",
+  shouldAnimate: () => boolean = () => true,
+  flipChildren = true,
 ) {
   let last: string | undefined;
   let generation = 0;
@@ -23,13 +25,19 @@ export function useDockMotion(
     const changed = last !== undefined && last !== key;
     last = key;
     if (!changed) return;
+    if (!shouldAnimate()) {
+      settle();
+      return;
+    }
     const height = node.getBoundingClientRect().height;
-    const positions = new WeakMap(
-      Array.from(node.children, (child) => [
-        child,
-        child.getBoundingClientRect(),
-      ]),
-    );
+    const positions = flipChildren
+      ? new WeakMap(
+          Array.from(node.children, (child) => [
+            child,
+            child.getBoundingClientRect(),
+          ]),
+        )
+      : null;
     settle();
     const version = generation;
     void tick().then(() => {
@@ -50,11 +58,16 @@ export function useDockMotion(
         ),
       ];
       const moved: HTMLElement[] = [];
-      if (open && height > 0) {
+      if (open && height > 0 && positions) {
         for (const child of node.children) {
           const before = positions.get(child);
           if (!(child instanceof HTMLElement) || !before) continue;
           const after = child.getBoundingClientRect();
+          if (
+            (before.width === 0 && before.height === 0) ||
+            (after.width === 0 && after.height === 0)
+          )
+            continue;
           const y = before.top - after.top;
           if (Math.abs(y) < 1) continue;
           moved.push(child);
@@ -89,4 +102,18 @@ export function useDockMotion(
       media.removeEventListener("change", settle);
     };
   });
+  return settle;
+}
+
+export function usePanelMotion(
+  element: () => HTMLElement | null,
+  key: () => string,
+) {
+  return useDockMotion(
+    element,
+    () => true,
+    key,
+    () => true,
+    false,
+  );
 }
