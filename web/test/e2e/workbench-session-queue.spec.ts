@@ -113,12 +113,12 @@ test("the default queue prioritizes explicit attention and keeps a focused sessi
   const conversation = sidebar.getByRole("button", { name: /^Watch backend/ });
   await expect(conversation).toHaveCount(1);
   await expect(conversation).toHaveAccessibleDescription(workDir);
-  const attentionRows = sidebar.getByRole("list", {
-    name: "待我处理",
+  const directRows = sidebar.getByRole("list", {
+    name: "直接会话",
     exact: true,
   });
   await expect(
-    attentionRows.getByRole("button", { name: /^Review build/ }),
+    directRows.getByRole("button", { name: /^Review build/ }),
   ).toHaveCount(1);
   await page.getByRole("button", { name: /^待处理会话/ }).click();
   await expect(search).toHaveValue("");

@@ -14,6 +14,20 @@ export function queueGroup(session: SessionInfo): QueueGroup {
     : "idle";
 }
 
+export function sessionsByPin(
+  sessions: readonly SessionInfo[],
+  pinned: readonly SessionInfo[],
+): SessionInfo[] {
+  const pinRank = new Map(pinned.map((session, index) => [session.id, index]));
+  return [...sessions].sort(
+    (a, b) =>
+      (pinRank.get(a.id) ?? pinned.length) -
+        (pinRank.get(b.id) ?? pinned.length) ||
+      Date.parse(b.createdAt) - Date.parse(a.createdAt) ||
+      a.id.localeCompare(b.id),
+  );
+}
+
 export function sessionQueue(
   sessions: readonly SessionInfo[],
   pinned: readonly SessionInfo[],
@@ -25,15 +39,7 @@ export function sessionQueue(
     idle: [],
     exited: [],
   };
-  const pinRank = new Map(pinned.map((session, index) => [session.id, index]));
-  const sorted = [...sessions].sort(
-    (a, b) =>
-      (pinRank.get(a.id) ?? pinned.length) -
-        (pinRank.get(b.id) ?? pinned.length) ||
-      Date.parse(b.createdAt) - Date.parse(a.createdAt) ||
-      a.id.localeCompare(b.id),
-  );
-  for (const session of sorted) {
+  for (const session of sessionsByPin(sessions, pinned)) {
     groups[
       held.find((row) => row?.id === session.id)?.group ?? queueGroup(session)
     ].push(session);

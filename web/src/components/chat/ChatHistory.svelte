@@ -195,7 +195,9 @@
                 <!-- The same end padding as live rows keeps every status in
                      one column. -->
                 <ListButton
-                  variant="navigation-action"
+                  variant={archiveOnly
+                    ? "navigation-compact-action"
+                    : "navigation-action"}
                   aria-current={record.id === current ? "page" : undefined}
                   aria-label={m.s3_session_row_label({
                     title,
@@ -205,6 +207,7 @@
                         : state,
                   })}
                   aria-describedby={`${locationIdPrefix}-${record.id}`}
+                  data-allow-wrap
                   title={record.released
                     ? m.s3_history_released_title({
                         title,
@@ -224,7 +227,7 @@
                     icon={configs.find(
                       (config) => config.id === record.configId,
                     )?.icon ?? ""}
-                    size="sm"
+                    size={archiveOnly ? "xs" : "sm"}
                   />
                   <SidebarSessionName
                     {title}

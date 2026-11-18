@@ -18,9 +18,7 @@
     icon,
     pinned = false,
     location,
-    onfocusrow,
-    onblurrow,
-    onmenuopen,
+    compact = false,
     onopen,
     onrename,
     onclose,
@@ -30,9 +28,7 @@
     icon: string;
     pinned?: boolean;
     location?: string;
-    onfocusrow?: () => void;
-    onblurrow?: () => void;
-    onmenuopen?: (open: boolean) => void;
+    compact?: boolean;
     onopen: (session: SessionInfo) => void;
     onrename: (session: SessionInfo) => void;
     onclose: (session: SessionInfo) => void;
@@ -40,33 +36,23 @@
   const locationId = $props.id();
 </script>
 
-<li
-  class="group/row relative"
-  onfocusin={onfocusrow}
-  onfocusout={(event) => {
-    if (!(
-      event.relatedTarget instanceof Node &&
-      event.currentTarget.contains(event.relatedTarget)
-    ))
-      onblurrow?.();
-  }}
->
+<li class="group/row relative">
   <ListButton
-    variant="navigation-action"
+    variant={compact ? "navigation-compact-action" : "navigation-action"}
     aria-current={session.id === current ? "page" : undefined}
     aria-label={pinned
       ? m.s1_pinned_prefix({ label: sessionRowLabel(session) })
       : sessionRowLabel(session)}
     title={sessionRowTitle(session)}
     aria-describedby={location ? locationId : undefined}
+    data-allow-wrap={location ? true : undefined}
     onclick={() => onopen(session)}
   >
-    <LaunchConfigIcon {icon} size="sm" />
+    <LaunchConfigIcon {icon} size={compact ? "xs" : "sm"} />
     <SidebarSessionName title={session.title} {location} {locationId} />
     <RowStatus status={rowStatus(session)} />
   </ListButton>
   <SidebarSessionMenu
-    {onmenuopen}
     label={pinned
       ? m.s1_pinned_prefix({ label: session.title })
       : session.title}

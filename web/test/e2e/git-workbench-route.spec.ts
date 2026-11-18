@@ -98,24 +98,36 @@ test("the Git and session views switch in both directions without losing the sel
   request,
   workDir,
 }) => {
-  const { repo, featWt } = await setupRepoWithLinkedWorktree(request, workDir);
-  expect(
-    (
-      await request.post("/api/sessions", {
-        data: {
-          name: "Review branch output",
-          workspace: { repositoryId: repo.id, worktreeId: featWt.id },
-          cmd: ["/bin/sh", "-c", "sleep 120"],
-        },
-      })
-    ).status(),
-  ).toBe(201);
+  const { repo, featWt, mainWt } = await setupRepoWithLinkedWorktree(
+    request,
+    workDir,
+  );
+  for (const [name, worktreeId] of [
+    ["Review branch output", featWt.id],
+    ["Watch the main branch", mainWt.id],
+  ]) {
+    expect(
+      (
+        await request.post("/api/sessions", {
+          data: {
+            name,
+            workspace: { repositoryId: repo.id, worktreeId },
+            cmd: ["/bin/sh", "-c", "sleep 120"],
+          },
+        })
+      ).status(),
+    ).toBe(201);
+  }
   await page.goto("/");
   await revealSidebar(page);
-  const row = page
-    .getByRole("navigation", { name: "导航", exact: true })
-    .getByRole("button", { name: /^Review branch output/ });
-  await expect(row).toHaveAccessibleDescription(`${repo.name} / feat/route`);
+  const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
+  const project = sidebar.getByRole("list", { name: repo.name, exact: true });
+  await expect(
+    project.getByRole("button", { name: /^Review branch output/ }),
+  ).toHaveAccessibleDescription(`${repo.name} / feat/route`);
+  await expect(
+    project.getByRole("button", { name: /^Watch the main branch/ }),
+  ).toHaveAccessibleDescription(`${repo.name} / main`);
   await unfoldRepository(page, repo.name);
   await page.getByRole("treeitem", { name: /^feat\/route/ }).click();
   const heading = page.getByRole("heading", { level: 1, name: /feat\/route/ });
