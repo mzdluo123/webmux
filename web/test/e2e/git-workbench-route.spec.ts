@@ -99,8 +99,23 @@ test("the Git and session views switch in both directions without losing the sel
   workDir,
 }) => {
   const { repo, featWt } = await setupRepoWithLinkedWorktree(request, workDir);
+  expect(
+    (
+      await request.post("/api/sessions", {
+        data: {
+          name: "Review branch output",
+          workspace: { repositoryId: repo.id, worktreeId: featWt.id },
+          cmd: ["/bin/sh", "-c", "sleep 120"],
+        },
+      })
+    ).status(),
+  ).toBe(201);
   await page.goto("/");
   await revealSidebar(page);
+  const row = page
+    .getByRole("navigation", { name: "导航", exact: true })
+    .getByRole("button", { name: /^Review branch output/ });
+  await expect(row).toHaveAccessibleDescription(`${repo.name} / feat/route`);
   await unfoldRepository(page, repo.name);
   await page.getByRole("treeitem", { name: /^feat\/route/ }).click();
   const heading = page.getByRole("heading", { level: 1, name: /feat\/route/ });

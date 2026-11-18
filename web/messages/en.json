@@ -4616,6 +4616,8 @@
   "s8_reload_preview_btn": "Reload preview",
   "s8_remote_branch_creates_local_help": "Selecting a remote branch creates a matching local branch tracking it.",
   "s8_remote_branches": "Remote branches",
+  "s8_sidebar_all_sessions": "All sessions",
+  "s8_sidebar_workspaces": "Repositories and worktrees",
   "s8_queue_attention": "Needs attention",
   "s8_queue_attention_view": "Sessions needing attention",
   "s8_queue_close_preview": "Close preview",

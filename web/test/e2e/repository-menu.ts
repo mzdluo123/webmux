@@ -1,4 +1,19 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
+
+async function showWorkspaceTree(page: Page, tree: Locator, open: Locator) {
+  const disclosure = page.getByRole("button", {
+    name: "仓库与工作树",
+    exact: true,
+  });
+  await expect(tree.or(open).or(disclosure).first()).toBeVisible({
+    timeout: 2000,
+  });
+  if (await tree.isVisible()) return false;
+  const opened = !(await disclosure.isVisible());
+  if (opened) await open.click({ timeout: 2000 });
+  if (!(await tree.isVisible())) await disclosure.click({ timeout: 2000 });
+  return opened;
+}
 
 // Opens a sidebar tree row's "⋯" menu (the phone drawer on narrow
 // screens); `label` matches the start of the menu button's name. Returns
@@ -11,11 +26,7 @@ async function openSidebarMenu(page: Page, label: RegExp) {
   // The sidebar renders after the page loads and a phone drawer may still be
   // sliding shut from an earlier step: retry from whichever form is shown.
   await expect(async () => {
-    await expect(tree.or(open).first()).toBeVisible({ timeout: 2000 });
-    if (!(await tree.isVisible())) {
-      await open.click({ timeout: 2000 });
-      opened = true;
-    }
+    if (await showWorkspaceTree(page, tree, open)) opened = true;
     await trigger.click({ timeout: 2000 });
   }).toPass();
   return opened;
@@ -94,8 +105,7 @@ export async function unfoldRepository(page: Page, repositoryName: string) {
     name: new RegExp(`^(展开|收起)${escape(repositoryName)}$`),
   });
   await expect(async () => {
-    await expect(tree.or(open).first()).toBeVisible({ timeout: 2000 });
-    if (!(await tree.isVisible())) await open.click({ timeout: 2000 });
+    await showWorkspaceTree(page, tree, open);
     await expect(toggle).toBeVisible({ timeout: 2000 });
   }).toPass();
   if ((await toggle.getAttribute("aria-label"))?.startsWith("展开"))

@@ -287,7 +287,7 @@ async function pick(
 
 /**
  * Leaves a session page for the session list: the header's back button on
- * wide screens; on phones the sidebar drawer's "全部仓库".
+ * wide screens; on phones the sidebar drawer's session overview entry.
  */
 export async function backToList(page: Page) {
   const back = page.getByRole("button", { name: "返回会话列表", exact: true });
@@ -296,8 +296,13 @@ export async function backToList(page: Page) {
   if (await back.isVisible()) return back.click();
   await open.click();
   await page
-    .getByRole("tree", { name: "仓库与会话" })
-    .locator('[data-tree-key="all"]')
+    .getByRole("button", { name: "全部会话", exact: true })
+    .or(
+      page
+        .getByRole("tree", { name: "仓库与会话" })
+        .locator('[data-tree-key="all"]'),
+    )
+    .first()
     .click();
 }
 

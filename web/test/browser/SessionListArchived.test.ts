@@ -374,6 +374,7 @@ test("a scope without archived matches shows the empty state", async () => {
   render(ShellHarness, { drafts: createTerminalDrafts() });
   const socket = await connected();
   socket.message({ type: "snapshot", sessions: [], forwards: [] });
+  await page.getByRole("button", { name: "仓库与工作树", exact: true }).click();
   await page.getByRole("treeitem", { name: "other", exact: true }).click();
   await page
     .getByRole("radiogroup", { name: "按会话状态筛选" })

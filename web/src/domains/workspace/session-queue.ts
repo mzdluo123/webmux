@@ -53,5 +53,5 @@ export function queueLocation(
     (item) => item.id === session.workspace?.worktreeId,
   );
   if (tree) return `${repository.name} / ${worktreeTitle(tree)}`;
-  return `${repository.name} / ${session.workspace?.worktreePath ?? session.cwd}`;
+  return `${repository.name} / ${session.released?.branch ?? session.workspace?.worktreePath ?? session.cwd}`;
 }

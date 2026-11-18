@@ -3912,6 +3912,8 @@
   "s8_reload_preview_btn": "重新读取预览",
   "s8_remote_branch_creates_local_help": "远程分支会新建同名本地分支并设为其上游。",
   "s8_remote_branches": "远程分支",
+  "s8_sidebar_all_sessions": "全部会话",
+  "s8_sidebar_workspaces": "仓库与工作树",
   "s8_queue_attention": "待我处理",
   "s8_queue_attention_view": "待处理会话",
   "s8_queue_close_preview": "关闭预览",

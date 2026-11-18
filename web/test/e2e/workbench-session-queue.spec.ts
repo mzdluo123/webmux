@@ -108,9 +108,18 @@ test("the default queue prioritizes explicit attention and keeps a focused sessi
   if (info.project.use.isMobile)
     await page.getByRole("button", { name: "打开侧栏" }).click();
   const tree = page.getByRole("tree", { name: "仓库与会话" });
+  await expect(tree).toHaveCount(0);
+  const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
+  const conversation = sidebar.getByRole("button", { name: /^Watch backend/ });
+  await expect(conversation).toHaveCount(1);
+  await expect(conversation).toHaveAccessibleDescription(workDir);
+  const attentionRows = sidebar.getByRole("list", {
+    name: "待我处理",
+    exact: true,
+  });
   await expect(
-    tree.getByRole("treeitem", { name: /Watch backend/ }),
-  ).toHaveCount(0);
+    attentionRows.getByRole("button", { name: /^Review build/ }),
+  ).toHaveCount(1);
   await page.getByRole("button", { name: /^待处理会话/ }).click();
   await expect(search).toHaveValue("");
   await expect(issue).toHaveAttribute("data-queue-group", "attention");
