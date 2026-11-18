@@ -98,6 +98,9 @@
       class={cn(
         "flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-xl",
         className,
+        // The desktop focus scope survives a resize. Use the available width
+        // at phone sizes so zoomed text has the same room as in a drawer.
+        "max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-0 max-sm:max-h-[95dvh] max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:px-4",
       )}
       onEscapeKeydown={(event) => {
         if (busy || onback?.()) event.preventDefault();
@@ -107,7 +110,7 @@
       }}
     >
       <ScrollArea class="min-h-8">
-        <div class="grid gap-4 [&>*]:min-w-0">
+        <div class="grid gap-4 [&>*]:min-w-0 max-sm:pb-safe-4">
           {#if actions}
             <div class="flex min-w-0 items-start gap-3 pr-8">
               <Dialog.Header class="min-w-0 flex-1 pr-0">
