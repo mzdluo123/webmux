@@ -27,6 +27,7 @@
     forwarding = $bindable(false),
     excluded,
     feedSessions,
+    oncancelchoose,
     onselect,
     oncreated,
   }: {
@@ -36,6 +37,7 @@
     forwarding: boolean;
     excluded: string[];
     feedSessions: readonly SessionInfo[];
+    oncancelchoose: () => void;
     onselect: (sessionId: string, direction: SplitDirection) => void;
     oncreated: (
       session: SessionInfo,
@@ -103,6 +105,7 @@
     {excluded}
     onclose={() => {
       choosing = false;
+      oncancelchoose();
     }}
     {onselect}
   />

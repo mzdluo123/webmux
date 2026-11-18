@@ -140,6 +140,12 @@
     menuOpen = true;
   }
 
+  function restoreRowFocus(event: Event) {
+    event.preventDefault();
+    if (!menuOpen && !naming && !confirmOpen)
+      returnFocus?.focus({ preventScroll: true });
+  }
+
   export function capture(): Clipboard | undefined {
     return cloneClipboard(clipboard);
   }
@@ -313,13 +319,13 @@
     {progress}
     cancel={() => uploadController?.abort()}
   />{/if}
-{#if download}<div
-    class="flex shrink-0 items-center gap-2 px-2 py-1 text-xs"
-    role="status"
-  >
-    <span class="min-w-0 flex-1 truncate"
-      >{formatDownloadProgress(download.name, download.bytes)}</span
+{#if download}
+  {@const status = formatDownloadProgress(download.name, download.bytes)}
+  <div class="flex shrink-0 items-center gap-2 px-2 py-1 text-xs" role="status">
+    <span class="min-w-0 flex-1 truncate" title={download.name}
+      >{status.label}</span
     >
+    <span class="shrink-0 tabular-nums">{status.size}</span>
     <Button
       variant="ghost"
       size="xs"
@@ -368,10 +374,7 @@
       aria-label={target
         ? m.s5_file_actions_for({ name: target.name })
         : m.s5_file_actions()}
-      onCloseAutoFocus={(event) => {
-        event.preventDefault();
-        returnFocus?.focus();
-      }}
+      onCloseAutoFocus={restoreRowFocus}
     >
       {#each actions as action, index (action.label)}
         {#if index > 0 && action.group !== actions[index - 1]?.group}<DropdownMenu.Separator
@@ -390,6 +393,7 @@
 {:else}
   <Drawer.Root bind:open={menuOpen}>
     <Drawer.Content
+      onCloseAutoFocus={restoreRowFocus}
       aria-label={target
         ? m.s5_file_actions_for({ name: target.name })
         : m.s5_file_actions()}
