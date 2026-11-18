@@ -3,6 +3,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Label } from "$lib/components/ui/label";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { Switch } from "$lib/components/ui/switch";
   import { Textarea } from "$lib/components/ui/textarea";
   import { useP2PSettings } from "../../hooks/settings/p2p-settings.svelte";
@@ -184,6 +185,14 @@
       {m.s2_p2p_nop2p_before()}<code>-tags nop2p</code>{m.s2_p2p_nop2p_after()}
     </InlineNotice>
   {:else if status}
+    {#if !status.storageAvailable}
+      <InlineNotice tone="warning">
+        {status.storageError
+          ? m.s2_p2p_storage_err({ error: status.storageError })
+          : m.relay_storage_warning()}
+      </InlineNotice>
+    {/if}
+
     <div class="space-y-2">
       <div class="flex items-center justify-between gap-4">
         <Label for="p2p-enabled">{m.s2_p2p_enable_label()}</Label>
@@ -256,29 +265,30 @@
           onclick={() => void resetToConfig()}>{m.s2_p2p_reset_config()}</Button
         >
       </div>
-      <div class="h-20 overflow-y-auto overscroll-contain">
-        {#if stunError}
-          <p
-            id="p2p-stun-feedback"
-            role="alert"
-            class="text-xs wrap-anywhere text-destructive"
-          >
-            {stunError}
-          </p>
-        {/if}
-        {#if !status.storageAvailable && status.storageError}
-          <InlineNotice tone="warning" size="compact">
-            {m.s2_p2p_storage_err({ error: status.storageError })}
-          </InlineNotice>
-        {/if}
-        {#if ui.failure}
-          <InlineNotice tone="danger" size="compact">{ui.failure}</InlineNotice>
-        {:else if ui.feedback}
-          <p role="status" class="text-xs text-muted-foreground">
-            {ui.feedback}
-          </p>
-        {/if}
-      </div>
+      {#if stunError || ui.failure}
+        <ScrollArea class="max-h-20">
+          <div class="space-y-1.5">
+            {#if stunError}
+              <p
+                id="p2p-stun-feedback"
+                role="alert"
+                class="text-xs wrap-anywhere text-destructive"
+              >
+                {stunError}
+              </p>
+            {/if}
+            {#if ui.failure}
+              <InlineNotice tone="danger" size="compact"
+                >{ui.failure}</InlineNotice
+              >
+            {/if}
+          </div>
+        </ScrollArea>
+      {:else if ui.feedback}
+        <p role="status" class="text-xs text-muted-foreground">
+          {ui.feedback}
+        </p>
+      {/if}
     </div>
 
     <section
