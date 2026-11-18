@@ -265,3 +265,25 @@ test("disabled forwarding contributes no prompt or request for listening ports",
   await expect.element(prompt(5173)).not.toBeInTheDocument();
   expect(fetch).not.toHaveBeenCalled();
 });
+
+test("suppresses the upload strip while the terminal viewport renders its floating progress card", async () => {
+  const cancel = vi.fn();
+  const uploads = {
+    progress: {
+      name: "demo.png",
+      index: 1,
+      total: 1,
+      percent: 65,
+      waiting: false,
+    },
+    cancel,
+  };
+  const view = await notices({ uploads, hideUploadProgress: true });
+  const bar = page.getByRole("progressbar", { name: "文件上传进度" });
+  await expect.element(bar).not.toBeInTheDocument();
+
+  await view.rerender({ uploads, hideUploadProgress: false });
+  await expect.element(bar).toBeVisible();
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  expect(cancel).toHaveBeenCalledOnce();
+});

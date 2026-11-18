@@ -52,6 +52,7 @@
     setTouchGamepad,
     findOpen = false,
     findBar,
+    uploadProgress,
   }: {
     container?: HTMLDivElement;
     terminal: ViewportTerminal;
@@ -72,6 +73,7 @@
     setTouchGamepad: (value: boolean) => void;
     findOpen?: boolean;
     findBar?: Snippet;
+    uploadProgress?: Snippet;
   } = $props();
 
   const gamepadAvailable = $derived(
@@ -116,6 +118,7 @@
       bind:this={container}
     ></div>
     {@render findBar?.()}
+    {@render uploadProgress?.()}
     {#if uploads?.dragging}
       <div
         class="pointer-events-none absolute inset-0 z-20 flex items-center justify-center border-2 border-dashed border-primary bg-background/90"

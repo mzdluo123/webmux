@@ -335,3 +335,113 @@ test("floating jump-to-latest button centers near the bottom across desktop and 
     await page.viewport(1024, 768);
   }
 });
+
+test("floating upload progress stays inside terminal-area, preserves grid size, and shifts below find bar", async () => {
+  const cancelUpload = vi.fn();
+  try {
+    await page.viewport(1280, 720);
+    const view = await render(Harness, {
+      connection: "connected",
+      restoring: false,
+      width: 720,
+      cancelUpload,
+    });
+    const wrapper = document.querySelector(".session-terminal")!;
+    const column = document.querySelector(".terminal-column")!;
+    const area = document.querySelector(".terminal-area")!;
+    const host = document.querySelector(".terminal-host")!;
+    const initialHost = host.getBoundingClientRect();
+
+    // Idle terminal fills the full wrapper height with no extra dock below SoftKeys.
+    expect(column.getBoundingClientRect().height).toBeCloseTo(
+      wrapper.getBoundingClientRect().height,
+      0,
+    );
+    expect(wrapper.children).toHaveLength(1);
+    await expect
+      .element(page.getByRole("progressbar", { name: "文件上传进度" }))
+      .not.toBeInTheDocument();
+
+    const progress = {
+      name: "archive.tar.gz",
+      index: 1,
+      total: 2,
+      percent: 42,
+      waiting: false,
+    };
+    await view.rerender({
+      connection: "connected",
+      restoring: false,
+      width: 720,
+      uploadProgress: progress,
+      cancelUpload,
+    });
+
+    const bar = page.getByRole("progressbar", { name: "文件上传进度" });
+    await expect.element(bar).toBeVisible();
+    const card = document.querySelector<HTMLElement>(
+      '[aria-label="文件上传状态"]',
+    )!;
+    expect(card.parentElement).toBe(area);
+    expect(host.getBoundingClientRect()).toEqual(initialHost);
+
+    const desktopArea = area.getBoundingClientRect();
+    const desktopCard = card.getBoundingClientRect();
+    expect(desktopCard.width).toBeCloseTo(320, 0);
+    expect(desktopArea.right - desktopCard.right).toBeCloseTo(8, 0);
+    expect(desktopCard.top - desktopArea.top).toBeCloseTo(8, 0);
+    expect(desktopCard.bottom).toBeLessThan(desktopArea.bottom - 40);
+
+    // Opening find shifts the floating upload card below the search form.
+    await view.rerender({
+      connection: "connected",
+      restoring: false,
+      width: 720,
+      findOpen: true,
+      uploadProgress: progress,
+      cancelUpload,
+    });
+    const findBox = page
+      .getByRole("search", { name: "查找终端输出" })
+      .element()
+      .getBoundingClientRect();
+    const shiftedCard = card.getBoundingClientRect();
+    expect(shiftedCard.top).toBeGreaterThanOrEqual(findBox.bottom);
+    expect(shiftedCard.bottom).toBeLessThanOrEqual(desktopArea.bottom);
+    expect(host.getBoundingClientRect()).toEqual(initialHost);
+
+    // Phone viewport spans inset-x-2 without horizontal overflow or bottom overlap.
+    await page.viewport(390, 844);
+    await view.rerender({
+      connection: "connected",
+      restoring: false,
+      width: 360,
+      findOpen: false,
+      uploadProgress: progress,
+      cancelUpload,
+    });
+    const mobileArea = area.getBoundingClientRect();
+    const mobileCard = card.getBoundingClientRect();
+    expect(Math.abs(mobileCard.left - mobileArea.left - 8)).toBeLessThanOrEqual(
+      1,
+    );
+    expect(
+      Math.abs(mobileArea.right - mobileCard.right - 8),
+    ).toBeLessThanOrEqual(1);
+    expect(mobileCard.bottom).toBeLessThan(mobileArea.bottom - 40);
+
+    await page.getByRole("button", { name: "取消", exact: true }).click();
+    expect(cancelUpload).toHaveBeenCalledOnce();
+
+    await view.rerender({
+      connection: "connected",
+      restoring: false,
+      width: 360,
+      uploadProgress: null,
+      cancelUpload,
+    });
+    await expect.element(bar).not.toBeInTheDocument();
+  } finally {
+    await page.viewport(1024, 768);
+  }
+});
