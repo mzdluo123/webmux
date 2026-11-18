@@ -8,6 +8,7 @@
   } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import type { GitBranchItem } from "../../contracts/git-workbench-schemas";
+  import { paneEnter } from "../../hooks/shared/pane-enter";
   import type { GitDiffPanelReader } from "../../hooks/workspace/git-log-diff.svelte";
   import GitLogDiffPanel from "./GitLogDiffPanel.svelte";
 
@@ -83,7 +84,7 @@
 
     <div class="space-y-1.5">
       <Label>{m.s6_rev_compare_target_label()}</Label>
-      <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+      <div class="space-y-1.5">
         {#if hasWorktree}
           <SegmentedControl
             value={targetKind}
@@ -100,22 +101,32 @@
             </SegmentedControlItem>
           </SegmentedControl>
         {/if}
-        {#if !hasWorktree || targetKind === "rev"}
-          <Input
-            size="sm"
-            mono
-            value={targetOid}
-            placeholder={m.s6_rev_compare_target_placeholder()}
-            aria-label={m.s6_rev_compare_target_aria()}
-            oninput={(e) => onTargetOidChange(e.currentTarget.value)}
-            data-testid="git-rev-compare-target-input"
-          />
-        {/if}
+        <div class="min-h-(--control-sm)">
+          {#if !hasWorktree || targetKind === "rev"}
+            <div use:paneEnter={hasWorktree}>
+              <Input
+                size="sm"
+                mono
+                value={targetOid}
+                placeholder={m.s6_rev_compare_target_placeholder()}
+                aria-label={m.s6_rev_compare_target_aria()}
+                oninput={(e) => onTargetOidChange(e.currentTarget.value)}
+                data-testid="git-rev-compare-target-input"
+              />
+            </div>
+          {/if}
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="min-h-0 min-w-0 flex-1">
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex (The result stays keyboard reachable while the diff loads.) -->
+  <div
+    class="min-h-0 min-w-0 flex-1 focus-visible:outline focus-visible:-outline-offset-1 focus-visible:outline-ring"
+    role="group"
+    aria-label={m.s6_log_diff_section_aria()}
+    tabindex="0"
+  >
     <GitLogDiffPanel logDiff={diffReader} presentation="docked" />
   </div>
 </div>
