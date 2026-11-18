@@ -449,14 +449,6 @@
       tabindex="-1"
       aria-label={m.s5_readonly_code()}
     ></div>
-    <CodeReaderPanels
-      panel={find.panel}
-      query={find.search}
-      line={selected?.start ?? 1}
-      status={`${side === "old" ? m.s5_before() : m.s5_after()} · ${find.status}`}
-      {...find.panelProps}
-      ongoto={goto}
-    />
     {#if !hasChanges}
       <p
         class="absolute inset-x-0 top-8 text-center text-sm text-muted-foreground"
@@ -470,6 +462,14 @@
     {track}
     bind:trackElement
     onscroll={horizontalScrollbar.onTrackScroll}
+  />
+  <CodeReaderPanels
+    panel={find.panel}
+    query={find.search}
+    line={selected?.start ?? 1}
+    status={`${side === "old" ? m.s5_before() : m.s5_after()} · ${find.status}`}
+    {...find.panelProps}
+    ongoto={goto}
   />
 </div>
 

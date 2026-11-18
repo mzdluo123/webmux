@@ -107,11 +107,27 @@ test("read-only virtualized full file, real line selection, search and goto", as
 
 test("reader controls open without moving the displayed lines", async () => {
   render(Harness, {
-    text: Array.from({ length: 40 }, (_, i) => `line ${i + 1}`).join("\n"),
+    text: Array.from({ length: 100 }, (_, i) => `line ${i + 1}`).join("\n"),
+    restore: {
+      line: 8,
+      offset: 0,
+      search: {
+        search: "",
+        caseSensitive: false,
+        regexp: false,
+        wholeWord: false,
+      },
+    },
   });
   const surface = page.getByLabelText("只读代码");
   await expect.poll(() => row(12)?.textContent).toBe("line 12");
-  const lineY = () => row(12)?.getBoundingClientRect().y;
+  await document.fonts.ready;
+  const host = surface.element();
+  await expect.poll(() => host.scrollTop).toBeGreaterThan(100);
+  const lineY = () =>
+    row(12)!.getBoundingClientRect().y - host.getBoundingClientRect().y;
+  const hostY =
+    host.getBoundingClientRect().y - document.body.getBoundingClientRect().y;
   const initialY = lineY();
 
   await page.getByRole("button", { name: "文件内查找" }).click();
@@ -119,6 +135,9 @@ test("reader controls open without moving the displayed lines", async () => {
   await expect.element(search).toHaveFocus();
   await search.fill("line");
   expect(lineY()).toBe(initialY);
+  expect(
+    host.getBoundingClientRect().y - document.body.getBoundingClientRect().y,
+  ).toBe(hostY);
   await userEvent.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
   await expect
     .element(page.getByRole("textbox", { name: "跳转到行" }))

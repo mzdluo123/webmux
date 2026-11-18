@@ -29,9 +29,7 @@
 </script>
 
 {#if panel}
-  <div
-    class="absolute inset-x-0 top-0 z-10 max-h-full overflow-auto border-b bg-background shadow-sm sm:left-auto sm:w-full sm:max-w-lg sm:border-l"
-  >
+  <div class="max-h-[45%] shrink-0 overflow-auto border-t bg-background">
     {#if panel === "search"}
       <CodeSearchPanel {query} {onquery} {onnext} {onprevious} {onclose} />
       {#if status}
