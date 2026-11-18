@@ -2469,3 +2469,65 @@ test("recalls sent text and slash commands without taking over the caret", async
   await userEvent.keyboard("{ArrowUp}{ArrowDown}");
   await expect.element(input).toHaveValue("未发送的草稿");
 });
+
+test.each(["permission", "form"] as const)(
+  "a long %s request keeps a readable transcript and actions within the chat pane",
+  async (kind) => {
+    await page.viewport(390, 844);
+    try {
+      const socket = await open();
+      const request: ChatRequest =
+        kind === "permission"
+          ? {
+              ...permission,
+              options: Array.from({ length: 24 }, (_, index) => ({
+                optionId: String(index),
+                name: `选项 ${index}：${"较长的示例说明".repeat(8)}`,
+                kind: "allow_once",
+              })),
+            }
+          : {
+              requestId: "long-form",
+              kind: "form",
+              form: {
+                message: "请填写以下字段。",
+                supported: true,
+                fields: Array.from({ length: 24 }, (_, index) => ({
+                  name: `field${index}`,
+                  title: `字段 ${index}`,
+                  description: "较长的字段说明。".repeat(8),
+                  type: "string",
+                  required: false,
+                })),
+              },
+            };
+      socket.frame(
+        snapshot(chatState({ turn: { running: true }, requests: [request] })),
+      );
+      const dock = document.querySelector<HTMLElement>("[data-chat-dock]")!;
+      const transcript = document.querySelector<HTMLElement>(
+        "[data-chat-transcript-scroll]",
+      )!;
+      await expect
+        .element(
+          page.getByText(kind === "form" ? "请填写以下字段。" : "等待授权", {
+            exact: true,
+          }),
+        )
+        .toBeVisible();
+      const dockHeight = dock.getBoundingClientRect().height;
+      const transcriptHeight = transcript.getBoundingClientRect().height;
+      expect(dockHeight).toBeLessThanOrEqual(450);
+      expect(transcriptHeight).toBeGreaterThan(100);
+      const finalControl =
+        kind === "form"
+          ? page.getByRole("textbox", { name: "字段 23" })
+          : page.getByRole("button", { name: /选项 23/ });
+      await finalControl.click();
+      if (kind === "form")
+        expect(document.activeElement).toBe(finalControl.element());
+    } finally {
+      await page.viewport(1024, 900);
+    }
+  },
+);
