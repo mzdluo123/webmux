@@ -35,6 +35,8 @@
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import SessionStatus from "../src/components/sessions/SessionStatus.svelte";
   import SessionRow from "../src/components/sessions/SessionRow.svelte";
+  import ModeSwitch from "../src/components/shell/ModeSwitch.svelte";
+  import type { ShellMode } from "../src/hooks/shared/shell.svelte";
   import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import { session, now } from "./fixtures";
   import type { SessionInfo } from "../src/contracts/schemas";
@@ -74,6 +76,7 @@
   let repository = $state("webmux");
   let pickerOpen = $state(false);
   let model = $state("sonnet");
+  let shellMode = $state<ShellMode>("workbench");
   const sections = {
     foundations: [
       "设计基础",
@@ -315,6 +318,7 @@
         >
         <Button variant="outline">添加仓库</Button>
         <Button variant="ghost">刷新状态</Button>
+        <ModeSwitch mode={shellMode} onchange={(mode) => (shellMode = mode)} />
         <Button
           variant="ghost"
           aria-pressed={wrapping}

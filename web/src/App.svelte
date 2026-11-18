@@ -412,6 +412,7 @@
       bind:this={shell}
       route={shellRoute}
       {drafts}
+      requestRouteFocus={focusRoute}
       reconnection={relayReconnecting()
         ? {
             checking: reconnect.checking,

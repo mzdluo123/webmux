@@ -53,6 +53,7 @@
   let {
     route,
     drafts,
+    requestRouteFocus,
     reconnection,
     children,
   }: {
@@ -61,6 +62,7 @@
       { name: "sessions" | "quick-start" | "terminal" | "handoff" | "git" }
     >;
     drafts: TerminalDrafts;
+    requestRouteFocus?: (target: "sidebar-opener") => void;
     reconnection?: RelayReconnection;
     children: Snippet;
   } = $props();
@@ -269,11 +271,15 @@
     untrack(() => void repositories.refresh(true));
   });
 
+  let drawerOpener: HTMLElement | null = null;
+  let modeChangedInDrawer = false;
+
   // The drawer takes focus when it opens and gives it back to the button
   // that opened it when it closes in place.
   $effect(() => {
     if (!shellUi.drawerOpen) return;
-    const opener =
+    modeChangedInDrawer = false;
+    drawerOpener =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
@@ -282,11 +288,23 @@
         .querySelector<HTMLElement>('[data-slot="drawer-content"] button')
         ?.focus(),
     );
-    return () => {
-      clearTimeout(timer);
-      if (!shellUi.drawerOpen && opener?.isConnected) opener.focus();
-    };
+    return () => clearTimeout(timer);
   });
+
+  function restoreDrawerFocus(event: Event) {
+    if (shellUi.drawerOpen) return;
+    if (drawerOpener?.isConnected) {
+      event.preventDefault();
+      drawerOpener.focus();
+    } else if (
+      modeChangedInDrawer &&
+      (route.name === "sessions" || route.name === "quick-start")
+    ) {
+      // The replacement home header can mount after the drawer closes.
+      event.preventDefault();
+      requestRouteFocus?.("sidebar-opener");
+    }
+  }
 
   // A home page decides the mode; a session page keeps the remembered one.
   $effect(() => {
@@ -305,6 +323,7 @@
     if (next === shellUi.mode) return;
     shellUi.setMode(next);
     if (route.name !== "terminal" && route.name !== "git") {
+      modeChangedInDrawer = shellUi.drawerOpen;
       navigate(
         next === "chat"
           ? (contributions.chat?.navigation[0]?.href ?? shellUi.home)
@@ -425,11 +444,15 @@
 
 <!-- noBodyStyles: the page under it keeps its scroll position and layout. -->
 <Drawer.Root direction="left" noBodyStyles bind:open={shellUi.drawerOpen}>
-  <Drawer.Content class="w-80 max-w-[85vw] lg:hidden">
+  <Drawer.Content
+    class="w-80 max-w-[85vw] lg:hidden"
+    onCloseAutoFocus={restoreDrawerFocus}
+  >
     <Drawer.Title class="sr-only">{m.s1_navigation()}</Drawer.Title>
     <AppSidebar
       {route}
       {reconnection}
+      onclose={() => (shellUi.drawerOpen = false)}
       onmode={changeMode}
       onprimary={primary}
     />
