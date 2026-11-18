@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import { api } from "../../platform/api";
+  import { findShell } from "../../hooks/shared/shell.svelte";
   import {
     LaunchConfigsSchema,
     RepositoriesSchema,
@@ -43,6 +44,7 @@
     ) => void;
   } = $props();
 
+  const shell = findShell();
   let launchConfigs = $state.raw<LaunchConfigsState>({ status: "loading" });
   let repositories = $state.raw<Repository[]>([]);
   let creationController: AbortController | undefined;
@@ -122,7 +124,9 @@
           workspace: target.workspace,
         }}
         split
-        onchange={() => {}}
+        onchange={() => {
+          void shell?.repositories?.refresh(true);
+        }}
         onworktreecreated={(tree) => {
           // Keep the new target selectable even if command startup fails and
           // the form's temporary createdTree is cleared by a repository change.
@@ -149,6 +153,7 @@
                 true,
               ),
             );
+          void shell?.repositories?.refresh(true);
         }}
         onworktreeremoved={(tree) => {
           repositories = repositories.map((repo) =>
@@ -161,6 +166,7 @@
                 }
               : repo,
           );
+          void shell?.repositories?.refresh(true);
         }}
         oncreated={(session, direction) => {
           const targetId = target.id;

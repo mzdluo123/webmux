@@ -1,8 +1,18 @@
 import { z } from "zod";
 import { api, store, stored } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
+import { connect } from "../../platform/ws";
+import type { Connection } from "../../platform/ws-contracts";
+import {
+  reloadSettings,
+  settings,
+} from "../../domains/settings/settings.svelte";
 import { homeCache } from "../../domains/workspace/home-cache";
-import { RepositoriesSchema, type Repository } from "../../contracts/schemas";
+import {
+  RepositoriesEventSchema,
+  RepositoriesSchema,
+  type Repository,
+} from "../../contracts/schemas";
 
 /** The registered repositories and the workbench's chosen view of them. */
 export interface Repositories {
@@ -40,6 +50,7 @@ export interface Repositories {
 }
 
 const ChoiceSchema = z.string().min(1).max(256);
+const STREAM_COALESCE_MS = 80;
 
 export function createRepositories(): Repositories {
   // The previous grouping renders at once instead of flashing ungrouped
@@ -55,6 +66,8 @@ export function createRepositories(): Repositories {
   let startup: Promise<void> | undefined;
   let generation = 0;
   let disposed = false;
+  let coalesceTimer: ReturnType<typeof setTimeout> | undefined;
+  let streamState: Connection = "connecting";
   const abort = new AbortController();
 
   async function read() {
@@ -73,6 +86,7 @@ export function createRepositories(): Repositories {
       if (!disposed && current === generation) {
         list = result;
         homeCache.rememberRepositories(result);
+        if (!settings.connected) void reloadSettings();
       }
     } catch (err) {
       if (!disposed && current === generation) error = errorMessage(err);
@@ -83,6 +97,48 @@ export function createRepositories(): Repositories {
       }
     }
   }
+
+  function refresh(force = false) {
+    if (!force && startup) return startup;
+    const pending = read();
+    if (generation === 1) {
+      startup = pending;
+      void pending.finally(() => {
+        startup = undefined;
+      });
+    }
+    return pending;
+  }
+
+  function scheduleStreamRefresh() {
+    if (disposed || coalesceTimer !== undefined) return;
+    coalesceTimer = setTimeout(() => {
+      coalesceTimer = undefined;
+      if (!disposed) void refresh(true);
+    }, STREAM_COALESCE_MS);
+  }
+
+  const socket = connect(
+    "/ws/repositories",
+    (raw) => {
+      if (disposed || typeof raw !== "string") return;
+      try {
+        const parsed = RepositoriesEventSchema.safeParse(JSON.parse(raw));
+        if (parsed.success) scheduleStreamRefresh();
+      } catch {
+        // Ignore malformed text frames.
+      }
+    },
+    (state) => {
+      const reconnected =
+        state === "connected" && streamState === "reconnecting";
+      streamState = state;
+      if (reconnected) scheduleStreamRefresh();
+    },
+    () => {
+      // Explicit HTTP reads report repository errors; background stream drops retry silently.
+    },
+  );
 
   return {
     get list() {
@@ -109,27 +165,23 @@ export function createRepositories(): Repositories {
       store("homeRepository", id);
       store("homeWorktree", worktreeId ?? "");
     },
-    refresh(force = false) {
-      if (!force && startup) return startup;
-      const pending = read();
-      if (generation === 1) {
-        startup = pending;
-        void pending.finally(() => {
-          startup = undefined;
-        });
-      }
-      return pending;
-    },
+    refresh,
     replace(repository) {
       if (!list.some((item) => item.id === repository.id)) return;
       list = list.map((item) =>
         item.id === repository.id ? repository : item,
       );
       homeCache.rememberRepositories(list);
+      if (!settings.connected) void reloadSettings();
     },
     dispose() {
       disposed = true;
       ++generation;
+      if (coalesceTimer !== undefined) {
+        clearTimeout(coalesceTimer);
+        coalesceTimer = undefined;
+      }
+      socket.close();
       abort.abort();
     },
   };

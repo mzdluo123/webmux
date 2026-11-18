@@ -1,12 +1,36 @@
 package featureapi
 
 import (
-	"github.com/rainchan/webmux/internal/transport"
+	"context"
 	"net/http"
 
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/featurehub"
 	wire "github.com/rainchan/webmux/internal/featurewire"
+	"github.com/rainchan/webmux/internal/hub"
+	"github.com/rainchan/webmux/internal/transport"
+	"github.com/rainchan/webmux/internal/workspace"
 )
+
+func (s *Server) workspaceStream() transport.Stream {
+	return transport.Stream{
+		Pattern:   "GET /ws/repositories",
+		Exposure:  transport.All,
+		CloseCode: func(error) hub.StatusCode { return hub.StatusTryAgainLater },
+		Failure:   workspaceFailure,
+		Open: func(ctx context.Context, _ *http.Request) (func(hub.MessageConn), func(), error) {
+			if s.Workspace == nil {
+				return nil, nil, workspace.ErrUnavailable
+			}
+			sub, err := s.Workspace.Subscribe()
+			if err != nil {
+				return nil, nil, err
+			}
+			closeSub := func() { s.Workspace.Unsubscribe(sub) }
+			return func(conn hub.MessageConn) { featurehub.Workspaces(ctx, sub, closeSub, conn) }, closeSub, nil
+		},
+	}
+}
 
 func (s *Server) workspaceRoutes(mux transport.Registrar) {
 	const repo = "/api/repositories/{id}"

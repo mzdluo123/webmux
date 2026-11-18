@@ -676,3 +676,39 @@ func TestWorkspaceBranchOperationsAPI(t *testing.T) {
 	}
 	workspaceRequest(t, handler, "POST", base+"/delete", contract.BranchDeleteRequest{ConfirmationID: deletion.ConfirmationID}, 409)
 }
+
+func TestRepositoriesWebSocketEnforcesAuthAndStreamsChanges(t *testing.T) {
+	handler, service, _, root := workspaceAPI(t)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws/repositories"
+
+	if _, res, err := websocket.Dial(ctx, wsURL, nil); err == nil || res == nil || res.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated /ws/repositories: res=%v err=%v", res, err)
+	}
+	badOrigin := http.Header{"Origin": []string{"http://evil.example"}}
+	if _, res, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{HTTPHeader: badOrigin, Subprotocols: tokenProtocols("secret")}); err == nil || res == nil || res.StatusCode != http.StatusForbidden {
+		t.Fatalf("cross-origin /ws/repositories: res=%v err=%v", res, err)
+	}
+
+	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{Subprotocols: tokenProtocols("secret")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.CloseNow() }()
+
+	if _, created, err := service.Register(ctx, root); err != nil || !created {
+		t.Fatalf("Register: created=%v err=%v", created, err)
+	}
+	_, raw, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("Read /ws/repositories event: %v", err)
+	}
+	var event contract.RepositoriesEvent
+	if err := json.Unmarshal(raw, &event); err != nil || event.Type != "changed" {
+		t.Fatalf("unexpected /ws/repositories payload %s (%v)", raw, err)
+	}
+}

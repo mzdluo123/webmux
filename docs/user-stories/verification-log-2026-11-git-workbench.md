@@ -242,3 +242,27 @@
     - 隔离实例 Playwright E2E `git-workbench-log.spec.ts`、`git-workbench-commit-push.spec.ts`、`git-workbench-task-baseline.spec.ts`、`git-workbench-stash-blame.spec.ts`（24 项）通过；
     - 在隔离实例采集 `Log` 与 `Commit` 在桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色共 24 张修改前后对比截图，并通过 `1280×900` 至 `320×568` 及 `667×375` 共 7 组视口的 `scrollWidth <= innerWidth` 防溢出校验。
 - 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证物理 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核验；未重新核对本组以外的其余故事。
+
+## 2026-11-18：工作台工作区刷新与 Git worktree 实时同步（US-C08、US-C16、US-J03）
+
+- 范围（故事编号与总数 264 保持原状）：
+  - 服务端按需监听（`internal/workspace/watch.go`、`internal/featurehub/workspace.go`、`GET /ws/repositories`）：
+    - 仅在存在活跃订阅者时以 `2s` 周期比对 `<CommonDir>/HEAD` 与 `<CommonDir>/worktrees/*` 元数据哈希；
+    - `250ms` 防抖稳定后重关联活动会话并推送 `{"type":"changed"}`，仓库与工作树写操作完成后同步触发通知；
+  - 服务端已观测工作树基线（`internal/workspace/known_worktrees.go`、`internal/settings/service.go`）：
+    - 在 `repositories.json` 按仓库维护有界基线（单仓上限 1000 条），首次成功读取建立基线以保持历史空闲工作树隐藏；
+    - 基线建立后外部新增的可用 `linked` worktree 自动经 `settings.PinHomeWorktrees` 加入 `homeWorktrees`；
+    - 受控新建（含 `--no-pin`）与手动移出主页的工作树保持原选择，设置暂不可写时留待下次重读重试；
+  - 前端与工作台侧栏（`AppSidebar.svelte`、`AppShell.svelte`、`shell-resources.ts`、`repositories.svelte.ts`）：
+    - 展开侧栏在「新建会话」右侧并排提供「刷新工作区」图标按钮（`variant="outline" size="icon-touch"`，刷新中标记 `aria-busy`）；
+    - 订阅 `/ws/repositories`（`80ms` 合并防抖重读），并将前台恢复及工作台相关弹窗打开时的重读统一接到外壳生命周期。
+- 依据：
+  - 静态与治理门禁：`make check`、`pnpm --dir web check:arch`、`make docs-check`、`make persistence-check`、`go vet` 与 `make go-lint`（`golangci-lint` v2.15.0，0 issues）通过；
+  - Go `-race` 回归：
+    - `go test -race ./cmd/webmux ./internal/api ./internal/featureapi ./internal/featurehub ./internal/settings ./internal/workspace ./internal/featurewire ./internal/archtest ./internal/docguard` 通过；
+    - 覆盖 `watch_test.go` 与 `TestRepositoriesWebSocketEnforcesAuthAndStreamsChanges`；
+  - 前端回归：
+    - `WorkbenchTree.test.ts`、`AppShell.test.ts` 与 `TvNavigation.test.ts` 浏览器组件测试通过；
+    - Playwright E2E `worktrees.spec.ts`、`app-shell.spec.ts`、`workspace-discovery.spec.ts`、`repository-scope.spec.ts`、`i18n.spec.ts`、`git-workbench-route.spec.ts` 与 `tv-browser.spec.ts`（1280 与 1920）通过；
+  - 视觉核对：隔离演示服务在 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 明暗主题与中英文下 `scrollWidth <= innerWidth`，同排按钮高度一致。
+- 限制：仅在 Linux 无头 Chromium 下验证，`hover` 与 `any-pointer: coarse` 均为 `false`，物理鼠标悬停与触屏硬件行为未在手机、平板、macOS 或 Windows 真机验证。

@@ -132,5 +132,6 @@ func (s *Service) SetInitInstruction(ctx context.Context, id, text string) (Repo
 		snapshot = s.unavailableRepository(r, err)
 	}
 	snapshot.InitInstruction = instruction
+	s.notifyWorkspaces()
 	return snapshot, nil
 }

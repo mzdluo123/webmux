@@ -297,7 +297,6 @@ export function mountSessionListPolling(
   const visible = () => {
     if (!document.hidden) {
       onTick(Date.now());
-      refreshRepositories();
     }
   };
   document.addEventListener("visibilitychange", visible);

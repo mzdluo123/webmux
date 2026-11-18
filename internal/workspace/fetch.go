@@ -83,6 +83,9 @@ func (s *Service) fetchRemotesOnce(ctx context.Context, repositoryID string, req
 		runCtx := context.WithoutCancel(ctx)
 		go func() {
 			flight.result, flight.err = s.fetchRemotes(runCtx, r, opID, req, reqHash)
+			if flight.err == nil {
+				s.notifyWorkspaces()
+			}
 			r.fetchMu.Lock()
 			r.fetching = nil
 			r.fetchMu.Unlock()
