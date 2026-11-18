@@ -54,9 +54,13 @@ test("Sub-hunk line selector stages and unstages selected lines while preserving
   expect(toolbar.getBoundingClientRect().height).toBe(height);
 
   const clear = page.getByTestId("git-line-clear-btn");
+  await expect.element(clear).not.toHaveAttribute("aria-disabled", "true");
+  expect(clear.element().getAttribute("tabindex")).toBeNull();
   await clear.click();
   await expect.element(line).not.toBeChecked();
   await expect.element(clear).toHaveFocus();
+  await expect.element(clear).toHaveAttribute("aria-disabled", "true");
+  await expect.element(clear).toHaveAttribute("tabindex", "-1");
   expect(toolbar.getBoundingClientRect().height).toBe(height);
 
   await line.click();

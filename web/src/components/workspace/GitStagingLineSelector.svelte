@@ -109,6 +109,7 @@
 
   const selections = $derived(toGitLineSelections(selectionMap, hunks));
   const selectedCount = $derived(countSelectedLines(selections));
+  const clearDisabled = $derived(selectedCount === 0 || busy);
   const countDigits = $derived(
     String(
       hunks.reduce(
@@ -202,10 +203,11 @@
       <Button
         size="sm"
         variant="ghost"
-        disabled={busy}
-        aria-disabled={selectedCount === 0}
+        aria-disabled={clearDisabled || undefined}
+        tabindex={clearDisabled ? -1 : undefined}
         onclick={() => {
-          if (selectedCount > 0) clearSelection();
+          if (clearDisabled) return;
+          clearSelection();
         }}
         data-testid="git-line-clear-btn"
       >
