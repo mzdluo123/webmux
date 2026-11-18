@@ -27,7 +27,7 @@
   import { useTvTerminalBack } from "../../hooks/terminal/tv-terminal-back.svelte";
   import type { TerminalFeatures } from "../../features/terminal";
   import type ChatViewComponent from "../chat/ChatView.svelte";
-  import SessionSidePanel from "./SessionSidePanel.svelte";
+  import SessionPanelDock from "./SessionPanelDock.svelte";
 
   let {
     id,
@@ -172,12 +172,11 @@
   let findPanel = $state<TerminalFindBar>();
   let chatView = $state<ChatViewComponent>();
   let composer = $state<TerminalInputComposer>();
-  let sidePanel = $state<SessionSidePanel>();
+  let panelDock = $state<SessionPanelDock>();
   let header = $state<TerminalHeader>();
 
   function openPanels() {
-    codeShown = true;
-    sidePanel?.openPicker();
+    panelDock?.openPanels();
   }
 
   function closePanel() {
@@ -324,16 +323,16 @@
   onfind={hybrid.view === "terminal" ? showFind : undefined}
 >
   {#snippet codePane()}
-    <SessionSidePanel
-      bind:this={sidePanel}
+    <SessionPanelDock
+      bind:this={panelDock}
       bind:view={panelView}
-      shown={codeShown}
+      bind:shown={codeShown}
       codeAvailable={!!features.code}
       close={closePanel}
       {paneActions}
     >
       {@render codeContent()}
-    </SessionSidePanel>
+    </SessionPanelDock>
   {/snippet}
   {#snippet terminalPane()}
     <div

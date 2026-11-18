@@ -1899,6 +1899,7 @@
   "s4_output_preview": "Output preview",
   "s4_pane_limit_reached": "Maximum of 8 panes reached",
   "s4_panel_picker": "Panel picker",
+  "s4_panel_picker_hint": "Choose a side panel to open",
   "s4_panes_group_aria": "Panes",
   "s4_paste": "Paste",
   "s4_paste_content_aria": "Content to paste",
