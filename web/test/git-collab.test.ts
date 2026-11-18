@@ -1,54 +1,18 @@
-import type { FileDiffMetadata } from "@pierre/diffs";
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vite-plus/test";
-import {
-  GitWorkingChangeSchema,
-  GitWorktreeContextSchema,
-} from "../src/contracts/git-workbench-schemas";
+import { describe, expect, it } from "vite-plus/test";
+import { GitWorkingChangeSchema } from "../src/contracts/git-workbench-schemas";
 import { SessionInfoSchema } from "../src/contracts/schemas";
 import {
   joinCommitMessageDraft,
   mergeCommitMessageDrafts,
   splitCommitMessageDraft,
 } from "../src/domains/workspace/git-commit-draft-model";
-import {
-  createReworkDraftItem,
-  extractDiffRangeSnippet,
-  filterActiveWorktreeSessions,
-  formatCommitDraftAssistPrompt,
-  formatReworkFeedbackMarkdown,
-  readGitReworkItems,
-  resolveSnapshotVersionDescriptor,
-  resolveStagingVersionDescriptor,
-  writeGitReworkItems,
-} from "../src/domains/workspace/git-rework-model";
+import { filterActiveWorktreeSessions } from "../src/domains/workspace/git-workbench-adapter";
 import { isChangeReviewed } from "../src/domains/workspace/git-workbench-state";
 import {
   computeLocalReviewProgress,
   findNextUnreviewedTaskFile,
   findNextUnreviewedWorkingChange,
 } from "../src/hooks/workspace/git-review-sync.svelte";
-
-const sampleContext = GitWorktreeContextSchema.parse({
-  repositoryId: "repo-1",
-  repositoryName: "webmux",
-  worktreeId: "wt-feat",
-  worktreePath: "/work/webmux.worktrees/wt-feat",
-  worktreeKind: "linked",
-  checkedOutBranch: "feat/v1-collab",
-  headOid: "1111111111111111111111111111111111111111",
-  headState: "branch",
-  ahead: 1,
-  behind: 0,
-  authorName: "Rain Chan",
-  authorEmail: "rain@example.invalid",
-});
 
 describe("git commit draft model", () => {
   it("splits and rejoins subject and body without losing multiline content", () => {
@@ -166,169 +130,8 @@ describe("git review progress & next unreviewed jump", () => {
   });
 });
 
-class MemoryStorage implements Storage {
-  data = new Map<string, string>();
-  get length() {
-    return this.data.size;
-  }
-  clear() {
-    this.data.clear();
-  }
-  getItem(key: string) {
-    return this.data.get(key) ?? null;
-  }
-  key(index: number) {
-    return [...this.data.keys()][index] ?? null;
-  }
-  removeItem(key: string) {
-    this.data.delete(key);
-  }
-  setItem(key: string, value: string) {
-    this.data.set(key, value);
-  }
-}
-
-describe("git rework feedback anti-spoofing & session routing", () => {
-  beforeEach(() => {
-    vi.stubGlobal("localStorage", new MemoryStorage());
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("extracts snippet lines accurately from FileDiffMetadata", () => {
-    const fakeDiff = {
-      additionLines: ["line 1\n", "line 2\n", "line 3\n"],
-      deletionLines: ["old 1\n", "old 2\n"],
-    } as unknown as FileDiffMetadata;
-
-    const extracted = extractDiffRangeSnippet(fakeDiff, {
-      side: "additions",
-      start: 3,
-      end: 2,
-    });
-    expect(extracted).toEqual({
-      side: "new",
-      startLine: 2,
-      endLine: 3,
-      snippet: "line 2\nline 3",
-    });
-  });
-
-  it("distinguishes live worktree line numbers from index, HEAD, task-base and historical commits", () => {
-    expect(
-      resolveStagingVersionDescriptor({
-        group: "unstaged",
-        side: "new",
-        headOid: sampleContext.headOid,
-        liveWorktreeIdentity: "blob:abc",
-      }),
-    ).toEqual({
-      sourceKind: "worktree",
-      versionLabel: "当前工作区",
-      capturedWorktreeIdentity: "blob:abc",
-    });
-
-    expect(
-      resolveStagingVersionDescriptor({
-        group: "staged",
-        side: "old",
-        headOid: sampleContext.headOid,
-      }),
-    ).toEqual({
-      sourceKind: "head",
-      versionLabel: "HEAD (1111111) 删除侧",
-    });
-
-    expect(
-      resolveSnapshotVersionDescriptor({
-        isTaskScope: true,
-        side: "old",
-        leftLabel: "2222222",
-        rightLabel: "WORKTREE",
-        baseOid: "2222222",
-        targetOid: "WORKTREE",
-      }),
-    ).toEqual({
-      sourceKind: "task-base",
-      versionLabel: "任务起点 (2222222) 旧侧",
-    });
-
-    expect(
-      resolveSnapshotVersionDescriptor({
-        isTaskScope: false,
-        side: "new",
-        leftLabel: "2222222",
-        rightLabel: "1111111",
-        baseOid: "2222222",
-        targetOid: "1111111",
-      }),
-    ).toEqual({
-      sourceKind: "commit",
-      versionLabel: "历史提交 1111111",
-    });
-  });
-
-  it("formats structured rework Markdown with explicit non-worktree and stale warnings", () => {
-    const liveItem = createReworkDraftItem({
-      path: "internal/api/git.go",
-      sourceKind: "worktree",
-      versionLabel: "当前工作区",
-      startLine: 18,
-      endLine: 20,
-      codeSnippet: "if err != nil {\n\treturn err\n}",
-      userNote: "请映射 ErrConflict 到 409。",
-      capturedWorktreeIdentity: "blob:123",
-    });
-    const histItem = createReworkDraftItem({
-      path: "internal/workspace/history.go",
-      sourceKind: "commit",
-      versionLabel: "历史提交 1111111",
-      startLine: 42,
-      endLine: 42,
-      codeSnippet: "return nil",
-      userNote: "补充空仓处理。",
-    });
-
-    const md = formatReworkFeedbackMarkdown(
-      sampleContext,
-      [liveItem, histItem],
-      new Set(["internal/api/git.go"]),
-    );
-    expect(md).toContain("internal/api/git.go");
-    expect(md).toContain("自摘录后已有新改动");
-    expect(md).toContain("并非当前工作区实时行号");
-    expect(md).toContain("请映射 ErrConflict 到 409。");
-  });
-
-  it("persists rework items per worktree and filters active sessions strictly", () => {
-    const saved = writeGitReworkItems("repo-1", "wt-feat", [
-      createReworkDraftItem({
-        path: "main.go",
-        sourceKind: "worktree",
-        versionLabel: "当前工作区",
-        startLine: 1,
-        endLine: 1,
-        codeSnippet: "package main",
-      }),
-    ]);
-    expect(saved).toHaveLength(1);
-    expect(readGitReworkItems("repo-1", "wt-feat")).toHaveLength(1);
-    expect(readGitReworkItems("repo-1", "wt-other")).toHaveLength(0);
-
-    const prompt = formatCommitDraftAssistPrompt(sampleContext, [
-      GitWorkingChangeSchema.parse({
-        id: "staged:main.go",
-        path: "main.go",
-        group: "staged",
-        status: "M",
-        hunkStageAvailable: true,
-      }),
-    ]);
-    expect(prompt).toContain("交付内容为提交说明文本");
-    expect(prompt).toContain("- [M] main.go");
-
+describe("worktree active session filtering", () => {
+  it("filters active non-exited sessions matching worktreeId or worktreePath", () => {
     const baseSess = {
       generation: "0123456789abcdef",
       title: "Agent",

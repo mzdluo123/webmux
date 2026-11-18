@@ -4,28 +4,19 @@
     GitWorkingChange,
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
-  import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
-  import type { GitAmendDraftPrompt } from "../../hooks/workspace/git-commit-options.svelte";
   import type { GitFileInspectorTab } from "../../hooks/workspace/git-file-inspector-controller.svelte";
-  import type { GitCommitComposerCallbacks } from "./GitCommitComposer.svelte";
+  import type {
+    GitCommitComposerCallbacks,
+    GitCommitComposerStateProps,
+  } from "./GitCommitComposer.svelte";
 
-  export interface GitUncommittedChangesSharedProps extends GitCommitComposerCallbacks {
+  export interface GitUncommittedChangesSharedProps
+    extends GitCommitComposerStateProps, GitCommitComposerCallbacks {
     context: GitWorktreeContext;
     changes: readonly GitWorkingChange[];
     reviewedPaths: readonly string[];
-    commitMessage: string;
     taskReview?: GitTaskReviewState;
     stagingBusy?: boolean;
-    uncertainBlocked?: boolean;
-    draftSaving?: boolean;
-    draftRevision?: number;
-    draftConflict?: GitCommitDraftConflictState | null;
-    commitAmend?: boolean;
-    commitAmendPushed?: boolean;
-    commitAuthorOverride?: string;
-    commitSignoff?: boolean;
-    commitSignoffTrailer?: string;
-    amendDraftPrompt?: GitAmendDraftPrompt | null;
     hasActiveWorktreeSession?: boolean;
     activeSessionCount?: number;
     exitedSessionCount?: number;
@@ -121,7 +112,6 @@
     onResolveDraftKeepLocal,
     onResolveDraftAdoptRemote,
     onResolveDraftMergeBoth,
-    onRequestCommitAssist,
     onToggleCommitAmend,
     onResolveAmendDraft,
     onCommitAuthorOverrideChange,
@@ -478,7 +468,6 @@
     {commitSignoff}
     {commitSignoffTrailer}
     {amendDraftPrompt}
-    canAssistCommitDraft={activeSessionCount > 0}
     {onCommitMessageChange}
     {onOpenCommitPreview}
     {onOpenPush}
@@ -486,7 +475,6 @@
     {onResolveDraftKeepLocal}
     {onResolveDraftAdoptRemote}
     {onResolveDraftMergeBoth}
-    {onRequestCommitAssist}
     {onToggleCommitAmend}
     {onResolveAmendDraft}
     {onCommitAuthorOverrideChange}

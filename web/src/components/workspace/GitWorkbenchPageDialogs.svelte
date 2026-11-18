@@ -1,12 +1,6 @@
 <script lang="ts">
   import type { GitPrecedingCommit } from "../../contracts/git-workbench-schemas";
-  import type { SessionInfo } from "../../contracts/schemas";
-  import {
-    deliverTextToWorktreeSession,
-    startNewWorktreeSessionWithText,
-  } from "../../hooks/workspace/git-session-handoff";
   import type { createGitWorkbenchController } from "../../hooks/workspace/git-workbench-controller.svelte";
-  import type { Shell } from "../../hooks/shared/shell.svelte";
   import GitAbortOperationDialog from "./GitAbortOperationDialog.svelte";
   import GitBranchRenameDialog from "./GitBranchRenameDialog.svelte";
   import GitBranchUpstreamDialog from "./GitBranchUpstreamDialog.svelte";
@@ -16,7 +10,6 @@
   import GitFileInspectorDialog from "./GitFileInspectorDialog.svelte";
   import GitPushDialog from "./GitPushDialog.svelte";
   import GitRemotesDialogs from "./GitRemotesDialogs.svelte";
-  import GitReworkDialog from "./GitReworkDialog.svelte";
   import GitStashApplyDialog from "./GitStashApplyDialog.svelte";
   import GitStashCreateDialog from "./GitStashCreateDialog.svelte";
   import GitStashDropDialog from "./GitStashDropDialog.svelte";
@@ -25,59 +18,25 @@
 
   let {
     controller,
-    shell,
     repositoryId,
     worktreeId,
-    activeWorktreeSessions,
     onCreateBranchFromHead,
     onPush,
     onFetchRemote,
     onFastForwardBranch,
   }: {
     controller: ReturnType<typeof createGitWorkbenchController>;
-    shell: Shell;
     repositoryId: string;
     worktreeId?: string;
-    activeWorktreeSessions: readonly SessionInfo[];
     onCreateBranchFromHead: () => void;
     onPush: (branch?: string, preceding?: GitPrecedingCommit | null) => void;
     onFetchRemote: () => void;
     onFastForwardBranch: (branch: string) => void;
   } = $props();
 
-  const stagedChanges = $derived(
-    controller.view.workingChanges.filter((c) => c.group === "staged"),
-  );
   const remoteBranches = $derived(
     controller.view.branches.filter((b) => b.kind === "remote"),
   );
-
-  async function handleDeliverToSession(targetSession: SessionInfo) {
-    const fresh = await controller.rework.verifyWorktreeFreshness();
-    if (!fresh) return;
-    const text = controller.rework.buildPayloadText(stagedChanges);
-    if (!text.trim()) return;
-    deliverTextToWorktreeSession({ shell, session: targetSession, text });
-    if (controller.rework.mode === "rework") {
-      controller.rework.clearAll();
-    }
-    controller.rework.closeSheet();
-  }
-
-  function handleStartNewSessionWithDraft() {
-    const text = controller.rework.buildPayloadText(stagedChanges);
-    if (!text.trim()) return;
-    startNewWorktreeSessionWithText({
-      shell,
-      repositoryId,
-      worktreeId,
-      text,
-    });
-    if (controller.rework.mode === "rework") {
-      controller.rework.clearAll();
-    }
-    controller.rework.closeSheet();
-  }
 </script>
 
 {#if controller.view.commitPreview}
@@ -140,29 +99,6 @@
       controller.divergence.setAcknowledgeSessions(checked)}
     onConfirmAbort={() => void controller.divergence.confirmAbort()}
     onDismiss={() => controller.divergence.closeAbortPreview()}
-  />
-{/if}
-
-{#if controller.rework.sheetOpen}
-  <GitReworkDialog
-    mode={controller.rework.mode}
-    items={controller.rework.items}
-    {stagedChanges}
-    activeSessions={activeWorktreeSessions}
-    bind:selectedSessionId={controller.rework.selectedSessionId}
-    checkingFreshness={controller.rework.checkingFreshness}
-    stalePaths={controller.rework.stalePaths}
-    staleConfirmed={controller.rework.staleConfirmed}
-    copiedFeedback={controller.rework.copiedFeedback}
-    hasCommitMessageDraft={Boolean(controller.view.commitMessage.trim())}
-    onUpdateNote={(id, note) => controller.rework.updateItemNote(id, note)}
-    onRemoveItem={(id) => controller.rework.removeItem(id)}
-    onClearAll={() => controller.rework.clearAll()}
-    onCopyMarkdown={() => void controller.rework.copyMarkdown(stagedChanges)}
-    onConfirmStale={() => controller.rework.confirmSendDespiteStale()}
-    onDeliverToSession={(s) => void handleDeliverToSession(s)}
-    onStartNewSessionWithDraft={handleStartNewSessionWithDraft}
-    onClose={() => controller.rework.closeSheet()}
   />
 {/if}
 

@@ -28,7 +28,6 @@ export type GitWorkbenchScenario =
   | "commit-needs-review"
   | "operation-uncertain"
   | "commit-draft-conflict"
-  | "rework-session-handoff"
   | "conflict-three-way-text"
   | "conflict-binary-variant"
   | "divergence-rebase-preview"
@@ -458,8 +457,7 @@ export function buildGitWorkbenchFixture(
     scenario === "index-lock-busy" ||
     scenario === "commit-needs-review" ||
     scenario === "operation-uncertain" ||
-    scenario === "commit-draft-conflict" ||
-    scenario === "rework-session-handoff"
+    scenario === "commit-draft-conflict"
       ? "commit"
       : scenario === "branches-occupied"
         ? "branches"
