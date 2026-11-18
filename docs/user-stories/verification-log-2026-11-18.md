@@ -96,3 +96,22 @@
   - `go test -race -count=1 ./cmd/... ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过；
   - Playwright E2E `agent-tools.spec.ts`、`relay-settings.spec.ts` 与 `worktrees.spec.ts`（直接目录创建降级）共 10 项通过。
+
+## 侧栏会话通知与待处理筛选（US-C06、US-C17）
+
+- 侧栏「会话通知」仅在存在待处理、已暂缓事项或收件箱已打开时挂载；处理完最后一项后按 Esc 关闭空收件箱，焦点移回侧栏导航。「全部」与「待处理」保持 1:1 等宽排布，无待处理项时省略空计数占位并居中显示标签，有匹配时以等宽数字显示数量。
+- 聚焦的末项解除后回到「待处理」，按方向键可继续选择「全部」。
+- 运行 `pnpm --dir web exec vp test run --config vitest.browser.config.ts test/browser/AppShell.test.ts` 验证条件入口、空收件箱焦点移交、筛选栏等宽排布与主机状态单行传输路径。
+- 隔离后端运行 `pnpm --dir web exec playwright test test/e2e/attention.spec.ts test/e2e/workbench-session-queue.spec.ts` 覆盖末项焦点与侧栏菜单。已在 Linux Chromium 验证。
+
+## 异步会话切换结果（US-C18）
+
+- 三端 Chromium 复现空结果与聊天命中之间的输入框位移，桌面差值 168px。修复后桌面结果区保持 400px，手机保持 422px，键盘选中项仍可滚动进入视口。Esc 恢复原输入、焦点和文字选区。
+- `pnpm --dir web exec vp test run --config vitest.browser.config.ts test/browser/SessionSwitcher.test.ts` 通过。隔离后端执行 `pnpm --dir web exec playwright test test/e2e/session-switcher.spec.ts` 通过，涵盖终端焦点和输入。
+
+## 侧栏主机状态（US-A04）
+
+- 隔离 Chromium 以本地夹具切换长短主机名，并控制健康探针、P2P RTT 和 Relay 路径。常规连接仅渲染单行传输路径，Relay 已认证会话预留混合传输行高，测量中、9→2999ms 和重连时延时行位置保持一致。
+- 320px 视口在 200% 字号下可打开并滚动详情，重连状态即时更新。P2P 和 Relay 数据由夹具注入了客户端状态。
+- 连接播报使用简短状态文本。修正重复重连文案后，隔离后端的 `workspace-discovery.spec.ts -g 'a disconnected session list reconnects'` 在桌面与手机 Chromium 均通过。
+- `workspace-ui.spec.ts` 在主机状态按钮中核对长短主机名和首个操作的几何，并单独核对状态区域。与 `workspace-discovery.spec.ts` 合计 16 通过，2 个桌面专属用例在手机项目跳过。
