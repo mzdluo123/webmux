@@ -27,15 +27,12 @@ type Options struct {
 }
 
 type Service struct {
-	source       Source
-	preprocess   snapcompact.PreprocessConfig
-	render       snapcompact.RenderConfig
-	once         sync.Once
-	renderer     snapcompact.Renderer
-	renderError  error
-	archiveOnce  sync.Once
-	archive      snapcompact.ArchiveRenderer
-	archiveError error
+	source      Source
+	preprocess  snapcompact.PreprocessConfig
+	render      snapcompact.RenderConfig
+	once        sync.Once
+	renderer    snapcompact.Renderer
+	renderError error
 }
 
 type Preview struct {

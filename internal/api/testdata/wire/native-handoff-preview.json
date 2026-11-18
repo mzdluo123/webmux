@@ -17,7 +17,7 @@
     "expiresAt": "<time>",
     "format": "image",
     "gapCount": 0,
-    "historyText": "Historical reference. Source agent=\"omp\" session=\"wire-native\" branch=\"\" cwd=\"<repo>\". Frozen scope: <frozen-scope>. Source gaps: 0. Exact text: thread_read with view=activity snapshotId=<frozen-scope>.\n冻结来源片段映射：\ns1=\"aabd8d45c9777617d08dba310ed62ebddc63292279fa85ed43a980962cae4458\"\n包含片段：1；省略范围：0。历史按首部文本、中间图片、尾部文本排列；图片中的 █ 表示原换行，制表符显示为四个空格。sN 是投影片段序号。精确内容可读取冻结原文。\n¶user:[s1]\n中文 original history\n",
+    "historyText": "Historical reference. Source agent=\"omp\" session=\"wire-native\" branch=\"\" cwd=\"<repo>\". Frozen scope: <frozen-scope>. Source gaps: 0. Exact text: thread_read with view=activity snapshotId=<frozen-scope>.\n¶user:中文 original history",
     "id": "<id#1>",
     "imageBudget": {
       "bytes": 0,
@@ -26,10 +26,10 @@
       "maxPages": 8,
       "maxRequestBytes": 31457280,
       "pages": 0,
-      "projectedRunes": 20,
-      "retainedRunes": 20,
-      "shape": "8on22-bw/1568px; 8on16-bw dense middle; Noto 13px Unicode fallback",
-      "tokenBasis": "unknown model/transport; conservative 6000-token planning allowance per image (not a billing guarantee)",
+      "projectedRunes": 25,
+      "retainedRunes": 25,
+      "shape": "8on22-bw/1568px (8x13)",
+      "tokenBasis": "OMP SnapCompact 18.22.2 model catalog estimate",
       "tokenEstimateKnown": false
     },
     "instanceId": "<instanceId#1>",
@@ -54,7 +54,7 @@
     "selectedCount": 1,
     "snapshotId": "<snapshotId#1>",
     "sourceSessionId": "<targetSessionId#1>",
-    "text": "Historical reference. Source agent=\"omp\" session=\"wire-native\" branch=\"\" cwd=\"<repo>\". Frozen scope: <frozen-scope>. Source gaps: 0. Exact text: thread_read with view=activity snapshotId=<frozen-scope>.\n冻结来源片段映射：\ns1=\"aabd8d45c9777617d08dba310ed62ebddc63292279fa85ed43a980962cae4458\"\n包含片段：1；省略范围：0。历史按首部文本、中间图片、尾部文本排列；图片中的 █ 表示原换行，制表符显示为四个空格。sN 是投影片段序号。精确内容可读取冻结原文。\n¶user:[s1]\n中文 original history\n\n\n当前用户任务：\nnew task\n  indentation",
+    "text": "Historical reference. Source agent=\"omp\" session=\"wire-native\" branch=\"\" cwd=\"<repo>\". Frozen scope: <frozen-scope>. Source gaps: 0. Exact text: thread_read with view=activity snapshotId=<frozen-scope>.\nResume prior conversation. Earlier turns archived under HISTORY below, oldest→newest. Read HISTORY fully; continue the live conversation following it.\n\nArchived transcript scopes:\n- `¶user:`, `¶ai:`, `¶call:`: user, assistant reply, tool call.\n- Unprefixed following lines: current scope. Consecutive same-kind blocks omit repeated prefix.\n- Tool call: `¶call:name(args)//intent`; trailing `//intent` optional. `<out>…</out>`: tool output.\n\nReading HISTORY:\n- Plain text: verbatim transcript; rely on it exactly.\n- If an exact earlier detail matters and a section is unclear, re-derive from workspace (re-read files, re-run commands), rather than guess.\n\nHISTORY\n===================\n¶user:中文 original history\n当前用户任务：\nnew task\n  indentation",
     "userText": "new task\n  indentation"
   }
 }

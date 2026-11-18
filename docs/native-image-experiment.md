@@ -1,10 +1,29 @@
 # 原生历史图片传输实验
 
-当前生成器比较原文、同覆盖投影文本与 Snapcompact 首尾文本/中段图片归档。
-用同一份合成记录比较 WebMux 和 oh-my-pi 原版。短历史直接保留文本，长历史比较覆盖量与估计 token。
-默认 16000 历史预算下，两组约 10 万字符的样本从保留约 29% 增至约 47%。
-完整覆盖的工具/代码样本实测输入 token 节省 40.5%，13 个字段均精确读回。
+当前生成器比较原文、同覆盖归档正文与 Snapcompact 首尾文本/中段图片归档。
+WebMux 的默认交接和生成器共用 OMP Snapcompact 18.22.2 的 Go 移植。
 生产交接规则见[交接操作](hybrid-sessions/handoff.md)。
+
+## Go 移植与原版一致性
+
+[上游 18.22.2](https://github.com/can1357/oh-my-pi/tree/b96a1ed7a44072a72dd7fa5e7db1f2aa98785961/packages/snapcompact)提供消息序列化、空白与工具输出规范化、模型布局、页数规划和渲染规则。
+独立 Go 库用原版输出生成的固定样本验证摘要、首尾文本、截断计数、布局和顺序、图片 token 估计，以及 17 种布局和整段历史归档的解码像素。运行 `go test -run '^TestOMPReference' ./...` 即可复测。
+图像的 PNG 压缩由 Go 标准库完成，因此压缩字节数和文件 hash 可有差异。
+
+以下是 `openai-codex/gpt-6-astra` 合成样本的离线计算。字符数采用 OMP 规范化历史的 UTF-16 计数。图片 token 由模型费率估算；总上下文另计首尾文本和摘要。
+
+| 样本       | 历史预算 |   保留 / 总字符 | 图片页数 | 图片 token |
+| ---------- | -------: | --------------: | -------: | ---------: |
+| 短历史     |    16000 |     9541 / 9541 |        0 |          0 |
+| 长段落     |    16000 |  65756 / 104240 |        2 |       5705 |
+| 工具与代码 |    16000 |  64984 / 103454 |        2 |       5587 |
+| 长段落     |    64000 | 104168 / 104168 |        6 |      15880 |
+| 工具与代码 |    64000 | 103395 / 103395 |        6 |      15704 |
+
+OMP 对完整归档和截断归档使用不同密度和规范化结果，故不同预算的总字符可有细微差异。
+16000 预算下，生成器报告中段省略并退出。64000 预算下，长段落的六张 Go PNG 共 248369 字节，工具样本共 270464 字节。
+本轮评估使用离线对照。后面的模型读回来自此前的 CLI 实验。
+WebMux 在交接预览时生成归档，确认发送冻结页集；目标 Agent 负责将 ACP 图片传至模型。
 
 ## 复现与安全边界
 
@@ -32,16 +51,7 @@ python3 cmd/native-image-experiment/run.py "$out" \
 - 生成物和原始 CLI 输出留在临时目录；报告权限为 `0600`，临时 cwd 在每次请求后清理。保留结果目录供复核，分享前检查原始输出。
 - 生成物与逐次输出留在临时目录；仓库保存[归档实测数据](../cmd/native-image-experiment/archive-measurements.json)与[历史数据](../cmd/native-image-experiment/measurements.json)。
 
-## OMP 原版运行器对照
-
-配置 [OMP 原版归档](deployment/configuration.md#omp-原版归档) 后，WebMux 通过本地运行器直接调用官方 18.22.2 包的 `compact` 和 `historyBlocks`。
-
-- 执行 `bun test`（工作目录 `cmd/omp-snapcompact`）比较运行器与同输入的直接原版调用。短历史、长历史完整覆盖、长历史截断三组均通过，文本块、顺序和 PNG 字节一致。
-- 使用下文的工具与代码样本和 64000 历史预算，走 WebMux 交接预览后，6 张 PNG 的 SHA-256 与原版逐一相同。原版统计保留 103395 字符，估计 15704 图片 token。
-- 上述对照采用锁定包 `@oh-my-pi/snapcompact@18.22.2`，Bun 1.4.4。WebMux 保留目标预算、冻结原文和提交确认。OMP 的会话自动压缩触发与最近轮次划分属于其会话运行时。
-- OMP 原版图片块可带 `detail: original`。ACP 图片块携带原始 PNG 字节，目标 Agent 决定向模型发送时的细节参数。
-
-## 2026-11-18：上游原版对照
+## 2026-11-18：上游原版对照（早期 WebMux 布局）
 
 对照 [WebMux #691](https://github.com/mzdluo123/webmux/pull/691) 与
 [oh-my-pi Snapcompact 18.22.2](https://www.npmjs.com/package/@oh-my-pi/snapcompact/v/18.22.2)。
@@ -71,17 +81,6 @@ WebMux 先尝试相同首尾容量，再比较较短首尾布局，根据正文�
 - 短样本改用纯文本后不需要图片能力，本轮输入多 337 token。完整覆盖的长样本在本机生成约 370ms，主分支约 180ms；两次布局比较增加了本地渲染时间。
 - 模型测试每种表示调用一次，使用 omp 18.22.2 的 CLI 附件路径。上游归档声明 `detail: original`，CLI 附件经过其自身处理。真实 ACP 网关计费仍待验证。
 - 上游三组均未精确返回缩进字段，短样本与工具样本还出现中文字段误读。WebMux 宽首尾长段落的命令字段误读。
-
-离线复现上游生成时，在临时目录安装锁定版本，使用 WebMux 生成的合成 manifest：
-
-```sh
-upstream=$(mktemp -d /tmp/webmux-upstream-snapcompact.XXXXXX)
-npm install --prefix "$upstream" --no-audit --no-fund @oh-my-pi/snapcompact@18.22.2
-cp cmd/native-image-experiment/upstream.mjs "$upstream/"
-bun "$upstream/upstream.mjs" "$out/manifest.json" "$upstream/result" 8
-```
-
-Bun 生成 `archive.txt`、PNG 和包含尺寸、预算省略、图片 token 估计的 `report.json`。上游归档衡量提供的历史，省去 omp 自动压缩的保留轮次与触发阈值。
 
 ## 2026-11-18：上游式混合归档
 

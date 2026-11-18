@@ -134,7 +134,7 @@ func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Mana
 		})
 		creation := p.chat.Creation()
 		resumeOptions := hybridresume.Options{DefaultCwd: c.DefaultCwd, Creation: creation}
-		handoffOptions := handoff.Options{OMPRunner: c.HandoffOMPRunner, Launch: p.launch, Hybrid: p.chat, TokenCap: int64(c.HandoffTokenCap), MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes, Create: func(ctx context.Context, in sessioncreate.Input) (sessioncreate.Result, error) {
+		handoffOptions := handoff.Options{Launch: p.launch, Hybrid: p.chat, TokenCap: int64(c.HandoffTokenCap), MaxPromptBytes: hybrid.MaxPromptBytes, MaxPromptWireBytes: hybrid.MaxPromptWireBytes, Create: func(ctx context.Context, in sessioncreate.Input) (sessioncreate.Result, error) {
 			return p.creation.Create(ctx, in)
 		}}
 		handoffOptions.NativeHistory, handoffOptions.HistoryProjection = p.nativeHistory, p.historyProjection

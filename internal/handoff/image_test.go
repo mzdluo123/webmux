@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	snapcompact "github.com/mzdluo123/snapcompact-go"
 	"github.com/rainchan/webmux/internal/historysource"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/session"
@@ -109,7 +108,7 @@ func TestImageFailureRequiresExplicitTextPreview(t *testing.T) {
 	}{
 		{"capability", func(_ *Service, b *testBackend) { b.image = false }},
 		{"missing-glyph", func(_ *Service, b *testBackend) {
-			b.body = strings.Replace(b.body, "MIDDLE_ONLY_SENTINEL", "missing \U0010ffff", 1)
+			b.body = strings.Replace(b.body, "MIDDLE_ONLY_SENTINEL", strings.Repeat("\U0010ffff", 5000), 1)
 		}},
 		{"wire-limit", func(s *Service, _ *testBackend) { s.options.MaxPromptWireBytes = 2048 }},
 	}
@@ -206,26 +205,6 @@ func TestNewSessionImageCapabilityCheckedAfterCreation(t *testing.T) {
 	}
 }
 
-func TestDefaultBudgetReallocatesUnusedTextRoomToImages(t *testing.T) {
-	s, b := newTestService(t)
-	useLongImageHistory(b)
-	for i := range 110 {
-		b.history = append(b.history, historysource.Record{
-			ID: fmt.Sprintf("record-%d", i), Role: "assistant", Kind: "structured",
-			Text: fmt.Sprintf("marker_%d\n", i) + strings.Repeat("offset := readSnapshot(revision); preserve the order of observations.\n", 13),
-		})
-	}
-	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.BlockedReason != "" || p.Budget.OverBudget || p.Budget.History != DefaultTokenCap ||
-		p.Budget.Used > p.Budget.History || p.OmittedCount == 0 || p.ImageBudget.RetainedRunes < 40000 ||
-		!strings.Contains(p.Text, "marker_0\n") || !strings.Contains(p.Text, "marker_109\n") {
-		t.Fatalf("budget=%+v image=%+v omitted=%d blocked=%q", p.Budget, p.ImageBudget, p.OmittedCount, p.BlockedReason)
-	}
-}
-
 func TestImageTokensParticipateInHistoryBudget(t *testing.T) {
 	s, b := newTestService(t)
 	useLongImageHistory(b)
@@ -239,32 +218,6 @@ func TestImageTokensParticipateInHistoryBudget(t *testing.T) {
 	}
 	if _, err := s.Deliver(context.Background(), p.ID, p.OperationID); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("over-budget archive accepted: %v", err)
-	}
-}
-
-func TestArchiveCoveragePartitionsTextImagesAndOmissions(t *testing.T) {
-	segments := []snapcompact.Segment{{SourceID: "s", Text: "中文xy"}}
-	r := func(start, end int) snapcompact.Range {
-		return snapcompact.Range{SourceID: "s", Field: "projection", Start: start, End: end}
-	}
-	complete := snapcompact.Archive{
-		SourceRunes: 4, RetainedRunes: 3,
-		TextRanges: []snapcompact.Range{r(0, 1), r(3, 4)},
-		Omitted:    []snapcompact.Range{r(1, 2)},
-		Render:     snapcompact.RenderResult{Pages: []snapcompact.Page{{Index: 0, Width: 1, Height: 1, PNG: []byte{1}, Ranges: []snapcompact.Range{r(2, 3)}}}},
-	}
-	if !archiveCovered(segments, complete) {
-		t.Fatal("complete mixed partition rejected")
-	}
-	for _, ranges := range [][]snapcompact.Range{
-		{r(0, 1)}, {r(0, 2), r(3, 4)}, {r(0, 1), r(3, 5)},
-		{{SourceID: "s", Field: "text", End: 1}, r(3, 4)},
-	} {
-		broken := complete
-		broken.TextRanges = ranges
-		if archiveCovered(segments, broken) {
-			t.Fatalf("invalid partition accepted: %+v", ranges)
-		}
 	}
 }
 

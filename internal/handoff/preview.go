@@ -36,8 +36,8 @@ func (s *Service) imageCapability(ctx context.Context, target string) (string, e
 
 func (s *Service) preparePreview(ctx context.Context, in Request, doc historysource.Document, header string, budget Budget) (*Preview, error) {
 	p := &Preview{Format: in.Format, Capability: "pending", UserText: in.UserText, Budget: budget, Pages: []ImagePage{}, ImageBudget: ImageBudget{MaxPages: in.MaxPages, MaxBytes: int(hybrid.MaxPromptAttachmentBytes), MaxRequestBytes: int(min(s.options.MaxPromptWireBytes, hybrid.MaxPromptWireBytes))}}
-	if in.Format == "image" && len(s.options.OMPRunner) > 0 {
-		if err := s.prepareOMPArchive(ctx, in, doc, header, p); err != nil {
+	if in.Format == "image" {
+		if err := s.prepareArchive(ctx, in, doc, header, p); err != nil {
 			return nil, err
 		}
 		return s.validatePreview(p)
@@ -46,31 +46,23 @@ func (s *Service) preparePreview(ctx context.Context, in Request, doc historysou
 	if err != nil {
 		return nil, err
 	}
-	projection := projected.Projection
-	segments := projection.Segments
-	p.OmittedCount = len(projection.Omissions)
-	if in.Format == "text" {
-		available := max(int64(0), budget.History-jsonBytes(header)-512)
-		selected := make([]snapcompact.Segment, 0, len(segments))
-		for i := len(segments) - 1; i >= 0; i-- {
-			cost := jsonBytes(segmentText(segments[i]))
-			if cost > available {
-				p.OmittedCount++
-				continue
-			}
-			available -= cost
-			selected = append(selected, segments[i])
+	segments := projected.Projection.Segments
+	p.OmittedCount = len(projected.Projection.Omissions)
+	available := max(int64(0), budget.History-jsonBytes(header)-512)
+	selected := make([]snapcompact.Segment, 0, len(segments))
+	for i := len(segments) - 1; i >= 0; i-- {
+		cost := jsonBytes(segmentText(segments[i]))
+		if cost > available {
+			p.OmittedCount++
+			continue
 		}
-		for i, j := 0, len(selected)-1; i < j; i, j = i+1, j-1 {
-			selected[i], selected[j] = selected[j], selected[i]
-		}
-		segments = selected
-	} else {
-		if err := s.prepareArchive(ctx, in, projection, header, p); err != nil {
-			return nil, err
-		}
-		return s.validatePreview(p)
+		available -= cost
+		selected = append(selected, segments[i])
 	}
+	for i, j := 0, len(selected)-1; i < j; i, j = i+1, j-1 {
+		selected[i], selected[j] = selected[j], selected[i]
+	}
+	segments = selected
 	p.SelectedCount = len(segments)
 	var history strings.Builder
 	history.WriteString(header)

@@ -23,17 +23,8 @@
 
 ![390×844 深色手机：清空预算、校验无效值并重新输入](../images/handoff/archive-mobile-budget.gif)
 
-## 2026-11-18：默认预算与上游布局（US-Q20、US-K04）
+## 2026-11-18：OMP 的 Go 移植（US-Q20、US-K04）
 
-- `go run ./cmd/native-image-experiment -scenario tools -model openai-codex/gpt-6-astra -history-cap 16000 OUTPUT_DIRECTORY` 对照主分支，正文保留由 29431 增至 47713 字符；生成器明确报告省略。
-- `bun upstream.mjs MANIFEST OUTPUT_DIRECTORY 8` 使用官方 18.22.2 包，短样本输出零图，两组长样本各六图、无预算省略。OMP CLI 模型读回与实测输入见[归档实验](../native-image-experiment.md#2026-11-18上游原版对照)。
-- `go test -race ./internal/handoff ./internal/historyprojection ./internal/archtest` 通过；默认预算保留量、首尾原文、短历史零页、冻结发送及图片请求限制均有回归覆盖。
-- `go test ./internal/api -run TestWireSnapshots -update` 通过，快照相同。`make docs-check` 通过。
-- `pnpm --dir web check:arch` 49 项通过。复用隔离 E2E 二进制运行 `pnpm --dir web exec playwright test test/e2e/handoff.spec.ts --workers=2`，桌面与手机共 10 项通过。
-
-## 2026-11-18：原版归档运行器（US-Q20、US-K04）
-
-- 在 `cmd/omp-snapcompact` 运行 `bun test`，短历史、长历史完整覆盖和长历史截断共 3 项通过，序列化块和图片字节与官方包直接调用相同。
-- 隔离的 WebMux Go 交接预览通过配置的 Bun 运行器生成工具与代码样本。64000 历史预算下 6 张 PNG 的 SHA-256 全部匹配原版，未执行目标模型调用。
-- Go 回归覆盖运行器接收可导出记录、图片页序、预览冻结、运行器缺失阻止发送及显式文本预览。
-- 在隔离 WebMux 服务写入运行器 TOML 并重启，调用冻结历史和交接预览 HTTP 接口。同输入直接运行官方包，3 张 PNG 的 SHA-256 及历史文本块全部吻合，当前任务保留原样。
+- Go 模块的 `go test ./...` 和 `go test -race ./...` 通过。OMP 18.22.2 固定样本覆盖 17 种布局的解码像素，以及短历史、完整与截断归档的摘要、文本边缘、顺序、计费估计和解码像素。
+- `go run ./cmd/native-image-experiment -scenario tools -model openai-codex/gpt-6-astra -history-cap 64000 OUTPUT_DIRECTORY` 生成六张图，保留 103395 字符，估计 15704 图片 token。默认预算下报告 38470 个省略字符。其他结果见[离线对照](../native-image-experiment.md#go-移植与原版一致性)。
+- `go test ./internal/api -run TestWireSnapshots -update` 更新默认压缩预览快照。交接发送继续使用预览冻结的图片字节及顺序，原文补查从相同快照读取。

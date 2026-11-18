@@ -29,7 +29,6 @@ type Configs interface {
 	Get(string) (launch.Config, error)
 }
 type Options struct {
-	OMPRunner                                    []string
 	Hybrid                                       Runtime
 	Launch                                       Configs
 	NativeHistory                                *historyimport.Service
