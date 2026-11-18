@@ -11,14 +11,14 @@
   let {
     selectedItems,
     busy = false,
-    onStageSelected,
-    onDiscardSelected,
+    onStageChange,
+    onDiscardChanges,
     onClearSelection,
   }: {
     selectedItems: readonly GitWorkingChange[];
     busy?: boolean;
-    onStageSelected: (items: readonly GitWorkingChange[]) => void;
-    onDiscardSelected: (items: readonly GitWorkingChange[]) => void;
+    onStageChange: (id: string) => void;
+    onDiscardChanges: (ids: string[], paths: string[]) => void;
     onClearSelection: () => void;
   } = $props();
 </script>
@@ -30,7 +30,7 @@
     aria-label={m.s6_discard_batch_region_aria()}
     data-testid="git-discard-batch-bar"
   >
-    <GitPanelToolbar>
+    <GitPanelToolbar edge="bottom">
       <div class="flex min-w-0 items-center gap-1.5">
         <Badge variant="info">
           {m.s6_discard_batch_selected_count({
@@ -54,7 +54,7 @@
           variant="outline"
           disabled={busy}
           onclick={() => {
-            onStageSelected(selectedItems);
+            for (const item of selectedItems) onStageChange(item.id);
             onClearSelection();
           }}
           data-testid="git-batch-stage-btn"
@@ -67,7 +67,10 @@
           variant="destructive-outline"
           disabled={busy}
           onclick={() => {
-            onDiscardSelected(selectedItems);
+            onDiscardChanges(
+              selectedItems.map((item) => item.id),
+              selectedItems.map((item) => item.path),
+            );
             onClearSelection();
           }}
           data-testid="git-batch-discard-btn"

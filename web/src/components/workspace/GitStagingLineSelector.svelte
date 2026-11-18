@@ -10,7 +10,10 @@
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { m } from "$lib/paraglide/messages.js";
   import type { GitWorkingChange } from "../../contracts/git-workbench-schemas";
-  import type { GitLineSelection } from "../../contracts/schemas";
+  import type {
+    CodeDiffReaderState,
+    GitLineSelection,
+  } from "../../contracts/schemas";
   import {
     changedLineIndicesInHunk,
     countSelectedLines,
@@ -53,6 +56,41 @@
       selections: readonly GitLineSelection[],
     ) => void;
   } = $props();
+
+  type LineAnchor = NonNullable<CodeDiffReaderState["top"]>;
+  let viewport = $state<HTMLElement | null>(null);
+
+  export function captureAnchor(): LineAnchor | undefined {
+    if (!viewport) return;
+    const edge = viewport.getBoundingClientRect().top;
+    for (const row of viewport.querySelectorAll<HTMLElement>(
+      "[data-line-old], [data-line-new]",
+    )) {
+      if (row.getBoundingClientRect().bottom <= edge + 0.5) continue;
+      if (row.dataset.lineNew) {
+        return { line: Number(row.dataset.lineNew), side: "additions" };
+      }
+      return { line: Number(row.dataset.lineOld), side: "deletions" };
+    }
+  }
+
+  export function scrollToAnchor(anchor: LineAnchor) {
+    if (!viewport) return;
+    const key = anchor.side === "deletions" ? "lineOld" : "lineNew";
+    const rows = Array.from(
+      viewport.querySelectorAll<HTMLElement>(
+        anchor.side === "deletions" ? "[data-line-old]" : "[data-line-new]",
+      ),
+    );
+    const target =
+      rows.find((row) => Number(row.dataset[key]) >= anchor.line) ??
+      rows.at(-1);
+    if (target) {
+      viewport.scrollTop +=
+        target.getBoundingClientRect().top -
+        viewport.getBoundingClientRect().top;
+    }
+  }
 
   let selectionByChange = $state<{
     changeId: string;
@@ -194,7 +232,7 @@
     </div>
   </div>
 
-  <ScrollArea class="min-h-8 flex-1">
+  <ScrollArea bind:viewportRef={viewport} class="min-h-8 flex-1">
     <div class="space-y-2 p-2">
       {#each hunks as hunk, hIdx (hunk.id)}
         {@const changedAll = changedLineIndicesInHunk(hunk)}
@@ -264,6 +302,8 @@
                 <div
                   class="flex min-w-0 items-start gap-2 px-2 py-1 hover:bg-muted/40"
                   data-line-kind={line.kind}
+                  data-line-old={line.oldLine}
+                  data-line-new={line.newLine}
                   data-line-selected={isChecked}
                   data-line-index={lIdx}
                 >
@@ -312,6 +352,8 @@
                 <div
                   class="flex min-w-0 items-start gap-2 px-2 py-0.5 text-muted-foreground"
                   data-line-kind="context"
+                  data-line-old={line.oldLine}
+                  data-line-new={line.newLine}
                 >
                   <span class="w-4 shrink-0" aria-hidden="true"></span>
                   <span

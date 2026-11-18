@@ -19,6 +19,7 @@
   import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import GitDialogFooter from "./GitDialogFooter.svelte";
   import GitIssueList from "./GitIssueList.svelte";
+  import GitReviewBody from "./GitReviewBody.svelte";
   import GitOperationSessionAck from "./GitOperationSessionAck.svelte";
 
   let {
@@ -56,13 +57,18 @@
     : m.s6_stash_apply_title_apply()}
   description={m.s6_stash_apply_desc()}
   drawerDescription={m.s6_stash_apply_drawer_desc()}
+  pinDrawerHeader
   busy={submitting}
   class="sm:max-w-lg"
   onclose={onClose}
 >
-  <div class="space-y-3" data-testid="git-stash-apply-dialog">
+  <GitReviewBody
+    testId="git-stash-apply-dialog"
+    resetScrollOn={`${mode}:${dialogError}`}
+  >
     <SegmentedControl
       wrap
+      disabled={submitting}
       value={mode}
       onValueChange={(val) => {
         if (val === "apply" || val === "pop") onModeChange(val);
@@ -76,20 +82,6 @@
         {m.s6_stash_mode_apply()}
       </SegmentedControlItem>
     </SegmentedControl>
-
-    {#if entry}
-      <div class="space-y-1 rounded-lg border bg-background p-3 text-xs">
-        <p class="font-mono text-foreground">
-          {entry.stashRef} · {entry.shortOid}
-          {#if entry.hasUntracked}
-            <Badge variant="outline" class="ml-1">
-              {m.s6_stash_has_untracked_badge()}
-            </Badge>
-          {/if}
-        </p>
-        <p class="font-medium wrap-anywhere text-foreground">{entry.summary}</p>
-      </div>
-    {/if}
 
     <div class="rounded-lg border bg-background p-3">
       <Label class="items-start">
@@ -107,6 +99,24 @@
         </span>
       </Label>
     </div>
+
+    {#if dialogError}
+      <InlineNotice tone="danger">{dialogError}</InlineNotice>
+    {/if}
+
+    {#if entry}
+      <div class="space-y-1 rounded-lg border bg-background p-3 text-xs">
+        <p class="font-mono text-foreground">
+          {entry.stashRef} · {entry.shortOid}
+          {#if entry.hasUntracked}
+            <Badge variant="outline" class="ml-1">
+              {m.s6_stash_has_untracked_badge()}
+            </Badge>
+          {/if}
+        </p>
+        <p class="font-medium wrap-anywhere text-foreground">{entry.summary}</p>
+      </div>
+    {/if}
 
     {#if mode === "pop"}
       <InlineNotice tone="info">
@@ -140,9 +150,10 @@
         {onAcknowledgeSessionsChange}
       />
     {/if}
+  </GitReviewBody>
 
+  {#snippet footer()}
     <GitDialogFooter
-      {dialogError}
       {submitting}
       {canConfirm}
       confirmLabel={mode === "pop"
@@ -155,5 +166,5 @@
       {onConfirm}
       {onClose}
     />
-  </div>
+  {/snippet}
 </ResponsiveDialog>

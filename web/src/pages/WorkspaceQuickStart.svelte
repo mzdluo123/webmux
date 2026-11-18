@@ -318,20 +318,39 @@
     </div>
 
     <footer
-      class="mx-auto w-full max-w-3xl space-y-1.5 px-3 pb-safe-2 sm:px-4 sm:pb-6"
+      class="mx-auto flex min-h-0 w-full max-w-3xl flex-col gap-1.5 px-3 pb-safe-2 sm:px-4 sm:pb-6 [&>[data-chat-composer]]:shrink-0"
       data-quick-start-composer
     >
-      <QuickStartBanners
-        {missing}
-        {targetMode}
-        {branchError}
-        {repository}
-        {failure}
-        {shell}
-      />
-      {#each features.errors as message (message)}<InlineNotice tone="warning"
-          >{message}</InlineNotice
-        >{/each}
+      <div
+        class="min-h-0 space-y-1.5 overflow-y-auto overscroll-contain empty:hidden"
+      >
+        {#if sending}
+          <p
+            class="flex items-center gap-1.5 px-1 text-xs text-muted-foreground wrap-anywhere"
+            role="status"
+          >
+            <IconLoader2
+              class="size-3.5 shrink-0 animate-spin motion-reduce:animate-none"
+              aria-hidden="true"
+            />{targetMode === "existing"
+              ? m.s1_starting_agent({ name: agent?.name ?? "" })
+              : m.s1_creating_worktree_starting_agent({
+                  name: agent?.name ?? "",
+                })}
+          </p>
+        {/if}
+        <QuickStartBanners
+          {missing}
+          {targetMode}
+          {branchError}
+          {repository}
+          {failure}
+          {shell}
+        />
+        {#each features.errors as message (message)}<InlineNotice tone="warning"
+            >{message}</InlineNotice
+          >{/each}
+      </div>
 
       <ComposerCard
         bind:textarea={input}
@@ -429,23 +448,9 @@
         {/snippet}
         {#snippet leading()}
           <ChatUploadButton {uploads} disabled={sending} />
-          {#if sending}
-            <span
-              class="flex items-center gap-1.5 text-xs text-muted-foreground"
-              role="status"
-            >
-              <IconLoader2
-                class="size-3.5 animate-spin motion-reduce:animate-none"
-                aria-hidden="true"
-              />{targetMode === "existing"
-                ? m.s1_starting_agent({ name: agent?.name ?? "" })
-                : m.s1_creating_worktree_starting_agent({
-                    name: agent?.name ?? "",
-                  })}
-            </span>
-          {:else}
+          <span class="contents" inert={sending}>
             {@render agentToolbar(true)}
-          {/if}
+          </span>
         {/snippet}
         {#snippet accessories({ size, variant })}
           <QuickStartAccessories

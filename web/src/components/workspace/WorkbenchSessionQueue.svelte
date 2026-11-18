@@ -1,8 +1,5 @@
 <script lang="ts">
-  import IconChevronRight from "~icons/tabler/chevron-right";
   import { MediaQuery } from "svelte/reactivity";
-  import { Button } from "$lib/components/ui/button";
-  import * as Collapsible from "$lib/components/ui/collapsible";
   import { m } from "$lib/paraglide/messages.js";
   import type {
     ArchivedSession,
@@ -22,6 +19,7 @@
   } from "../../domains/workspace/session-queue";
   import ArchivedSessions from "../sessions/ArchivedSessions.svelte";
   import SessionListEmpty from "../sessions/SessionListEmpty.svelte";
+  import WorkbenchQueueGroup from "./WorkbenchQueueGroup.svelte";
   import WorkbenchQueueRow from "./WorkbenchQueueRow.svelte";
   import WorkbenchQueuePreview from "./WorkbenchQueuePreview.svelte";
 
@@ -163,29 +161,17 @@
         ? (filteredExpanded[key] ?? true)
         : expanded[key]}
       {#if groups[key].length}
-        <Collapsible.Root
+        <WorkbenchQueueGroup
+          title={titles[key]}
+          count={groups[key].length}
           {open}
           onOpenChange={(value) => {
             if (filtering) filteredExpanded[key] = value;
             else expanded[key] = value;
           }}
         >
-          <Collapsible.Trigger>
-            {#snippet child({ props })}
-              <Button {...props} variant="ghost" class="w-full justify-start">
-                <IconChevronRight
-                  class={open ? "rotate-90" : ""}
-                  aria-hidden="true"
-                />
-                {titles[key]}
-                <span class="font-mono text-xs text-muted-foreground"
-                  >{groups[key].length}</span
-                >
-              </Button>
-            {/snippet}
-          </Collapsible.Trigger>
-          <Collapsible.Content>{@render rows(key)}</Collapsible.Content>
-        </Collapsible.Root>
+          {@render rows(key)}
+        </WorkbenchQueueGroup>
       {/if}
     {/each}
     {#if attentionOnly && !groups.attention.length}
