@@ -289,13 +289,31 @@ func (s *Server) relayCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, v.ReturnTo, http.StatusSeeOther)
 }
 
+func isRelayForwardTopNavigation(r *http.Request) bool {
+	if (r.URL.Path != "/forward" && !strings.HasPrefix(r.URL.Path, "/forward/")) || r.URL.Path == "/forward/_auth" {
+		return false
+	}
+	if (r.Method != http.MethodGet && r.Method != http.MethodHead) || strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+		return false
+	}
+	switch strings.ToLower(r.Header.Get("Sec-Fetch-Dest")) {
+	case "iframe", "frame", "embed", "object":
+		return false
+	}
+	if mode := r.Header.Get("Sec-Fetch-Mode"); mode != "" {
+		return mode == "navigate"
+	}
+	return strings.Contains(r.Header.Get("Accept"), "text/html")
+}
+
 // withRelayBrowser authenticates only the dedicated connector transport. A
 // forged Host/forwarded header on the ordinary listener cannot mint this context.
 func (s *Server) withRelayBrowser(w http.ResponseWriter, r *http.Request, next http.Handler) bool {
 	if s.Relay == nil || !transport.IsTrustedRelay(r.Context()) {
 		return false
 	}
-	if !strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/ws/") && r.URL.Path != "/mcp" && !strings.HasPrefix(r.URL.Path, "/mcp/") && r.URL.Path != "/forward" && !strings.HasPrefix(r.URL.Path, "/forward/") {
+	isForward := r.URL.Path == "/forward" || strings.HasPrefix(r.URL.Path, "/forward/")
+	if !strings.HasPrefix(r.URL.Path, "/api/") && !strings.HasPrefix(r.URL.Path, "/ws/") && r.URL.Path != "/mcp" && !strings.HasPrefix(r.URL.Path, "/mcp/") && !isForward {
 		return false
 	}
 	relayAuthHeaders(w)
@@ -307,6 +325,12 @@ func (s *Server) withRelayBrowser(w http.ResponseWriter, r *http.Request, next h
 	if origin == "" {
 		failure(w, http.StatusForbidden, errors.New("relay origin required"))
 		return true
+	}
+	if site := r.Header.Get("Sec-Fetch-Site"); site == "cross-site" || site == "same-site" {
+		if !isRelayForwardTopNavigation(r) {
+			s.relayBrowserFailure(w, r, protocol.Error{Code: protocol.Forbidden})
+			return true
+		}
 	}
 	cookie := ""
 	if value, err := r.Cookie(relaysetting.AuthCookieName); err == nil {
@@ -334,8 +358,16 @@ func (s *Server) withRelayBrowser(w http.ResponseWriter, r *http.Request, next h
 		s.relayBrowserFailure(w, r, err)
 		return true
 	}
-	if r.Method != "GET" && r.Method != "HEAD" && r.Method != "OPTIONS" {
-		err = s.Relay.Auth.CheckMutation(p, r.Header.Get("Origin"), r.Header.Get("X-WebMux-CSRF"))
+	if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
+		if isForward {
+			if reqOrigin := r.Header.Get("Origin"); reqOrigin != "" {
+				err = s.Relay.Auth.CheckOrigin(p, reqOrigin)
+			} else if r.Header.Get("Sec-Fetch-Site") != "same-origin" {
+				err = protocol.Error{Code: protocol.Forbidden}
+			}
+		} else {
+			err = s.Relay.Auth.CheckMutation(p, r.Header.Get("Origin"), r.Header.Get("X-WebMux-CSRF"))
+		}
 	} else if strings.HasPrefix(r.URL.Path, "/ws/") || strings.EqualFold(r.Header.Get("Upgrade"), "websocket") || r.Header.Get("Origin") != "" {
 		err = s.Relay.Auth.CheckOrigin(p, r.Header.Get("Origin"))
 	}

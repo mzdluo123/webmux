@@ -366,3 +366,45 @@ func TestRelayExpiredBusinessFailureIsTrustedOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestRelayBrowserRejectsForeignFetchSiteAndKeepsAPICSRF(t *testing.T) {
+	f := newRelayBrowserFixture(t)
+	f.mux.HandleFunc("POST /api/work", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	f.mux.HandleFunc("POST /mcp", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	cookie := f.login(t, "/app")
+	status := f.status(t, cookie, true)
+
+	for _, site := range []string{"cross-site", "same-site"} {
+		for _, path := range []string{"/api/work", "/api/relay/auth/session", "/ws/work", "/mcp", "/forward/work"} {
+			r := f.request(http.MethodGet, path, cookie, true)
+			r.Header.Set("Sec-Fetch-Site", site)
+			r.Header.Set("Sec-Fetch-Mode", "cors")
+			w := httptest.NewRecorder()
+			f.handler.ServeHTTP(w, r)
+			if w.Code != http.StatusForbidden {
+				t.Errorf("%s %s = %d, want 403", site, path, w.Code)
+			}
+		}
+	}
+
+	for _, path := range []string{"/api/work", "/mcp"} {
+		noCSRF := f.request(http.MethodPost, path, cookie, true)
+		noCSRF.Header.Set("Origin", f.origin)
+		noCSRF.Header.Set("Sec-Fetch-Site", "same-origin")
+		w := httptest.NewRecorder()
+		f.handler.ServeHTTP(w, noCSRF)
+		if w.Code != http.StatusForbidden {
+			t.Errorf("POST %s without CSRF = %d, want 403", path, w.Code)
+		}
+
+		withCSRF := f.request(http.MethodPost, path, cookie, true)
+		withCSRF.Header.Set("Origin", f.origin)
+		withCSRF.Header.Set("X-WebMux-CSRF", status.CSRFToken)
+		withCSRF.Header.Set("Sec-Fetch-Site", "same-origin")
+		w = httptest.NewRecorder()
+		f.handler.ServeHTTP(w, withCSRF)
+		if w.Code != http.StatusNoContent {
+			t.Errorf("POST %s with CSRF = %d, want 204", path, w.Code)
+		}
+	}
+}
