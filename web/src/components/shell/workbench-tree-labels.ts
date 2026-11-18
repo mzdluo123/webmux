@@ -8,11 +8,10 @@ import {
 import type { TreeNode } from "../../domains/workspace/workbench-tree";
 import { worktreeUpstream } from "../../domains/workspace/worktree-sync";
 
-// A worktree's ahead/behind counts or deleted upstream; nothing when synced.
+// Positive ahead or behind counts take space beside the worktree name.
 export function notableUpstream(node: TreeNode) {
   const upstream = node.worktree && worktreeUpstream(node.worktree);
-  return upstream?.kind === "gone" ||
-    (upstream?.kind === "tracked" && (upstream.ahead || upstream.behind))
+  return upstream?.kind === "tracked" && (upstream.ahead || upstream.behind)
     ? upstream
     : undefined;
 }

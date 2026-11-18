@@ -93,12 +93,13 @@ test("a worktree ahead of its upstream says so in its title, without a behind co
   ).toEqual([]);
 });
 
-test("a deleted upstream is marked without counts", async () => {
+test("a deleted upstream does not add a badge to the worktree title", async () => {
   renderGroup(false, { upstream: "origin/wt/feature", upstreamGone: true }, [
     inLinked,
   ]);
   const linked = page.getByRole("region", { name: "wt/feature" });
-  await expect.element(linked.getByText("上游已删除")).toBeVisible();
+  await expect.element(linked).toBeVisible();
+  expect(linked.getByText("上游已删除").elements()).toEqual([]);
   expect(linked.getByRole("img").elements()).toEqual([]);
 });
 
