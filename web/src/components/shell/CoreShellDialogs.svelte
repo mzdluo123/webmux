@@ -1,5 +1,9 @@
 <script lang="ts">
-  import type { Shell } from "../../hooks/shared/shell.svelte";
+  import {
+    openSession,
+    shellUi,
+    type Shell,
+  } from "../../hooks/shared/shell.svelte";
   import type {
     LaunchEntry,
     LaunchScope,
@@ -57,6 +61,10 @@
         scope={target.scope}
         selectedRepositoryId={repositories?.choice ?? "all"}
         intent={target.entry?.kind === "new-worktree" ? "worktree" : "session"}
+        oncreated={(session) => {
+          shellUi.setMode("workbench");
+          openSession(session);
+        }}
         onchange={onrefreshworktrees}
         onworktreecreated={(tree) => {
           const workspace = featureContributions.entries.workspace;

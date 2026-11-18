@@ -34,13 +34,14 @@ test.describe("English system locale and live switching", () => {
     ).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
-    // Open New Session dialog in English and verify no horizontal overflow.
+    // Check the default new-session composer in English.
     await page.getByRole("button", { name: "New session" }).first().click();
+    await expect(page).toHaveURL(/\/new$/);
     await expect(
-      page.getByRole("dialog", { name: "New session" }),
+      page.getByRole("textbox", { name: "Task description" }),
     ).toBeVisible();
     await expectNoHorizontalOverflow(page);
-    await page.keyboard.press("Escape");
+    await page.goBack();
 
     // Enter real PTY session in English and verify terminal input/output works.
     let sawNativeDialog = false;
