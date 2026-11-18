@@ -458,11 +458,6 @@
       </p>
     {/if}
   </div>
-  <CodeHorizontalScrollbar
-    {track}
-    bind:trackElement
-    onscroll={horizontalScrollbar.onTrackScroll}
-  />
   <CodeReaderPanels
     panel={find.panel}
     query={find.search}
@@ -470,6 +465,11 @@
     status={`${side === "old" ? m.s5_before() : m.s5_after()} · ${find.status}`}
     {...find.panelProps}
     ongoto={goto}
+  />
+  <CodeHorizontalScrollbar
+    {track}
+    bind:trackElement
+    onscroll={horizontalScrollbar.onTrackScroll}
   />
 </div>
 

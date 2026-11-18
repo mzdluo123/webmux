@@ -466,11 +466,6 @@
       class="code-reader h-full overflow-x-hidden overflow-y-auto overscroll-contain outline-none contain-strict [overflow-anchor:none]"
     ></div>
   </div>
-  <CodeHorizontalScrollbar
-    {track}
-    bind:trackElement
-    onscroll={horizontalScrollbar.onTrackScroll}
-  />
   <CodeReaderPanels
     panel={find.panel}
     query={find.search}
@@ -478,6 +473,11 @@
     status={find.status}
     {...find.panelProps}
     ongoto={goto}
+  />
+  <CodeHorizontalScrollbar
+    {track}
+    bind:trackElement
+    onscroll={horizontalScrollbar.onTrackScroll}
   />
 </div>
 

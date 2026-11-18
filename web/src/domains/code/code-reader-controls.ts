@@ -6,6 +6,10 @@ import type {
 } from "@pierre/diffs";
 import { observeDarkTheme } from "./code-pierre";
 import {
+  measureVisibleSelectedBand,
+  nudgeHostForBottomPanel,
+} from "./code-reader-dom";
+import {
   stepMatchLine,
   type MatchCursor,
   type SearchSpec,
@@ -14,8 +18,7 @@ import {
 export type CodeReaderPanel = "search" | "goto" | "zoom";
 
 /** Focuses the open search, go-to-line or zoom control after it renders. */
-async function focusCodePanel(root: ParentNode) {
-  await tick();
+function focusCodePanelControl(root: ParentNode) {
   root
     .querySelector<HTMLElement>(
       "[data-code-search] input, [data-code-goto-line] input, [data-code-zoom] [role='slider']",
@@ -32,16 +35,28 @@ function togglePanel<Panel extends string>(
   return toggle && current === value ? undefined : value;
 }
 
-/** Opens or closes a reader panel and focuses its input. */
+/**
+ * Opens or closes a reader panel, nudges `scrollTop` when the bottom panel
+ * covers a visible selected or focused row, and focuses the panel control.
+ */
 async function openCodePanel(
   root: ParentNode,
+  host: HTMLElement,
   current: CodeReaderPanel | undefined,
   value: CodeReaderPanel,
   toggle: boolean,
   setPanel: (panel: CodeReaderPanel | undefined) => void,
 ) {
-  setPanel(togglePanel(current, value, toggle));
-  await focusCodePanel(root);
+  const next = togglePanel(current, value, toggle);
+  const beforeBox = next ? host.getBoundingClientRect() : undefined;
+  const band = beforeBox
+    ? measureVisibleSelectedBand(host, beforeBox)
+    : undefined;
+  setPanel(next);
+  if (!next) return;
+  await tick();
+  if (band && beforeBox) nudgeHostForBottomPanel(host, beforeBox, band);
+  focusCodePanelControl(root);
 }
 
 /** Closes a reader panel and returns focus to its scroll surface. */
@@ -72,6 +87,7 @@ export function createReaderPanelActions(options: {
       if (value !== "zoom" && options.enabled && !options.enabled()) return;
       await openCodePanel(
         options.root(),
+        options.host(),
         options.getPanel(),
         value,
         toggle,

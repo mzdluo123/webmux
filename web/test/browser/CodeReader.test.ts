@@ -151,6 +151,73 @@ test("reader controls open without moving the displayed lines", async () => {
   expect(lineY()).toBe(initialY);
 });
 
+test("reader panel sits above horizontal scrollbar and nudges scrollTop when covering a selected bottom line", async () => {
+  const long = `const ${"x".repeat(400)} = 1;`;
+  const text = Array.from({ length: 100 }, (_, i) =>
+    i === 0 ? long : `line ${i + 1}`,
+  ).join("\n");
+  render(Harness, { text });
+  const host = document.querySelector<HTMLElement>("[data-code-reader]")!;
+  await expect.poll(() => row(1)?.textContent ?? "").toContain("xxxx");
+  await document.fonts.ready;
+  await expect
+    .poll(() => scrollbar()?.classList.contains("hidden") ?? true)
+    .toBe(false);
+
+  // Select an upper line first: opening the bottom panel keeps scrollTop anchored.
+  await page.elementLocator(gutter(2)!).click();
+  const initialScrollTop = host.scrollTop;
+  await page.getByRole("button", { name: "文件内查找" }).click();
+  await expect
+    .element(page.getByRole("textbox", { name: "查找" }))
+    .toHaveFocus();
+  expect(host.scrollTop).toBe(initialScrollTop);
+
+  const searchPanel =
+    document.querySelector<HTMLElement>("[data-code-search]")!.parentElement!;
+  const hostRect = host.getBoundingClientRect();
+  const panelRect = searchPanel.getBoundingClientRect();
+  const barRect = scrollbar()!.getBoundingClientRect();
+  expect(panelRect.top).toBeGreaterThanOrEqual(hostRect.bottom - 1);
+  expect(barRect.top).toBeGreaterThanOrEqual(panelRect.bottom - 1);
+
+  await userEvent.keyboard("{Escape}");
+  expect(document.querySelector("[data-code-search]")).toBeNull();
+
+  // Select the last fully visible line near the bottom of the viewport.
+  const closedBox = host.getBoundingClientRect();
+  const bottomRows = [
+    ...(shadow()?.querySelectorAll<HTMLElement>("[data-line]") ?? []),
+  ]
+    .map((el) => ({
+      line: Number(el.dataset.line),
+      rect: el.getBoundingClientRect(),
+    }))
+    .filter(
+      ({ line, rect }) =>
+        Number.isInteger(line) &&
+        rect.top >= closedBox.top &&
+        rect.bottom <= closedBox.bottom,
+    );
+  const bottomTarget = bottomRows.at(-1)!;
+  expect(bottomTarget).toBeDefined();
+  await page.elementLocator(gutter(bottomTarget.line)!).click();
+  const beforeScrollTop = host.scrollTop;
+  const beforeRowBottom = row(bottomTarget.line)!.getBoundingClientRect()
+    .bottom;
+
+  await page.getByRole("button", { name: "文件内查找" }).click();
+  await expect
+    .element(page.getByRole("textbox", { name: "查找" }))
+    .toHaveFocus();
+  const openBox = host.getBoundingClientRect();
+  expect(beforeRowBottom).toBeGreaterThan(openBox.bottom);
+  expect(host.scrollTop).toBeGreaterThan(beforeScrollTop);
+  const afterRowRect = row(bottomTarget.line)!.getBoundingClientRect();
+  expect(afterRowRect.top).toBeGreaterThanOrEqual(openBox.top - 0.5);
+  expect(afterRowRect.bottom).toBeLessThanOrEqual(openBox.bottom + 0.5);
+});
+
 test("goto accepts N:column and scrolls the code horizontally", async () => {
   const long = `const ${"x".repeat(400)} = 1;`;
   const text = Array.from({ length: 1000 }, (_, i) =>
