@@ -12,6 +12,7 @@ import {
   nameSession,
   useCustomCommand,
   useDirectory,
+  useWorkbenchBranches,
   backToList,
 } from "./fixtures";
 import {
@@ -849,9 +850,8 @@ test("workbench sidebar syncs external worktree additions and removals on a sess
   await page.goto(`/s/${id}`);
   await expectConnected(page);
 
-  const openSidebar = page.getByRole("button", { name: "打开侧栏" });
+  await useWorkbenchBranches(page);
   const tree = page.getByRole("tree", { name: "仓库与会话" });
-  if (!(await tree.isVisible())) await openSidebar.click();
   await expect(tree).toBeVisible();
 
   // External `git worktree add` auto-syncs into the workbench sidebar without leaving the session page.
@@ -886,9 +886,8 @@ test("workbench sidebar syncs external worktree additions and removals on a sess
     const page2 = await secondDevice.newPage();
     await page2.goto(`/s/${id}`);
     await expectConnected(page2);
-    const openSidebar2 = page2.getByRole("button", { name: "打开侧栏" });
+    await useWorkbenchBranches(page2);
     const tree2 = page2.getByRole("tree", { name: "仓库与会话" });
-    if (!(await tree2.isVisible())) await openSidebar2.click();
     await expect(tree2).toBeVisible();
     await expect(
       tree2.getByRole("treeitem", { name: /^wt\/offline-ext(，|$)/ }),
