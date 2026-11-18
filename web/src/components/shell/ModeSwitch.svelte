@@ -26,7 +26,7 @@
   <Button
     variant="ghost"
     size="sm-touch"
-    class="min-w-[min(100%,6rem)] flex-1"
+    class="min-w-[min(100%,6rem)] flex-auto"
     aria-label={m.s1_chat_mode()}
     aria-pressed={mode === "chat"}
     title={m.s1_chat_mode_title()}
@@ -36,7 +36,7 @@
   <Button
     variant="ghost"
     size="sm-touch"
-    class="min-w-[min(100%,6rem)] flex-1"
+    class="min-w-[min(100%,6rem)] flex-auto"
     aria-label={workspaces ? m.s1_workbench_mode() : m.s1_sessions_mode()}
     aria-pressed={mode === "workbench"}
     title={workspaces

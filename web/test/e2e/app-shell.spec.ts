@@ -351,8 +351,72 @@ test.describe("phone drawer", () => {
       await open.click();
       await drawer.locator('[data-tree-key="all"]').click();
       await expect(drawer).toBeHidden();
+      const openHome = page.getByRole("button", {
+        name: "打开侧栏",
+        exact: true,
+      });
+      await openHome.click();
+      await drawer
+        .getByRole("button", { name: "聊天模式", exact: true })
+        .click();
+      await expect(page).toHaveURL(/\/new$/);
+      await drawer
+        .getByRole("button", { name: "工作台模式", exact: true })
+        .click();
+      await expect(page.locator("main input[type=search]")).toBeVisible();
+      await close.click();
+      await expect(drawer).toBeHidden();
+      await expect(openHome).toBeFocused();
       await expect(page).toHaveURL(/\/$/);
     });
+
+  test("tablet drawer restores rail focus after switching home modes", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 768, height: 800 });
+    await page.goto("/");
+    const open = page.getByRole("button", { name: "展开侧栏", exact: true });
+    const drawer = page.getByRole("dialog", { name: "导航" });
+    await open.press("Enter");
+    await drawer
+      .getByRole("button", { name: "聊天模式", exact: true })
+      .press("Enter");
+    await expect(page).toHaveURL(/\/new$/);
+    await drawer
+      .getByRole("button", { name: "工作台模式", exact: true })
+      .press("Enter");
+    await drawer
+      .getByRole("button", { name: "关闭侧栏", exact: true })
+      .press("Enter");
+    await expect(drawer).toBeHidden();
+    await expect(
+      page.getByRole("searchbox", { name: "搜索会话" }),
+    ).toBeVisible();
+    await expect(open).toBeFocused();
+  });
+
+  test("drawer mode labels fit with enlarged text", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("webmux.locale", "en"));
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "Open sidebar", exact: true })
+      .click();
+    const drawer = page.getByRole("dialog", { name: "Navigation" });
+    const workbench = drawer.getByRole("button", { name: "Workbench mode" });
+    await expect(workbench).toBeVisible();
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "200%";
+    });
+    const fits = await workbench.evaluate((button) => {
+      const contents = document.createRange();
+      contents.selectNodeContents(button);
+      const text = contents.getBoundingClientRect();
+      const box = button.getBoundingClientRect();
+      return text.left >= box.left && text.right <= box.right;
+    });
+    expect(fits).toBe(true);
+  });
 });
 
 // Required guard: at every width, on the home page, with either stored
