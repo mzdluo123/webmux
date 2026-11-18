@@ -408,6 +408,10 @@
     hostname={setup.hostname}
     setupSettled={shell.setup.settled}
     {reconnection}
+    onaddrepository={workspace && shell.repositories
+      ? shell.addRepository
+      : undefined}
+    canAddRepository={setup.gitReady && setup.registryReady}
     onforward={shell.forward}
   />
 </nav>

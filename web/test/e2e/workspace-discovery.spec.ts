@@ -1,7 +1,12 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { workspaceLayoutTest as test, expect, nameSession } from "./fixtures";
-import { openAllRepositoriesMenu } from "./repository-menu";
+import {
+  workspaceLayoutTest as test,
+  expect,
+  nameSession,
+  revealSidebar,
+} from "./fixtures";
+import { addRepositoryButton } from "./repository-menu";
 
 test("workspace search shortcuts clear filters without capturing dialog input", async ({
   page,
@@ -43,11 +48,8 @@ test("an older config without hostname keeps creation available", async ({
     await route.fulfill({ response, json: config });
   });
   await page.goto("/");
-  const opened = await openAllRepositoriesMenu(page);
-  await expect(
-    page.getByRole("menuitem", { name: "添加仓库…", exact: true }),
-  ).toBeEnabled();
-  await page.keyboard.press("Escape");
+  const opened = await revealSidebar(page);
+  await expect(addRepositoryButton(page)).toBeEnabled();
   if (opened) await page.keyboard.press("Escape");
   await expect(
     page.getByRole("main").getByRole("button", { name: "＋ 新建会话" }).first(),
@@ -71,19 +73,13 @@ test("invalid config can be retried without blocking temporary commands", async 
   await expect(
     page.getByRole("main").getByRole("button", { name: "＋ 新建会话" }).first(),
   ).toBeEnabled();
-  const closedDrawer = await openAllRepositoriesMenu(page);
-  await expect(
-    page.getByRole("menuitem", { name: "添加仓库…", exact: true }),
-  ).toBeDisabled();
-  await page.keyboard.press("Escape");
-  if (closedDrawer) await page.keyboard.press("Escape");
+  const opened = await revealSidebar(page);
+  await expect(addRepositoryButton(page)).toBeDisabled();
+  if (opened) await page.keyboard.press("Escape");
   invalid = false;
   await page.getByRole("button", { name: "重试", exact: true }).click();
-  const reopened = await openAllRepositoriesMenu(page);
-  await expect(
-    page.getByRole("menuitem", { name: "添加仓库…", exact: true }),
-  ).toBeEnabled();
-  await page.keyboard.press("Escape");
+  const reopened = await revealSidebar(page);
+  await expect(addRepositoryButton(page)).toBeEnabled();
   if (reopened) await page.keyboard.press("Escape");
   await expect(
     page.getByText("服务端设置加载失败，可重试；仍可使用临时命令创建会话。"),

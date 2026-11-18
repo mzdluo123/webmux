@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
+  import IconFolderPlus from "~icons/tabler/folder-plus";
   import IconMoon from "~icons/tabler/moon";
   import IconSettings from "~icons/tabler/settings";
   import IconSun from "~icons/tabler/sun";
@@ -33,15 +34,15 @@
   );
   const forward = $derived(featureContributions.entries.forward);
 
-  // The sidebar's global footer, shared by both modes: the connection and
-  // host, port forwarding, settings and the theme. A healthy connection is
-  // only the host and a dot; reconnecting says so in words.
+  // On a healthy connection, the status entry shows the host and a dot.
   let {
     connection,
     hostname,
     setupSettled,
     rail = false,
     reconnection,
+    onaddrepository,
+    canAddRepository = false,
     onforward,
   }: {
     connection: Connection;
@@ -52,6 +53,8 @@
     /** Relay retry state: on the expanded sidebar this footer is the
         lower-left reconnect surface, so its details live here. */
     reconnection?: RelayReconnection;
+    onaddrepository?: () => void;
+    canAddRepository?: boolean;
     onforward: () => void;
   } = $props();
 
@@ -146,7 +149,7 @@
 <div
   class={rail
     ? "flex flex-col items-center gap-1 border-t py-2"
-    : "flex items-center gap-1 border-t px-3 py-1.5"}
+    : "flex items-center border-t px-2 py-1.5 sm:gap-1 sm:px-3"}
 >
   <Popover.Root open={detailsOpen} onOpenChange={detailsChanged}>
     <Popover.Trigger
@@ -269,6 +272,16 @@
       {/if}
     </Popover.Content>
   </Popover.Root>
+  {#if onaddrepository}
+    <Button
+      variant="ghost"
+      size="icon-touch"
+      aria-label={m.s8_add_repo_title()}
+      title={m.s8_add_repo_title()}
+      disabled={!canAddRepository}
+      onclick={onaddrepository}><IconFolderPlus aria-hidden="true" /></Button
+    >
+  {/if}
   {#if forward}<forward.Button onclick={onforward} />{/if}
   <Button
     href="/settings"

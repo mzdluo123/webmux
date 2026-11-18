@@ -4452,7 +4452,6 @@
   "s8_local_branch_prefix": "Local: {branch}",
   "s8_local_branches": "Local branches",
   "s8_lock_reason_prefix": "Lock reason: {reason}",
-  "s8_menu_add_repository": "Add repository…",
   "s8_menu_add_to_home": "Add to Home",
   "s8_menu_commit_changes": "Commit changes…",
   "s8_menu_git_workbench": "Git workbench",

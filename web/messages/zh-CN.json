@@ -3757,7 +3757,6 @@
   "s8_local_branch_prefix": "本地：{branch}",
   "s8_local_branches": "本地分支",
   "s8_lock_reason_prefix": "锁定原因：{reason}",
-  "s8_menu_add_repository": "添加仓库…",
   "s8_menu_add_to_home": "添加到主页",
   "s8_menu_commit_changes": "提交改动…",
   "s8_menu_git_workbench": "Git 工作台",
