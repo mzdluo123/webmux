@@ -26,13 +26,13 @@
 </script>
 
 <form
-  class="flex h-[min(36rem,calc(95dvh-8rem))] min-h-36 flex-col gap-3 sm:h-[min(36rem,calc(90dvh-9rem))]"
+  class="flex h-[min(36rem,calc(95dvh-8rem))] min-h-min flex-col gap-3 sm:h-[min(36rem,calc(90dvh-9rem))]"
   onsubmit={(event) => {
     event.preventDefault();
     onsubmit();
   }}
 >
-  <div class="switch-body flex min-h-0 flex-1 flex-col gap-3">
+  <div class="switch-body flex min-h-48 flex-1 flex-col gap-3 max-sm:min-h-64">
     <div
       class="switch-fields max-h-[clamp(6rem,calc(75%-4rem),22rem)] min-h-0 shrink-0"
     >
@@ -48,7 +48,7 @@
         </div>
       </ScrollArea>
     </div>
-    <div class="switch-preview min-h-0 flex-1 border-t">
+    <div class="switch-preview min-h-20 flex-1 border-t max-sm:min-h-32">
       <ScrollArea
         class="h-full"
         viewportClasses="overscroll-contain"
@@ -78,6 +78,7 @@
 <style>
   @media (min-width: 640px) and (max-height: 480px) {
     .switch-body {
+      min-height: 6rem;
       flex-direction: row;
     }
 
