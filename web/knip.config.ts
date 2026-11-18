@@ -3,6 +3,9 @@ import generatedUI from "./ui-generated-files.json" with { type: "json" };
 
 export default {
   entry: ["scripts/*.{ts,mjs}"],
+  playwright: {
+    config: ["playwright*.config.ts"],
+  },
   vitest: {
     config: ["vitest.config.ts", "vitest.browser.config.ts"],
   },
