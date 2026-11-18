@@ -89,7 +89,7 @@
   }
 
   .grouping {
-    --grouping-inline-padding: 3px;
+    --grouping-inline-padding: 8px;
     --grouping-icon-gap: 4px;
     display: flex;
     flex: none;
@@ -97,61 +97,27 @@
     justify-content: flex-end;
   }
 
-  @container sidebar-header (width >= calc(125px + 8rem)) {
-    .drawer .grouping {
-      --grouping-inline-padding: 4px;
-    }
-  }
-
-  @container sidebar-header (width >= calc(185px + 8.5rem)) {
-    .grouping {
-      --grouping-inline-padding: 8px;
-    }
-  }
-
-  @container sidebar-header (width < calc(100px + 6rem)) {
-    .grouping {
-      --grouping-inline-padding: 2px;
-      --grouping-icon-gap: 2px;
-    }
-  }
-
-  /* Keep spelled-out English labels when large text needs another row. */
-  @container sidebar-header (width < calc(144px + 6.3rem)) {
-    .sidebar-header:lang(en):not(.drawer) .grouping {
-      flex-basis: 100%;
-      order: 1;
-    }
-  }
-
-  @container sidebar-header (width < calc(116px + 6.3rem)) {
-    .drawer:lang(en) .grouping {
-      flex-basis: 100%;
-      order: 1;
-    }
-  }
-
-  /* Leave enough width for both labels and the adjacent actions before showing icons. */
-  @container sidebar-header (width < calc(151px + 5rem)) {
-    .sidebar-header:not(.drawer) :global([data-grouping-icon]) {
+  /* Reserve room for the brand, adjacent actions and both padded choices. */
+  @container sidebar-header (width < calc(168px + 5rem)) {
+    .sidebar-header:not(.drawer) :global([data-grouping-label]) {
       display: none;
     }
   }
 
-  @container sidebar-header (width < calc(110px + 5rem)) {
-    .drawer :global([data-grouping-icon]) {
+  @container sidebar-header (width < calc(136px + 5rem)) {
+    .drawer :global([data-grouping-label]) {
       display: none;
     }
   }
 
-  @container sidebar-header (width < calc(169px + 8rem)) {
-    .sidebar-header:lang(en):not(.drawer) :global([data-grouping-icon]) {
+  @container sidebar-header (width < calc(176px + 8rem)) {
+    .sidebar-header:lang(en):not(.drawer) :global([data-grouping-label]) {
       display: none;
     }
   }
 
-  @container sidebar-header (width < calc(132px + 8rem)) {
-    .drawer:lang(en) :global([data-grouping-icon]) {
+  @container sidebar-header (width < calc(144px + 8rem)) {
+    .drawer:lang(en) :global([data-grouping-label]) {
       display: none;
     }
   }
