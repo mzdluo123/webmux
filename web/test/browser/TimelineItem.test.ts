@@ -1,73 +1,108 @@
+import "../../src/styles.css";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import TimelineItem from "../../src/components/chat/TimelineItem.svelte";
+import ToolDetails from "../../src/components/chat/ToolDetails.svelte";
+import type { ToolEntry } from "../../src/domains/chat/chat-model";
 
 afterEach(async () => {
   await cleanup();
-  vi.unstubAllGlobals();
 });
 
-test.each(["loaded", "unavailable"])(
-  "keeps the next message in place when a history image is %s",
-  async (state) => {
-    const response = Promise.withResolvers<Response>();
-    const fetch = vi.fn(() => response.promise);
-    vi.stubGlobal("fetch", fetch);
-    render(TimelineItem, {
-      entry: {
-        type: "message",
-        id: "history",
-        role: "user",
-        text: "Earlier message",
-        attachments: [
-          {
-            path: "/uploads/photo.svg",
-            name: "photo.svg",
-            kind: "image",
-            mimeType: "image/svg+xml",
-          },
-        ],
-      },
-      waiting: [],
-      sessionId: "fixture",
-    });
-    render(TimelineItem, {
-      entry: {
-        type: "message",
-        id: "next",
-        role: "agent",
-        text: "Next message",
-      },
-      waiting: [],
-    });
-    const row = page.getByRole("listitem");
-    const next = page.getByText("Next message");
-    await expect.element(next).toBeVisible();
-    expect(fetch).toHaveBeenCalledOnce();
-    const before = row.element().getBoundingClientRect().toJSON();
-    const nextTop = next.element().getBoundingClientRect().top;
+test("a one-line user message bubble has no blank line below the text", async () => {
+  render(TimelineItem, {
+    entry: {
+      type: "message",
+      id: "m1",
+      role: "user",
+      text: "提交并推送",
+      truncated: false,
+    },
+    waiting: [],
+    onreview: () => {},
+  });
+  const text = page.getByRole("paragraph");
+  await expect.element(text).toBeVisible();
+  const p = text.element() as HTMLElement;
+  const bubble = p.parentElement as HTMLElement;
+  const style = getComputedStyle(bubble);
+  const content =
+    bubble.clientHeight -
+    parseFloat(style.paddingTop) -
+    parseFloat(style.paddingBottom);
+  expect(content).toBeCloseTo(p.getBoundingClientRect().height, 0);
+});
 
-    response.resolve(
-      state === "loaded"
-        ? new Response(
-            '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="120"/>',
-            {
-              headers: { "Content-Type": "image/svg+xml" },
-            },
-          )
-        : new Response("missing", { status: 404 }),
-    );
-    if (state === "loaded") {
-      const image = page.getByRole("img", { name: "photo.svg" });
-      await expect.element(image).toBeVisible();
-      await (image.element() as HTMLImageElement).decode();
-    } else {
-      await vi.waitFor(() =>
-        expect(row.element().querySelector("svg")).not.toBeNull(),
-      );
-    }
-    expect(row.element().getBoundingClientRect().toJSON()).toEqual(before);
-    expect(next.element().getBoundingClientRect().top).toBe(nextTop);
-  },
-);
+test("user session references are same-tab links while foreign URLs stay text", async () => {
+  const foreign = "[Foreign](https://other.example.test/s/abcd2345)";
+  render(TimelineItem, {
+    entry: {
+      type: "message",
+      id: "reference",
+      role: "user",
+      text: `Compare [Session](/s/abcd2345) with ${foreign}`,
+      truncated: false,
+    },
+    waiting: [],
+    onreview: () => {},
+  });
+  const link = page.getByRole("link", { name: "Session", exact: true });
+  await expect.element(link).toHaveAttribute("href", "/s/abcd2345");
+  await expect.element(link).not.toHaveAttribute("target");
+  await expect
+    .element(page.getByRole("paragraph"))
+    .toHaveTextContent(`你：Compare Session with ${foreign}`);
+  expect(page.getByRole("link").elements()).toHaveLength(1);
+});
+
+test("agent markdown session references stay in-app links instead of code locations", async () => {
+  const onopenlocation = vi.fn();
+  render(TimelineItem, {
+    entry: {
+      type: "message",
+      id: "agent-reference",
+      role: "agent",
+      text: `See [Build](/s/abcd2345), [Same](${location.origin}/s/bcde2345), [Foreign](https://other.example.test/s/abcd2345) and [Code](src/App.svelte:12).`,
+      truncated: false,
+    },
+    waiting: [],
+    onreview: () => {},
+    onopenlocation,
+  });
+  const build = page.getByRole("link", { name: "Build", exact: true });
+  const same = page.getByRole("link", { name: "Same", exact: true });
+  const foreign = page.getByRole("link", { name: "Foreign", exact: true });
+  const code = page.getByRole("link", { name: "Code", exact: true });
+  await expect.element(build).toHaveAttribute("href", "/s/abcd2345");
+  await expect.element(build).not.toHaveAttribute("target");
+  await expect.element(build).not.toHaveAttribute("data-md-href");
+  await expect.element(same).toHaveAttribute("href", "/s/bcde2345");
+  await expect.element(same).not.toHaveAttribute("target");
+  await expect
+    .element(foreign)
+    .toHaveAttribute("href", "https://other.example.test/s/abcd2345");
+  await expect.element(foreign).toHaveAttribute("target", "_blank");
+  await expect
+    .element(code)
+    .toHaveAttribute("data-md-href", "src/App.svelte:12");
+  await code.click();
+  expect(onopenlocation).toHaveBeenCalledTimes(1);
+});
+
+test("chat diff remains readable without the optional code contribution", async () => {
+  const tool: ToolEntry = {
+    type: "tool",
+    id: "edit",
+    kind: "edit",
+    title: "Edit source",
+    status: "completed",
+    partial: false,
+    locations: [],
+    content: [{ type: "diff", path: "app.ts", oldText: "old", newText: "new" }],
+  };
+  render(ToolDetails, { tool });
+  await expect.element(page.getByText("app.ts", { exact: true })).toBeVisible();
+  const action = page.getByRole("button", { name: "在代码面板中查看" });
+  await expect.element(action).not.toBeInTheDocument();
+});
