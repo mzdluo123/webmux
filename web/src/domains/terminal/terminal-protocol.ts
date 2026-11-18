@@ -181,3 +181,34 @@ export function trimOverlapChunk<T extends ArrayBufferLike>(
   }
   return { remainingSkip: 0, slice: payload.subarray(skipBytes) };
 }
+
+// Coalesces DEC 1003 hover coordinates to at most one report per animation
+// frame, flushing in sequence before an explicit click or keystroke.
+export function createHoverCoalescer(deliver: (report: string) => void) {
+  let pending = "";
+  let frame = 0;
+  const drain = () => {
+    frame = 0;
+    const latest = pending;
+    pending = "";
+    if (latest) deliver(latest);
+  };
+  return {
+    schedule(report: string) {
+      pending = report;
+      if (!frame) frame = requestAnimationFrame(drain);
+    },
+    flush() {
+      if (!frame) return;
+      cancelAnimationFrame(frame);
+      drain();
+    },
+    cancel() {
+      pending = "";
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+    },
+  };
+}

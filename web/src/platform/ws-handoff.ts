@@ -3,6 +3,7 @@ import {
   ChatFrameSchema,
   SessionEventSchema,
   StreamPositionSchema,
+  SubmissionIdSchema,
   SubmissionStatusSchema,
   type StreamPosition,
 } from "../contracts/schemas";
@@ -99,14 +100,19 @@ export function stageHandoff(
   };
 }
 
-// The server processes this never-submitted ID on the same FIFO as PTY writes.
-// Only its missing receipt proves that all preceding input passed that lane.
+// The server processes query IDs on the same FIFO as PTY writes, so a receipt
+// proves that every preceding input frame on that socket completed its write.
 export class InputHandoffFence {
   private serial = 0;
+  private inputSerial = 0;
+  private confirmedSerial = 0;
+  private readonly queries = new Map<string, number>();
+  private readonly submissions = new Map<string, number>();
   private pending:
     | {
         id: string;
         serial: number;
+        inputSerial: number;
         socket: TransportSocket;
         covered: () => void;
         cancel: () => void;
@@ -115,8 +121,82 @@ export class InputHandoffFence {
       }
     | undefined;
 
-  sent() {
-    this.serial++;
+  sent(kind: number, payload: Uint8Array) {
+    if (kind === 0 || kind === 3 || kind === 6) this.serial++;
+    if (kind === 0) {
+      this.inputSerial++;
+      return;
+    }
+    if (kind === 3) {
+      const target = ++this.inputSerial;
+      const newline = payload.indexOf(10);
+      if (newline <= 0) return;
+      try {
+        const raw: unknown = JSON.parse(
+          new TextDecoder().decode(payload.subarray(0, newline)),
+        );
+        if (typeof raw === "object" && raw !== null && "id" in raw) {
+          const parsed = SubmissionIdSchema.safeParse(raw.id);
+          if (parsed.success) {
+            if (this.submissions.size >= 256) {
+              const oldest = this.submissions.keys().next().value;
+              if (oldest !== undefined) this.submissions.delete(oldest);
+            }
+            this.submissions.set(parsed.data, target);
+          }
+        }
+      } catch {
+        // Synthetic payloads in tests still advance inputSerial above.
+      }
+      return;
+    }
+    if (kind === 4 && this.inputSerial > this.confirmedSerial) {
+      try {
+        const raw: unknown = JSON.parse(new TextDecoder().decode(payload));
+        if (
+          typeof raw === "object" &&
+          raw !== null &&
+          "ids" in raw &&
+          Array.isArray(raw.ids)
+        ) {
+          let lastId: string | undefined;
+          for (const candidate of raw.ids) {
+            const parsed = SubmissionIdSchema.safeParse(candidate);
+            if (parsed.success) lastId = parsed.data;
+          }
+          if (lastId !== undefined) {
+            if (this.queries.size >= 64) {
+              const oldest = this.queries.keys().next().value;
+              if (oldest !== undefined) this.queries.delete(oldest);
+            }
+            this.queries.set(lastId, this.inputSerial);
+          }
+        }
+      } catch {
+        // Malformed query payloads are ignored by the server as well.
+      }
+    }
+  }
+
+  failedSend(kind: number) {
+    if (kind === 0 || kind === 3) this.inputSerial++;
+  }
+
+  resetUncertain() {
+    this.inputSerial = 0;
+    this.confirmedSerial = 0;
+    this.queries.clear();
+    this.submissions.clear();
+  }
+
+  consumeUncertain(): boolean {
+    const uncertain = this.inputSerial > this.confirmedSerial;
+    this.resetUncertain();
+    return uncertain;
+  }
+
+  needsFollowUpProbe(): boolean {
+    return this.inputSerial > this.confirmedSerial && this.queries.size === 0;
   }
 
   clear() {
@@ -135,6 +215,7 @@ export class InputHandoffFence {
     this.pending = {
       id: "",
       serial: this.serial,
+      inputSerial: this.inputSerial,
       socket,
       covered,
       cancel,
@@ -149,6 +230,7 @@ export class InputHandoffFence {
     if (!pending) return;
     pending.id = "hf-" + randomHex(16);
     pending.serial = this.serial;
+    pending.inputSerial = this.inputSerial;
     const payload = new TextEncoder().encode(
       JSON.stringify({ ids: [pending.id] }),
     );
@@ -169,29 +251,49 @@ export class InputHandoffFence {
     }
   }
 
-  receive(data: string | ArrayBuffer) {
-    const pending = this.pending;
-    if (!pending) return false;
+  receive(data: string | ArrayBuffer): "handoff" | "confirm" | "none" {
+    let id: string;
+    let state: string;
     try {
       const frame = terminalFrame(data);
-      if (!frame || frame[0] !== 5) return false;
+      if (!frame || frame[0] !== 5) return "none";
       const result = SubmissionStatusSchema.safeParse(
         JSON.parse(new TextDecoder().decode(frame.subarray(1))),
       );
-      if (
-        !result.success ||
-        result.data.id !== pending.id ||
-        result.data.state !== "missing"
-      )
-        return false;
+      if (!result.success) return "none";
+      id = result.data.id;
+      state = result.data.state;
     } catch {
-      return false;
+      return "none";
     }
-    if (pending.serial !== this.serial) this.query();
-    else {
-      this.clear();
-      pending.covered();
+    const pending = this.pending;
+    if (pending && id === pending.id && state === "missing") {
+      this.confirmedSerial = Math.max(
+        this.confirmedSerial,
+        pending.inputSerial,
+      );
+      if (pending.serial !== this.serial) this.query();
+      else {
+        this.clear();
+        pending.covered();
+      }
+      return "handoff";
     }
-    return true;
+    let confirmed = false;
+    const queried = this.queries.get(id);
+    if (queried !== undefined) {
+      this.queries.delete(id);
+      this.confirmedSerial = Math.max(this.confirmedSerial, queried);
+      confirmed = true;
+    }
+    const submitted = this.submissions.get(id);
+    if (submitted !== undefined && state !== "received") {
+      this.submissions.delete(id);
+      if (state === "written" || state === "failed") {
+        this.confirmedSerial = Math.max(this.confirmedSerial, submitted);
+        confirmed = true;
+      }
+    }
+    return confirmed ? "confirm" : "none";
   }
 }
