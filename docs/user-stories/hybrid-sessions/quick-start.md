@@ -30,6 +30,7 @@
   - 打开页面和每次切换 agent 都经 `POST /api/launch-configs/{id}/options {repositoryId}` 让 agent 在仓库中临时开一个会话，重新读取配置项：
     - 读取到的选项默认值套用启动命令的可映射参数（如 Devin `--permission-mode dangerous` 显示为 Bypass Permissions），未映射的选项沿用 agent 报告的默认值；
     - 读取期间显示“正在读取配置…”，agent、权限、配置与发送均禁用，完成后恢复可用；
+    - 读取提示保留自己的位置，消失时已显示的选项保持滚动位置；
     - 读取失败时沿用该启动配置记住的清单（`chatOptions`），不提供重试按钮；
     - agent 不接受的值不阻断发送，只在聊天中留下说明；
   - 权限模式默认“全部接受”；
