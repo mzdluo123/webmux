@@ -276,7 +276,12 @@
   }
 
   function scrollToColumn(line: number, column: number) {
-    scrollFileToColumn(() => viewer, lineNumber(line), column);
+    scrollFileToColumn(
+      () => viewer,
+      lineNumber(line),
+      column,
+      horizontalScrollbar.scrollTo,
+    );
   }
 
   function goto(value: string) {
