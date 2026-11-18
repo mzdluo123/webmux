@@ -55,6 +55,7 @@
 </script>
 
 <script lang="ts">
+  import { tick } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import IconArchive from "~icons/tabler/archive";
   import IconChevronDown from "~icons/tabler/chevron-down";
@@ -154,10 +155,27 @@
     ),
   );
 
-  function toggleBatchSelect(item: GitWorkingChange) {
-    batchSelectedIds = batchSelectedIds.includes(item.id)
-      ? batchSelectedIds.filter((id) => id !== item.id)
-      : [...batchSelectedIds, item.id];
+  async function toggleBatchSelect(item: GitWorkingChange) {
+    const selecting = !batchSelectedIds.includes(item.id);
+    batchSelectedIds = selecting
+      ? [...batchSelectedIds, item.id]
+      : batchSelectedIds.filter((id) => id !== item.id);
+    if (!selecting) return;
+    await tick();
+    if (!listScrollEl) return;
+    const rowEl = listScrollEl.querySelector<HTMLElement>(
+      `[data-change-id="${CSS.escape(item.id)}"]`,
+    );
+    if (!rowEl) return;
+    const viewportRect = listScrollEl.getBoundingClientRect();
+    const rowRect = rowEl.getBoundingClientRect();
+    if (rowRect.bottom > viewportRect.bottom) {
+      listScrollEl.scrollTop += Math.ceil(rowRect.bottom - viewportRect.bottom);
+      onListScrollChange?.(listScrollEl.scrollTop);
+    } else if (rowRect.top < viewportRect.top) {
+      listScrollEl.scrollTop -= Math.ceil(viewportRect.top - rowRect.top);
+      onListScrollChange?.(listScrollEl.scrollTop);
+    }
   }
   const sections = $derived<{ key: GitChangeGroup; title: string }[]>([
     { key: "conflicted", title: m.s7_group_conflicted() },
@@ -219,22 +237,9 @@
   }
 </script>
 
-{#snippet batchActions()}
-  {#if !readonlyMode && onDiscardChanges}
-    <GitDiscardBatchBar
-      selectedItems={selectedBatchItems}
-      busy={stagingBusy}
-      {onStageChange}
-      {onDiscardChanges}
-      onClearSelection={() => (batchSelectedIds = [])}
-    />
-  {/if}
-{/snippet}
-
-<ScrollArea
-  class="h-full"
-  viewportClasses="[&>[data-scroll-area-content]]:flex [&>[data-scroll-area-content]]:flex-col"
-  viewportProps={{ role: "region", "aria-label": m.s7_uncommitted_pane_aria() }}
+<section
+  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
+  aria-label={m.s7_uncommitted_pane_aria()}
 >
   <GitPanelToolbar>
     <span class="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
@@ -305,14 +310,13 @@
   <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child option buttons. -->
   <ScrollArea
     bind:viewportRef={listScrollEl}
-    class="min-h-8 flex-1"
+    class="min-h-16 flex-1"
     viewportProps={{
       role: "listbox",
       "aria-label": m.s7_uncommitted_listbox_aria(),
       onkeydown: handleListKeydown,
     }}
     onscroll={(e) => onListScrollChange?.(e.currentTarget.scrollTop)}
-    footer={batchActions}
   >
     <div class="space-y-2 p-2">
       {#if changes.length === 0 && !readonlyMode && taskReview?.status === "ready" && (taskReview.commitCount > 0 || context.ahead > 0)}
@@ -443,6 +447,16 @@
     </div>
   </ScrollArea>
 
+  {#if !readonlyMode && onDiscardChanges}
+    <GitDiscardBatchBar
+      selectedItems={selectedBatchItems}
+      busy={stagingBusy}
+      {onStageChange}
+      {onDiscardChanges}
+      onClearSelection={() => (batchSelectedIds = [])}
+    />
+  {/if}
+
   <GitCommitComposer
     {context}
     stagedCount={grouped.staged.length}
@@ -474,4 +488,4 @@
     {onCommitAuthorOverrideChange}
     {onToggleCommitSignoff}
   />
-</ScrollArea>
+</section>

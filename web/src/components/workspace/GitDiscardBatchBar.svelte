@@ -30,7 +30,7 @@
     aria-label={m.s6_discard_batch_region_aria()}
     data-testid="git-discard-batch-bar"
   >
-    <GitPanelToolbar>
+    <GitPanelToolbar edge="bottom">
       <div class="flex min-w-0 items-center gap-1.5">
         <Badge variant="info">
           {m.s6_discard_batch_selected_count({

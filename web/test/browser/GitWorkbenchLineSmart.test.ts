@@ -336,7 +336,7 @@ test("Smart Checkout enforces active CLI agent session disclosure + acknowledgem
   expect(onclose).toHaveBeenCalledOnce();
 });
 
-test("preserve next checkbox pointer position when batch selection appears", async () => {
+test("preserve next checkbox pointer position and single 1px borders when batch selection appears", async () => {
   await page.viewport(1280, 900);
   render(Harness, { initialState: buildGitWorkbenchFixture("commit-staging") });
   const first = page.getByRole("checkbox", {
@@ -349,13 +349,59 @@ test("preserve next checkbox pointer position when batch selection appears", asy
   await document.fonts.ready;
   const initial = second.element().getBoundingClientRect().top;
   await first.click();
-  await expect.element(page.getByTestId("git-discard-batch-bar")).toBeVisible();
+  const batchBar = page.getByTestId("git-discard-batch-bar");
+  await expect.element(batchBar).toBeVisible();
+  const toolbarStyle = getComputedStyle(
+    batchBar.element().firstElementChild as HTMLElement,
+  );
+  expect(toolbarStyle.borderTopWidth).toBe("1px");
+  expect(toolbarStyle.borderBottomWidth).toBe("0px");
+  const composerStyle = getComputedStyle(
+    page.getByTestId("git-commit-composer").element(),
+  );
+  expect(composerStyle.borderTopWidth).toBe("1px");
   const selected = second.element().getBoundingClientRect().top;
   await first.click();
-  await expect
-    .element(page.getByTestId("git-discard-batch-bar"))
-    .not.toBeInTheDocument();
+  await expect.element(batchBar).not.toBeInTheDocument();
   const cleared = second.element().getBoundingClientRect().top;
   expect(selected).toBeCloseTo(initial, 0);
   expect(cleared).toBeCloseTo(initial, 0);
+});
+
+test("scroll file list to keep bottom row visible when batch action bar mounts", async () => {
+  await page.viewport(1280, 900);
+  const fixture = buildGitWorkbenchFixture("commit-staging");
+  fixture.workingChanges = [
+    ...fixture.workingChanges,
+    ...Array.from({ length: 20 }, (_, idx) => ({
+      id: `untracked:extra-${idx}.md`,
+      path: `docs/extra-${idx}.md`,
+      group: "untracked" as const,
+      status: "?" as const,
+      hunkStageAvailable: false,
+      hunks: [],
+    })),
+  ];
+  render(Harness, { initialState: fixture });
+  const listboxLoc = page.getByRole("listbox", { name: "工作树变更条目" });
+  await expect.element(listboxLoc).toBeVisible();
+  const listbox = listboxLoc.element() as HTMLElement;
+  await document.fonts.ready;
+
+  // Scroll the file list to the bottom so the final row sits just above the composer.
+  listbox.scrollTop = listbox.scrollHeight;
+  expect(listbox.scrollTop).toBeGreaterThan(0);
+  const scrollBefore = listbox.scrollTop;
+  const bottomCheckbox = page.getByRole("checkbox", {
+    name: "选择未暂存条目 docs/extra-19.md",
+  });
+  await expect.element(bottomCheckbox).toBeVisible();
+  await bottomCheckbox.click();
+  await expect.element(page.getByTestId("git-discard-batch-bar")).toBeVisible();
+
+  const listboxRect = listbox.getBoundingClientRect();
+  const checkboxRect = bottomCheckbox.element().getBoundingClientRect();
+  expect(listbox.scrollTop).toBeGreaterThan(scrollBefore);
+  expect(checkboxRect.bottom).toBeLessThanOrEqual(listboxRect.bottom + 0.5);
+  expect(checkboxRect.top).toBeGreaterThanOrEqual(listboxRect.top - 0.5);
 });
