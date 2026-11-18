@@ -58,7 +58,7 @@ deb / rpm 文件名使用 `-dev.N`（GitHub 会改写文件名中的 `~`），�
 
 ## 发布签名
 
-每个 Release 附带 `SHA256SUMS.minisig`：用发布私钥对 `SHA256SUMS` 做的 [minisign](https://jedisct1.github.io/minisign/) 签名，可信注释为 `webmux <版本>`。更新程序只信任内置的公钥，正式版与开发版使用不同的密钥：
+每个 Release 附带 `SHA256SUMS.minisig`：用发布私钥对 `SHA256SUMS` 做的 [minisign](https://jedisct1.github.io/minisign/) 签名，可信注释为 `webmux <版本>`。更新程序与 `install.sh` 只信任内置的公钥，正式版与开发版使用不同的密钥：
 
 ```text
 untrusted comment: minisign public key 4AF7A1E8058C841C
@@ -155,11 +155,11 @@ WebMux 只在有人查询状态或配置时检查，两次检查至少间隔 60 
 
 发布私钥是 GitHub Actions 密钥 `WEBMUX_RELEASE_SIGNING_KEY`，内容为 `go run ./cmd/internal/releasesign keygen -secret <文件>` 生成的一行 Base64，需要离线备份；缺失时发布失败。发布 workflow 的构建 job 看不到它，只有单独的签名 job 在全新 runner 上读取它，并且只签 `SHA256SUMS`。
 
-更换密钥分两步：先发布一个同时内置新旧公钥（`internal/update` 的 `releaseKeys`）、仍用旧私钥签名的版本，下一个版本再改用新私钥。私钥丢失后，已安装的版本无法再自动更新，用户需要手动升级一次。
+更换密钥分两步：先发布一个同时内置新旧公钥（`internal/update` 的 `stableKeys` 与 `install.sh` 的 `stable_pubkeys`）、仍用旧私钥签名的版本，下一个版本再改用新私钥。私钥丢失后，已安装的版本无法再自动更新，用户需要手动升级一次。
 
 开发版私钥是另一个 Actions 密钥 `WEBMUX_DEV_SIGNING_KEY`，只签 `-dev.N` 版本，由开发版发布 workflow 的签名 job 读取；`releasesign sign` 按版本自动选择读取哪个密钥。开发版密钥泄露或需要更换时：
 
 1. 用 `go run ./cmd/internal/releasesign keygen -secret <文件>` 生成新密钥对；
-2. 把新公钥加到 `internal/update` 的 `devKeys` 中，与旧公钥并列，合入 main；
+2. 把新公钥同时加到 `internal/update` 的 `devKeys` 与 `install.sh` 的 `dev_pubkeys` 中，与旧公钥并列，合入 main；
 3. 把 Actions 密钥 `WEBMUX_DEV_SIGNING_KEY` 设为新私钥；
-4. 新密钥签名的开发版发布之后，再从 `devKeys` 中删除旧公钥，并更新本页公布的开发版公钥。
+4. 新密钥签名的开发版发布之后，再从 `devKeys` 与 `dev_pubkeys` 中删除旧公钥，并更新本页公布的开发版公钥。
