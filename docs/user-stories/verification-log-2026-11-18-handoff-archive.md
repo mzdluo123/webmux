@@ -12,8 +12,8 @@
 - 隔离嵌入应用实际操作：手机页数 `8 → 空 → 3` 可生成预览；`12` 失焦显示范围错误，改为 `3` 恢复。截图均为合成数据。
 - 视觉覆盖 1280×900、768×1024、390×844 的浅深色；未做 iOS/Android 真机键盘、真实粗指针或悬停验证。
 
-| 视口与主题 | 修改前                                                  | 修改后                                                 |
-| ---------- | ------------------------------------------------------- | ------------------------------------------------------ |
+| 视口与主题 | 修改前                                                   | 修改后                                                  |
+| ---------- | -------------------------------------------------------- | ------------------------------------------------------- |
 | 桌面浅色   | [前](../images/handoff/archive-before-desktop-light.png) | [后](../images/handoff/archive-after-desktop-light.png) |
 | 桌面深色   | [前](../images/handoff/archive-before-desktop-dark.png)  | [后](../images/handoff/archive-after-desktop-dark.png)  |
 | 平板浅色   | [前](../images/handoff/archive-before-tablet-light.png)  | [后](../images/handoff/archive-after-tablet-light.png)  |
