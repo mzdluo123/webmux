@@ -64,3 +64,7 @@
   - `go test -race -count=1 ./cmd/... ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过；
   - Playwright E2E `agent-tools.spec.ts`、`relay-settings.spec.ts` 与 `worktrees.spec.ts`（直接目录创建降级）共 10 项通过。
+
+## 启动配置提醒范围（T090，US-B08）
+
+- `pnpm --dir web test:browser test/browser/LaunchConfigDialog.test.ts` 通过。方向键连续切换全部提醒、仅需介入和关闭时依赖字段保留位置，阈值范围错误立即写入实时播报区。

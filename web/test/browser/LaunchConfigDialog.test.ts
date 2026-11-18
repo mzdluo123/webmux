@@ -286,7 +286,7 @@ test("following the global default saves a null preview", async () => {
   expect(savedRequest(requests)?.body).toMatchObject({ preview: null });
 });
 
-test("configures per-config attention settings, shows signal priority, and hides irrelevant fields by mode", async () => {
+test("keeps alert controls in place while changing modes and announcing errors", async () => {
   const onsaved = vi.fn();
   const requests = serve({
     "/api/launch-configs/abcdefg2": (method, body) =>
@@ -312,28 +312,34 @@ test("configures per-config attention settings, shows signal priority, and hides
   await page.getByLabelText("最短回合耗时（秒）").fill("10");
   await page.getByLabelText("完成确认延迟（秒）").fill("3");
 
-  // Switching to "仅需介入" hides threshold inputs while keeping signal sources.
-  await page.getByRole("radio", { name: "仅需介入", exact: true }).click();
-  await expect
-    .poll(() => page.getByLabelText("最短回合耗时（秒）").elements().length)
-    .toBe(0);
-  await expect
-    .element(page.getByRole("checkbox", { name: "Agent 事件 (Warp 协议)" }))
-    .toBeVisible();
+  const threshold = page.getByLabelText("最短回合耗时（秒）");
+  const agentEvents = page.getByRole("checkbox", {
+    name: "Agent 事件 (Warp 协议)",
+  });
+  const all = page.getByRole("radio", { name: "全部提醒", exact: true });
+  const urgent = page.getByRole("radio", { name: "仅需介入", exact: true });
+  const off = page.getByRole("radio", { name: "关闭", exact: true });
+  const editor = document.getElementById("launch-config-attention-fieldset");
+  const height = editor?.getBoundingClientRect().height;
 
-  // Switching to "关闭" hides both signal sources and threshold inputs.
-  await page.getByRole("radio", { name: "关闭", exact: true }).click();
-  await expect
-    .poll(
-      () =>
-        page
-          .getByRole("checkbox", { name: "Agent 事件 (Warp 协议)" })
-          .elements().length,
-    )
-    .toBe(0);
+  await all.click();
+  await userEvent.keyboard("{ArrowRight}");
+  await expect.element(urgent).toHaveFocus();
+  await expect.element(threshold).toBeDisabled();
+  await expect.element(agentEvents).toBeEnabled();
 
-  // Switch back to "全部提醒" and save.
-  await page.getByRole("radio", { name: "全部提醒", exact: true }).click();
+  await userEvent.keyboard("{ArrowRight}");
+  await expect.element(off).toHaveFocus();
+  await expect.element(agentEvents).toBeDisabled();
+  expect(editor?.getBoundingClientRect().height).toBe(height);
+
+  await userEvent.keyboard("{ArrowRight}");
+  await expect.element(all).toHaveFocus();
+  await threshold.fill("301");
+  await expect.element(page.getByRole("alert")).toMatchTextContent(/0–300/);
+  await expect.element(threshold).toHaveAttribute("aria-invalid", "true");
+  expect(editor?.getBoundingClientRect().height).toBe(height);
+  await threshold.fill("10");
   const scrollBody = page.getByTestId("launch-config-scroll");
   await expect.element(scrollBody).toBeVisible();
   await save().click();
