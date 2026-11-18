@@ -127,108 +127,109 @@
   </p>
 {/if}
 
-{#if mode === "existing"}
-  <div class="space-y-2">
-    <Label for="switch-branch">{m.s8_target_branch_label()}</Label>
-    <PickerField
-      id="switch-branch"
-      bind:open={() => branchOpen, setBranchOpen}
-      disabled={busy || !data}
-    >
-      {#snippet trigger()}{@render pickerFace(
-          chosenName,
-          m.s8_select_local_or_remote_branch(),
-        )}{/snippet}
-      <BranchCommandList
-        label={m.s8_target_branch_label()}
-        branches={[...localItems]}
-        remoteBranches={[...remoteItems]}
-        selected={chosenName}
-        loading={!data && !loadError}
-        failed={!!loadError}
-        disabled={busy}
-        bind:search={branchSearch}
-        onselect={(name) => {
-          onSelectBranch(name);
-          setBranchOpen(false);
-        }}
-      />
-    </PickerField>
-    <p class="text-xs text-muted-foreground">
-      {m.s8_remote_branch_creates_local_help()}
-    </p>
-  </div>
-{:else if mode === "new"}
-  <div class="space-y-3">
+<div class="min-h-52">
+  {#if mode === "existing"}
     <div class="space-y-2">
-      <div class="flex items-center justify-between gap-2">
-        <Label for="switch-new-branch">{m.s8_new_branch_name_label()}</Label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={busy || !data}
-          onclick={onSuggestName}>{m.s8_suggest_another()}</Button
-        >
-      </div>
-      <Input
-        id="switch-new-branch"
-        bind:value={newName}
-        disabled={busy}
-        placeholder="feature/my-task"
-        autocomplete="off"
-        autocapitalize="off"
-        autocorrect="off"
-        spellcheck={false}
-        aria-invalid={nameTaken}
-        aria-describedby={nameTaken ? "switch-new-branch-error" : undefined}
-      />
-      {#if nameTaken}
+      <Label for="switch-branch">{m.s8_target_branch_label()}</Label>
+      <PickerField
+        id="switch-branch"
+        bind:open={() => branchOpen, setBranchOpen}
+        disabled={busy || !data}
+      >
+        {#snippet trigger()}{@render pickerFace(
+            chosenName,
+            m.s8_select_local_or_remote_branch(),
+          )}{/snippet}
+        <BranchCommandList
+          label={m.s8_target_branch_label()}
+          branches={[...localItems]}
+          remoteBranches={[...remoteItems]}
+          selected={chosenName}
+          loading={!data && !loadError}
+          failed={!!loadError}
+          disabled={busy}
+          bind:search={branchSearch}
+          onselect={(name) => {
+            onSelectBranch(name);
+            setBranchOpen(false);
+          }}
+        />
+      </PickerField>
+      <p class="text-xs text-muted-foreground">
+        {m.s8_remote_branch_creates_local_help()}
+      </p>
+    </div>
+  {:else if mode === "new"}
+    <div class="space-y-3">
+      <div class="space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <Label for="switch-new-branch">{m.s8_new_branch_name_label()}</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy || !data}
+            onclick={onSuggestName}>{m.s8_suggest_another()}</Button
+          >
+        </div>
+        <Input
+          id="switch-new-branch"
+          bind:value={newName}
+          disabled={busy}
+          placeholder="feature/my-task"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck={false}
+          aria-invalid={nameTaken}
+          aria-describedby={nameTaken ? "switch-new-branch-error" : undefined}
+        />
         <p
           id="switch-new-branch-error"
-          role="alert"
+          role={nameTaken ? "alert" : undefined}
+          class:invisible={!nameTaken}
           class="text-xs text-destructive"
         >
           {m.s8_err_local_branch_name_taken()}
         </p>
-      {/if}
+      </div>
+      <div class="space-y-2">
+        <Label for="switch-start-point">{m.s8_start_point_label()}</Label>
+        <PickerField
+          id="switch-start-point"
+          bind:open={() => startOpen, setStartOpen}
+          disabled={busy || !data}
+        >
+          {#snippet trigger()}{@render pickerFace(
+              startIsBranch || !startPoint
+                ? startPoint
+                : m.s8_current_commit_hash({ hash: short(startPoint) }),
+              m.s8_select_start_point(),
+            )}{/snippet}
+          <BranchCommandList
+            label={m.s8_start_point_label()}
+            branches={[...localBranchList]}
+            remoteBranches={[...remoteBranchList]}
+            selected={startPoint}
+            loading={!data && !loadError}
+            failed={!!loadError}
+            disabled={busy}
+            bind:search={startSearch}
+            onselect={(name) => ((startPoint = name), setStartOpen(false))}
+          />
+        </PickerField>
+        <p class="text-xs text-muted-foreground">
+          {m.s8_new_branch_no_upstream_help()}
+        </p>
+      </div>
     </div>
-    <div class="space-y-2">
-      <Label for="switch-start-point">{m.s8_start_point_label()}</Label>
-      <PickerField
-        id="switch-start-point"
-        bind:open={() => startOpen, setStartOpen}
-        disabled={busy || !data}
-      >
-        {#snippet trigger()}{@render pickerFace(
-            startIsBranch || !startPoint
-              ? startPoint
-              : m.s8_current_commit_hash({ hash: short(startPoint) }),
-            m.s8_select_start_point(),
-          )}{/snippet}
-        <BranchCommandList
-          label={m.s8_start_point_label()}
-          branches={[...localBranchList]}
-          remoteBranches={[...remoteBranchList]}
-          selected={startPoint}
-          loading={!data && !loadError}
-          failed={!!loadError}
-          disabled={busy}
-          bind:search={startSearch}
-          onselect={(name) => ((startPoint = name), setStartOpen(false))}
-        />
-      </PickerField>
-      <p class="text-xs text-muted-foreground">
-        {m.s8_new_branch_no_upstream_help()}
-      </p>
-    </div>
-  </div>
-{:else}
-  <SwitchBranchCommitSelect
-    bind:commit
-    {commitRows}
-    {commitsRead}
-    {commitsError}
-    {busy}
-  />
-{/if}
+  {:else}
+    <SwitchBranchCommitSelect
+      bind:commit
+      {commitRows}
+      {commitsRead}
+      {commitsError}
+      {busy}
+    />
+  {/if}
+</div>
