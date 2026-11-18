@@ -53,6 +53,15 @@
 - 隔离 Chromium 中核对了 6 个视口的明暗主题、长标题和页面横向溢出，以及桌面键盘焦点与悬停提示。未验证实体触屏或真机。
 - [手机上为隐藏的项目创建首个会话](../images/pr/sidebar-session-groups/interaction-phone.gif)。
 
+## 2026-11-19：启动和回合改动的阅读位置（US-Q18、US-B01、US-Q05）
+
+- 隔离 Chromium 复测 T026、T030、T037、T038。320×568 下，更新初始化指令引用提示时，输入与发送按钮坐标保持稳定，浮层留在视口内。
+- 320×568 的项目列表与运行设置往返后，分别恢复项目列表滚动和设置页的 205px 滚动位置，并保留搜索、命令、名称及配置焦点。
+- 隔离浏览器展开两个补丁或换到单补丁时，三个文件头的坐标一致。服务端假 Agent 的 Playwright 探针也确认桌面及移动 Chromium 展开两个补丁时，所选文件头的坐标保持不变。
+- 缺快照、计算中与着色差异共用 256px 桌面边界。快照替换后保留第 19 行选区和首个可见行。
+- `make e2e-runtime` 构建成功。`playwright test` 在 `quick-start.spec.ts`、`session-creation.spec.ts`、`hybrid.spec.ts` 的相关桌面与手机场景通过 19 项，跳过 1 项桌面快捷键用例的手机版。
+- `pnpm --dir web test:unit test/turn-changes.test.ts test/chat-model.test.ts test/code-diff.test.ts` 的 38 项通过。减少动态效果模式在 320×568 独立复测。触屏交互使用 Chromium 模拟，实体设备和悬停待真机验证。
+
 ## 2026-11-19：关闭配置文件功能开关并固定启用全部内置模块（US-K18 退役、US-K03）
 
 - 故事编号与总数（264）保持不变，将 US-K18 标为已退役并同步覆盖索引：
