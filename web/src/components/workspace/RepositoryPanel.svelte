@@ -14,6 +14,7 @@
 </script>
 
 <script lang="ts">
+  import { usePanelMotion } from "../../hooks/shared/dock-motion.svelte";
   import { onDestroy, tick, untrack } from "svelte";
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import { m } from "$lib/paraglide/messages.js";
@@ -115,6 +116,11 @@
 
   const available = $derived(repository.availability === "available");
   let tab = $state<RepositoryTab>(untrack(() => initialTab));
+  let panels = $state<HTMLDivElement | null>(null);
+  const settleTabMotion = usePanelMotion(
+    () => panels,
+    () => tab,
+  );
   let busy = $state(false);
   // The subviews over the tabs, the last one shown; empty for the tabs.
   type Subview =
@@ -216,6 +222,7 @@
   // Opens a subview; leaving the tabs saves their scroll for "返回".
   async function push(view: Subview) {
     if (busy) return;
+    settleTabMotion();
     const outer = dialogScrollers();
     if (!views.length)
       saved = [
@@ -326,58 +333,60 @@
               >
             {/each}
           </Tabs.List>
-          <Tabs.Content value="overview" class="pt-2">
-            <RepositoryOverview
-              {repository}
-              {sessions}
-              {records}
-              {home}
-              remoteCount={remotes?.length}
-              {registryReady}
-              {onunregister}
-            />
-          </Tabs.Content>
-          <Tabs.Content value="worktrees" class="pt-2">
-            <RepositoryWorktrees
-              {repository}
-              {sessions}
-              archived={records}
-              {home}
-              bind:busy
-              onopen={openWorktree}
-              onswitch={(id) => void push({ kind: "switch", id })}
-              onoperation={openOperation}
-              {ongit}
-              {onchange}
-              {onremoved}
-            />
-          </Tabs.Content>
-          <Tabs.Content value="branches" class="pt-2">
-            {#key branchesRead}
-              <RepositoryBranches
-                active={tab === "branches"}
-                load={(signal) => source.branches(repository.id, signal)}
-                {worktreePaths}
-                onopen={openPath}
-                {onnewworktree}
-                onoperation={openOperation}
-                version={branchesVersion}
+          <div bind:this={panels}>
+            <Tabs.Content value="overview" class="pt-2">
+              <RepositoryOverview
+                {repository}
+                {sessions}
+                {records}
+                {home}
+                remoteCount={remotes?.length}
+                {registryReady}
+                {onunregister}
               />
-            {/key}
-          </Tabs.Content>
-          <Tabs.Content value="remotes" class="pt-2">
-            <RepositoryRemotes
-              repositoryId={repository.id}
-              {remotes}
-              error={remotesError}
-              onretry={() => void readRemotes()}
-              onRemotesUpdated={(next) => {
-                remotes = next;
-                branchesRead++;
-                onrefresh();
-              }}
-            />
-          </Tabs.Content>
+            </Tabs.Content>
+            <Tabs.Content value="worktrees" class="pt-2">
+              <RepositoryWorktrees
+                {repository}
+                {sessions}
+                archived={records}
+                {home}
+                bind:busy
+                onopen={openWorktree}
+                onswitch={(id) => void push({ kind: "switch", id })}
+                onoperation={openOperation}
+                {ongit}
+                {onchange}
+                {onremoved}
+              />
+            </Tabs.Content>
+            <Tabs.Content value="branches" class="pt-2">
+              {#key branchesRead}
+                <RepositoryBranches
+                  active={tab === "branches"}
+                  load={(signal) => source.branches(repository.id, signal)}
+                  {worktreePaths}
+                  onopen={openPath}
+                  {onnewworktree}
+                  onoperation={openOperation}
+                  version={branchesVersion}
+                />
+              {/key}
+            </Tabs.Content>
+            <Tabs.Content value="remotes" class="pt-2">
+              <RepositoryRemotes
+                repositoryId={repository.id}
+                {remotes}
+                error={remotesError}
+                onretry={() => void readRemotes()}
+                onRemotesUpdated={(next) => {
+                  remotes = next;
+                  branchesRead++;
+                  onrefresh();
+                }}
+              />
+            </Tabs.Content>
+          </div>
         </Tabs.Root>
       {:else}
         <RepositoryOverview
