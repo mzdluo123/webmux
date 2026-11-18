@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	snapcompact "github.com/mzdluo123/snapcompact-go"
 	"github.com/rainchan/webmux/internal/historysource"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/session"
@@ -20,8 +19,8 @@ import (
 )
 
 func useLongImageHistory(b *testBackend) {
-	b.body = "early constraint\n" + strings.Repeat("archive_line(x <= 7); ", 350) +
-		"MIDDLE_ONLY_SENTINEL " + strings.Repeat("second_half(x != 9); ", 350) + "\nlatest correction\n  code()"
+	b.body = "early constraint\n" + strings.Repeat("archive_line(x <= 7); ", 950) +
+		"MIDDLE_ONLY_SENTINEL " + strings.Repeat("second_half(x != 9); ", 950) + "\nlatest correction\n  code()"
 	target := b.records["target"]
 	target.Config = map[string]string{"model": "openai-codex/gpt-6-astra"}
 	b.records["target"] = target
@@ -90,14 +89,14 @@ func TestDefaultImagePreviewSendsFrozenPages(t *testing.T) {
 func TestImagePageBudgetPreservesEdgesAndReportsMiddleOmissions(t *testing.T) {
 	s, b := newTestService(t)
 	useLongImageHistory(b)
-	for i := range 4 {
+	for i := range 6 {
 		b.history = append(b.history, historysource.Record{ID: fmt.Sprintf("record-%d", i), Role: "user", Kind: "structured", Text: fmt.Sprintf("start_marker_%d\n", i) + strings.Repeat("  code_line()\n", 800) + fmt.Sprintf("end_marker_%d\n", i)})
 	}
 	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", MaxPages: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.BlockedReason != "" || len(p.Pages) != 1 || p.OmittedCount == 0 || !strings.Contains(p.Text, "start_marker_0") || !strings.Contains(p.Text, "end_marker_3") || p.ImageBudget.RetainedRunes >= p.ImageBudget.ProjectedRunes {
+	if p.BlockedReason != "" || len(p.Pages) != 1 || p.OmittedCount == 0 || !strings.Contains(p.Text, "start_marker_0") || !strings.Contains(p.Text, "end_marker_5") || p.ImageBudget.RetainedRunes >= p.ImageBudget.ProjectedRunes {
 		t.Fatalf("selection=%d omitted=%d pages=%d blocked=%q budget=%+v", p.SelectedCount, p.OmittedCount, len(p.Pages), p.BlockedReason, p.ImageBudget)
 	}
 }
@@ -109,7 +108,7 @@ func TestImageFailureRequiresExplicitTextPreview(t *testing.T) {
 	}{
 		{"capability", func(_ *Service, b *testBackend) { b.image = false }},
 		{"missing-glyph", func(_ *Service, b *testBackend) {
-			b.body = strings.Replace(b.body, "MIDDLE_ONLY_SENTINEL", "missing \U0010ffff", 1)
+			b.body = strings.Replace(b.body, "MIDDLE_ONLY_SENTINEL", strings.Repeat("\U0010ffff", 5000), 1)
 		}},
 		{"wire-limit", func(s *Service, _ *testBackend) { s.options.MaxPromptWireBytes = 2048 }},
 	}
@@ -222,35 +221,10 @@ func TestImageTokensParticipateInHistoryBudget(t *testing.T) {
 	}
 }
 
-func TestArchiveCoveragePartitionsTextImagesAndOmissions(t *testing.T) {
-	segments := []snapcompact.Segment{{SourceID: "s", Text: "中文xy"}}
-	r := func(start, end int) snapcompact.Range {
-		return snapcompact.Range{SourceID: "s", Field: "projection", Start: start, End: end}
-	}
-	complete := snapcompact.Archive{
-		SourceRunes: 4, RetainedRunes: 3,
-		TextRanges: []snapcompact.Range{r(0, 1), r(3, 4)},
-		Omitted:    []snapcompact.Range{r(1, 2)},
-		Render:     snapcompact.RenderResult{Pages: []snapcompact.Page{{Index: 0, Width: 1, Height: 1, PNG: []byte{1}, Ranges: []snapcompact.Range{r(2, 3)}}}},
-	}
-	if !archiveCovered(segments, complete) {
-		t.Fatal("complete mixed partition rejected")
-	}
-	for _, ranges := range [][]snapcompact.Range{
-		{r(0, 1)}, {r(0, 2), r(3, 4)}, {r(0, 1), r(3, 5)},
-		{{SourceID: "s", Field: "text", End: 1}, r(3, 4)},
-	} {
-		broken := complete
-		broken.TextRanges = ranges
-		if archiveCovered(segments, broken) {
-			t.Fatalf("invalid partition accepted: %+v", ranges)
-		}
-	}
-}
-
 func TestShortArchiveKeepsTextWithoutImageCapability(t *testing.T) {
 	s, b := newTestService(t)
 	b.image = false
+	b.body = "历史内容\n  code()" + strings.Repeat("\nshort archived record", 600)
 	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", UserText: "任务原文"})
 	if err != nil || p.BlockedReason != "" || len(p.Pages) != 0 || !strings.Contains(p.Text, "code()") || !strings.HasSuffix(p.Text, "任务原文") || p.ImageBudget.RetainedRunes != p.ImageBudget.ProjectedRunes {
 		t.Fatalf("short archive=%+v err=%v", p, err)

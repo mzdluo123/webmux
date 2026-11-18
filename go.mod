@@ -10,12 +10,13 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/coder/websocket v1.8.15
 	github.com/creack/pty v1.1.24
-	github.com/mzdluo123/snapcompact-go v0.1.1-0.20261117185841-969040513d9e
+	github.com/mzdluo123/snapcompact-go v0.1.1-0.20261118090152-568ce53ff15a
 	github.com/mzdluo123/webmux/protocol/relay v0.0.0-20261117092120-425ce201f739
 	github.com/pion/ice/v4 v4.4.8
 	github.com/pion/sdp/v3 v3.0.20
 	github.com/pion/turn/v5 v5.1.3
 	github.com/pion/webrtc/v4 v4.2.26
+	github.com/tiktoken-go/tokenizer v0.10.0
 	github.com/xtaci/smux v1.5.58
 	golang.org/x/sys v0.50.0
 	golang.org/x/term v0.48.0
@@ -25,6 +26,7 @@ require (
 )
 
 require (
+	github.com/dlclark/regexp2/v2 v2.5.1 // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.4 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect

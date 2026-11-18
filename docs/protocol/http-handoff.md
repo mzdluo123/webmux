@@ -15,25 +15,24 @@ GET /api/handoff-previews/{previewId}
 `location` 包含 cwd、repositoryId、worktreeId、newWorktreeBase 与 newWorktreeBranch。
 `format` 省略时为 `image`；显式 `text` 使用文本投影。`maxPages` 省略或为 0 时采用 8 页上限，显式取值范围为 1–8。
 返回 `id`、`instanceId`、`operationId`、`snapshotId`、`sourceSessionId`、发送文本块 `text` 与独立原样 `userText`。
-同时返回 `request`、`budget`、selectedCount、omittedCount、gapCount、createdAt 和 expiresAt。
+同时返回 `request`、`budget`、selectedCount、omittedCount、gapCount、createdAt 和 expiresAt。归档模式按规范化后的历史范围计入保留与省略，文本模式按片段计数。
 图片字段为 `format`、`pages`、`imageBudget`、`blockedReason`、`capability` 与审阅用 `historyText`：
 
 - `pages[]` 按页序包含 `index`（从 0 开始）、`mimeType`、base64 `data`、`sha256`、`width`、`height`、原始 `bytes`。
 - `imageBudget` 包含 `maxPages`、实际 `pages`、原始 `bytes`、`maxBytes` 与编码请求上限 `maxRequestBytes`。
-  另含投影正文 `projectedRunes`、实际保留正文 `retainedRunes`、图片 `estimatedTokens`、`tokenEstimateKnown`、`tokenBasis` 与 `shape`。
+  另含规范化正文 `projectedRunes`、实际保留正文 `retainedRunes`（沿用 OMP 归档计数，文本边缘与截断用 UTF-16 长度，图片统计已渲染字符）、图片 `estimatedTokens`、`tokenEstimateKnown`、`tokenBasis` 与 `shape`。
 - `capability` 为 `pending`、`supported` 或 `unsupported`；需要图片的新目标在创建前为 `pending`，发送前检查真实 ACP 图片能力。零页归档无需图片能力。
 - `blockedReason` 非空时不可发送；用户可选择文本模式并重新预览。
 - `historyText` 是保留历史的完整审阅表示。归档模式的 `text` 含来源指引、首尾历史文本与当前任务；ACP 按首部文本、图片、尾部文本及任务的顺序发送。
 
 ## 选择与预算
 
-Snapcompact 从可导出记录的正文和可见工具调用/结果生成机械投影，保留角色、顺序和工具关联；私有推理及 provider 状态不进入投影。
-归档使用紧凑角色/来源序号、模型相关点阵排版和首尾文本，中段在容量不足时使用高/低密度分级，最后才省略中段较旧范围。
-布局先于 PNG 编码；正文的文本范围、图片范围与明确省略范围必须形成无缺口、无重叠的完整划分。
-短历史可返回空 `pages` 并完整保留文本。需要图片时，缺字、渲染失败、覆盖不全、能力不足或附件/编码请求超限阻止发送。
+Go 移植的 OMP Snapcompact 18.22.2 使用可导出正文和可见工具调用及结果，按原版角色序列、工具关联和空白规则生成归档正文。私有推理及 provider 状态留在来源。
+归档先按目标模型和预算规划首尾文本与中段点阵页面，再编码 PNG。容量不足时用高低密度分页，并在必要时省略较旧的中段。
+短历史能放进首尾文本与上下文预算时，返回空 `pages` 并保留规范化正文。字体覆盖率低、渲染失败、需要图片时能力不足或附件及编码请求超限会阻止发送。
 每条最多 8 张、单图 10 MiB、原始数据合计 20 MiB；编码请求最多 30 MiB，并受服务端更低配置限制。
 文本模式按预算选择最近完整片段并恢复来源顺序。上下文预算包含当前任务、历史和保留空间，受 `handoff_token_cap` 限制。
-归档同时计入首尾文本的保守字节上界与模型图片 token 估计；`tokenBasis` 标注目录规则或未知费率预留，均不是实际 usage。
+归档用 `cl100k_base` 加 15% 余量估算首尾文本，单独估算图片 token；`tokenBasis` 标注图片估算依据。
 预览冻结文本、图片字节、顺序及 SHA-256；发送使用这些内容，不重新渲染。已有目标模型配置变化使原预览失效。
 预览在五分钟内有效，最多 32 项；manifest、文本及图片表示共同计入 64 MiB 内存预算。
 
