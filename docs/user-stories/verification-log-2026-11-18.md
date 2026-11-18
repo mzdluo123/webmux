@@ -7,6 +7,7 @@
 - 根因是候选型 agent 的原生 ID 只在切到聊天时写入记录；Kimi TUI 未切换便关闭时，恢复把空 ID 当作新对话处理。恢复现在按原记录创建时间重新判定候选，唯一候选直接恢复，多个候选返回 `session_ambiguous` 并复用现有选择弹窗，没有候选才开始新对话。
 - 回归覆盖 `TestKimiResumeTUIOnlySession` 与 `TestKimiResumeTUIOnlySessionAmbiguous`；前者在修复前得到空的原生 ID，修复后恢复原 ID 与终端历史，后者验证两个候选的选择与恢复。新增 Playwright 用例经真实 HTTP 与页面完成同样的多候选流程。
 - 本地已通过 `make check`、`go test -race -count=1 ./internal/hybrid`、`go test -race -count=1 ./...`、1257 项前端单元测试及 20 项归档浏览器组件测试。完整 E2E 的 592 项通过、56 项按条件跳过；`TerminalTouch` 的并发时序失败单独复跑通过。新增 E2E、Storybook 与性能套件交由 PR CI 验证。
+- 首轮 PR CI 的 Go race、格式构建、Vitest、Storybook、性能及打包检查通过；新增桌面与手机 E2E 均发现 409 已返回两个候选，但临时 shell 的规范读取先卸载了非 `resumeOnOpen` 恢复组件。规范读取期间现在保留所有当前恢复记录，最终结果仍负责清除失效记录；首轮其余 E2E 分片通过。
 - 同步更新 `docs/hybrid-sessions/agents.md`、`docs/protocol/http-hybrid.md`、`openspec/specs/agent-session-identity/spec.md`、`openspec/specs/hybrid-session-recovery/spec.md` 与 US-Q12；故事编号、总数和覆盖索引保持原状。
 
 ## 2026-11-18：会话上传读取响应头安全收敛（US-Q15）
