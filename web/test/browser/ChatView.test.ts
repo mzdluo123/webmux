@@ -1498,6 +1498,46 @@ test("a merged tick stays active when its later reply ends a compact transcript"
   }
 });
 
+test("keeps the active command visible on a short screen without moving the caret", async () => {
+  await page.viewport(667, 375);
+  try {
+    const socket = await open();
+    socket.frame(
+      snapshot(
+        chatState({
+          commands: Array.from({ length: 40 }, (_, i) => ({
+            name: `cmd${i}`,
+            description: "示例命令",
+          })),
+        }),
+      ),
+    );
+
+    const input = page.getByRole("textbox", { name: "消息" });
+    const menu = page.getByRole("listbox", { name: "命令" });
+    await input.fill("/cmd");
+    await expect.element(menu).toBeVisible();
+    await userEvent.keyboard("{ArrowLeft}{ArrowUp}");
+
+    const active = menu.getByRole("option", { selected: true });
+    await expect.element(active).toMatchTextContent(/^\/cmd39/);
+    const menuBox = menu.element().getBoundingClientRect();
+    const activeBox = active.element().getBoundingClientRect();
+    expect(menuBox.height).toBeLessThan(110);
+    expect(activeBox.top).toBeGreaterThanOrEqual(menuBox.top);
+    expect(activeBox.bottom).toBeLessThanOrEqual(menuBox.bottom);
+    expect((input.element() as HTMLTextAreaElement).selectionStart).toBe(3);
+    await expect.element(input).toHaveFocus();
+
+    await userEvent.keyboard("{Escape}");
+    await expect.element(menu).not.toBeInTheDocument();
+    await expect.element(input).toHaveValue("/cmd");
+    await expect.element(input).toHaveFocus();
+  } finally {
+    await page.viewport(1024, 900);
+  }
+});
+
 test("typing / lists and filters published commands without authentication flows", async () => {
   const socket = await open();
   socket.frame(
