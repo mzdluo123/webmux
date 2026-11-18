@@ -6,7 +6,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -244,4 +248,82 @@ func TestShutdownDuringRepeatedPreviewControls(t *testing.T) {
 	default:
 		t.Fatal("session cleanup did not finish")
 	}
+}
+
+func TestForceSessionAndCleanupOrphanMarkedTree(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	spawnMarkedTree := func(t *testing.T, id string) (int, int) {
+		t.Helper()
+		dir := t.TempDir()
+		parentFile := filepath.Join(dir, "parent.pid")
+		childFile := filepath.Join(dir, "child.pid")
+		cmd := exec.Command(exe, "-test.run=^TestSetsidHelper$")
+		cmd.Env = append(os.Environ(),
+			"WEBMUX_SESSION_ID="+id,
+			"WEBMUX_TEST_SETSID=1",
+			"WEBMUX_TEST_SPAWN_UNMARKED=1",
+			"WEBMUX_TEST_PIDFILE="+parentFile,
+			"WEBMUX_TEST_UNMARKED_PIDFILE="+childFile,
+		)
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		go func() { _ = cmd.Wait() }()
+		parentPID := waitForPIDFile(t, parentFile)
+		childPID := waitForPIDFile(t, childFile)
+		t.Cleanup(func() {
+			_ = syscall.Kill(parentPID, syscall.SIGKILL)
+			_ = syscall.Kill(childPID, syscall.SIGKILL)
+		})
+		return parentPID, childPID
+	}
+
+	t.Run("forceSession", func(t *testing.T) {
+		parentPID, childPID := spawnMarkedTree(t, "force-orphan-test")
+		forceSession(0, "force-orphan-test")
+		deadline := time.Now().Add(2 * time.Second)
+		for !processGone(parentPID) || !processGone(childPID) {
+			if time.Now().After(deadline) {
+				t.Fatalf("marked setsid tree survived forceSession: parent=%v child=%v", !processGone(parentPID), !processGone(childPID))
+			}
+			reapAdopted(procpeek.Processes())
+			time.Sleep(20 * time.Millisecond)
+		}
+	})
+
+	t.Run("CleanupOrphan", func(t *testing.T) {
+		parentPID, childPID := spawnMarkedTree(t, "cleanup-orphan-test")
+		if !CleanupOrphan(0, "cleanup-orphan-test") {
+			t.Fatal("CleanupOrphan reported surviving processes")
+		}
+		if !processGone(parentPID) || !processGone(childPID) {
+			t.Fatalf("marked setsid tree survived CleanupOrphan: parent=%v child=%v", !processGone(parentPID), !processGone(childPID))
+		}
+	})
+
+	t.Run("StartCommand", func(t *testing.T) {
+		missing := exec.Command(filepath.Join(t.TempDir(), "missing-bin"))
+		if wait, err := StartCommand(missing); err == nil || wait != nil {
+			t.Fatalf("StartCommand on missing executable: nonNilWait=%t err=%v", wait != nil, err)
+		}
+
+		pidFile := filepath.Join(t.TempDir(), "orphan.pid")
+		cmd := exec.Command("/bin/sh", "-c", `sleep 30 & echo $! > "$1"; exit 0`, "sh", pidFile)
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		wait, err := StartCommand(cmd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		orphanPID := waitForPIDFile(t, pidFile)
+		t.Cleanup(func() { _ = syscall.Kill(orphanPID, syscall.SIGKILL) })
+		if err := wait(); err != nil {
+			t.Fatalf("StartCommand wait: %v", err)
+		}
+		if !processGone(orphanPID) {
+			t.Fatalf("session child %d survived StartCommand wait cleanup", orphanPID)
+		}
+	})
 }

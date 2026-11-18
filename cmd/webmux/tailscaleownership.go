@@ -54,11 +54,30 @@ func validateOwnership(r tailscaleState) error {
 	return nil
 }
 func (tc *tailscaleController) openLock() error {
-	if tc.ownership != nil {
-		return tc.ownership.Err()
+	tc.mu.Lock()
+	h, closed := tc.ownership, tc.closed
+	tc.mu.Unlock()
+	if closed {
+		return errors.New("ownership store closed")
 	}
-	var err error
-	tc.ownership, _, err = statefile.Open[tailscaleState](tc.dir, statefile.TailscaleOwnership, validateOwnership)
+	if h != nil {
+		return h.Err()
+	}
+	opened, _, err := statefile.Open[tailscaleState](tc.dir, statefile.TailscaleOwnership, validateOwnership)
+	tc.mu.Lock()
+	if tc.closed {
+		tc.mu.Unlock()
+		opened.Close()
+		return errors.New("ownership store closed")
+	}
+	if tc.ownership != nil {
+		existing := tc.ownership
+		tc.mu.Unlock()
+		opened.Close()
+		return existing.Err()
+	}
+	tc.ownership = opened
+	tc.mu.Unlock()
 	if statefile.IsKind(err, statefile.Missing) {
 		return nil
 	}
@@ -78,13 +97,22 @@ func (tc *tailscaleController) saveRecord(record tailscaleState) error {
 	if err := tc.openLock(); err != nil {
 		return err
 	}
-	return tc.ownership.Commit(record)
-}
-func (tc *tailscaleController) deleteRecord() error {
-	if tc.ownership == nil {
+	tc.mu.Lock()
+	h := tc.ownership
+	tc.mu.Unlock()
+	if h == nil {
 		return errors.New("ownership store unavailable")
 	}
-	return tc.ownership.Remove()
+	return h.Commit(record)
+}
+func (tc *tailscaleController) deleteRecord() error {
+	tc.mu.Lock()
+	h := tc.ownership
+	tc.mu.Unlock()
+	if h == nil {
+		return errors.New("ownership store unavailable")
+	}
+	return h.Remove()
 }
 
 func (tc *tailscaleController) removeRecord(ctx context.Context, record *tailscaleState) error {

@@ -124,3 +124,71 @@ func TestTruncatedResetPreservesModesWithoutScreenText(t *testing.T) {
 		t.Fatalf("frame = %q, want %q", frame, s.preview.RecoveryFrame())
 	}
 }
+
+func TestFullBudgetUnwrappedSnapshotDeliversZeroByteMessages(t *testing.T) {
+	t.Parallel()
+	code := 0
+	s := &Session{
+		run:  ringRun(t, terminalOutputQueueBytes),
+		info: Info{Generation: "generation", Status: StatusExited, ExitCode: &code},
+		subs: make(map[*Subscriber]struct{}),
+	}
+	payload := bytes.Repeat([]byte("a"), terminalOutputQueueBytes)
+	s.run.ring.Write(payload)
+
+	sub := attached(s.AttachClient(AttachOptions{Client: "viewer"}))
+	if sub.failed {
+		t.Fatal("AttachClient marked subscriber slow on 8 MiB unwrapped snapshot")
+	}
+	select {
+	case <-sub.Slow:
+		t.Fatal("Slow closed during 8 MiB AttachClient replay")
+	default:
+	}
+
+	s.SendSubmissionStatus(sub, SubmissionStatus{ID: "sub-8m", State: SubmissionWritten})
+	s.Replay(sub)
+	if sub.failed {
+		t.Fatal("Replay marked subscriber slow on 8 MiB unwrapped snapshot")
+	}
+	select {
+	case <-sub.Slow:
+		t.Fatal("Slow closed during 8 MiB Replay")
+	default:
+	}
+
+	// Drain Control, Position, Snapshot (1 + 8 MiB), Info, Submission, Exit.
+	if m := <-sub.Out; m.Control == nil {
+		t.Fatalf("expected control, got %+v", m)
+	}
+	if m := <-sub.Out; m.Position == nil || m.Position.Mode != "reset" || m.Position.Truncated || m.Position.End != terminalOutputQueueBytes {
+		t.Fatalf("expected full reset position, got %+v", m)
+	}
+	snapMsg := <-sub.Out
+	if len(snapMsg.Frame) != terminalOutputQueueBytes+1 || snapMsg.Frame[0] != 1 {
+		t.Fatalf("snapshot length = %d, want %d", len(snapMsg.Frame), terminalOutputQueueBytes+1)
+	}
+	if m := <-sub.Out; m.Info == nil {
+		t.Fatalf("expected state info, got %+v", m)
+	}
+	if m := <-sub.Out; m.Submission == nil || m.Submission.ID != "sub-8m" {
+		t.Fatalf("expected submission status, got %+v", m)
+	}
+	if m := <-sub.Out; m.Exit == nil || *m.Exit != 0 {
+		t.Fatalf("expected exit code 0, got %+v", m)
+	}
+
+	// While the oversized snapshot has not been released, a non-zero output frame still triggers Slow.
+	s.mu.Lock()
+	s.sendLocked(sub, outputMessage([]byte("x")))
+	s.mu.Unlock()
+	if !sub.failed {
+		t.Fatal("expected non-zero output frame above unreleased 8 MiB snapshot to mark slow")
+	}
+	select {
+	case <-sub.Slow:
+	default:
+		t.Fatal("expected Slow closed")
+	}
+	sub.Release(snapMsg)
+}

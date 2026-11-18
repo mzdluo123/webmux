@@ -12,9 +12,9 @@ import (
 )
 
 // Voice bridges one speech recognition session to a MessageConn stream.
-// Binary frames from the client are written as raw 16kHz mono s16le PCM to the
-// subprocess STDIN; a {"type":"stop"} text frame closes STDIN so the
-// subprocess flushes its final transcription.
+// Binary frames from the client are queued as raw 16kHz mono s16le PCM for the
+// subprocess STDIN; a {"type":"stop"} text frame ends input so the subprocess
+// flushes its final transcription within finishTimeout.
 func Voice(ctx context.Context, sess *voice.Session, finishTimeout time.Duration, c hub.MessageConn) {
 	ctx, cancel := context.WithCancel(ctx)
 	c.SetReadLimit(65536)

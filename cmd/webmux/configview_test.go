@@ -7,9 +7,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/rainchan/webmux/internal/api"
+	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/runtime"
+	"github.com/rainchan/webmux/internal/settings"
+	"github.com/rainchan/webmux/internal/tailscalesettings"
 )
 
 func TestConfiguredViewIsReadOnlyAndRedacted(t *testing.T) {
@@ -112,4 +119,51 @@ func TestLiveViewRetainsAdoptedValuesAfterDiskDrift(t *testing.T) {
 	if disk.Listen != "127.0.0.1:9999" || disk.Fields["scrollback_bytes"].Value != float64(4096) {
 		t.Fatal("disk view ignored disk edit")
 	}
+}
+
+func TestEffectiveViewConcurrentTailscaleOwnershipRace(t *testing.T) {
+	dir := t.TempDir()
+	cli, _ := statefulTailscale(t)
+	cfg := config.Config{
+		Listen:   "127.0.0.1:7681",
+		StateDir: dir,
+		Features: config.FeatureConfig{Enabled: []string{"tailscale"}},
+	}
+	tsStore := tailscalesettings.Open(dir, cfg.Tailscale)
+	defer tsStore.Close()
+	settingsSvc := settings.Open(dir)
+	defer settingsSvc.Close()
+	ctl := testTailscaleController(t, cli, dir, cfg.Tailscale)
+	ctl.store = tsStore
+
+	run := serverRun{Config: cfg, ConfigPath: filepath.Join(dir, "config.toml")}
+	rec := runtime.Record{PID: 1234, Listen: "127.0.0.1:7681", StartedAt: time.Now()}
+	rec.Identity.Start = "boot-1"
+	deps := api.Deps{Settings: settingsSvc}
+	feats := &featureServices{tailscale: ctl, tailscaleStore: tsStore}
+	sample := tailscaleState{
+		V: tailscaleStateVersion, Provider: "linux", DNSName: "node.tailnet.ts.net",
+		Mode: "serve", Port: 8443, Target: "http://127.0.0.1:7681", Status: "active",
+	}
+
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() {
+			for range 30 {
+				view := effectiveView(run, rec, deps, feats)
+				if view.View != "effective" {
+					t.Errorf("unexpected view %q", view.View)
+				}
+			}
+		})
+	}
+	wg.Go(func() {
+		for range 15 {
+			_ = ctl.openLock()
+			_ = ctl.saveRecord(sample)
+			_ = ctl.deleteRecord()
+		}
+		ctl.Close()
+	})
+	wg.Wait()
 }

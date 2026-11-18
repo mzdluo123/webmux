@@ -34,46 +34,60 @@ func (t *TargetService) Current() *WSLService {
 
 func (t *TargetService) Retarget(s Settings, now bool) {
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	if !now {
 		t.pending = &s
+		t.mu.Unlock()
 		return
 	}
 	t.pending = nil
-	t.swap(s)
+	old := t.swap(s)
+	t.mu.Unlock()
+	if old != nil {
+		old.Close()
+	}
 }
 
 // Settle applies a pending retarget once nothing runs; it reports whether
 // the target changed so the caller can refresh the status.
 func (t *TargetService) Settle() bool {
 	t.mu.Lock()
-	defer t.mu.Unlock()
 	if t.pending == nil {
+		t.mu.Unlock()
 		return false
 	}
-	before := t.cur
-	t.swap(*t.pending)
+	old := t.swap(*t.pending)
 	t.pending = nil
-	return t.cur != before
+	t.mu.Unlock()
+	if old != nil {
+		old.Close()
+		return true
+	}
+	return false
 }
 
-func (t *TargetService) swap(s Settings) {
+func (t *TargetService) swap(s Settings) *WSLService {
 	next := t.build(s)
 	if t.cur.Target == next.Target && t.cur.LogFile == next.LogFile {
-		return
+		return nil
 	}
-	t.cur.Close()
+	old := t.cur
 	t.cur = next
+	return old
 }
 
 func (t *TargetService) Check(ctx context.Context) (BuildInfo, error) {
 	t.mu.Lock()
+	var old *WSLService
 	if t.pending != nil {
-		t.swap(*t.pending)
+		old = t.swap(*t.pending)
 		t.pending = nil
 	}
+	cur := t.cur
 	t.mu.Unlock()
-	return t.Current().Check(ctx)
+	if old != nil {
+		old.Close()
+	}
+	return cur.Check(ctx)
 }
 
 func (t *TargetService) Detect(ctx context.Context) Detection {

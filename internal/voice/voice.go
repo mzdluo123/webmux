@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rainchan/webmux/internal/session"
 )
 
 // ErrDisabled reports that no external voice command is configured.
@@ -26,6 +28,13 @@ const (
 	// DefaultFinishTimeout bounds how long StopInput waits for the subprocess
 	// to flush its final transcription after STDIN is closed.
 	DefaultFinishTimeout = 15 * time.Second
+
+	// sessionEventQueueCapacity absorbs bursts of partial recognition updates
+	// while the WebSocket writer sends prior frames.
+	sessionEventQueueCapacity = 32
+	// stdoutDrainTimeout bounds how long pump waits for inherited stdout/stderr
+	// descriptors to close after the recognition leader exits.
+	stdoutDrainTimeout = 200 * time.Millisecond
 )
 
 // Options configures the external speech recognition service.
@@ -117,68 +126,6 @@ func normalizeCmd(cmd []string) []string {
 	return nil
 }
 
-// Session is one active recording subprocess.
-type Session struct {
-	cancel    context.CancelFunc
-	stdinMu   sync.Mutex
-	stdin     io.WriteCloser
-	events    chan Event
-	done      chan struct{}
-	closeOnce sync.Once
-	stopTimer *time.Timer
-}
-
-// Events returns the channel of recognition events. It is closed when the
-// subprocess exits and all output has been processed.
-func (s *Session) Events() <-chan Event {
-	return s.events
-}
-
-// WriteAudio writes a chunk of 16kHz mono s16le PCM to the subprocess STDIN.
-func (s *Session) WriteAudio(pcm []byte) error {
-	if len(pcm) == 0 {
-		return nil
-	}
-	s.stdinMu.Lock()
-	defer s.stdinMu.Unlock()
-	if s.stdin == nil {
-		return io.ErrClosedPipe
-	}
-	_, err := s.stdin.Write(pcm)
-	return err
-}
-
-// StopInput closes the subprocess STDIN (sending EOF) and starts the finish
-// timeout timer so a hung subprocess cannot block the caller indefinitely.
-func (s *Session) StopInput(timeout time.Duration) {
-	s.stdinMu.Lock()
-	if s.stdin != nil {
-		_ = s.stdin.Close()
-		s.stdin = nil
-	}
-	if s.stopTimer == nil && timeout > 0 {
-		s.stopTimer = time.AfterFunc(timeout, s.cancel)
-	}
-	s.stdinMu.Unlock()
-}
-
-// Close terminates the subprocess and waits for its reader goroutines to exit.
-func (s *Session) Close() {
-	s.closeOnce.Do(func() {
-		s.stdinMu.Lock()
-		if s.stopTimer != nil {
-			s.stopTimer.Stop()
-		}
-		if s.stdin != nil {
-			_ = s.stdin.Close()
-			s.stdin = nil
-		}
-		s.stdinMu.Unlock()
-		s.cancel()
-		<-s.done
-	})
-}
-
 type stdoutMessage struct {
 	Type  string `json:"type"`
 	Text  string `json:"text"`
@@ -194,39 +141,71 @@ func (s *Service) Start(ctx context.Context) (*Session, error) {
 	runCtx, cancel := context.WithCancel(ctx)
 	// #nosec G204 -- argv is the administrator-configured command, never shell-expanded.
 	cmd := exec.CommandContext(runCtx, argv[0], argv[1:]...)
+	if cmd.Err != nil {
+		cancel()
+		return nil, cmd.Err
+	}
 	if cwd != "" {
 		cmd.Dir = cwd
 	}
 	if len(env) > 0 {
 		cmd.Env = append(os.Environ(), env...)
 	}
-	stdin, err := cmd.StdinPipe()
+	configureCommand(cmd)
+
+	var files []*os.File
+	closeAll := func() {
+		for _, f := range files {
+			_ = f.Close()
+		}
+	}
+	pipe := func() (*os.File, *os.File, error) {
+		r, w, err := os.Pipe()
+		if err == nil {
+			files = append(files, r, w)
+		}
+		return r, w, err
+	}
+	stdinR, stdinW, err := pipe()
 	if err != nil {
 		cancel()
 		return nil, err
 	}
-	stdout, err := cmd.StdoutPipe()
+	stdoutR, stdoutW, err := pipe()
 	if err != nil {
-		_ = stdin.Close()
+		closeAll()
 		cancel()
 		return nil, err
 	}
+	stderrR, stderrW, err := pipe()
+	if err != nil {
+		closeAll()
+		cancel()
+		return nil, err
+	}
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = stdinR, stdoutW, stderrW
+	wait, err := session.StartCommand(cmd)
+	if err != nil {
+		closeAll()
+		cancel()
+		return nil, err
+	}
+	_ = stdinR.Close()
+	_ = stdoutW.Close()
+	_ = stderrW.Close()
+
 	var stderrBuf bytes.Buffer
-	cmd.Stderr = &limitedBuffer{buf: &stderrBuf, limit: 4096}
-	if err := cmd.Start(); err != nil {
-		_ = stdin.Close()
-		cancel()
-		return nil, err
-	}
-
-	sess := &Session{
-		cancel: cancel,
-		stdin:  stdin,
-		events: make(chan Event, 32),
-		done:   make(chan struct{}),
-	}
-
-	go s.pump(runCtx, sess, cmd, stdout, &stderrBuf)
+	stderrDone := make(chan struct{})
+	go func() {
+		defer close(stderrDone)
+		_, _ = io.Copy(&limitedBuffer{buf: &stderrBuf, limit: 4096}, stderrR)
+	}()
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- wait()
+	}()
+	sess := newSession(cancel, stdinW)
+	go s.pump(runCtx, sess, stdoutR, stderrR, stderrDone, waitCh, &stderrBuf)
 	return sess, nil
 }
 
@@ -237,11 +216,33 @@ func (s *Service) FinishTimeout() time.Duration {
 	return s.finishTimeout
 }
 
-func (s *Service) pump(ctx context.Context, sess *Session, cmd *exec.Cmd, stdout io.Reader, stderrBuf *bytes.Buffer) {
+func (s *Service) pump(ctx context.Context, sess *Session, stdoutR, stderrR *os.File, stderrDone <-chan struct{}, waitCh <-chan error, stderrBuf *bytes.Buffer) {
 	defer close(sess.done)
 	defer close(sess.events)
+	defer sess.stopFinishTimer()
 
-	var readyOnce sync.Once
+	lines := make(chan string)
+	scanStop := make(chan struct{})
+	scanDone := make(chan struct{})
+	go func() {
+		defer close(scanDone)
+		defer close(lines)
+		scanner := bufio.NewScanner(stdoutR)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
+				continue
+			}
+			select {
+			case lines <- line:
+			case <-scanStop:
+				return
+			}
+		}
+	}()
+
+	readyEmitted := false
 	sendEvent := func(ev Event) {
 		select {
 		case sess.events <- ev:
@@ -249,16 +250,13 @@ func (s *Service) pump(ctx context.Context, sess *Session, cmd *exec.Cmd, stdout
 		}
 	}
 	emitReady := func() {
-		readyOnce.Do(func() {
+		if !readyEmitted {
+			readyEmitted = true
 			sendEvent(Event{Type: EventReady})
-		})
+		}
 	}
 
-	readyTimer := time.AfterFunc(s.readyDelay, func() {
-		if ctx.Err() == nil {
-			emitReady()
-		}
-	})
+	readyTimer := time.NewTimer(s.readyDelay)
 	defer readyTimer.Stop()
 
 	var (
@@ -266,54 +264,102 @@ func (s *Service) pump(ctx context.Context, sess *Session, cmd *exec.Cmd, stdout
 		finals     []string
 		sawFinal   bool
 		sawError   bool
+		waitErr    error
+		exited     bool
+		drainTimer *time.Timer
+		drainC     <-chan time.Time
 	)
-
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
+	stopDrain := func() {
+		if drainTimer != nil {
+			drainTimer.Stop()
 		}
-		if strings.HasPrefix(line, "{") {
-			var msg stdoutMessage
-			if json.Unmarshal([]byte(line), &msg) == nil && msg.Type != "" {
-				switch EventType(msg.Type) {
-				case EventReady:
-					readyTimer.Stop()
-					emitReady()
-				case EventPartial:
-					readyTimer.Stop()
-					emitReady()
-					sendEvent(Event{Type: EventPartial, Text: msg.Text})
-				case EventFinal:
-					readyTimer.Stop()
-					emitReady()
-					sawFinal = true
-					if msg.Text != "" {
-						finals = append(finals, msg.Text)
-					}
-				case EventError:
-					readyTimer.Stop()
-					sawError = true
-					errMsg := strings.TrimSpace(msg.Error)
-					if errMsg == "" {
-						errMsg = "voice recognition error"
-					}
-					sendEvent(Event{Type: EventError, Error: errMsg})
-				}
+	}
+	defer stopDrain()
+
+	scanCh := (<-chan string)(lines)
+	for scanCh != nil {
+		select {
+		case <-ctx.Done():
+			scanCh = nil
+		case <-readyTimer.C:
+			emitReady()
+		case err := <-waitCh:
+			waitErr = err
+			exited = true
+			waitCh = nil
+			drainTimer = time.NewTimer(stdoutDrainTimeout)
+			drainC = drainTimer.C
+		case <-drainC:
+			drainC = nil
+			_ = stdoutR.Close()
+			_ = stderrR.Close()
+		case line, ok := <-scanCh:
+			if !ok {
+				scanCh = nil
 				continue
 			}
+			if strings.HasPrefix(line, "{") {
+				var msg stdoutMessage
+				if json.Unmarshal([]byte(line), &msg) == nil && msg.Type != "" {
+					switch EventType(msg.Type) {
+					case EventReady:
+						readyTimer.Stop()
+						emitReady()
+					case EventPartial:
+						readyTimer.Stop()
+						emitReady()
+						sendEvent(Event{Type: EventPartial, Text: msg.Text})
+					case EventFinal:
+						readyTimer.Stop()
+						emitReady()
+						sawFinal = true
+						if msg.Text != "" {
+							finals = append(finals, msg.Text)
+						}
+					case EventError:
+						readyTimer.Stop()
+						readyEmitted = true
+						sawError = true
+						errMsg := strings.TrimSpace(msg.Error)
+						if errMsg == "" {
+							errMsg = "voice recognition error"
+						}
+						sendEvent(Event{Type: EventError, Error: errMsg})
+					}
+					continue
+				}
+			}
+			plainLines = append(plainLines, line)
 		}
-		plainLines = append(plainLines, line)
 	}
 
-	waitErr := cmd.Wait()
+	close(scanStop)
+	sess.abortInput()
+	if ctx.Err() != nil {
+		_ = stdoutR.Close()
+		_ = stderrR.Close()
+	}
+	if !exited {
+		waitErr = <-waitCh
+	}
+	_ = stdoutR.Close()
+	<-scanDone
+	<-sess.writerDone
+
+	stderrTimer := time.NewTimer(stdoutDrainTimeout)
+	select {
+	case <-stderrDone:
+		stderrTimer.Stop()
+	case <-stderrTimer.C:
+		_ = stderrR.Close()
+		<-stderrDone
+	}
+	_ = stderrR.Close()
+
 	readyTimer.Stop()
 	if ctx.Err() != nil && !sawFinal && !sawError {
 		return
 	}
-
 	if sawError {
 		return
 	}

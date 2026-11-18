@@ -18,6 +18,9 @@ const (
 	// sidecarStopGrace is how long Stop waits after closing stdin before it
 	// hangs up the process group.
 	sidecarStopGrace = 3 * time.Second
+	// sidecarStdoutDrain bounds how long Output waits for inherited stdout
+	// descriptors after the sidecar's process tree has finished.
+	sidecarStdoutDrain = 250 * time.Millisecond
 )
 
 // Sidecar is a pipe-connected helper process of a shell, such as an ACP
@@ -201,7 +204,6 @@ func (s *Session) waitSidecar(c *Sidecar) {
 // the background; cleanupDone closes when that finishes.
 func (c *Sidecar) terminate() {
 	c.stopOnce.Do(func() {
-		_ = syscall.Kill(-c.pid, syscall.SIGHUP)
 		go func() {
 			defer close(c.cleanupDone)
 			cleanupProcesses(c.pid, "")
@@ -283,9 +285,22 @@ func (s *Session) Output(ctx context.Context, argv []string, limit int) ([]byte,
 	case <-c.done:
 	case <-ctx.Done():
 		_ = c.Stop(ctx)
+		<-out
 		return nil, -1, ctx.Err()
 	}
-	b := <-out
-	_ = c.Stop(ctx)
-	return b, c.ExitCode(), nil
+	drain := time.NewTimer(sidecarStdoutDrain)
+	select {
+	case b := <-out:
+		drain.Stop()
+		_ = c.Stop(ctx)
+		return b, c.ExitCode(), nil
+	case <-drain.C:
+		_ = c.Stop(ctx)
+		return <-out, c.ExitCode(), nil
+	case <-ctx.Done():
+		drain.Stop()
+		_ = c.Stop(ctx)
+		<-out
+		return nil, -1, ctx.Err()
+	}
 }

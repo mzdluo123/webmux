@@ -16,7 +16,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/rainchan/webmux/internal/contract"
@@ -30,6 +32,8 @@ const (
 
 	// Bound diagnostic bodies without buffering an unbounded server response.
 	maxErrorBodyBytes = 64 << 10
+	// idleConnTimeout bounds how long unused keep-alive bridge connections stay open.
+	idleConnTimeout = 30 * time.Second
 )
 
 // ErrNotRunning means no server accepts connections on the local API.
@@ -61,18 +65,77 @@ type Client struct {
 	HTTP   *http.Client
 	origin string
 	token  string
+
+	mu      sync.Mutex
+	epoch   uint64
+	retired bool
+	conns   map[*trackedConn]struct{}
+}
+
+type trackedConn struct {
+	net.Conn
+	client *Client
+	once   sync.Once
+	done   chan struct{}
+	err    error
+}
+
+func (tc *trackedConn) CloseWrite() error {
+	if cw, ok := tc.Conn.(interface{ CloseWrite() error }); ok {
+		return cw.CloseWrite()
+	}
+	return nil
+}
+
+func (tc *trackedConn) Close() error {
+	tc.once.Do(func() {
+		tc.client.mu.Lock()
+		delete(tc.client.conns, tc)
+		tc.client.mu.Unlock()
+		tc.err = tc.Conn.Close()
+		close(tc.done)
+	})
+	<-tc.done
+	return tc.err
+}
+
+func (c *Client) dial(ctx context.Context, rawDial func(context.Context) (net.Conn, error)) (net.Conn, error) {
+	c.mu.Lock()
+	retired := c.retired
+	epoch := c.epoch
+	c.mu.Unlock()
+	if retired {
+		return nil, net.ErrClosed
+	}
+	raw, err := rawDial(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tc := &trackedConn{Conn: raw, client: c, done: make(chan struct{})}
+	c.mu.Lock()
+	if c.retired || c.epoch != epoch {
+		c.mu.Unlock()
+		_ = raw.Close()
+		return nil, net.ErrClosed
+	}
+	c.conns[tc] = struct{}{}
+	c.mu.Unlock()
+	return tc, nil
 }
 
 func New(d Dialer) *Client {
+	c := &Client{conns: make(map[*trackedConn]struct{})}
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			return d.DialContext(ctx)
+			return c.dial(ctx, d.DialContext)
 		},
 		Proxy:               nil,
 		DisableCompression:  true,
 		MaxIdleConnsPerHost: 2,
+		IdleConnTimeout:     idleConnTimeout,
 	}
-	return &Client{HTTP: &http.Client{Transport: transport}}
+	c.HTTP = &http.Client{Transport: transport}
+	return c
 }
 
 // NewTCP connects to one explicitly selected instance using its owner credential.
@@ -87,15 +150,20 @@ func NewTCP(origin, token string) (*Client, error) {
 	if token == "" {
 		return nil, errors.New("WebMux TCP API requires an owner credential")
 	}
+	c := &Client{origin: strings.TrimSuffix(origin, "/"), token: token, conns: make(map[*trackedConn]struct{})}
+	var dialer net.Dialer
 	transport := &http.Transport{
-		Proxy: nil, DisableCompression: true, MaxIdleConnsPerHost: 8,
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return c.dial(ctx, func(ctx context.Context) (net.Conn, error) {
+				return dialer.DialContext(ctx, network, addr)
+			})
+		},
+		Proxy: nil, DisableCompression: true, MaxIdleConnsPerHost: 8, IdleConnTimeout: idleConnTimeout,
 	}
-	return &Client{
-		HTTP: &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		}},
-		origin: strings.TrimSuffix(origin, "/"), token: token,
-	}, nil
+	c.HTTP = &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	return c, nil
 }
 
 func (c *Client) baseURL() string {
@@ -106,6 +174,12 @@ func (c *Client) baseURL() string {
 }
 
 func (c *Client) request(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
+	c.mu.Lock()
+	retired := c.retired
+	c.mu.Unlock()
+	if retired {
+		return nil, net.ErrClosed
+	}
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL()+path, body)
 	if err == nil && c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
@@ -113,8 +187,32 @@ func (c *Client) request(ctx context.Context, method, path string, body io.Reade
 	return req, err
 }
 
-// Close drops idle connections; for a bridge dialer that ends its process.
-func (c *Client) Close() { c.HTTP.CloseIdleConnections() }
+// Close drops idle and active connections; for a bridge dialer that ends its
+// subprocesses while allowing later requests to dial fresh connections.
+func (c *Client) Close() {
+	c.mu.Lock()
+	c.epoch++
+	active := make([]*trackedConn, 0, len(c.conns))
+	for tc := range c.conns {
+		active = append(active, tc)
+	}
+	clear(c.conns)
+	c.mu.Unlock()
+	c.HTTP.CloseIdleConnections()
+	for _, tc := range active {
+		_ = tc.Close()
+	}
+	c.HTTP.CloseIdleConnections()
+}
+
+// Retire permanently closes the client and prevents any further connections
+// from entering its pool.
+func (c *Client) Retire() {
+	c.mu.Lock()
+	c.retired = true
+	c.mu.Unlock()
+	c.Close()
+}
 
 // APIError is a non-success response with the server's error message.
 type APIError struct {
@@ -323,6 +421,12 @@ func (c *Client) SetTailscale(ctx context.Context, update contract.TailscaleSett
 
 // DialWebSocket opens /ws/* through the same dialer; path includes any query.
 func (c *Client) DialWebSocket(ctx context.Context, path string) (*websocket.Conn, error) {
+	c.mu.Lock()
+	retired := c.retired
+	c.mu.Unlock()
+	if retired {
+		return nil, net.ErrClosed
+	}
 	origin := c.baseURL()
 	origin = "ws" + strings.TrimPrefix(origin, "http")
 	headers := http.Header{}

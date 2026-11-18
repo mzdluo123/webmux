@@ -48,6 +48,7 @@ func (s *Supervisor) loop(settings Settings) {
 				if ls.watchStop != nil {
 					ls.watchStop()
 				}
+				cancel()
 				return
 			}
 		case <-wait:
