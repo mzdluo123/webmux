@@ -4,10 +4,12 @@
   import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
   import MainWorktreeMark from "./MainWorktreeMark.svelte";
+  import PinnedWorktreeMark from "./PinnedWorktreeMark.svelte";
 
   let {
     title,
     mainWorktree = false,
+    pinnedWorktree = false,
     actions,
     loading,
     filtering,
@@ -22,6 +24,7 @@
   }: {
     title?: string;
     mainWorktree?: boolean;
+    pinnedWorktree?: boolean;
     /** Routes and controls for the current scope. */
     actions: Snippet;
     loading: boolean;
@@ -66,6 +69,7 @@
           {resolvedTitle}
         </h1>
         {#if mainWorktree}<MainWorktreeMark srLabel size="md" />{/if}
+        {#if pinnedWorktree}<PinnedWorktreeMark srLabel size="md" />{/if}
       </div>
       {#if meta}<div class="empty:hidden sm:mt-2">{@render meta()}</div>{/if}
     </div>

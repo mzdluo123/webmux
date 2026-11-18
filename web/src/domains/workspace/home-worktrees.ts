@@ -5,7 +5,9 @@ import {
   type Repository,
   type SessionInfo,
   type Worktree,
+  type WorktreePins,
 } from "../../contracts/schemas";
+import { sortRepositoryWorktrees } from "./worktree-pins";
 
 /** Unreadable stored data degrades to "never curated" for every repository. */
 export function parseHomeWorktrees(raw: string): HomeWorktrees {
@@ -38,27 +40,12 @@ export function worktreeTitle(tree: Worktree) {
 }
 
 export interface HomeLayout {
-  /** All worktrees in stable order: main first, then by path. */
+  /** All worktrees in stable order: pinned first, then main, then by path. */
   trees: Worktree[];
   /** Pinned worktrees plus any worktree that still has sessions or archived records. */
   shown: { tree: Worktree; pinned: boolean }[];
   /** Every worktree not pinned, including ones shown only for their sessions. */
   unpinned: Worktree[];
-}
-
-/** The main worktree first, then the rest by path. */
-function sortWorktrees(worktrees: readonly Worktree[]): Worktree[] {
-  return [...worktrees].sort((a, b) =>
-    a.kind === "main"
-      ? -1
-      : b.kind === "main"
-        ? 1
-        : a.path < b.path
-          ? -1
-          : a.path > b.path
-            ? 1
-            : 0,
-  );
 }
 
 // Sessions are never hidden: a worktree with sessions or archived records
@@ -69,6 +56,7 @@ export function homeLayout(
   repo: Repository,
   sessions: readonly SessionInfo[],
   archived: ReadonlyMap<string, readonly unknown[]> = new Map(),
+  pins: WorktreePins = {},
 ): HomeLayout {
   const pinned = pinnedIds(pruneHomeWorktrees(home, [repo]), repo);
   const active = new Set([
@@ -77,7 +65,7 @@ export function homeLayout(
       .map((s) => s.workspace?.worktreeId),
     ...archived.keys(),
   ]);
-  const trees = sortWorktrees(repo.worktrees);
+  const trees = sortRepositoryWorktrees(repo.worktrees, pins, repo.id);
   return {
     trees,
     shown: trees

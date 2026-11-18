@@ -177,6 +177,7 @@
   "s1_no_matching_sessions_short": "No matching sessions.",
   "s1_no_sessions_yet": "No sessions yet. Start one from the workspace.",
   "s1_node_main_worktree": "{label}, main worktree",
+  "s1_node_pinned_worktree": "{label}, pinned",
   "s1_node_reason_title": "{label}: {reason}",
   "s1_node_sessions_count": [
     {
@@ -4072,6 +4073,7 @@
   "s8_badge_merged_default": "Merged into default",
   "s8_badge_modified": "Modified",
   "s8_badge_not_on_home": "Hidden on Home",
+  "s8_badge_pinned_worktree": "Pinned",
   "s8_badge_prunable": "Stale Git entry",
   "s8_badge_safe_clean": "Safe to clean",
   "s8_badge_status_unknown": "Status unknown",
@@ -4430,11 +4432,13 @@
   "s8_menu_manage_worktrees": "Manage worktrees…",
   "s8_menu_new_worktree": "New worktree…",
   "s8_menu_open_in_git_workbench": "Open in Git workbench",
+  "s8_menu_pin_worktree": "Pin worktree",
   "s8_menu_remove_from_home": "Remove from Home",
   "s8_menu_remove_worktree": "Remove worktree…",
   "s8_menu_repo_details": "Repository details…",
   "s8_menu_repo_settings": "Repository settings…",
   "s8_menu_switch_branch": "Switch branch…",
+  "s8_menu_unpin_worktree": "Unpin worktree",
   "s8_menu_worktree_details": "Worktree details…",
   "s8_more_commits_unlisted": [
     {

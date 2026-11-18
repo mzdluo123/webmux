@@ -1,11 +1,7 @@
 <script lang="ts">
-  import type {
-    ArchivedSession,
-    SessionInfo,
-    Worktree,
-  } from "../../contracts/schemas";
+  import type { ArchivedSession, SessionInfo } from "../../contracts/schemas";
   import type { ArchiveActions } from "../../domains/sessions/archived";
-  import type { BranchOperation } from "../../domains/workspace/branch-actions";
+  import type { WorktreeMenuActionProps } from "../../domains/workspace/branch-actions";
   import IconFolder from "~icons/tabler/folder";
   import IconGitBranch from "~icons/tabler/git-branch";
   import IconPlus from "~icons/tabler/plus";
@@ -13,6 +9,7 @@
   import { Button } from "$lib/components/ui/button";
   import * as Item from "$lib/components/ui/item";
   import MainWorktreeMark from "./MainWorktreeMark.svelte";
+  import PinnedWorktreeMark from "./PinnedWorktreeMark.svelte";
   import WorktreeBadges from "./WorktreeBadges.svelte";
   import WorktreeControls from "./WorktreeControls.svelte";
   import SessionRow from "../sessions/SessionRow.svelte";
@@ -36,6 +33,13 @@
     onswitch,
     pinned,
     ontogglepin,
+    topPinned,
+    topPinDisabled,
+    ontoggletoppin,
+    canMoveTopPinUp,
+    canMoveTopPinDown,
+    onmovetoppinup,
+    onmovetoppindown,
     archived = [],
     archive,
     detailsOpen,
@@ -44,10 +48,9 @@
     onoperation,
     ongit,
     oncommit,
-  }: {
+  }: WorktreeMenuActionProps & {
     title: string;
     path?: string;
-    worktree?: Worktree;
     sessions: SessionInfo[];
     visibleIds?: ReadonlySet<string>;
     hidden?: boolean;
@@ -59,12 +62,6 @@
     now: number;
     onclose: (session: SessionInfo) => void;
     onstart?: () => void;
-    onremove?: () => void;
-    /** Opens the switch of the worktree's branch. */
-    onswitch?: () => void;
-    // Undefined outside curated repository lists.
-    pinned?: boolean;
-    ontogglepin?: () => void;
     // Closed and interrupted hybrid sessions placed in this group; already
     // narrowed by the home page's filters.
     archived?: ArchivedSession[];
@@ -74,10 +71,6 @@
     ondetailschange?: (open: boolean) => void;
     /** The repository's last fetch, shown in the worktree details. */
     lastFetchedAt?: string | null;
-    /** Starts a sync action of the worktree's branch (menu and details). */
-    onoperation?: (operation: BranchOperation) => void;
-    ongit?: () => void;
-    oncommit?: () => void;
   } = $props();
   let localOpen = $state(false);
   const visible = $derived(
@@ -130,6 +123,7 @@
         {/if}
         <h3 class="min-w-0 text-sm font-semibold wrap-anywhere">{title}</h3>
         {#if worktree?.kind === "main"}<MainWorktreeMark srLabel />{/if}
+        {#if topPinned}<PinnedWorktreeMark srLabel />{/if}
         {#if visible.length > 1}<span
             class="shrink-0 text-xs text-muted-foreground"
             >{visible.length}</span
@@ -159,6 +153,13 @@
           {hidden}
           {pinned}
           {ontogglepin}
+          {topPinned}
+          {topPinDisabled}
+          {ontoggletoppin}
+          {canMoveTopPinUp}
+          {canMoveTopPinDown}
+          {onmovetoppinup}
+          {onmovetoppindown}
           {onswitch}
           {onremove}
           {worktree}

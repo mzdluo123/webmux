@@ -21,6 +21,7 @@ type SettingsValues struct {
 	CodeReader      *SettingsCodeReader `json:"codeReader"`
 	QuickCommands   *[]SettingsCommand  `json:"quickCommands"`
 	HomeWorktrees   map[string][]string `json:"homeWorktrees"`
+	WorktreePins    map[string][]string `json:"worktreePins"`
 	SessionPins     []string            `json:"sessionPins"`
 	ForceSoftKeys   *bool               `json:"forceSoftKeys"`
 	IgnoreHighPorts *bool               `json:"ignoreHighPorts"`

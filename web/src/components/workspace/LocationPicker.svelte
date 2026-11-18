@@ -21,8 +21,14 @@
     selectableWorktree,
     worktreeLabel,
   } from "../../domains/sessions/new-session-defaults";
+  import {
+    isWorktreePinned,
+    sortRepositoryWorktrees,
+  } from "../../domains/workspace/worktree-pins";
+  import { worktreePins } from "../../domains/workspace/worktree-pins.svelte";
   import type { Repository, Worktree } from "../../contracts/schemas";
   import { featureAvailable } from "../../platform/feature-host.svelte";
+  import PinnedWorktreeMark from "./PinnedWorktreeMark.svelte";
 
   // The "where" row of the new-session dialog: recent directories, worktrees
   // of every repository, a typed or browsed directory, and "new worktree".
@@ -52,10 +58,12 @@
   let cwdInput = $state<HTMLInputElement | null>(null);
 
   function treesOf(repo: Repository) {
-    return createdTree?.repositoryId === repo.id &&
+    const base =
+      createdTree?.repositoryId === repo.id &&
       !repo.worktrees.some((tree) => tree.id === createdTree?.id)
-      ? [...repo.worktrees, createdTree]
-      : repo.worktrees;
+        ? [...repo.worktrees, createdTree]
+        : repo.worktrees;
+    return sortRepositoryWorktrees(base, worktreePins.value, repo.id);
   }
   function scopedTrees(repo: Repository) {
     const trees = treesOf(repo);
@@ -139,6 +147,9 @@
       >
         <IconGitBranch class="text-muted-foreground" aria-hidden="true" />
         <ChoiceDetails primary={worktreeLabel(tree)} secondary={tree.path} />
+        {#if isWorktreePinned(worktreePins.value, repo.id, tree.id)}<PinnedWorktreeMark
+            srLabel
+          />{/if}
         {#if onremove && tree.kind === "linked"}
           <Button
             type="button"

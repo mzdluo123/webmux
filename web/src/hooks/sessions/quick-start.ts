@@ -4,6 +4,7 @@ import {
   remoteBranchBases,
   suggestWorktreeBranch,
 } from "../../domains/workspace/branch-name";
+import { sortRepositoryWorktrees } from "../../domains/workspace/worktree-pins";
 import {
   activeHostId,
   isStoredMissing,
@@ -24,6 +25,7 @@ import {
   type Repository,
   type SessionView,
   type Worktree,
+  type WorktreePins,
 } from "../../contracts/schemas";
 
 // Quick start's memory on this device: the repository and agent of the last
@@ -295,8 +297,11 @@ export function resolveQuickStartBranches(
 export function resolveQuickStartWorktree(
   repository: Repository | undefined,
   worktreeChoice: { repositoryId: string; worktreeId: string } | undefined,
+  pins: WorktreePins = {},
 ) {
-  const worktrees = repository?.worktrees ?? [];
+  const worktrees = repository
+    ? sortRepositoryWorktrees(repository.worktrees, pins, repository.id)
+    : [];
   const defaultWorktree =
     worktrees.find(
       (item) => item.kind === "main" && selectableWorktree(item),

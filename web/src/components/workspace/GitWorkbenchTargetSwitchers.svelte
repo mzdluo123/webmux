@@ -10,6 +10,12 @@
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import type { Repository, Worktree } from "../../contracts/schemas";
   import { worktreeTitle } from "../../domains/workspace/home-worktrees";
+  import {
+    isWorktreePinned,
+    sortRepositoryWorktrees,
+  } from "../../domains/workspace/worktree-pins";
+  import { worktreePins } from "../../domains/workspace/worktree-pins.svelte";
+  import PinnedWorktreeMark from "./PinnedWorktreeMark.svelte";
 
   const READONLY_WORKTREE = "__readonly__";
 
@@ -146,9 +152,12 @@
           >
           <Badge variant="outline">{m.s7_readonly_badge()}</Badge>
         </DropdownMenu.RadioItem>
-        {#each repository.worktrees as wt (wt.id)}
+        {#each sortRepositoryWorktrees(repository.worktrees, worktreePins.value, repository.id) as wt (wt.id)}
           <DropdownMenu.RadioItem value={wt.id} closeOnSelect>
             <span class="min-w-0 flex-1 truncate">{worktreeTitle(wt)}</span>
+            {#if isWorktreePinned(worktreePins.value, repository.id, wt.id)}
+              <PinnedWorktreeMark srLabel />
+            {/if}
             {#if !wt.available || wt.prunable}
               <Badge variant="destructive">{m.s7_wt_missing_badge()}</Badge>
             {:else if wt.kind === "bare"}

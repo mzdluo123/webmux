@@ -1,11 +1,20 @@
 import { m } from "$lib/paraglide/messages.js";
-import type { ArchivedSession } from "../../contracts/schemas";
+import type {
+  ArchivedSession,
+  HomeWorktrees,
+  Repository,
+  SessionInfo,
+  WorktreePins,
+} from "../../contracts/schemas";
 import { recordTitle } from "../../domains/sessions/archived";
 import {
   rowStatusLabels,
   type RowStatus,
 } from "../../domains/sessions/session-status";
+import { homeLayout } from "../../domains/workspace/home-worktrees";
 import type { TreeNode } from "../../domains/workspace/workbench-tree";
+import { buildWorktreePinMenuProps } from "../../domains/workspace/worktree-pins";
+import { worktreePins } from "../../domains/workspace/worktree-pins.svelte";
 import { worktreeUpstream } from "../../domains/workspace/worktree-sync";
 
 // Positive ahead or behind counts take space beside the worktree name.
@@ -52,10 +61,13 @@ export function treeNodeAriaLabel(
     return m.s1_node_with_state({ label: node.label, state: stateText });
   }
   if (node.reason) return m.s1_node_unavailable({ label: node.label });
-  const label =
+  const baseLabel =
     node.worktree?.kind === "main"
       ? m.s1_node_main_worktree({ label: node.label })
       : node.label;
+  const label = node.pinned
+    ? m.s1_node_pinned_worktree({ label: baseLabel })
+    : baseLabel;
   if (node.waiting) {
     return m.s1_node_sessions_waiting({
       label,
@@ -81,4 +93,41 @@ export function treeNodeTitle(node: TreeNode, status: RowStatus | undefined) {
     });
   }
   return node.path ?? node.label;
+}
+
+export function treeWorktreePinMenuProps(input: {
+  repositories: readonly Repository[];
+  sessions: readonly SessionInfo[];
+  home: HomeWorktrees;
+  pins: WorktreePins;
+  repositoryId: string;
+  worktreeId: string;
+  ontoggle?: (repositoryId: string, worktreeId: string) => void;
+  onmove?: (repositoryId: string, worktreeId: string, offset: -1 | 1) => void;
+}) {
+  const repo = input.repositories.find(
+    (item) => item.id === input.repositoryId,
+  );
+  const shownTrees = repo
+    ? homeLayout(
+        input.home,
+        repo,
+        input.sessions.filter(
+          (s) => s.workspace?.repositoryId === input.repositoryId,
+        ),
+        new Map(),
+        input.pins,
+      ).shown.map((item) => item.tree)
+    : undefined;
+  if (input.ontoggle) {
+    return buildWorktreePinMenuProps({
+      pins: input.pins,
+      repo,
+      worktreeId: input.worktreeId,
+      candidates: shownTrees,
+      ontoggle: input.ontoggle,
+      onmove: input.onmove,
+    });
+  }
+  return worktreePins.menuProps(repo, input.worktreeId, shownTrees);
 }

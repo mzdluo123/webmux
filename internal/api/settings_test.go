@@ -52,6 +52,8 @@ func TestSettingsHTTPContract(t *testing.T) {
 		{"PATCH", `{"baseRevision":2,"changes":{"preview":{"lines":10}}}`, "login-secret", "", 400},
 		{"PATCH", `{"baseRevision":2,"changes":{"sessionPins":["invalid"]}}`, "login-secret", "", 400},
 		{"PATCH", `{"baseRevision":2,"changes":{"sessionPins":["aaaaaaaa","aaaaaaaa"]}}`, "login-secret", "", 400},
+		{"PATCH", `{"baseRevision":2,"changes":{"worktreePins":{"repo":["wt-a","wt-a"]}}}`, "login-secret", "", 400},
+		{"PATCH", `{"baseRevision":2,"changes":{"worktreePins":{"repo":null}}}`, "login-secret", "", 400},
 		{"PATCH", strings.Repeat(" ", 2<<20) + `{}`, "login-secret", "", 400},
 	} {
 		w := tunnelAPIRequest(h, row.method, "/api/settings", row.body, row.token, row.origin)

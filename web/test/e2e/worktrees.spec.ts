@@ -21,6 +21,8 @@ import {
   expectHomeWorktrees,
   openAddRepository,
   repositoryMenu,
+  unfoldRepository,
+  worktreeMenu,
 } from "./repository-menu";
 import { startE2EServer } from "./server.mjs";
 
@@ -908,4 +910,115 @@ test("workbench sidebar syncs external worktree additions and removals on a sess
   } finally {
     await secondDevice.close();
   }
+});
+
+test("worktree pins order worktrees ahead of main across workbench, pickers, git switcher and skip batch select-all-safe", async ({
+  page,
+  request,
+  workDir,
+}) => {
+  const root = await repository(workDir, "pin-wt-repo");
+  const wt1 = join(workDir, "wt-agent-01");
+  const wt2 = join(workDir, "wt-agent-02");
+  const wt3 = join(workDir, "wt-agent-target");
+  await git(root, "worktree", "add", "-b", "wt/agent-01", wt1);
+  await git(root, "worktree", "add", "-b", "wt/agent-02", wt2);
+  await git(root, "worktree", "add", "-b", "wt/agent-target", wt3);
+
+  await request.post("/api/repositories", { data: { path: root } });
+  const [repo] = await (await request.get("/api/repositories")).json();
+  const snap = await (await request.get("/api/settings")).json();
+  await request.patch("/api/settings", {
+    data: {
+      baseRevision: snap.revision,
+      changes: {
+        homeWorktrees: {
+          [repo.id]: repo.worktrees.map((w: { id: string }) => w.id),
+        },
+      },
+    },
+  });
+
+  const repoGroup = page.locator(`[data-repository-id="${repo.id}"]`);
+  await page.goto("/");
+  await expect(repoGroup).toBeVisible();
+  await unfoldRepository(page, "pin-wt-repo");
+
+  // Pin wt/agent-target, then wt/agent-02 (newest pin lands first), then move wt/agent-02 down.
+  await worktreeMenu(page, "置顶工作树", "wt/agent-target");
+  await worktreeMenu(page, "置顶工作树", "wt/agent-02");
+  await worktreeMenu(page, "下移置顶", "wt/agent-02");
+
+  // Close mobile drawer if open so home page groups are unobstructed.
+  const closeDrawer = page.getByRole("button", { name: "关闭侧栏" });
+  if (await closeDrawer.isVisible()) await closeDrawer.click();
+  await expand(repoGroup);
+
+  const homeGroupOrder = () =>
+    page
+      .locator("[data-repository-id] section[data-worktree-id]")
+      .evaluateAll((els) =>
+        els.map((el) => el.getAttribute("aria-label") ?? ""),
+      );
+  await expect
+    .poll(homeGroupOrder)
+    .toEqual(["wt/agent-target", "wt/agent-02", "main", "wt/agent-01"]);
+
+  // Persisted to server settings and survives reload.
+  const targetId = repo.worktrees.find(
+    (w: { branch: string }) => w.branch === "wt/agent-target",
+  ).id;
+  const secondId = repo.worktrees.find(
+    (w: { branch: string }) => w.branch === "wt/agent-02",
+  ).id;
+  await expect
+    .poll(async () => {
+      const s = await (await request.get("/api/settings")).json();
+      return s.values.worktreePins?.[repo.id];
+    })
+    .toEqual([targetId, secondId]);
+
+  await page.reload();
+  await expect(repoGroup).toBeVisible();
+  await expand(repoGroup);
+  await expect
+    .poll(homeGroupOrder)
+    .toEqual(["wt/agent-target", "wt/agent-02", "main", "wt/agent-01"]);
+
+  // Git workbench target switcher also lists pinned worktrees first.
+  await page.goto(`/git?repo=${encodeURIComponent(repo.id)}`);
+  await page.getByRole("button", { name: "切换操作目标工作树" }).click();
+  const switcherPopover = page.getByTestId("git-worktree-switcher-popover");
+  await expect(switcherPopover).toBeVisible();
+  const switcherItems = await switcherPopover
+    .getByRole("menuitemradio")
+    .evaluateAll((els) =>
+      els.map(
+        (el) => el.querySelector("span.truncate")?.textContent?.trim() ?? "",
+      ),
+    );
+  expect(switcherItems.slice(1)).toEqual([
+    "wt/agent-target",
+    "wt/agent-02",
+    "main",
+    "wt/agent-01",
+  ]);
+  await page.keyboard.press("Escape");
+
+  // Repository panel batch cleanup skips pinned worktrees on select-all-safe.
+  await page.goto("/");
+  await expect(repoGroup).toBeVisible();
+  await repositoryMenu(page, "管理工作树…", "pin-wt-repo");
+  const panel = page.locator('[role="dialog"][data-state="open"]');
+  await panel.getByRole("button", { name: "批量清理" }).click();
+  await panel.getByRole("button", { name: "选中全部可安全清理（1）" }).click();
+  await expect(
+    panel.getByRole("checkbox", { name: "wt/agent-01" }),
+  ).toBeChecked();
+  await expect(
+    panel.getByRole("checkbox", { name: "wt/agent-target" }),
+  ).not.toBeChecked();
+  await expect(
+    panel.getByRole("checkbox", { name: "wt/agent-02" }),
+  ).not.toBeChecked();
 });

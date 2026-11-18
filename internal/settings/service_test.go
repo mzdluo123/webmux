@@ -2,6 +2,7 @@ package settings
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -240,6 +241,33 @@ func TestValidationBoundaries(t *testing.T) {
 	}
 	if validateValues(Values{HomeWorktrees: map[string][]string{"repo": {"a", "a"}}}) == nil {
 		t.Fatal("duplicate worktree")
+	}
+	if validateValues(Values{WorktreePins: map[string][]string{"repo": {"a", "a"}}}) == nil {
+		t.Fatal("duplicate worktree pin")
+	}
+	if validateValues(Values{WorktreePins: map[string][]string{"repo": nil}}) == nil {
+		t.Fatal("null worktree pin array accepted")
+	}
+	tooManyPins := make([]string, maxWorktreePinsPerRepo+1)
+	for i := range tooManyPins {
+		tooManyPins[i] = fmt.Sprintf("wt-%d", i)
+	}
+	if validateValues(Values{WorktreePins: map[string][]string{"repo": tooManyPins}}) == nil {
+		t.Fatal("worktree pin repo limit accepted")
+	}
+	normalizedPins, err := apply(Values{}, Changes{
+		Fields: map[string]bool{"worktreePins": true},
+		Values: Values{WorktreePins: map[string][]string{"r1": {"wt-2", "wt-1"}, "r2": {}}},
+	})
+	if err != nil || len(normalizedPins.WorktreePins) != 1 || !slices.Equal(normalizedPins.WorktreePins["r1"], []string{"wt-2", "wt-1"}) {
+		t.Fatalf("worktree pin normalization: %+v, err=%v", normalizedPins.WorktreePins, err)
+	}
+	clearedPins, err := apply(normalizedPins, Changes{
+		Fields: map[string]bool{"worktreePins": true},
+		Values: Values{WorktreePins: map[string][]string{"r1": {}}},
+	})
+	if err != nil || clearedPins.WorktreePins != nil {
+		t.Fatalf("empty worktree pin map should normalize to nil: %+v, err=%v", clearedPins.WorktreePins, err)
 	}
 	list := []Command{{ID: "a", Name: "  label  ", Command: "echo a\r\n\n"}}
 	v, err := apply(Values{}, Changes{Fields: map[string]bool{"quickCommands": true}, Values: Values{QuickCommands: &list}})

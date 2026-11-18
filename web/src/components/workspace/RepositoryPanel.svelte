@@ -40,6 +40,7 @@
     Remote,
     Repository,
     SessionInfo,
+    WorktreePins,
   } from "../../contracts/schemas";
   import type { RepositoryTab } from "../../hooks/shared/shell.svelte";
   import BranchOperationFlow from "./BranchOperationFlow.svelte";
@@ -69,6 +70,7 @@
     sessions,
     records,
     home,
+    pins,
     refreshing,
     refreshError,
     registryReady,
@@ -92,6 +94,7 @@
     sessions: readonly SessionInfo[];
     records: readonly ArchivedSession[];
     home: HomeWorktrees;
+    pins?: WorktreePins;
     /** The repositories are being read again; this is the last snapshot. */
     refreshing: boolean;
     /** The last read's failure; "" after a successful one. */
@@ -351,6 +354,7 @@
                 {sessions}
                 archived={records}
                 {home}
+                {pins}
                 bind:busy
                 onopen={openWorktree}
                 onswitch={(id) => void push({ kind: "switch", id })}

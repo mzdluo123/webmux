@@ -13,7 +13,10 @@
     HomeWorktrees,
     Repository,
     SessionInfo,
+    WorktreePins,
   } from "../../contracts/schemas";
+  import { isWorktreePinned } from "../../domains/workspace/worktree-pins";
+  import { worktreePins } from "../../domains/workspace/worktree-pins.svelte";
   import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   // Which of a repository's worktrees the home page lists. Every worktree is
@@ -24,6 +27,7 @@
     sessions,
     records,
     home,
+    pins = worktreePins.value,
     ontoggle,
     onmanage,
     onclose,
@@ -32,6 +36,7 @@
     sessions: readonly SessionInfo[];
     records: readonly ArchivedSession[];
     home: HomeWorktrees;
+    pins?: WorktreePins;
     ontoggle: (worktreeId: string, pinned: boolean) => void;
     onmanage?: () => void;
     onclose: () => void;
@@ -46,6 +51,7 @@
         records.filter((record) => !sessions.some((s) => s.id === record.id)),
         [repository],
       ).repositories.get(repository.id)?.worktrees,
+      pins,
     ),
   );
   // Every worktree in a stable order, so a row does not jump when its check
@@ -102,6 +108,9 @@
               <span class="font-medium break-all">{worktreeTitle(tree)}</span>
               {#if tree.kind === "main"}<Badge variant="secondary"
                   >{m.s8_badge_main_worktree()}</Badge
+                >{/if}
+              {#if isWorktreePinned(pins, repository.id, tree.id)}<Badge
+                  variant="secondary">{m.s8_badge_pinned_worktree()}</Badge
                 >{/if}
               {#if active.has(tree.id) && !pinned.has(tree.id)}<Badge
                   variant="outline">{m.s8_badge_active_always_shown()}</Badge

@@ -2,11 +2,15 @@
   import { m } from "$lib/paraglide/messages.js";
   import IconDots from "~icons/tabler/dots";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
-  import { MAX_BATCH_WORKTREES } from "../../contracts/schemas";
+  import {
+    MAX_BATCH_WORKTREES,
+    type Repository,
+  } from "../../contracts/schemas";
   import {
     lockedStaleReason,
     type WorktreeBatchEntry,
   } from "../../domains/workspace/worktree-batch";
+  import { worktreePins } from "../../domains/workspace/worktree-pins.svelte";
   import { switchableWorktree } from "../../domains/workspace/worktree-sync";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -18,6 +22,7 @@
   import WorktreeSyncSummary from "./WorktreeSyncSummary.svelte";
 
   let {
+    repository,
     stage,
     entries,
     filteredEntries,
@@ -29,6 +34,7 @@
     onoperation,
     ongit,
   }: {
+    repository?: Repository;
     stage: "browse" | "select";
     entries: readonly WorktreeBatchEntry[];
     filteredEntries: readonly WorktreeBatchEntry[];
@@ -56,6 +62,9 @@
       <Badge variant="secondary">{m.s8_badge_main_worktree()}</Badge>
     {:else if entry.tree.kind === "bare"}
       <Badge variant="secondary">bare</Badge>
+    {/if}
+    {#if entry.topPinned}
+      <Badge variant="secondary">{m.s8_badge_pinned_worktree()}</Badge>
     {/if}
     {#if !entry.pinned && entry.tree.kind === "linked"}
       <Badge variant="outline">{m.s8_badge_unpinned_home()}</Badge>
@@ -174,6 +183,7 @@
                 onswitch={switchableWorktree(entry.tree)
                   ? () => onswitch(entry.tree.id)
                   : undefined}
+                {...worktreePins.menuProps(repository, entry.tree.id)}
                 worktree={entry.tree}
                 {onoperation}
                 ongit={ongit ? () => ongit(entry.tree.id) : undefined}
