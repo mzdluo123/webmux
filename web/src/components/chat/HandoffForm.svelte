@@ -97,16 +97,25 @@
         >
         <Input
           id="handoff-pages"
-          type="number"
-          min={1}
-          max={handoffMaxPages}
-          value={e.maxPages}
-          oninput={(event) => {
-            e.maxPages = event.currentTarget.valueAsNumber;
-            event.currentTarget.value = String(e.maxPages);
-          }}
+          inputmode="numeric"
+          autocomplete="off"
+          bind:value={e.maxPagesDraft}
+          onblur={() => e.commitMaxPages()}
+          aria-invalid={!!e.maxPagesError}
+          aria-describedby={e.maxPagesError
+            ? "handoff-pages-help handoff-pages-error"
+            : "handoff-pages-help"}
         />
-        <p class="text-xs text-muted-foreground">
+        {#if e.maxPagesError}
+          <p
+            id="handoff-pages-error"
+            class="text-xs text-destructive"
+            role="alert"
+          >
+            {e.maxPagesError}
+          </p>
+        {/if}
+        <p id="handoff-pages-help" class="text-xs text-muted-foreground">
           {m.handoff_image_reselect()}
         </p>
       </div>

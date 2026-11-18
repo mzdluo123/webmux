@@ -13,7 +13,7 @@ import (
 
 func TestFrozenImageBlocksPreservePreviewData(t *testing.T) {
 	data := base64.StdEncoding.EncodeToString(pngBytes())
-	blocks, err := imagePromptBlocks("任务\n\tkeep  spaces", []PromptImage{{MimeType: "image/png", Data: data}})
+	blocks, err := imagePromptBlocks("任务\n\tkeep  spaces", []PromptImage{{MimeType: "image/png", Data: data}}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,6 +26,23 @@ func TestFrozenImageBlocksPreservePreviewData(t *testing.T) {
 	}
 	if image.Type != "image" || image.MimeType != "image/png" || image.Data != data {
 		t.Fatalf("image %+v", image)
+	}
+}
+
+func TestFrozenImageBlocksKeepChronologicalTextEdges(t *testing.T) {
+	data := base64.StdEncoding.EncodeToString(pngBytes())
+	head, tail := "早期约束\n", "最近修正\n\n当前任务：\n  exact task"
+	blocks, err := imagePromptBlocks(head+tail, []PromptImage{{MimeType: "image/png", Data: data}}, len(head))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(blocks) != 3 || blocks[0].Text != head || blocks[1].Type != "image" || blocks[2].Text != tail {
+		t.Fatalf("chronological blocks: %+v", blocks)
+	}
+	for _, offset := range []int{-1, 1, len(head+tail) + 1} {
+		if _, err := imagePromptBlocks(head+tail, nil, offset); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("offset %d accepted: %v", offset, err)
+		}
 	}
 }
 

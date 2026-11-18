@@ -33,12 +33,25 @@
       <p class="text-xs text-muted-foreground">
         {m.handoff_image_budget(e.preview.imageBudget)}
       </p>
+      <p class="text-xs text-muted-foreground">
+        {m.handoff_archive_stats(e.preview.imageBudget)}
+      </p>
+      {#if e.preview.pages.length > 0}
+        <p class="text-xs text-muted-foreground">
+          {m.handoff_archive_tokens(e.preview.imageBudget)}
+          {#if !e.preview.imageBudget.tokenEstimateKnown}
+            {m.handoff_archive_unknown()}
+          {/if}
+        </p>
+      {/if}
       <p class="text-sm">
-        {e.preview.capability === "supported"
-          ? m.handoff_image_supported()
-          : e.preview.capability === "unsupported"
-            ? m.handoff_image_unsupported()
-            : m.handoff_image_pending()}
+        {e.preview.pages.length === 0
+          ? m.handoff_archive_text_only()
+          : e.preview.capability === "supported"
+            ? m.handoff_image_supported()
+            : e.preview.capability === "unsupported"
+              ? m.handoff_image_unsupported()
+              : m.handoff_image_pending()}
       </p>
       <p class="text-xs text-muted-foreground">{m.handoff_image_cost()}</p>
       <HandoffImages pages={e.preview.pages} />

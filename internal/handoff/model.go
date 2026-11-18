@@ -52,6 +52,7 @@ type Preview struct {
 	SelectedCount, OmittedCount, GapCount                                    int
 	Budget                                                                   Budget
 	targetIdentity, configHash                                               string
+	imageTextOffset                                                          int
 	consumed                                                                 bool
 	Format, BlockedReason, Capability, HistoryText                           string
 	Pages                                                                    []ImagePage
@@ -66,6 +67,10 @@ type ImagePage struct {
 
 type ImageBudget struct {
 	MaxPages, Pages, Bytes, MaxBytes, MaxRequestBytes int
+	ProjectedRunes, RetainedRunes                     int
+	EstimatedTokens                                   int64
+	TokenEstimateKnown                                bool
+	TokenBasis, Shape                                 string
 }
 type Operation struct {
 	ID, PreviewID, InstanceID, State, TargetSessionID, Error string

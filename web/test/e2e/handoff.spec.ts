@@ -30,7 +30,7 @@ async function create(
   expect(response.status(), await response.text()).toBe(201);
   return (await response.json()).session.id as string;
 }
-async function source(request: APIRequestContext, cwd: string) {
+async function source(request: APIRequestContext, cwd: string, long = false) {
   const cfg = await config(request, "Handoff source");
   const id = await create(request, cwd, cfg);
   expect(
@@ -38,7 +38,15 @@ async function source(request: APIRequestContext, cwd: string) {
       await request.post(`/api/sessions/${id}/input`, {
         data: {
           clientRequestId: "original-source-turn",
-          text: "original source constraint",
+          text:
+            "original source constraint\n" +
+            (long
+              ? Array.from(
+                  { length: 160 },
+                  (_, index) =>
+                    `record ${index}: preserve exact code(x <= 7);\n`,
+                ).join("")
+              : ""),
           mode: "refuse",
         },
       })
@@ -46,7 +54,9 @@ async function source(request: APIRequestContext, cwd: string) {
   ).toBeTruthy();
   await expect
     .poll(async () => {
-      const response = await request.get(`/api/sessions/${id}/native-history`);
+      const response = await request.get(
+        `/api/sessions/${id}/native-history?maxBytes=16000`,
+      );
       if (!response.ok()) return false;
       const result = await response.json();
       return result.records.some(
@@ -166,12 +176,110 @@ test("preview and operation handles expire across server restart", async ({
   ).toBe(410);
 });
 
-test("handoff form previews frozen images and clears process handles on refresh", async ({
+test("image page budget preserves typing and blocks invalid or stale previews", async ({
   page,
   request,
   server,
 }) => {
   const src = await source(request, server.workDir);
+  await page.goto(`/handoff/${src.id}`);
+  await page.getByRole("combobox", { name: "目标 Agent", exact: true }).click();
+  await page
+    .getByRole("option", { name: "Handoff source", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "用户指令", exact: true })
+    .fill("Continue the original source task");
+  const pages = page.getByRole("textbox", {
+    name: "图片页数预算（1–8）",
+    exact: true,
+  });
+  const generate = page.getByRole("button", { name: "生成预览", exact: true });
+  const send = page.getByRole("button", { name: "发送交接", exact: true });
+  const budgetError = page.getByRole("alert").filter({
+    hasText: "请输入 1 到 8 之间的整数。",
+  });
+  const previewPath = `/api/sessions/${src.id}/handoff-previews`;
+  const submittedBudgets: number[] = [];
+  page.on("request", (req) => {
+    if (req.method() === "POST" && req.url().endsWith(previewPath)) {
+      const body = req.postDataJSON() as { maxPages: number };
+      submittedBudgets.push(body.maxPages);
+    }
+  });
+  async function typeBudget(value: string) {
+    await pages.press("End");
+    const length = (await pages.inputValue()).length;
+    for (let index = 0; index < length; index++) {
+      await pages.press("Backspace");
+    }
+    await expect(pages).toHaveValue("");
+    await expect(send).toBeDisabled();
+    if (value) await pages.pressSequentially(value);
+    await expect(pages).toHaveValue(value);
+  }
+  async function generatePreview() {
+    const response = page.waitForResponse(
+      (res) =>
+        res.request().method() === "POST" && res.url().endsWith(previewPath),
+    );
+    await generate.click();
+    expect((await response).status()).toBe(201);
+    await expect(send).toBeEnabled();
+  }
+
+  await expect(pages).toHaveAttribute("inputmode", "numeric");
+  await expect(pages).toHaveValue("8");
+  await typeBudget("1");
+  await pages.blur();
+  await expect(pages).toHaveValue("1");
+  await generatePreview();
+  expect(submittedBudgets).toEqual([1]);
+
+  for (const invalid of ["", "0", "9", "2.8", "1e0", "abc", "-1"]) {
+    await typeBudget(invalid);
+    await expect(send).toBeDisabled();
+    await generate.click();
+    await expect(budgetError).toBeVisible();
+    await expect(pages).toHaveAttribute("aria-invalid", "true");
+    await expect(pages).toHaveAccessibleDescription(
+      /请输入 1 到 8 之间的整数。/,
+    );
+    await expect(pages).toHaveValue(invalid);
+    expect(submittedBudgets).toEqual([1]);
+  }
+
+  await typeBudget("8");
+  await pages.blur();
+  await expect(pages).toHaveValue("8");
+  await expect(pages).toHaveAttribute("aria-invalid", "false");
+  await expect(budgetError).toHaveCount(0);
+  await expect(send).toBeDisabled();
+  await generatePreview();
+  expect(submittedBudgets).toEqual([1, 8]);
+
+  await typeBudget("2");
+  await expect(send).toBeDisabled();
+  await generatePreview();
+  expect(submittedBudgets).toEqual([1, 8, 2]);
+
+  await typeBudget("");
+  await pages.blur();
+  await expect(budgetError).toBeVisible();
+  await page.getByRole("radio", { name: "文本交接", exact: true }).click();
+  await generatePreview();
+  expect(submittedBudgets).toEqual([1, 8, 2, 2]);
+  await page.getByRole("radio", { name: "压缩归档", exact: true }).click();
+  await expect(pages).toHaveValue("");
+  await expect(send).toBeDisabled();
+});
+
+test("handoff form previews frozen images and clears process handles on refresh", async ({
+  page,
+  request,
+  server,
+}) => {
+  const src = await source(request, server.workDir, true);
   await config(request, "UI handoff target");
   await page.goto(`/handoff/${src.id}`);
   const agent = page.getByRole("combobox", { name: "目标 Agent", exact: true });
@@ -182,17 +290,6 @@ test("handoff form previews frozen images and clears process handles on refresh"
   await page
     .getByRole("textbox", { name: "用户指令", exact: true })
     .fill("new task\n  preserve indentation");
-  const pages = page.getByRole("spinbutton", { name: "图片页数预算（1–8）" });
-  for (const [input, normalized] of [
-    ["", "8"],
-    ["0", "1"],
-    ["9", "8"],
-    ["2.8", "2"],
-    ["", "8"],
-  ]) {
-    await pages.fill(input);
-    await expect(pages).toHaveValue(normalized);
-  }
   await page.getByRole("button", { name: "生成预览", exact: true }).click();
   await expect(
     page.getByRole("textbox", { name: "当前任务（原样文本）", exact: true }),
@@ -218,7 +315,7 @@ test("handoff form previews frozen images and clears process handles on refresh"
   await expect(
     page.getByRole("textbox", { name: "查看选入历史文本", exact: true }),
   ).toHaveValue(/original source constraint/);
-  await page.getByRole("radio", { name: "分页图片", exact: true }).click();
+  await page.getByRole("radio", { name: "压缩归档", exact: true }).click();
   await page.getByRole("button", { name: "生成预览", exact: true }).click();
   await expect(image).toBeVisible();
   await page.route("**/api/handoff-previews/*", (route) =>
@@ -248,7 +345,7 @@ test("image-unsupported targets require an explicitly reviewed text preview", as
   request,
   server,
 }) => {
-  const src = await source(request, server.workDir);
+  const src = await source(request, server.workDir, true);
   const cfg = await config(request, "Text-only target", false);
   const target = await create(request, server.workDir, cfg);
   const image = await preview(request, src.id, cfg, server.workDir, target);

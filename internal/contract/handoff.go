@@ -38,11 +38,17 @@ type HandoffImagePage struct {
 	Bytes    int    `json:"bytes"`
 }
 type HandoffImageBudget struct {
-	MaxPages        int `json:"maxPages"`
-	Pages           int `json:"pages"`
-	Bytes           int `json:"bytes"`
-	MaxBytes        int `json:"maxBytes"`
-	MaxRequestBytes int `json:"maxRequestBytes"`
+	MaxPages           int    `json:"maxPages"`
+	Pages              int    `json:"pages"`
+	Bytes              int    `json:"bytes"`
+	MaxBytes           int    `json:"maxBytes"`
+	MaxRequestBytes    int    `json:"maxRequestBytes"`
+	ProjectedRunes     int    `json:"projectedRunes"`
+	RetainedRunes      int    `json:"retainedRunes"`
+	EstimatedTokens    int64  `json:"estimatedTokens"`
+	TokenEstimateKnown bool   `json:"tokenEstimateKnown"`
+	TokenBasis         string `json:"tokenBasis"`
+	Shape              string `json:"shape"`
 }
 type HandoffPreview struct {
 	Format          string                `json:"format"`
