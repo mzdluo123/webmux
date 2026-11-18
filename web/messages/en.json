@@ -123,6 +123,7 @@
   "s1_handoff_to_new_chat": "Hand off to new chat",
   "s1_hint_artifact_dir": "{token} is replaced with the session's artifacts folder path after creation.",
   "s1_hint_webmux_brief": "{token} is replaced with the WebMux tool brief after creation.",
+  "s1_home_list_notices": "Session list notices",
   "s1_home_worktrees": "Home worktrees",
   "s1_host_online": "{hostname} online",
   "s1_host_online_strained": "{hostname} online ({strain})",
