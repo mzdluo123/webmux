@@ -24,6 +24,7 @@
     shellUi,
     type ShellMode,
   } from "../../hooks/shared/shell.svelte";
+  import { paneEnter } from "../../hooks/shared/pane-enter";
   import Brand from "./Brand.svelte";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
@@ -197,6 +198,16 @@
       resuming = "";
     }
   }
+  function revealNavigation(node: HTMLElement, _mode: ShellMode) {
+    const animation = paneEnter(node, false);
+    return {
+      update() {
+        animation.update(false);
+        animation.update(true);
+      },
+      destroy: animation.destroy,
+    };
+  }
   function scope(next: string, worktreeId?: string) {
     shellUi.setMode("workbench");
     shell.repositories?.select(next, worktreeId);
@@ -300,90 +311,92 @@
         >
           {resumeError || sessionPins.error}
         </p>{/if}
-      {#if shellUi.mode === "chat" && chat}
-        <chat.History
-          sessions={unpinned}
-          records={shell.archived?.records ?? []}
-          {configs}
-          repositories={shell.repositories?.list ?? []}
-          {current}
-          {resuming}
-          onopen={openSession}
-          onresume={open}
-          onrename={shell.rename}
-          onclose={shell.close}
-          onrelease={shell.releaseWorktree}
-          onremove={askRemove}
-          onremoveworktree={askRemoveWithWorktree}
-        />
-      {:else if workspace && shell.repositories && !shell.sessions.loading && (shell.repositories.settled || shell.repositories.list.length)}
-        <workspace.Tree
-          repositories={shell.repositories.list}
-          sessions={unpinned}
-          home={workspace.homeWorktrees.value}
-          scope={route.name === "sessions"
-            ? (shell.repositories?.choice ?? "all")
-            : ""}
-          worktree={route.name === "sessions"
-            ? (shell.repositories?.worktree ?? "")
-            : ""}
-          {current}
-          canCreate={setup.gitReady && setup.registryReady}
-          {configIcons}
-          onscope={scope}
-          onopen={openSession}
-          onnewworktree={(repositoryId) =>
-            shell.start({ kind: "new-worktree", repositoryId })}
-          onhomeworktrees={(repositoryId) => {
-            const repo = shell.repositories?.list.find(
-              (r) => r.id === repositoryId,
-            );
-            if (repo) shell.chooseHomeWorktrees(repo);
-          }}
-          onmanageworktrees={(repositoryId) => {
-            const repo = shell.repositories?.list.find(
-              (r) => r.id === repositoryId,
-            );
-            if (repo) shell.repositoryDetails(repo, "worktrees");
-          }}
-          onrepositorydetails={(repositoryId) => {
-            const repo = shell.repositories?.list.find(
-              (r) => r.id === repositoryId,
-            );
-            if (repo) shell.repositoryDetails(repo);
-          }}
-          onworktreedetails={withTree((tree) => shell.worktreeDetails(tree))}
-          onremoveworktree={withTree((tree) => shell.removeWorktree(tree))}
-          onswitchbranch={withTree((tree) => shell.switchBranch(tree))}
-          onbranchoperation={shell.branchOperation}
-          onopengit={featureAvailable("workspace.git-workbench")
-            ? (repositoryId, worktreeId, view) =>
-                openGitWorkbench({ repositoryId, worktreeId, view })
-            : undefined}
-          onaddrepository={() => shell.addRepository()}
-          onrename={shell.rename}
-          onclose={shell.close}
-          records={shell.archived?.records ?? []}
-          {resuming}
-          onresume={open}
-          onremove={askRemove}
-        />
-      {:else if !workspace || !shell.repositories}
-        <ul class="space-y-0.5">
-          {#each unpinned as session (session.id)}
-            <SidebarLiveSessionRow
-              {session}
-              {current}
-              icon={session.agent?.icon ??
-                configIcons.get(session.configId ?? "") ??
-                ""}
-              onopen={openSession}
-              onrename={shell.rename}
-              onclose={shell.close}
-            />
-          {/each}
-        </ul>
-      {/if}
+      <div use:revealNavigation={shellUi.mode}>
+        {#if shellUi.mode === "chat" && chat}
+          <chat.History
+            sessions={unpinned}
+            records={shell.archived?.records ?? []}
+            {configs}
+            repositories={shell.repositories?.list ?? []}
+            {current}
+            {resuming}
+            onopen={openSession}
+            onresume={open}
+            onrename={shell.rename}
+            onclose={shell.close}
+            onrelease={shell.releaseWorktree}
+            onremove={askRemove}
+            onremoveworktree={askRemoveWithWorktree}
+          />
+        {:else if workspace && shell.repositories && !shell.sessions.loading && (shell.repositories.settled || shell.repositories.list.length)}
+          <workspace.Tree
+            repositories={shell.repositories.list}
+            sessions={unpinned}
+            home={workspace.homeWorktrees.value}
+            scope={route.name === "sessions"
+              ? (shell.repositories?.choice ?? "all")
+              : ""}
+            worktree={route.name === "sessions"
+              ? (shell.repositories?.worktree ?? "")
+              : ""}
+            {current}
+            canCreate={setup.gitReady && setup.registryReady}
+            {configIcons}
+            onscope={scope}
+            onopen={openSession}
+            onnewworktree={(repositoryId) =>
+              shell.start({ kind: "new-worktree", repositoryId })}
+            onhomeworktrees={(repositoryId) => {
+              const repo = shell.repositories?.list.find(
+                (r) => r.id === repositoryId,
+              );
+              if (repo) shell.chooseHomeWorktrees(repo);
+            }}
+            onmanageworktrees={(repositoryId) => {
+              const repo = shell.repositories?.list.find(
+                (r) => r.id === repositoryId,
+              );
+              if (repo) shell.repositoryDetails(repo, "worktrees");
+            }}
+            onrepositorydetails={(repositoryId) => {
+              const repo = shell.repositories?.list.find(
+                (r) => r.id === repositoryId,
+              );
+              if (repo) shell.repositoryDetails(repo);
+            }}
+            onworktreedetails={withTree((tree) => shell.worktreeDetails(tree))}
+            onremoveworktree={withTree((tree) => shell.removeWorktree(tree))}
+            onswitchbranch={withTree((tree) => shell.switchBranch(tree))}
+            onbranchoperation={shell.branchOperation}
+            onopengit={featureAvailable("workspace.git-workbench")
+              ? (repositoryId, worktreeId, view) =>
+                  openGitWorkbench({ repositoryId, worktreeId, view })
+              : undefined}
+            onaddrepository={() => shell.addRepository()}
+            onrename={shell.rename}
+            onclose={shell.close}
+            records={shell.archived?.records ?? []}
+            {resuming}
+            onresume={open}
+            onremove={askRemove}
+          />
+        {:else if !workspace || !shell.repositories}
+          <ul class="space-y-0.5">
+            {#each unpinned as session (session.id)}
+              <SidebarLiveSessionRow
+                {session}
+                {current}
+                icon={session.agent?.icon ??
+                  configIcons.get(session.configId ?? "") ??
+                  ""}
+                onopen={openSession}
+                onrename={shell.rename}
+                onclose={shell.close}
+              />
+            {/each}
+          </ul>
+        {/if}
+      </div>
     </div>
   </ScrollArea>
   <SidebarFooter

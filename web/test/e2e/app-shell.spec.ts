@@ -395,6 +395,44 @@ test.describe("phone drawer", () => {
     await expect(open).toBeFocused();
   });
 
+  test("mode selection line follows the active button with or without motion", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "打开侧栏" }).click();
+    const drawer = page.getByRole("dialog", { name: "导航" });
+    const indicator = drawer.locator("[data-sidebar-mode-indicator]");
+    await expect(indicator).toBeVisible();
+    for (const [preference, mode] of [
+      ["no-preference", "聊天模式"],
+      ["reduce", "工作台模式"],
+    ] as const) {
+      await page.emulateMedia({ reducedMotion: preference });
+      const button = drawer.getByRole("button", { name: mode, exact: true });
+      await button.press("Enter");
+      await expect(button).toHaveAttribute("aria-pressed", "true");
+      await expect(button).toBeFocused();
+      if (preference === "reduce") {
+        const seconds = await indicator.evaluate((element) =>
+          Number.parseFloat(getComputedStyle(element).transitionDuration),
+        );
+        expect(seconds).toBeLessThan(0.001);
+      } else {
+        await expect(indicator).toHaveCSS("transition-duration", "0.2s");
+      }
+      await expect
+        .poll(async () => {
+          const marker = (await indicator.boundingBox())!;
+          const active = (await button.boundingBox())!;
+          return (
+            Math.abs(marker.x - active.x) +
+            Math.abs(marker.width - active.width)
+          );
+        })
+        .toBeLessThan(1);
+    }
+  });
+
   test("drawer mode labels fit with enlarged text", async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem("webmux.locale", "en"));
     await page.setViewportSize({ width: 320, height: 568 });
