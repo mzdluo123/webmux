@@ -47,21 +47,29 @@ Snapcompact 对可导出用户/助手正文及可见工具调用/结果做机械
 以下叶读取器已实现并通过脱敏原生夹具验证；这不等于全部 CLI/连接器版本、TUI/ACP 交接组合已完成实测。
 来源、缺失场景及脱敏方式见[真实夹具说明](native-history-fixtures.md)。
 
-| Agent       | 原生存储证据                                                 | 版本边界                                |
-| ----------- | ------------------------------------------------------------ | --------------------------------------- |
-| Codex       | rollout JSONL、消息及工具闭环、compacted replacement history | 0.77.0、0.157.1、0.162.1、0.169.0       |
-| Claude Code | projects JSONL、parent 图及 compact_boundary                 | 真实样本 2.1.316                        |
-| omp         | session JSONL、父链与 compaction 保留范围                    | 文件格式 3；runtime 18.12.2、18.22.0    |
-| OpenCode    | 两代 SQLite 原生表、消息及 part                              | 会话版本 1.18.3 / 2.1.4                 |
-| Kimi        | state.json 与 wire.jsonl，正文与工具参数/结果                | wire 1.4/1.5；1.5 实录 CLI 2.5.3        |
-| agy         | SQLite BLOB、已恢复 descriptor 的 protobuf 字段              | 旧六步实录版本未知；新增 1.5.7 两步实录 |
-| Devin       | SQLite committed 主链，排除 inference siblings               | SQLite 写入版本未知；不与独立 ATIF 混合 |
-| QoderCN     | projects JSONL，按活动祖先链恢复正文与工具参数/结果          | 实录 1.1.81、1.1.84                     |
-| Qoder       | 暂复用 QoderCN 读取器和 fixtureSource                        | 国际版路径/格式尚未经实录确认           |
+| Agent       | 原生存储证据                                                 | 已核验样本版本                                               |
+| ----------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Codex       | rollout JSONL、消息及工具闭环、compacted replacement history | 0.77.0、0.157.1、0.160.1、0.162.1、0.167.2、0.169.0、0.169.1 |
+| Claude Code | projects JSONL、parent 图及 compact_boundary                 | 真实样本 2.1.316                                             |
+| omp         | session JSONL、父链与 compaction 保留范围                    | 文件格式 3；runtime 18.12.2、18.22.0                         |
+| OpenCode    | 两代 SQLite 原生表、消息及 part                              | 会话版本 1.18.3 / 2.1.4                                      |
+| Kimi        | state.json 与 wire.jsonl，正文与工具参数/结果                | wire 1.4/1.5；1.5 实录 CLI 2.5.3                             |
+| agy         | SQLite BLOB、已恢复 descriptor 的 protobuf 字段              | 旧六步实录版本未知；新增 1.5.7 两步实录                      |
+| Devin       | SQLite committed 主链，排除 inference siblings               | SQLite 写入版本未知；不与独立 ATIF 混合                      |
+| QoderCN     | projects JSONL，按活动祖先链恢复正文与工具参数/结果          | 实录 1.1.81、1.1.84                                          |
+| Qoder       | 暂复用 QoderCN 读取器和 fixtureSource                        | 国际版路径/格式尚未经实录确认                                |
 
-原生格式、CLI、连接器和历史注入协议是独立版本维度，不能互相替代。
-未知格式、引用式 lineage、无法证明的分支或原生身份返回明确错误，不猜测会话归属。
-SQLite 读取在只读事务内完成；agy 生产读取 BLOB，不把 decoded JSON 研究文件冒充原生来源。
+原生历史读取器接受最低基线及以上版本，并按原生记录结构校验内容。版本记录取自来源文件，安装版本不参与原生历史判定。
+涉及上游已记录的存储格式变化时，以来源的实际格式选择解析路径。OpenCode 在同一数据库内按目标会话所在的旧版或 v2 表读取。
+
+- Codex 独立 rollout 的 `session_meta.cli_version` 从 0.77.0 起。
+- Kimi 的 Wire 协议从 1.4 起，`state.json` 声明的格式版本从 2 起。
+- omp 的 session 格式版本从 3 起，详见[上游会话格式迁移](https://github.com/can1357/oh-my-pi/blob/main/docs/session.md#versioning-and-migration)。
+- Qoder 和 QoderCN 共用 JSONL 读取器，写入版本从 1.1.81 起。
+  0.160.1、0.167.2 和 0.169.1 的独立 rollout 已通过[本机只读核验](user-stories/verification-log-2026-11-18.md#codex-原生历史版本兼容us-q19us-q20)。
+  原生格式、CLI、连接器和历史注入协议是独立版本维度，不能互相替代。
+  未知格式、引用式 lineage、无法证明的分支或原生身份返回明确错误，不猜测会话归属。
+  SQLite 读取在只读事务内完成；agy 生产读取 BLOB，不把 decoded JSON 研究文件冒充原生来源。
 
 2026-11-17 当前部署的合成历史现场测试另发现来源兼容性问题：
 omp 的根目录发现被无关旧格式阻断，Kimi wire 1.5 和 QoderCN 1.1.81 被版本限制拒绝，Codex 0.169.0 的版本失败被表现为身份冲突，agy 的 cascade/trajectory 身份不一致。
@@ -89,8 +97,8 @@ Codex 0.77 基线固定上游 `112f40e91c12af0f7146d7e03f20283516a8af0b`：
 `replacement_history` 改变模型上下文，不删除 rollout 中仍存在的旧原文；重复的原生 ID 按来源版本处理，不按文本合并执行。
 独立物化 fork 可读取；较新的 `history_base` 等引用 lineage 尚不冒充旧版独立文件支持。
 Codex 发现保留原有独立预算：元信息 64 KiB、累计 16 MiB、最多 20000 次遍历 / 10000 个结果，达到列表上限返回 `truncated=true`。
-发现仅用 `session_meta` 内容确认身份，保留未知版本与引用 lineage 候选；唯一目标读取时返回格式错误并保留原生版本原因。
-文件名不证明身份；同 ID 多候选仍返回身份错误，即使其中一份的正文版本尚不支持。
+发现按 `session_meta` 内容确认身份。目标低于写入版本基线、版本字段无效或依赖引用式历史时，读取返回对应的格式错误。
+同一原生 ID 出现多个候选时返回身份冲突。原生 ID 以记录内容为准。
 
 <a id="投影图片与当前迁移边界"></a>
 

@@ -1,6 +1,5 @@
-// Package history provisionally reads the QoderCN 1.1.81/1.1.84 layouts for Qoder.
-// International-edition compatibility is an explicit assumption, not a tested
-// runtime claim; the real fixtures were captured from the Chinese edition only.
+// Package history provisionally reuses the QoderCN JSONL reader for Qoder.
+// The native fixtures come from the Chinese edition.
 package history
 
 import (

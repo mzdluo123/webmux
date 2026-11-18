@@ -25,3 +25,16 @@
 - 局限：
   - 本机免密与 Relay 浏览器顶层导航的非执行行为通过 HTTP 响应头契约（`application/octet-stream`、`attachment`、`nosniff` 与 `sandbox` CSP）回归验证，未连接公网 Relay 节点演练；
   - 浏览器与端到端用例仅在 Linux 无头 Chromium 中执行，未在 macOS / iOS / Android 真机浏览器上复测。
+
+## Codex 原生历史版本兼容（US-Q19、US-Q20）
+
+- 修复前，`go test -count=1 ./internal/agent/codex/history -run '^TestRuntimeDiscoveryCurrentCaptureAndFreeze$'` 在三个新增版本上均复现 byte 0 格式错误。
+- 本机通过临时只读探针 `go test -count=1 -v ./internal/agent/codex/history -run '^TestLocalRolloutCompatibilityProbe$'` 按日志写入版本核验。修复后通过 1 份 0.160.1、14 份 0.167.2、5 份 0.169.1，另有 1 份 0.160.1 触发既有资源上限。探针仅输出统计。
+- 回归测试使用公开夹具正文和派生版本头验证较新版本、运行时来源发现、冻结后补查及同一身份冲突。无效写入版本和引用式分支返回不同格式错误。
+- `go test -race -count=1 ./internal/codexrollout ./internal/agent/codex/history ./internal/historyimport ./internal/historysource ./internal/historyprojection ./internal/handoff` 六个包通过，覆盖默认分页图片、任务原文、来源冻结与预览到期。
+- `make docs-check` 通过。
+
+## 原生历史最低版本基线（US-Q19、US-Q20）
+
+- `go test -race -count=1 ./internal/codexrollout ./internal/agent/{codex,kimi,omp,qoder,qodercn,opencode,agy,claudecode,devin}/history ./internal/{historyimport,historysource,historyprojection,handoff}` 的 14 个包通过。
+- 派生样本覆盖 Codex 0.170.0 和 9.99.0、Kimi Wire 1.10 和 2.0 与状态 v3、omp session v4、Qoder/QoderCN 较高版本，并核对正文和工具关联。OpenCode 在同一数据库内读取两种 SQLite 表结构。

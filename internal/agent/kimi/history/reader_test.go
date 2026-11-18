@@ -378,8 +378,8 @@ func TestProtocol15ConsumerFiltersAndFreeze(t *testing.T) {
 	}
 }
 
-func TestUnknownProtocolAndStateRejected(t *testing.T) {
-	for _, version := range []string{"1.3", "1.6", "2.0", ""} {
+func TestInvalidProtocolAndStateRejected(t *testing.T) {
+	for _, version := range []string{"1.3", "invalid", ""} {
 		t.Run("wire-"+version, func(t *testing.T) {
 			s := fixture15(t)
 			data, err := os.ReadFile(s.Path)
@@ -401,7 +401,7 @@ func TestUnknownProtocolAndStateRejected(t *testing.T) {
 		value     any
 		want      error
 	}{
-		{"unknown-state", "version", 3, historysource.ErrFormat},
+		{"old-state", "version", 1, historysource.ErrFormat},
 		{"malformed-state-version", "version", "future", historysource.ErrFormat},
 		{"wrong-state-id", "id", "session-other", historysource.ErrIdentity},
 	} {
@@ -496,10 +496,38 @@ func fixture15Tool(t *testing.T) historysource.Source {
 	return fixtureSession(t, "wd_fixture_0003", "session_00000000-0000-4000-8000-000000000003")
 }
 
-func TestProtocol15RealToolTranscript(t *testing.T) {
-	s := fixture15Tool(t)
+func TestWireToolTranscriptVersions(t *testing.T) {
+	for _, version := range []string{"1.5", "1.6", "1.10", "2.0"} {
+		t.Run(version, func(t *testing.T) {
+			s := fixture15Tool(t)
+			if version != "1.5" {
+				wire, err := os.ReadFile(s.Path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				wire = []byte(strings.Replace(string(wire), `"protocol_version":"1.5"`, `"protocol_version":"`+version+`"`, 1))
+				if err := os.WriteFile(s.Path, wire, 0600); err != nil {
+					t.Fatal(err)
+				}
+				statePath := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(s.Path))), "state.json")
+				state, err := os.ReadFile(statePath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				state = []byte(strings.Replace(string(state), `"version": 2`, `"version": 3`, 1))
+				if err := os.WriteFile(statePath, state, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			assertWireToolTranscript(t, s, version)
+		})
+	}
+}
+
+func assertWireToolTranscript(t *testing.T, s historysource.Source, version string) {
+	t.Helper()
 	doc, err := Read(context.Background(), historysource.Request{Source: s})
-	if err != nil || doc.FormatVersion != "kimi-wire/1.5" || len(doc.Gaps) != 0 || len(doc.Records) != 6 {
+	if err != nil || doc.FormatVersion != "kimi-wire/"+version || len(doc.Gaps) != 0 || len(doc.Records) != 6 {
 		t.Fatal(doc, err)
 	}
 	if doc.Records[0].Role != "user" || doc.Records[0].Text != "读取 fact.txt 后只回复 ACK。" {
@@ -543,7 +571,7 @@ func TestDiscoverMixedStateVersions(t *testing.T) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		t.Fatal(err)
 	}
-	state["version"] = 3
+	state["version"] = 1
 	data, err = json.Marshal(state)
 	if err != nil {
 		t.Fatal(err)

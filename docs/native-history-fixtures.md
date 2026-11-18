@@ -8,7 +8,7 @@
 1. 打开 [夹具目录](../internal/agent/testdata/native-history/)，先读目标 Agent 的 `manifest.json`。
 2. 按 `sourceLayout` 理解原生目录与身份关系，按 `files` 选择 JSON、JSONL 或 SQLite SQL 样本。
 3. 在临时目录重建原生布局，针对实际字段、类型和引用开发只读适配器，不启动 Agent 或连接真实服务。
-4. 使用 `coverage` 和 `limitations` 区分已观察行为、被脱敏信息及尚缺场景；版本兼容范围以对应版本的夹具结果为依据。
+4. 使用 `coverage` 和 `limitations` 区分已观察行为、被脱敏信息及尚缺场景；接受范围与样本版本分别见[原生历史读取器](codex-native.md#读取器与版本证据)。
 
 每份 manifest 记录来源形态、版本证据、脱敏方式、实际覆盖、限制以及发布文件的 SHA-256。
 文件哈希只校验脱敏产物，不是私人源文件哈希，也不能当作 Agent 原生内容校验。
@@ -39,7 +39,7 @@ Qoder 的 `fixtureSource` 指向 QoderCN manifest，共用文件与哈希，不�
 旧样本保持原样，新文件独立记录来源版本、脱敏映射和工具覆盖；安装版本与原生记录内版本分别登记。
 Kimi 1.5 的 injection 与 message 镜像按语义过滤；QoderCN 工具 input 投影为可导出的参数记录，与结果按 call ID 关联。
 Qoder 与 QoderCN 共用上述有界解析规则；国际版仍只有中国版夹具的临时复用证据，未完成国际 CLI 实录验收。
-未知版本、畸形正文结构和冻结来源变化仍产生错误；结构有效但尚未建模的 Qoder 内容块不导出正文，以缺口标记保留其他已知内容。
+低于基线的版本、畸形正文结构和冻结来源变化产生错误。结构有效但尚未建模的 Qoder 内容块以缺口标记，其他已知内容仍可导出。
 SQLite 样本保留真实 DDL 与经过脱敏的最小记录集合。
 
 ## 离线重建 SQLite

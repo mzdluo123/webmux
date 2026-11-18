@@ -1,4 +1,4 @@
-// Package codexrollout reads verified Codex rollout formats without executing
+// Package codexrollout reads standalone Codex rollouts without executing
 // commands, resolving attachments, or retaining reasoning payloads.
 package codexrollout
 
@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/rainchan/webmux/internal/agentprofile"
 )
 
 const Version = "codex-rollout/v3"
@@ -22,7 +24,8 @@ const MaxRecords = 100000
 
 var ErrLimit = errors.New("rollout resource limit")
 var ErrFormat = errors.New("invalid rollout record")
-var ErrVersion = errors.New("unsupported rollout version or lineage")
+var ErrVersion = errors.New("unsupported rollout writer version")
+var ErrLineage = errors.New("unsupported rollout history reference")
 
 // ParseError reports position and category without including source content.
 type ParseError struct {
@@ -252,15 +255,13 @@ func validateMetadata(raw json.RawMessage, m Metadata) error {
 	// Reference-based histories cannot be read as materialized forks.
 	for _, key := range []string{"history_base", "forked_from_id", "subagent_history_start_ordinal"} {
 		if value, ok := fields[key]; ok && string(value) != "null" {
-			return ErrVersion
+			return ErrLineage
 		}
 	}
-	switch m.CLIVersion {
-	case "0.77.0", "0.157.1", "0.162.1", "0.169.0":
-		return nil
-	default:
+	if order, valid := agentprofile.CompareVersions(m.CLIVersion, "0.77.0"); !valid || order < 0 {
 		return ErrVersion
 	}
+	return nil
 }
 
 func response(raw json.RawMessage, rec *Record) error {

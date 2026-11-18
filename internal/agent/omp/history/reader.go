@@ -19,7 +19,7 @@ import (
 )
 
 const ParserVersion = "omp-jsonl-4"
-const FormatVersion = "omp-session-3"
+const minSessionVersion = 3
 
 type entry struct {
 	Type          string  `json:"type"`
@@ -83,6 +83,7 @@ func Read(ctx context.Context, req hs.Request) (hs.Document, error) {
 	entries := make([]entry, 0)
 	index := make(map[string]int)
 	identity := ""
+	version := 0
 	external := false
 	doc, err := hs.ReadJSONL(ctx, req, func(line []byte, off, end int64) error {
 		if !utf8.Valid(line) {
@@ -93,10 +94,11 @@ func Read(ctx context.Context, req hs.Request) (hs.Document, error) {
 			return hs.ErrFormat
 		}
 		if e.Type == "session" {
-			if identity != "" || e.Version != 3 {
+			if identity != "" || e.ID == "" || e.Version < minSessionVersion {
 				return hs.ErrFormat
 			}
 			identity = e.ID
+			version = e.Version
 			external = e.ParentSession != ""
 			return nil
 		}
@@ -277,7 +279,7 @@ func Read(ctx context.Context, req hs.Request) (hs.Document, error) {
 	}
 	doc.Source = original.Source
 	doc.Source.Branch = leaf
-	doc.FormatVersion = FormatVersion
+	doc.FormatVersion = "omp-session-" + strconv.Itoa(version)
 	doc.ParserVersion = ParserVersion
 	doc.Records = records
 	doc.Gaps = gaps

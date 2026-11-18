@@ -161,10 +161,9 @@ func TestCurrentCaptureBodyPrivacyAndFrozenIdentity(t *testing.T) {
 	}
 }
 
-func TestCurrentFormatToolEnvelopeCompatibility(t *testing.T) {
-	// The current capture contains no tool calls. Supplement it with the
-	// independently captured 0.162.1 tool envelopes, without changing either fixture.
-	data := currentCapture(t)
+func TestNewerWriterToolEnvelopeCompatibility(t *testing.T) {
+	// Combine a synthetic writer version with current messages and native tool envelopes.
+	data := []byte(strings.Replace(string(currentCapture(t)), "0.169.0", "9.99.0", 1))
 	older, err := os.ReadFile(filepath.Join("..", "..", "testdata", "native-history", "codex", "session.jsonl"))
 	if err != nil {
 		t.Fatal(err)
@@ -237,7 +236,7 @@ func TestCurrentFormatToolEnvelopeCompatibility(t *testing.T) {
 
 func TestDiscoveryRetainsUnsupportedTargetIdentity(t *testing.T) {
 	header, _, _ := strings.Cut(string(currentCapture(t)), "\n")
-	for _, version := range []string{"0.76.0", "0.170.0", "9.99.0"} {
+	for _, version := range []string{"0.76.0", "invalid", ""} {
 		t.Run(version, func(t *testing.T) {
 			root := t.TempDir()
 			dir := filepath.Join(root, "sessions")

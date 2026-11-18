@@ -1,4 +1,4 @@
-// Package history reads Kimi wire protocols 1.4 and 1.5.
+// Package history reads Kimi JSONL history from wire protocol 1.4 onward.
 package history
 
 import (
@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/historysource"
 )
 
@@ -117,7 +118,7 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 	var header struct {
 		Version *int `json:"version"`
 	}
-	if json.Unmarshal(state, &header) != nil || (header.Version != nil && *header.Version != 2) {
+	if json.Unmarshal(state, &header) != nil || (header.Version != nil && *header.Version < 2) {
 		return empty, historysource.ErrFormat
 	}
 	sum := sha256.Sum256(state)
@@ -151,7 +152,8 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 			return historysource.ErrFormat
 		}
 		if offset == 0 {
-			if row.Type != "metadata" || (row.Version != "1.4" && row.Version != "1.5") {
+			order, valid := agentprofile.CompareVersions(row.Version, "1.4")
+			if row.Type != "metadata" || !valid || order < 0 {
 				return historysource.ErrFormat
 			}
 			protocol = row.Version
