@@ -1,5 +1,8 @@
 <script lang="ts">
   import type { Connection } from "../../src/platform/ws";
+  import type { UploadProgress } from "../../src/hooks/shared/upload.svelte";
+  import FileUploadProgress from "../../src/components/shared/FileUploadProgress.svelte";
+  import TerminalFindBar from "../../src/components/terminal/TerminalFindBar.svelte";
   import TerminalViewport from "../../src/components/terminal/TerminalViewport.svelte";
 
   let {
@@ -14,6 +17,9 @@
     toggle = () => {},
     setTouchGamepad = () => {},
     scrollToBottom = () => {},
+    findOpen = false,
+    uploadProgress = null,
+    cancelUpload = () => {},
   }: {
     connection?: Connection;
     restoring?: boolean;
@@ -26,6 +32,9 @@
     toggle?: (key: "ctrl" | "alt" | "shift") => void;
     setTouchGamepad?: (value: boolean) => void;
     scrollToBottom?: () => void;
+    findOpen?: boolean;
+    uploadProgress?: UploadProgress | null;
+    cancelUpload?: () => void;
   } = $props();
 
   const terminal = {
@@ -50,8 +59,26 @@
     scrollToBottom() {
       scrollToBottom();
     },
+    canFind: true,
+    findResults: undefined,
+    findReplayed: false,
+    bufferType: "normal" as const,
+    scrollback: 1000,
+    historyTruncated: false,
+    findNext() {
+      return false;
+    },
+    findPrevious() {
+      return false;
+    },
+    clearFind() {},
   };
-  const uploads = { dragging: false, progress: null };
+  const uploads = {
+    dragging: false,
+    get progress() {
+      return uploadProgress;
+    },
+  };
 </script>
 
 {#snippet quickMenu()}<span></span>{/snippet}
@@ -66,6 +93,7 @@
     {visible}
     {touchGamepad}
     {setTouchGamepad}
+    {findOpen}
     {uploads}
     {quickMenu}
     {draftToggle}
@@ -74,5 +102,19 @@
     lock={() => {}}
     paste={async () => {}}
     keyboard={() => {}}
-  />
+  >
+    {#snippet findBar()}
+      <TerminalFindBar open={findOpen} {terminal} onclose={() => {}} />
+    {/snippet}
+    {#snippet uploadProgress()}
+      {#if uploads.progress}
+        <FileUploadProgress
+          variant="floating"
+          offset={findOpen}
+          progress={uploads.progress}
+          cancel={cancelUpload}
+        />
+      {/if}
+    {/snippet}
+  </TerminalViewport>
 </div>

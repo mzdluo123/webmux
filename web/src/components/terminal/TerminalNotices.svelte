@@ -22,7 +22,6 @@
   interface NoticeUploads {
     readonly progress: UploadProgress | null;
     cancel(): void;
-    progressInViewport?: () => boolean;
   }
 
   // Status strips between the header and the terminal, in display order.
@@ -30,6 +29,7 @@
     terminal: t,
     features = {},
     uploads,
+    hideUploadProgress = false,
     draft,
     draftSaved,
     error,
@@ -51,6 +51,8 @@
     terminal: NoticeTerminal;
     features?: TerminalFeatures;
     uploads?: NoticeUploads;
+    /** Suppresses the upload strip while the terminal viewport renders its floating card. */
+    hideUploadProgress?: boolean;
     draft: TerminalDraft;
     draftSaved: string;
     error: string;
@@ -105,7 +107,7 @@
     {/snippet}
   </StripNotice>
 {/if}
-{#if features.files && uploads?.progress && !uploads.progressInViewport?.()}<features.files.Progress
+{#if features.files && uploads?.progress && !hideUploadProgress}<features.files.Progress
     progress={uploads.progress}
     cancel={() => uploads?.cancel()}
   />{/if}

@@ -348,6 +348,7 @@
           {leave}
           {terminal}
           {uploads}
+          hideUploadProgress={terminalShown}
           {features}
           {draft}
           {draftSaved}
@@ -415,6 +416,14 @@
               {terminal}
               onclose={closeFind}
             />
+          {/snippet}
+          {#snippet uploadProgress()}
+            {#if terminalShown && features.files && uploads?.progress}<features.files.Progress
+                variant="floating"
+                offset={findOpen}
+                progress={uploads.progress}
+                cancel={() => uploads?.cancel()}
+              />{/if}
           {/snippet}
         </TerminalViewport>
       </div>

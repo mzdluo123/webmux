@@ -28,7 +28,7 @@
 - 前端与端到端回归：
   - Vitest 浏览器组件测试 `ChatView.test.ts`、`ChatUpload.test.ts`（共 53 项）通过；
   - Playwright 端到端测试 `upload.spec.ts`、`artifacts.spec.ts`（14 项通过、4 项按设备项目条件跳过）及 `hybrid.spec.ts -g "Claude sends image and embedded-resource attachments"`（桌面与 iPhone SE 共 2 项通过）验证跨请求加载图片缩略图正常。
-  - 隔离 Chromium 实测上传首帧、完成与取消前后网格几何相同，首行和末行光标可见。
+  - 终端上传进度浮层（US-E06）：`TerminalViewport.test.ts`、`TerminalUpload.test.ts` 与 `TerminalNotices.test.ts`（共 22 项）通过，验证桌面（1280×720）与手机（390×844）视口下空闲状态全高保留、上传期间顶部浮层展示与取消、查找栏打开时自动下移避让，以及开始、完成与取消前后字符网格尺寸保持一致。
   - `upload.spec.ts` 的桌面与 iPhone SE Chromium 用例覆盖原始文件、回放、拖放、进度、错误和取消。上传首帧及完成时的字符网格尺寸作为回归断言。
 - 局限：
   - 本机免密与 Relay 浏览器顶层导航的非执行行为通过 HTTP 响应头契约（`application/octet-stream`、`attachment`、`nosniff` 与 `sandbox` CSP）回归验证，未连接公网 Relay 节点演练；

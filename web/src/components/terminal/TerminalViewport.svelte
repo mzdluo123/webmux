@@ -7,7 +7,6 @@
     type ButtonVariant,
   } from "$lib/components/ui/button";
   import JumpToLatestButton from "../shared/JumpToLatestButton.svelte";
-  import FileUploadProgress from "../shared/FileUploadProgress.svelte";
   import SoftKeys from "./SoftKeys.svelte";
   import { m } from "$lib/paraglide/messages.js";
   import type { Modifiers } from "../../domains/terminal/terminal-keys";
@@ -31,7 +30,6 @@
   interface ViewportUploads {
     readonly dragging: boolean;
     readonly progress: UploadProgress | null;
-    cancel?: () => void;
   }
 
   // The xterm host with its overlays, above the soft-key toolbar.
@@ -52,6 +50,7 @@
     setTouchGamepad,
     findOpen = false,
     findBar,
+    uploadProgress,
   }: {
     container?: HTMLDivElement;
     terminal: ViewportTerminal;
@@ -72,6 +71,7 @@
     setTouchGamepad: (value: boolean) => void;
     findOpen?: boolean;
     findBar?: Snippet;
+    uploadProgress?: Snippet;
   } = $props();
 
   const gamepadAvailable = $derived(
@@ -107,13 +107,7 @@
   </Button>
 {/snippet}
 
-<div
-  class={[
-    "terminal-column",
-    uploads?.cancel &&
-      "h-[calc(100%-var(--spacing)*9)]! any-pointer-coarse:h-[calc(100%-var(--spacing)*12)]!",
-  ]}
->
+<div class="terminal-column">
   <div class="terminal-area">
     <div
       class="terminal-host"
@@ -122,6 +116,7 @@
       bind:this={container}
     ></div>
     {@render findBar?.()}
+    {@render uploadProgress?.()}
     {#if uploads?.dragging}
       <div
         class="pointer-events-none absolute inset-0 z-20 flex items-center justify-center border-2 border-dashed border-primary bg-background/90"
@@ -188,14 +183,3 @@
     {/snippet}
   </SoftKeys>
 </div>
-{#if uploads?.cancel}
-  <div class="h-9 bg-(--terminal-background) any-pointer-coarse:h-12">
-    {#if uploads.progress}
-      <FileUploadProgress
-        variant="terminal"
-        progress={uploads.progress}
-        cancel={uploads.cancel}
-      />
-    {/if}
-  </div>
-{/if}
