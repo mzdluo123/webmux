@@ -49,9 +49,15 @@
 
   const pinnedIds = $derived(new Set(pinned.map((session) => session.id)));
   const attentionOnly = $derived(workbenchLayout.attentionOnly);
+  let menuSessionId = $state<string | null>(null);
   const pending = $derived(
     sessions.filter((session) => queueGroup(session) === "attention"),
   );
+  const visibleSessions = $derived.by(() => {
+    if (!attentionOnly) return sessions;
+    const held = sessions.find((session) => session.id === menuSessionId);
+    return held && !pending.includes(held) ? [...pending, held] : pending;
+  });
   const groups = $derived.by(() => {
     const byRepository = new Map(
       repositories.map((repository) => [
@@ -70,10 +76,7 @@
       repository: undefined,
       sessions: [] as SessionInfo[],
     };
-    for (const session of sessionsByPin(
-      attentionOnly ? pending : sessions,
-      pinned,
-    )) {
+    for (const session of sessionsByPin(visibleSessions, pinned)) {
       const group =
         byRepository.get(session.workspace?.repositoryId ?? "") ?? direct;
       group.sessions.push(session);
@@ -87,7 +90,7 @@
   let attentionFilter = $state<HTMLElement | null>(null);
   $effect.pre(() => {
     if (!attentionOnly) return;
-    const matchingSessions = pending;
+    const matchingSessions = visibleSessions;
     const matchingProjects = groups;
     const focused = document.activeElement;
     if (!focused || !navigation?.contains(focused)) return;
@@ -196,6 +199,10 @@
                 {onopen}
                 {onrename}
                 {onclose}
+                onmenuopen={(open) => {
+                  if (open) menuSessionId = session.id;
+                  else if (menuSessionId === session.id) menuSessionId = null;
+                }}
               />
             {/each}
           </ul>
