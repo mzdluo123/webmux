@@ -158,6 +158,8 @@
   - 隔离实例全量 Playwright E2E（454 项，含 `git-workbench-stash-blame.spec.ts` 桌面与手机视口）及性能套件（18 项）通过。
 - 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。
 
+- 2026-11-19（T065）：Vitest 浏览器套件（`GitWorkbenchStashBlame.test.ts`）在桌面与手机视口验证工作区和指定提交切换时比较结果区顶部位置保持不变且无常驻空白输入槽，结果区重载时编程式焦点保留在容器内。
+
 ## 2026-11-13：Git 工作台 11（V3）逐行（Sub-hunk）暂存、受控丢弃更改与三阶段 Smart Checkout（US-J16、US-J19、US-J23、US-J28）
 
 - 范围：
