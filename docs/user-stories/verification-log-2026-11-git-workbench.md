@@ -175,6 +175,12 @@
   - 隔离实例 Playwright E2E（103 项，含 `git-workbench-line-smart.spec.ts` 桌面与 320px 手机视口 6 项）及性能套件（18 项）通过。
 - 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。
 
+### 2026-11-19：切换 Git 选行模式时保留代码行锚点（US-J28）
+
+- 隔离 Chromium 对全文差异测量切换前后，另外验证手机紧凑差异的行号映射和减少动态效果。
+- `git-workbench-line-smart.spec.ts` 的真实索引逐行暂存用例在桌面及 iPhone SE Chromium 均通过。
+- 本轮使用无头 Linux Chromium，未在物理触屏或真机浏览器核对。
+
 ## 2026-11-13：Git 工作台 12 原生设计系统重构（US-J20–US-J28）
 
 - 对应 US-J20–US-J28：复用原生色板、通用紧凑列表、等高控件、顶部水平标签与操作账本浮层，统一文件状态与审阅图标；故事 ID 和数量不变。
