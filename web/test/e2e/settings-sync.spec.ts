@@ -90,10 +90,18 @@ test("legacy browser keys never overwrite server preferences", async ({
     localStorage.setItem("webmux.theme", "dark");
     localStorage.setItem("webmux.quickCommands", "[]");
     localStorage.setItem("webmux.settingsCache", "bad-cache");
+    localStorage.setItem("webmux.tv-mode", "1");
+    localStorage.setItem("webmux.headsetMode", "1");
   });
   await page.goto("/settings");
   await expect(page.getByText("已连接 · 设置已同步")).toBeVisible();
   await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+  await expect(page.locator("html")).not.toHaveAttribute("data-ui-mode", "tv");
+  await expect(page.locator("html")).not.toHaveAttribute(
+    "data-headset-mode",
+    "true",
+  );
+  await expect(page.locator("#tv-mode, #headset-mode")).toHaveCount(0);
   const snapshot = await (await request.get("/api/settings")).json();
   expect(snapshot.values).not.toHaveProperty("theme");
   expect(snapshot.values.quickCommands).toBeNull();

@@ -58,9 +58,7 @@
       {:else}{scopeCounts}{/if}{#if refreshing}
         {m.s8_toolbar_refreshing_git()}{/if}
     </p>
-    <div
-      class="min-w-[min(100%,10rem)] flex-1 sm:mr-3 [[data-ui-mode=tv]_&]:flex-initial"
-    >
+    <div class="min-w-[min(100%,10rem)] flex-1 sm:mr-3">
       <div class="flex min-w-0 items-center gap-1.5">
         <h1
           class="text-lg leading-tight font-semibold tracking-tight wrap-anywhere sm:text-3xl"

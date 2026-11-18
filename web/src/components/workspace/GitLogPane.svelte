@@ -16,7 +16,6 @@
     keyHeight,
     keyWidth,
   } from "../../hooks/shared/splitter";
-  import { useTvPanelBack } from "../../hooks/shared/tv-panel-back.svelte";
   import GitLogBranchTree from "./GitLogBranchTree.svelte";
   import GitLogDetailPane from "./GitLogDetailPane.svelte";
   import GitLogDiffPanel from "./GitLogDiffPanel.svelte";
@@ -40,12 +39,6 @@
   let mobileStep = $state<"list" | "detail" | "diff">("list");
   let paneResetKey = $state(0);
   let diffPanelRef = $state<ReturnType<typeof GitLogDiffPanel>>();
-  let host: HTMLDivElement | undefined = $state();
-
-  useTvPanelBack({
-    host: () => host,
-    closeLayer: () => !diffPanelRef?.hasOpenReaderPanel() && closeLayer(),
-  });
 
   const showBranchesPanel = $derived(
     props.preferredShowBranches ?? localShowBranches,
@@ -293,7 +286,7 @@
   />
 {/snippet}
 
-<div bind:this={host} data-tv-back-scope class="h-full min-h-0 min-w-0">
+<div class="h-full min-h-0 min-w-0">
   {#if multiColumn.current}
     <div class="flex h-full min-h-0 min-w-0 flex-col">
       <div class="flex min-h-0 min-w-0 flex-1 overflow-hidden">
