@@ -62,6 +62,54 @@ test("renders compact operation trigger across desktop and phone viewports and e
     .toBeVisible();
 });
 
+test("keeps empty operations popover compact and caps tall operation lists at 26rem with internal scroll", async () => {
+  await page.viewport(1280, 900);
+  const emptyState = {
+    ...buildGitWorkbenchFixture("commit-needs-review"),
+    operations: [],
+    activeOperation: null,
+    statusBanner: "",
+  };
+  await render(Harness, { initialState: emptyState });
+
+  const trigger = page.getByTestId("git-operations-popover-trigger");
+  await trigger.click();
+  const popover = page.getByTestId("git-operations-popover");
+  await expect.element(popover).toBeVisible();
+  const emptyHeight = popover.element().getBoundingClientRect().height;
+  expect(emptyHeight).toBeLessThan(200);
+
+  await cleanup();
+  const baseOp = buildGitWorkbenchFixture("commit-needs-review").operations[0]!;
+  const manyOps = Array.from({ length: 12 }, (_, idx) => ({
+    ...baseOp,
+    id: `op-many-${idx.toString().padStart(4, "0")}`,
+    summary: `Operation ${idx + 1} summary`,
+    sanitizedOutput: Array.from(
+      { length: 12 },
+      (__, line) => `line ${line + 1}`,
+    ).join("\n"),
+  }));
+  await render(Harness, {
+    initialState: {
+      ...emptyState,
+      operations: manyOps,
+    },
+  });
+  await page.getByTestId("git-operations-popover-trigger").click();
+  const tallPopover = page.getByTestId("git-operations-popover");
+  await expect.element(tallPopover).toBeVisible();
+  const tallHeight = tallPopover.element().getBoundingClientRect().height;
+  expect(tallHeight).toBeGreaterThan(300);
+  expect(tallHeight).toBeLessThanOrEqual(417);
+  const viewports = Array.from(
+    tallPopover
+      .element()
+      .querySelectorAll<HTMLElement>("[data-slot=scroll-area-viewport]"),
+  );
+  expect(viewports.some((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+});
+
 test("blocks blind commit re-submission when last operation is uncertain until user refreshes and verifies", async () => {
   await page.viewport(1280, 900);
   const initialState = {
