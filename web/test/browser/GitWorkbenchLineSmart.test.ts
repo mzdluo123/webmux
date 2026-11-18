@@ -343,7 +343,9 @@ test("Smart Checkout enforces active CLI agent session disclosure + acknowledgem
     .element(dialog.getByTestId("smart-checkout-recovery-cmd"))
     .toMatchTextContent(/git stash apply 9999aaa/);
 
-  await dialog.getByTestId("smart-checkout-open-conflict-btn").click();
+  const resolver = dialog.getByTestId("smart-checkout-open-conflict-btn");
+  await expect.element(resolver).toHaveFocus();
+  await resolver.click();
   expect(onopenconflict).toHaveBeenCalledWith(
     expect.objectContaining({ branch: "feat/target" }),
     "src/auth.ts",
