@@ -3,17 +3,8 @@
   "dock_bottom": "停靠到下方",
   "dock_center": "合并为标签",
   "dock_chat_inactive": "在会话顶栏切换到聊天后可发送消息。",
-  "dock_chat_title": [
-    {
-      "declarations": ["input format", "input index", "input title"],
-      "selectors": ["format"],
-      "match": {
-        "format=plain": "聊天",
-        "format=numbered": "聊天 {index}：{title}",
-        "format=*": "聊天 · {title}"
-      }
-    }
-  ],
+  "dock_chat_named": "聊天 · {title}",
+  "dock_chat_title": "聊天 {index}：{title}",
   "dock_git_branch_details": "分支详情",
   "dock_git_commit_message": "提交信息",
   "dock_git_stash_details": "贮藏详情",
@@ -26,17 +17,8 @@
   "dock_right": "停靠到右侧",
   "dock_tabs": "停靠标签",
   "dock_terminal_inactive": "会话当前处于聊天视图。在会话顶栏切换到终端后可输入。",
-  "dock_terminal_title": [
-    {
-      "declarations": ["input format", "input index", "input title"],
-      "selectors": ["format"],
-      "match": {
-        "format=plain": "终端",
-        "format=numbered": "终端 {index}：{title}",
-        "format=*": "终端 · {title}"
-      }
-    }
-  ],
+  "dock_terminal_named": "终端 · {title}",
+  "dock_terminal_title": "终端 {index}：{title}",
   "dock_top": "停靠到上方",
   "locale_follow_system": "跟随系统",
   "locale_label": "语言",

@@ -93,18 +93,26 @@
   let findPanel = $state<TerminalFindBar>();
   let chatView = $state<ChatViewComponent>();
   let composer = $state<TerminalInputComposer>();
-  const dockTitle = $derived({
-    format:
-      dockSessionName === undefined
-        ? "plain"
-        : dockSessionNumber === undefined
-          ? "named"
-          : "numbered",
-    title: dockSessionName ?? "",
-    index: dockSessionNumber ?? 0,
-  });
-  const terminalTitle = $derived(m.dock_terminal_title(dockTitle));
-  const chatTitle = $derived(m.dock_chat_title(dockTitle));
+  const terminalTitle = $derived(
+    dockSessionName === undefined
+      ? m.s4_tab_terminal()
+      : dockSessionNumber === undefined
+        ? m.dock_terminal_named({ title: dockSessionName })
+        : m.dock_terminal_title({
+            index: dockSessionNumber,
+            title: dockSessionName,
+          }),
+  );
+  const chatTitle = $derived(
+    dockSessionName === undefined
+      ? m.s4_tab_chat()
+      : dockSessionNumber === undefined
+        ? m.dock_chat_named({ title: dockSessionName })
+        : m.dock_chat_title({
+            index: dockSessionNumber,
+            title: dockSessionName,
+          }),
+  );
 
   const mountToolbar = (element: HTMLElement) =>
     mountDockHost(element, () => toolbar);
