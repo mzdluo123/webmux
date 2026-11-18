@@ -107,7 +107,9 @@
   );
 </script>
 
-<div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+<div
+  class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden max-sm:min-h-112"
+>
   {#if controller.divergence.inProgress?.active}
     <GitInProgressBanner
       operation={controller.divergence.inProgress}

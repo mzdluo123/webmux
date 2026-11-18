@@ -271,18 +271,18 @@
     />
   {/if}
 
-  <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child option buttons. -->
+  <!-- The compact composer scrolls with the changes, outside the listbox. -->
   <ScrollArea
     bind:viewportRef={listScrollEl}
-    class="min-h-8 flex-1"
-    viewportProps={{
-      role: "listbox",
-      "aria-label": m.s7_uncommitted_listbox_aria(),
-      onkeydown: handleListKeydown,
-    }}
+    class="min-h-12 flex-1"
+    viewportProps={{ onkeydown: handleListKeydown }}
     onscroll={(e) => onListScrollChange?.(e.currentTarget.scrollTop)}
   >
-    <div class="space-y-2 p-2">
+    <div
+      class="space-y-2 p-2"
+      role="listbox"
+      aria-label={m.s7_uncommitted_listbox_aria()}
+    >
       {#if changes.length === 0 && !readonlyMode && taskReview?.status === "ready" && (taskReview.commitCount > 0 || context.ahead > 0)}
         <GitTaskDeliverySummary
           {context}
@@ -409,7 +409,6 @@
         </div>
       {/each}
     </div>
+    <div class="contents" bind:this={composerTarget}></div>
   </ScrollArea>
-
-  <div class="contents" bind:this={composerTarget}></div>
 </section>

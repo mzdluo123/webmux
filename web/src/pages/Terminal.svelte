@@ -126,13 +126,11 @@
   const ids = $derived(layout ? paneIds(layout) : []);
   $effect(() => retainTerminalDrafts(drafts, ids));
   const documentScroll = $derived.by(() => {
-    if (!compact.current) return false;
     const firstId = ids[0];
     const current = firstId ? scrollStates[firstId] : undefined;
-    if (
-      !current ||
-      (mobilePanel && mobilePanel !== sessionPanelIds(firstId!).chat)
-    )
+    if (!firstId || !current || ids.length !== 1 || !dock) return false;
+    const panels = sessionPanelIds(firstId);
+    if (!dock.isVisible(panels.chat) || dock.isVisible(panels.terminal))
       return false;
     return chatDocumentScroll({
       ...current,
@@ -436,7 +434,11 @@
               keyboardVisibility={() => viewport.keyboard}
               viewportHeight={() => viewport.height}
               active={active === sessionId}
-              reopen={() => {
+              reopen={(session) => {
+                info[sessionId] = session;
+                dock?.show(
+                  session.view === "chat" ? panels.chat : panels.terminal,
+                );
                 revisions[sessionId] = (revisions[sessionId] ?? 0) + 1;
               }}
               onremoved={() => removeSession(sessionId)}

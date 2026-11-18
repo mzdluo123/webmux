@@ -71,7 +71,7 @@
     features: TerminalFeatures;
     drafts: TerminalDrafts;
     onUploadNotice: (message: string) => void;
-    reopen: () => void;
+    reopen: (session: SessionInfo) => void;
     visible: boolean;
     active: boolean;
     panels: ReturnType<typeof sessionPanelIds>;
@@ -211,6 +211,12 @@
     }
     revealOnReady = false;
     dock.show(hybrid.view === "chat" ? panels.chat : panels.terminal);
+  }
+
+  function showFind() {
+    if (hybrid.view !== "terminal") return;
+    if (!terminalVisible()) dock.show(panels.terminal);
+    chrome.showFind();
   }
 
   export function openCode() {
@@ -443,7 +449,7 @@
     touchGamepad={touchGamepad.enabled}
     setTouchGamepad={(value) => (touchGamepad.enabled = value)}
     findOpen={chrome.findOpen}
-    showFind={chrome.showFind}
+    {showFind}
     closeFind={chrome.closeFind}
     {keyboardDismissed}
     toggleDraft={input.toggleDraft}

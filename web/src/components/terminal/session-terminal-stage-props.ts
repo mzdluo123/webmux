@@ -51,7 +51,7 @@ export interface SessionTerminalStageProps {
   showFontSize: () => void;
   closeSession: () => void;
   closing: boolean;
-  reopen: () => void;
+  reopen: (session: SessionInfo) => void;
   leave: () => void;
   feedSession?: SessionInfo;
   showForwards: () => void;

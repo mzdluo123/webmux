@@ -133,6 +133,8 @@
     chatView.setVoiceError(message);
     return true;
   }
+
+  const noticesInTerminal = $derived(terminalVisible && !hybrid.recoverable);
   // Recovery controls may remount while a failed agent launch is reconciled.
   // Only a new visit to the session should initiate another automatic attempt.
   let attemptedResume: string | undefined;
@@ -243,7 +245,7 @@
         {leave}
         hybrid={hybrid.known ? hybrid : undefined}
       />
-      {#if !terminalVisible}{@render sessionNotices()}{/if}
+      {#if !noticesInTerminal}{@render sessionNotices()}{/if}
       {#if features.chat && hybrid.view === "switching"}
         <features.chat.SwitchProgress
           target={hybrid.target}
@@ -306,7 +308,7 @@
       data-active={active}
       data-input-view={hybrid.view}
     >
-      {#if active && terminalVisible}
+      {#if active && noticesInTerminal}
         <div class="absolute inset-x-0 top-0 z-30">
           {@render sessionNotices()}
         </div>

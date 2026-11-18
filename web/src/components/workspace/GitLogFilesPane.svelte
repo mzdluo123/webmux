@@ -94,27 +94,23 @@
       const nextIdx = Math.min(visibleFiles.length - 1, currentIdx + 1);
       const nextPath = fileKey(visibleFiles[nextIdx]!);
       onSelectFile(nextPath);
-      onPreviewFile?.(nextPath);
       focusRowAt(nextIdx);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       const prevIdx = Math.max(0, currentIdx - 1);
       const prevPath = fileKey(visibleFiles[prevIdx]!);
       onSelectFile(prevPath);
-      onPreviewFile?.(prevPath);
       focusRowAt(prevIdx);
     } else if (e.key === "Home") {
       e.preventDefault();
       const firstPath = fileKey(visibleFiles[0]!);
       onSelectFile(firstPath);
-      onPreviewFile?.(firstPath);
       focusRowAt(0);
     } else if (e.key === "End") {
       e.preventDefault();
       const lastIdx = visibleFiles.length - 1;
       const lastPath = fileKey(visibleFiles[lastIdx]!);
       onSelectFile(lastPath);
-      onPreviewFile?.(lastPath);
       focusRowAt(lastIdx);
     } else if (e.key === "Enter" && activePath) {
       e.preventDefault();

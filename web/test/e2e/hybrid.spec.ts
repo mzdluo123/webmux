@@ -601,7 +601,7 @@ test.describe("hybrid sessions with the fake agent", () => {
       .getByRole("dialog")
       .getByRole("button", { name: /Focused chat/ })
       .click();
-    const pane = page.locator(`[data-session-id="${chat}"]`);
+    const pane = page.locator(`[data-dock-panel="chat:${chat}"]`);
     const composer = pane.getByRole("textbox", { name: "消息" });
     await composer.click();
     await composer.fill("Compare with ");
@@ -634,7 +634,10 @@ test.describe("hybrid sessions with the fake agent", () => {
       .first();
     await anchorReference.click();
     await expect(anchorPane).toHaveAttribute("data-active", "true");
-    await expect(pane).toHaveAttribute("data-active", "false");
+    await expect(page.locator(`[data-session-id="${chat}"]`)).toHaveAttribute(
+      "data-active",
+      "false",
+    );
     await expect(page).toHaveURL(`/s/${anchor}`);
     await expect(page.locator(".split-terminal")).toHaveCount(2);
     expect(
@@ -699,7 +702,7 @@ test.describe("hybrid sessions with the fake agent", () => {
       .getByRole("dialog")
       .getByRole("button", { name: /Capacity chat/ })
       .click();
-    const pane = page.locator(`[data-session-id="${chat}"]`);
+    const pane = page.locator(`[data-dock-panel="chat:${chat}"]`);
     const composer = pane.getByRole("textbox", { name: "消息" });
     await composer.fill(`[Capacity anchor](/s/${anchor})`);
     await pane.getByRole("button", { name: "发送", exact: true }).click();
@@ -723,9 +726,9 @@ test.describe("hybrid sessions with the fake agent", () => {
         .getByRole("button", { name: new RegExp(`Capacity filler ${i + 1}`) })
         .click();
     }
-    const tabs = page.getByRole("navigation", { name: "终端窗格" });
-    await tabs.getByRole("button", { name: /Capacity chat/ }).click();
-    await tabs.getByRole("button", { name: "放大窗格", exact: true }).click();
+    await chooseDockPanel(page, /^聊天 \d+：Capacity chat$/);
+    const maximize = pane.getByRole("button", { name: /^放大「聊天/ });
+    await maximize.click();
     const documentIdentity = await page.locator("body").elementHandle();
     await expect(page.locator(".split-terminal")).toHaveCount(8);
     await reference.click();
@@ -736,12 +739,13 @@ test.describe("hybrid sessions with the fake agent", () => {
     expect(
       await documentIdentity!.evaluate((element) => element.isConnected),
     ).toBe(true);
-    await tabs.getByRole("button", { name: /Capacity filler 7/ }).click();
+    await chooseDockPanel(page, /^终端 \d+：Capacity filler 7$/);
     await openSplitPanel(page.locator(`[data-session-id="${fillers[6]}"]`));
     await page
       .getByRole("button", { name: "关闭窗格（保留会话）", exact: true })
       .click();
-    await tabs.getByRole("button", { name: /Capacity chat/ }).click();
+    await chooseDockPanel(page, /^聊天 \d+：Capacity chat$/);
+    await maximize.click();
     await reference.click();
     await expect(page.getByRole("alert")).toHaveCount(0);
     await expect(page.locator(".split-terminal")).toHaveCount(8);

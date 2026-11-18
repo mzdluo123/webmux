@@ -159,9 +159,8 @@
       </ResponsiveDialog>
     {/if}
   {:else if scenario === "git-workbench"}
-    <div
-      class="flex min-h-[min(36rem,82dvh)] min-w-0 flex-col xl:h-[min(46rem,86dvh)]"
-    >
+    <!-- Docked panels fill a definite height; the story page itself can scroll. -->
+    <div class="flex h-[max(36rem,min(46rem,86dvh))] min-w-0 flex-col">
       <GitWorkbenchShell bind:view={gitView} />
     </div>
   {:else if scenario === "git-push"}

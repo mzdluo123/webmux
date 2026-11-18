@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   dockActivate,
   dockDropEdge,
+  dockFill,
   dockGeometry,
   dockGroup,
   dockMove,
@@ -83,6 +84,22 @@ describe("dock layout", () => {
       ),
     ).toBeUndefined();
     expect(restoreDock("{broken")).toBeUndefined();
+  });
+
+  it("adds a late chat tab beside its existing terminal without creating another column", () => {
+    const initial = dockSplit(
+      "horizontal",
+      dockGroup("chat", "tests"),
+      dockGroup("diff"),
+      0.6,
+    );
+    const saved = dockSplit("vertical", dockGroup("tests"), dockGroup("diff"));
+    const result = geometry(dockFill(saved, initial, available));
+    expect(result.groups.get("tests")?.ids).toEqual(["tests", "chat"]);
+    expect(result.groups.has("chat")).toBe(false);
+    expect(result.dividers.map((divider) => divider.direction)).toEqual([
+      "vertical",
+    ]);
   });
 
   it("keeps the center for tabs and routes each edge to the matching split", () => {

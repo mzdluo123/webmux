@@ -187,9 +187,7 @@ test("a session already in a split activates its pane in place", async ({
     .click();
   const targetPane = page.locator(`[data-session-id="${target}"]`);
   await expect(targetPane).toHaveAttribute("data-active", "true");
-  await targetPane
-    .getByRole("button", { name: "快速切换会话", exact: true })
-    .click();
+  await page.getByRole("button", { name: "快速切换会话", exact: true }).click();
   await switcher(page)
     .getByRole("option", { name: /Original pane/ })
     .click();

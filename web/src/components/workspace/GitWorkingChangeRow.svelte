@@ -53,7 +53,7 @@
 </script>
 
 <div
-  class="group/row relative flex min-w-0 items-center gap-1 rounded-sm pr-7 max-sm:pr-(--control-touch-compact)"
+  class="group/row relative flex min-w-0 items-center gap-1 rounded-sm pr-7 max-sm:flex-wrap max-sm:pr-(--control-touch-compact)"
   data-change-id={item.id}
   data-reviewed={isReviewed}
   data-group={item.group}

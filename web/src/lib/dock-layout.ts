@@ -105,16 +105,35 @@ export function dockFill(
   allowed: ReadonlySet<string>,
 ): DockNode {
   const current = new Set(dockIds(node));
-  const missing = dockIds(initial).filter(
-    (id) => allowed.has(id) && !current.has(id),
-  );
-  if (!missing.length) return node;
   if (!current.size) return initial;
-  for (const id of missing) {
-    const preferred = dockIds(initial).find((key) => current.has(key));
-    node = dockMove(node, id, preferred ?? "", "right");
-    current.add(id);
+  const initialIds = dockIds(initial);
+  function fill(defaultNode: DockNode) {
+    if (defaultNode.kind === "split") {
+      fill(defaultNode.first);
+      fill(defaultNode.second);
+      return;
+    }
+    const missing = defaultNode.ids.filter(
+      (id) => allowed.has(id) && !current.has(id),
+    );
+    if (!missing.length) return;
+    const companion = defaultNode.ids.find((id) => current.has(id));
+    if (companion) {
+      node = updateGroups(node, (group) =>
+        group.ids.includes(companion)
+          ? { ...group, ids: [...group.ids, ...missing] }
+          : group,
+      );
+    } else {
+      const target = initialIds.find((id) => current.has(id)) ?? "";
+      node = dockMove(node, missing[0]!, target, "right");
+      for (let i = 1; i < missing.length; i++)
+        node = dockMove(node, missing[i]!, missing[0]!, "center");
+      node = dockActivate(node, defaultNode.active);
+    }
+    for (const id of missing) current.add(id);
   }
+  fill(initial);
   return node;
 }
 

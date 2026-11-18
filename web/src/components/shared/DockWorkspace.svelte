@@ -61,6 +61,12 @@
   let mobileHidden = $state.raw<string[]>([]);
   let pickerOrigin: HTMLElement | null = null;
   const entries = new SvelteMap<string, DockEntry>();
+  let pickerEntries = $state.raw<DockEntry[]>([]);
+  // A picker action can register panels while the drawer is sliding away.
+  // Keep its last list during dismissal so the sheet stays the same height.
+  $effect.pre(() => {
+    if (showPicker) pickerEntries = [...entries.values()];
+  });
   const available = $derived(new Set(entries.keys()));
   const tree = $derived(node ? dockFill(node, initial, available) : initial);
   const geometry = $derived(dockGeometry(tree, available, new Set(hidden)));
@@ -126,7 +132,7 @@
   }
 
   export function remove(id: string) {
-    node = dockRemove(tree, id);
+    node = dockRemove(node ?? tree, id);
     hidden = hidden.filter((value) => value !== id);
     mobileHidden = mobileHidden.filter((value) => value !== id);
     history = history.filter((value) => value !== id);
@@ -196,14 +202,6 @@
   setDock({
     register(entry) {
       entries.set(entry.id, entry);
-      untrack(() => {
-        if (
-          !dockIds(tree).includes(entry.id) &&
-          !dockIds(initial).includes(entry.id)
-        ) {
-          node = dockMove(tree, entry.id, dockIds(tree)[0] ?? "", "right");
-        }
-      });
       return () => {
         if (entries.get(entry.id) === entry) entries.delete(entry.id);
       };
@@ -312,7 +310,7 @@
       <Drawer.Title>{m.s4_open_panel()}</Drawer.Title>
     </Drawer.Header>
     <div class="min-h-0 space-y-1 overflow-y-auto px-3 pb-3">
-      {#each [...entries.values()] as entry (entry.id)}
+      {#each pickerEntries as entry (entry.id)}
         <ListButton
           variant="action-sheet"
           data-dock-picker={entry.id}

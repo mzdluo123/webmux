@@ -434,9 +434,7 @@
             : undefined}
         >
           <ScrollArea
-            class={!desktop.current && !visible
-              ? "max-h-1/2 shrink-0"
-              : "flex-1"}
+            class={!desktop.current && !visible ? "shrink-0" : "flex-1"}
             viewportClasses="flex-1"
           >
             <GitCommitComposer

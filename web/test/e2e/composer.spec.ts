@@ -250,6 +250,7 @@ test("draft splits the terminal column while the side panel stays full height", 
   const files = await showFileTree(page);
   await files.getByRole("button", { name: "panel.txt", exact: true }).click();
   const code = readerPanel(page);
+  await expect(code).toBeVisible();
   const codeBounds = (await code.boundingBox())!;
   if (info.project.use.isMobile) {
     await expect(panel).toBeHidden();

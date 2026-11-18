@@ -29,6 +29,7 @@
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitCommitOutcomeBanner from "../components/workspace/GitCommitOutcomeBanner.svelte";
   import GitWorkbenchPageDialogs from "../components/workspace/GitWorkbenchPageDialogs.svelte";
+  import GitWorkbenchFrame from "../components/workspace/GitWorkbenchFrame.svelte";
   import GitOperationsPopover from "../components/workspace/GitOperationsPopover.svelte";
   import GitWorkbenchTopBar from "../components/workspace/GitWorkbenchTopBar.svelte";
   import GitWorkbenchWorkspace from "../components/workspace/GitWorkbenchWorkspace.svelte";
@@ -266,11 +267,7 @@
 
 <svelte:window bind:innerWidth={viewportWidth} />
 
-<main
-  class="git-workbench flex h-dvh min-h-0 min-w-0 flex-col bg-background text-foreground"
-  data-testid="git-workbench-page"
-  data-device-class={deviceClass}
->
+{#snippet workbench()}
   {#snippet operationLedger()}
     {#if repository}
       <GitOperationsPopover
@@ -471,4 +468,12 @@
       onFastForwardBranch={(branch) => handleUpdate(branch)}
     />
   {/if}
+{/snippet}
+
+<main
+  class="git-workbench flex h-dvh min-h-0 min-w-0 flex-col bg-background text-foreground"
+  data-testid="git-workbench-page"
+  data-device-class={deviceClass}
+>
+  <GitWorkbenchFrame children={workbench} />
 </main>

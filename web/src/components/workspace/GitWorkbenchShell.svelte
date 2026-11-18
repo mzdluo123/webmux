@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as Tabs from "$lib/components/ui/tabs";
+  import GitWorkbenchFrame from "./GitWorkbenchFrame.svelte";
   import type {
     GitBranchItem,
     GitCommitOutcome,
@@ -182,10 +183,7 @@
   }
 </script>
 
-<div
-  class="git-workbench flex h-full min-h-0 min-w-0 flex-1 flex-col border bg-background text-foreground"
-  data-testid="git-workbench"
->
+{#snippet workbench()}
   {#snippet operationLedger()}
     <GitOperationsPopover
       worktreePath={view.context.worktreePath}
@@ -247,7 +245,7 @@
       value={view.mode}
       onValueChange={setMode}
       orientation="horizontal"
-      class="min-h-0 min-w-0 flex-1"
+      class="min-h-0 min-w-0 flex-1 max-sm:min-h-112"
     >
       <GitWorkbenchModeTabs stashCount={view.stashes?.length ?? 0} />
 
@@ -461,4 +459,11 @@
     onOpenFollowUpPush={(branch, preceding) =>
       openPushDialog(branch, preceding)}
   />
+{/snippet}
+
+<div
+  class="git-workbench flex h-full min-h-0 min-w-0 flex-1 flex-col border bg-background text-foreground"
+  data-testid="git-workbench"
+>
+  <GitWorkbenchFrame children={workbench} />
 </div>
