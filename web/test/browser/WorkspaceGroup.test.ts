@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
+import WorkbenchSessionQueue from "../../src/components/workspace/WorkbenchSessionQueue.svelte";
 import WorkspaceGroup from "../../src/components/workspace/WorkspaceGroup.svelte";
 import { session, now } from "../../stories/fixtures";
 import type { Worktree } from "../../src/contracts/schemas";
@@ -159,4 +160,76 @@ test("dirty, untracked and locked warnings stay visible without opening details"
     .toBeVisible();
   await expect.element(page.getByText("已锁定", { exact: true })).toBeVisible();
   expect(page.getByRole("dialog").elements()).toEqual([]);
+});
+
+test("foldable queue groups reuse shared disclosure motion and settle immediately on filter reveal", async () => {
+  const exited = {
+    ...session,
+    id: "exited-queue-1",
+    title: "Deploy check",
+    status: "exited" as const,
+    exitCode: 0,
+  };
+  const props = {
+    sessions: [exited],
+    available: [exited],
+    repositories: [],
+    records: [],
+    archive: {
+      now,
+      filtering: false,
+      resume: vi.fn(),
+      remove: vi.fn(),
+      onresumed: vi.fn(),
+    },
+    attentionOnly: false,
+    filtering: false,
+    now,
+    onclear: () => {},
+    onrename: () => {},
+    onclose: () => {},
+  };
+  const view = await render(WorkbenchSessionQueue, props);
+  const toggle = page.getByRole("button", { name: "已退出 1" });
+  await expect.element(toggle).toHaveAttribute("aria-expanded", "false");
+  const icon = toggle.element().querySelector("svg");
+  expect(icon?.classList.contains("motion-safe:transition-transform")).toBe(
+    true,
+  );
+  expect(icon?.classList.contains("rotate-90")).toBe(false);
+
+  await toggle.click();
+  await expect.element(toggle).toHaveAttribute("aria-expanded", "true");
+  expect(icon?.classList.contains("rotate-90")).toBe(true);
+  await expect
+    .element(page.getByRole("link", { name: "Deploy check" }))
+    .toBeVisible();
+
+  // Wait for open animation to settle so the panel has its full height.
+  const rowSelector = '[data-session-id="exited-queue-1"]';
+  const wrapper = () =>
+    document.querySelector(rowSelector)?.closest("[inert], div");
+  await expect
+    .poll(() => wrapper()?.classList.contains("overflow-clip"))
+    .toBe(false);
+
+  await toggle.click();
+  await expect.element(toggle).toHaveAttribute("aria-expanded", "false");
+  // While closing, the row remains mounted inside an inert clipping wrapper, then unmounts.
+  if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const closingRow = document.querySelector(rowSelector);
+    expect(closingRow).not.toBeNull();
+    expect(closingRow?.closest("[inert]")).not.toBeNull();
+  }
+  await expect.poll(() => document.querySelector(rowSelector)).toBeNull();
+
+  // Search filtering reveals the group immediately without starting disclosure motion.
+  await view.rerender({ ...props, filtering: true });
+  await expect
+    .element(page.getByRole("link", { name: "Deploy check" }))
+    .toBeVisible();
+  const revealedPanel = document
+    .querySelector(rowSelector)
+    ?.closest('[data-slot="collapsible-content"]')?.parentElement;
+  expect(revealedPanel?.classList.contains("overflow-clip")).toBe(false);
 });

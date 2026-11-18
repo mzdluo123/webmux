@@ -75,6 +75,68 @@ function showRemove(
   return fetch;
 }
 
+test.each(["release", "remove"] as const)(
+  "a long %s preview leaves cancellation in place",
+  async (kind) => {
+    await page.viewport(390, 844);
+    try {
+      const server = Promise.withResolvers<Preview>();
+      const onclose = vi.fn();
+      const fetch = vi.fn(async (input: RequestInfo | URL) =>
+        String(input).endsWith("-preview")
+          ? Response.json(await server.promise)
+          : new Response(null, { status: 204 }),
+      );
+      vi.stubGlobal("fetch", fetch);
+      const props = { worktree: tree, onclose, onchange: vi.fn() };
+      if (kind === "release") render(ReleaseWorktreeDialog, props);
+      else render(RemoveWorktreeDialog, props);
+
+      const cancel = page.getByRole("button", { name: "取消", exact: true });
+      await expect.element(cancel).toBeDisabled();
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+      await Promise.allSettled(
+        document.getAnimations().map((animation) => animation.finished),
+      );
+      const position = () => {
+        const bounds = cancel.element().getBoundingClientRect();
+        return [bounds.left, bounds.bottom];
+      };
+      const pending = position();
+      const archived = Array.from({ length: 24 }, (_, index) =>
+        record({
+          id: "archive" + String.fromCharCode(97 + index),
+          title: `归档记录 ${index}`,
+          cwd: tree.path,
+        }),
+      );
+      server.resolve(preview({ archived, blockers: ["有活动会话"] }));
+      await expect.element(cancel).toBeEnabled();
+      expect(position()).toEqual(pending);
+      await expect.element(page.getByText(/归档记录 23/)).toBeInTheDocument();
+
+      if (kind === "release") {
+        await expect
+          .element(releaseDialog().getByRole("button", { name: "释放空间" }))
+          .toBeDisabled();
+      } else {
+        await page.getByRole("button", { name: "进入强制删除确认" }).click();
+        await expect
+          .element(page.getByRole("button", { name: "关闭会话并强制删除" }))
+          .toBeDisabled();
+        expect(position()).toEqual(pending);
+      }
+      await cancel.click();
+      expect(onclose).toHaveBeenCalledOnce();
+      expect(fetch).toHaveBeenCalledOnce();
+    } finally {
+      await page.viewport(1024, 900);
+    }
+  },
+);
+
 test("the green hide button unpins the worktree from the home page without removing it", async () => {
   const fetch = serve(preview());
   const onhide = vi.fn();

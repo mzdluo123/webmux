@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -7,6 +7,7 @@
   import { Switch } from "$lib/components/ui/switch";
   import * as Card from "$lib/components/ui/card";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { APIError } from "../../platform/api";
   import {
     attentionToasts,
@@ -49,6 +50,7 @@
   let error = $state("");
   // True while the browser's notification permission prompt is unanswered.
   let awaitingPermission = $state(false);
+  let pushSwitch = $state<HTMLButtonElement | null>(null);
   // A server refusal at registration time overrides the status reason.
   let refused = $state<PushAdvice>();
   const advice = $derived<PushAdvice | undefined>(
@@ -77,6 +79,7 @@
   }
 
   async function toggle(checked: boolean) {
+    const restore = document.activeElement === pushSwitch;
     target = checked;
     busy = true;
     notice = error = "";
@@ -100,6 +103,11 @@
     } finally {
       await refresh();
       busy = false;
+      if (restore) {
+        await tick();
+        if (document.activeElement === document.body)
+          pushSwitch?.focus({ preventScroll: true });
+      }
     }
   }
 
@@ -176,73 +184,17 @@
         <Label for="push-enabled">{m.s2_push_enable_label()}</Label>
         <Switch
           id="push-enabled"
+          bind:ref={pushSwitch}
           bind:checked={
             () => (busy ? target : subscribed), (value) => void toggle(value)
           }
           disabled={busy}
         />
       </div>
-      {#if awaitingPermission}
-        <InlineNotice>
-          <div class="space-y-1">
-            <p class="font-medium">{m.s2_push_await_perm_title()}</p>
-            <p>{m.s2_push_await_perm_desc()}</p>
-          </div>
-        </InlineNotice>
-      {/if}
-    {:else if advice}
-      <InlineNotice tone="warning">
-        {#if advice === "insecure"}
-          <p class="font-medium">{m.s2_push_insecure_title()}</p>
-          <p>{m.s2_push_insecure_desc()}</p>
-          <a class="underline underline-offset-2" href="#access"
-            >{m.s2_view_public_access_config()}</a
-          >
-        {:else if advice === "ios-home-screen"}
-          <p class="font-medium">{m.s2_push_ios_title()}</p>
-          <p>{m.s2_push_ios_req()}</p>
-          <ol class="mt-1 list-decimal pl-5">
-            <li>{m.s2_ios_step_share()}</li>
-            <li>{m.s2_push_ios_step_open()}</li>
-            <li>{m.s2_push_ios_step_enable()}</li>
-          </ol>
-        {:else if advice === "unsupported"}
-          <p class="font-medium">{m.s2_push_unsupported_title()}</p>
-          <p>{m.s2_push_unsupported_desc()}</p>
-        {:else if advice === "quick_tunnel"}
-          <p class="font-medium">{m.s2_push_quick_tunnel_title()}</p>
-          <p>{m.s2_push_quick_tunnel_p1()}</p>
-          <p>{m.s2_push_quick_tunnel_p2()}</p>
-          <a class="underline underline-offset-2" href="/settings/tunnel"
-            >{m.s2_view_public_access_config()}</a
-          >
-        {:else if advice === "unsupported_origin"}
-          <p class="font-medium">{m.s2_push_origin_title()}</p>
-          <p>{m.s2_push_origin_desc()}</p>
-          <a class="underline underline-offset-2" href="/settings/tunnel"
-            >{m.s2_view_public_access_config()}</a
-          >
-        {:else if advice === "disabled"}
-          <p class="font-medium">{m.s2_push_disabled_title()}</p>
-          <p>
-            {m.s2_push_disabled_1()}<code>[push] enabled = false</code
-            >{m.s2_push_disabled_2()}<code>true</code>{m.s2_push_disabled_3()}
-          </p>
-        {:else if advice === "storage"}
-          <p class="font-medium">{m.s2_push_storage_title()}</p>
-          <p>
-            {m.s2_push_storage_1()}<code>push.json</code>{m.s2_push_storage_2()}
-          </p>
-        {:else if advice === "denied"}
-          <p class="font-medium">{m.s2_push_denied_title()}</p>
-          <p>{m.s2_push_denied_desc()}</p>
-        {/if}
-      </InlineNotice>
-      {#if subscribed}
-        <Button variant="outline" disabled={busy} onclick={() => toggle(false)}
-          >{m.s2_push_disable_device()}</Button
-        >
-      {/if}
+    {:else if advice && subscribed}
+      <Button variant="outline" disabled={busy} onclick={() => toggle(false)}
+        >{m.s2_push_disable_device()}</Button
+      >
     {/if}
 
     <!-- The test reaches every device, so this browser can trigger it for the
@@ -253,10 +205,78 @@
       >
     {/if}
 
-    {#if error}
-      <InlineNotice tone="danger">{error}</InlineNotice>
-    {:else if notice}
-      <InlineNotice tone="success">{notice}</InlineNotice>
+    {#if awaitingPermission || (advice && advice !== "ready") || error || notice}
+      <ScrollArea
+        class="max-h-[min(10rem,30dvh)]"
+        viewportClasses="max-h-[min(10rem,30dvh)] overscroll-contain"
+        viewportProps={{ tabindex: 0 }}
+      >
+        <div class="space-y-2">
+          {#if awaitingPermission}
+            <InlineNotice>
+              <div class="space-y-1">
+                <p class="font-medium">{m.s2_push_await_perm_title()}</p>
+                <p>{m.s2_push_await_perm_desc()}</p>
+              </div>
+            </InlineNotice>
+          {:else if advice && advice !== "ready"}
+            <InlineNotice tone="warning">
+              {#if advice === "insecure"}
+                <p class="font-medium">{m.s2_push_insecure_title()}</p>
+                <p>{m.s2_push_insecure_desc()}</p>
+                <a class="underline underline-offset-2" href="#access"
+                  >{m.s2_view_public_access_config()}</a
+                >
+              {:else if advice === "ios-home-screen"}
+                <p class="font-medium">{m.s2_push_ios_title()}</p>
+                <p>{m.s2_push_ios_req()}</p>
+                <ol class="mt-1 list-decimal pl-5">
+                  <li>{m.s2_ios_step_share()}</li>
+                  <li>{m.s2_push_ios_step_open()}</li>
+                  <li>{m.s2_push_ios_step_enable()}</li>
+                </ol>
+              {:else if advice === "unsupported"}
+                <p class="font-medium">{m.s2_push_unsupported_title()}</p>
+                <p>{m.s2_push_unsupported_desc()}</p>
+              {:else if advice === "quick_tunnel"}
+                <p class="font-medium">{m.s2_push_quick_tunnel_title()}</p>
+                <p>{m.s2_push_quick_tunnel_p1()}</p>
+                <p>{m.s2_push_quick_tunnel_p2()}</p>
+                <a class="underline underline-offset-2" href="/settings/tunnel"
+                  >{m.s2_view_public_access_config()}</a
+                >
+              {:else if advice === "unsupported_origin"}
+                <p class="font-medium">{m.s2_push_origin_title()}</p>
+                <p>{m.s2_push_origin_desc()}</p>
+                <a class="underline underline-offset-2" href="/settings/tunnel"
+                  >{m.s2_view_public_access_config()}</a
+                >
+              {:else if advice === "disabled"}
+                <p class="font-medium">{m.s2_push_disabled_title()}</p>
+                <p>
+                  {m.s2_push_disabled_1()}<code>[push] enabled = false</code
+                  >{m.s2_push_disabled_2()}<code>true</code
+                  >{m.s2_push_disabled_3()}
+                </p>
+              {:else if advice === "storage"}
+                <p class="font-medium">{m.s2_push_storage_title()}</p>
+                <p>
+                  {m.s2_push_storage_1()}<code>push.json</code
+                  >{m.s2_push_storage_2()}
+                </p>
+              {:else if advice === "denied"}
+                <p class="font-medium">{m.s2_push_denied_title()}</p>
+                <p>{m.s2_push_denied_desc()}</p>
+              {/if}
+            </InlineNotice>
+          {/if}
+          {#if error}
+            <InlineNotice tone="danger">{error}</InlineNotice>
+          {:else if notice}
+            <InlineNotice tone="success">{notice}</InlineNotice>
+          {/if}
+        </div>
+      </ScrollArea>
     {/if}
 
     <div class="space-y-1 text-xs text-muted-foreground">

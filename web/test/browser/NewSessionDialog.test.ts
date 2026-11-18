@@ -473,7 +473,7 @@ test("defaults to the first saved config when no launch choice was remembered", 
   open({ status: "ready", configs: [config, otherConfig] });
   await expect.element(launchField()).toMatchTextContent(/Claude 恢复/);
   await expect.element(submit()).toBeEnabled();
-  expect(command().elements()).toHaveLength(0);
+  await expect.element(command()).not.toBeVisible();
 });
 
 test("a remembered custom command preserves argument boundaries even when configs exist", async () => {
@@ -502,7 +502,7 @@ test("switching sources keeps the config and the typed command but submits only 
   await expect.element(submit()).toBeDisabled();
   await command().fill("echo retained");
   await chooseLaunch(otherConfig.name);
-  await expect.element(command()).not.toBeInTheDocument();
+  await expect.element(command()).not.toBeVisible();
   await expect.element(submit()).toBeEnabled();
   await chooseLaunch("自定义命令…");
   await expect.element(command()).toHaveValue("echo retained");
@@ -1366,4 +1366,51 @@ test("files-only offers directory browsing without consulting workspace or launc
   await submit().click();
   await vi.waitFor(() => expect(created).toHaveLength(1));
   expect(created[0]).toEqual({ cwd: "/work", cmd: ["bash"], name: "" });
+});
+
+test("custom command keeps its panel mounted across collapse and location trigger centers single-line labels", async () => {
+  open(
+    { status: "ready", configs: [config, otherConfig] },
+    { repositories: [repository], selectedRepositoryId: "repo-1" },
+  );
+  const locTrigger = locationField().element();
+  const twoLineOffsetHeight = locTrigger.offsetHeight;
+
+  await chooseLocation("输入或浏览目录…");
+  expect(locTrigger.offsetHeight).toBe(twoLineOffsetHeight);
+  const oneLineHeight = locTrigger.getBoundingClientRect().height;
+  const iconRect = locTrigger
+    .querySelector("#session-location-value svg")!
+    .getBoundingClientRect();
+  const labelRect = locTrigger
+    .querySelector("#session-location-value [title='直接目录']")!
+    .getBoundingClientRect();
+  expect(
+    Math.abs(
+      iconRect.top +
+        iconRect.height / 2 -
+        (labelRect.top + labelRect.height / 2),
+    ),
+  ).toBeLessThanOrEqual(1);
+
+  await chooseLocation("主工作区 · main /repos/project");
+  expect(
+    Math.abs(locTrigger.getBoundingClientRect().height - oneLineHeight),
+  ).toBeLessThanOrEqual(1);
+
+  await chooseLaunch("自定义命令…");
+  const inputEl = command().element() as HTMLInputElement;
+  await expect.element(command()).toBeVisible();
+  await command().fill("echo smooth");
+  const panel = inputEl.closest(".flow-root") as HTMLElement;
+  expect(panel.inert).toBe(false);
+
+  await chooseLaunch(config.name);
+  expect(inputEl.isConnected).toBe(true);
+  expect(panel.inert).toBe(true);
+  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    expect(panel.getAnimations().length).toBeGreaterThan(0);
+  }
+  await expect.element(command()).not.toBeVisible();
+  expect(panel.hidden).toBe(true);
 });

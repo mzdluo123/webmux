@@ -68,6 +68,37 @@ afterEach(async () => {
 
 const save = () => page.getByRole("button", { name: "保存", exact: true });
 
+test("saves global preview defaults after invalid custom values", async () => {
+  const onsaved = vi.fn();
+  const requests = serve({
+    "/api/launch-configs/abcdefg2": (method, body) =>
+      method === "GET"
+        ? Response.json({ ...saved, preview: { lines: 8, skip: 2 } })
+        : Response.json({ ...saved, ...(body as object) }),
+  });
+  render(LaunchConfigDialog, { open: true, configId: saved.id, onsaved });
+
+  const followDefaults = page.getByRole("checkbox", {
+    name: /跟随全局默认.*输出预览/,
+  });
+  const lines = page.getByRole("spinbutton", { name: "显示行数" });
+  const skip = page.getByRole("spinbutton", { name: "跳过末尾行数" });
+  await expect.element(lines).toHaveValue(8);
+  await lines.fill("51");
+  await skip.fill("-1");
+  await expect.element(save()).toBeDisabled();
+
+  await followDefaults.click();
+  await expect.element(followDefaults).toBeChecked();
+  await expect.element(save()).toBeEnabled();
+  await save().click();
+  await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
+  expect(savedRequest(requests)).toMatchObject({
+    method: "PUT",
+    body: { preview: null },
+  });
+});
+
 test.each([
   ["Antigravity CLI", "antigravity"],
   ["Gemini CLI（旧配置）", "geminicli"],
@@ -134,7 +165,9 @@ test("masks env values by default and validates variable names", async () => {
   });
   await page.getByLabelText("名称").fill("Agent");
   await page.getByLabelText("启动命令").fill("claude");
-  await page.getByRole("button", { name: "添加环境变量" }).click();
+  const addVariable = page.getByRole("button", { name: "添加环境变量" });
+  await addVariable.click();
+  await expect.element(page.getByLabelText("变量名 1")).toHaveFocus();
   const value = page.getByLabelText("变量值 1");
   await expect.element(value).toHaveAttribute("type", "password");
   const toggle = page.getByRole("button", { name: "显示变量值 1" });
@@ -156,8 +189,26 @@ test("masks env values by default and validates variable names", async () => {
     .element(page.getByText(/变量名只能包含字母、数字和下划线/))
     .toBeVisible();
   await expect.element(save()).toBeDisabled();
+  expect(name.element().getAttribute("aria-describedby")).toBeTruthy();
   await name.fill("API_KEY");
   await expect.element(save()).toBeEnabled();
+  expect(name.element().getAttribute("aria-describedby")).toBeNull();
+  const validControlsRow = name.element().parentElement!;
+  const validOuterRow = validControlsRow.parentElement!;
+  expect(validOuterRow.offsetHeight).toBeLessThanOrEqual(
+    validControlsRow.offsetHeight + 2,
+  );
+  const envScrollViewport = validOuterRow.closest(
+    "[data-slot=scroll-area-viewport]",
+  ) as HTMLElement | null;
+  expect(envScrollViewport).not.toBeNull();
+
+  await addVariable.click();
+  await expect.element(page.getByLabelText("变量名 2")).toHaveFocus();
+  await page.getByRole("button", { name: "删除变量 1" }).click();
+  await expect.element(page.getByLabelText("变量名 1")).toHaveFocus();
+  await page.getByRole("button", { name: "删除变量 1" }).click();
+  await expect.element(addVariable).toHaveFocus();
 });
 
 test("the startup-file checkbox saves a normal command without expanding its arguments", async () => {
@@ -286,7 +337,7 @@ test("following the global default saves a null preview", async () => {
   expect(savedRequest(requests)?.body).toMatchObject({ preview: null });
 });
 
-test("configures per-config attention settings, shows signal priority, and hides irrelevant fields by mode", async () => {
+test("keeps alert controls in place while changing modes and announcing errors", async () => {
   const onsaved = vi.fn();
   const requests = serve({
     "/api/launch-configs/abcdefg2": (method, body) =>
@@ -312,28 +363,41 @@ test("configures per-config attention settings, shows signal priority, and hides
   await page.getByLabelText("最短回合耗时（秒）").fill("10");
   await page.getByLabelText("完成确认延迟（秒）").fill("3");
 
-  // Switching to "仅需介入" hides threshold inputs while keeping signal sources.
-  await page.getByRole("radio", { name: "仅需介入", exact: true }).click();
-  await expect
-    .poll(() => page.getByLabelText("最短回合耗时（秒）").elements().length)
-    .toBe(0);
-  await expect
-    .element(page.getByRole("checkbox", { name: "Agent 事件 (Warp 协议)" }))
-    .toBeVisible();
+  const threshold = page.getByLabelText("最短回合耗时（秒）");
+  const agentEvents = page.getByRole("checkbox", {
+    name: "Agent 事件 (Warp 协议)",
+  });
+  const all = page.getByRole("radio", { name: "全部提醒", exact: true });
+  const urgent = page.getByRole("radio", { name: "仅需介入", exact: true });
+  const off = page.getByRole("radio", { name: "关闭", exact: true });
+  const editor = document.getElementById("launch-config-attention-fieldset")!;
+  expect(page.getByRole("alert").elements()).toHaveLength(0);
+  const activeHeight = editor.offsetHeight;
 
-  // Switching to "关闭" hides both signal sources and threshold inputs.
-  await page.getByRole("radio", { name: "关闭", exact: true }).click();
-  await expect
-    .poll(
-      () =>
-        page
-          .getByRole("checkbox", { name: "Agent 事件 (Warp 协议)" })
-          .elements().length,
-    )
-    .toBe(0);
+  await all.click();
+  await userEvent.keyboard("{ArrowRight}");
+  await expect.element(urgent).toHaveFocus();
+  await expect.element(threshold).toBeDisabled();
+  await expect.element(agentEvents).toBeEnabled();
+  expect(editor.offsetHeight).toBe(activeHeight);
+  const details = agentEvents.element().closest(".flow-root") as HTMLElement;
 
-  // Switch back to "全部提醒" and save.
-  await page.getByRole("radio", { name: "全部提醒", exact: true }).click();
+  await userEvent.keyboard("{ArrowRight}");
+  await expect.element(off).toHaveFocus();
+  expect(details.inert).toBe(true);
+  await expect.poll(() => details.hidden).toBe(true);
+  expect(agentEvents.elements()).toHaveLength(0);
+  expect(editor.offsetHeight).toBeLessThan(activeHeight - 150);
+
+  await userEvent.keyboard("{ArrowRight}");
+  await expect.element(all).toHaveFocus();
+  await expect.element(agentEvents).toBeVisible();
+  expect(details.inert).toBe(false);
+  await threshold.fill("301");
+  await expect.element(page.getByRole("alert")).toMatchTextContent(/0–300/);
+  await expect.element(threshold).toHaveAttribute("aria-invalid", "true");
+  await threshold.fill("10");
+  expect(page.getByRole("alert").elements()).toHaveLength(0);
   const scrollBody = page.getByTestId("launch-config-scroll");
   await expect.element(scrollBody).toBeVisible();
   await save().click();
@@ -532,6 +596,44 @@ test("the hybrid checkbox follows the server's verdict for the edited command", 
     method: "PUT",
     body: { cmd: ["omp", "--model", "haiku"], chat: true },
   });
+});
+
+test("an obsolete support reply cannot replace the current command result", async () => {
+  const stale = Promise.withResolvers<Response>();
+  const requests = serve({
+    "/api/launch-configs/abcdefg2": () => Response.json(saved),
+    "/api/launch-configs/chat-support": (_method, body) =>
+      (body as { cmd: string[] }).cmd[0] === "old-probe"
+        ? stale.promise
+        : Response.json({ supported: true, supportedAgents: [] }),
+  });
+  render(LaunchConfigDialog, {
+    open: true,
+    configId: saved.id,
+    onsaved: () => {},
+  });
+  const command = page.getByLabelText("启动命令");
+  const hybrid = page.getByRole("checkbox", {
+    name: "混合模式（聊天 ↔ 终端）",
+  });
+  await expect.element(command).toHaveValue("claude --resume");
+  await command.fill("old-probe");
+  await vi.waitFor(() =>
+    expect(requests.at(-1)?.body).toEqual({ cmd: ["old-probe"] }),
+  );
+  await command.fill("new-probe");
+  await expect.element(hybrid).toBeEnabled();
+
+  const obsolete = Response.json({
+    supported: false,
+    supportedAgents: [],
+    reason: "unknown_agent",
+  });
+  const consumed = vi.spyOn(obsolete, "json");
+  stale.resolve(obsolete);
+  await vi.waitFor(() => expect(consumed).toHaveBeenCalledOnce());
+  await expect.element(hybrid).toBeEnabled();
+  await expect.element(command).toHaveValue("new-probe");
 });
 
 test("launch-only editing preserves inactive feature fields and never probes chat support", async () => {

@@ -109,6 +109,15 @@
 
   const selections = $derived(toGitLineSelections(selectionMap, hunks));
   const selectedCount = $derived(countSelectedLines(selections));
+  const clearDisabled = $derived(selectedCount === 0 || busy);
+  const countDigits = $derived(
+    String(
+      hunks.reduce(
+        (total, hunk) => total + changedLineIndicesInHunk(hunk).length,
+        0,
+      ),
+    ).length,
+  );
 
   function clearSelection() {
     selectionByChange = { changeId, map: {}, anchorByHunk: {} };
@@ -158,6 +167,17 @@
   }
 </script>
 
+{#snippet countLabel(reservedLabel: string, label: string)}
+  <span class="inline-grid min-w-0 tabular-nums">
+    <span class="invisible col-start-1 row-start-1" aria-hidden="true">
+      {reservedLabel}
+    </span>
+    <span class="col-start-1 row-start-1">
+      {label}
+    </span>
+  </span>
+{/snippet}
+
 <section
   class="flex min-h-44 min-w-0 flex-1 flex-col overflow-hidden bg-background"
   aria-label={m.s6_line_selector_aria()}
@@ -169,7 +189,10 @@
   >
     <div class="flex min-w-0 flex-wrap items-center gap-1.5">
       <Badge variant={selectedCount > 0 ? "info" : "outline"}>
-        {m.s6_line_selector_selected_count({ count: String(selectedCount) })}
+        {@render countLabel(
+          m.s6_line_selector_selected_count({ count: "8".repeat(countDigits) }),
+          m.s6_line_selector_selected_count({ count: String(selectedCount) }),
+        )}
       </Badge>
       <span class="text-muted-foreground">
         {m.s6_line_selector_hint()}
@@ -177,18 +200,20 @@
     </div>
 
     <div class="flex min-w-0 flex-wrap items-center gap-1">
-      {#if selectedCount > 0}
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={busy}
-          onclick={clearSelection}
-          data-testid="git-line-clear-btn"
-        >
-          <IconX aria-hidden="true" />
-          {m.s6_line_selector_clear()}
-        </Button>
-      {/if}
+      <Button
+        size="sm"
+        variant="ghost"
+        aria-disabled={clearDisabled || undefined}
+        tabindex={clearDisabled ? -1 : undefined}
+        onclick={() => {
+          if (clearDisabled) return;
+          clearSelection();
+        }}
+        data-testid="git-line-clear-btn"
+      >
+        <IconX aria-hidden="true" />
+        {m.s6_line_selector_clear()}
+      </Button>
 
       {#if canDiscardLines && onDiscardLines}
         <Button
@@ -200,7 +225,10 @@
           data-testid="git-line-discard-btn"
         >
           <IconTrash aria-hidden="true" />
-          {m.s6_discard_selected_lines({ count: String(selectedCount) })}
+          {@render countLabel(
+            m.s6_discard_selected_lines({ count: "8".repeat(countDigits) }),
+            m.s6_discard_selected_lines({ count: String(selectedCount) }),
+          )}
         </Button>
       {/if}
 
@@ -214,7 +242,10 @@
           data-testid="git-line-stage-btn"
         >
           <IconPlus aria-hidden="true" />
-          {m.s6_stage_selected_lines({ count: String(selectedCount) })}
+          {@render countLabel(
+            m.s6_stage_selected_lines({ count: "8".repeat(countDigits) }),
+            m.s6_stage_selected_lines({ count: String(selectedCount) }),
+          )}
         </Button>
       {:else if stageMode === "unstage"}
         <Button
@@ -226,7 +257,10 @@
           data-testid="git-line-unstage-btn"
         >
           <IconMinus aria-hidden="true" />
-          {m.s6_unstage_selected_lines({ count: String(selectedCount) })}
+          {@render countLabel(
+            m.s6_unstage_selected_lines({ count: "8".repeat(countDigits) }),
+            m.s6_unstage_selected_lines({ count: String(selectedCount) }),
+          )}
         </Button>
       {/if}
     </div>

@@ -19,6 +19,7 @@
     choices,
     disabled = false,
     searchable = true,
+    inline = false,
     search = $bindable(""),
     choiceIcon,
     onselect,
@@ -29,6 +30,7 @@
     disabled?: boolean;
     /** Long catalogs get a filter box; short lists show all rows. */
     searchable?: boolean;
+    inline?: boolean;
     search?: string;
     choiceIcon?: Snippet<[string]>;
     onselect: (value: string) => void;
@@ -59,7 +61,12 @@
   {/if}
   <Command.List
     aria-label={m.s3_option_list_label({ name })}
-    class="max-h-[min(14rem,var(--bits-popover-content-available-height,50dvh))] p-1"
+    class={[
+      "p-1",
+      inline
+        ? "max-h-[min(14rem,32dvh)] overscroll-contain"
+        : "max-h-[min(14rem,var(--bits-popover-content-available-height,50dvh))]",
+    ]}
   >
     <Command.Empty>{m.s3_no_matching_option({ name })}</Command.Empty>
     {#each choices as choice (choice.value)}

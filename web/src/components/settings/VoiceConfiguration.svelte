@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { untrack } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Label } from "$lib/components/ui/label";
@@ -10,6 +9,7 @@
     VoiceSettingsUpdate,
   } from "../../contracts/schemas";
   import EnvRowsEditor from "./EnvRowsEditor.svelte";
+  import { useLayoutRowsMotion } from "../../hooks/shared/layout-rows-motion.svelte";
 
   let {
     current,
@@ -32,13 +32,29 @@
   });
   // The command is the user's own: WebMux ships no recognition service.
   // One argument per line: the command runs as an argv, never through a shell.
-  let command = $state(untrack(() => current.cmd.join("\n")));
-  let rows = $state<EnvRow[]>(
-    untrack(() =>
-      Object.entries(current.env).map(([name, value]) => makeRow(name, value)),
-    ),
-  );
+  let command = $state("");
+  let rows = $state<EnvRow[]>([]);
   let attempted = $state(false);
+  let actions = $state<HTMLDivElement | null>(null);
+  let saveButton = $state<HTMLButtonElement | null>(null);
+  let resetButton = $state<HTMLButtonElement | null>(null);
+  const webSource = $derived(current.source === "web");
+
+  useLayoutRowsMotion(
+    () => actions,
+    () => current.source,
+    "[data-layout-row]",
+  );
+
+  $effect.pre(() => {
+    command = current.cmd.join("\n");
+    rows = Object.entries(current.env).map(([name, value]) =>
+      makeRow(name, value),
+    );
+    attempted = false;
+    if (!webSource && resetButton && document.activeElement === resetButton)
+      saveButton?.focus({ preventScroll: true });
+  });
 
   const argv = $derived(
     command
@@ -69,8 +85,9 @@
 
   function submit(event: SubmitEvent) {
     event.preventDefault();
+    if (disabled) return;
     attempted = true;
-    if (disabled || invalid) return;
+    if (invalid) return;
     onsave({
       cmd: argv,
       env: Object.fromEntries(
@@ -99,12 +116,34 @@
   <EnvRowsEditor bind:rows {errors} {disabled} {makeRow}>
     {#snippet help()}{m.s2_voice_env_help()}{/snippet}
   </EnvRowsEditor>
-  <div class="flex flex-wrap gap-2">
-    <Button type="submit" {disabled}>{m.s2_save()}</Button>
-    {#if current.source === "web"}
-      <Button type="button" variant="outline" {disabled} onclick={onreset}
-        >{m.s2_voice_reset_config()}</Button
+  <div class="flex flex-wrap gap-2" bind:this={actions}>
+    <Button
+      type="submit"
+      bind:ref={saveButton}
+      aria-disabled={disabled || undefined}
+      tabindex={disabled ? -1 : undefined}
+      onclick={(event) => {
+        if (disabled) event.preventDefault();
+      }}
+      data-layout-row="save">{m.s2_save()}</Button
+    >
+    <div
+      class:invisible={!webSource}
+      inert={!webSource}
+      data-layout-row={webSource ? "reset" : undefined}
+    >
+      <Button
+        type="button"
+        variant="outline"
+        wrap
+        bind:ref={resetButton}
+        aria-disabled={disabled || undefined}
+        tabindex={disabled ? -1 : undefined}
+        onclick={() => {
+          if (disabled) return;
+          onreset();
+        }}>{m.s2_voice_reset_config()}</Button
       >
-    {/if}
+    </div>
   </div>
 </form>

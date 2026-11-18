@@ -47,9 +47,6 @@
         disabled={!view?.enabled}
       />
     </div>
-    {#if voice.state.error}
-      <InlineNotice tone="danger">{voice.state.error}</InlineNotice>
-    {/if}
     {#if view && !view.storageAvailable}
       <InlineNotice tone="warning"
         >{m.s2_voice_storage_warn({
@@ -58,14 +55,15 @@
       >
     {/if}
     {#if view}
-      {#key voice.state.editVersion}
-        <VoiceConfiguration
-          current={view}
-          disabled={voice.state.busy || !view.storageAvailable}
-          onsave={(draft) => void voice.save(draft)}
-          onreset={() => void voice.reset()}
-        />
-      {/key}
+      <VoiceConfiguration
+        current={view}
+        disabled={voice.state.busy || !view.storageAvailable}
+        onsave={(draft) => void voice.save(draft)}
+        onreset={() => void voice.reset()}
+      />
+    {/if}
+    {#if voice.state.error}
+      <InlineNotice tone="danger">{voice.state.error}</InlineNotice>
     {/if}
     {#if voice.state.notice}
       <InlineNotice tone="success">{voice.state.notice}</InlineNotice>
