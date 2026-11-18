@@ -4599,8 +4599,6 @@
   "s8_remote_branches": "Remote branches",
   "s8_sidebar_grouping": "Session grouping",
   "s8_sidebar_by_conversation": "Session",
-  "s8_sidebar_grouping_sessions": "Session",
-  "s8_sidebar_grouping_branch": "Branch",
   "s8_sidebar_by_branch": "Branch",
   "s8_sidebar_session_filter": "Session scope",
   "s8_sidebar_attention": "Needs attention",

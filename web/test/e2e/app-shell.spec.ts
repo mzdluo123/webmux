@@ -370,7 +370,8 @@ test.describe("phone drawer", () => {
         .getByRole("radio");
       await expect(choices).toHaveCount(2);
       for (const option of await choices.all()) {
-        await expect(option.locator("svg[data-grouping-icon]")).toBeVisible();
+        await expect(option.locator("svg")).toBeVisible();
+        await expect(option).toHaveText("");
       }
       await close.press("Enter");
       await expect(drawer).toBeHidden();
@@ -445,10 +446,11 @@ test.describe("phone drawer", () => {
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "200%";
     });
-    await expect(conversations).toHaveCSS("font-size", "26px");
-    for (const option of [conversations, branches]) {
-      await expect(option.locator("[data-grouping-label]")).toBeHidden();
-      await expect(option.locator("[data-grouping-icon]")).toBeVisible();
+    for (const [option, name] of [
+      [conversations, "Session"],
+      [branches, "Branch"],
+    ] as const) {
+      await expect(option).toHaveAttribute("title", name);
       const box = (await option.boundingBox())!;
       expect(box.width).toBeGreaterThanOrEqual(44);
       expect(box.height).toBeGreaterThanOrEqual(44);
@@ -545,10 +547,8 @@ test.describe("sidebar header never overlaps", () => {
         })
         .boundingBox())!;
       for (const option of await modes.getByRole("radio").all()) {
-        await expect(option.locator("[data-grouping-icon]")).toBeVisible();
-        const label = option.locator("[data-grouping-label]");
-        if (fontSize === "100%") await expect(label).toBeVisible();
-        else await expect(label).toBeHidden();
+        await expect(option.locator("svg")).toBeVisible();
+        await expect(option).toHaveText("");
       }
       expect(group.x - (logo.x + logo.width)).toBeGreaterThanOrEqual(12);
       expect(group.y).toBeLessThan(logo.y + logo.height);
