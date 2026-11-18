@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { animate } from "motion/mini";
-  import { onMount, tick } from "svelte";
   import IconChevronRight from "~icons/tabler/chevron-right";
   import { MediaQuery } from "svelte/reactivity";
   import { Button } from "$lib/components/ui/button";
@@ -15,6 +13,8 @@
     releasableRecordWorktree,
     type ArchiveActions,
   } from "../../domains/sessions/archived";
+  import { animate } from "motion/mini";
+  import { onMount, tick } from "svelte";
   import { sessionPins } from "../../domains/sessions/session-pins.svelte";
   import {
     sessionQueue,
