@@ -178,7 +178,7 @@ func TestUnverifiedMirrorsAndReasoningAreExplicit(t *testing.T) {
 }
 
 func TestCurrentVersionRetainsLineageRestrictions(t *testing.T) {
-	header := strings.Replace(string(bytes.SplitN(fixture(t), []byte{'\n'}, 2)[0]), "0.77.0", "0.169.0", 1)
+	header := strings.Replace(string(bytes.SplitN(fixture(t), []byte{'\n'}, 2)[0]), "0.77.0", "0.169.1", 1)
 	for _, lineage := range []string{
 		`"history_base":{"session_id":"parent"}`,
 		`"forked_from_id":"parent"`,

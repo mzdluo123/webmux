@@ -47,18 +47,20 @@ Snapcompact 对可导出用户/助手正文及可见工具调用/结果做机械
 以下叶读取器已实现并通过脱敏原生夹具验证；这不等于全部 CLI/连接器版本、TUI/ACP 交接组合已完成实测。
 来源、缺失场景及脱敏方式见[真实夹具说明](native-history-fixtures.md)。
 
-| Agent       | 原生存储证据                                                 | 版本边界                                |
-| ----------- | ------------------------------------------------------------ | --------------------------------------- |
-| Codex       | rollout JSONL、消息及工具闭环、compacted replacement history | 0.77.0、0.157.1、0.162.1、0.169.0       |
-| Claude Code | projects JSONL、parent 图及 compact_boundary                 | 真实样本 2.1.316                        |
-| omp         | session JSONL、父链与 compaction 保留范围                    | 文件格式 3；runtime 18.12.2、18.22.0    |
-| OpenCode    | 两代 SQLite 原生表、消息及 part                              | 会话版本 1.18.3 / 2.1.4                 |
-| Kimi        | state.json 与 wire.jsonl，正文与工具参数/结果                | wire 1.4/1.5；1.5 实录 CLI 2.5.3        |
-| agy         | SQLite BLOB、已恢复 descriptor 的 protobuf 字段              | 旧六步实录版本未知；新增 1.5.7 两步实录 |
-| Devin       | SQLite committed 主链，排除 inference siblings               | SQLite 写入版本未知；不与独立 ATIF 混合 |
-| QoderCN     | projects JSONL，按活动祖先链恢复正文与工具参数/结果          | 实录 1.1.81、1.1.84                     |
-| Qoder       | 暂复用 QoderCN 读取器和 fixtureSource                        | 国际版路径/格式尚未经实录确认           |
+| Agent       | 原生存储证据                                                 | 版本边界                                                     |
+| ----------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Codex       | rollout JSONL、消息及工具闭环、compacted replacement history | 0.77.0、0.157.1、0.160.1、0.162.1、0.167.2、0.169.0、0.169.1 |
+| Claude Code | projects JSONL、parent 图及 compact_boundary                 | 真实样本 2.1.316                                             |
+| omp         | session JSONL、父链与 compaction 保留范围                    | 文件格式 3；runtime 18.12.2、18.22.0                         |
+| OpenCode    | 两代 SQLite 原生表、消息及 part                              | 会话版本 1.18.3 / 2.1.4                                      |
+| Kimi        | state.json 与 wire.jsonl，正文与工具参数/结果                | wire 1.4/1.5；1.5 实录 CLI 2.5.3                             |
+| agy         | SQLite BLOB、已恢复 descriptor 的 protobuf 字段              | 旧六步实录版本未知；新增 1.5.7 两步实录                      |
+| Devin       | SQLite committed 主链，排除 inference siblings               | SQLite 写入版本未知；不与独立 ATIF 混合                      |
+| QoderCN     | projects JSONL，按活动祖先链恢复正文与工具参数/结果          | 实录 1.1.81、1.1.84                                          |
+| Qoder       | 暂复用 QoderCN 读取器和 fixtureSource                        | 国际版路径/格式尚未经实录确认                                |
 
+Codex 按原生日志首条 `session_meta` 的 `cli_version` 判断兼容性，旧会话仍按文件中记录的写入版本读取。
+0.160.1、0.167.2 和 0.169.1 的独立 rollout 已通过[本机只读核验](user-stories/verification-log-2026-11-18.md#codex-原生历史版本兼容us-q19us-q20)。
 原生格式、CLI、连接器和历史注入协议是独立版本维度，不能互相替代。
 未知格式、引用式 lineage、无法证明的分支或原生身份返回明确错误，不猜测会话归属。
 SQLite 读取在只读事务内完成；agy 生产读取 BLOB，不把 decoded JSON 研究文件冒充原生来源。

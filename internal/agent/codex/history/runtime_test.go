@@ -16,11 +16,22 @@ import (
 )
 
 func TestRuntimeDiscoveryCurrentCaptureAndFreeze(t *testing.T) {
-	ctx := context.Background()
-	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "native-history", "codex", "current-0.169.0.jsonl"))
+	capture, err := os.ReadFile(filepath.Join("..", "..", "testdata", "native-history", "codex", "current-0.169.0.jsonl"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _, version := range []string{"0.160.1", "0.167.2", "0.169.0", "0.169.1"} {
+		t.Run(version, func(t *testing.T) {
+			// Reuse the capture body with synthetic headers to exercise version admission.
+			data := []byte(strings.Replace(string(capture), "0.169.0", version, 1))
+			testRuntimeDiscoveryAndFreeze(t, data, version)
+		})
+	}
+}
+
+func testRuntimeDiscoveryAndFreeze(t *testing.T, data []byte, version string) {
+	t.Helper()
+	ctx := context.Background()
 	root := t.TempDir()
 	dir := filepath.Join(root, "sessions")
 	if err := os.Mkdir(dir, 0700); err != nil {
@@ -36,7 +47,7 @@ func TestRuntimeDiscoveryCurrentCaptureAndFreeze(t *testing.T) {
 	put(target, data)
 	header, _, _ := strings.Cut(string(data), "\n")
 	id := "00000003-0000-4000-8000-000000000003"
-	unknownHeader := strings.Replace(header, "0.169.0", "0.170.0", 1)
+	unknownHeader := strings.Replace(header, version, "0.170.0", 1)
 	neighbor := strings.ReplaceAll(unknownHeader, id, "neighbor") + "\ninvalid unrelated body\n"
 	put(filepath.Join(dir, "neighbor.jsonl"), []byte(neighbor))
 	// A filename containing the runtime ID cannot authenticate a malformed header.
@@ -67,7 +78,7 @@ func TestRuntimeDiscoveryCurrentCaptureAndFreeze(t *testing.T) {
 		}
 	}
 	want := []string{"user:Synthetic handoff code WMX-codex-capture; project Heron; port 48273.", "agent:ACK WMX-codex-capture"}
-	if doc.FormatVersion != "0.169.0" || !reflect.DeepEqual(messages, want) {
+	if doc.FormatVersion != version || !reflect.DeepEqual(messages, want) {
 		t.Fatalf("consumer lost current body: %q (%s)", messages, doc.FormatVersion)
 	}
 	tail := `{"timestamp":"2000-01-01T00:01:00Z","type":"response_item","payload":{"type":"message","id":"late","role":"assistant","content":[{"type":"output_text","text":"late answer"}]}}` + "\n"

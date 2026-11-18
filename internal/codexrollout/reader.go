@@ -256,7 +256,7 @@ func validateMetadata(raw json.RawMessage, m Metadata) error {
 		}
 	}
 	switch m.CLIVersion {
-	case "0.77.0", "0.157.1", "0.162.1", "0.169.0":
+	case "0.77.0", "0.157.1", "0.160.1", "0.162.1", "0.167.2", "0.169.0", "0.169.1":
 		return nil
 	default:
 		return ErrVersion
