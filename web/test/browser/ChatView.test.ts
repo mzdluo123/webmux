@@ -474,6 +474,56 @@ test("a missing connector offers its install hint and the terminal; outdated par
     .toHaveTextContent("1");
 });
 
+test("repeated chat failures leave room to read and edit on short screens", async () => {
+  await page.viewport(667, 375);
+  try {
+    const socket = await open();
+    const host = document.querySelector<HTMLElement>(
+      "[data-chat-test-host] > div",
+    )!;
+    host.style.height = "calc(100dvh - 32px)";
+    socket.frame(
+      snapshot(
+        chatState({
+          authRequired: true,
+          connectorMissing: {
+            executable: "codex-acp",
+            title: "Codex ACP 适配器",
+            installCommand: "npm install " + "package ".repeat(240),
+            docsUrl: "https://github.com/agentclientprotocol/codex-acp",
+          },
+        }),
+      ),
+    );
+    const detail = "诊断内容 ".repeat(360);
+    let failures = 0;
+    respond(/^POST .*\/sessions\/hybrid22\/input$/, () =>
+      Response.json(
+        { error: `发送失败 ${++failures} ${detail}` },
+        { status: 503 },
+      ),
+    );
+    const input = page.getByRole("textbox", { name: "消息" });
+    await input.fill("保留这段草稿");
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      await userEvent.keyboard("{Control>}{Enter}{/Control}");
+      await expect
+        .element(page.getByText(new RegExp(`^发送失败 ${attempt} `)))
+        .toBeVisible();
+      await expect.element(input).toHaveValue("保留这段草稿");
+    }
+    const diagnostic = page.getByText(/^发送失败 3 /).element();
+    expect(diagnostic.scrollHeight).toBeGreaterThan(diagnostic.clientHeight);
+    const transcript = document.querySelector(
+      "[data-chat-transcript-scroll] [data-slot=scroll-area-viewport]",
+    )!;
+    expect(transcript.clientHeight).toBeGreaterThanOrEqual(60);
+    await expect.element(input).toHaveFocus();
+  } finally {
+    await page.viewport(1024, 900);
+  }
+});
+
 test("renders the attachments of a user prompt", async () => {
   const png = new Uint8Array([
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,

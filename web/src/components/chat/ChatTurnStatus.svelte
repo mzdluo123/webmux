@@ -119,29 +119,22 @@
     <InlineNotice>{m.s3_older_history_uncached_terminal()}</InlineNotice>
   {/if}
   {#each chat?.outdated ?? [] as item (item.name)}
-    <InlineNotice tone="warning">{outdatedText(item)}</InlineNotice>
+    <InlineNotice tone="warning">
+      <div class="max-h-20 overflow-y-auto overscroll-contain">
+        {outdatedText(item)}
+      </div>
+    </InlineNotice>
   {/each}
   {#if chat?.unsupported.length}
-    <InlineNotice tone="warning"
-      >{m.s3_chat_unsupported_args({
-        args: chat.unsupported.join(" "),
-      })}</InlineNotice
-    >
+    <InlineNotice tone="warning">
+      <div class="max-h-20 overflow-y-auto overscroll-contain">
+        {m.s3_chat_unsupported_args({ args: chat.unsupported.join(" ") })}
+      </div>
+    </InlineNotice>
   {/if}
 {:else if mode === "dock"}
-  {#if error}<InlineNotice tone="danger">{error}</InlineNotice>{/if}
-  {#if chat?.connectorMissing}
-    <ConnectorInstallHint connector={chat.connectorMissing}>
-      {#snippet actions()}<Button
-          size="sm"
-          variant="outline"
-          disabled={!!unavailable}
-          onclick={onterminal}>{m.s3_switch_to_terminal_btn()}</Button
-        >{/snippet}
-    </ConnectorInstallHint>
-  {/if}
   {#if chat?.authRequired}
-    <InlineNotice tone="danger">
+    <InlineNotice tone="danger" size="compact">
       <span class="flex flex-wrap items-center gap-2"
         >{m.s3_agent_login_required()}<Button
           size="sm"
@@ -152,6 +145,40 @@
       >
     </InlineNotice>
   {/if}
+  {#if error || chat?.connectorMissing}
+    <div
+      class={[
+        "grid items-start gap-2",
+        error &&
+          chat?.connectorMissing &&
+          "[@media(height<480px)]:@lg:grid-cols-2",
+      ]}
+    >
+      {#if error}
+        <InlineNotice tone="danger" size="compact">
+          <div
+            class="max-h-[min(4rem,8dvh)] overflow-y-auto overscroll-contain"
+          >
+            {error}
+          </div>
+        </InlineNotice>
+      {/if}
+      {#if chat?.connectorMissing}
+        <div
+          class="min-w-0 max-h-[min(7rem,14dvh)] overflow-y-auto overscroll-contain"
+        >
+          <ConnectorInstallHint connector={chat.connectorMissing}>
+            {#snippet actions()}<Button
+                size="sm"
+                variant="outline"
+                disabled={!!unavailable}
+                onclick={onterminal}>{m.s3_switch_to_terminal_btn()}</Button
+              >{/snippet}
+          </ConnectorInstallHint>
+        </div>
+      {/if}
+    </div>
+  {/if}
 {:else}
   <!-- A persistent live region announces only the final duration. The
        visible per-second ticker stays out of every live region. -->
@@ -161,7 +188,10 @@
       class="flex items-center gap-2 text-sm text-muted-foreground"
       role="status"
     >
-      <IconLoader2 class="size-3.5 animate-spin" aria-hidden="true" />
+      <IconLoader2
+        class="size-3.5 animate-spin motion-reduce:animate-none"
+        aria-hidden="true"
+      />
       {m.s3_connecting_chat()}
     </p>
   {:else if chat.turn.running && !request}
@@ -169,7 +199,10 @@
       class="flex items-center gap-2 text-sm text-muted-foreground"
       role="status"
     >
-      <IconLoader2 class="size-3.5 animate-spin" aria-hidden="true" />
+      <IconLoader2
+        class="size-3.5 animate-spin motion-reduce:animate-none"
+        aria-hidden="true"
+      />
       {m.s3_working()}
       {#if turnElapsed !== undefined}
         <span class="tabular-nums" aria-hidden="true"
