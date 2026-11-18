@@ -369,8 +369,11 @@
     data-bottom-dock
     class={[
       "relative mx-auto w-full max-w-3xl space-y-2 px-3 pb-safe-2 sm:px-4",
+      !documentScroll && "[@media(height<480px)]:overflow-y-auto",
       !documentScroll &&
-        "[@media(height<480px)]:max-h-full [@media(height<480px)]:overflow-y-auto",
+        (error || chat?.connectorMissing || chat?.authRequired
+          ? "[@media(height<480px)]:max-h-[calc(100%-min(4rem,18dvh))]"
+          : "[@media(height<480px)]:max-h-full"),
     ]}
   >
     {#if !stick && documentScroll}
@@ -397,21 +400,25 @@
         workspace={location.workspace}
         cwd={location.cwd}
       />{/if}
-    {#if request?.kind === "permission"}
-      <PermissionPrompt
-        {request}
-        tool={requestTool}
-        disabled={!!blocked || answering}
-        onanswer={(reply) => answer(request.requestId, reply)}
-      />
-    {:else if request?.kind === "form"}
-      {#key request.requestId}
-        <FormPrompt
-          {request}
-          disabled={!!blocked || answering}
-          onanswer={(reply) => answer(request.requestId, reply)}
-        />
-      {/key}
+    {#if request?.kind === "permission" || request?.kind === "form"}
+      <div class="max-h-[50dvh] overflow-y-auto overscroll-contain">
+        {#if request.kind === "permission"}
+          <PermissionPrompt
+            {request}
+            tool={requestTool}
+            disabled={!!blocked || answering}
+            onanswer={(reply) => answer(request.requestId, reply)}
+          />
+        {:else}
+          {#key request.requestId}
+            <FormPrompt
+              {request}
+              disabled={!!blocked || answering}
+              onanswer={(reply) => answer(request.requestId, reply)}
+            />
+          {/key}
+        {/if}
+      </div>
     {:else if chat}
       <ChatComposer
         bind:this={composer}

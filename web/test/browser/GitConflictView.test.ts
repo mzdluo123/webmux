@@ -138,3 +138,36 @@ test("mobile conflict resolver fits 390px and 320px viewports without horizontal
     window.innerWidth,
   );
 });
+
+test("retains local conflict edit and selection through mobile and back", async () => {
+  await page.viewport(1280, 900);
+  await render(Harness, {
+    initialState: buildGitWorkbenchFixture("conflict-three-way-text"),
+  });
+  const desktop = page.getByTestId("git-conflict-result-textarea");
+  const mobile = page.getByTestId("git-conflict-mobile-textarea");
+  await userEvent.fill(desktop, "draft adopted from both sides");
+  (desktop.element() as HTMLTextAreaElement).setSelectionRange(6, 13);
+  const report = [];
+  for (const [width, height, field] of [
+    [390, 844, mobile],
+    [667, 375, mobile],
+    [1280, 900, desktop],
+  ] as const) {
+    await page.viewport(width, height);
+    await expect.element(field).toBeVisible();
+    await expect.element(field).toHaveValue("draft adopted from both sides");
+    const node = field.element() as HTMLTextAreaElement;
+    report.push([
+      width,
+      node.selectionStart,
+      node.selectionEnd,
+      node === document.activeElement,
+    ]);
+  }
+  expect(
+    report.every(
+      ([, start, end, focused]) => start === 6 && end === 13 && focused,
+    ),
+  ).toBe(true);
+});
