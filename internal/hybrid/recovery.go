@@ -318,6 +318,7 @@ func (a *actor) resumed(started chan<- error, res resumeResult) {
 		r.SetAgentSessionID(sid)
 		r.HistoryRoot = res.historyRoot
 		if active {
+			r.ResumeOnOpen = false
 			r.State, r.Activity, r.InterruptedAt, r.QueuedCount = StateActive, "", nil, 0
 			r.PID, r.Process = pid, process
 		}

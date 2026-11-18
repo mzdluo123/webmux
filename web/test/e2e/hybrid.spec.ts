@@ -1930,7 +1930,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     });
   }
 
-  test("after a backend restart both sides resume the recorded conversation", async ({
+  test("after a backend restart each agent resumes only when opened", async ({
     page,
     request,
     server,
@@ -1953,21 +1953,59 @@ test.describe("hybrid sessions with the fake agent", () => {
     // twice a second) once chat becomes available; a resume needs it.
     await expect(sideTab(page, "chat")).toHaveAccessibleName("聊天");
 
-    await server.restart();
     await page.goto("/");
-    // A restart does not archive what the user left running: both sessions
-    // come back on their recorded side by themselves.
+    await server.restart();
+    await page.reload();
+    for (const id of [chat, terminal]) {
+      const record = await (await request.get(`/api/sessions/${id}`)).json();
+      expect(record.archive.resumeOnOpen).toBe(true);
+    }
     const resumedChat = await openSessionLink(page, "E2E resume chat");
     await expectSide(resumedChat, "chat");
     await expect(conversation(resumedChat)).toContainText("kept-in-chat");
     await expect(conversation(resumedChat)).toContainText("echo: kept-in-chat");
 
     await page.goto("/");
+    expect(
+      (await (await request.get(`/api/sessions/${terminal}`)).json()).state,
+    ).toBe("interrupted");
     const resumedTerminal = await openSessionLink(page, "E2E resume terminal");
     await expectSide(resumedTerminal, "terminal");
     await expectTerminalLine(resumedTerminal, "> kept-in-tui");
     await expectTerminalLine(resumedTerminal, "< echo: kept-in-tui");
     await tuiTurn(resumedTerminal, "after-restart");
+  });
+
+  test("a missing conversation asks once when a dormant session is opened", async ({
+    page,
+    request,
+    server,
+    workDir,
+  }) => {
+    const id = await createHybrid(request, workDir, "chat");
+    const info = await (await request.get(`/api/sessions/${id}`)).json();
+    await server.restart();
+    await rm(
+      join(
+        server.env.FAKEAGENT_STORE,
+        "sessions",
+        info.agent.sessionId + ".json",
+      ),
+    );
+    let attempts = 0;
+    page.on("request", (req) => {
+      if (req.url().endsWith(`/sessions/${id}/resume`)) attempts++;
+    });
+    await page.goto(`/s/${id}`);
+    const question = page.getByRole("alertdialog", {
+      name: "找不到原来的 agent 会话",
+    });
+    await expect(question).toBeVisible();
+    await question.getByRole("button", { name: "取消" }).click();
+    await expect(
+      page.getByRole("button", { name: "恢复", exact: true }),
+    ).toBeEnabled();
+    expect(attempts).toBe(1);
   });
 
   test("Claude falls back to candidates when its process record is unavailable", async ({

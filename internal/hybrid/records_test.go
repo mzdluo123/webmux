@@ -227,6 +227,9 @@ func TestRecordsLimitPrefersLeastRecentlyUpdated(t *testing.T) {
 	seeded[3].UpdatedAt = base
 	seeded[7].State = StateActive
 	seeded[7].UpdatedAt = base.Add(-time.Hour)
+	seeded[8].State = StateInterrupted
+	seeded[8].ResumeOnOpen = true
+	seeded[8].UpdatedAt = base.Add(-time.Hour)
 	seedRecords(t, r, seeded)
 	evicted, err := r.add(testRecord("zzzzzzzz"), nil)
 	if err != nil {
@@ -315,7 +318,7 @@ func TestRecoverAfterRestart(t *testing.T) {
 	r.close()
 
 	r = openTestRecords(t, dir)
-	if _, err := r.recoverAfterRestart(time.Now()); err != nil {
+	if err := r.recoverAfterRestart(time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -380,7 +383,7 @@ func TestRecoverAfterRestartEndsUnconfirmedLeftovers(t *testing.T) {
 	r.close()
 
 	r = openTestRecords(t, dir)
-	if _, err := r.recoverAfterRestart(time.Now()); err != nil {
+	if err := r.recoverAfterRestart(time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	for id, exited := range exits {

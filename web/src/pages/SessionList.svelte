@@ -9,6 +9,7 @@
   import SessionSwitcherTrigger from "../components/shell/SessionSwitcherTrigger.svelte";
   import SessionViewControls from "../components/sessions/SessionViewControls.svelte";
   import { homeSessionView } from "../domains/sessions/home-session-view.svelte";
+  import DormantSessionLinks from "../components/sessions/DormantSessionLinks.svelte";
   import SessionRow from "../components/sessions/SessionRow.svelte";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import SessionListEmpty from "../components/sessions/SessionListEmpty.svelte";
@@ -35,6 +36,14 @@
   const visible = $derived(
     sessions.filter((session) =>
       matchesSessionQuery(session, query.trim().toLocaleLowerCase()),
+    ),
+  );
+  const dormant = $derived(
+    (shell.archived?.records ?? []).filter(
+      (record) =>
+        record.archive.resumeOnOpen &&
+        !record.released &&
+        matchesSessionQuery(record, query.trim().toLocaleLowerCase()),
     ),
   );
   $effect(() =>
@@ -93,14 +102,14 @@
         {m.s1_loading_sessions_list()}
       </p>
     {:else if !sessions.length}
-      {#if !shell.sessions.error}
+      {#if !shell.sessions.error && !dormant.length}
         <SessionListEmpty
           filtered={false}
           description={m.s1_empty_sessions_core()}
           onclear={clearSearch}
         />
       {/if}
-    {:else if !visible.length}
+    {:else if !visible.length && !dormant.length}
       <SessionListEmpty filtered description="" onclear={clearSearch} />
     {:else}
       <Item.Group
@@ -113,5 +122,6 @@
         {/each}
       </Item.Group>
     {/if}
+    <DormantSessionLinks records={dormant} />
   </main>
 </div>

@@ -251,6 +251,7 @@ interface SessionInfo {
     previousAgentSessionIds: string[]; // 最近 8 个历史 agent 会话 ID
     activity?: "idle" | "turn" | "switching"; // 中断前的活动，后两者表示上一轮可能未完成
     queuedCount: number; // 中断时丢失的排队条数
+    resumeOnOpen?: boolean; // 重启前活跃，打开页面时恢复
     interruptedAt: string | null; // RFC 3339
     updatedAt: string; // RFC 3339
   };

@@ -59,6 +59,7 @@
 - `previousAgentSessionIds`：最近 8 个历史 agent 会话 ID（当前 ID 在 `agent.sessionId`）；
 - `activity`：中断前的活动 `idle`、`turn` 或 `switching`，后两者表示上一轮可能未完成；
 - `queuedCount`：中断时丢失的排队条数；
+- `resumeOnOpen` 为 true 表示重启前活跃，打开时按记录的视图恢复。读取列表只返回记录。
 - `interruptedAt` 与 `updatedAt`：时间戳，`lastActiveAt` 等于 `updatedAt`。
 
 已归档会话的 `title` 跟随运行中会话实际展示的标题，`name` 为创建名称；首页“已归档”区优先显示 `title`，旧记录为空时回退到创建名称。`workspace` 是会话最近一次的仓库关联，在关联变化、归档、中断与服务关机时保存；会话没有关联或记录早于该字段时为 `null`，首页按 `cwd` 归入包含它的已注册工作树。
