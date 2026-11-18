@@ -28,9 +28,16 @@
 - 前端与端到端回归：
   - Vitest 浏览器组件测试 `ChatView.test.ts`、`ChatUpload.test.ts`（共 53 项）通过；
   - Playwright 端到端测试 `upload.spec.ts`、`artifacts.spec.ts`（14 项通过、4 项按设备项目条件跳过）及 `hybrid.spec.ts -g "Claude sends image and embedded-resource attachments"`（桌面与 iPhone SE 共 2 项通过）验证跨请求加载图片缩略图正常。
+  - 终端上传进度浮层（US-E06）：`TerminalViewport.test.ts`、`TerminalUpload.test.ts` 与 `TerminalNotices.test.ts`（共 22 项）通过，验证桌面（1280×720）与手机（390×844）视口下空闲状态全高保留、上传期间顶部浮层展示与取消、查找栏打开时自动下移避让，以及开始、完成与取消前后字符网格尺寸保持一致。
+  - `upload.spec.ts` 的桌面与 iPhone SE Chromium 用例覆盖原始文件、回放、拖放、进度、错误和取消。上传首帧及完成时的字符网格尺寸作为回归断言。
 - 局限：
   - 本机免密与 Relay 浏览器顶层导航的非执行行为通过 HTTP 响应头契约（`application/octet-stream`、`attachment`、`nosniff` 与 `sandbox` CSP）回归验证，未连接公网 Relay 节点演练；
   - 浏览器与端到端用例仅在 Linux 无头 Chromium 中执行，未在 macOS / iOS / Android 真机浏览器上复测。
+
+## T045 终端查找与回放提示（US-D11）
+
+- 查找栏在查询为空且未回放时省略状态行保持紧凑覆盖高度；有查询或回放提示时仅挂载单个命名的 `role="status"`（`查找结果`），切换匹配结果与回放提示期间高度保持一致，并在回放完成前后保留输入框或按钮焦点。
+- `TerminalRendering.test.ts` 与 `terminal.spec.ts` 的桌面和 iPhone SE Chromium 用例覆盖紧凑初始高度、单一状态播报、回放焦点保留、匹配复制和关闭后的 PTY 输入。
 
 ## Codex 原生历史版本兼容（US-Q19、US-Q20）
 
@@ -39,6 +46,13 @@
 - 回归测试使用公开夹具正文和派生版本头验证较新版本、运行时来源发现、冻结后补查及同一身份冲突。无效写入版本和引用式分支返回不同格式错误。
 - `go test -race -count=1 ./internal/codexrollout ./internal/agent/codex/history ./internal/historyimport ./internal/historysource ./internal/historyprojection ./internal/handoff` 六个包通过，覆盖默认分页图片、任务原文、来源冻结与预览到期。
 - `make docs-check` 通过。
+
+## T047 草稿恢复操作（US-F05、US-F06）
+
+- 窄栏常规草稿编辑在无提交状态且无不可发送提示时不渲染状态行，保留完整编辑区高度；出现提交状态或不可发送提示时状态行以 `max-h-[2lh]` 展示。
+- `TerminalDraft.test.ts` 浏览器用例验证重发原提交与转为草稿在 `tick()` 解除只读后于非触屏环境恢复编辑区焦点并保留选区，在 `(any-pointer: coarse)` 触屏环境下保持不自动聚焦（US-H02）。
+- `composer.spec.ts` 的桌面和 iPhone SE Chromium 用例覆盖真实 PTY 输入隔离和草稿编辑。未测试真机软键盘。
+- 320×568 与 200% 字号下，恢复按钮换行且全部在可用宽度内。草稿和满暂存列表的 2 项 Storybook 溢出回归通过。
 
 ## 原生历史最低版本基线（US-Q19、US-Q20）
 
@@ -56,6 +70,11 @@
 - `make e2e-runtime` 构建通过。`WorkbenchTree.test.ts` 的 16 项浏览器用例通过；`page-stability.spec.ts`、`workspace-discovery.spec.ts` 和 `worktrees.spec.ts` 在桌面与 iPhone SE Chromium 上共 50 项通过。
 - 隔离生产页面核对了 7 个视口的明暗主题、相邻按钮尺寸、窄栏与键盘打开，以及登记弹窗边界。未验证物理触屏或真机。
 - PR 提供桌面、平板及手机的明暗前后截图，以及[手机打开与取消登记的录屏](../images/pr/sidebar-add-repository/interaction-phone.gif)。
+
+## T051 矮窗格的选区与回到底部（US-D07）
+
+- `TerminalViewport.test.ts` 通过，验证短窗格回放后悬浮热区分离，终端宿主几何一致。
+- 隔离 Chromium 的 390 px 宽、150 px 高终端窗格中，按钮在回放恢复后无重叠。复制保留选区，回到底部保留终端输入焦点。
 
 ## 按会话侧栏的分组显示（US-C17）
 
@@ -84,3 +103,22 @@
   - `go test -race -count=1 ./cmd/... ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过；
   - Playwright E2E `agent-tools.spec.ts`、`relay-settings.spec.ts` 与 `worktrees.spec.ts`（直接目录创建降级）共 10 项通过。
+
+## 侧栏会话通知与待处理筛选（US-C06、US-C17）
+
+- 侧栏「会话通知」仅在存在待处理、已暂缓事项或收件箱已打开时挂载；处理完最后一项后按 Esc 关闭空收件箱，焦点移回侧栏导航。「全部」与「待处理」保持 1:1 等宽排布，无待处理项时省略空计数占位并居中显示标签，有匹配时以等宽数字显示数量。
+- 聚焦的末项解除后回到「待处理」，按方向键可继续选择「全部」。
+- 运行 `pnpm --dir web exec vp test run --config vitest.browser.config.ts test/browser/AppShell.test.ts` 验证条件入口、空收件箱焦点移交、筛选栏等宽排布与主机状态单行传输路径。
+- 隔离后端运行 `pnpm --dir web exec playwright test test/e2e/attention.spec.ts test/e2e/workbench-session-queue.spec.ts` 覆盖末项焦点与侧栏菜单。已在 Linux Chromium 验证。
+
+## 异步会话切换结果（US-C18）
+
+- 三端 Chromium 复现空结果与聊天命中之间的输入框位移，桌面差值 168px。修复后桌面结果区保持 400px，手机保持 422px，键盘选中项仍可滚动进入视口。Esc 恢复原输入、焦点和文字选区。
+- `pnpm --dir web exec vp test run --config vitest.browser.config.ts test/browser/SessionSwitcher.test.ts` 通过。隔离后端执行 `pnpm --dir web exec playwright test test/e2e/session-switcher.spec.ts` 通过，涵盖终端焦点和输入。
+
+## 侧栏主机状态（US-A04）
+
+- 隔离 Chromium 以本地夹具切换长短主机名，并控制健康探针、P2P RTT 和 Relay 路径。常规连接仅渲染单行传输路径，Relay 已认证会话预留混合传输行高，测量中、9→2999ms 和重连时延时行位置保持一致。
+- 320px 视口在 200% 字号下可打开并滚动详情，重连状态即时更新。P2P 和 Relay 数据由夹具注入了客户端状态。
+- 连接播报使用简短状态文本。修正重复重连文案后，隔离后端的 `workspace-discovery.spec.ts -g 'a disconnected session list reconnects'` 在桌面与手机 Chromium 均通过。
+- `workspace-ui.spec.ts` 在主机状态按钮中核对长短主机名和首个操作的几何，并单独核对状态区域。与 `workspace-discovery.spec.ts` 合计 16 通过，2 个桌面专属用例在手机项目跳过。

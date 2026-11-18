@@ -1,4 +1,8 @@
-import { expect, test } from "vite-plus/test";
+import "../../src/styles.css";
+import { afterEach, expect, test, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
+import { cleanup, render } from "vitest-browser-svelte/pure";
+import TerminalInputComposer from "../../src/components/terminal/TerminalInputComposer.svelte";
 import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
 import { editDraftKey } from "../../src/domains/terminal/draft-key";
 import {
@@ -7,6 +11,12 @@ import {
   scratchEntryLimit,
   scratchStorageLimit,
 } from "../../src/domains/terminal/draft-storage";
+
+afterEach(async () => {
+  await cleanup();
+  await userEvent.cleanup();
+  vi.unstubAllGlobals();
+});
 
 test("draft edits preserve Unicode, selections and session isolation across mode switches", () => {
   const drafts = createTerminalDrafts();
@@ -426,4 +436,119 @@ test("pending chat attachments persist with the session draft and clear on remov
 
   reloaded.setAttachments(reloaded.get("aaaaaaaa"), []);
   expect(saved.data.size).toBe(0);
+});
+
+test("composer omits empty status row during normal editing and restores focus after tick only on non-touch", async () => {
+  let coarse = false;
+  const realMatchMedia = window.matchMedia.bind(window);
+  vi.stubGlobal("matchMedia", (query: string) =>
+    query === "(any-pointer: coarse)"
+      ? {
+          media: query,
+          get matches() {
+            return coarse;
+          },
+          onchange: null,
+          addListener: () => {},
+          removeListener: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+        }
+      : realMatchMedia(query),
+  );
+
+  const drafts = createTerminalDrafts();
+  const draft = drafts.get("session-composer");
+  drafts.setEnabled(draft, true);
+  drafts.edit(draft, "prepare branch and run tests");
+  drafts.select(draft, 8, 14);
+
+  const host = document.createElement("div");
+  host.style.width = "360px";
+  host.style.height = "180px";
+  document.body.appendChild(host);
+  try {
+    await render(TerminalInputComposer, {
+      target: host,
+      props: {
+        draft,
+        drafts,
+        unavailable: "",
+        target: "main-shell",
+        openScratch: () => {},
+        send: () => {
+          drafts.beginSubmission(draft, "s-00000001");
+        },
+        resend: () => {
+          if (draft.submission)
+            drafts.updateSubmission(draft, draft.submission.id, "sending");
+        },
+        release: () => {
+          drafts.releaseSubmission(draft);
+        },
+        filePaste: () => false,
+        controlNotice: () => {},
+      },
+    });
+
+    const textareaLocator = page.getByRole("textbox", { name: "草稿内容" });
+    await expect.element(textareaLocator).toBeVisible();
+    const textarea = textareaLocator.element() as HTMLTextAreaElement;
+
+    // Idle draft editing below 42rem renders no empty status paragraph.
+    expect(document.querySelector('[aria-label="草稿提交状态"]')).toBeNull();
+    const idleHeight = textarea.getBoundingClientRect().height;
+
+    drafts.beginSubmission(draft, "s-00000001");
+    drafts.updateSubmission(draft, "s-00000001", "unknown");
+    await expect
+      .element(page.getByRole("status", { name: "草稿提交状态" }))
+      .toBeVisible();
+    expect(textarea.readOnly).toBe(true);
+    const statusHeight = textarea.getBoundingClientRect().height;
+    expect(idleHeight).toBeGreaterThan(statusHeight);
+
+    // Non-touch resend restores focus to textarea and keeps selection.
+    await page.getByRole("button", { name: "按原提交重发" }).click();
+    await expect.element(textareaLocator).toHaveFocus();
+    expect([textarea.selectionStart, textarea.selectionEnd]).toEqual([8, 14]);
+
+    // Non-touch release clears readOnly via tick() before focusing textarea.
+    drafts.updateSubmission(draft, "s-00000001", "partial");
+    await expect
+      .element(page.getByRole("button", { name: "转为草稿" }))
+      .toBeVisible();
+    textarea.blur();
+    let readOnlyAtFocus: boolean | undefined;
+    textarea.addEventListener(
+      "focus",
+      () => {
+        readOnlyAtFocus = textarea.readOnly;
+      },
+      { once: true },
+    );
+    await page.getByRole("button", { name: "转为草稿" }).click();
+    await expect.element(textareaLocator).toHaveFocus();
+    expect(readOnlyAtFocus).toBe(false);
+    expect(textarea.readOnly).toBe(false);
+    expect([textarea.selectionStart, textarea.selectionEnd]).toEqual([8, 14]);
+    expect(document.querySelector('[aria-label="草稿提交状态"]')).toBeNull();
+    expect(textarea.getBoundingClientRect().height).toBe(idleHeight);
+
+    // Touch input suppresses automatic focus on both resend and release (US-H02).
+    coarse = true;
+    textarea.blur();
+    drafts.beginSubmission(draft, "s-00000002");
+    drafts.updateSubmission(draft, "s-00000002", "unknown");
+    await page.getByRole("button", { name: "按原提交重发" }).click();
+    expect(document.activeElement).not.toBe(textarea);
+
+    drafts.updateSubmission(draft, "s-00000002", "partial");
+    await page.getByRole("button", { name: "转为草稿" }).click();
+    await expect.poll(() => textarea.readOnly).toBe(false);
+    expect(document.activeElement).not.toBe(textarea);
+  } finally {
+    host.remove();
+  }
 });

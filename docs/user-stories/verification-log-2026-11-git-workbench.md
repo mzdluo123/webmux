@@ -158,6 +158,8 @@
   - 隔离实例全量 Playwright E2E（454 项，含 `git-workbench-stash-blame.spec.ts` 桌面与手机视口）及性能套件（18 项）通过。
 - 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。
 
+- 2026-11-19（T065）：Vitest 浏览器套件（`GitWorkbenchStashBlame.test.ts`）在桌面与手机视口验证工作区和指定提交切换时比较结果区顶部位置保持不变且无常驻空白输入槽，结果区重载时编程式焦点保留在容器内。
+
 ## 2026-11-13：Git 工作台 11（V3）逐行（Sub-hunk）暂存、受控丢弃更改与三阶段 Smart Checkout（US-J16、US-J19、US-J23、US-J28）
 
 - 范围：
@@ -188,6 +190,12 @@
 - 对照基线 cdb1c247，在隔离 Storybook 数据下采集桌面、平板、手机的浅色与深色历史/暂存对比截图，并录制标签切换及操作账本展开/关闭 GIF。
 - 限制：无头 Chromium 不能替代真机触摸与物理 hover；没有进行真机验证。未重新核验其他故事组。
 
+### 2026-11-19：固定 Git 逐行选择操作栏尺寸（US-J28）
+
+- 隔离 Chromium 覆盖首选、Shift 扩选、全选和清空，核对工具栏与代码行盒尺寸。手机另测减少动态效果与模拟触摸单击。
+- `GitWorkbenchLineSmart.test.ts` 的浏览器用例及真实隔离服务的逐行暂存 E2E 通过。
+- 本轮使用无头 Linux Chromium，未在物理触屏或真机浏览器核对。
+
 ### Git 工作台收尾润色
 
 - 沿用 US-J20–US-J28：历史 Diff 复用中文布局开关与文件状态图标，分组文案移除英文尾注，行内审阅采用仅切换图标和主题色的通用变体。
@@ -209,6 +217,7 @@
   - 前端单测 `test/git-workbench.test.ts` 与 `test/git-log-controller.test.ts`（8 项）通过；
   - 浏览器套件 `test/browser/GitWorkbench.test.ts` 与 `test/browser/GitLogController.test.ts`（8 项，含 `1280×900` 与 `390×844` 相邻提交行 SVG 零间隙与正圆节点几何断言）及 Storybook `test/storybook/git-workbench.spec.ts`（27 项）通过；
   - 隔离实例 Playwright E2E `test/e2e/git-workbench-log.spec.ts`（桌面与 `320×568` 手机视口共 2 项）通过，并在隔离演示仓库下采集桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色共 12 张修复前后对比截图。
+- 2026-11-19（T062）：隔离 Chromium 用 108 条提交验证游标追加及无任务基线提示。手机列表从 100 条追加到 108 条及从提示返回后，首个可见 OID、行内偏移 −28 px 与选中提交一致；浏览器套件 `test/browser/GitWorkbench.test.ts` 验证分页阅读位置保持、状态提示往返恢复及 `aria-disabled` 加载保护。
 - 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核验；未重新核对 `US-J21` 以外的其余故事。
 
 ## 2026-11-14：Git 工作台顶栏按钮与目标切换器统一重构（US-J20、US-J23）

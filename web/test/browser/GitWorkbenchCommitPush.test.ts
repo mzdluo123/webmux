@@ -11,6 +11,7 @@ import {
   type GitWorkbenchScenario,
 } from "../../stories/git-workbench-fixtures";
 import GitCommitPreviewDialog from "../../src/components/workspace/GitCommitPreviewDialog.svelte";
+import GitStashApplyDialog from "../../src/components/workspace/GitStashApplyDialog.svelte";
 import Harness from "./GitWorkbenchHarness.svelte";
 
 afterEach(async () => {
@@ -144,7 +145,7 @@ test("needs_review commit outcome in Commit & Push aborts auto-opening Push dial
 
   // Push dialog MUST NOT auto-open; needs_review outcome banner must be shown instead!
   await expect
-    .element(page.getByText(/推送确认 · main/))
+    .element(page.getByRole("dialog", { name: "推送确认" }))
     .not.toBeInTheDocument();
   await expect
     .element(
@@ -219,12 +220,83 @@ test("wide ~900px Push dialog lists all outgoing commits and switches file Pierr
   await dialog
     .getByRole("button", { name: /multi-lane commit topology/ })
     .click();
-  await expect
-    .element(
-      dialog.getByRole("button", {
-        name: /domains\/workspace\/git-graph-layout\.ts/,
-      }),
-    )
-    .toBeVisible();
+  const singleFileBtn = dialog.getByRole("button", {
+    name: /domains\/workspace\/git-graph-layout\.ts/,
+  });
+  await expect.element(singleFileBtn).toBeVisible();
+  const fileListViewport = singleFileBtn
+    .element()
+    .closest('[data-slot="scroll-area-viewport"]') as HTMLElement;
+  expect(fileListViewport.getBoundingClientRect().height).toBeLessThan(64);
   await expect.element(dialog.getByTestId("git-push-file-diff")).toBeVisible();
+});
+
+test("Stash apply dialog resets outer ResponsiveDialog scroll on mode toggle even when dialogError is non-empty", async () => {
+  await page.viewport(1280, 420);
+  const entry = {
+    stashRef: "stash@{0}",
+    index: 0,
+    oid: "1111111111111111111111111111111111111111",
+    shortOid: "1111111",
+    parents: [],
+    hasUntracked: true,
+    summary: "WIP stash layout check",
+    createdAt: "2026-11-19T00:00:00Z",
+  };
+  const preview = {
+    confirmationId: "conf-stash-1",
+    expiresAt: null,
+    repositoryId: "repo-1",
+    worktreeId: "wt-1",
+    worktreePath: "/tmp/wt-1",
+    mode: "apply" as const,
+    entry,
+    reinstateIndex: false,
+    detached: false,
+    stagedCount: 0,
+    unstagedCount: 2,
+    untrackedCount: 1,
+    overlappingPaths: ["a.ts", "b.ts", "c.ts"],
+    sessions: [],
+    blockers: Array.from({ length: 8 }, (_, idx) => ({
+      code: `blocker-${idx}`,
+      message: `冲突阻塞项 #${idx + 1}：需要清理本地改动后再继续恢复贮藏`,
+    })),
+    warnings: [],
+  };
+  const { rerender } = await render(GitStashApplyDialog, {
+    props: {
+      mode: "apply",
+      reinstateIndex: false,
+      target: entry,
+      preview,
+      dialogError: "Worktree changed during preview",
+      onModeChange: () => {},
+      onReinstateIndexChange: () => {},
+      onConfirm: () => {},
+      onClose: () => {},
+    },
+  });
+
+  const body = page.getByTestId("git-stash-apply-dialog");
+  await expect.element(body).toBeVisible();
+  expect(body.element().querySelector('[data-slot="scroll-area"]')).toBeNull();
+  const outerViewport = body
+    .element()
+    .closest('[data-slot="scroll-area-viewport"]') as HTMLElement;
+  outerViewport.scrollTop = 120;
+  expect(outerViewport.scrollTop).toBeGreaterThan(0);
+
+  await rerender({
+    mode: "pop",
+    reinstateIndex: false,
+    target: entry,
+    preview,
+    dialogError: "Worktree changed during preview",
+    onModeChange: () => {},
+    onReinstateIndexChange: () => {},
+    onConfirm: () => {},
+    onClose: () => {},
+  });
+  expect(outerViewport.scrollTop).toBe(0);
 });

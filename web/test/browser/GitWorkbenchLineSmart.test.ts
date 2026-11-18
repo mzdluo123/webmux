@@ -44,11 +44,26 @@ test("Sub-hunk line selector stages and unstages selected lines while preserving
   await expect.element(page.getByText("无末尾换行")).toBeVisible();
 
   // Select 1 delete line in hunk #2 (`oldSnapshotCheck()`), leaving `+verifySnapshotDigest` and hunk #1 unstaged.
-  await page
-    .getByRole("checkbox", { name: /选择变更块 #2 第 48 行删除/ })
-    .click();
+  const line = page.getByRole("checkbox", {
+    name: /选择变更块 #2 第 48 行删除/,
+  });
+  const toolbar = page.getByTestId("git-line-selector-action-bar").element();
+  const height = toolbar.getBoundingClientRect().height;
+  await line.click();
   await expect.element(page.getByText("已选 1 行")).toBeVisible();
+  expect(toolbar.getBoundingClientRect().height).toBe(height);
 
+  const clear = page.getByTestId("git-line-clear-btn");
+  await expect.element(clear).not.toHaveAttribute("aria-disabled", "true");
+  expect(clear.element().getAttribute("tabindex")).toBeNull();
+  await clear.click();
+  await expect.element(line).not.toBeChecked();
+  await expect.element(clear).toHaveFocus();
+  await expect.element(clear).toHaveAttribute("aria-disabled", "true");
+  await expect.element(clear).toHaveAttribute("tabindex", "-1");
+  expect(toolbar.getBoundingClientRect().height).toBe(height);
+
+  await line.click();
   await page.getByTestId("git-line-stage-btn").click();
 
   // `internal/workspace/staging.go` now exists in BOTH staged (1 line) and unstaged (remaining 2 lines)!
@@ -328,10 +343,82 @@ test("Smart Checkout enforces active CLI agent session disclosure + acknowledgem
     .element(dialog.getByTestId("smart-checkout-recovery-cmd"))
     .toMatchTextContent(/git stash apply 9999aaa/);
 
-  await dialog.getByTestId("smart-checkout-open-conflict-btn").click();
+  const resolver = dialog.getByTestId("smart-checkout-open-conflict-btn");
+  await expect.element(resolver).toHaveFocus();
+  await resolver.click();
   expect(onopenconflict).toHaveBeenCalledWith(
     expect.objectContaining({ branch: "feat/target" }),
     "src/auth.ts",
   );
   expect(onclose).toHaveBeenCalledOnce();
+});
+
+test("preserve next checkbox pointer position and single 1px borders when batch selection appears", async () => {
+  await page.viewport(1280, 900);
+  render(Harness, { initialState: buildGitWorkbenchFixture("commit-staging") });
+  const first = page.getByRole("checkbox", {
+    name: "选择未暂存条目 internal/workspace/staging.go",
+  });
+  const second = page.getByRole("checkbox", {
+    name: "选择未暂存条目 docs/git-workbench-notes.md",
+  });
+  await expect.element(second).toBeVisible();
+  await document.fonts.ready;
+  const initial = second.element().getBoundingClientRect().top;
+  await first.click();
+  const batchBar = page.getByTestId("git-discard-batch-bar");
+  await expect.element(batchBar).toBeVisible();
+  const toolbarStyle = getComputedStyle(
+    batchBar.element().firstElementChild as HTMLElement,
+  );
+  expect(toolbarStyle.borderTopWidth).toBe("1px");
+  expect(toolbarStyle.borderBottomWidth).toBe("0px");
+  const composerStyle = getComputedStyle(
+    page.getByTestId("git-commit-composer").element(),
+  );
+  expect(composerStyle.borderTopWidth).toBe("1px");
+  const selected = second.element().getBoundingClientRect().top;
+  await first.click();
+  await expect.element(batchBar).not.toBeInTheDocument();
+  const cleared = second.element().getBoundingClientRect().top;
+  expect(selected).toBeCloseTo(initial, 0);
+  expect(cleared).toBeCloseTo(initial, 0);
+});
+
+test("scroll file list to keep bottom row visible when batch action bar mounts", async () => {
+  await page.viewport(1280, 900);
+  const fixture = buildGitWorkbenchFixture("commit-staging");
+  fixture.workingChanges = [
+    ...fixture.workingChanges,
+    ...Array.from({ length: 20 }, (_, idx) => ({
+      id: `untracked:extra-${idx}.md`,
+      path: `docs/extra-${idx}.md`,
+      group: "untracked" as const,
+      status: "?" as const,
+      hunkStageAvailable: false,
+      hunks: [],
+    })),
+  ];
+  render(Harness, { initialState: fixture });
+  const listboxLoc = page.getByRole("listbox", { name: "工作树变更条目" });
+  await expect.element(listboxLoc).toBeVisible();
+  const listbox = listboxLoc.element() as HTMLElement;
+  await document.fonts.ready;
+
+  // Scroll the file list to the bottom so the final row sits just above the composer.
+  listbox.scrollTop = listbox.scrollHeight;
+  expect(listbox.scrollTop).toBeGreaterThan(0);
+  const scrollBefore = listbox.scrollTop;
+  const bottomCheckbox = page.getByRole("checkbox", {
+    name: "选择未暂存条目 docs/extra-19.md",
+  });
+  await expect.element(bottomCheckbox).toBeVisible();
+  await bottomCheckbox.click();
+  await expect.element(page.getByTestId("git-discard-batch-bar")).toBeVisible();
+
+  const listboxRect = listbox.getBoundingClientRect();
+  const checkboxRect = bottomCheckbox.element().getBoundingClientRect();
+  expect(listbox.scrollTop).toBeGreaterThan(scrollBefore);
+  expect(checkboxRect.bottom).toBeLessThanOrEqual(listboxRect.bottom + 0.5);
+  expect(checkboxRect.top).toBeGreaterThanOrEqual(listboxRect.top - 0.5);
 });

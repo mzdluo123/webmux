@@ -5,6 +5,7 @@ import { buildGitWorkbenchFixture } from "../../stories/git-workbench-fixtures";
 import GitFileInspectorDialog from "../../src/components/workspace/GitFileInspectorDialog.svelte";
 import type { GitFileHistoryRow } from "../../src/contracts/schemas";
 import Harness from "./GitWorkbenchHarness.svelte";
+import RevisionCompareHarness from "./GitRevisionCompareHarness.svelte";
 
 afterEach(async () => {
   try {
@@ -119,4 +120,52 @@ test("file history returns to the scrolled commit row on phones", async () => {
   await expect.element(commit).toHaveFocus();
   await expect.element(commit).toHaveAttribute("aria-selected", "true");
   expect(viewport.scrollTop).toBe(offset);
+});
+
+test("Revision compare keeps result viewport stationary on mobile and desktop and retains focus on reload", async () => {
+  await page.viewport(390, 844);
+  const fixture = buildGitWorkbenchFixture("commit-staging");
+  render(RevisionCompareHarness, {
+    refs: fixture.branches,
+    initialPhase: "error",
+  });
+  await document.fonts.ready;
+
+  const resultLoc = page.getByTestId("git-rev-compare-result");
+  await expect.element(resultLoc).toBeVisible();
+  const resultEl = resultLoc.element() as HTMLElement;
+  expect(resultEl.tabIndex).toBe(-1);
+
+  await expect
+    .element(page.getByTestId("git-rev-compare-target-input"))
+    .not.toBeInTheDocument();
+  const mobileWorktreeTop = resultEl.getBoundingClientRect().top;
+
+  const worktreeRadio = page.getByRole("radio", { name: "当前工作区文件" });
+  const revRadio = page.getByRole("radio", { name: "指定提交" });
+  await worktreeRadio.click();
+  await userEvent.keyboard("{ArrowRight}");
+  await expect.element(revRadio).toHaveAttribute("aria-checked", "true");
+
+  const targetInput = page.getByTestId("git-rev-compare-target-input");
+  await expect.element(targetInput).toBeVisible();
+  const mobileRevTop = resultEl.getBoundingClientRect().top;
+  expect(mobileRevTop).toBeCloseTo(mobileWorktreeTop, 0);
+
+  await userEvent.tab();
+  expect(document.activeElement).toBe(targetInput.element());
+  await userEvent.tab();
+  const retryBtn = page.getByRole("button", { name: "重试加载差异" });
+  expect(document.activeElement).toBe(retryBtn.element());
+
+  await retryBtn.click();
+  await expect.element(retryBtn).not.toBeInTheDocument();
+  expect(document.activeElement).toBe(resultEl);
+
+  await page.viewport(1280, 900);
+  const desktopRevTop = resultEl.getBoundingClientRect().top;
+  await worktreeRadio.click();
+  await expect.element(targetInput).not.toBeInTheDocument();
+  const desktopWorktreeTop = resultEl.getBoundingClientRect().top;
+  expect(desktopWorktreeTop).toBeCloseTo(desktopRevTop, 0);
 });

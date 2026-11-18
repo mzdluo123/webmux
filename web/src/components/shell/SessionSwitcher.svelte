@@ -218,7 +218,7 @@
     </Dialog.Close>
     <Command.Root
       label={m.s1_search_all_sessions()}
-      class="min-h-0"
+      class="min-h-0 [&>[data-slot=command-input-wrapper]]:shrink-0"
       filter={scoreItem}
     >
       <Command.Input
@@ -231,7 +231,7 @@
       />
       <Command.List
         aria-label={m.s1_matching_sessions()}
-        class="max-h-[min(25rem,50dvh)] min-h-0 overscroll-contain"
+        class="h-[min(25rem,50dvh)] max-h-none min-h-0 overscroll-contain"
       >
         {#if sessions?.length}
           {#if !chatMatches.length}
@@ -296,21 +296,20 @@
               {/each}
             </Command.Group>
           {/if}
+        {:else if loadError}
+          <p role="alert" class="py-3 text-sm text-destructive">
+            {m.s1_load_sessions_failed({ error: loadError })}
+          </p>
+        {:else if loading}
+          <p role="status" class="py-3 text-sm text-muted-foreground">
+            {m.s1_loading_sessions()}
+          </p>
+        {:else}
+          <p role="status" class="py-3 text-sm text-muted-foreground">
+            {m.s1_no_sessions_yet()}
+          </p>
         {/if}
       </Command.List>
-      {#if loadError && !sessions?.length}
-        <p role="alert" class="py-3 text-sm text-destructive">
-          {m.s1_load_sessions_failed({ error: loadError })}
-        </p>
-      {:else if loading}
-        <p role="status" class="py-3 text-sm text-muted-foreground">
-          {m.s1_loading_sessions()}
-        </p>
-      {:else if !sessions?.length}
-        <p role="status" class="py-3 text-sm text-muted-foreground">
-          {m.s1_no_sessions_yet()}
-        </p>
-      {/if}
     </Command.Root>
     <div
       class="hidden shrink-0 items-center gap-4 text-xs text-muted-foreground sm:flex"

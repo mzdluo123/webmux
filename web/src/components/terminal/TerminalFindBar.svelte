@@ -39,6 +39,7 @@
     >;
     onclose: () => void;
   } = $props();
+  let form = $state<HTMLFormElement | null>(null);
   let input = $state<HTMLInputElement | null>(null);
   let query = $state("");
   let options = $state<TerminalFindOptions>({
@@ -52,14 +53,38 @@
     !t.canFind || t.restoring || !query || !!error || composing,
   );
   const results = $derived(terminalFindResultText(t.findResults));
+  const replay = $derived(
+    t.restoring
+      ? terminalFindReplayText(true, false)
+      : query
+        ? terminalFindReplayText(false, t.findReplayed)
+        : "",
+  );
+  const statusText = $derived(
+    error ? (replay ? `${error} · ${replay}` : error) : replay || results,
+  );
   $effect(() => {
     if (open)
       void tick().then(() => {
-        if (open) input?.focus();
+        if (open) focus();
       });
   });
+  $effect.pre(() => {
+    const navDisabled = disabled;
+    const copyDisabled = !t.selection;
+    if (!open || !form || !input) return;
+    const active = document.activeElement;
+    if (!(active instanceof HTMLButtonElement) || !form.contains(active))
+      return;
+    if (
+      (navDisabled && active.dataset.findNav !== undefined) ||
+      (copyDisabled && active.dataset.findCopy !== undefined)
+    ) {
+      input.focus({ preventScroll: true });
+    }
+  });
   export function focus() {
-    input?.focus();
+    input?.focus({ preventScroll: true });
   }
   function search(previous = false, incremental = false) {
     if (composing) return;
@@ -94,9 +119,10 @@
 
 {#if open}
   <form
+    bind:this={form}
     role="search"
     aria-label={m.s4_find_terminal_output()}
-    class="absolute inset-x-2 top-2 z-20 rounded-md border bg-popover p-2 text-popover-foreground shadow-md"
+    class="pointer-events-auto absolute inset-x-2 top-2 z-20 max-h-[calc(100%-1rem)] overflow-y-auto overscroll-contain rounded-md border bg-popover p-2 text-popover-foreground shadow-md"
     onsubmit={(event) => event.preventDefault()}
     use:findKeys
   >
@@ -138,6 +164,7 @@
           <Button
             variant="ghost"
             size="icon-sm"
+            data-find-nav=""
             aria-label={direction.label}
             title={m.s4_find_match_with_shortcut({
               label: direction.label,
@@ -151,6 +178,7 @@
         <Button
           variant="ghost"
           size="icon-sm"
+          data-find-copy=""
           aria-label={m.s4_copy_selection()}
           title={m.s4_copy_selection()}
           disabled={!t.selection}
@@ -166,22 +194,20 @@
         >
       </div>
     </div>
-    <div
-      role="status"
-      aria-live="polite"
-      aria-label={m.s4_find_results_aria()}
-      class="mt-1 text-xs"
-      class:text-destructive={!!error}
-    >
-      {error || results}
-    </div>
+    {#if query || replay}
+      <p
+        role="status"
+        aria-live="polite"
+        aria-label={m.s4_find_results_aria()}
+        class="mt-1 min-h-lh text-xs"
+        class:text-destructive={!!error}
+        class:text-muted-foreground={!error && !!replay}
+      >
+        {statusText}
+      </p>
+    {/if}
     <p class="mt-1 text-xs text-muted-foreground">
       {terminalFindScope(t.scrollback, t.bufferType, t.historyTruncated)}
     </p>
-    {#if query && terminalFindReplayText(t.restoring, t.findReplayed)}<p
-        class="mt-1 text-xs text-muted-foreground"
-      >
-        {terminalFindReplayText(t.restoring, t.findReplayed)}
-      </p>{/if}
   </form>
 {/if}

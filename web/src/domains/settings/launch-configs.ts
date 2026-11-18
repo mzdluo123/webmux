@@ -248,7 +248,7 @@ export function validateLaunchDraft(
   attention: AttentionSettings | null = null,
 ):
   | { ok: true; value: LaunchConfigInput; errors: LaunchDraftErrors }
-  | { ok: false; errors: LaunchDraftErrors } {
+  | { ok: false; errors: LaunchDraftErrors; cmd?: string[] } {
   const errors: LaunchDraftErrors = { rows: {} };
   if (
     preview &&
@@ -349,7 +349,7 @@ export function validateLaunchDraft(
     errors.attention ||
     Object.keys(errors.rows).length
   )
-    return { ok: false, errors };
+    return { ok: false, errors, cmd: errors.command ? undefined : cmd };
   return {
     ok: true,
     value: { name: trimmed, cmd, env, preview, attention },

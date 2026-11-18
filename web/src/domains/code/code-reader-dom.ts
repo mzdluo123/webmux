@@ -131,3 +131,53 @@ export function parseFileGoto(
     column: column ? Number(column.slice(1)) : undefined,
   };
 }
+
+export type VisibleRowBand = {
+  top: number;
+  bottom: number;
+};
+
+/**
+ * Measures the bounding vertical band of selected or focused rows inside `host`
+ * that are currently visible in `box`.
+ */
+export function measureVisibleSelectedBand(
+  host: HTMLElement,
+  box: DOMRect,
+): VisibleRowBand | undefined {
+  const shadow = host.querySelector("diffs-container")?.shadowRoot;
+  if (!shadow || box.height <= 0) return undefined;
+  const elements = [
+    ...shadow.querySelectorAll<HTMLElement>("[data-line][data-selected-line]"),
+  ];
+  if (elements.length === 0 && shadow.activeElement instanceof HTMLElement) {
+    elements.push(shadow.activeElement);
+  }
+  let top = Number.POSITIVE_INFINITY;
+  let bottom = Number.NEGATIVE_INFINITY;
+  for (const element of elements) {
+    const rect = element.getBoundingClientRect();
+    if (rect.height <= 0) continue;
+    if (rect.bottom <= box.top + 0.5 || rect.top >= box.bottom - 0.5) continue;
+    if (rect.top < top) top = rect.top;
+    if (rect.bottom > bottom) bottom = rect.bottom;
+  }
+  return top <= bottom ? { top, bottom } : undefined;
+}
+
+/**
+ * Scrolls `host` down by the overlap when a newly mounted bottom panel shrinks
+ * `host` over `band`, keeping upper lines anchored when `band` stays clear.
+ */
+export function nudgeHostForBottomPanel(
+  host: HTMLElement,
+  beforeBox: DOMRect,
+  band: VisibleRowBand,
+) {
+  const afterBox = host.getBoundingClientRect();
+  if (afterBox.height <= 0 || afterBox.bottom >= beforeBox.bottom - 0.5) return;
+  const overlap = Math.min(band.bottom, beforeBox.bottom) - afterBox.bottom;
+  const headroom = band.top - afterBox.top;
+  const delta = Math.min(Math.ceil(overlap), Math.floor(headroom));
+  if (delta > 0) host.scrollTop += delta;
+}
