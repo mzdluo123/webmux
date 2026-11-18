@@ -1,7 +1,6 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
   import IconChevronDown from "~icons/tabler/chevron-down";
-  import { useManualDisclosureMotion } from "$lib/components/ui/collapsible/manual-motion.svelte";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
   import type {
@@ -83,7 +82,7 @@
   } = $props();
 
   let panel: HTMLDivElement | null = null;
-  const motion = useManualDisclosureMotion(
+  const motion = Collapsible.useManualDisclosureMotion(
     () => panel,
     () => open,
   );

@@ -8,7 +8,6 @@
   import IconTerminal2 from "~icons/tabler/terminal-2";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { useManualDisclosureMotion } from "$lib/components/ui/collapsible/manual-motion.svelte";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import * as Item from "$lib/components/ui/item";
@@ -77,7 +76,7 @@
   });
   const open = $derived(override ?? (reveal || expanded));
   let panel: HTMLDivElement | null = null;
-  const motion = useManualDisclosureMotion(
+  const motion = Collapsible.useManualDisclosureMotion(
     () => panel,
     () => open,
   );

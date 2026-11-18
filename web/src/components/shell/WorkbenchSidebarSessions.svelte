@@ -2,7 +2,6 @@
   import IconChevronRight from "~icons/tabler/chevron-right";
   import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
-  import MotionRoot from "$lib/components/ui/collapsible/motion-root.svelte";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { ListButton } from "$lib/components/ui/list-button";
   import {
@@ -138,7 +137,7 @@
       ? m.s8_sidebar_create_session({ project: group.name })
       : m.s8_sidebar_create_direct_session()}
     <section aria-label={group.name} data-sidebar-project-id={group.id}>
-      <MotionRoot
+      <Collapsible.MotionRoot
         {open}
         onOpenChange={(next) => workbenchLayout.setProjectOpen(group.id, next)}
       >
@@ -206,7 +205,7 @@
             />
           {/each}
         </ul>
-      </MotionRoot>
+      </Collapsible.MotionRoot>
     </section>
   {/each}
 </div>

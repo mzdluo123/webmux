@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import Content from "./collapsible-content.svelte";
+  import Root from "./collapsible.svelte";
   import { useManualDisclosureMotion } from "./manual-motion.svelte";
-  import * as Collapsible from "$lib/components/ui/collapsible";
 
   let {
     header,
@@ -22,14 +23,11 @@
   );
 </script>
 
-<Collapsible.Root
-  {open}
-  onOpenChange={(value) => motion.toggle(value, onOpenChange)}
->
+<Root {open} onOpenChange={(value) => motion.toggle(value, onOpenChange)}>
   {@render header()}
   <div bind:this={panel} inert={!open} class:overflow-clip={motion.moving}>
-    <Collapsible.Content forceMount={motion.moving}>
+    <Content forceMount={motion.moving}>
       {#if open || motion.moving}{@render children()}{/if}
-    </Collapsible.Content>
+    </Content>
   </div>
-</Collapsible.Root>
+</Root>
