@@ -681,8 +681,15 @@ test("a rejected mutation stays actionable until later authoritative success cle
     host.requests.filter((request) => request.method === "POST"),
   ).toHaveLength(1);
 });
-test("pairing polls leave diagnostics and copy focus in place", async () => {
+test("pairing polls keep cancel button anchored, omit idle error gap, and retain copy focus", async () => {
   const host = installHost();
+  const pending = Promise.withResolvers<Response>();
+  host.reply = (path, method) => {
+    if (path.endsWith("/enrollments") && method === "POST") {
+      host.pairing = { ...relayPairing, phase: "preparing" };
+      return pending.promise;
+    }
+  };
   const container = Object.assign(document.createElement("section"), {
     style: "width: 390px; max-width: 100%; margin: 0 auto",
   });
@@ -690,16 +697,29 @@ test("pairing polls leave diagnostics and copy focus in place", async () => {
   try {
     render(RelayManager, { target: container });
     await expect.element(start()).toBeEnabled();
-    const diagnostics = page.getByRole("button", {
-      name: m.relay_effective_diagnostics(),
-    });
-    const top = () =>
-      diagnostics.element().getBoundingClientRect().top + window.scrollY;
-    await startPairing();
+    await start().click();
+    await expect.element(cancel()).toBeVisible();
+    expect(container.querySelector(".invisible")).toBeNull();
+    const cancelPreparingLeft = cancel().element().getBoundingClientRect().left;
+
+    host.reply = undefined;
+    host.pairing = { ...waiting };
+    pending.resolve(Response.json(waiting));
+    await expect.element(code()).toHaveTextContent(waiting.userCode);
     await vi.waitFor(() =>
       expect(container.getAnimations({ subtree: true })).toHaveLength(0),
     );
-    const waitingTop = top();
+
+    const verifyLink = page.getByRole("link", {
+      name: m.relay_verify_github(),
+    });
+    await expect.element(verifyLink).toBeVisible();
+    const cancelWaitingRect = cancel().element().getBoundingClientRect();
+    const verifyWaitingRect = verifyLink.element().getBoundingClientRect();
+    expect(cancelWaitingRect.left).toBeCloseTo(cancelPreparingLeft, 0);
+    expect(verifyWaitingRect.left).toBeGreaterThan(cancelWaitingRect.left);
+    expect(container.querySelector('[data-slot="scroll-area"]')).toBeNull();
+
     const copy = page.getByRole("button", { name: m.relay_copy_code() });
     (copy.element() as HTMLElement).focus();
     const selection = window.getSelection()!;
@@ -709,10 +729,11 @@ test("pairing polls leave diagnostics and copy focus in place", async () => {
     await expect
       .element(page.getByText(m.relay_pairing_retrying()))
       .toBeVisible();
-    const retryTop = top();
-    const retainedFocus = document.activeElement === copy.element();
-    expect(retryTop).toBe(waitingTop);
-    expect(retainedFocus).toBe(true);
+    expect(container.querySelector('[data-slot="scroll-area"]')).not.toBeNull();
+    const cancelRetryRect = cancel().element().getBoundingClientRect();
+    expect(cancelRetryRect.top).toBeCloseTo(cancelWaitingRect.top, 0);
+    expect(cancelRetryRect.left).toBeCloseTo(cancelWaitingRect.left, 0);
+    expect(document.activeElement).toBe(copy.element());
     expect(selection.toString()).toBe(waiting.userCode);
   } finally {
     container.remove();

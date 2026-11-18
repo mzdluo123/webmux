@@ -3,6 +3,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Label } from "$lib/components/ui/label";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { Switch } from "$lib/components/ui/switch";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import * as Card from "$lib/components/ui/card";
@@ -123,6 +124,24 @@
               : !active && (status?.error || status?.readinessError)
                 ? relayDiagnostic(status.error || status.readinessError)
                 : ""),
+  );
+  const isPreparingOnly = $derived(
+    active &&
+      !codeVisible &&
+      (!pairing || pairing.phase === "preparing") &&
+      pairingMessage === m.relay_pairing_preparing(),
+  );
+  const activeErrorMessage = $derived(isPreparingOnly ? "" : pairingMessage);
+  const hasActiveFeedback = $derived(
+    Boolean(
+      activeErrorMessage ||
+      view.phase === "verifying" ||
+      stepError ||
+      pairing?.phase === "uncertain" ||
+      status?.operation.phase === "uncertain" ||
+      view.notice ||
+      copied === "failed",
+    ),
   );
   const confirmTitle = $derived(
     confirmation === "enable"
@@ -245,8 +264,8 @@
         <div bind:this={pairingPanel}>
           {#if active}
             <div class="space-y-3">
-              <div class="h-44 space-y-2 overflow-y-auto overscroll-contain">
-                {#if codeVisible && pairing}
+              {#if codeVisible && pairing}
+                <div class="space-y-2">
                   <p class="text-sm">{m.relay_enter_code()}</p>
                   <div class="flex min-w-0 flex-wrap items-center gap-3">
                     <p
@@ -271,25 +290,13 @@
                       : m.relay_pairing_expiry_check()}
                   </p>
                   <p class="text-sm">{m.relay_pairing_waiting()}</p>
-                {/if}
-              </div>
-              <div class="h-24 space-y-2 overflow-y-auto overscroll-contain">
-                {#if pairingMessage}
-                  <InlineNotice tone="warning" size="compact"
-                    >{pairingMessage}</InlineNotice
-                  >
-                {/if}
-                {@render feedback()}
-              </div>
+                </div>
+              {:else if isPreparingOnly}
+                <p role="status" class="text-sm text-muted-foreground">
+                  {pairingMessage}
+                </p>
+              {/if}
               <div class="flex flex-wrap gap-3">
-                <Button
-                  href={codeVisible ? pairing?.verificationUrl : undefined}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  disabled={!codeVisible}
-                  class={codeVisible ? undefined : "invisible"}
-                  aria-hidden={!codeVisible}>{m.relay_verify_github()}</Button
-                >
                 <Button
                   bind:ref={primaryPairingAction}
                   variant="outline"
@@ -298,7 +305,26 @@
                     pairing?.phase === "cancelling"}
                   >{m.relay_cancel_pairing()}</Button
                 >
+                {#if codeVisible && pairing}
+                  <Button
+                    href={pairing.verificationUrl}
+                    target="_blank"
+                    rel="noopener noreferrer">{m.relay_verify_github()}</Button
+                  >
+                {/if}
               </div>
+              {#if hasActiveFeedback}
+                <ScrollArea class="max-h-24">
+                  <div class="space-y-2">
+                    {#if activeErrorMessage}
+                      <InlineNotice tone="warning" size="compact"
+                        >{activeErrorMessage}</InlineNotice
+                      >
+                    {/if}
+                    {@render feedback()}
+                  </div>
+                </ScrollArea>
+              {/if}
             </div>
           {:else}
             <div class="space-y-4">
