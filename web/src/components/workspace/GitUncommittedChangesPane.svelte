@@ -219,8 +219,20 @@
   }
 </script>
 
+{#snippet batchActions()}
+  {#if !readonlyMode && onDiscardChanges}
+    <GitDiscardBatchBar
+      selectedItems={selectedBatchItems}
+      busy={stagingBusy}
+      {onStageChange}
+      {onDiscardChanges}
+      onClearSelection={() => (batchSelectedIds = [])}
+    />
+  {/if}
+{/snippet}
+
 <ScrollArea
-  class="h-full bg-background"
+  class="h-full"
   viewportClasses="[&>[data-scroll-area-content]]:flex [&>[data-scroll-area-content]]:flex-col"
   viewportProps={{ role: "region", "aria-label": m.s7_uncommitted_pane_aria() }}
 >
@@ -289,18 +301,6 @@
       {onNewWorktreeTerminal}
     />
   {/if}
-
-  {#snippet batchActions()}
-    {#if !readonlyMode && onDiscardChanges}
-      <GitDiscardBatchBar
-        selectedItems={selectedBatchItems}
-        busy={stagingBusy}
-        {onStageChange}
-        {onDiscardChanges}
-        onClearSelection={() => (batchSelectedIds = [])}
-      />
-    {/if}
-  {/snippet}
 
   <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child option buttons. -->
   <ScrollArea
