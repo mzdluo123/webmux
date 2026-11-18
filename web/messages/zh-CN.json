@@ -3793,6 +3793,7 @@
   "s8_proj_back_aria": "返回上一层",
   "s8_proj_back_title": "返回上一层（Esc）",
   "s8_proj_clone_resuming": "正在恢复克隆操作…",
+  "s8_proj_clone_status": "克隆状态",
   "s8_proj_clone_succeeded": "克隆已完成",
   "s8_proj_cloning_or_registering": "正在克隆或登记项目…",
   "s8_proj_empty": "没有匹配项，请更换关键词或添加项目。",

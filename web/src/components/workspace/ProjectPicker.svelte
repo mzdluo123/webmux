@@ -19,6 +19,7 @@
     type ProjectSources,
   } from "../../hooks/workspace/project-sources.svelte";
   import type { ProjectSelection } from "../../domains/sessions/project-selection";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import ChoiceDetails from "../shared/ChoiceDetails.svelte";
   import ProjectSourceForm from "./ProjectSourceForm.svelte";
   import GitHubProjectSource from "./GitHubProjectSource.svelte";
@@ -78,6 +79,54 @@
       source.operation?.state === "registering",
   );
 
+  let retriedRequest = $state("");
+  let cloneDetails = $state<HTMLElement | null>(null);
+  const registrationFailed = $derived(
+    source.operation?.state === "registration_failed",
+  );
+  const showRegistrationRetry = $derived(
+    registrationFailed ||
+      (!source.error &&
+        source.operation?.state === "registering" &&
+        source.pending?.requestId === retriedRequest),
+  );
+  const retryUnavailable = $derived(
+    source.busy || (showRegistrationRetry && !registrationFailed),
+  );
+  const retryInProgress = $derived(showRegistrationRetry && retryUnavailable);
+  const cloneFailed = $derived(
+    !!source.error ||
+      (registrationFailed && !retryInProgress) ||
+      source.operation?.state === "failed" ||
+      source.operation?.state === "interrupted",
+  );
+  const cloneStatus = $derived(
+    source.error ||
+      (cloneActive || retryInProgress
+        ? m.s8_proj_cloning_or_registering()
+        : source.operation?.state === "succeeded"
+          ? m.s8_proj_clone_succeeded()
+          : source.operation?.error || m.s8_proj_clone_resuming()),
+  );
+
+  $effect(() => {
+    if (cloneStatus && cloneDetails) cloneDetails.scrollTop = 0;
+    return () => {};
+  });
+  function retryClone() {
+    if (retryUnavailable || !source.pending) return;
+    if (registrationFailed) {
+      retriedRequest = source.pending.requestId;
+      void source.retryRegistration();
+    } else if (source.error) {
+      void source.resume();
+    }
+  }
+  function stopTracking() {
+    source.clearClone();
+    void go(step);
+  }
+
   onMount(() => {
     void source.load();
     return () => {
@@ -117,7 +166,7 @@
       >{/if}
     <h3 class="text-base font-medium">{title}</h3>
   </div>
-  {#if source.error}<p
+  {#if source.error && !source.pending}<p
       role="alert"
       class="break-words text-sm text-destructive"
     >
@@ -127,33 +176,53 @@
       variant="outline"
       size="sm"
       disabled={source.busy}
-      onclick={() => (source.pending ? source.resume() : source.load())}
-      >{m.s8_retry()}</Button
+      onclick={() => source.load()}>{m.s8_retry()}</Button
     >{/if}
   {#if source.pending}
-    <div role="status" class="space-y-2">
-      <p class="text-sm">
-        {cloneActive
-          ? m.s8_proj_cloning_or_registering()
-          : source.operation?.state === "succeeded"
-            ? m.s8_proj_clone_succeeded()
-            : source.operation?.error || m.s8_proj_clone_resuming()}
-      </p>
-      <p class="break-all font-mono text-xs text-muted-foreground">
-        {source.pending.path}
-      </p>
-      {#if source.operation?.state === "registration_failed"}<Button
-          variant="outline"
-          disabled={source.busy}
-          onclick={() => source.retryRegistration()}
-          >{m.s8_proj_retry_registration()}</Button
-        >{/if}
-      {#if source.pending}<Button
+    <div class="space-y-2 [overflow-anchor:none]">
+      <ScrollArea
+        bind:viewportRef={cloneDetails}
+        class="h-24"
+        type="auto"
+        viewportClasses="overscroll-y-contain"
+        viewportProps={{
+          tabindex: 0,
+          role: "region",
+          "aria-label": m.s8_proj_clone_status(),
+        }}
+      >
+        <div class="space-y-2 pr-3 wrap-anywhere">
+          <p
+            role={cloneFailed ? "alert" : "status"}
+            class="text-sm"
+            class:text-destructive={cloneFailed}
+          >
+            {cloneStatus}
+          </p>
+          <p class="font-mono text-xs text-muted-foreground">
+            {source.pending.path}
+          </p>
+        </div>
+      </ScrollArea>
+      <div class="flex flex-wrap items-start gap-2">
+        <Button
           variant="ghost"
+          wrap
           disabled={source.busy}
-          onclick={() => source.clearClone()}
-          >{m.s8_proj_stop_tracking()}</Button
-        >{/if}
+          onclick={stopTracking}>{m.s8_proj_stop_tracking()}</Button
+        >
+        {#if showRegistrationRetry || source.error}
+          <Button
+            variant="outline"
+            wrap
+            aria-disabled={retryUnavailable}
+            onclick={retryClone}
+            >{showRegistrationRetry
+              ? m.s8_proj_retry_registration()
+              : m.s8_retry()}</Button
+          >
+        {/if}
+      </div>
       <p class="text-xs text-muted-foreground">
         {m.s8_proj_stop_tracking_hint()}
       </p>
