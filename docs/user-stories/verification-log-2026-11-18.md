@@ -56,3 +56,9 @@
 - 已执行验证：
   - `go test -race -count=1 ./cmd/webmux ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过。
+
+## 侧栏分组切换使用纯图标（US-C16）
+
+- 侧栏与抽屉的分组切换在各宽度下均显示图标，保留悬停提示、方向键切换和触控尺寸。
+- `pnpm --dir web exec playwright test app-shell.spec.ts sidebar-grouping-evidence.spec.ts` 的定向子集：25 项通过，5 项按设备项目跳过。覆盖 100%、150%、200% 字号、320px 触控切换和减少动态效果。
+- 临时视觉用例在隔离工作台核对 7 个视口的明暗主题、页面横向溢出、抽屉边界及键盘焦点。悬停核对命中状态与提示属性；未验证系统提示的实际绘制或物理触屏。
