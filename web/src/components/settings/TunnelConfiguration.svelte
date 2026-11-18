@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
+  import { usePanelMotion } from "../../hooks/shared/dock-motion.svelte";
   import { untrack } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import IconEye from "~icons/tabler/eye";
@@ -23,16 +23,15 @@
     onsave: (draft: TunnelSettingsUpdate) => void;
   } = $props();
   let mode = $state(untrack(() => current.mode));
-  let panels = $state<HTMLDivElement | null>(null);
-  useDockMotion(
-    () => panels,
-    () => true,
-    () => mode,
-  );
   let hostname = $state(untrack(() => current.hostname));
   let token = $state("");
   let revealed = $state(false);
   let attempted = $state(false);
+  let panels = $state<HTMLDivElement | null>(null);
+  usePanelMotion(
+    () => panels,
+    () => mode,
+  );
   const normalizedHost = $derived(hostname.toLowerCase().replace(/\.+$/, ""));
   const hostnameValid = $derived(
     normalizedHost.length > 0 &&
