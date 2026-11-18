@@ -183,7 +183,7 @@
 </script>
 
 <div
-  class="git-workbench flex h-full min-h-0 min-w-0 flex-col border bg-background text-foreground"
+  class="git-workbench flex h-full min-h-0 min-w-0 flex-1 flex-col border bg-background text-foreground"
   data-testid="git-workbench"
 >
   {#snippet operationLedger()}
@@ -273,6 +273,7 @@
         class="min-h-0 min-w-0 flex-1 overflow-hidden p-0"
       >
         <GitCommitPane
+          storageKey="git.fixture.commit"
           context={view.context}
           changes={view.workingChanges}
           activeChangeId={view.activeChangeId}
@@ -401,6 +402,7 @@
         class="min-h-0 min-w-0 flex-1 overflow-hidden p-0"
       >
         <GitBranchesPane
+          storageKey="git.fixture.branches"
           context={view.context}
           branches={view.branches}
           remotes={view.remotes}
@@ -423,6 +425,7 @@
         class="min-h-0 min-w-0 flex-1 overflow-hidden p-0"
       >
         <GitStashPane
+          storageKey="git.fixture.stash"
           context={view.context}
           entries={view.stashes ?? []}
           selectedStashOid={view.selectedStashOid ?? null}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import IconCheck from "~icons/tabler/check";
   import IconCopy from "~icons/tabler/copy";
   import IconGitCherryPick from "~icons/tabler/git-cherry-pick";
@@ -31,6 +32,7 @@
     onCherryPickCommit,
     onRevertCommit,
     onCreateTagCommit,
+    afterDetails,
   }: {
     detail: GitCommitDetail | null;
     selectedParentOverride?: string;
@@ -42,6 +44,7 @@
     onCherryPickCommit?: (oid: string) => void;
     onRevertCommit?: (oid: string) => void;
     onCreateTagCommit?: (oid: string, subject: string) => void;
+    afterDetails?: Snippet;
   } = $props();
 
   let copiedOid = $state<string | null>(null);
@@ -348,5 +351,6 @@
         </div>
       {/if}
     </div>
+    {@render afterDetails?.()}
   </ScrollArea>
 </section>

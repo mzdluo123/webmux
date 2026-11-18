@@ -1,34 +1,30 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Page, Request } from "@playwright/test";
-import { test, expect, createShell, toggleCode } from "./fixtures";
+import { test, expect, createShell } from "./fixtures";
 import { pdfFixture } from "../fixtures/pdf";
+import { codeReader, showFileTree } from "./code-dock";
 
-async function showCode(page: Page) {
-  const code = page.getByRole("region", { name: "代码工作区" });
-  if (!(await code.isVisible())) await toggleCode(page);
-  await expect(code).toBeVisible();
-}
 async function open(page: Page, name: string) {
-  const navigation = page.getByRole("button", {
-    name: "文件导航",
-    exact: true,
-  });
-  if (await navigation.isVisible()) await navigation.click();
-  await page.getByRole("button", { name, exact: true }).click();
+  const tree = await showFileTree(page);
+  await tree.getByRole("button", { name, exact: true }).click();
   // Controls of the previous tab stay mounted; act only once this one shows.
   await expect(
-    page.getByRole("tab", { name: `${name} · worktree`, exact: true }),
+    codeReader(page).getByRole("tab", {
+      name: `${name} · worktree`,
+      exact: true,
+    }),
   ).toHaveAttribute("aria-selected", "true");
 }
 // Below 640px the document bar's controls live in the code menu. Inactive
 // tabs stay mounted, so pick the visible document bar's button.
 async function togglePreview(page: Page, menuItem: string) {
+  const reader = codeReader(page);
   if (page.viewportSize()!.width < 640) {
-    await page.getByRole("button", { name: "代码菜单", exact: true }).click();
+    await reader.getByRole("button", { name: "代码菜单", exact: true }).click();
     await page.getByRole("menuitem", { name: menuItem, exact: true }).click();
   } else
-    await page
+    await reader
       .getByRole("button", {
         name: menuItem === "返回源码" ? "返回源码" : "预览",
         exact: true,
@@ -87,7 +83,6 @@ test("previews HTML, CSV and JSON statically and PDF on demand", async ({
   const requests: Request[] = [];
   page.on("request", (request) => requests.push(request));
   await createShell(page, "Document preview", workDir);
-  await showCode(page);
 
   // HTML: a static, sandboxed frame that issues no requests at all.
   await open(page, "report.html");

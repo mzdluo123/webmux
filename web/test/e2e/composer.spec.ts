@@ -5,6 +5,7 @@ import {
   test,
   expect,
   createShell,
+  chooseDockPanel,
   expectConnected,
   headerAction,
   holdTerminalReattach,
@@ -13,6 +14,7 @@ import {
   toggleCode,
   backToList,
 } from "./fixtures";
+import { codeReader, readerPanel, showFileTree } from "./code-dock";
 
 const mode = (page: Page) => page.getByRole("button", { name: /^草稿模式/ });
 // Phones keep the switch beside the soft keys; while those are hidden (the
@@ -156,8 +158,8 @@ test("code references and uploaded paths join the same draft without PTY input",
   await mode(page).click();
   await draft(page).fill("Please inspect ");
   await draft(page).press("End");
-  await toggleCode(page);
-  await page
+  const files = await showFileTree(page);
+  await files
     .getByRole("button", { name: "reference.txt", exact: true })
     .click();
   await page
@@ -167,7 +169,7 @@ test("code references and uploaded paths join the same draft without PTY input",
   await expect(draft(page)).toHaveValue(
     `Please inspect ${join(workDir, "reference.txt")} `,
   );
-  await expect(page.getByRole("region", { name: "代码工作区" })).toBeVisible();
+  await expect(codeReader(page)).toBeVisible();
   const response = page.waitForResponse((r) =>
     r.url().endsWith(`/api/sessions/${id}/upload`),
   );
@@ -195,8 +197,8 @@ test("code references and uploaded paths join the same draft without PTY input",
   await expect
     .poll(() => readFile(received, "utf8"))
     .toBe(`\x1b[200~${expected}\x1b[201~\r`);
-  if (info.project.use.isMobile) await toggleCode(page);
-  await expect(page.getByRole("region", { name: "代码工作区" })).toBeVisible();
+  if (info.project.use.isMobile) await chooseDockPanel(page, "预览");
+  await expect(codeReader(page)).toBeVisible();
   await expect(draft(page)).toBeHidden();
   // The phone header has no draft button while the soft keys are hidden.
   if (!info.project.use.isMobile)
@@ -245,9 +247,9 @@ test("draft splits the terminal column while the side panel stays full height", 
     ),
   ).toBe(true);
   await expect(draft(page)).toHaveValue("Keep this draft");
-  await toggleCode(page);
-  await page.getByRole("button", { name: "panel.txt", exact: true }).click();
-  const code = page.getByRole("region", { name: "侧栏面板", exact: true });
+  const files = await showFileTree(page);
+  await files.getByRole("button", { name: "panel.txt", exact: true }).click();
+  const code = readerPanel(page);
   const codeBounds = (await code.boundingBox())!;
   if (info.project.use.isMobile) {
     await expect(panel).toBeHidden();

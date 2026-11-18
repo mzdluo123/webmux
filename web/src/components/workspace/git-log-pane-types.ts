@@ -55,6 +55,7 @@ export interface GitLogPaneProps
       | "compareMode"
     > {
   context?: GitWorktreeContext;
+  storageKey?: string;
   historyReason?: string;
   taskBaseline?: GitWorkbenchViewState["taskBaseline"];
   liveFiltered?: boolean;
@@ -63,17 +64,6 @@ export interface GitLogPaneProps
   branches: readonly GitBranchItem[];
   checkedOutBranch: string | null;
   logDiff?: GitLogDiffController;
-  preferredShowBranches?: boolean;
-  branchTreeWidth?: number;
-  diffHeight?: number;
-  diffCollapsed?: boolean;
-  showAuthorColumn?: boolean;
-  twoPaneSizes?: [number, number];
-  onShowBranchesChange?: (open: boolean) => void;
-  onBranchTreeWidthChange?: (width: number) => void;
-  onDiffHeightChange?: (height: number) => void;
-  onDiffCollapsedChange?: (collapsed: boolean) => void;
-  onTwoPaneSizesChange?: (sizes: [number, number]) => void;
   onBranchFilterChange: (branch: string | null) => void;
   onBranchAction?: (
     kind: GitSharedBranchActionKind,

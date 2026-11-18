@@ -8,22 +8,18 @@
     busy,
     limit,
     ready,
-    zoomed,
     onsplit,
     oncreate,
     onchoose,
     onclose,
-    onzoom,
   }: {
     busy: boolean;
     limit: boolean;
     ready: boolean;
-    zoomed: boolean;
     onsplit: (direction: SplitDirection) => void;
     oncreate: () => void;
     onchoose: () => void;
     onclose: () => void;
-    onzoom?: () => void;
   } = $props();
 </script>
 
@@ -65,20 +61,6 @@
   {#if limit}<p class="px-3 py-2 text-xs text-muted-foreground">
       {m.s4_pane_limit_reached()}
     </p>{/if}
-  {#if onzoom}
-    <Separator class="my-3" />
-    <ListButton
-      variant="action-sheet"
-      aria-label={zoomed ? m.s4_restore_split() : m.s4_zoom_pane()}
-      onclick={onzoom}
-      ><span class="min-w-0 flex-1"
-        >{zoomed ? m.s4_restore_split() : m.s4_zoom_pane()}</span
-      ><span
-        class="text-xs text-muted-foreground max-sm:hidden"
-        aria-hidden="true">Ctrl+B z</span
-      ></ListButton
-    >
-  {/if}
   <Separator class="my-3" />
   <ListButton
     variant="action-sheet"

@@ -1,7 +1,6 @@
 <script lang="ts">
   import IconFilter from "~icons/tabler/filter";
   import IconGitBranch from "~icons/tabler/git-branch";
-  import IconLayoutSidebar from "~icons/tabler/layout-sidebar";
   import IconRefresh from "~icons/tabler/refresh";
   import IconRestore from "~icons/tabler/restore";
   import IconX from "~icons/tabler/x";
@@ -19,7 +18,6 @@
   } from "./git-log-pane-types";
 
   let {
-    desktop = true,
     scope,
     branchFilter,
     searchQuery,
@@ -30,9 +28,7 @@
     refsChanged = false,
     selectionNotice = null,
     compareBaseMarkOid = null,
-    showBranchesPanel = true,
     onOpenRefDrawer,
-    onToggleBranchesPanel,
     onResetLayout,
     onRefreshHistory,
     onScopeChange,
@@ -47,10 +43,7 @@
     onCancelCompareMark,
   }: GitLogFilterFields &
     GitLogFilterCallbacks & {
-      desktop?: boolean;
-      showBranchesPanel?: boolean;
       onOpenRefDrawer?: () => void;
-      onToggleBranchesPanel?: () => void;
       onResetLayout?: () => void;
       onCancelCompareMark?: () => void;
     } = $props();
@@ -72,7 +65,7 @@
 <div class="space-y-2 border-b bg-background px-2.5 py-2">
   <div class="flex min-w-0 flex-wrap items-center justify-between gap-1.5">
     <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-      {#if !desktop && onOpenRefDrawer}
+      {#if onOpenRefDrawer}
         <Button
           size="sm"
           variant="outline"
@@ -144,20 +137,7 @@
         </Button>
       {/if}
 
-      {#if desktop && onToggleBranchesPanel}
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-pressed={showBranchesPanel}
-          aria-label={m.s6_filter_toggle_ref_sidebar()}
-          title={m.s6_filter_toggle_ref_sidebar()}
-          onclick={onToggleBranchesPanel}
-        >
-          <IconLayoutSidebar aria-hidden="true" />
-        </Button>
-      {/if}
-
-      {#if desktop && onResetLayout}
+      {#if onResetLayout}
         <Button
           size="icon-sm"
           variant="ghost"

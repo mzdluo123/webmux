@@ -6,6 +6,10 @@
   import SwitchChoiceDialog from "../../src/components/chat/SwitchChoiceDialog.svelte";
   import SwitchProgress from "../../src/components/chat/SwitchProgress.svelte";
   import CodeChangesList from "../../src/components/code/CodeChangesList.svelte";
+  import { ListButton } from "$lib/components/ui/list-button";
+  import { dockGroup, dockSplit } from "$lib/dock-layout";
+  import DockPanel from "../../src/components/shared/DockPanel.svelte";
+  import DockWorkspace from "../../src/components/shared/DockWorkspace.svelte";
   import ConfirmDialog from "../../src/components/shared/ConfirmDialog.svelte";
   import ConnectorInstallHint from "../../src/components/sessions/ConnectorInstallHint.svelte";
   import HybridCandidatePicker from "../../src/components/sessions/HybridCandidatePicker.svelte";
@@ -13,9 +17,7 @@
   import SoftKeys from "../../src/components/terminal/SoftKeys.svelte";
   import TerminalHeader from "../../src/components/terminal/TerminalHeader.svelte";
   import TerminalSplitPanel from "../../src/components/terminal/TerminalSplitPanel.svelte";
-  import SessionSidePanel from "../../src/components/terminal/SessionSidePanel.svelte";
   import TerminalNotices from "../../src/components/terminal/TerminalNotices.svelte";
-  import TerminalWorkspace from "../../src/components/terminal/TerminalWorkspace.svelte";
   import * as chatFeature from "../../src/features/terminal-chat";
   import * as filesFeature from "../../src/features/terminal-files";
   import type { ChatActions } from "../../src/platform/chat-api";
@@ -77,25 +79,19 @@
   let candidatePick = $state(claudeCandidates[0]!.agentSessionId);
   let connectorDismissed = $state(false);
   let codeShown = $state(false);
-  let panelView = $state<"picker" | "code" | "split">("code");
-  let sidePanel = $state<SessionSidePanel>();
-  let header = $state<TerminalHeader>();
+  let dock = $state<DockWorkspace>();
+  let pickerOpen = $state(false);
 
-  function openPanels() {
+  function openCode() {
     codeShown = true;
-    sidePanel?.openPicker();
-  }
-
-  function closePanel() {
-    codeShown = false;
-    header?.focusPanels();
+    dock?.show("code");
   }
   let openedLocation = $state<ChatCodeLink | null>(null);
   let notice = $state("");
   let dismissed = $state<string[]>([]);
   let timer: ReturnType<typeof setTimeout> | undefined;
   onDestroy(() => clearTimeout(timer));
-  const desktopMedia = new MediaQuery("(min-width: 1024px)");
+  const compact = new MediaQuery("(max-width: 639px)");
   const drafts = createTerminalDrafts();
   const draft = drafts.get(session.id);
   if (untrack(() => scenario === "commands")) drafts.edit(draft, "/", 1);
@@ -452,7 +448,7 @@
 
 <main class="terminal-page">
   <TerminalHeader
-    bind:this={header}
+    {pickerOpen}
     features={{ chat: chatFeature, files: filesFeature }}
     {terminal}
     {fullscreen}
@@ -475,7 +471,7 @@
     close={() => {}}
     leave={() => {}}
     {hybrid}
-    {openPanels}
+    openPanels={() => dock?.openPicker()}
   />
   <TerminalNotices
     features={{ chat: chatFeature, files: filesFeature }}
@@ -504,12 +500,47 @@
       />
     </div>
   {/if}
-  <TerminalWorkspace
-    {codeShown}
-    desktop={desktopMedia.current}
-    draftOpen={false}
+  <DockWorkspace
+    bind:this={dock}
+    storageKey="story.hybrid"
+    initial={dockSplit("horizontal", dockGroup("session"), dockGroup("code"))}
+    bind:showPicker={pickerOpen}
+    compact={compact.current}
+    pickerTrigger={false}
   >
-    {#snippet terminalPane()}
+    {#snippet pickerActions(closePanel)}
+      {#if !codeShown}
+        <ListButton
+          variant="action-sheet"
+          onclick={() => {
+            openCode();
+            closePanel();
+          }}>代码</ListButton
+        >
+      {/if}
+      <TerminalSplitPanel
+        busy={false}
+        limit={false}
+        ready
+        onsplit={() => {
+          closePanel();
+          notice = "预览：在真实会话中创建分屏。";
+        }}
+        oncreate={() => {
+          closePanel();
+          notice = "预览：在真实会话中打开新建会话。";
+        }}
+        onchoose={() => {
+          closePanel();
+          notice = "预览：在真实会话中选择已有会话。";
+        }}
+        onclose={() => {
+          closePanel();
+          notice = "预览：在真实会话中关闭当前窗格。";
+        }}
+      />
+    {/snippet}
+    <DockPanel id="session" title={view === "chat" ? "聊天" : "终端"}>
       {#if view === "chat"}
         <div class="h-full min-h-0" use:paneEnter={true}>
           <ChatView
@@ -522,13 +553,11 @@
             {actions}
             onreview={(path) => {
               openedLocation = { path };
-              panelView = "code";
-              codeShown = true;
+              openCode();
             }}
             onopenlocation={(target) => {
               openedLocation = target;
-              panelView = "code";
-              codeShown = true;
+              openCode();
             }}
             onterminal={() => hybrid.request("terminal")}
           />
@@ -560,40 +589,9 @@
           </SoftKeys>
         </div>
       {/if}
-    {/snippet}
-    {#snippet draftPane()}{/snippet}
-    {#snippet codePane()}
-      <SessionSidePanel
-        bind:this={sidePanel}
-        bind:view={panelView}
-        shown={codeShown}
-        close={closePanel}
-        onpicker={openPanels}
-      >
-        {#snippet paneActions(closePanel: () => void)}
-          <TerminalSplitPanel
-            busy={false}
-            limit={false}
-            ready
-            zoomed={false}
-            onsplit={() => {
-              closePanel();
-              notice = "预览：在真实会话中创建分屏。";
-            }}
-            oncreate={() => {
-              closePanel();
-              notice = "预览：在真实会话中打开新建会话。";
-            }}
-            onchoose={() => {
-              closePanel();
-              notice = "预览：在真实会话中选择已有会话。";
-            }}
-            onclose={() => {
-              closePanel();
-              notice = "预览：在真实会话中关闭当前窗格。";
-            }}
-          />
-        {/snippet}
+    </DockPanel>
+    {#if codeShown}
+      <DockPanel id="code" title="代码工作区">
         <div class="h-full space-y-2 overflow-y-auto bg-card p-2">
           {#if openedLocation}
             <p
@@ -616,9 +614,9 @@
             onopen={() => {}}
           />
         </div>
-      </SessionSidePanel>
-    {/snippet}
-  </TerminalWorkspace>
+      </DockPanel>
+    {/if}
+  </DockWorkspace>
 </main>
 
 <ConfirmDialog

@@ -88,7 +88,7 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 
 - 复合控件用 `data-tv-native-keys` 保留自己的键盘协议；聊天内联菜单在 `webmux:tv-back` 的 capture 阶段，仅消费自己拥有焦点时的返回，再由根导航释放编辑。
 - `hooks/terminal/terminal.svelte.ts` 的 `TerminalController` 保有唯一 xterm emulator、输入路由与 socket；视图切换保留解析模型和连接。
-- `Terminal.svelte` 按会话键挂载 2D 窗格；`TerminalSessionHost` 在分屏与视图状态变化时保留原 `SessionTerminal`。
+- `Terminal.svelte` 按会话与显式重连代际挂载 `SessionTerminal`。共享停靠工作区调整已挂载面板的位置与可见性，会话与 Git 控制器继续拥有各自的业务状态。
 
 ## 检查项
 

@@ -9,6 +9,7 @@ import {
   revealSidebar,
   toggleCode,
 } from "./fixtures";
+import { codeReader, showFileTree } from "./code-dock";
 
 function git(root: string, ...args: string[]) {
   execFileSync("git", ["-C", root, ...args], {
@@ -30,11 +31,6 @@ function frameOf(win: Page) {
   return win.frameLocator('iframe[title="代码工作区"]');
 }
 type Scope = Page | FrameLocator;
-async function showCode(page: Page) {
-  const code = page.getByRole("region", { name: "代码工作区" });
-  if (!(await code.isVisible())) await toggleCode(page);
-  await expect(code).toBeVisible();
-}
 function popOutButton(page: Page) {
   return page.getByRole("button", {
     name: "在独立窗口中显示代码",
@@ -140,11 +136,11 @@ test("the code panel pops out into a framed window and both ways keeps its readi
     lines(100, "row").replace("row 50\n", "changed 50\n"),
   );
   await createShell(page, "Popout state", workDir);
-  await showCode(page);
-  const panel = page.getByRole("region", { name: "代码工作区" });
+  const files = await showFileTree(page);
+  const panel = codeReader(page);
 
   // A long file scrolled to line 200 with lines 195-198 selected.
-  await page.getByRole("button", { name: "long.txt", exact: true }).click();
+  await files.getByRole("button", { name: "long.txt", exact: true }).click();
   await gotoLine(page, 200);
   await gutter(page, 195).click();
   await expect(sendButton(page, "195")).toBeEnabled();
@@ -154,8 +150,8 @@ test("the code panel pops out into a framed window and both ways keeps its readi
   expect(top).toBeGreaterThan(150);
 
   // A diff with unmodified context expanded and one line selected.
-  await page.getByRole("tab", { name: "修改", exact: true }).click();
-  await page
+  await files.getByRole("tab", { name: "修改", exact: true }).click();
+  await files
     .getByRole("button", { name: "修改 diff.txt", exact: true })
     .first()
     .click();
@@ -281,7 +277,7 @@ test("closing the opener's code view keeps the popped-out panel live", async ({
   );
   await writeFile(join(workDir, "live.txt"), "before\n");
   await createShell(page, "Popout live", workDir);
-  await toggleCode(page);
+  await showFileTree(page);
   const opened = page.context().waitForEvent("page");
   await popOutButton(page).click();
   const frame = frameOf(await opened);
@@ -315,7 +311,7 @@ test("the popped-out window selects line ranges and inserts references into the 
   const id = await createShell(page, "Popout pick", workDir);
   await page.locator(".xterm-helper-textarea").focus();
   await page.keyboard.type("printf 'reference: %s\\n' ");
-  await showCode(page);
+  await showFileTree(page);
   const opened = page.context().waitForEvent("page");
   await popOutButton(page).click();
   const frame = frameOf(await opened);
@@ -372,7 +368,7 @@ test("a narrow pop-out window lays out for its own width", async ({
   );
   await writeFile(join(workDir, "narrow.txt"), "narrow document\n");
   await createShell(page, "Popout narrow", workDir);
-  await showCode(page);
+  await showFileTree(page);
   const opened = page.context().waitForEvent("page");
   await popOutButton(page).click();
   const pip = await opened;
@@ -416,10 +412,10 @@ test("files dropped on the file tree upload into the folder, in the page and in 
   await mkdir(join(workDir, "docs"));
   await writeFile(join(workDir, "docs", "a.txt"), "a\n");
   await createShell(page, "Drop upload", workDir);
-  await showCode(page);
+  const files = await showFileTree(page);
   await dropFile(
     page,
-    page.getByRole("button", { name: "docs", exact: true }),
+    files.getByRole("button", { name: "docs", exact: true }),
     "dropped.txt",
     "from the page\n",
   );
@@ -473,10 +469,10 @@ test("viewed marks survive switching between the code popup and the main app", a
   await writeFile(join(workDir, "first.txt"), "first\n");
   await writeFile(join(workDir, "second.txt"), "second\n");
   await createShell(page, "Review code", workDir);
-  await showCode(page);
-  await page.getByRole("tab", { name: "修改", exact: true }).click();
+  const files = await showFileTree(page);
+  await files.getByRole("tab", { name: "修改", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "标记为已看：first.txt" }),
+    files.getByRole("button", { name: "标记为已看：first.txt" }),
   ).toBeVisible();
   const opened = page.waitForEvent("popup");
   await popOutButton(page).click();
@@ -485,12 +481,13 @@ test("viewed marks survive switching between the code popup and the main app", a
   await frame.getByRole("tab", { name: "修改", exact: true }).click();
   await frame.getByRole("button", { name: "标记为已看：first.txt" }).click();
   await popup.close();
-  await page.getByRole("tab", { name: "修改", exact: true }).click();
+  await showFileTree(page);
+  await files.getByRole("tab", { name: "修改", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "标记为已看：first.txt" }),
+    files.getByRole("button", { name: "标记为已看：first.txt" }),
   ).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "标记为已看：second.txt" }).click();
-  await expect(page.getByText("已看 2 / 2 个已加载修改")).toBeVisible();
+  await files.getByRole("button", { name: "标记为已看：second.txt" }).click();
+  await expect(files.getByText("已看 2 / 2 个已加载修改")).toBeVisible();
 });
 
 test("without Picture-in-Picture a desktop browser pops out into an ordinary popup", async ({
@@ -504,7 +501,7 @@ test("without Picture-in-Picture a desktop browser pops out into an ordinary pop
   await withoutPictureInPicture(page);
   await writeFile(join(workDir, "popup.txt"), "popup document\nsecond\n");
   await createShell(page, "Popup code", workDir);
-  await showCode(page);
+  await showFileTree(page);
   expect(await page.evaluate(() => "documentPictureInPicture" in window)).toBe(
     false,
   );
@@ -557,9 +554,8 @@ test("mobile browsers without Picture-in-Picture offer no pop-out", async ({
   await withoutPictureInPicture(page);
   await writeFile(join(workDir, "mobile.txt"), "mobile document\n");
   await createShell(page, "Mobile code", workDir);
-  await toggleCode(page);
-  await expect(
-    page.getByRole("button", { name: "mobile.txt", exact: true }),
-  ).toBeVisible();
+  const files = await showFileTree(page);
+  await files.getByRole("button", { name: "mobile.txt", exact: true }).click();
+  await expect(codeReader(page)).toBeVisible();
   await expect(popOutButton(page)).toHaveCount(0);
 });

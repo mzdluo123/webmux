@@ -339,10 +339,8 @@ test("worktree menu '提交改动…' deep-link and session Code Workspace round
   // Open Code panel, open README.md tab, and scroll the reader.
   await toggleCode(page);
   const codeRegion = page.getByRole("region", { name: "代码工作区" });
-  await expect(codeRegion).toBeVisible();
-  const navBtn = page.getByRole("button", { name: "文件导航", exact: true });
-  if (await navBtn.isVisible()) await navBtn.click();
   await page.getByRole("button", { name: "README.md", exact: true }).click();
+  await expect(codeRegion).toBeVisible();
   await expect(
     page.locator("[data-code-reader]:visible [data-content]").first(),
   ).toContainText("line 1: git workbench route test");

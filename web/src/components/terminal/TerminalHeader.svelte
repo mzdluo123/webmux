@@ -68,6 +68,7 @@
     showFind,
     hybrid,
     openPanels,
+    pickerOpen = false,
     chatActions,
   }: {
     features?: TerminalFeatures;
@@ -94,6 +95,7 @@
     showFind: () => void;
     hybrid?: HeaderHybrid;
     openPanels: () => void;
+    pickerOpen?: boolean;
     chatActions?: Snippet;
   } = $props();
   // A rename reaches the session list first; the list title wins here so
@@ -106,11 +108,6 @@
       m.s4_tab_terminal(),
   );
   let fileInput = $state<{ open(): void }>();
-  let panelTrigger = $state<HTMLButtonElement | null>(null);
-
-  export function focusPanels() {
-    panelTrigger?.focus();
-  }
   let openingFind = false;
   // Off the terminal view there is no PTY: terminal-only actions are hidden;
   // fullscreen, the code panel and closing the session stay.
@@ -234,7 +231,7 @@
       bind:this={fileInput}
       {upload}
     />{/if}
-  {#if terminalShown}
+  {#if terminalShown && !codeShown}
     <div class="quick-commands-header flex items-center gap-1">
       {@render quickMenu("bottom", undefined, "ghost")}
     </div>
@@ -248,12 +245,11 @@
     />
   {/if}
   <Button
-    bind:ref={panelTrigger}
     variant="ghost"
     size="icon-touch-sm"
     aria-label={m.s4_open_panel()}
     title={m.s4_open_panel()}
-    aria-expanded={codeShown}
+    aria-expanded={pickerOpen}
     onclick={openPanels}><IconPlus class="size-4" aria-hidden="true" /></Button
   >
   {#if fullscreen.offered}<Button

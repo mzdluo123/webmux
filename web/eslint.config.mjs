@@ -126,17 +126,11 @@ export default defineConfig([
             // component's <style> targets (sizes, overflow and visibility).
             {
               pattern: "^Pane$",
-              allow: [
-                "layout",
-                "terminal-pane",
-                "draft-pane",
-                "code-pane",
-                "git-pane",
-              ],
+              allow: ["layout", "draft-pane"],
             },
             {
               pattern: "^ResizableHandle$",
-              allow: ["layout", "draft-divider", "code-divider", "git-divider"],
+              allow: ["layout", "draft-divider"],
             },
           ],
         },

@@ -1,7 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { test, expect, createShell, toggleCode } from "./fixtures";
+import { test, expect, createShell } from "./fixtures";
+import { codeReader, showFileTree } from "./code-dock";
 
 // Below 640px the document bar's controls live in the code menu.
 async function previewMarkdown(page: Page) {
@@ -62,10 +63,10 @@ test("Markdown preview opens relative links, finds headings and loads workspace 
       leaks.push(request.url());
   });
   await createShell(page, "Markdown code", workDir);
-  await toggleCode(page);
-  await page.getByRole("button", { name: "README.md", exact: true }).click();
+  const tree = await showFileTree(page);
+  await tree.getByRole("button", { name: "README.md", exact: true }).click();
   await previewMarkdown(page);
-  const preview = page
+  const preview = codeReader(page)
     .getByRole("region", { name: "Markdown 预览" })
     .filter({ visible: true });
   const home = preview.getByAltText("首页");
@@ -85,11 +86,11 @@ test("Markdown preview opens relative links, finds headings and loads workspace 
   await expect(page.getByText("链接目标不存在")).toBeVisible();
   const before = page.url();
   await preview.getByText("部署", { exact: true }).click();
-  const heading = page
+  const heading = codeReader(page)
     .getByRole("heading", { name: "systemd" })
     .filter({ visible: true });
   await expect(heading).toBeVisible();
-  const deploy = page
+  const deploy = codeReader(page)
     .getByRole("region", { name: "Markdown 预览" })
     .filter({ visible: true });
   await expect

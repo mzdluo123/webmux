@@ -4,6 +4,7 @@ import {
   test,
   expect,
   createShell,
+  chooseDockPanel,
   openSplitPanel,
   runCommand,
 } from "./fixtures";
@@ -40,9 +41,10 @@ for (const clipboard of ["allowed", "denied", "unavailable"] as const) {
       .getByRole("button", { name: "左右分屏 · 新建 Shell", exact: true })
       .click();
     const background = page.locator(".split-terminal").nth(1);
-    await expect(
-      background.locator(".terminal-header .status-dot"),
-    ).toHaveAttribute("aria-label", /已连接/);
+    await expect(page.locator(".terminal-header .status-dot")).toHaveAttribute(
+      "aria-label",
+      /已连接/,
+    );
     const gate = join(workDir, "copy-ready");
     const text = `pending-${clipboard}`;
     const payload = Buffer.from(text).toString("base64");
@@ -50,16 +52,10 @@ for (const clipboard of ["allowed", "denied", "unavailable"] as const) {
       background,
       `while [ ! -f '${gate}' ]; do sleep 0.05; done; printf '\\033]52;c;${payload}\\a'; printf 'copy-emitted\\n'`,
     );
-    await page
-      .getByRole("button", { name: "切换到窗格 1：Foreground shell" })
-      .click();
+    await chooseDockPanel(page, "终端 1：Foreground shell");
     await foreground.locator(".xterm-helper-textarea").focus();
     await writeFile(gate, "ready");
-    const pending = background.getByRole("status", {
-      name: "待处理的复制请求",
-      includeHidden: true,
-    });
-    await expect(pending).toBeAttached();
+    const pending = page.getByRole("status", { name: "待处理的复制请求" });
     await expect(
       page.getByRole("dialog", { name: "复制终端文字" }),
     ).toBeHidden();
@@ -72,7 +68,7 @@ for (const clipboard of ["allowed", "denied", "unavailable"] as const) {
     await expect(foreground.locator(".xterm-rows")).toContainText(
       "foreground-still-typing",
     );
-    await page.getByRole("button", { name: /切换到窗格 2：/ }).click();
+    await chooseDockPanel(page, /终端 2：/);
     await expect(pending).toBeVisible();
     // Selecting the pane alone must not replay its clipboard request.
     expect(
@@ -96,7 +92,7 @@ for (const clipboard of ["allowed", "denied", "unavailable"] as const) {
         });
       }
     }
-    await background.getByRole("button", { name: "复制待处理文字" }).click();
+    await page.getByRole("button", { name: "复制待处理文字" }).click();
     await expect(pending).toBeHidden();
     if (clipboard === "allowed") {
       expect(
@@ -181,24 +177,14 @@ test("background hybrid choice waits for pane activation", async ({
   const background = page.locator(`[data-session-id="${agentId}"]`);
   await expect(background.locator(".xterm-rows")).toContainText("prompt>");
   await expect.poll(() => !!ask).toBe(true);
-  await page
-    .getByRole("button", { name: "切换到窗格 1：Typing shell" })
-    .click();
+  await chooseDockPanel(page, "终端 1：Typing shell");
   await foreground.locator(".xterm-helper-textarea").focus();
   ask!();
-  await expect(
-    background.getByRole("button", {
-      name: "选择…",
-      includeHidden: true,
-    }),
-  ).toBeAttached();
   const dialog = page.getByRole("alertdialog", { name: "TUI 仍在执行回合" });
   await expect(dialog).toBeHidden();
   await expect(foreground).toHaveAttribute("data-active", "true");
   await expect(foreground.locator(".xterm-helper-textarea")).toBeFocused();
-  await page
-    .getByRole("button", { name: /切换到窗格 2：Pending agent/ })
-    .click();
+  await chooseDockPanel(page, /终端 2：Pending agent/);
   await expect(dialog).toBeVisible();
   await expect(background).toHaveAttribute("data-active", "true");
 });

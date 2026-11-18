@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
 import {
+  closePanelPicker,
   expect,
   expectConnected,
   revealSidebar,
@@ -222,59 +223,45 @@ test.describe("desktop sidebar", () => {
       });
       expect(response.status(), await response.text()).toBe(201);
     }
-    const code = page.getByRole("region", { name: "代码工作区" });
-    const width = async () =>
-      Math.round((await page.locator(".code-pane").boundingBox())!.width);
+    const code = page.getByRole("region", { name: "代码工作区", exact: true });
+    const files = page.getByRole("region", { name: "文件树", exact: true });
+    const width = async () => Math.round((await code.boundingBox())!.width);
 
     await page.goto(`/s/${first}`);
     await expectConnected(page);
     await toggleCode(page);
     await expect(code).toBeVisible();
-    await code.getByRole("button", { name: "note.txt", exact: true }).click();
+    await files.getByRole("button", { name: "note.txt", exact: true }).click();
     const note = code.getByRole("tab", { name: /^note\.txt · / });
     await expect(note).toBeVisible();
-    // The picker and split controls replace the code content in the same
-    // sidebar without discarding its open documents.
     await page.getByRole("button", { name: "打开面板", exact: true }).click();
-    await expect(page.getByRole("group", { name: "面板选择" })).toBeVisible();
-    await expect(code).toBeHidden();
-    await page.getByRole("button", { name: "分屏", exact: true }).click();
+    const picker = page.getByRole("dialog", { name: "打开面板", exact: true });
     await expect(
-      page.getByRole("button", { name: "左右分屏 · 新建 Shell", exact: true }),
+      picker.getByRole("button", {
+        name: "左右分屏 · 新建 Shell",
+        exact: true,
+      }),
     ).toBeVisible();
-    await expect(page.getByRole("group", { name: "面板选择" })).toHaveCount(0);
-    await page
-      .getByRole("button", { name: "返回面板选择", exact: true })
-      .click();
-    await page.getByRole("button", { name: "代码", exact: true }).click();
-    await expect(note).toBeVisible();
+    await closePanelPicker(page);
     await expect(note).toHaveAttribute("aria-selected", "true");
-    expect(await code.boundingBox()).toEqual(
-      await page
-        .getByRole("region", { name: "侧栏面板", exact: true })
-        .boundingBox(),
-    );
     const before = await width();
-    await page.getByRole("separator", { name: "调整终端与代码宽度" }).focus();
+    await page
+      .getByRole("separator", { name: "调整窗格宽度", exact: true })
+      .first()
+      .focus();
     for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowLeft");
     await expect.poll(width).toBeGreaterThan(before + 20);
     const wide = await width();
 
-    // Workbench mode: the next session opens with the same panel.
-    await page.getByRole("button", { name: "打开面板", exact: true }).click();
-    await expect(page.getByRole("group", { name: "面板选择" })).toBeVisible();
-    await expect(code).toBeHidden();
+    // The other session opens with its own geometry and documents.
     await tree(page)
       .getByRole("treeitem", { name: /^panel two（/ })
       .click();
     await expect(page).not.toHaveURL(new RegExp(`/s/${first}$`));
-    await expect(
-      page.getByRole("region", { name: "侧栏面板", exact: true }),
-    ).toBeVisible();
-    if (await page.getByRole("group", { name: "面板选择" }).isVisible())
-      await page.getByRole("button", { name: "代码", exact: true }).click();
+    await expect(code).toBeHidden();
+    await toggleCode(page);
     await expect(code).toBeVisible();
-    await expect.poll(width).toBe(wide);
+    await expect.poll(width).toBe(before);
     // Open files belong to their own session.
     await expect(note).toHaveCount(0);
 
@@ -283,8 +270,10 @@ test.describe("desktop sidebar", () => {
     const chats = page.getByRole("navigation", { name: "导航", exact: true });
     await chats.getByRole("button", { name: /^面板甲（/ }).click();
     await expect(page.locator(".terminal-header")).toContainText("面板甲");
+    await expect(code).toBeHidden();
+    await toggleCode(page);
     await expect(code).toBeVisible();
-    await expect.poll(width).toBe(wide);
+    await expect.poll(width).toBe(before);
     await toggleCode(page);
     await expect(code).toBeHidden();
     await chats.getByRole("button", { name: /^面板乙（/ }).click();
@@ -297,22 +286,16 @@ test.describe("desktop sidebar", () => {
       .getByRole("treeitem", { name: /^panel one（/ })
       .click();
     await expect(page).toHaveURL(new RegExp(`/s/${first}$`));
-    await toggleCode(page);
+    await expect(code).toBeVisible();
     await expect(note).toHaveAttribute("aria-selected", "true");
     await expect(code.locator("[data-code-reader]:visible")).toContainText(
       "kept open",
     );
-    // Reloading while the picker is open also preserves the expanded sidebar.
     await page.getByRole("button", { name: "打开面板", exact: true }).click();
-    await expect(page.getByRole("group", { name: "面板选择" })).toBeVisible();
-    await expect(code).toBeHidden();
+    await expect(picker).toBeVisible();
     await page.reload();
     await expectConnected(page);
-    await expect(
-      page.getByRole("region", { name: "侧栏面板", exact: true }),
-    ).toBeVisible();
-    if (await page.getByRole("group", { name: "面板选择" }).isVisible())
-      await page.getByRole("button", { name: "代码", exact: true }).click();
+    await expect(picker).toBeHidden();
     await expect(code).toBeVisible();
     await expect.poll(width).toBe(wide);
   });

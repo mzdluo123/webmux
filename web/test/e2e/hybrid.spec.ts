@@ -5,6 +5,7 @@ import { basename, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { APIRequestContext, Page } from "@playwright/test";
 import {
+  chooseDockPanel,
   chooseLaunch,
   expect,
   expectTerminalLine,
@@ -121,6 +122,34 @@ async function chatTurn(page: Page, text: string) {
   await expect(working(page)).toHaveCount(0);
 }
 
+test("inspecting a terminal panel does not change its hybrid input view or discard the chat draft", async ({
+  page,
+  request,
+  workDir,
+}, { project }) => {
+  const id = await createHybrid(request, workDir, "chat", {
+    name: "Docked chat",
+  });
+  await openHybrid(page, id, "chat");
+  await composer(page).fill("keep this chat draft");
+  await chooseDockPanel(page, "终端 1：Docked chat");
+  const terminal = page.getByRole("region", {
+    name: "终端 1：Docked chat",
+    exact: true,
+  });
+  await expect(terminal).toContainText("会话当前处于聊天视图");
+  if (!project.use.isMobile) {
+    await terminal.locator("[draggable=true]").dblclick();
+    await terminal
+      .getByRole("button", { name: "还原「终端 1：Docked chat」布局" })
+      .click();
+  }
+  const state = await (await request.get(`/api/sessions/${id}`)).json();
+  expect(state.view).toBe("chat");
+  await chooseDockPanel(page, "聊天 1：Docked chat");
+  await expect(composer(page)).toHaveValue("keep this chat draft");
+});
+
 test("search opens only the target message in an existing split", async ({
   page,
   request,
@@ -145,15 +174,13 @@ test("search opens only the target message in an existing split", async ({
     .getByRole("dialog")
     .getByRole("button", { name: /Target chat/ })
     .click();
-  const firstPane = page.locator(`[data-session-id="${anchor}"]`);
-  const targetPane = page.locator(`[data-session-id="${target}"]`);
+  const firstPane = page.locator(`[data-dock-panel="chat:${anchor}"]`);
+  const targetPane = page.locator(`[data-dock-panel="chat:${target}"]`);
   await expect(
     targetPane.getByText("Review the needle change", { exact: false }).first(),
   ).toBeVisible();
   await firstPane.getByRole("textbox", { name: "消息" }).click();
-  await firstPane
-    .getByRole("button", { name: "快速切换会话", exact: true })
-    .click();
+  await page.getByRole("button", { name: "快速切换会话", exact: true }).click();
   const search = page.getByRole("dialog", {
     name: "快速切换会话",
     exact: true,
@@ -185,7 +212,10 @@ test("search opens only the target message in an existing split", async ({
   await expect(match).toHaveCount(0);
   await search.getByRole("combobox").fill("needle change");
   await match.click();
-  await expect(targetPane).toHaveAttribute("data-active", "true");
+  await expect(page.locator(`[data-session-id="${target}"]`)).toHaveAttribute(
+    "data-active",
+    "true",
+  );
   await expect(targetPane.locator("[data-message-highlight]")).toContainText(
     "Review the needle change",
   );
@@ -196,14 +226,15 @@ test("search opens only the target message in an existing split", async ({
   await expect(targetPane.locator("[data-message-highlight]")).toHaveCount(0);
   // Selecting the root session while the secondary pane is active must
   // activate the root without resetting the split or jumping the other pane.
-  await targetPane
-    .getByRole("button", { name: "快速切换会话", exact: true })
-    .click();
+  await page.getByRole("button", { name: "快速切换会话", exact: true }).click();
   await search.getByRole("combobox").fill("Unrelated first");
   await search
     .getByRole("option", { name: /你 · Unrelated first message/ })
     .click();
-  await expect(firstPane).toHaveAttribute("data-active", "true");
+  await expect(page.locator(`[data-session-id="${anchor}"]`)).toHaveAttribute(
+    "data-active",
+    "true",
+  );
   await expect(firstPane.locator("[data-message-highlight]")).toContainText(
     "Unrelated first message",
   );
@@ -215,21 +246,22 @@ test("search opens only the target message in an existing split", async ({
   await targetPane
     .getByRole("textbox", { name: "消息" })
     .fill("Keep neighboring search draft 中文🙂");
-  await openSplitPanel(firstPane);
+  await openSplitPanel(page.locator(`[data-session-id="${anchor}"]`));
   await page
     .getByRole("button", { name: "关闭窗格（保留会话）", exact: true })
     .click();
   await expect(firstPane).toHaveCount(0);
   await expect(page.locator(".split-terminal")).toHaveCount(1);
   expect(new URL(page.url()).pathname).toBe(`/s/${anchor}`);
-  await targetPane
-    .getByRole("button", { name: "快速切换会话", exact: true })
-    .click();
+  await page.getByRole("button", { name: "快速切换会话", exact: true }).click();
   await search.getByRole("combobox").fill("Unrelated first");
   await search
     .getByRole("option", { name: /你 · Unrelated first message/ })
     .click();
-  await expect(firstPane).toHaveAttribute("data-active", "true");
+  await expect(page.locator(`[data-session-id="${anchor}"]`)).toHaveAttribute(
+    "data-active",
+    "true",
+  );
   await expect(firstPane.locator("[data-message-highlight]")).toContainText(
     "Unrelated first message",
   );
@@ -289,15 +321,18 @@ test("message search activates its pane after restoring a saved split", async ({
     .getByRole("option", { name: /你 · Find the restored needle/ })
     .click();
 
-  const targetPane = page.locator(`[data-session-id="${target}"]`);
-  await expect(targetPane).toHaveAttribute("data-active", "true");
+  const targetPane = page.locator(`[data-dock-panel="chat:${target}"]`);
+  await expect(page.locator(`[data-session-id="${target}"]`)).toHaveAttribute(
+    "data-active",
+    "true",
+  );
   await expect(targetPane.locator("[data-message-highlight]")).toBeVisible();
   await expect(targetPane.locator("[data-message-highlight]")).toContainText(
     "Find the restored needle",
   );
   await expect(page.locator(".split-terminal")).toHaveCount(2);
   await expect(
-    page.locator(`[data-session-id="${other}"] [data-message-highlight]`),
+    page.locator(`[data-dock-panel="chat:${other}"] [data-message-highlight]`),
   ).toHaveCount(0);
   await expect(page).toHaveURL(new RegExp(`/s/${target}$`));
   await expect(page.locator("html")).toHaveAttribute(
@@ -325,19 +360,16 @@ test("message search reveals chat before consuming a jump hidden by narrow code"
     .getByRole("dialog")
     .getByRole("button", { name: /Code sibling/ })
     .click();
-  await page
-    .getByRole("button", { name: "切换到窗格 1：Code target", exact: true })
-    .click();
-  const targetPane = page.locator(`[data-session-id="${target}"]`);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await chooseDockPanel(page, "聊天 1：Code target");
+  const targetPane = page.locator(`[data-dock-panel="chat:${target}"]`);
   const mountedPane = await targetPane.elementHandle();
-  await toggleCode(targetPane);
+  await toggleCode(page);
   await expect(
-    targetPane.getByRole("region", { name: "代码工作区" }),
+    page.locator(`[data-dock-panel="files:${target}"]`),
   ).toBeVisible();
   await expect(targetPane.locator("[data-chat-view]")).toBeHidden();
-  await targetPane
-    .getByRole("button", { name: "快速切换会话", exact: true })
-    .click();
+  await page.getByRole("button", { name: "快速切换会话", exact: true }).click();
   const search = page.getByRole("dialog", {
     name: "快速切换会话",
     exact: true,
@@ -353,7 +385,7 @@ test("message search reveals chat before consuming a jump hidden by narrow code"
     "Find the obscured needle",
   );
   await expect(
-    targetPane.getByRole("region", { name: "代码工作区" }),
+    page.locator(`[data-dock-panel="files:${target}"]`),
   ).toBeHidden();
   expect(await mountedPane!.evaluate((pane) => pane.isConnected)).toBe(true);
   await expect(page.locator(".split-terminal")).toHaveCount(2);
@@ -735,7 +767,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     // Code replaces the pane without moving the session; no side stays selected.
     await toggleCode(page);
     await expect(
-      page.getByRole("region", { name: "代码工作区" }),
+      page.getByRole("region", { name: "文件树", exact: true }),
     ).toBeVisible();
     await expect(sideTab(page, "chat")).toHaveAttribute(
       "aria-selected",
@@ -747,12 +779,16 @@ test.describe("hybrid sessions with the fake agent", () => {
     );
     await toggleCode(page);
     await expectSide(page, "chat");
-    await expect(page.getByRole("region", { name: "代码工作区" })).toBeHidden();
+    await expect(
+      page.getByRole("region", { name: "文件树", exact: true }),
+    ).toBeHidden();
     await toggleCode(page);
     // Choosing the side the session is already on only leaves the code view.
     await sideTab(page, "chat").click();
     await expectSide(page, "chat");
-    await expect(page.getByRole("region", { name: "代码工作区" })).toBeHidden();
+    await expect(
+      page.getByRole("region", { name: "文件树", exact: true }),
+    ).toBeHidden();
   });
 
   test("mobile chat scrolls the document while resting and falls back to the fixed shell on focus, code, or terminal", async ({

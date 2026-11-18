@@ -12,26 +12,6 @@ import { activeHostId, store, stored } from "../../platform/storage";
 const GitDeviceClassSchema = z.enum(["desktop", "compact", "tablet", "phone"]);
 export type GitDeviceClass = z.infer<typeof GitDeviceClassSchema>;
 
-const GitDeviceLayoutSchema = z.object({
-  showBranchesPanel: z.boolean(),
-  showAuthorColumn: z.boolean(),
-  branchTreeWidth: z.number().min(180).max(360).default(240),
-  diffHeight: z.number().min(140).max(640).default(280),
-  diffCollapsed: z.boolean().default(false),
-  logThreePaneSizes: z.tuple([z.number(), z.number(), z.number()]),
-  logTwoPaneSizes: z.tuple([z.number(), z.number()]),
-  commitPaneSizes: z.tuple([z.number(), z.number()]),
-});
-export type GitDeviceLayout = z.infer<typeof GitDeviceLayoutSchema>;
-
-const GitLayoutMapSchema = z.object({
-  desktop: GitDeviceLayoutSchema.optional(),
-  compact: GitDeviceLayoutSchema.optional(),
-  tablet: GitDeviceLayoutSchema.optional(),
-  phone: GitDeviceLayoutSchema.optional(),
-});
-type GitLayoutMap = z.infer<typeof GitLayoutMapSchema>;
-
 const GitTargetMemorySchema = z.object({
   mode: GitWorkbenchModeSchema,
   scope: GitHistoryScopeSchema,
@@ -61,7 +41,6 @@ const GitTargetMemoryMapSchema = z.record(
   GitTargetMemorySchema,
 );
 
-const LAYOUT_STORAGE_KEY = "gitWorkbenchLayout";
 const MEMORY_STORAGE_KEY = "gitWorkbenchState";
 const MAX_STORED_TARGETS = 24;
 
@@ -75,10 +54,7 @@ export function clearGitWorkbenchMemoryCache(): void {
 
 export interface GitPaneScrollCallbacks {
   listScrollTop?: number;
-  diffScrollTop?: number;
-  onResetLayout?: () => void;
   onListScrollChange?: (top: number) => void;
-  onDiffScrollChange?: (top: number) => void;
 }
 
 export function syncElementScrollTop(
@@ -95,107 +71,6 @@ export function resolveGitDeviceClass(width: number): GitDeviceClass {
   if (width >= 1024) return "compact";
   if (width >= 640) return "tablet";
   return "phone";
-}
-
-function defaultGitDeviceLayout(deviceClass: GitDeviceClass): GitDeviceLayout {
-  switch (deviceClass) {
-    case "desktop":
-      return {
-        showBranchesPanel: true,
-        showAuthorColumn: true,
-        branchTreeWidth: 240,
-        diffHeight: 280,
-        diffCollapsed: false,
-        logThreePaneSizes: [20, 46, 34],
-        logTwoPaneSizes: [60, 40],
-        commitPaneSizes: [40, 60],
-      };
-    case "compact":
-      return {
-        showBranchesPanel: false,
-        showAuthorColumn: true,
-        branchTreeWidth: 240,
-        diffHeight: 260,
-        diffCollapsed: false,
-        logThreePaneSizes: [22, 44, 34],
-        logTwoPaneSizes: [56, 44],
-        commitPaneSizes: [42, 58],
-      };
-    case "tablet":
-      return {
-        showBranchesPanel: false,
-        showAuthorColumn: true,
-        branchTreeWidth: 240,
-        diffHeight: 240,
-        diffCollapsed: false,
-        logThreePaneSizes: [22, 44, 34],
-        logTwoPaneSizes: [56, 44],
-        commitPaneSizes: [44, 56],
-      };
-    case "phone":
-      return {
-        showBranchesPanel: false,
-        showAuthorColumn: false,
-        branchTreeWidth: 240,
-        diffHeight: 240,
-        diffCollapsed: false,
-        logThreePaneSizes: [20, 46, 34],
-        logTwoPaneSizes: [60, 40],
-        commitPaneSizes: [40, 60],
-      };
-  }
-}
-
-function readLayoutMap(): GitLayoutMap {
-  const raw = stored(LAYOUT_STORAGE_KEY, "");
-  if (!raw) return {};
-  try {
-    return GitLayoutMapSchema.safeParse(JSON.parse(raw)).data ?? {};
-  } catch {
-    return {};
-  }
-}
-
-export function readGitDeviceLayout(
-  deviceClass: GitDeviceClass,
-): GitDeviceLayout {
-  const map = readLayoutMap();
-  return map[deviceClass] ?? defaultGitDeviceLayout(deviceClass);
-}
-
-export function writeGitDeviceLayout(
-  deviceClass: GitDeviceClass,
-  patch: Partial<GitDeviceLayout>,
-): GitDeviceLayout {
-  const map = readLayoutMap();
-  const base = map[deviceClass] ?? defaultGitDeviceLayout(deviceClass);
-  const next: GitDeviceLayout = {
-    ...base,
-    ...patch,
-  };
-  const validated =
-    GitDeviceLayoutSchema.safeParse(next).data ??
-    defaultGitDeviceLayout(deviceClass);
-  const updated: GitLayoutMap = {
-    ...map,
-    [deviceClass]: validated,
-  };
-  store(LAYOUT_STORAGE_KEY, JSON.stringify(updated));
-  return validated;
-}
-
-export function resetGitDeviceLayout(
-  deviceClass: GitDeviceClass,
-): GitDeviceLayout {
-  const fallback = defaultGitDeviceLayout(deviceClass);
-  const map = readLayoutMap();
-  delete map[deviceClass];
-  if (Object.keys(map).length === 0) {
-    store(LAYOUT_STORAGE_KEY, null);
-  } else {
-    store(LAYOUT_STORAGE_KEY, JSON.stringify(map));
-  }
-  return fallback;
 }
 
 function gitTargetKey(repositoryId: string, worktreeId?: string): string {

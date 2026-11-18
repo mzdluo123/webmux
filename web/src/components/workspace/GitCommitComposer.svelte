@@ -1,7 +1,9 @@
 <script lang="ts" module>
+  import type { GitWorktreeContext } from "../../contracts/git-workbench-schemas";
+  import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
   import type { GitAmendDraftPrompt } from "../../hooks/workspace/git-commit-options.svelte";
 
-  export interface GitCommitComposerCallbacks {
+  export interface GitCommitComposerProps {
     onCommitMessageChange: (msg: string) => void;
     onOpenCommitPreview: (followUpPush: boolean) => void;
     onOpenPush?: () => void;
@@ -14,6 +16,23 @@
     onResolveAmendDraft?: (choice: "replace" | "merge" | "keep") => void;
     onCommitAuthorOverrideChange?: (value: string) => void;
     onToggleCommitSignoff?: (checked: boolean) => void;
+    context: GitWorktreeContext;
+    stagedCount: number;
+    conflictedCount?: number;
+    commitMessage: string;
+    readonlyMode?: boolean;
+    busy?: boolean;
+    uncertainBlocked?: boolean;
+    draftSaving?: boolean;
+    draftRevision?: number;
+    draftConflict?: GitCommitDraftConflictState | null;
+    canAssistCommitDraft?: boolean;
+    commitAmend?: boolean;
+    commitAmendPushed?: boolean;
+    commitAuthorOverride?: string;
+    commitSignoff?: boolean;
+    commitSignoffTrailer?: string;
+    amendDraftPrompt?: GitAmendDraftPrompt | null;
   }
 </script>
 
@@ -27,8 +46,6 @@
   import { Input } from "$lib/components/ui/input";
   import { Textarea } from "$lib/components/ui/textarea";
   import { m } from "$lib/paraglide/messages.js";
-  import type { GitWorktreeContext } from "../../contracts/git-workbench-schemas";
-  import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
   import { validateAuthorOverrideInput } from "../../domains/workspace/git-v2-adapter";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitCommitAdvancedOptions from "./GitCommitAdvancedOptions.svelte";
@@ -64,25 +81,7 @@
     onResolveAmendDraft,
     onCommitAuthorOverrideChange,
     onToggleCommitSignoff,
-  }: GitCommitComposerCallbacks & {
-    context: GitWorktreeContext;
-    stagedCount: number;
-    conflictedCount?: number;
-    commitMessage: string;
-    readonlyMode?: boolean;
-    busy?: boolean;
-    uncertainBlocked?: boolean;
-    draftSaving?: boolean;
-    draftRevision?: number;
-    draftConflict?: GitCommitDraftConflictState | null;
-    canAssistCommitDraft?: boolean;
-    commitAmend?: boolean;
-    commitAmendPushed?: boolean;
-    commitAuthorOverride?: string;
-    commitSignoff?: boolean;
-    commitSignoffTrailer?: string;
-    amendDraftPrompt?: GitAmendDraftPrompt | null;
-  } = $props();
+  }: GitCommitComposerProps = $props();
 
   const parsed = $derived.by(() => {
     const idx = commitMessage.indexOf("\n");

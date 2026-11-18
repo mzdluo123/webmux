@@ -30,6 +30,7 @@
 </script>
 
 <GitLogPane
+  storageKey="git.fixture.log"
   context={view.context}
   historyState={view.historyState}
   historyReason={view.historyReason}

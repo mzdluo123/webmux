@@ -11,7 +11,6 @@
     Worktree,
   } from "../../contracts/schemas";
   import type { GitSharedBranchActionKind } from "../../domains/workspace/git-branches-model";
-  import type { GitDeviceLayout } from "../../domains/workspace/git-workbench-memory";
   import type { createGitWorkbenchController } from "../../hooks/workspace/git-workbench-controller.svelte";
   import GitBranchesPane from "./GitBranchesPane.svelte";
   import GitCommitPane from "./GitCommitPane.svelte";
@@ -32,10 +31,7 @@
     returnSession,
     commitGuard,
     canAddRepository,
-    deviceLayout,
     hasActiveWorktreeSession = false,
-    onUpdateDeviceLayout,
-    onResetDeviceLayout,
     onAddRepository,
     onSelectRepository,
     onSwitchWorktree,
@@ -60,10 +56,7 @@
     returnSession?: SessionInfo;
     commitGuard: "pick-worktree" | "broken-worktree" | null;
     canAddRepository: boolean;
-    deviceLayout: GitDeviceLayout;
     hasActiveWorktreeSession?: boolean;
-    onUpdateDeviceLayout: (patch: Partial<GitDeviceLayout>) => void;
-    onResetDeviceLayout: () => void;
     onAddRepository: () => void;
     onSelectRepository: (repoId: string) => void;
     onSwitchWorktree: (wtId?: string, forceMode?: GitWorkbenchMode) => void;
@@ -187,27 +180,8 @@
           branches={controller.view.branches}
           checkedOutBranch={controller.view.context.checkedOutBranch}
           logDiff={controller.logDiff}
-          preferredShowBranches={deviceLayout.showBranchesPanel}
-          branchTreeWidth={deviceLayout.branchTreeWidth}
-          diffHeight={deviceLayout.diffHeight}
-          diffCollapsed={deviceLayout.diffCollapsed}
-          showAuthorColumn={deviceLayout.showAuthorColumn}
-          twoPaneSizes={deviceLayout.logTwoPaneSizes}
           listScrollTop={controller.scrollOffsets.logList}
-          diffScrollTop={controller.scrollOffsets.logDiff}
-          onShowBranchesChange={(showBranchesPanel) =>
-            onUpdateDeviceLayout({ showBranchesPanel })}
-          onBranchTreeWidthChange={(branchTreeWidth) =>
-            onUpdateDeviceLayout({ branchTreeWidth })}
-          onDiffHeightChange={(diffHeight) =>
-            onUpdateDeviceLayout({ diffHeight })}
-          onDiffCollapsedChange={(diffCollapsed) =>
-            onUpdateDeviceLayout({ diffCollapsed })}
-          onTwoPaneSizesChange={(logTwoPaneSizes) =>
-            onUpdateDeviceLayout({ logTwoPaneSizes })}
-          onResetLayout={onResetDeviceLayout}
           onListScrollChange={(top) => controller.setScroll("logList", top)}
-          onDiffScrollChange={(top) => controller.setScroll("logDiff", top)}
           onScopeChange={(scope) => controller.setScope(scope)}
           onBranchFilterChange={(branch) =>
             controller.setBranchFilter(branch, repository, worktree, sessions)}
@@ -318,16 +292,9 @@
             activeSessionCount={activeWorktreeSessions.length}
             exitedSessionCount={exitedWorktreeSessions.length}
             archivedSessionCount={archivedWorktreeCount}
-            paneSizes={deviceLayout.commitPaneSizes}
             listScrollTop={controller.scrollOffsets.commitList}
-            diffScrollTop={controller.scrollOffsets.commitDiff}
-            onPaneSizesChange={(commitPaneSizes) =>
-              onUpdateDeviceLayout({ commitPaneSizes })}
-            onResetLayout={onResetDeviceLayout}
             onListScrollChange={(top) =>
               controller.setScroll("commitList", top)}
-            onDiffScrollChange={(top) =>
-              controller.setScroll("commitDiff", top)}
             onReviewScopeChange={(s) => controller.taskReview.setReviewScope(s)}
             onSelectChange={(id) => controller.selectChange(id)}
             onToggleReviewed={(change) => controller.toggleReviewed(change)}

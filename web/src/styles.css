@@ -279,19 +279,6 @@
   overflow: visible;
   padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
-.terminal-page[data-document-scroll="true"] .split-workspace,
-.terminal-page[data-document-scroll="true"] .split-terminal {
-  position: relative;
-  left: auto;
-  top: auto;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  width: 100%;
-  height: auto;
-  min-height: 0;
-  overflow: visible;
-}
 .terminal-page[data-document-scroll="true"] .terminal-header {
   position: sticky;
   top: 0;
@@ -300,7 +287,6 @@
   min-height: calc(var(--app-header-height) + env(safe-area-inset-top));
 }
 .terminal-page[data-document-scroll="true"] .session-terminal,
-.terminal-page[data-document-scroll="true"] .terminal-workspace,
 .terminal-page[data-document-scroll="true"] .terminal-column,
 .terminal-page[data-document-scroll="true"] [data-pane-group],
 .terminal-page[data-document-scroll="true"] [data-pane],
@@ -532,19 +518,24 @@
     display: none;
   }
 }
-.terminal-workspace {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
 .terminal-column {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-width: 0;
   min-height: 0;
+}
+.split-terminal:focus-within {
+  outline: 1px solid var(--ring);
+  outline-offset: -1px;
+}
+[data-dock-panel],
+[data-dock-preview] {
+  position: absolute;
+  inset-inline-start: var(--dock-x);
+  inset-block-start: var(--dock-y);
+  inline-size: var(--dock-w);
+  block-size: var(--dock-h);
 }
 /* A locked terminal keeps its grid while the host changes (soft keyboard,
    browser chrome, rotation, draft pane or window). Like the observer layout,
@@ -580,29 +571,6 @@
   top: auto !important;
   bottom: 0 !important;
 }
-.terminal-pane,
-.code-pane,
-.git-pane {
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-.git-divider {
-  background: var(--border);
-  touch-action: none;
-}
-.git-branch-tree-pane {
-  width: var(--git-branch-tree-width, 240px);
-  min-width: 180px;
-  max-width: min(360px, 40%);
-  flex-shrink: 0;
-}
-.git-log-diff-dock {
-  height: var(--git-log-diff-height, 280px);
-  min-height: 140px;
-  max-height: 68%;
-  flex-shrink: 0;
-}
 /* Shared horizontal counterpart to the code navigation divider. */
 .code-row-divider {
   position: relative;
@@ -636,49 +604,6 @@
     scrollbar-color: var(--muted-foreground) var(--card);
   }
 }
-.terminal-workspace:not(.code-shown) .terminal-pane {
-  flex: 1 !important;
-}
-.terminal-workspace:not(.code-shown) .code-pane,
-.terminal-workspace:not(.code-shown) .code-divider {
-  display: none !important;
-}
-.code-divider {
-  width: 1px !important;
-  touch-action: none;
-}
-/* The line is 1px; the handle's ::after is the grab area around it. */
-@media (pointer: coarse) {
-  .code-divider::after {
-    width: 1.5rem !important;
-  }
-}
-.terminal-workspace.compact .code-divider {
-  display: none !important;
-}
-.terminal-workspace.compact .terminal-pane {
-  flex: 1 !important;
-}
-.terminal-workspace.mobile-code .terminal-pane {
-  display: none !important;
-}
-.terminal-workspace.mobile-code .code-pane {
-  flex: 1 !important;
-}
-.session-terminal:has(.terminal-workspace.mobile-code) .quick-commands-header {
-  display: none;
-}
-@container terminal-pane (max-width: 1023px) {
-  .code-navigation {
-    @apply code-overlay-navigation;
-  }
-  .code-inner {
-    position: relative;
-  }
-  .code-nav-divider {
-    display: none;
-  }
-}
 .code-navigation {
   width: var(--code-nav-width, 180px);
   max-width: calc(100% - 160px);
@@ -698,12 +623,6 @@
   outline: none;
 }
 @media (max-width: 1023px) {
-  .code-divider {
-    display: none !important;
-  }
-  .terminal-workspace .terminal-pane {
-    flex: 1 !important;
-  }
   .code-inner {
     position: relative;
   }

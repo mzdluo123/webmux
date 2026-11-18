@@ -572,7 +572,9 @@ test("inspects --follow file history across rename, line-level Blame with parent
   await runCommand(page, "printf 'blame-shell-ready\\n'");
   await expectTerminalLine(page, "blame-shell-ready");
   await toggleCode(page);
-  await expect(page.getByRole("region", { name: "代码工作区" })).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "文件树", exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: /^core-service\.ts(?: |$)/ }).click();
   await expect(
     page.getByTestId("code-git-file-inspector-trigger"),

@@ -1,8 +1,6 @@
 <script lang="ts">
   import type { SelectedLineRange } from "@pierre/diffs";
   import IconArrowLeft from "~icons/tabler/arrow-left";
-  import IconChevronDown from "~icons/tabler/chevron-down";
-  import IconChevronUp from "~icons/tabler/chevron-up";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { m } from "$lib/paraglide/messages.js";
@@ -28,11 +26,9 @@
     fallbackRightLabel = "",
     backLabel: rawBackLabel,
     presentation = "docked",
-    collapsed = false,
     isTaskScope = false,
     liveWorktreeIdentity,
     onAddReworkItem,
-    onToggleCollapsed,
     onBack,
   }: {
     logDiff?: GitDiffPanelReader;
@@ -41,14 +37,12 @@
     fallbackRightLabel?: string;
     backLabel?: string;
     presentation?: "docked" | "mobile";
-    collapsed?: boolean;
     isTaskScope?: boolean;
     liveWorktreeIdentity?: string;
     onAddReworkItem?: (
       input: Parameters<typeof createReworkDraftItem>[0],
       options?: { openSheet?: boolean },
     ) => void;
-    onToggleCollapsed?: () => void;
     onBack?: () => void;
   } = $props();
 
@@ -196,72 +190,43 @@
     </header>
   {:else}
     <GitPanelToolbar as="header">
-      <div
-        class="flex min-w-[15rem] flex-1 items-center gap-1.5 overflow-hidden"
-      >
+      <div class="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
         {@render fileIdentitySummary()}
       </div>
-
-      {#if onToggleCollapsed}
-        <div class="flex shrink-0 items-center gap-1.5">
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-expanded={!collapsed}
-            aria-label={collapsed
-              ? m.s6_log_diff_expand_dock()
-              : m.s6_log_diff_collapse_dock()}
-            title={collapsed
-              ? m.s6_log_diff_expand_dock()
-              : m.s6_log_diff_collapse_dock()}
-            onclick={onToggleCollapsed}
-          >
-            {#if collapsed}
-              <IconChevronUp aria-hidden="true" />
-            {:else}
-              <IconChevronDown aria-hidden="true" />
-            {/if}
-          </Button>
-        </div>
-      {/if}
     </GitPanelToolbar>
   {/if}
 
-  {#if !collapsed}
-    <GitDiffSelectionBar
-      selection={resolvedSelection}
-      {onAddReworkItem}
-      onClear={clearLogSelection}
-    />
+  <GitDiffSelectionBar
+    selection={resolvedSelection}
+    {onAddReworkItem}
+    onClear={clearLogSelection}
+  />
 
-    <div
-      class="code-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-    >
-      {#if phase === "ready" && activeFileDiff && filePath}
-        {#key activeFileDiff.cacheKey ?? `${leftEndpoint}:${rightEndpoint}:${filePath}`}
-          <CodeDiffReader
-            bind:this={readerRef}
-            fileDiff={activeFileDiff}
-            side={fileStatus === "D" ? "old" : "new"}
-            expired={false}
-            draftEnabled={false}
-            preferredDiffStyle={effectiveDiffStyle}
-            onselect={(range) => {
-              selectionSlot = range ? { key: selectionKey, range } : null;
-            }}
-          />
-        {/key}
-      {:else}
-        <GitLogDiffFallbackView
-          phase={!filePath && phase !== "loading"
-            ? "idle"
-            : phase === "ready"
-              ? "idle"
-              : phase}
-          reason={activeReason}
-          {logDiff}
+  <div class="code-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    {#if phase === "ready" && activeFileDiff && filePath}
+      {#key activeFileDiff.cacheKey ?? `${leftEndpoint}:${rightEndpoint}:${filePath}`}
+        <CodeDiffReader
+          bind:this={readerRef}
+          fileDiff={activeFileDiff}
+          side={fileStatus === "D" ? "old" : "new"}
+          expired={false}
+          draftEnabled={false}
+          preferredDiffStyle={effectiveDiffStyle}
+          onselect={(range) => {
+            selectionSlot = range ? { key: selectionKey, range } : null;
+          }}
         />
-      {/if}
-    </div>
-  {/if}
+      {/key}
+    {:else}
+      <GitLogDiffFallbackView
+        phase={!filePath && phase !== "loading"
+          ? "idle"
+          : phase === "ready"
+            ? "idle"
+            : phase}
+        reason={activeReason}
+        {logDiff}
+      />
+    {/if}
+  </div>
 </section>

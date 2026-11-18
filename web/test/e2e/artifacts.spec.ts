@@ -6,8 +6,8 @@ import {
   createShell,
   headerAction,
   recordInput,
-  toggleCode,
 } from "./fixtures";
+import { codeReader, showFileTree } from "./code-dock";
 
 const quick = (page: Page) =>
   page.getByRole("button", { name: "快捷指令", exact: true });
@@ -39,23 +39,22 @@ test("uploads land in the session folder the code panel browses", async ({
   );
   expect(path.startsWith(workDir)).toBe(false);
 
-  await toggleCode(page);
-  const code = page.getByRole("region", { name: "代码工作区" });
-  await expect(code).toBeVisible();
-  await code.getByRole("tab", { name: "临时文件夹", exact: true }).click();
+  const files = await showFileTree(page);
+  const code = codeReader(page);
+  await files.getByRole("tab", { name: "临时文件夹", exact: true }).click();
   await expect(
-    code.getByRole("tab", { name: "修改", exact: true }),
+    files.getByRole("tab", { name: "修改", exact: true }),
   ).toHaveCount(0);
-  await code.getByRole("button", { name: "uploads", exact: true }).click();
-  await code.getByRole("button", { name: "shot.txt", exact: true }).click();
+  await files.getByRole("button", { name: "uploads", exact: true }).click();
+  await files.getByRole("button", { name: "shot.txt", exact: true }).click();
   await expect(code.getByText("ARTIFACT_CONTENT")).toBeVisible();
   await expect(
     code.getByRole("button", { name: "查看 Diff", exact: true }),
   ).toHaveCount(0);
 
-  await code.getByRole("tab", { name: "工作区", exact: true }).click();
+  await files.getByRole("tab", { name: "工作区", exact: true }).click();
   await expect(
-    code.getByRole("tab", { name: "修改", exact: true }),
+    files.getByRole("tab", { name: "修改", exact: true }),
   ).toBeVisible();
 });
 

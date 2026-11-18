@@ -6,9 +6,11 @@ import {
   test,
   expect,
   createShell,
+  closePanelPicker,
   toggleCode,
   openSplitPanel,
 } from "./fixtures";
+import { codeReader, fileTree } from "./code-dock";
 
 function git(root: string, ...args: string[]) {
   execFileSync("git", ["-C", root, ...args], {
@@ -53,9 +55,9 @@ async function expectOneRow(row: Locator) {
 }
 
 async function openDiff(page: Page) {
-  // The navigator starts open at every width.
-  await page.getByRole("tab", { name: "修改", exact: true }).click();
-  await page
+  const files = fileTree(page);
+  await files.getByRole("tab", { name: "修改", exact: true }).click();
+  await files
     .getByRole("button", { name: "修改 code.txt", exact: true })
     .first()
     .click();
@@ -96,14 +98,14 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
       await expect(
         header(page).getByRole("button", { name: "打开侧栏" }),
       ).toBeVisible();
-      // Code opens over the terminal; quick commands stay out of the header.
+      // The file tree replaces the terminal without opening a document.
       if (codeOpen)
         await expect(
           header(page).getByRole("button", { name: "快捷指令" }),
         ).toBeHidden();
-      const code = page.getByRole("region", { name: "代码工作区" });
-      if (codeOpen) await expect(code).toBeVisible();
-      else await expect(code).toBeHidden();
+      if (codeOpen) await expect(fileTree(page)).toBeVisible();
+      else await expect(fileTree(page)).toBeHidden();
+      await expect(codeReader(page)).toBeHidden();
       await toggleCode(page);
     }
   }
@@ -119,12 +121,11 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
   }
   await openSplitPanel(header(page));
   await expect(
-    page.getByRole("button", { name: "新建会话…", exact: true }),
+    page
+      .getByRole("dialog", { name: "打开面板", exact: true })
+      .getByRole("button", { name: "新建会话…", exact: true }),
   ).toBeVisible();
-  await page
-    .getByRole("region", { name: "侧栏面板", exact: true })
-    .getByRole("button", { name: "关闭侧栏面板", exact: true })
-    .click();
+  await closePanelPicker(page);
   await header(page)
     .getByRole("button", { name: "终端菜单", exact: true })
     .click();
@@ -214,8 +215,7 @@ test("wide headers keep every action and the code workspace stays on single rows
   ).toBeVisible();
   await toggleCode(page);
   await openDiff(page);
-  const panel = page.getByRole("region", { name: "代码工作区" });
-  await expect(panel.getByRole("navigation")).toContainText(workDir);
+  await expect(fileTree(page).getByRole("navigation")).toContainText(workDir);
   const tabs = page.getByRole("tablist", { name: "文件标签" });
   const center = async (locator: Locator) => {
     const box = (await locator.boundingBox())!;

@@ -4,28 +4,14 @@
     GitWorkingChange,
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
-  import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
-  import type { GitAmendDraftPrompt } from "../../hooks/workspace/git-commit-options.svelte";
   import type { GitFileInspectorTab } from "../../hooks/workspace/git-file-inspector-controller.svelte";
-  import type { GitCommitComposerCallbacks } from "./GitCommitComposer.svelte";
 
-  export interface GitUncommittedChangesSharedProps extends GitCommitComposerCallbacks {
+  export interface GitUncommittedChangesProps {
     context: GitWorktreeContext;
     changes: readonly GitWorkingChange[];
     reviewedPaths: readonly string[];
-    commitMessage: string;
     taskReview?: GitTaskReviewState;
     stagingBusy?: boolean;
-    uncertainBlocked?: boolean;
-    draftSaving?: boolean;
-    draftRevision?: number;
-    draftConflict?: GitCommitDraftConflictState | null;
-    commitAmend?: boolean;
-    commitAmendPushed?: boolean;
-    commitAuthorOverride?: string;
-    commitSignoff?: boolean;
-    commitSignoffTrailer?: string;
-    amendDraftPrompt?: GitAmendDraftPrompt | null;
     hasActiveWorktreeSession?: boolean;
     activeSessionCount?: number;
     exitedSessionCount?: number;
@@ -44,6 +30,7 @@
     ) => void;
     onRefreshSnapshot?: () => void;
     onOpenStashCreate?: (includeUntracked?: boolean) => void;
+    onOpenPush?: () => void;
     onInspectFile?: (path: string, tab: GitFileInspectorTab) => void;
     onOpenConflictResolver?: (path?: string) => void;
     onOpenWorktreeTerminal?: () => void;
@@ -71,7 +58,6 @@
     isChangeReviewed,
   } from "../../domains/workspace/git-workbench-state";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
-  import GitCommitComposer from "./GitCommitComposer.svelte";
   import GitConflictTerminalNotice from "./GitConflictTerminalNotice.svelte";
   import GitDiscardBatchBar from "./GitDiscardBatchBar.svelte";
   import GitPanelToolbar from "./GitPanelToolbar.svelte";
@@ -83,26 +69,16 @@
     changes,
     activeChange,
     reviewedPaths,
-    commitMessage,
     taskReview,
     readonlyMode = false,
     stagingBusy = false,
-    uncertainBlocked = false,
-    draftSaving = false,
-    draftRevision = 0,
-    draftConflict = null,
-    commitAmend = false,
-    commitAmendPushed = false,
-    commitAuthorOverride = "",
-    commitSignoff = false,
-    commitSignoffTrailer = "",
-    amendDraftPrompt = null,
     hasActiveWorktreeSession = false,
     activeSessionCount = 0,
     exitedSessionCount = 0,
     archivedSessionCount = 0,
     listScrollTop = 0,
     onListScrollChange,
+    composerTarget = $bindable(),
     onSwitchToTaskReview,
     onSelectChange,
     onToggleReviewed,
@@ -113,30 +89,20 @@
     onRefreshSnapshot,
     onOpenStashCreate,
     onInspectFile,
-    onCommitMessageChange,
-    onOpenCommitPreview,
     onOpenPush,
-    onCreateBranchFromHead,
-    onResolveDraftKeepLocal,
-    onResolveDraftAdoptRemote,
-    onResolveDraftMergeBoth,
-    onRequestCommitAssist,
-    onToggleCommitAmend,
-    onResolveAmendDraft,
-    onCommitAuthorOverrideChange,
-    onToggleCommitSignoff,
     onOpenConflictResolver,
     onOpenWorktreeTerminal,
     onNewWorktreeTerminal,
     onReturnSession,
     onArchiveSession,
     onRemoveWorktree,
-  }: GitUncommittedChangesSharedProps & {
+  }: GitUncommittedChangesProps & {
     activeChange: GitWorkingChange | null;
     readonlyMode?: boolean;
     listScrollTop?: number;
     onListScrollChange?: (top: number) => void;
     onSwitchToTaskReview?: () => void;
+    composerTarget?: HTMLDivElement;
   } = $props();
 
   let listScrollEl = $state<HTMLElement | null>(null);
@@ -445,35 +411,5 @@
     </div>
   </ScrollArea>
 
-  <GitCommitComposer
-    {context}
-    stagedCount={grouped.staged.length}
-    conflictedCount={grouped.conflicted.length}
-    {commitMessage}
-    {readonlyMode}
-    busy={stagingBusy}
-    {uncertainBlocked}
-    {draftSaving}
-    {draftRevision}
-    {draftConflict}
-    {commitAmend}
-    {commitAmendPushed}
-    {commitAuthorOverride}
-    {commitSignoff}
-    {commitSignoffTrailer}
-    {amendDraftPrompt}
-    canAssistCommitDraft={activeSessionCount > 0}
-    {onCommitMessageChange}
-    {onOpenCommitPreview}
-    {onOpenPush}
-    {onCreateBranchFromHead}
-    {onResolveDraftKeepLocal}
-    {onResolveDraftAdoptRemote}
-    {onResolveDraftMergeBoth}
-    {onRequestCommitAssist}
-    {onToggleCommitAmend}
-    {onResolveAmendDraft}
-    {onCommitAuthorOverrideChange}
-    {onToggleCommitSignoff}
-  />
+  <div class="contents" bind:this={composerTarget}></div>
 </section>
