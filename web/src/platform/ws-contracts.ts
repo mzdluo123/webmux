@@ -34,6 +34,8 @@ export interface SocketConnection {
   // Probes an OPEN socket via `resume` when none is in flight, replacing a
   // silent mobile connection after resumeTimeout.
   probe(): void;
+  // Clears a latched input-uncertainty flag after explicit user recovery/dismissal.
+  clearUncertainty(): void;
 }
 
 export interface ConnectOptions {

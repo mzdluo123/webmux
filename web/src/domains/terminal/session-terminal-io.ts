@@ -126,15 +126,14 @@ export function submitSessionDraft(
   }
 }
 
-const draftStorage = browserDraftStorage();
-
 export function savedStorageLabel(
   persisted: boolean,
   oversized: string,
 ): string {
-  return persisted && draftStorage.enabled
+  const enabled = browserDraftStorage().enabled;
+  return persisted && enabled
     ? m.s4_saved_locally()
-    : draftStorage.enabled
+    : enabled
       ? oversized
       : m.s4_saved_memory_only();
 }

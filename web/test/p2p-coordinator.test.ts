@@ -7,18 +7,27 @@ import {
   vi,
 } from "vite-plus/test";
 import type { NegotiatedSession } from "../src/platform/p2p-session";
-import { startP2P, stopP2P } from "../src/platform/p2p.svelte";
+import type { P2PStatus } from "../src/contracts/schemas";
+import type { ManagedStreamStatus } from "../src/platform/ws-contracts";
+import {
+  refreshP2PStatus,
+  startP2P,
+  stopP2P,
+} from "../src/platform/p2p.svelte";
 import { HYBRID_SAMPLE_INTERVAL_MS } from "../src/platform/p2p-framing";
 
 const mocks = vi.hoisted(() => ({
   owner: false,
+  streamListener: undefined as
+    | ((streams: ManagedStreamStatus[]) => void)
+    | undefined,
   state: {
     mode: "ws" as "ws" | "p2p",
     phase: "idle",
     reason: "",
     candidatePath: "unknown",
     switchCount: 0,
-    streams: [],
+    streams: [] as ManagedStreamStatus[],
     inputUncertain: false,
   },
   status: {
@@ -75,7 +84,15 @@ vi.mock("../src/platform/ws", () => ({
   handoffLiveSockets: mocks.handoff,
 }));
 vi.mock("../src/platform/ws-registry", () => ({
-  observeManagedStreams: () => () => {},
+  observeManagedStreams: (
+    listener: (streams: ManagedStreamStatus[]) => void,
+  ) => {
+    mocks.streamListener = listener;
+    listener(mocks.state.streams);
+    return () => {
+      if (mocks.streamListener === listener) mocks.streamListener = undefined;
+    };
+  },
 }));
 
 function createSession(path: NegotiatedSession["path"] = "webrtc-direct") {
@@ -142,6 +159,8 @@ beforeEach(() => {
     reason: "",
     candidatePath: "unknown",
     switchCount: 0,
+    streams: [],
+    inputUncertain: false,
   });
   mocks.baseline.mockReset().mockResolvedValue([1_000]);
   mocks.inspect.mockReset();
@@ -295,7 +314,13 @@ describe("paired application RTT live-stream migration", () => {
     await rounds();
     expect(mocks.state.mode).toBe("ws");
     expect(session.close).toHaveBeenCalledWith(true);
-    expect(mocks.handoff).toHaveBeenCalledExactlyOnceWith();
+    expect(mocks.handoff).toHaveBeenCalledExactlyOnceWith({
+      targetPath: "wss",
+      allowReconnect: true,
+    });
+    expect(session.close.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.handoff.mock.invocationCallOrder[0]!,
+    );
     await vi.advanceTimersByTimeAsync(HYBRID_SAMPLE_INTERVAL_MS - 1);
     expect(mocks.handoff).toHaveBeenCalledTimes(1);
   });
@@ -312,7 +337,10 @@ describe("paired application RTT live-stream migration", () => {
       });
       await rounds();
       expect(mocks.state.mode).toBe("ws");
-      expect(mocks.handoff).toHaveBeenCalledExactlyOnceWith();
+      expect(mocks.handoff).toHaveBeenCalledExactlyOnceWith({
+        targetPath: "wss",
+        allowReconnect: true,
+      });
       expect(session.close).toHaveBeenCalledWith(true);
     },
   );
@@ -328,7 +356,10 @@ describe("paired application RTT live-stream migration", () => {
     });
     await rounds();
     expect(mocks.state.mode).toBe("ws");
-    expect(mocks.handoff).toHaveBeenCalledExactlyOnceWith();
+    expect(mocks.handoff).toHaveBeenCalledExactlyOnceWith({
+      targetPath: "wss",
+      allowReconnect: true,
+    });
   });
 
   it("does not supplement an expired authorized session", async () => {
@@ -337,7 +368,138 @@ describe("paired application RTT live-stream migration", () => {
     session.expiresAt = Math.floor(Date.now() / 1_000);
     await rounds();
     expect(mocks.state.mode).toBe("ws");
-    expect(mocks.handoff).toHaveBeenCalledExactlyOnceWith();
+    expect(mocks.handoff).toHaveBeenCalledExactlyOnceWith({
+      targetPath: "wss",
+      allowReconnect: true,
+    });
+  });
+
+  it("drains active peer streams gracefully on standby_hysteresis before closing the peer session", async () => {
+    await start();
+    mocks.streamListener?.([
+      {
+        id: 1,
+        kind: "terminal",
+        path: "webrtc-direct",
+        state: "connected",
+        inputUncertain: false,
+      },
+    ]);
+    mocks.handoff.mockClear();
+    mocks.setTransport.mockClear();
+
+    // Degrade RTT across the 30s hysteresis cooldown window (6 * 5s rounds).
+    mocks.baseline.mockResolvedValue([80]);
+    session.sendPing.mockResolvedValue(120);
+    await rounds(6);
+
+    expect(mocks.state.mode).toBe("ws");
+    expect(mocks.state.phase).toBe("standby_hysteresis");
+    expect(mocks.setTransport).toHaveBeenCalledExactlyOnceWith(null);
+    expect(mocks.handoff).toHaveBeenCalledExactlyOnceWith({
+      targetPath: "wss",
+      allowReconnect: true,
+    });
+    // Peer session stays alive while stream 1 is still on `webrtc-direct`.
+    expect(session.close).not.toHaveBeenCalled();
+
+    // Once stream 1 finishes migrating to `wss`, the draining session closes immediately.
+    mocks.streamListener?.([
+      {
+        id: 1,
+        kind: "terminal",
+        path: "wss",
+        state: "connected",
+        inputUncertain: false,
+      },
+    ]);
+    expect(session.close).toHaveBeenCalledExactlyOnceWith(true);
+  });
+
+  it("drains gracefully when settings disable P2P on a healthy session and enforces the 10s drain ceiling", async () => {
+    await start();
+    mocks.streamListener?.([
+      {
+        id: 2,
+        kind: "terminal",
+        path: "webrtc-direct",
+        state: "connected",
+        inputUncertain: false,
+      },
+    ]);
+    mocks.handoff.mockClear();
+
+    refreshP2PStatus({
+      supported: true,
+      udpPort: 0,
+      udpBindings: [],
+      capabilities: { networks: [], iceMode: "full", turn: false },
+      enabled: false,
+      portMapping: false,
+      stunServers: [],
+      source: "web",
+      storageAvailable: true,
+      portMap: { state: "off" },
+      activePeers: 1,
+      peers: [],
+    } satisfies P2PStatus);
+
+    expect(mocks.state.mode).toBe("ws");
+    expect(mocks.state.phase).toBe("disabled");
+    expect(mocks.handoff).toHaveBeenCalledExactlyOnceWith({
+      targetPath: "wss",
+      allowReconnect: true,
+    });
+    expect(session.close).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(session.close).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(session.close).toHaveBeenCalledExactlyOnceWith(true);
+  });
+
+  it("re-hands off live peer streams when a network change interrupts an active graceful drain", async () => {
+    const netConnection = new EventTarget();
+    vi.stubGlobal("navigator", { connection: netConnection });
+    await start();
+    mocks.streamListener?.([
+      {
+        id: 1,
+        kind: "terminal",
+        path: "webrtc-direct",
+        state: "connected",
+        inputUncertain: false,
+      },
+      {
+        id: 2,
+        kind: "other",
+        path: "webrtc-direct",
+        state: "connected",
+        inputUncertain: false,
+      },
+    ]);
+    mocks.handoff.mockClear();
+
+    // Enter graceful drain via standby_hysteresis; p2pState.mode is now "ws".
+    mocks.baseline.mockResolvedValue([80]);
+    session.sendPing.mockResolvedValue(120);
+    await rounds(6);
+    expect(mocks.state.mode).toBe("ws");
+    expect(session.close).not.toHaveBeenCalled();
+    expect(mocks.handoff).toHaveBeenCalledExactlyOnceWith({
+      targetPath: "wss",
+      allowReconnect: true,
+    });
+    mocks.handoff.mockClear();
+
+    // Ungraceful network change arrives mid-drain while p2pState.mode is already "ws".
+    netConnection.dispatchEvent(new Event("change"));
+
+    expect(session.close).toHaveBeenCalledExactlyOnceWith(true);
+    expect(mocks.handoff).toHaveBeenCalledExactlyOnceWith({
+      targetPath: "wss",
+      allowReconnect: true,
+    });
   });
 
   it.each([false, true])(

@@ -40,12 +40,19 @@ export function useP2PSettings() {
   function schedulePortMapPoll(next: P2PStatus | undefined) {
     clearTimeout(pollTimer);
     if (next?.portMap.state === "probing" && !requests.disposed) {
-      pollTimer = setTimeout(() => void refresh(), PORTMAP_POLL_MS);
+      pollTimer = setTimeout(() => {
+        if (document.hidden) {
+          schedulePortMapPoll(ui.status);
+          return;
+        }
+        void refresh();
+      }, PORTMAP_POLL_MS);
     }
   }
 
   async function refresh() {
     if (ui.saving || requests.disposed) return;
+    clearTimeout(pollTimer);
     const ticket = requests.begin();
     try {
       const next = await api(
@@ -60,10 +67,11 @@ export function useP2PSettings() {
       ui.status = next;
       if (!mutationFailed) ui.failure = "";
       refreshP2PStatus(next);
-      schedulePortMapPoll(next);
     } catch (cause) {
       if (ticket.reportable() && !mutationFailed)
         ui.failure = errorMessage(cause);
+    } finally {
+      if (ticket.current()) schedulePortMapPoll(ui.status);
     }
   }
 
@@ -86,12 +94,12 @@ export function useP2PSettings() {
         payload,
         ticket.signal,
       );
-      if (requests.disposed) return false;
+      if (!ticket.current()) return false;
       ui.status = next;
       ui.revision++;
       refreshP2PAfterSettingsChange(next);
       await requestFeatureHostRefresh();
-      if (requests.disposed) return false;
+      if (!ticket.current()) return false;
       ui.feedback =
         method === "DELETE"
           ? m.s2_p2p_feedback_reset()
@@ -104,7 +112,7 @@ export function useP2PSettings() {
       }
       return false;
     } finally {
-      if (!requests.disposed) {
+      if (ticket.current()) {
         ui.saving = false;
         schedulePortMapPoll(ui.status);
       }
@@ -112,8 +120,19 @@ export function useP2PSettings() {
   }
 
   onMount(() => {
-    void refresh();
+    const handleVisibility = () => {
+      if (
+        !document.hidden &&
+        !requests.disposed &&
+        (!ui.status || ui.status.portMap.state === "probing")
+      ) {
+        void refresh();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    if (!document.hidden) void refresh();
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
       requests.dispose();
       clearTimeout(pollTimer);
     };

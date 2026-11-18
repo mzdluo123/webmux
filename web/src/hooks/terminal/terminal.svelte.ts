@@ -453,6 +453,7 @@ export function useTerminal(
       clearFind();
       terminal?.clear();
     },
+    dismissError: stream.dismissError,
     resync: stream.resync,
     reconnect: stream.reconnect,
     fit: safeFit,

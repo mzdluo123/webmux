@@ -54,7 +54,7 @@
   } from "./hooks/shared/route";
   import { openSession } from "./hooks/shared/shell.svelte";
   import { createTerminalDrafts } from "./domains/terminal/terminal-draft.svelte";
-  import { browserDraftStorage } from "./domains/terminal/draft-storage";
+  import { activeBrowserDraftStorage } from "./domains/terminal/draft-storage";
   import { clearHomeCache } from "./domains/workspace/home-cache";
   import { sessionPins } from "./domains/sessions/session-pins.svelte";
   import {
@@ -91,7 +91,7 @@
 
   const focusRoute = useRouteFocus();
 
-  const drafts = createTerminalDrafts({ storage: browserDraftStorage() });
+  const drafts = createTerminalDrafts({ storage: activeBrowserDraftStorage() });
   let uploadNotice = $state("");
 
   let path = $state(location.pathname);

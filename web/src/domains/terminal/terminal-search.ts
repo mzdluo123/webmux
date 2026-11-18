@@ -178,6 +178,7 @@ export interface TerminalController {
   // Toggles the soft keyboard; `beforeOpen` runs just before focusing.
   keyboard(beforeOpen?: (target: HTMLElement) => void): void;
   clear(): void;
+  dismissError(): void;
   resync(): void;
   // Reattaches after the session moved back to its terminal side.
   reconnect(): void;

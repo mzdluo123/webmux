@@ -1,10 +1,12 @@
 // Send-queue backpressure, PTY geometry, control, device replies, session
 // frames, submissions and invalid server frames.
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
 import type { SubmissionProgress } from "../../src/contracts/schemas";
 import { resetBrowserChrome } from "../../src/platform/browser-chrome";
+import { startP2P, stopP2P } from "../../src/platform/p2p.svelte";
+import { p2pState } from "../../src/platform/p2p-state.svelte";
 import Harness from "./TerminalHarness.svelte";
 import { initializeLocale, locale } from "../../src/lib/locale";
 import { m } from "$lib/paraglide/messages.js";
@@ -873,4 +875,160 @@ test("DEC 1003 pointer hover stays on the reply lane without claiming control, c
   // Dropping after hover-only traffic never reports unconfirmed user input.
   socket.drop();
   expect(api.error).toBe("");
+});
+
+test("acknowledged input stays certain across disconnect and 4409, and 4410 exit suppresses uncertainty", async () => {
+  observeGlyphPixels(true);
+  const { socket: first, api } = await openTerminalApi();
+  first.answerMissingQueries = true;
+  const banner = page.getByRole("status", { name: "Terminal error" });
+
+  await page.getByRole("button", { name: "Focus terminal input" }).click();
+  await userEvent.keyboard("ls");
+  await expect.poll(() => inputText(first)).toBe("ls");
+  // Wait for the microtask `0x05` `missing` receipt delivered by answerMissingQueries.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  first.drop();
+  await expect.element(banner).toHaveTextContent("");
+  const second = await reconnected(2);
+  second.answerMissingQueries = true;
+  second.open();
+  second.receive(1, snapshot);
+  second.grantControl();
+  await expect
+    .element(page.getByRole("status", { name: "Terminal restoration" }))
+    .toHaveTextContent("ready");
+
+  await page.getByRole("button", { name: "Focus terminal input" }).click();
+  await userEvent.keyboard("pwd");
+  await expect.poll(() => inputText(second)).toBe("pwd");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  second.drop(4409);
+  await expect
+    .element(page.getByRole("status", { name: "Terminal connection" }))
+    .toHaveTextContent("moved");
+  await expect.element(banner).toHaveTextContent("");
+
+  api.reconnect();
+  const third = await reconnected(3);
+  third.open();
+  third.receive(1, snapshot);
+  third.grantControl();
+  await expect
+    .element(page.getByRole("status", { name: "Terminal restoration" }))
+    .toHaveTextContent("ready");
+
+  // Unacknowledged `exit` followed immediately by `4410` clean session exit remains certain.
+  await page.getByRole("button", { name: "Focus terminal input" }).click();
+  await userEvent.keyboard("x");
+  await expect.poll(() => inputText(third)).toBe("x");
+  third.receive(3, JSON.stringify({ exitCode: 0 }));
+  third.drop(4410);
+  await expect
+    .element(page.getByRole("status", { name: "Terminal connection" }))
+    .toHaveTextContent("exited");
+  await expect.element(banner).toHaveTextContent("");
+});
+
+test("manual resync and notice dismissal clear terminal error and p2pState.inputUncertain", async () => {
+  observeGlyphPixels(true);
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    Response.json({
+      supported: true,
+      udpPort: 0,
+      udpBindings: [],
+      capabilities: { networks: [], iceMode: "full", turn: false },
+      enabled: false,
+      portMapping: false,
+      stunServers: [],
+      source: "config",
+      storageAvailable: true,
+      portMap: { state: "off" },
+      activePeers: 0,
+      peers: [],
+    }),
+  );
+  startP2P();
+  try {
+    const { socket: first, api } = await openTerminalApi({ showNotices: true });
+
+    await page.getByRole("button", { name: "Focus terminal input" }).click();
+    await userEvent.keyboard("x");
+    await expect.poll(() => inputText(first)).toBe("x");
+    first.drop();
+
+    await expect.poll(() => p2pState.inputUncertain).toBe(true);
+    await expect
+      .element(page.getByRole("alert"))
+      .toHaveTextContent(m.relay_sent_input_uncertain());
+
+    const second = await reconnected(2);
+    second.open();
+    second.receive(1, snapshot);
+    second.grantControl();
+    await expect
+      .element(page.getByRole("status", { name: "Terminal restoration" }))
+      .toHaveTextContent("ready");
+    // Automatic reconnect preserves uncertainty until explicit user action.
+    expect(p2pState.inputUncertain).toBe(true);
+
+    // Dismissing the strip notice clears both the banner and p2pState.inputUncertain.
+    await page.getByRole("button", { name: m.s4_dismiss_notice() }).click();
+    await expect.poll(() => p2pState.inputUncertain).toBe(false);
+    expect(api.error).toBe("");
+    await expect.element(page.getByRole("alert")).not.toBeInTheDocument();
+
+    // Trigger uncertainty again, then clear via manual resync().
+    await page.getByRole("button", { name: "Focus terminal input" }).click();
+    await userEvent.keyboard("y");
+    await expect.poll(() => inputText(second)).toBe("y");
+    second.drop();
+    await expect.poll(() => p2pState.inputUncertain).toBe(true);
+    await expect
+      .element(page.getByRole("alert"))
+      .toHaveTextContent(m.relay_sent_input_uncertain());
+
+    const third = await reconnected(3);
+    third.open();
+    third.receive(1, snapshot);
+    third.grantControl();
+    await expect
+      .element(page.getByRole("status", { name: "Terminal restoration" }))
+      .toHaveTextContent("ready");
+
+    await page
+      .getByRole("button", { name: "Resync terminal", exact: true })
+      .click();
+    await expect.poll(() => p2pState.inputUncertain).toBe(false);
+    expect(api.error).toBe("");
+    await expect.element(page.getByRole("alert")).not.toBeInTheDocument();
+
+    // Detached unbound methods (`resync`, `reconnect`, `dismissError`) work without `this` binding.
+    await page.getByRole("button", { name: "Focus terminal input" }).click();
+    await userEvent.keyboard("z");
+    await expect.poll(() => inputText(third)).toBe("z");
+    third.drop();
+    await expect.poll(() => p2pState.inputUncertain).toBe(true);
+    const fourth = await reconnected(4);
+    fourth.open();
+    fourth.receive(1, snapshot);
+    fourth.grantControl();
+    await expect
+      .element(page.getByRole("status", { name: "Terminal restoration" }))
+      .toHaveTextContent("ready");
+
+    const { dismissError, resync, reconnect } = api;
+    resync();
+    await expect.poll(() => p2pState.inputUncertain).toBe(false);
+    expect(api.error).toBe("");
+    expect(fourth.sent.some((frame) => frame[0] === 2)).toBe(true);
+
+    dismissError();
+    reconnect();
+    await reconnected(5);
+  } finally {
+    stopP2P();
+  }
 });
