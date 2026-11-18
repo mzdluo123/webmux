@@ -262,7 +262,7 @@
     - `go test -race ./cmd/webmux ./internal/api ./internal/featureapi ./internal/featurehub ./internal/settings ./internal/workspace ./internal/featurewire ./internal/archtest ./internal/docguard` 通过；
     - 覆盖 `watch_test.go` 与 `TestRepositoriesWebSocketEnforcesAuthAndStreamsChanges`；
   - 前端回归：
-    - `WorkbenchTree.test.ts` 与 `AppShell.test.ts` 浏览器组件测试通过；
-    - Playwright E2E `worktrees.spec.ts`、`app-shell.spec.ts`、`workspace-discovery.spec.ts`、`repository-scope.spec.ts`、`i18n.spec.ts`、`git-workbench-route.spec.ts` 通过；
+    - `WorkbenchTree.test.ts`、`AppShell.test.ts` 与 `TvNavigation.test.ts` 浏览器组件测试通过；
+    - Playwright E2E `worktrees.spec.ts`、`app-shell.spec.ts`、`workspace-discovery.spec.ts`、`repository-scope.spec.ts`、`i18n.spec.ts`、`git-workbench-route.spec.ts` 与 `tv-browser.spec.ts`（1280 与 1920）通过；
   - 视觉核对：隔离演示服务在 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 明暗主题与中英文下 `scrollWidth <= innerWidth`，同排按钮高度一致。
 - 限制：仅在 Linux 无头 Chromium 下验证，`hover` 与 `any-pointer: coarse` 均为 `false`，物理鼠标悬停与触屏硬件行为未在手机、平板、macOS 或 Windows 真机验证。

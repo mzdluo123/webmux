@@ -46,3 +46,66 @@ export function spatialCandidate<T>(
   }
   return best;
 }
+
+/**
+ * Steps out of an inline composite (radiogroup/tablist/listbox) at its first or
+ * last enabled item when a sibling control sits in the same visual lane.
+ */
+function compositeEdgeCandidate<T>(
+  current: SpatialRect,
+  groupRect: SpatialRect,
+  atStart: boolean,
+  atEnd: boolean,
+  vertical: boolean,
+  direction: SpatialDirection,
+  candidates: readonly { target: T; rect: SpatialRect }[],
+): T | undefined {
+  const exitStart = vertical
+    ? direction === "ArrowUp"
+    : direction === "ArrowLeft";
+  const exitEnd = vertical
+    ? direction === "ArrowDown"
+    : direction === "ArrowRight";
+  if (!(atStart && exitStart) && !(atEnd && exitEnd)) return undefined;
+  const aligned = candidates.filter(({ rect }) =>
+    vertical
+      ? rect.left < groupRect.right && rect.right > groupRect.left
+      : rect.top < groupRect.bottom && rect.bottom > groupRect.top,
+  );
+  return spatialCandidate(current, aligned, direction);
+}
+
+export function compositeBoundaryTarget(
+  group: HTMLElement,
+  vertical: boolean,
+  direction: SpatialDirection,
+  overlays: string,
+  visible: (element: HTMLElement) => boolean,
+  candidates: (root: ParentNode) => HTMLElement[],
+): HTMLElement | undefined {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !visible(active)) return undefined;
+  const selector = '[role="tab"], [role="radio"], [role="option"]';
+  const item = active.closest<HTMLElement>(selector);
+  if (!item || !group.contains(item)) return undefined;
+  const items = Array.from(
+    group.querySelectorAll<HTMLElement>(selector),
+  ).filter(
+    (node) =>
+      visible(node) && !node.matches(':disabled, [aria-disabled="true"]'),
+  );
+  if (!items.length) return undefined;
+  const scope = active.closest<HTMLElement>(overlays) ?? document.body;
+  const external = candidates(scope)
+    .filter((target) => !group.contains(target))
+    .map((target) => ({ target, rect: target.getBoundingClientRect() }));
+  return compositeEdgeCandidate(
+    active.getBoundingClientRect(),
+    group.getBoundingClientRect(),
+    item === items[0],
+    item === items.at(-1),
+    vertical,
+    direction,
+    external,
+  );
+}

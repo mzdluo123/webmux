@@ -1,6 +1,7 @@
 import { SvelteMap } from "svelte/reactivity";
 import { m } from "$lib/paraglide/messages.js";
 import {
+  compositeBoundaryTarget,
   spatialCandidate,
   type SpatialDirection,
 } from "../../platform/spatial-navigation";
@@ -364,9 +365,21 @@ export function useTvNavigation(back: () => boolean) {
           const crossAxis = vertical
             ? event.key === "ArrowLeft" || event.key === "ArrowRight"
             : event.key === "ArrowUp" || event.key === "ArrowDown";
-          // Inline composites own their selection axis; TV owns the unused axis.
-          if (crossAxis) {
-            keydown(event);
+          // Inline composites own their selection axis, stepping out at their
+          // edge to same-lane siblings; TV owns the perpendicular axis.
+          const edge = crossAxis
+            ? undefined
+            : compositeBoundaryTarget(
+                group,
+                vertical,
+                event.key as SpatialDirection,
+                overlays,
+                visible,
+                candidates,
+              );
+          if (crossAxis || edge) {
+            if (edge) focus(edge);
+            else keydown(event);
             event.preventDefault();
             event.stopImmediatePropagation();
             return;

@@ -22,10 +22,13 @@
   style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:flex-start;gap:24px;padding:20px"
 >
   <Button>上方按钮</Button>
-  <SegmentedControl bind:value aria-label="列表显示">
-    <SegmentedItem value="list">列表</SegmentedItem>
-    <SegmentedItem value="preview">预览</SegmentedItem>
-  </SegmentedControl>
+  <div style="display:flex;align-items:center;gap:12px">
+    <SegmentedControl bind:value aria-label="列表显示">
+      <SegmentedItem value="list">列表</SegmentedItem>
+      <SegmentedItem value="preview">预览</SegmentedItem>
+    </SegmentedControl>
+    <Button>右侧按钮</Button>
+  </div>
   <Button>下方按钮</Button>
   <div style="width:420px;height:220px">
     <Command.Root label="命令">
