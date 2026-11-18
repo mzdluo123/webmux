@@ -45,7 +45,7 @@
     data-slot="grouping-indicator"
     aria-hidden="true"
     class={[
-      "pointer-events-none absolute start-0 top-1/2 h-[max(30px,1.125rem)] w-1/2 -translate-y-1/2 px-0.5 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none",
+      "pointer-events-none absolute start-0 top-1/2 h-[max(32px,1.125rem)] w-1/2 -translate-y-1/2 px-0.5 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none",
       byBranch && "translate-x-full rtl:-translate-x-full",
     ]}
   >

@@ -89,14 +89,35 @@
   }
 
   .grouping {
+    --grouping-inline-padding: 3px;
+    --grouping-icon-gap: 4px;
     display: flex;
     flex: none;
     max-inline-size: 100%;
     justify-content: flex-end;
   }
 
+  @container sidebar-header (width >= calc(125px + 8rem)) {
+    .drawer .grouping {
+      --grouping-inline-padding: 4px;
+    }
+  }
+
+  @container sidebar-header (width >= calc(185px + 8.5rem)) {
+    .grouping {
+      --grouping-inline-padding: 8px;
+    }
+  }
+
+  @container sidebar-header (width < calc(100px + 6rem)) {
+    .grouping {
+      --grouping-inline-padding: 2px;
+      --grouping-icon-gap: 2px;
+    }
+  }
+
   /* Keep spelled-out English labels when large text needs another row. */
-  @container sidebar-header (width < calc(138px + 6.3rem)) {
+  @container sidebar-header (width < calc(144px + 6.3rem)) {
     .sidebar-header:lang(en):not(.drawer) .grouping {
       flex-basis: 100%;
       order: 1;
@@ -111,7 +132,7 @@
   }
 
   /* Leave enough width for both labels and the adjacent actions before showing icons. */
-  @container sidebar-header (width < calc(144px + 5rem)) {
+  @container sidebar-header (width < calc(151px + 5rem)) {
     .sidebar-header:not(.drawer) :global([data-grouping-icon]) {
       display: none;
     }
@@ -129,7 +150,7 @@
     }
   }
 
-  @container sidebar-header (width < calc(116px + 8rem)) {
+  @container sidebar-header (width < calc(132px + 8rem)) {
     .drawer:lang(en) :global([data-grouping-icon]) {
       display: none;
     }
@@ -139,6 +160,7 @@
     min-inline-size: 28px;
     margin-inline-end: 12px;
     gap: 0;
+    font-size: 0.8125rem;
     font-weight: 600;
   }
 
@@ -155,10 +177,10 @@
 
   .brand :global([data-brand-name] > span) {
     white-space: nowrap;
-    padding-inline-start: 6px;
+    padding-inline-start: 5px;
   }
 
-  @container brand-wordmark (width < calc(8px + 3.5rem)) {
+  @container brand-wordmark (width < calc(6px + 3.3rem)) {
     .brand :global([data-brand-name] > span) {
       display: none;
     }
