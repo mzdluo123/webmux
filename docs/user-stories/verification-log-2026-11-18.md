@@ -46,20 +46,21 @@
 - 隔离生产页面核对了 7 个视口的明暗主题、相邻按钮尺寸、窄栏与键盘打开，以及登记弹窗边界。未验证物理触屏或真机。
 - PR 提供桌面、平板及手机的明暗前后截图，以及[手机打开与取消登记的录屏](../images/pr/sidebar-add-repository/interaction-phone.gif)。
 
-## 2026-11-18：新生成默认配置启用全部内置功能（US-K18）
-
-- 故事编号、总数（264）与覆盖索引保持不变，更新 US-K18：
-  - `deploy/config.example.toml` 将默认 `[features] enabled` 扩展为显式列出全部 13 项内置功能（`launch`、`workspace`、`code`、`files`、`chat`、`notifications`、`quick-commands`、`voice`、`forward`、`cloudflare`、`tailscale`、`p2p`、`mcp`）；
-  - 显式设置 `enabled = []` 仍只运行 PTY 核心，缺省 `[features]` 或 `enabled` 仍保留固定旧版集合；
-  - `cmd/webmux/{configcmd_test,configgen_test}.go` 验证 `config init` 与首次自动生成的配置文件均启用 `builtin.Catalog()` 全部 13 项功能，并释放可选设置存储锁；
-  - 同步更新 `openspec/specs/builtin-feature-lifecycle/spec.md`、`docs/deployment/{configuration,install-and-upgrade}.md`、`docs/{overview,architecture,persistence}.md` 及 `docs/user-stories/operations-and-tooling/operations.md`（US-K18）。
-- 已执行验证：
-  - `go test -race -count=1 ./cmd/webmux ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
-  - `make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过。
-
 ## 按会话侧栏的分组显示（US-C17）
 
 - 会话缩进排列在项目标题下；无匹配会话的项目隐藏。侧栏顶部的「新建会话」仍可为这些项目创建首个会话。
 - `make e2e-runtime` 成功；`session-creation.spec.ts` 与 `workbench-session-queue.spec.ts` 的相关桌面和 iPhone SE Chromium 用例共 6 项通过。
 - 隔离 Chromium 中核对了 6 个视口的明暗主题、长标题和页面横向溢出，以及桌面键盘焦点与悬停提示。未验证实体触屏或真机。
 - [手机上为隐藏的项目创建首个会话](../images/pr/sidebar-session-groups/interaction-phone.gif)。
+
+## 2026-11-19：关闭配置文件功能开关并固定启用全部内置模块（US-K18 退役、US-K03）
+
+- 故事编号与总数（264）保持不变，将 US-K18 标为已退役并同步覆盖索引：
+  - `deploy/config.example.toml` 移除 `[features]` 段，`internal/config/config.go` 将 `Config.Features` 设为 `toml:"-" json:"-"` 并移除 `[plugins]` 报错与 `cmd/webmux/config_migrate.go`；
+  - 磁盘 `config.toml` 中遗留的 `[features]`（含 `enabled = []` 或旧 `immersive`）与 `[plugins]` 段在解析时直接忽略，原文件保持原状且固定启用全部 13 项内置功能；
+  - `internal/config/view.go` 从配置诊断白名单移除 `features.enabled`；`internal/builtin`、`Config.Features`、`featureapi`/`featurehub`/`featurewire` 与前端 `src/features` 基建保留供程序化功能隔离测试使用；
+  - 同步更新 `openspec/specs/{builtin-feature-lifecycle,effective-configuration}/spec.md`、`docs/deployment/{configuration,install-and-upgrade}.md`、`docs/{overview,faq,architecture,persistence,user-stories}.md` 与 `docs/user-stories/coverage.md`。
+- 已执行验证：
+  - `go test -race -count=1 ./cmd/... ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
+  - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过；
+  - Playwright E2E `agent-tools.spec.ts`、`relay-settings.spec.ts` 与 `worktrees.spec.ts`（直接目录创建降级）共 10 项通过。
