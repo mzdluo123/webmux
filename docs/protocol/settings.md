@@ -1,6 +1,6 @@
 # 服务端偏好协议
 
-`GET /api/settings` 返回 `{revision, updatedAt, values}`。`values` 始终包含 preview、codeReader、quickCommands、homeWorktrees、sessionPins、forceSoftKeys、ignoreHighPorts 七个键。
+`GET /api/settings` 返回 `{revision, updatedAt, values}`。`values` 始终包含 preview、codeReader、quickCommands、homeWorktrees、sessionPins、ignoreHighPorts 六个键。
 
 ## 值与默认
 
@@ -12,7 +12,6 @@
   - `command` 中的 `{{dir}}` 在运行时替换为会话临时文件夹的路径，`{{webmux}}` 替换为会话的 WebMux 工具说明（`POST /api/sessions/{id}/agent-guide`）。
 - homeWorktrees：仓库 ID 到工作树 ID 数组的映射；最多 200 个仓库、每仓库 1000 个、合计 2000 个，数组内 ID 不重复；null 使用默认主页选择。
 - sessionPins：按展示顺序排列的会话 ID，最多 50 个且不重复。null 或空数组表示无置顶。同步时清理已退出或删除的会话，并保留尚可恢复的中断混合会话。清理有变化时提交一个设置修订并广播。
-- forceSoftKeys：布尔或 null（false）。
 - ignoreHighPorts：布尔或 null（true，忽略 30000 及以上端口的转发提示与自动检测列表）。
 
 ## 原子更新
@@ -36,4 +35,4 @@
 
 会话置顶在首次连接时从旧浏览器导入。其他旧浏览器键不迁移。
 
-旧 `settings.json` 中遗留的历史键（`theme`、`fontSize`、`chatIdleSleepMinutes`、`artifactPrompt`）读取时忽略，下次写入时移除。`webmux.settingsCache` 只缓存最后确认的快照；不能用作离线写入队列。Token、Web Push 身份、草稿、最近目录和临时命令不属于此协议。
+旧 `settings.json` 中遗留的历史键（`theme`、`fontSize`、`forceSoftKeys`、`chatIdleSleepMinutes`、`artifactPrompt`）读取时忽略，下次写入时移除。`webmux.settingsCache` 只缓存最后确认的快照；不能用作离线写入队列。Token、Web Push 身份、草稿、最近目录和临时命令不属于此协议。

@@ -29,7 +29,6 @@
 - [agent-tools-check](../openspec/specs/agent-tools-check/spec.md)：本机已安装 CLI agent 与 ACP 连接器的路径、版本检测及按需更新检查
 - [session-artifacts](../openspec/specs/session-artifacts/spec.md)：会话产物目录
 - [terminal-keyboard-size-hold](../openspec/specs/terminal-keyboard-size-hold/spec.md)：触屏唤起软键盘时暂时保持 PTY 行列不变
-- [terminal-touch-gamepad](../openspec/specs/terminal-touch-gamepad/spec.md)：触屏与调试可用的半透明浮动摇杆、高频虚拟键及底栏去重
 - [terminal-notice-overlay](../openspec/specs/terminal-notice-overlay/spec.md)：终端顶部状态提示悬浮显示，不触发 resize
 - [websocket-compression](../openspec/specs/websocket-compression/spec.md)：手机与平板默认启用、可按设备覆盖的 WebSocket 压缩
 - [terminal-file-download](../openspec/specs/terminal-file-download/spec.md)：终端文件下载协议与浏览器保存

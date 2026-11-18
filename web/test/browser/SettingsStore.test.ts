@@ -55,19 +55,19 @@ test("409 rebases only the local preview field and caches confirmed data", async
 });
 
 test("a failed optimistic save rolls back without caching or replaying it", async () => {
-  await seedSettings({ forceSoftKeys: false });
+  await seedSettings({ ignoreHighPorts: false });
   const cache = localStorage.getItem("webmux.settingsCache");
   const response = Promise.withResolvers<Response>();
   const fetch = vi.fn<typeof window.fetch>(() => response.promise);
   vi.stubGlobal("fetch", fetch);
-  const task = saveSettings({ forceSoftKeys: true });
-  expect(settings.values.forceSoftKeys).toBe(true);
+  const task = saveSettings({ ignoreHighPorts: true });
+  expect(settings.values.ignoreHighPorts).toBe(true);
   expect(localStorage.getItem("webmux.settingsCache")).toBe(cache);
   response.resolve(
     Response.json({ error: "storage /state/settings.json" }, { status: 503 }),
   );
   await expect(task).rejects.toThrow("settings.json");
-  expect(settings.values.forceSoftKeys).toBe(false);
+  expect(settings.values.ignoreHighPorts).toBe(false);
   expect(settings.ready).toBe(false);
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(localStorage.getItem("webmux.settingsCache")).toBe(cache);
@@ -81,20 +81,20 @@ test("a second conflict stops automatic retries and preserves the latest snapsho
       : Response.json({
           revision: 1,
           updatedAt: "2026-10-26T00:00:00Z",
-          values: { ...emptySettings, forceSoftKeys: false },
+          values: { ...emptySettings, ignoreHighPorts: false },
         }),
   );
   vi.stubGlobal("fetch", fetch);
-  await expect(saveSettings({ forceSoftKeys: true })).rejects.toThrow(
+  await expect(saveSettings({ ignoreHighPorts: true })).rejects.toThrow(
     "conflict",
   );
   expect(fetch).toHaveBeenCalledTimes(3);
-  expect(settings.values.forceSoftKeys).toBe(false);
+  expect(settings.values.ignoreHighPorts).toBe(false);
 });
 
 test("a reconnected snapshot replaces stale revisions after a server reset", async () => {
   await seedSettings();
-  await saveSettings({ forceSoftKeys: true });
+  await saveSettings({ ignoreHighPorts: true });
   const sockets: FakeSocket[] = [];
   class FakeSocket {
     static OPEN = 1;
@@ -119,7 +119,7 @@ test("a reconnected snapshot replaces stale revisions after a server reset", asy
     }),
   });
   expect(settings.revision).toBe(0);
-  expect(settings.values.forceSoftKeys).toBeNull();
+  expect(settings.values.ignoreHighPorts).toBeNull();
   expect(
     JSON.parse(localStorage.getItem("webmux.settingsCache")!).revision,
   ).toBe(0);
@@ -132,7 +132,7 @@ test("isolates settingsCache and diffReview storage events per hostId", async ()
     JSON.stringify({
       revision: 3,
       updatedAt: "2026-10-26T00:00:00Z",
-      values: { ...emptySettings, forceSoftKeys: true },
+      values: { ...emptySettings, ignoreHighPorts: true },
     }),
   );
 
@@ -142,7 +142,7 @@ test("isolates settingsCache and diffReview storage events per hostId", async ()
 
   setActiveHostId("host-b");
   expect(settings.revision).toBe(3);
-  expect(settings.values.forceSoftKeys).toBe(true);
+  expect(settings.values.ignoreHighPorts).toBe(true);
 
   const change: CodeChange = {
     path: "a.ts",

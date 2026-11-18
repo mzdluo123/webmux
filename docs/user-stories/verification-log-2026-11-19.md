@@ -45,3 +45,29 @@
   - 在隔离演示仓库采集桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色共 12 张前后对比截图，并在 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 视口下校验 `scrollWidth <= innerWidth`。
 - 局限：
   - 验证在 Linux 本地隔离实例与无头 Chromium 中完成，未验证物理 `hover`、`any-pointer: coarse` 媒体查询及 macOS / iOS / Android 真机浏览器。
+
+## 2026-11-19：终端底部软键工具栏精简与按设备显示开关（US-H01、US-H07）
+
+### 范围
+
+- 故事编号与总数（264）保持不变，更新 `US-H01`、`US-H07` 与覆盖索引：
+  - 将终端 `⋯` 菜单「显示」分组与「设置 → 外观与阅读」中的开关文案统一为「显示底部工具栏」（`Show bottom toolbar`），并提供「恢复默认工具栏」回退到按设备指针自动判断；
+  - 将底部工具栏显隐从服务端 `/api/settings`（`forceSoftKeys`）迁移为当前浏览器本地偏好 `webmux.bottomToolbar`（`any-pointer: coarse` 默认显示，非触屏桌面默认隐藏，任意设备均可独立开启或关闭）；
+  - 旧版 `settings.json` 中的 `forceSoftKeys` 兼容读取并在下次写入时落盘清理，`PATCH /api/settings` 携带 `forceSoftKeys` 返回 `400`；
+  - 重排 `SoftKeys.svelte` 为 Windows RDP 风格紧凑单行工具栏：左侧固定「唤起或收起键盘」与 `Fn` 切换键，右侧固定「粘贴」、窄屏「草稿模式」与「快捷指令」；`>= 640px` 居中紧凑胶囊，`< 640px` 贴边紧凑单行条；
+  - 主层提供 `Esc`、`Tab`、`↵`、`Ctrl`、`Alt`、`Shift` 与四个方向键，`Fn` 层原位切换为 `/`、`@`、`#`、`!`、`Home`、`End`、`PgUp`、`PgDn` 与 `Ctrl+C/D/Z/L/R`；
+  - 移除双行 `TouchGamepad.svelte` 与 `touch-gamepad-preference.svelte.ts`，在底部工具栏方向键上直接支持原地长按连发与横向滚动拖动取消。
+
+### 已执行验证与局限
+
+- 静态与治理门禁：
+  - `make check`（含 `make web`、`make format-check`、`make docs-check`、`make persistence-check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`go vet`、`make go-lint` `golangci-lint` v2.15.0 0 issues）通过。
+- 后端、前端、Storybook 与端到端回归：
+  - `make test-go`（全量 Go `-race` 测试，含 `internal/settings`、`internal/wire`、`internal/api`、`internal/archtest` 与 `protocol/relay`）通过；
+  - `pnpm --dir web test:unit`（89 个文件）通过；
+  - Vitest 浏览器组件测试（`SoftKeys.test.ts`、`TerminalViewport.test.ts`、`SettingsNavigation.test.ts`、`SettingsStore.test.ts`、`DevicePreferences.test.ts`）通过；
+  - `make test-storybook`（142 项）通过；
+  - 隔离实例 Playwright 端到端套件（`softkeys.spec.ts`、`settings-sync.spec.ts`、`quick-commands.spec.ts`、`compact-chrome.spec.ts`、`i18n.spec.ts`、`composer.spec.ts`，覆盖桌面与 `320×568` 移动 Chromium）通过；
+  - 在隔离实例采集桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色共 12 张前后对比截图及平板交互录屏，并在 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 视口校验无横向溢出且终端菜单完整落在视口内。
+- 局限：
+  - 验证在 Linux 本地隔离实例与无头 Chromium 中完成，未在物理触屏设备（真实 `any-pointer: coarse` 硬件、外接实体键盘切换）及 iOS / Android 真机软键盘环境下复测。
