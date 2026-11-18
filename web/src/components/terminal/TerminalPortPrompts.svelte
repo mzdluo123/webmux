@@ -51,7 +51,7 @@
 
   const forwarded = $derived(new Set(forwards.list.map((entry) => entry.port)));
   // Until the forward list is known, any port might be forwarded already.
-  const prompts = $derived(
+  const eligible = $derived(
     forwards.ready && listening
       ? listening
           .filter(
@@ -63,6 +63,31 @@
           .sort((a, b) => a.port - b.port)
       : [],
   );
+  let promptOrder = $state.raw<number[]>([]);
+  let promptSession: string | undefined;
+  // Keep a visible port in place when a later discovery has a lower number.
+  $effect.pre(() => {
+    const owner = session;
+    if (!forwards.ready || !listening) return;
+    const ports = eligible.map((entry) => entry.port);
+    untrack(() => {
+      const previous = promptSession === owner ? promptOrder : [];
+      const current = new Set(ports);
+      const known = new Set(previous);
+      promptOrder = [
+        ...previous.filter((port) => current.has(port)),
+        ...ports.filter((port) => !known.has(port)),
+      ];
+      promptSession = owner;
+    });
+  });
+  const prompts = $derived.by(() => {
+    const byPort = new Map(eligible.map((entry) => [entry.port, entry]));
+    return promptOrder.flatMap((port) => {
+      const entry = byPort.get(port);
+      return entry ? [entry] : [];
+    });
+  });
 
   function forward(entry: ListeningPort, open: boolean) {
     // A tab opened after the request returns is no longer inside the click,
