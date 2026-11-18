@@ -44,6 +44,7 @@
 </script>
 
 <script lang="ts">
+  import { tick } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconLoader2 from "~icons/tabler/loader-2";
@@ -58,6 +59,7 @@
   import SidebarSessionName from "../shell/SidebarSessionName.svelte";
   import SidebarLiveSessionRow from "../shell/SidebarLiveSessionRow.svelte";
   import SidebarSessionMenu from "../shell/SidebarSessionMenu.svelte";
+  import { useManualDisclosureMotion } from "$lib/components/ui/collapsible/manual-motion.svelte";
 
   // The chat-mode sidebar: live chats flat in a stable order (newest created
   // first, as the workbench tree), with archived
@@ -101,30 +103,71 @@
     /** Asks to delete an archived record and its linked worktree. */
     onremoveworktree?: (record: ArchivedSession, worktree: Worktree) => void;
   } = $props();
-  // The archived list mounts a page at a time while the section is open: a
-  // long history then costs nothing behind a closed section and never builds
-  // every row at once.
+  // Mount one page on demand and enough pages to reveal the current record.
+  // Once the closing transition finishes, the section releases its rows.
   const PAGE = 20;
   const locationIdPrefix = $props.id();
   const { live, archived } = $derived(chatHistorySections(sessions, records));
   let archivedExpanded = $state(false);
   let archivedOverride = $state<boolean | undefined>();
   let archivedLimit = $state(PAGE);
-  const currentInArchived = $derived(
-    archived.some((record) => record.id === current || record.id === resuming),
+  let archiveContent = $state<HTMLDivElement | null>(null);
+  const selectedArchiveIndex = $derived(
+    archived.findIndex(
+      (record) => record.id === current || record.id === resuming,
+    ),
   );
+  const selectedArchive = $derived(archived[selectedArchiveIndex]?.id);
   $effect(() => {
-    void currentInArchived;
+    void selectedArchive;
     archivedOverride = undefined;
   });
   const archivedOpen = $derived(
-    archivedOverride ?? (currentInArchived || archivedExpanded),
+    archivedOverride ?? (selectedArchiveIndex >= 0 || archivedExpanded),
   );
-  $effect(() => {
-    if (!archivedOpen) archivedLimit = PAGE;
-  });
-  const archivedShown = $derived(archived.slice(0, archivedLimit));
+  const motion = useManualDisclosureMotion(
+    () => archiveContent,
+    () => archivedOpen,
+  );
+  const archivedShown = $derived(
+    archived.slice(
+      0,
+      Math.max(
+        archivedLimit,
+        Math.ceil((selectedArchiveIndex + 1) / PAGE) * PAGE,
+      ),
+    ),
+  );
   const archivedRemaining = $derived(archived.length - archivedShown.length);
+
+  function revealSelectedArchive() {
+    if (!archivedOpen || !selectedArchive) return;
+    archiveContent
+      ?.querySelector('[aria-current="page"], [aria-busy="true"]')
+      ?.scrollIntoView({ block: "nearest", behavior: "instant" });
+  }
+
+  $effect(() => {
+    if (motion.moving) return;
+    if (!archivedOpen) archivedLimit = PAGE;
+    else if (selectedArchive) void tick().then(revealSelectedArchive);
+  });
+
+  function toggleArchived(open: boolean) {
+    motion.toggle(open, (next) => {
+      if (selectedArchiveIndex >= 0) archivedOverride = next;
+      else archivedExpanded = next;
+    });
+  }
+
+  function showMore(event: MouseEvent) {
+    const lastRow = archiveContent?.querySelector<HTMLButtonElement>(
+      "li:last-child > button",
+    );
+    if (event.currentTarget === document.activeElement)
+      lastRow?.focus({ preventScroll: true });
+    archivedLimit = archivedShown.length + PAGE;
+  }
 </script>
 
 <h2 class="px-3 pt-1 pb-1 text-xs text-muted-foreground">
@@ -149,10 +192,7 @@
   {#if archived.length}
     <Collapsible.Root
       open={archivedOpen}
-      onOpenChange={(value) => {
-        if (currentInArchived) archivedOverride = value;
-        else archivedExpanded = value;
-      }}
+      onOpenChange={toggleArchived}
       class={live.length ? "mt-2" : ""}
     >
       <Collapsible.Trigger>
@@ -174,104 +214,114 @@
           </Button>
         {/snippet}
       </Collapsible.Trigger>
-      <Collapsible.Content forceMount hidden={!archivedOpen} class="mt-0.5">
-        {#if archivedOpen}
-          <ul
-            class="space-y-0.5"
-            aria-label={m.s3_history_archived_list_label()}
-          >
-            {#each archivedShown as record (record.id)}
-              {@const title = record.title || record.agent.name}
-              {@const releasable = releasableRecordWorktree(
-                record,
-                repositories,
-              )}
-              {@const state = record.released
-                ? m.s3_row_status_released()
-                : m.s3_row_status_ended()}
-              <li class="group/row relative">
-                <!-- The same end padding as live rows keeps every status in
+      <div
+        bind:this={archiveContent}
+        inert={!archivedOpen}
+        aria-hidden={!archivedOpen}
+        class:overflow-clip={motion.moving}
+      >
+        <Collapsible.Content forceMount={motion.moving}>
+          {#if archivedOpen || motion.moving}
+            <div class="pt-0.5">
+              <ul
+                class="space-y-0.5"
+                aria-label={m.s3_history_archived_list_label()}
+              >
+                {#each archivedShown as record (record.id)}
+                  {@const title = record.title || record.agent.name}
+                  {@const releasable = releasableRecordWorktree(
+                    record,
+                    repositories,
+                  )}
+                  {@const state = record.released
+                    ? m.s3_row_status_released()
+                    : m.s3_row_status_ended()}
+                  <li class="group/row relative">
+                    <!-- The same end padding as live rows keeps every status in
                      one column. -->
-                <ListButton
-                  variant="navigation-action"
-                  aria-current={record.id === current ? "page" : undefined}
-                  aria-label={m.s3_session_row_label({
-                    title,
-                    status:
-                      resuming === record.id
-                        ? m.s3_history_resuming_status()
-                        : state,
-                  })}
-                  aria-describedby={`${locationIdPrefix}-${record.id}`}
-                  data-allow-wrap
-                  title={record.released
-                    ? m.s3_history_released_title({
+                    <ListButton
+                      variant="navigation-action"
+                      class="scroll-my-1"
+                      aria-current={record.id === current ? "page" : undefined}
+                      aria-label={m.s3_session_row_label({
                         title,
-                        agent: record.agent.name,
-                        path: record.released.path,
-                        commit: record.released.commit.slice(0, 12),
-                      })
-                    : m.s3_history_ended_title({
-                        title,
-                        agent: record.agent.name,
+                        status:
+                          resuming === record.id
+                            ? m.s3_history_resuming_status()
+                            : state,
                       })}
-                  aria-busy={resuming === record.id}
-                  disabled={!!resuming}
-                  onclick={() => onresume(record)}
+                      aria-describedby={`${locationIdPrefix}-${record.id}`}
+                      data-allow-wrap
+                      title={record.released
+                        ? m.s3_history_released_title({
+                            title,
+                            agent: record.agent.name,
+                            path: record.released.path,
+                            commit: record.released.commit.slice(0, 12),
+                          })
+                        : m.s3_history_ended_title({
+                            title,
+                            agent: record.agent.name,
+                          })}
+                      aria-busy={resuming === record.id}
+                      disabled={!!resuming}
+                      onclick={() => onresume(record)}
+                    >
+                      <LaunchConfigIcon
+                        icon={configs.find(
+                          (config) => config.id === record.configId,
+                        )?.icon ?? ""}
+                        size="sm"
+                      />
+                      <SidebarSessionName
+                        {title}
+                        location={queueLocation(record, repositories)}
+                        locationId={`${locationIdPrefix}-${record.id}`}
+                        archived
+                      />
+                      {#if resuming === record.id}<span
+                          class="flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground"
+                          ><IconLoader2
+                            class="size-3.5 animate-spin motion-reduce:animate-none"
+                            aria-hidden="true"
+                          />{m.s3_history_resuming_badge()}</span
+                        >{:else}<RowStatus
+                          status={record.released ? "released" : "ended"}
+                        />{/if}
+                    </ListButton>
+                    <SidebarSessionMenu
+                      label={title}
+                      disabled={!!resuming}
+                      target={{
+                        kind: "archived",
+                        onresume: () => onresume(record),
+                        onrelease: releasable
+                          ? () => onrelease(releasable)
+                          : undefined,
+                        onremove: () => onremove(record),
+                        onremoveworktree:
+                          releasable && onremoveworktree
+                            ? () => onremoveworktree(record, releasable)
+                            : undefined,
+                      }}
+                    />
+                  </li>
+                {/each}
+              </ul>
+              {#if archivedRemaining > 0}
+                <Button
+                  variant="link"
+                  size="sm"
+                  class="w-full justify-start"
+                  onclick={showMore}
                 >
-                  <LaunchConfigIcon
-                    icon={configs.find(
-                      (config) => config.id === record.configId,
-                    )?.icon ?? ""}
-                    size="sm"
-                  />
-                  <SidebarSessionName
-                    {title}
-                    location={queueLocation(record, repositories)}
-                    locationId={`${locationIdPrefix}-${record.id}`}
-                    archived
-                  />
-                  {#if resuming === record.id}<span
-                      class="flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground"
-                      ><IconLoader2
-                        class="size-3.5 animate-spin motion-reduce:animate-none"
-                        aria-hidden="true"
-                      />{m.s3_history_resuming_badge()}</span
-                    >{:else}<RowStatus
-                      status={record.released ? "released" : "ended"}
-                    />{/if}
-                </ListButton>
-                <SidebarSessionMenu
-                  label={title}
-                  disabled={!!resuming}
-                  target={{
-                    kind: "archived",
-                    onresume: () => onresume(record),
-                    onrelease: releasable
-                      ? () => onrelease(releasable)
-                      : undefined,
-                    onremove: () => onremove(record),
-                    onremoveworktree:
-                      releasable && onremoveworktree
-                        ? () => onremoveworktree(record, releasable)
-                        : undefined,
-                  }}
-                />
-              </li>
-            {/each}
-          </ul>
-          {#if archivedRemaining > 0}
-            <Button
-              variant="link"
-              size="sm"
-              class="w-full justify-start"
-              onclick={() => (archivedLimit += PAGE)}
-            >
-              {m.s3_history_show_more({ count: archivedRemaining })}
-            </Button>
+                  {m.s3_history_show_more({ count: archivedRemaining })}
+                </Button>
+              {/if}
+            </div>
           {/if}
-        {/if}
-      </Collapsible.Content>
+        </Collapsible.Content>
+      </div>
     </Collapsible.Root>
   {/if}
 {:else}
