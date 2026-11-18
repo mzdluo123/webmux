@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { animate } from "motion/mini";
+  import { onMount, tick } from "svelte";
   import IconChevronRight from "~icons/tabler/chevron-right";
   import { MediaQuery } from "svelte/reactivity";
   import { Button } from "$lib/components/ui/button";
@@ -97,8 +99,60 @@
     available.find((session) => session.id === previewId),
   );
   const showingPreview = $derived(Boolean(previewOpen && preview));
+  let layout: HTMLDivElement;
+  let previewColumn: HTMLDivElement;
+  let animation: ReturnType<typeof animate> | undefined;
+  let generation = 0;
+  const motionQuery = "(prefers-reduced-motion: reduce)";
+
+  function settlePreviewWidth() {
+    generation++;
+    animation?.cancel();
+    animation = undefined;
+    layout?.style.removeProperty("grid-template-columns");
+  }
+
+  function setPreviewOpen(value: boolean) {
+    if (value === previewOpen) return;
+    const from = previewColumn.getBoundingClientRect().width;
+    settlePreviewWidth();
+    previewOpen = value;
+    if (!docked.current || matchMedia(motionQuery).matches) return;
+    const version = generation;
+    void tick().then(() => {
+      if (version !== generation || !layout.isConnected) return;
+      const to = previewColumn.getBoundingClientRect().width;
+      if (from === to) return;
+      animation = animate(
+        layout,
+        {
+          gridTemplateColumns: [
+            `minmax(0, 1fr) ${from}px`,
+            `minmax(0, 1fr) ${to}px`,
+          ],
+        },
+        { duration: 0.24, ease: [0.22, 1, 0.36, 1] },
+      );
+      void animation.then(() => {
+        if (version === generation) settlePreviewWidth();
+      });
+    });
+  }
+
+  onMount(() => {
+    const reduced = matchMedia(motionQuery);
+    reduced.addEventListener("change", settlePreviewWidth);
+    window.addEventListener("resize", settlePreviewWidth);
+    return () => {
+      reduced.removeEventListener("change", settlePreviewWidth);
+      window.removeEventListener("resize", settlePreviewWidth);
+      settlePreviewWidth();
+    };
+  });
+
   $effect(() => {
     if (previewOpen && !preview) {
+      settlePreviewWidth();
       previewOpen = false;
       previewRow = null;
     }
@@ -122,7 +176,7 @@
         onpreview={(trigger) => {
           opener = trigger;
           previewId = session.id;
-          previewOpen = true;
+          setPreviewOpen(true);
           previewRow = { id: session.id, group };
         }}
         onmenuopen={(open) => {
@@ -139,9 +193,13 @@
 {/snippet}
 
 <div
+  bind:this={layout}
   class={[
-    "grid min-w-0 gap-4",
-    docked.current && showingPreview && "grid-cols-[minmax(0,1fr)_20rem]",
+    "grid min-w-0",
+    docked.current &&
+      (showingPreview
+        ? "grid-cols-[minmax(0,1fr)_21rem]"
+        : "grid-cols-[minmax(0,1fr)_0px]"),
   ]}
 >
   <div class="min-w-0 space-y-6">
@@ -208,13 +266,22 @@
     {/if}
   </div>
 
-  <WorkbenchQueuePreview
-    session={preview}
-    location={preview ? queueLocation(preview, repositories) : ""}
-    docked={docked.current}
-    open={showingPreview}
-    {opener}
-    onclose={() => (previewOpen = false)}
-    onrestored={() => (previewRow = null)}
-  />
+  <div
+    bind:this={previewColumn}
+    class={docked.current
+      ? "sticky top-4 min-w-0 self-start overflow-clip"
+      : "contents"}
+  >
+    <div class={docked.current ? "w-84 pl-4" : "contents"}>
+      <WorkbenchQueuePreview
+        session={preview}
+        location={preview ? queueLocation(preview, repositories) : ""}
+        docked={docked.current}
+        open={showingPreview}
+        {opener}
+        onclose={() => setPreviewOpen(false)}
+        onrestored={() => (previewRow = null)}
+      />
+    </div>
+  </div>
 </div>
