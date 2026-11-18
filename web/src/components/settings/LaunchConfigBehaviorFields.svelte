@@ -87,18 +87,26 @@
       ></Label
     >
   </div>
-  {#if defaultPreview}
-    <p id="launch-config-preview-help" class="text-xs text-muted-foreground">
-      {m.s2_launch_preview_default_help()}
-    </p>
-  {:else}
-    <div class="grid min-w-0 gap-4 sm:grid-cols-2">
-      <div class="grid gap-2">
-        <Label for="launch-config-preview-lines"
+  <div class="relative">
+    {#if defaultPreview}
+      <p
+        id="launch-config-preview-help"
+        class="absolute inset-x-0 top-0 text-xs text-muted-foreground"
+      >
+        {m.s2_launch_preview_default_help()}
+      </p>
+    {/if}
+    <div
+      class="grid min-w-0 grid-cols-2 gap-4"
+      class:invisible={defaultPreview}
+      inert={defaultPreview}
+    >
+      <div class="grid min-w-0 content-start gap-2">
+        <Label for={defaultPreview ? undefined : "launch-config-preview-lines"}
           >{m.s2_launch_preview_lines()}</Label
         >
         <Input
-          id="launch-config-preview-lines"
+          id={defaultPreview ? undefined : "launch-config-preview-lines"}
           type="number"
           min={LAUNCH_PREVIEW_LINES_MIN}
           max={LAUNCH_PREVIEW_LINES_MAX}
@@ -110,12 +118,12 @@
             : "launch-config-preview-help"}
         />
       </div>
-      <div class="grid gap-2">
-        <Label for="launch-config-preview-skip"
+      <div class="grid min-w-0 content-start gap-2">
+        <Label for={defaultPreview ? undefined : "launch-config-preview-skip"}
           >{m.s2_launch_preview_skip()}</Label
         >
         <Input
-          id="launch-config-preview-skip"
+          id={defaultPreview ? undefined : "launch-config-preview-skip"}
           type="number"
           min={LAUNCH_PREVIEW_SKIP_MIN}
           max={LAUNCH_PREVIEW_SKIP_MAX}
@@ -128,17 +136,28 @@
         />
       </div>
     </div>
-    {#if previewError}<p
+  </div>
+  <div class="grid text-xs">
+    <p class="invisible col-start-1 row-start-1" aria-hidden="true">
+      {m.s2_launch_preview_custom_help()}
+    </p>
+    {#if previewError && !defaultPreview}<p
         id="launch-config-preview-error"
         role="alert"
-        class="text-xs text-destructive"
+        class="col-start-1 row-start-1 text-destructive"
       >
         {previewError}
       </p>{/if}
-    <p id="launch-config-preview-help" class="text-xs text-muted-foreground">
-      {m.s2_launch_preview_custom_help()}
-    </p>
-  {/if}
+    {#if !defaultPreview}
+      <p
+        id="launch-config-preview-help"
+        class="col-start-1 row-start-1 text-muted-foreground"
+        hidden={!!previewError}
+      >
+        {m.s2_launch_preview_custom_help()}
+      </p>
+    {/if}
+  </div>
 </fieldset>
 {#if providers.LaunchAttentionFields}
   <providers.LaunchAttentionFields {config} bind:attention {attentionError} />
