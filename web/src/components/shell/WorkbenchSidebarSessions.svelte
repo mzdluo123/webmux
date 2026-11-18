@@ -1,6 +1,9 @@
 <script lang="ts">
+  import IconChevronRight from "~icons/tabler/chevron-right";
   import IconLayoutList from "~icons/tabler/layout-list";
   import { Button } from "$lib/components/ui/button";
+  import * as Collapsible from "$lib/components/ui/collapsible";
+  import { ListButton } from "$lib/components/ui/list-button";
   import { m } from "$lib/paraglide/messages.js";
   import type { Repository, SessionInfo } from "../../contracts/schemas";
   import {
@@ -8,6 +11,7 @@
     queueLocation,
     sessionsByPin,
   } from "../../domains/workspace/session-queue";
+  import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
   import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
   import SidebarProjectAvatar from "./SidebarProjectAvatar.svelte";
 
@@ -89,38 +93,57 @@
     </Button>
   {/if}
   {#each groups as group (group.id)}
+    {@const open = workbenchLayout.isProjectOpen(group.id)}
     <section aria-label={group.name}>
-      <h2
-        class="flex min-w-0 items-center gap-2 px-2 pb-1 text-xs font-medium text-muted-foreground"
+      <Collapsible.Root
+        {open}
+        onOpenChange={(next) => workbenchLayout.setProjectOpen(group.id, next)}
       >
-        <SidebarProjectAvatar
-          name={group.name}
-          repositoryId={group.id === "direct" ? undefined : group.id}
-        />
-        <span class="min-w-0 flex-1 truncate" title={group.name}
-          >{group.name}</span
-        >
-        <span class="font-mono font-normal tabular-nums"
-          >{group.sessions.length}</span
-        >
-      </h2>
-      <ul class="space-y-1" aria-label={group.name}>
-        {#each group.sessions as session (session.id)}
-          <SidebarLiveSessionRow
-            {session}
-            {current}
-            location={queueLocation(session, repositories)}
-            icon={session.agent?.icon ??
-              configIcons.get(session.configId ?? "") ??
-              ""}
-            pinned={pinnedIds.has(session.id)}
-            compact
-            {onopen}
-            {onrename}
-            {onclose}
-          />
-        {/each}
-      </ul>
+        <h2>
+          <Collapsible.Trigger>
+            {#snippet child({ props })}
+              <ListButton {...props} variant="section-header">
+                <SidebarProjectAvatar
+                  name={group.name}
+                  repositoryId={group.id === "direct" ? undefined : group.id}
+                />
+                <span class="min-w-0 flex-1 truncate" title={group.name}
+                  >{group.name}</span
+                >
+                <span class="font-mono font-normal tabular-nums"
+                  >{group.sessions.length}</span
+                >
+                <IconChevronRight
+                  class={[
+                    "size-3.5 shrink-0 motion-safe:transition-transform",
+                    open && "rotate-90",
+                  ]}
+                  aria-hidden="true"
+                />
+              </ListButton>
+            {/snippet}
+          </Collapsible.Trigger>
+        </h2>
+        <Collapsible.Content>
+          <ul class="mt-1 space-y-1" aria-label={group.name}>
+            {#each group.sessions as session (session.id)}
+              <SidebarLiveSessionRow
+                {session}
+                {current}
+                location={queueLocation(session, repositories)}
+                icon={session.agent?.icon ??
+                  configIcons.get(session.configId ?? "") ??
+                  ""}
+                pinned={pinnedIds.has(session.id)}
+                compact
+                {onopen}
+                {onrename}
+                {onclose}
+              />
+            {/each}
+          </ul>
+        </Collapsible.Content>
+      </Collapsible.Root>
     </section>
   {/each}
 </div>

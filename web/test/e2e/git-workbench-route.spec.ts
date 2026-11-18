@@ -499,3 +499,67 @@ test("project headings show GitHub avatars and keep a fallback when they fail", 
   await expect(heading).toContainText("WE");
   expect(await heading.boundingBox()).toEqual(initialBounds);
 });
+
+test("project groups collapse independently and remember the choice", async ({
+  page,
+  request,
+  workDir,
+}) => {
+  const { repo, mainWt } = await setupRepoWithLinkedWorktree(request, workDir);
+  for (const input of [
+    {
+      name: "Project build session",
+      workspace: { repositoryId: repo.id, worktreeId: mainWt.id },
+    },
+    { name: "Direct shell session", cwd: workDir },
+  ]) {
+    expect(
+      (
+        await request.post("/api/sessions", {
+          data: { ...input, cmd: ["/bin/sh", "-c", "sleep 120"] },
+        })
+      ).status(),
+    ).toBe(201);
+  }
+
+  await page.goto("/");
+  await revealSidebar(page);
+  const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
+  const project = sidebar.getByRole("region", { name: repo.name, exact: true });
+  const toggle = project.getByRole("button", {
+    name: `${repo.name} 1`,
+    exact: true,
+  });
+  const session = project.getByRole("button", {
+    name: /^Project build session/,
+  });
+  const directSession = sidebar.getByRole("button", {
+    name: /^Direct shell session/,
+  });
+
+  await expect(session).toBeVisible();
+  await expect(directSession).toBeVisible();
+  await toggle.press("Space");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toBeFocused();
+  await expect(session).toBeHidden();
+  await expect(directSession).toBeVisible();
+
+  await page.reload();
+  await revealSidebar(page);
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(session).toBeHidden();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(session).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await revealSidebar(page);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await page.getByRole("button", { name: "关闭侧栏", exact: true }).click();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await revealSidebar(page);
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(session).toBeHidden();
+});
