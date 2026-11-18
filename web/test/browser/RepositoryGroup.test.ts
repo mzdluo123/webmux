@@ -117,7 +117,7 @@ test("a worktree's menu switches its branch unless it is prunable", async () => 
       .elements()
       .map((el) => el.textContent?.trim());
   await page.getByRole("button", { name: "工作树菜单 main" }).click();
-  expect(items()).toEqual(["切换分支…", "从主页移除"]);
+  expect(items()).toEqual(["切换分支…", "置顶工作树", "从主页移除"]);
   await page.getByRole("menuitem", { name: "切换分支…" }).click();
   expect(onswitch).toHaveBeenCalledWith(
     expect.objectContaining({ id: "main" }),
@@ -128,6 +128,7 @@ test("a worktree's menu switches its branch unless it is prunable", async () => 
     .element(page.getByRole("menuitem", { name: "删除 worktree…" }))
     .toBeVisible();
   expect(items()).not.toContain("切换分支…");
+  expect(items()).not.toContain("置顶工作树");
   await userEvent.keyboard("{Escape}");
 });
 
@@ -188,9 +189,15 @@ test("a worktree's menu follows its branch state and starts the operation", asyn
       .elements()
       .map((el) => el.textContent?.trim());
   for (const [name, expected] of [
-    ["main", ["切换分支…", "从主页移除"]],
-    ["wt/feature", ["切换分支…", "快进到上游", "添加到主页", "删除 worktree…"]],
-    ["wt/fresh", ["切换分支…", "发布分支…", "添加到主页", "删除 worktree…"]],
+    ["main", ["切换分支…", "置顶工作树", "从主页移除"]],
+    [
+      "wt/feature",
+      ["切换分支…", "快进到上游", "置顶工作树", "添加到主页", "删除 worktree…"],
+    ],
+    [
+      "wt/fresh",
+      ["切换分支…", "发布分支…", "置顶工作树", "添加到主页", "删除 worktree…"],
+    ],
   ] as const) {
     await page.getByRole("button", { name: `工作树菜单 ${name}` }).click();
     await expect.element(page.getByRole("menuitem").first()).toBeVisible();

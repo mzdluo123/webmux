@@ -11,7 +11,7 @@
 - 已执行验证：
   - Go 与静态门禁：`go test -race -count=1 ./internal/settings ./internal/wire ./internal/api ./internal/clicmd ./internal/workspace ./internal/archtest ./internal/docguard`、`make persistence-check`、`make go-lint`（0 issues）、`go vet ./...` 与 `GOOS=darwin go vet ./...` 均通过；
   - 前端静态与单元测试：`pnpm --dir web build`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`（49 项架构守卫）及 `make test-unit`（90 个文件共 1260 项）通过；
-  - 浏览器组件测试：`WorkbenchTree.test.ts`（17 项）、`RepositoryPanel.test.ts`（28 项）、`GitWorkbenchRoute.test.ts`（8 项）、`AppShell.test.ts`（19 项）与 `WorkspaceGroup.test.ts`（6 项）通过；
+  - 浏览器组件测试：`WorkbenchTree.test.ts`（17 项）、`RepositoryPanel.test.ts`（28 项）、`RepositoryGroup.test.ts`（6 项）、`GitWorkbenchRoute.test.ts`（8 项）、`AppShell.test.ts`（19 项）与 `WorkspaceGroup.test.ts`（6 项）通过；
   - Playwright 端到端测试：`worktrees.spec.ts`（桌面与 iPhone SE 共 26 项）及 `settings-sync.spec.ts`、`git-workbench-route.spec.ts`、`session-creation.spec.ts`、`quick-start.spec.ts`（43 项通过、1 项按项目条件跳过）通过；
   - 隔离 Chromium 视觉核对：核对 1280×900、1280×720、768×800、667×375、390×844、375×667、320×568 七个视口的浅色与深色主题，无页面级横向溢出，展开菜单落在视口内，同排图标按钮尺寸一致；提供前后对比截图及[桌面端置顶、调序与取消置顶录屏](../images/pr/worktree-pins/interaction-desktop.gif)。
 - 局限：无头 Linux Chromium 的 `hover` 与 `any-pointer: coarse` 默认未激活，真实鼠标悬停显现、实体触屏常驻及 macOS / iOS / Android 真机浏览器未验证。
