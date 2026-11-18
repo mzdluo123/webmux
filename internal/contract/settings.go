@@ -22,7 +22,6 @@ type SettingsValues struct {
 	QuickCommands   *[]SettingsCommand  `json:"quickCommands"`
 	HomeWorktrees   map[string][]string `json:"homeWorktrees"`
 	SessionPins     []string            `json:"sessionPins"`
-	ForceSoftKeys   *bool               `json:"forceSoftKeys"`
 	IgnoreHighPorts *bool               `json:"ignoreHighPorts"`
 }
 type SettingsSnapshot struct {

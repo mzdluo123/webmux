@@ -4,8 +4,8 @@
 
 将同一 WebMux 实例上的跨设备偏好统一保存在服务端并在所有已认证客户端之间实时同步：
 
-- 同步范围涵盖输出预览、快捷指令、代码阅读偏好、主页工作树选择与底部工具栏偏好；
-- 把界面语言、主题、终端字号、token、推送订阅、草稿与上次选择等必须留在当前设备的数据划出清晰边界；
+- 同步范围涵盖输出预览、快捷指令、代码阅读偏好与主页工作树选择；
+- 把界面语言、主题、终端字号、底部工具栏显隐、token、推送订阅、草稿与上次选择等必须留在当前设备的数据划出清晰边界；
 - 在设置存储损坏、被占用或暂时不可达时，保持终端与会话照常可用。
 
 ## Requirements
@@ -14,8 +14,10 @@
 
 系统 SHALL 把用户偏好划分为三类，并 SHALL 只把第一类放进服务端设置文档与设置 API：
 
-- 跨客户端同步：`preview`、`codeReader.lineNumbers`、`codeReader.diffOverflow`、`quickCommands`、`homeWorktrees`、`forceSoftKeys`。
-- 仅当前设备：浏览器中保存的界面语言（`locale`）、明暗主题（`theme`，设备使用光线各异）、终端字号（`fontSize`，屏幕尺寸因设备而异）、token 输入、Web Push 订阅标识、草稿与暂存正文、`draftPersistence` 开关、`recentDirs`、`lastLaunch`、`customCommand`、`clientId`、`clientLive`。
+- 跨客户端同步：`preview`、`codeReader.lineNumbers`、`codeReader.diffOverflow`、`quickCommands`、`homeWorktrees`。
+- 仅当前设备：
+  - 外观与输入偏好：界面语言（`locale`）、明暗主题（`theme`）、终端字号（`fontSize`）、底部工具栏显隐（`bottomToolbar`）；
+  - 本机凭据与工作状态：token 输入、Web Push 订阅标识、草稿与暂存正文、`draftPersistence` 开关、`recentDirs`、`lastLaunch`、`customCommand`、`clientId`、`clientLive`。
 - 部署默认与全局策略：`listen`、`token`、`state_dir`、`allowed_origins`、`tunnel.*`、`default_cwd`、`scrollback_bytes`、`idle_after_seconds`、`prompt_patterns`、`agent_protocol`、`bell_attention`、`push.*`。
 
 设置接口 SHALL NOT 返回或接受第二类与第三类字段；PATCH 中出现 `theme`、`fontSize`、`token`、`push`、`draft`、`listen` 等未知键时 SHALL 返回 400。服务端 SHALL NOT 因为本能力修改 `config.toml` 或改变上述 TOML 项的生效方式。
@@ -87,21 +89,20 @@
 
 - `revision` SHALL 为从 0 开始的单调递增整数，每次成功 PATCH 加 1。
 - `updatedAt` SHALL 为 UTC RFC 3339 时间，未写入过时为空字符串。
-- `values` SHALL 始终包含 `preview`、`codeReader`、`quickCommands`、`homeWorktrees`、`forceSoftKeys`，未设置的键为 `null`。
+- `values` SHALL 始终包含 `preview`、`codeReader`、`quickCommands`、`homeWorktrees`，未设置的键为 `null`。
 
 设置值 SHALL 满足以下约束：
 
 - `preview`：`{lines, skip}`，`lines` 为 1–50 的整数，`skip` 为 0–50 的整数，或 `null`；
 - `codeReader`：`{lineNumbers, diffOverflow}`，`lineNumbers` 为 `"show"` 或 `"hide"`，`diffOverflow` 为 `"scroll"` 或 `"wrap"`，或 `null`；
 - `quickCommands`：0–50 条，每条 `id` 为 1–64 字符且列表内唯一，`name` 去首尾空白后不超过 40 字符，`command` 去首尾空白后非空且不超过 4096 字符，`enter` 为布尔，或 `null`；
-- `homeWorktrees`：对象，最多 200 个仓库，仓库 ID 为 1–128 字符，每个仓库最多 1000 个工作树 ID，每个 ID 为 1–128 字符，全部条目合计最多 2000 个，或 `null`；
-- `forceSoftKeys`：布尔或 `null`。
+- `homeWorktrees`：对象，最多 200 个仓库，仓库 ID 为 1–128 字符，每个仓库最多 1000 个工作树 ID，每个 ID 为 1–128 字符，全部条目合计最多 2000 个，或 `null`。
 
 - 所有字符串 SHALL 是有效 UTF-8；长度上限 SHALL 按浏览器 UTF-16 code unit 计数，以保证 Go 接受的值也通过客户端 schema。
 - 快捷指令保存时 SHALL 把 CRLF/CR 统一为 LF 并移除正文末尾换行；服务端 SHALL 执行相同规范化。
 - PATCH 请求体 SHALL 不超过 2 MiB；设置文件 SHALL 不超过 4 MiB。
 - 任意值越界、类型错误或包含未知字段时 SHALL 返回 400，且 SHALL NOT 写入任何部分内容。
-- 已移回本机或退役的 `theme`、`fontSize`、`chatIdleSleepMinutes` 与 `artifactPrompt`（临时文件夹提示词模板，其说明已移入 `{{webmux}}`）SHALL 视为未知字段：PATCH 中出现时返回 400；旧 `settings.json` 中遗留的这些键 SHALL 在读取时忽略，并在下一次写入时移除。
+- 已移回本机或退役的 `theme`、`fontSize`、`forceSoftKeys`、`chatIdleSleepMinutes` 与 `artifactPrompt`（临时文件夹提示词模板，其说明已移入 `{{webmux}}`）SHALL 视为未知字段：PATCH 中出现时返回 400；旧 `settings.json` 中遗留的这些键 SHALL 在读取时忽略，并在下一次写入时移除。
 
 #### Scenario: 默认快照
 
@@ -140,8 +141,8 @@ PATCH 的状态码 SHALL 如下：
 
 #### Scenario: 部分更新保留其他键
 
-- **WHEN** 当前设置为 `forceSoftKeys: false`、`preview: {lines: 15, skip: 1}`，客户端 PATCH `{baseRevision: 3, changes: {forceSoftKeys: true}}`
-- **THEN** 返回 200，`forceSoftKeys` 变为 `true`，`preview` 仍为 `{lines: 15, skip: 1}`，`revision` 变为 4
+- **WHEN** 当前设置为 `ignoreHighPorts: false`、`preview: {lines: 15, skip: 1}`，客户端 PATCH `{baseRevision: 3, changes: {ignoreHighPorts: true}}`
+- **THEN** 返回 200，`ignoreHighPorts` 变为 `true`，`preview` 仍为 `{lines: 15, skip: 1}`，`revision` 变为 4
 
 #### Scenario: 修订号冲突
 
@@ -170,7 +171,7 @@ PATCH 的状态码 SHALL 如下：
 
 #### Scenario: 两台设备实时同步
 
-- **WHEN** 桌面端开启强制底部工具栏，手机端的 `/ws/settings` 已连接
+- **WHEN** 桌面端开启 Diff 自动换行，手机端的 `/ws/settings` 已连接
 - **THEN** 手机端在收到 `settings.update` 后无需刷新即可应用新设置，修订号与桌面端一致
 
 #### Scenario: 建立连接时恰好发生一次修改
@@ -236,7 +237,8 @@ PATCH 的状态码 SHALL 如下：
 
 设置页 SHALL 说明服务端同步与设备本地的边界，并 SHALL 提供两张卡片：
 
-- “外观与阅读”卡片：本机偏好（界面语言、主题跟随系统 / 浅色 / 深色、字体大小 8–20）与服务端同步偏好（输出预览行数 1–50 与跳过行数 0–50、代码行号显示、Diff 换行以及强制底部工具栏）。
+- “外观与阅读”卡片：本机偏好（界面语言、主题跟随系统 / 浅色 / 深色、字体大小 8–20、显示底部工具栏）。
+- 代码阅读与输出预览等分区：服务端同步偏好（输出预览行数 1–50 与跳过行数 0–50、代码行号显示、Diff 换行）。
 - 快捷指令卡片：说明内容保存在服务端并在所有设备间共享，同时保留既有新建、编辑、排序、删除、上限和删除确认行为。
 
 所有服务端偏好入口 SHALL 读写同一份设置快照。入口包括：代码阅读器的行号与 Diff 换行开关、主页工作树的添加与移除、设置页服务端偏好控件。侧栏底部与设置页的主题切换 SHALL 读写同一份本机 `webmux.theme` 存储，并通过浏览器 `storage` 事件在同一浏览器的多标签页及独立代码窗口间即时同步。
@@ -263,12 +265,12 @@ PATCH 的状态码 SHALL 如下：
 
 #### Scenario: 一处修改多处生效
 
-- **WHEN** 用户在设置页启用强制底部工具栏，随后在代码阅读器隐藏行号
+- **WHEN** 用户在设置页启用 Diff 自动换行，随后在代码阅读器隐藏行号
 - **THEN** 两个修改都写入服务端，设置页与对应视图立即显示新值，另一台已连接设备也收到更新
 
 #### Scenario: 写入失败回滚
 
-- **WHEN** 用户切换强制底部工具栏时设置服务端返回 503
+- **WHEN** 用户切换代码行号时设置服务端返回 503
 - **THEN** 界面恢复切换前的值，显示不可用原因，不把这次修改写入本地缓存为已同步值
 
 #### Scenario: 恢复预览默认值

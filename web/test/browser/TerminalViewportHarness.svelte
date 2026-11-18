@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Connection } from "../../src/platform/ws";
   import type { UploadProgress } from "../../src/hooks/shared/upload.svelte";
+  import type { BottomToolbarMode } from "../../src/hooks/terminal/bottom-toolbar-preference.svelte";
   import FileUploadProgress from "../../src/components/shared/FileUploadProgress.svelte";
   import TerminalFindBar from "../../src/components/terminal/TerminalFindBar.svelte";
   import TerminalViewport from "../../src/components/terminal/TerminalViewport.svelte";
@@ -14,10 +15,9 @@
     height = 240,
     selection = "",
     controlling = true,
-    touchGamepad = false,
+    toolbarMode = "shown" as BottomToolbarMode,
     send = () => {},
     toggle = () => {},
-    setTouchGamepad = () => {},
     scrollToBottom = () => {},
     findOpen = false,
     uploadProgress = null,
@@ -31,10 +31,9 @@
     height?: number;
     selection?: string;
     controlling?: boolean;
-    touchGamepad?: boolean;
+    toolbarMode?: BottomToolbarMode;
     send?: (input: string) => void;
     toggle?: (key: "ctrl" | "alt" | "shift") => void;
-    setTouchGamepad?: (value: boolean) => void;
     scrollToBottom?: () => void;
     findOpen?: boolean;
     uploadProgress?: UploadProgress | null;
@@ -91,14 +90,13 @@
 {#snippet draftToggle()}<span></span>{/snippet}
 
 <div
-  class="session-terminal force-soft-keys"
+  class="session-terminal"
+  data-bottom-toolbar={toolbarMode}
   style={`position: relative; width: ${width}px; height: ${height}px`}
 >
   <TerminalViewport
     {terminal}
     {visible}
-    {touchGamepad}
-    {setTouchGamepad}
     {findOpen}
     {uploads}
     {quickMenu}
