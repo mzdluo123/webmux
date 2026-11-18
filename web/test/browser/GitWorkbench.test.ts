@@ -531,7 +531,11 @@ test("Commit pane separates reading/reviewed/staged states, stages single hunk, 
   // Confirm step 1 (commit matched) -> transitions into Push preview dialog!
   await page.getByRole("button", { name: "确认提交并继续预览推送" }).click();
   await expect
-    .element(page.getByText(/推送确认 · main → origin\/main/))
+    .element(
+      page
+        .getByRole("dialog", { name: "推送确认" })
+        .getByText("origin/main", { exact: true }),
+    )
     .toBeVisible();
 });
 

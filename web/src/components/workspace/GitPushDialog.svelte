@@ -16,6 +16,7 @@
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import GitDialogFooter from "./GitDialogFooter.svelte";
+  import GitReviewBody from "./GitReviewBody.svelte";
   import GitIssueList from "./GitIssueList.svelte";
   import GitPushCommitInspector from "./GitPushCommitInspector.svelte";
   import GitPushRejectedBanner, {
@@ -75,6 +76,12 @@
   );
   const remoteTrackingRef = $derived(
     formatPushRemoteTrackingRef(remoteName, targetBranch || sourceBranch),
+  );
+
+  const rejection = $derived(
+    push?.rejected
+      ? push.rejected.message || m.s7_push_remote_rejected()
+      : (push?.conflictError ?? ""),
   );
 
   const commitRows = $derived.by(() => {
@@ -168,32 +175,22 @@
 </script>
 
 <ResponsiveDialog
-  title={m.s6_push_dialog_title({
-    source: sourceBranch,
-    remote: remoteName,
-    target: targetBranch || sourceBranch,
-  })}
-  description={pushUrl
-    ? m.s6_push_dialog_desc_with_url({
-        repo: repositoryName,
-        url: pushUrl,
-        count: String(totalCommits),
-      })
-    : m.s6_push_dialog_desc_no_url({ repo: repositoryName })}
-  drawerDescription={m.s6_push_dialog_drawer_desc({
-    count: String(totalCommits),
-  })}
+  title={m.s6_push_dialog_title()}
+  description={m.s6_push_dialog_drawer_desc({ count: String(totalCommits) })}
   drawerFullScreen
-  truncateDrawerTitle
+  pinDrawerHeader
   busy={push?.running ?? false}
   class="sm:max-w-[min(900px,calc(100vw-2rem))]"
   onclose={handleClose}
 >
-  <div class="space-y-3" data-testid="git-push-dialog">
+  <GitReviewBody
+    testId="git-push-dialog"
+    resetScrollOn={rejection || push?.loadError}
+  >
     {#if push?.rejected || push?.conflictError}
       <GitPushRejectedBanner
         {precedingCommit}
-        reason={push?.rejected?.message || push?.conflictError || ""}
+        reason={rejection}
         {sourceBranch}
         {remoteTrackingRef}
         onCloseDialog={handleClose}
@@ -228,33 +225,30 @@
     <div
       class="flex min-w-0 flex-col gap-2 rounded-lg border bg-background p-2.5 text-xs"
     >
-      <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
-        <div class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
-          <span class="font-semibold text-foreground">{repositoryName}</span>
-          <Badge variant="info" class="max-w-full">
-            <span class="truncate" title={sourceBranch}>{sourceBranch}</span>
+      <div class="flex min-w-0 items-center gap-2">
+        <span
+          class="min-w-0 flex-1 truncate font-semibold text-foreground"
+          title={repositoryName}>{repositoryName}</span
+        >
+        {#if publishMode}
+          <Badge variant="warning" class="max-w-full">
+            <span class="truncate">{m.s6_push_publish_badge()}</span>
           </Badge>
-          <span class="text-muted-foreground">→</span>
-          <Badge variant="outline" class="max-w-full">
-            <span
-              class="truncate"
-              title={`${remoteName}/${targetBranch || sourceBranch}`}
-            >
-              {remoteName}/{targetBranch || sourceBranch}
-            </span>
-          </Badge>
-          {#if publishMode}
-            <Badge variant="warning" class="max-w-full">
-              <span class="truncate">{m.s6_push_publish_badge()}</span>
-            </Badge>
-          {/if}
-        </div>
-
-        {#if pushUrl}
-          <span class="font-mono break-all text-muted-foreground">
-            {pushUrl}
-          </span>
         {/if}
+      </div>
+      <div class="flex min-w-0 items-center gap-1.5">
+        <Badge variant="info" class="min-w-0 shrink">
+          <span class="truncate" title={sourceBranch}>{sourceBranch}</span>
+        </Badge>
+        <span class="shrink-0 text-muted-foreground">→</span>
+        <Badge variant="outline" class="min-w-0 shrink">
+          <span
+            class="truncate"
+            title={`${remoteName}/${targetBranch || sourceBranch}`}
+          >
+            {remoteName}/{targetBranch || sourceBranch}
+          </span>
+        </Badge>
       </div>
 
       {#if push && publishMode}
@@ -263,14 +257,20 @@
             <span class="text-xs text-muted-foreground">
               {m.s6_push_publish_remote_label()}
             </span>
-            {#if push.remotes.length > 0}
+            {#if push.remotesLoading || push.remotes.length > 0}
               <NativeSelect.Root
                 size="sm"
+                disabled={push.running || push.remotesLoading}
                 class="w-full"
                 value={push.remote}
                 aria-label={m.s6_push_select_remote_aria()}
                 onchange={(e) => push.setPublishRemote(e.currentTarget.value)}
               >
+                {#if push.remotesLoading}
+                  <NativeSelect.Option value={push.remote}
+                    >{push.remote}</NativeSelect.Option
+                  >
+                {/if}
                 {#each push.remotes as r (r.name)}
                   <NativeSelect.Option value={r.name}>
                     {r.name} ({r.pushUrl})
@@ -282,6 +282,7 @@
                 size="sm"
                 mono
                 value={push.remote}
+                disabled={push.running}
                 aria-label={m.s6_push_remote_name_aria()}
                 oninput={(e) => push.setPublishRemote(e.currentTarget.value)}
               />
@@ -296,6 +297,7 @@
               size="sm"
               mono
               value={push.target}
+              disabled={push.running}
               placeholder={sourceBranch}
               aria-label={m.s6_push_target_branch_aria()}
               oninput={(e) => push.setPublishTarget(e.currentTarget.value)}
@@ -303,6 +305,10 @@
           </div>
         </div>
       {/if}
+      <span
+        class="min-h-4 truncate font-mono text-muted-foreground"
+        title={pushUrl || undefined}>{pushUrl}</span
+      >
     </div>
 
     <GitIssueList {blockers} {warnings} />
@@ -393,7 +399,9 @@
         />
       </div>
     </div>
+  </GitReviewBody>
 
+  {#snippet footer()}
     <GitDialogFooter
       submitting={push?.running ?? false}
       {canConfirm}
@@ -404,5 +412,5 @@
       onConfirm={handleConfirm}
       onClose={handleClose}
     />
-  </div>
+  {/snippet}
 </ResponsiveDialog>

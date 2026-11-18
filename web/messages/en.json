@@ -2823,7 +2823,6 @@
   "s6_divergence_drawer_desc": "Verify direction, worktree path, and commits before executing",
   "s6_divergence_fast_forward_badge": "Fast-Forward available",
   "s6_divergence_loading_body": "Computing direction, merge-base, and potential blockers…",
-  "s6_divergence_loading_desc": "Loading worktree status and affected commits…",
   "s6_divergence_merge_base": "Merge base:",
   "s6_divergence_session_ack": [
     {
@@ -3103,22 +3102,6 @@
   "s6_push_commits_heading": "Commits to Push ({count})",
   "s6_push_confirm_publish": "Publish & Push",
   "s6_push_confirm_push": "Push",
-  "s6_push_dialog_desc_no_url": "Repository {repo} · Review commits and file diffs before pushing",
-  "s6_push_dialog_desc_with_url": [
-    {
-      "declarations": [
-        "input count",
-        "input repo",
-        "input url",
-        "local countPlural = count: plural"
-      ],
-      "selectors": ["countPlural"],
-      "match": {
-        "countPlural=one": "Repository {repo} · Remote {url} · {count} commit to push",
-        "countPlural=*": "Repository {repo} · Remote {url} · {count} commits to push"
-      }
-    }
-  ],
   "s6_push_dialog_drawer_desc": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -3129,7 +3112,7 @@
       }
     }
   ],
-  "s6_push_dialog_title": "Confirm Push · {source} → {remote}/{target}",
+  "s6_push_dialog_title": "Confirm Push",
   "s6_push_fetch_btn": "Fetch",
   "s6_push_ff_update_btn": "Fast-Forward…",
   "s6_push_inspector_files_heading": "Changed Files in Commit ({count})",
