@@ -26,6 +26,11 @@
   - 本机免密与 Relay 浏览器顶层导航的非执行行为通过 HTTP 响应头契约（`application/octet-stream`、`attachment`、`nosniff` 与 `sandbox` CSP）回归验证，未连接公网 Relay 节点演练；
   - 浏览器与端到端用例仅在 Linux 无头 Chromium 中执行，未在 macOS / iOS / Android 真机浏览器上复测。
 
+## T045 终端查找与回放提示（US-D11）
+
+- 隔离 Chromium 的桌面、平板和手机用例测得查找框在匹配结果和回放提示切换时保持高度，Esc 保留匹配行。实测参考 PR 附图及录屏。
+- `terminal.spec.ts` 的桌面和 iPhone SE Chromium 用例覆盖焦点、匹配复制和关闭后的 PTY 输入。
+
 ## Codex 原生历史版本兼容（US-Q19、US-Q20）
 
 - 修复前，`go test -count=1 ./internal/agent/codex/history -run '^TestRuntimeDiscoveryCurrentCaptureAndFreeze$'` 在三个新增版本上均复现 byte 0 格式错误。
@@ -64,8 +69,3 @@
   - `go test -race -count=1 ./cmd/... ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过；
   - Playwright E2E `agent-tools.spec.ts`、`relay-settings.spec.ts` 与 `worktrees.spec.ts`（直接目录创建降级）共 10 项通过。
-
-### T045 终端查找与回放提示（US-D11）
-
-- 隔离 Chromium 的桌面、平板和手机用例测得查找框在匹配结果和回放提示切换时保持高度，Esc 保留匹配行。实测参考 PR 附图及录屏。
-- `terminal.spec.ts` 的桌面和 iPhone SE Chromium 用例覆盖焦点、匹配复制和关闭后的 PTY 输入。
