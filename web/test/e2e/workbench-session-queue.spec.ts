@@ -83,6 +83,26 @@ test("the default queue prioritizes explicit attention and keeps a focused sessi
   await close.click();
   await expect(trigger).toBeFocused();
 
+  const exitedSession = await request.post("/api/sessions", {
+    data: {
+      name: "Failed deploy",
+      cwd: workDir,
+      cmd: ["/bin/sh", "-c", "exit 7"],
+    },
+  });
+  expect(exitedSession.status()).toBe(201);
+  const search = main.getByRole("searchbox");
+  await search.fill("Failed deploy");
+  const exited = main.getByRole("button", { name: "已退出 1" });
+  const deploy = main.getByRole("link", { name: "Failed deploy" });
+  await expect(deploy).toBeVisible();
+  await exited.click();
+  await expect(deploy).toHaveCount(0);
+  await exited.click();
+  await expect(deploy).toBeVisible();
+  await search.fill("");
+  await expect(exited).toHaveAttribute("aria-expanded", "false");
+
   await main.getByRole("searchbox").fill("stale filter");
   if (info.project.use.isMobile)
     await page.getByRole("button", { name: "打开侧栏" }).click();

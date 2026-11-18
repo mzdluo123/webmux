@@ -59,7 +59,17 @@
     idle: m.s8_queue_idle(),
     exited: m.s8_queue_exited(),
   });
-  let expanded = $state({ idle: false, exited: false });
+  const primaryGroups = ["attention", "running"] as const;
+  const foldableGroups = ["idle", "exited"] as const;
+  type FoldableGroup = "idle" | "exited";
+  let expanded = $state<Record<FoldableGroup, boolean>>({
+    idle: false,
+    exited: false,
+  });
+  let filteredExpanded = $state<Partial<Record<FoldableGroup, boolean>>>({});
+  $effect(() => {
+    if (!filtering) filteredExpanded = {};
+  });
   let previewId = $state("");
   let previewOpen = $state(false);
   let opener = $state<HTMLElement | null>(null);
@@ -122,8 +132,7 @@
   ]}
 >
   <div class="min-w-0 space-y-6">
-    {#each ["attention", "running"] as group (group)}
-      {@const key = group as "attention" | "running"}
+    {#each primaryGroups as key (key)}
       {#if groups[key].length}
         <section>
           <h2 class="mb-2 flex items-baseline gap-2 text-base font-semibold">
@@ -136,18 +145,23 @@
         </section>
       {/if}
     {/each}
-    {#each ["idle", "exited"] as group (group)}
-      {@const key = group as "idle" | "exited"}
+    {#each foldableGroups as key (key)}
+      {@const open = filtering
+        ? (filteredExpanded[key] ?? true)
+        : expanded[key]}
       {#if groups[key].length}
         <Collapsible.Root
-          open={filtering || expanded[key]}
-          onOpenChange={(open) => (expanded[key] = open)}
+          {open}
+          onOpenChange={(value) => {
+            if (filtering) filteredExpanded[key] = value;
+            else expanded[key] = value;
+          }}
         >
           <Collapsible.Trigger>
             {#snippet child({ props })}
               <Button {...props} variant="ghost" class="w-full justify-start">
                 <IconChevronRight
-                  class={filtering || expanded[key] ? "rotate-90" : ""}
+                  class={open ? "rotate-90" : ""}
                   aria-hidden="true"
                 />
                 {titles[key]}
