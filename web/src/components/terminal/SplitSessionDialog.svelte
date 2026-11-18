@@ -35,24 +35,28 @@
           .includes(query.toLowerCase()),
     ),
   );
+  const controller = new AbortController();
+  let searchInput = $state<HTMLInputElement | null>(null);
+  async function loadSessions() {
+    loading = true;
+    error = "";
+    try {
+      const result = await api(
+        "/sessions",
+        z.array(SessionInfoSchema),
+        "GET",
+        undefined,
+        controller.signal,
+      );
+      if (!controller.signal.aborted) sessions = result;
+    } catch (err) {
+      if (!controller.signal.aborted) error = errorMessage(err);
+    } finally {
+      if (!controller.signal.aborted) loading = false;
+    }
+  }
   onMount(() => {
-    const controller = new AbortController();
-    void api(
-      "/sessions",
-      z.array(SessionInfoSchema),
-      "GET",
-      undefined,
-      controller.signal,
-    )
-      .then((result) => {
-        sessions = result;
-      })
-      .catch((err) => {
-        if (!controller.signal.aborted) error = errorMessage(err);
-      })
-      .finally(() => {
-        loading = false;
-      });
+    void loadSessions();
     return () => controller.abort();
   });
 </script>
@@ -65,13 +69,25 @@
   <div class="space-y-4">
     <SplitDirectionChoice bind:direction />
     <Input
+      bind:ref={searchInput}
       aria-label={m.s4_split_search_aria()}
       placeholder={m.s4_split_search_placeholder()}
       bind:value={query}
     />
-    <div class="max-h-[50dvh] space-y-1 overflow-auto">
+    <div
+      class="h-[min(36dvh,16rem)] space-y-1 overflow-auto [scrollbar-gutter:stable]"
+    >
       {#if loading}<p role="status">{m.s4_loading_sessions()}</p>
-      {:else if error}<p role="alert" class="text-destructive">{error}</p>
+      {:else if error}
+        <p role="alert" class="text-sm break-words text-destructive">{error}</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onclick={() => {
+            searchInput?.focus();
+            void loadSessions();
+          }}>{m.s4_retry_sessions()}</Button
+        >
       {:else if choices.length === 0}<p class="text-sm text-muted-foreground">
           {m.s4_split_no_sessions()}
         </p>
