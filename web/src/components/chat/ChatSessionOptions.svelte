@@ -41,13 +41,11 @@
   let trigger = $state<HTMLButtonElement | null>(null);
   let origin = $state<DOMRectReadOnly | null>(null);
   let openPickerId = $state<string | null>(null);
-  let pickerSearch = $state("");
   const pickerIdPrefix = $props.id();
 
   function setPickerOpen(optionId: string, next: boolean) {
     if (next) {
       openPickerId = optionId;
-      pickerSearch = "";
     } else if (openPickerId === optionId) {
       openPickerId = null;
     }
@@ -73,10 +71,7 @@
   autoFocus
   onOpenChange={(open) => {
     if (open) origin = trigger?.getBoundingClientRect() ?? null;
-    else {
-      openPickerId = null;
-      pickerSearch = "";
-    }
+    else openPickerId = null;
   }}
 >
   <Drawer.Trigger bind:ref={trigger}>
@@ -212,7 +207,6 @@
     {choices}
     {disabled}
     {searchable}
-    bind:search={pickerSearch}
     open={openPickerId === id}
     onOpenChange={(next) => setPickerOpen(id, next)}
     onselect={(next) => {

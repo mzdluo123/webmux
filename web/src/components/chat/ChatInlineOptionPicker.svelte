@@ -20,7 +20,6 @@
     disabled,
     searchable,
     open,
-    search = $bindable(),
     onOpenChange,
     onselect,
   }: {
@@ -31,22 +30,27 @@
     disabled: boolean;
     searchable: boolean;
     open: boolean;
-    search: string;
     onOpenChange: (open: boolean) => void;
     onselect: (value: string) => void;
   } = $props();
   const currentName = $derived(
     choices.find((choice) => choice.value === value)?.name ?? value,
   );
+  let search = $state("");
   let panel = $state<HTMLDivElement | null>(null);
   const settle = useDockMotion(
     () => panel,
-    () => true,
-    () => String(open),
+    () => open,
   );
 </script>
 
-<Collapsible.Root {open} {onOpenChange}>
+<Collapsible.Root
+  {open}
+  onOpenChange={(next) => {
+    if (next) search = "";
+    onOpenChange(next);
+  }}
+>
   <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-2">
     <Label for={triggerId} class="min-w-0 wrap-anywhere">{name}</Label>
     <Collapsible.Trigger
@@ -63,24 +67,26 @@
       />
     </Collapsible.Trigger>
   </div>
-  <div bind:this={panel} inert={!open} aria-hidden={!open} oninput={settle}>
-    <Collapsible.Content>
-      {#if open}
-        <div class="pt-2">
-          <div class="overflow-hidden rounded-lg border" data-vaul-no-drag>
-            <ChatChoiceCommandList
-              {name}
-              {value}
-              {choices}
-              {disabled}
-              {searchable}
-              inline
-              bind:search
-              {onselect}
-            />
-          </div>
-        </div>
-      {/if}
-    </Collapsible.Content>
-  </div>
+  <Collapsible.Content
+    forceMount
+    bind:ref={panel}
+    hidden={!open}
+    inert={!open}
+    oninput={settle}
+  >
+    <div class="pt-2">
+      <div class="overflow-hidden rounded-lg border" data-vaul-no-drag>
+        <ChatChoiceCommandList
+          {name}
+          {value}
+          {choices}
+          {disabled}
+          {searchable}
+          inline
+          bind:search
+          {onselect}
+        />
+      </div>
+    </div>
+  </Collapsible.Content>
 </Collapsible.Root>
