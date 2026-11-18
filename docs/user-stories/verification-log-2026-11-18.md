@@ -34,8 +34,8 @@
 
 ## T045 终端查找与回放提示（US-D11）
 
-- 隔离 Chromium 的桌面、平板和手机用例测得查找框在匹配结果和回放提示切换时保持高度，Esc 保留匹配行。实测参考 PR 附图及录屏。
-- `terminal.spec.ts` 的桌面和 iPhone SE Chromium 用例覆盖焦点、匹配复制和关闭后的 PTY 输入。
+- 查找栏在查询为空且未回放时省略状态行保持紧凑覆盖高度；有查询或回放提示时仅挂载单个命名的 `role="status"`（`查找结果`），切换匹配结果与回放提示期间高度保持一致，并在回放完成前后保留输入框或按钮焦点。
+- `TerminalRendering.test.ts` 与 `terminal.spec.ts` 的桌面和 iPhone SE Chromium 用例覆盖紧凑初始高度、单一状态播报、回放焦点保留、匹配复制和关闭后的 PTY 输入。
 
 ## Codex 原生历史版本兼容（US-Q19、US-Q20）
 
