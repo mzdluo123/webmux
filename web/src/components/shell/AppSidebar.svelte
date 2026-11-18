@@ -2,6 +2,7 @@
   import IconLayoutSidebarLeftCollapse from "~icons/tabler/layout-sidebar-left-collapse";
   import IconMessagePlus from "~icons/tabler/message-plus";
   import IconPlus from "~icons/tabler/plus";
+  import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { errorMessage } from "../../platform/error";
@@ -49,6 +50,7 @@
   let {
     route,
     collapsible = false,
+    onclose,
     reconnection,
     onmode,
     onprimary,
@@ -59,6 +61,7 @@
     >;
     /** Desktop only; the drawer closes on its own. */
     collapsible?: boolean;
+    onclose?: () => void;
     reconnection?: RelayReconnection;
     onmode: (mode: ShellMode) => void;
     onprimary: () => void;
@@ -217,12 +220,26 @@
     <span class="brand mr-auto min-w-0 overflow-hidden px-1 whitespace-nowrap"
       ><Brand /></span
     >
-    {#if chat}<ModeSwitch
+    {#if onclose}
+      <Button
+        class="shrink-0"
+        variant="ghost"
+        size="icon-touch"
+        aria-label={m.s1_close_sidebar()}
+        title={m.s1_close_sidebar()}
+        onclick={onclose}><IconX aria-hidden="true" /></Button
+      >
+    {/if}
+  </div>
+  {#if chat}
+    <div class="px-2 pb-1">
+      <ModeSwitch
         mode={shellUi.mode}
         workspaces={!!workspace}
         onchange={onmode}
-      />{/if}
-  </div>
+      />
+    </div>
+  {/if}
   <div class="px-2 pt-1">
     <Button
       variant="outline"
@@ -249,34 +266,34 @@
     </div>
   {/if}
   {#if notifications}<notifications.Inbox sessions={live} />{/if}
-  {#if pinned.length}
-    <section
-      class="max-h-36 shrink-0 overflow-y-auto px-2 pt-2"
-      aria-label={m.s1_pinned_sessions()}
-    >
-      <h2 class="px-3 pb-1 text-xs text-muted-foreground">{m.s1_pinned()}</h2>
-      <ul class="space-y-0.5">
-        {#each pinned as session (session.id)}
-          <SidebarLiveSessionRow
-            {session}
-            {current}
-            icon={session.agent?.icon ??
-              configIcons.get(session.configId ?? "") ??
-              ""}
-            pinned
-            onopen={openSession}
-            onrename={shell.rename}
-            onclose={shell.close}
-          />
-        {/each}
-      </ul>
-    </section>
-  {/if}
   <ScrollArea
     type="hover"
     class="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]]:overscroll-contain [&_[data-slot=scroll-area-viewport]>div]:!block"
   >
     <div class="px-2 py-2">
+      {#if pinned.length}
+        <section class="mb-3 border-b pb-3" aria-label={m.s1_pinned_sessions()}>
+          <h2 class="px-3 pb-1 text-xs text-muted-foreground">
+            {m.s1_pinned()}
+          </h2>
+          <ul class="space-y-0.5">
+            {#each pinned as session (session.id)}
+              <SidebarLiveSessionRow
+                {session}
+                {current}
+                icon={session.agent?.icon ??
+                  configIcons.get(session.configId ?? "") ??
+                  ""}
+                pinned
+                onopen={openSession}
+                onrename={shell.rename}
+                onclose={shell.close}
+              />
+            {/each}
+          </ul>
+        </section>
+      {/if}
+
       {#if resumeError || sessionPins.error}<p
           role="alert"
           class="mb-2 rounded-md border border-destructive/40 px-3 py-2 text-xs text-destructive"

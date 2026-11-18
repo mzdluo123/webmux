@@ -342,8 +342,9 @@ test.describe("phone drawer", () => {
       await open.click();
       const drawer = page.getByRole("dialog", { name: "导航" });
       await expect(drawer).toBeVisible();
-      await expect(drawer.locator(":focus")).toHaveCount(1);
-      await page.keyboard.press("Escape");
+      const close = drawer.getByRole("button", { name: "关闭侧栏" });
+      await expect(close).toBeFocused();
+      await close.click();
       await expect(drawer).toBeHidden();
       await expect(open).toBeFocused();
       // "全部仓库" in the drawer returns to the workbench home.
@@ -385,8 +386,7 @@ test.describe("sidebar is always reachable", () => {
     });
 });
 
-// Required guard: the sidebar's top row (collapse button, brand, mode
-// switch) never overlaps, even at the narrowest sidebar and a larger font.
+// The brand row and labeled mode buttons must fit at minimum width and larger text.
 test.describe("sidebar header never overlaps", () => {
   for (const fontSize of ["100%", "150%"])
     test(`collapse button, brand and mode switch stay apart at the narrowest width (font ${fontSize})`, async ({
@@ -404,23 +404,23 @@ test.describe("sidebar header never overlaps", () => {
       const sidebar = page.getByRole("complementary", { name: "侧栏" });
       const nav = sidebar.getByRole("navigation", { name: "导航" });
       await expect(nav).toBeVisible();
-      const boxes = [];
-      for (const part of [
-        nav.getByRole("button", { name: "收起侧栏" }),
-        nav.locator(".brand"),
-        nav.getByRole("group", { name: "模式" }),
-      ]) {
+      const collapse = nav.getByRole("button", { name: "收起侧栏" });
+      const brand = nav.locator(".brand");
+      const modes = nav.getByRole("group", { name: "模式" });
+      await expect(modes.getByText("聊天", { exact: true })).toBeVisible();
+      await expect(modes.getByText("工作台", { exact: true })).toBeVisible();
+      for (const part of [collapse, brand, modes])
         await expect(part).toBeVisible();
-        boxes.push((await part.boundingBox())!);
-      }
-      for (let i = 0; i < boxes.length - 1; i++)
-        expect(
-          boxes[i].x + boxes[i].width,
-          `part ${i} overlaps part ${i + 1}`,
-        ).toBeLessThanOrEqual(boxes[i + 1].x + 0.5);
+      const toggle = (await collapse.boundingBox())!;
+      const logo = (await brand.boundingBox())!;
+      const group = (await modes.boundingBox())!;
       const side = (await sidebar.boundingBox())!;
-      const last = boxes[2];
-      expect(last.x + last.width).toBeLessThanOrEqual(side.x + side.width);
+      expect(toggle.x + toggle.width).toBeLessThanOrEqual(logo.x + 0.5);
+      expect(
+        Math.max(toggle.y + toggle.height, logo.y + logo.height),
+      ).toBeLessThanOrEqual(group.y + 0.5);
+      expect(group.x).toBeGreaterThanOrEqual(side.x);
+      expect(group.x + group.width).toBeLessThanOrEqual(side.x + side.width);
     });
 });
 
@@ -472,6 +472,12 @@ test("session pins and their order sync to another browser", async ({
   await pin("Pinned demo");
   await pin("Second demo");
   await order(page, ["Second demo", "Pinned demo"]);
+  const viewport = page.locator('[data-slot="scroll-area-viewport"]').filter({
+    has: region(page),
+  });
+  await expect(
+    viewport.getByRole("tree", { name: "仓库与会话" }),
+  ).toBeVisible();
   const other = await browser.newContext({
     viewport: page.viewportSize() ?? undefined,
     isMobile: mobile,

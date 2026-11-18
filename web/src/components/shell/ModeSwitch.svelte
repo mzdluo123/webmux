@@ -18,25 +18,33 @@
   } = $props();
 </script>
 
-<div class="flex shrink-0 items-center" role="group" aria-label={m.s1_mode()}>
+<div
+  class="flex flex-wrap items-center gap-1"
+  role="group"
+  aria-label={m.s1_mode()}
+>
   <Button
     variant="ghost"
-    size="icon-touch"
+    size="sm-touch"
+    class="min-w-[min(100%,6rem)] flex-1"
     aria-label={m.s1_chat_mode()}
     aria-pressed={mode === "chat"}
     title={m.s1_chat_mode_title()}
     onclick={() => onchange("chat")}
-    ><IconMessageCircle aria-hidden="true" /></Button
+    ><IconMessageCircle aria-hidden="true" />{m.s1_page_chat()}</Button
   >
   <Button
     variant="ghost"
-    size="icon-touch"
+    size="sm-touch"
+    class="min-w-[min(100%,6rem)] flex-1"
     aria-label={workspaces ? m.s1_workbench_mode() : m.s1_sessions_mode()}
     aria-pressed={mode === "workbench"}
     title={workspaces
       ? m.s1_workbench_mode_title()
       : m.s1_sessions_mode_title()}
     onclick={() => onchange("workbench")}
-    ><IconLayoutDashboard aria-hidden="true" /></Button
+    ><IconLayoutDashboard aria-hidden="true" />{workspaces
+      ? m.s1_workbench()
+      : m.s1_sessions()}</Button
   >
 </div>

@@ -430,6 +430,7 @@
     <AppSidebar
       {route}
       {reconnection}
+      onclose={() => (shellUi.drawerOpen = false)}
       onmode={changeMode}
       onprimary={primary}
     />
