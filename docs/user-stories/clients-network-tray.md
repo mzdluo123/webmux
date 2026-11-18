@@ -79,6 +79,7 @@
   验收要点：
   - 可在 Web 设置页保存 Quick 模式并确认启用，也可用 `--tunnel` 或 `[tunnel].enabled`；
   - 无需 Cloudflare 账号，获得随机 HTTPS 地址，不承诺固定地址或 SLA；
+  - 两种模式均可复制当前公网地址。剪贴板失败时在同一地址区域显示可选中的只读字段，启停和刷新控件保留位置。
   - 未启用时不创建隧道。Web 设置在服务器 `<state_dir>/tunnel-settings.json` 原子保存（目录 0700、文件 0600、独占锁），跨浏览器与重启生效并优先于 TOML 的模式、主机名、凭据及开关；
   - 显式 `--tunnel` 只覆盖当前进程开关，不改写磁盘。
 - **US-N02 固定域名隧道**：作为已有 Cloudflare 配置的部署者，我希望使用 Named Tunnel，以便通过预设的公共主机名访问。
@@ -328,6 +329,7 @@ Windows 原生终端客户端复用 US-M01–US-M06：提供 run、attach、ls�
 - **US-P07 网页修改 Tailscale 设置**：作为部署者，我希望在设置页修改 Tailscale 的模式、端口与 provider 并立即生效，以便不改配置文件、不重启服务就能开启、切换或关闭入口。
   验收要点：
   - `/settings/tailscale` 可选关闭/Serve/Funnel、端口（Serve 留空自动，Funnel 仅自动/443/8443/10000）与 provider（Windows 仅 WSL 显示）；
+  - 切换关闭、Serve 或 Funnel 时，表单高度平滑过渡；启用系统「减少动态效果」时直接显示所选表单。
   - `PUT /api/tailscale/settings` 保留认证与 Host/Origin 校验，按 TOML 规则校验后写入 `<state_dir>/tailscale-settings.json`（0600、原子替换、独立锁），之后启动优先于 TOML，`command` 只来自 TOML；
   - 保存后先撤销来源并移除不再符合新设置的本实例入口再应用，`starting` 期间页面轮询，移除失败保持 failed 且不应用新设置；
   - 从非 Funnel 切到 Funnel 前确认公网风险，未确认 400；
