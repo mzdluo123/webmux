@@ -22,6 +22,9 @@ $uninstaller = Join-Path $installDir 'uninstall.exe'
 $shortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\WebMux.lnk'
 $uninstKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\WebMux'
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+$startupApprovedKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run'
+$notifyIconRoot = 'HKCU:\Control Panel\NotifyIconSettings'
+$muiCacheKey = 'HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache'
 $localDir = Join-Path $env:LOCALAPPDATA 'WebMux'
 $roamingDir = Join-Path $env:APPDATA 'WebMux'
 $downloadsDir = Join-Path $localDir 'downloads'
@@ -39,9 +42,11 @@ function Check([bool] $ok, [string] $what) {
 # Waits for the process only: Windows PowerShell's Start-Process -Wait also
 # waits for descendants, such as the tray the installer starts. Arguments
 # are joined unquoted by Start-Process, so quote any with spaces.
-function Run([string] $exe, [string[]] $argv) {
+function Run([string] $exe, [string[]] $argv, [string] $cwd = '') {
   $quoted = @($argv | ForEach-Object { if ($_ -match '\s') { "`"$_`"" } else { $_ } })
-  $p = Start-Process -FilePath $exe -ArgumentList $quoted -PassThru -WindowStyle Hidden
+  $params = @{ FilePath = $exe; ArgumentList = $quoted; PassThru = $true; WindowStyle = 'Hidden' }
+  if ($cwd) { $params.WorkingDirectory = $cwd }
+  $p = Start-Process @params
   $null = $p.Handle # keeps the exit code readable after exit
   $p.WaitForExit()
   return $p.ExitCode
@@ -63,8 +68,12 @@ function WaitFor([scriptblock] $cond, [int] $seconds = 15) {
   return [bool](& $cond)
 }
 
+function RegValue([string] $key, [string] $name) {
+  try { Get-ItemPropertyValue -LiteralPath $key -Name $name -ErrorAction Stop } catch { $null }
+}
+
 function RunValue {
-  (Get-ItemProperty $runKey -ErrorAction SilentlyContinue).WebMuxTray
+  RegValue $runKey 'WebMuxTray'
 }
 
 # A stand-in for an older tray: it holds the instance mutex but has no quit
@@ -217,39 +226,57 @@ try {
     Check ((Run $tray @('firewall', 'allow')) -eq 0 -and @(FirewallRules).Count -eq 1) 'unrecorded firewall rule added before uninstall'
   }
   Set-ItemProperty $runKey WebMuxTray "`"$fake`""
+  New-Item -Path $startupApprovedKey -Force | Out-Null
+  Set-ItemProperty $startupApprovedKey WebMuxTray ([byte[]](2,0,0,0,0,0,0,0,0,0,0,0))
+  $notifySubkey = Join-Path $notifyIconRoot 'WebMuxSmokeTest'
+  New-Item -Path $notifySubkey -Force | Out-Null
+  Set-ItemProperty $notifySubkey ExecutablePath '{F1B32785-6FBA-4FCF-9D55-7B8E7F157091}\Programs\WebMux\webmux-tray.exe'
+  New-Item -Path $muiCacheKey -Force | Out-Null
+  Set-ItemProperty $muiCacheKey "$tray.FriendlyAppName" 'WebMux'
+  $tempJournal = Join-Path $env:TEMP 'webmux-journal-smoke.log'
+  New-Item -ItemType File -Force $tempJournal | Out-Null
   Check ((Run $uninstaller @('/S')) -eq 0) 'silent uninstall exits 0'
   Check (WaitFor { -not (Test-Path $uninstKey) }) 'uninstall entry removed'
   Check ((TrayProcesses $tray).Count -eq 0) 'tray closed by the uninstaller'
   Check (-not (Test-Path $installDir) -and -not (Test-Path $shortcut)) 'install directory and shortcut removed'
   Check (-not (Test-Path $downloadsDir) -and -not (Test-Path $updatesDir)) 'downloads and updates caches removed recursively'
+  Check (-not (Test-Path $tempJournal)) 'exported journal temp files removed on uninstall'
+  Check (-not (Test-Path $notifySubkey)) 'NotifyIconSettings entry for installed tray removed'
+  Check ($null -eq (RegValue $muiCacheKey "$tray.FriendlyAppName")) 'MuiCache entry for installed tray removed'
   Check ((WaitFor { $kaUninstall.HasExited } 5) -and -not (Test-Path $keepaliveFile)) 'keepalive process and record removed on uninstall'
   if ($isAdmin) {
     Check (@(FirewallRules).Count -eq 0) 'unrecorded firewall rule removed on uninstall'
   }
   Check ((Test-Path $settings) -and (Test-Path (Join-Path $localDir 'tray.log'))) 'tray settings and log kept by default'
-  Check ((RunValue) -ieq "`"$fake`"") 'login item pointing elsewhere kept'
+  Check ((RunValue) -ieq "`"$fake`"" -and $null -ne (RegValue $startupApprovedKey 'WebMuxTray')) 'login item and StartupApproved pointing elsewhere kept'
   Remove-ItemProperty $runKey WebMuxTray
 
-  # When %LOCALAPPDATA%\WebMux holds only caches (no logs left), default
-  # uninstall also removes the empty parent directory.
+  # When %LOCALAPPDATA%\WebMux holds only caches (no logs left) and the
+  # uninstaller starts with CWD = $installDir (like Explorer / Geek Uninstaller),
+  # default uninstall removes $installDir, empty %LOCALAPPDATA%\WebMux and
+  # StartupApproved\Run\WebMuxTray.
   Check ((Run $Setup @('/S')) -eq 0) 'reinstall before empty-dir check exits 0'
   Check (WaitFor { (TrayProcesses $tray).Count -eq 1 }) 'tray started after reinstall'
   Check ((Run $tray @('quit')) -eq 0) 'tray stopped before removing logs'
   Remove-Item (Join-Path $localDir 'tray.log*') -Force
   Check (-not (Test-Path (Join-Path $localDir 'tray.log')) -and (Test-Path $downloadsDir)) 'only caches remain in %LOCALAPPDATA%\WebMux'
-  Check ((Run $uninstaller @('/S')) -eq 0) 'silent uninstall for empty-dir check exits 0'
+  Check ((Run $uninstaller @('/S') $installDir) -eq 0) 'silent uninstall from $installDir CWD exits 0'
   Check (WaitFor { -not (Test-Path $uninstKey) }) 'uninstall entry removed after empty-dir check'
+  Check (-not (Test-Path $installDir)) 'install directory removed even when uninstaller CWD started in $installDir'
   Check (-not (Test-Path $localDir)) 'empty %LOCALAPPDATA%\WebMux directory removed'
+  Check ($null -eq (RunValue) -and $null -eq (RegValue $startupApprovedKey 'WebMuxTray')) 'Run and StartupApproved entries removed for installed tray'
   Check (Test-Path $settings) 'settings still kept without /PURGE'
 
-  # Silent uninstall with /PURGE removes personal settings, atomic temp files
-  # and rotated logs along with their %APPDATA%\WebMux and %LOCALAPPDATA%\WebMux directories.
+  # Silent uninstall with /PURGE removes %APPDATA%\WebMux and %LOCALAPPDATA%\WebMux
+  # completely (including atomic temp files, rotated logs and extra files).
   Check ((Run $Setup @('/S')) -eq 0) 'reinstall before /PURGE check exits 0'
   Check (WaitFor { (TrayProcesses $tray).Count -eq 1 }) 'tray started before /PURGE check'
   New-Item -ItemType File -Force (Join-Path $roamingDir '.tray-12345.json') | Out-Null
+  New-Item -ItemType File -Force (Join-Path $roamingDir 'extra.bak') | Out-Null
   New-Item -ItemType File -Force (Join-Path $localDir 'tray.log.1') | Out-Null
+  New-Item -ItemType File -Force (Join-Path $localDir 'extra.tmp') | Out-Null
   Check ((Test-Path $settings) -and (Test-Path (Join-Path $localDir 'tray.log'))) 'settings and log present before /PURGE'
-  Check ((Run $uninstaller @('/S', '/PURGE')) -eq 0) 'silent /PURGE uninstall exits 0'
+  Check ((Run $uninstaller @('/S', '/PURGE') $installDir) -eq 0) 'silent /PURGE uninstall exits 0'
   Check (WaitFor { -not (Test-Path $uninstKey) }) 'uninstall entry removed after /PURGE'
   Check (-not (Test-Path $roamingDir) -and -not (Test-Path $localDir)) 'personal settings and local logs removed by /PURGE'
 } finally {

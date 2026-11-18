@@ -111,9 +111,9 @@
 
 卸载程序 SHALL 按以下顺序清理本地安装与缓存：
 
-- 先按“覆盖安装即升级”的方式让托盘退出，并停止已记录的 WSL 保活进程（`wsl.exe --exec sleep infinity`）及删除 `%LOCALAPPDATA%\WebMux\keepalive.json`；
+- 先将卸载进程工作目录切离安装目录，再按“覆盖安装即升级”的方式让托盘退出，停止已记录的 WSL 保活进程（`wsl.exe --exec sleep infinity`）并删除 `%LOCALAPPDATA%\WebMux\keepalive.json` 与 `%TEMP%\webmux-journal-*.log`；
 - 递归删除服务端下载缓存目录 `%LOCALAPPDATA%\WebMux\downloads\` 与自更新安装包缓存目录 `%LOCALAPPDATA%\WebMux\updates\`；
-- 删除安装目录中的文件、开始菜单快捷方式与卸载项，登录启动项仅在指向本次安装的 `webmux-tray.exe` 时才 SHALL 删除，空的 `%LOCALAPPDATA%\WebMux` 目录 SHALL 一并移除。
+- 删除安装目录中的文件、开始菜单快捷方式、卸载项及指向本次安装可执行文件的系统通知区域图标与兼容性缓存项；登录启动项（`Run\WebMuxTray` 与 `StartupApproved\Run\WebMuxTray`）仅在未指向其他位置托盘时 SHALL 删除，空的 `%APPDATA%\WebMux` 与 `%LOCALAPPDATA%\WebMux` 目录 SHALL 一并移除。
 
 卸载程序 SHALL 对安装目录中的 `webmux-tray.exe`（以及卸载项 `FirewallRule` 记录的不同历史路径）执行 `firewall remove`：规则不存在时 SHALL 直接成功且不弹出管理员确认；存在规则时 SHALL 弹出管理员确认并删除规则，用户取消或删除失败时 SHALL 说明如何手工删除，卸载照常完成。
 

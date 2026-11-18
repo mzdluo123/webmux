@@ -29,9 +29,10 @@
 
 - 故事编号、总数与覆盖索引保持不变；`docs/user-stories/clients-network-tray.md` 按主题拆分为树状索引与 `clients-network-tray/{native-cli,public-access,windows-tray}.md`，同步更新 US-O04 与 US-O12：
   - `internal/tray/traysys/quit.go`、`instance_windows.go`、`cmd/webmux-tray/main_windows.go`：`webmux-tray.exe quit` 新增 `--stop-keepalive`，在确认无托盘运行（退出码 0 或 3）后校验创建时间戳结束 `keepalive.json` 记录的 WSL 保活进程并删除该文件；其他位置托盘仍在运行（退出码 1）时保持保活现状。
-  - `deploy/windows/webmux.nsi`：默认卸载调用 `quit --stop-keepalive`、递归清理 `%LOCALAPPDATA%\WebMux\downloads` 与 `%LOCALAPPDATA%\WebMux\updates`、对当前托盘路径及 `FirewallRule` 记录的不同历史路径执行 `firewall remove`（无规则时不触发 UAC）、清理空的 `%LOCALAPPDATA%\WebMux` 目录；
-  - `deploy/windows/webmux.nsi`：新增“卸载选项”页与静默 `/PURGE` 参数按需清理 `%APPDATA%\WebMux`（`tray.json`、`.tray-*.json`）与 `%LOCALAPPDATA%\WebMux\tray.log*`，并修正卸载完成页 `MUI_FINISHPAGE_TEXT` 宏绑定以按选项展示保留或 WSL 清理说明。
-  - `.github/scripts/windows-installer-smoke.ps1`：新增 `quit --stop-keepalive`、多文件缓存递归清理、未登记防火墙规则清理、空父目录清理与 `/S /PURGE` 静默全量清理冒烟断言。
+  - `deploy/windows/webmux.nsi`：卸载前先 `SetOutPath "$TEMP"` 释放安装目录工作路径占用，默认调用 `quit --stop-keepalive`、删除 `%TEMP%\webmux-journal-*.log`、递归清理 `downloads` 与 `updates` 并对当前及旧路径执行 `firewall remove`；
+  - `deploy/windows/webmux.nsi`、`internal/tray/traysys/autostart_windows.go`：清理指向本次安装路径的 `StartupApproved\Run\WebMuxTray`、`NotifyIconSettings`、`MuiCache` 与 `AppCompatFlags` 注册表记录及空父目录；
+  - `deploy/windows/webmux.nsi`：新增“卸载选项”页与静默 `/PURGE` 参数递归删除 `%APPDATA%\WebMux` 与 `%LOCALAPPDATA%\WebMux`，并修正卸载完成页 `MUI_FINISHPAGE_TEXT` 宏绑定以按选项展示保留或 WSL 清理说明。
+  - `.github/scripts/windows-installer-smoke.ps1`：新增 `quit --stop-keepalive`、多文件缓存递归清理、未登记防火墙规则清理、安装目录作为初始工作目录的卸载、`StartupApproved`/`NotifyIconSettings`/`MuiCache`/`%TEMP%` 痕迹清理、空父目录清理与 `/S /PURGE` 递归全量清理冒烟断言。
 
 ### 已执行验证与局限
 

@@ -97,9 +97,10 @@
   - 安装包架构与 Windows 不符时提示正确的安装包并以退出码 2 退出，不写任何文件；
   - 覆盖安装先以 `quit` 关闭本用户托盘（WebMux 与会话保持），安装目录中的托盘 10 秒无响应才强制结束，其他位置不响应的托盘只提示用户退出并可重试，静默模式以退出码 3 结束且不写文件；
   - 完成后启动托盘；
-  - 卸载默认以 `quit --stop-keepalive` 关闭托盘并结束 WSL 保活进程、删除 `keepalive.json`，递归清理 `%LOCALAPPDATA%\WebMux\downloads` 与 `%LOCALAPPDATA%\WebMux\updates` 缓存；
-  - 卸载对当前托盘路径及卸载项记录的不同历史路径执行 `firewall remove`（无规则时不弹窗，取消确认时提示手工删除规则），删除程序、快捷方式与卸载项（`%LOCALAPPDATA%\WebMux` 为空时一并删除），登录启动项仅在指向本次安装时删除，保持 WSL 内的 webmux 与运行实例原样；
-  - 交互卸载“卸载选项”页提供默认未勾选的清除个人配置与本地日志选项：未勾选时保留 `tray.json` 与 `tray.log*` 并在完成页列出保留项与 `webmux stop` 提示；勾选时删除 `%APPDATA%\WebMux`（`tray.json`、`.tray-*.json`）与 `%LOCALAPPDATA%\WebMux\tray.log*` 及对应目录，并在完成页提示 WSL 侧清理命令；
+  - 卸载默认先将工作目录切出安装目录并以 `quit --stop-keepalive` 关闭托盘、结束 WSL 保活进程，删除 `keepalive.json` 与 `%TEMP%\webmux-journal-*.log`，递归清理 `%LOCALAPPDATA%\WebMux\downloads` 与 `%LOCALAPPDATA%\WebMux\updates` 缓存；
+  - 卸载对当前托盘路径及卸载项记录的不同历史路径执行 `firewall remove`（无规则时不弹窗，取消确认时提示手工删除规则），删除程序、快捷方式与卸载项，保持 WSL 内的 webmux 与运行实例原样；
+  - 卸载同步清理指向本次安装路径的 `NotifyIconSettings`、`MuiCache`、`AppCompatFlags` 注册表记录，登录启动项（`Run\WebMuxTray` 与 `StartupApproved\Run\WebMuxTray`）仅在未指向其他位置托盘时删除，空的 `%APPDATA%\WebMux` 与 `%LOCALAPPDATA%\WebMux` 一并移除；
+  - 交互卸载“卸载选项”页提供默认未勾选的清除个人配置与本地日志选项：未勾选时保留 `tray.json` 与 `tray.log*` 并在完成页列出保留项与 `webmux stop` 提示；勾选时递归删除整个 `%APPDATA%\WebMux` 与 `%LOCALAPPDATA%\WebMux` 目录，并在完成页提示 WSL 侧清理命令；
   - 支持 `/S` 静默安装与卸载（静默卸载默认保留个人数据，追加 `/PURGE` 时全量清理本地配置与日志）：首次安装用默认选项，覆盖安装沿用登记目录并保持登录启动项现状；
   - 安装失败时总恢复升级前的 `webmux-tray.exe`，关闭过运行中的托盘时重新启动它并以退出码 4 结束，没有关闭托盘时以退出码 2 结束且不启动托盘。
 - **US-O13 托盘自动更新**：作为用安装程序安装托盘的 Windows 使用者，我希望托盘自己安装经过签名验证的新版本，且不结束 WSL 中的终端会话，以便不必手动下载安装程序。

@@ -73,13 +73,14 @@ webmux config init
 
 **卸载**：在“应用和功能”中卸载 WebMux，默认完成以下清理：
 
-- 关闭运行中的托盘，结束 `keepalive.json` 记录的 WSL 保活进程并删除该文件；
+- 关闭运行中的托盘，结束 `keepalive.json` 记录的 WSL 保活进程并删除该文件与 `%TEMP%\webmux-journal-*.log` 导出日志；
 - 递归清理服务端下载缓存（`%LOCALAPPDATA%\WebMux\downloads`）与自更新安装包缓存（`%LOCALAPPDATA%\WebMux\updates`）；
-- 删除安装目录文件、开始菜单快捷方式与卸载项，登录启动项仅在指向本次安装的托盘时删除，空的 `%LOCALAPPDATA%\WebMux` 一并移除；
+- 先将卸载工作目录切出安装目录再删除安装目录文件、开始菜单快捷方式与卸载项，空的 `%APPDATA%\WebMux` 与 `%LOCALAPPDATA%\WebMux` 一并移除；
+- 清理本次安装路径对应的系统通知区域图标记录（`NotifyIconSettings`）与 Shell/兼容性缓存（`MuiCache`、`AppCompatFlags`），登录启动项（`Run\WebMuxTray` 与 `StartupApproved\Run\WebMuxTray`）仅在未指向其他位置托盘时删除；
 - 对当前托盘路径及安装记录中的旧路径检查转发防火墙规则：存在规则时弹出一次管理员确认并删除，无规则时不弹窗。
 - “卸载选项”页提供默认未勾选的“同时删除个人配置与本地日志（`%APPDATA%\WebMux`、`%LOCALAPPDATA%\WebMux`）”：
-  - 未勾选时保留 `tray.json` 与 `tray.log*` 供重装沿用；
-  - 勾选时一并删除 `tray.json`、`.tray-*.json`、`tray.log*` 及两个本地目录。
+  - 未勾选时保留 `tray.json` 与 `tray.log*` 供重装沿用（第三方卸载工具扫描时仍会看到这两个保留目录）；
+  - 勾选时递归删除整个 `%APPDATA%\WebMux` 与 `%LOCALAPPDATA%\WebMux` 目录。
 - 卸载保持 WSL 发行版内的 `webmux` 与配置原样，正在运行的实例继续在 WSL 中运行；需要停止或清理 WSL 侧文件时，在发行版终端执行 `webmux stop` 并按需移除 `~/.local/bin/webmux`、`~/.config/webmux`、`~/.local/state/webmux`。
 
 静默安装与卸载使用 `/S`：首次安装取默认值（含登录启动，无防火墙规则改动）；覆盖安装沿用原安装目录，并保持登录启动项与已有防火墙规则现状；静默卸载默认保留个人配置与日志，追加 `/PURGE` 时一并清除 `%APPDATA%\WebMux` 与 `%LOCALAPPDATA%\WebMux`。安装失败时总会恢复升级前的 `webmux-tray.exe`。退出码：

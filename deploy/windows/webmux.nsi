@@ -53,7 +53,14 @@ AllowSkipFiles off
 ; Same value name and quoting as internal/tray/traysys/autostart.go, so the
 ; tray's "登录时自动启动" check box recognises the entry.
 !define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
+!define STARTUP_APPROVED_KEY "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
 !define RUN_VALUE "WebMuxTray"
+!define NOTIFY_ICON_KEY "Control Panel\NotifyIconSettings"
+!define MUICACHE_KEY "Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache"
+!define PCA_STORE_KEY "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Compatibility Assistant\Store"
+!define COMPAT_LAYERS_KEY "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
+; FOLDERID_LocalAppData GUID used by Windows 11 NotifyIconSettings ExecutablePath.
+!define LOCALAPPDATA_GUID "{F1B32785-6FBA-4FCF-9D55-7B8E7F157091}"
 !define LOCAL_DIR "$LOCALAPPDATA\WebMux"
 ; Same name as Installer.Install in internal/tray/install.go.
 !define CACHE_DIR "${LOCAL_DIR}\downloads"
@@ -280,6 +287,41 @@ Function un.optionsLeave
   ${NSD_GetState} $PurgeBox $Purge
 FunctionEnd
 
+; Removes Windows Shell, tray-icon history and compatibility cache entries
+; referencing this installation's executables without touching other copies.
+Function un.cleanShellTraces
+  DeleteRegValue HKCU "${MUICACHE_KEY}" "$INSTDIR\webmux-tray.exe.FriendlyAppName"
+  DeleteRegValue HKCU "${MUICACHE_KEY}" "$INSTDIR\webmux-tray.exe.ApplicationCompany"
+  DeleteRegValue HKCU "${MUICACHE_KEY}" "$INSTDIR\uninstall.exe.FriendlyAppName"
+  DeleteRegValue HKCU "${MUICACHE_KEY}" "$INSTDIR\uninstall.exe.ApplicationCompany"
+  DeleteRegValue HKCU "${PCA_STORE_KEY}" "$INSTDIR\webmux-tray.exe"
+  DeleteRegValue HKCU "${PCA_STORE_KEY}" "$INSTDIR\uninstall.exe"
+  DeleteRegValue HKCU "${COMPAT_LAYERS_KEY}" "$INSTDIR\webmux-tray.exe"
+  DeleteRegValue HKCU "${COMPAT_LAYERS_KEY}" "$INSTDIR\uninstall.exe"
+
+  StrCpy $3 "$INSTDIR\webmux-tray.exe"
+  StrLen $4 "$LOCALAPPDATA\"
+  StrCpy $5 "$INSTDIR\webmux-tray.exe" $4
+  ${If} $5 == "$LOCALAPPDATA\"
+    StrCpy $3 "$INSTDIR\webmux-tray.exe" "" $4
+    StrCpy $3 "${LOCALAPPDATA_GUID}\$3"
+  ${EndIf}
+  StrCpy $0 0
+  ${Do}
+    EnumRegKey $1 HKCU "${NOTIFY_ICON_KEY}" $0
+    ${If} $1 == ""
+      ${ExitDo}
+    ${EndIf}
+    ReadRegStr $2 HKCU "${NOTIFY_ICON_KEY}\$1" "ExecutablePath"
+    ${If} $2 == "$INSTDIR\webmux-tray.exe"
+    ${OrIf} $2 == $3
+      DeleteRegKey HKCU "${NOTIFY_ICON_KEY}\$1"
+    ${Else}
+      IntOp $0 $0 + 1
+    ${EndIf}
+  ${Loop}
+FunctionEnd
+
 Section "-WebMux tray"
   ; Close the running tray with the new executable: an installed older
   ; tray may not know `quit` yet.
@@ -397,6 +439,9 @@ Section "-Start tray"
 SectionEnd
 
 Section "Uninstall"
+  ; Release any working-directory lock on $INSTDIR inherited from Explorer or
+  ; third-party uninstallers so RMDir "$INSTDIR" succeeds.
+  SetOutPath "$TEMP"
   Call un.closeTray
 
   ; Remove any forwarding rule for the current tray executable and, when
@@ -432,8 +477,17 @@ Section "Uninstall"
 
   ReadRegStr $1 HKCU "${RUN_KEY}" "${RUN_VALUE}"
   ${If} $1 == '"$INSTDIR\webmux-tray.exe"'
+  ${OrIf} $1 == "$INSTDIR\webmux-tray.exe"
     DeleteRegValue HKCU "${RUN_KEY}" "${RUN_VALUE}"
+    DeleteRegValue HKCU "${STARTUP_APPROVED_KEY}" "${RUN_VALUE}"
+  ${ElseIf} $1 == ""
+    DeleteRegValue HKCU "${STARTUP_APPROVED_KEY}" "${RUN_VALUE}"
   ${EndIf}
+
+  Call un.cleanShellTraces
+  SetRegView 64
+  Call un.cleanShellTraces
+  SetRegView lastused
 
   ReadRegStr $1 HKCU "${UNINST_KEY}" "PreseededServer"
   ${If} $1 != ""
@@ -442,18 +496,17 @@ Section "Uninstall"
   RMDir /r "${CACHE_DIR}"
   RMDir /r "${UPDATES_DIR}"
   Delete "${KEEPALIVE_FILE}"
+  Delete "$TEMP\webmux-journal-*.log"
 
   ${If} $Purge == ${BST_CHECKED}
-    Delete "${ROAMING_DIR}\tray.json"
-    Delete "${ROAMING_DIR}\.tray-*.json"
-    RMDir "${ROAMING_DIR}"
-    Delete "${LOCAL_DIR}\tray.log"
-    Delete "${LOCAL_DIR}\tray.log.*"
+    RMDir /r "${ROAMING_DIR}"
+    RMDir /r "${LOCAL_DIR}"
     StrCpy $UnfinishText "WebMux 托盘已卸载，已删除本地托盘设置（%APPDATA%\WebMux）与托盘日志（%LOCALAPPDATA%\WebMux）。$\r$\n$\r$\nWSL 发行版中的 webmux 与配置未自动删除。若 WebMux 正在运行，它会继续在 WSL 中运行；如需一并停止并清理 WSL 侧文件，可在发行版终端执行：$\r$\nwebmux stop$\r$\nrm -rf ~/.local/bin/webmux ~/.config/webmux ~/.local/state/webmux"
   ${Else}
+    RMDir "${ROAMING_DIR}"
+    RMDir "${LOCAL_DIR}"
     StrCpy $UnfinishText "WebMux 托盘已卸载。$\r$\n$\r$\n以下内容已保留：托盘设置（%APPDATA%\WebMux）、托盘日志（%LOCALAPPDATA%\WebMux）和 WSL 中的 webmux。$\r$\n$\r$\n如果 WebMux 正在运行，它会继续在 WSL 中运行；需要停止时在 WSL 中执行 webmux stop。"
   ${EndIf}
-  RMDir "${LOCAL_DIR}"
 
   Delete "$SMPROGRAMS\WebMux.lnk"
   Delete "$INSTDIR\webmux-tray.exe"
