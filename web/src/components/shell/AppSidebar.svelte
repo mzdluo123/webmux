@@ -1,8 +1,6 @@
 <script lang="ts">
-  import IconLayoutSidebarLeftCollapse from "~icons/tabler/layout-sidebar-left-collapse";
   import IconPlus from "~icons/tabler/plus";
   import IconRefresh from "~icons/tabler/refresh";
-  import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { errorMessage } from "../../platform/error";
@@ -26,14 +24,12 @@
   import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
   import { useLayoutRowsMotion } from "../../hooks/shared/layout-rows-motion.svelte";
   import { paneEnter } from "../../hooks/shared/pane-enter";
-  import Brand from "./Brand.svelte";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import SidebarWorkspaceTree from "./SidebarWorkspaceTree.svelte";
-  import WorkbenchGroupingSwitch from "./WorkbenchGroupingSwitch.svelte";
   import WorkbenchSidebarSessions from "./WorkbenchSidebarSessions.svelte";
   import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
-  import SessionSwitcherTrigger from "./SessionSwitcherTrigger.svelte";
+  import SidebarHeader from "./SidebarHeader.svelte";
   import { featureContributions } from "../../features/registry.svelte";
   import LazyDialog from "../shared/LazyDialog.svelte";
   import { m } from "$lib/paraglide/messages.js";
@@ -263,46 +259,22 @@
   class:sidebar-drawer={Boolean(onclose)}
   aria-label={m.s1_navigation()}
 >
-  <div class="flex items-center gap-1 px-2 pt-2 pb-1">
-    {#if collapsible}
-      <Button
-        class="shrink-0"
-        variant="ghost"
-        size="icon-touch"
-        aria-label={m.s1_collapse_sidebar()}
-        title={m.s1_collapse_sidebar()}
-        onclick={() => shellUi.setCollapsed(true)}
-        ><IconLayoutSidebarLeftCollapse aria-hidden="true" /></Button
-      >
-    {/if}
-    <span class="brand mr-auto min-w-0 overflow-hidden px-1 whitespace-nowrap"
-      ><Brand /></span
-    >
-    {#if collapsible && route.name === "sessions" && workspace}
-      <SessionSwitcherTrigger size="icon-sm" />
-    {/if}
-    {#if onclose}
-      <Button
-        class="shrink-0"
-        variant="ghost"
-        size="icon-touch"
-        aria-label={m.s1_close_sidebar()}
-        title={m.s1_close_sidebar()}
-        onclick={onclose}><IconX aria-hidden="true" /></Button
-      >
-    {/if}
-  </div>
-  {#if workspace}
-    <WorkbenchGroupingSwitch
-      byBranch={!queue}
-      controls={navigationId}
-      onchange={(checked) => {
-        workbenchLayout.value = checked ? "workspaces" : "queue";
-        if (chatHome) openPage("/");
-      }}
-    />
-  {/if}
-  <div class="flex items-center gap-1.5 px-2 pt-1">
+  <SidebarHeader
+    oncollapse={collapsible ? () => shellUi.setCollapsed(true) : undefined}
+    {onclose}
+    showSessionSwitcher={collapsible &&
+      route.name === "sessions" &&
+      !!workspace}
+    controls={navigationId}
+    byBranch={!queue}
+    onGroupingChange={workspace
+      ? (checked) => {
+          workbenchLayout.value = checked ? "workspaces" : "queue";
+          if (chatHome) openPage("/");
+        }
+      : undefined}
+  />
+  <div class="sidebar-actions flex items-center gap-1.5 pt-1">
     <Button
       variant="outline"
       size="sm-touch"
@@ -469,6 +441,14 @@
 {/if}
 
 <style>
+  nav {
+    --sidebar-gutter: 8px;
+  }
+
+  .sidebar-actions {
+    padding-inline: var(--sidebar-gutter);
+  }
+
   /* Short drawers need one scroller for both the header and its navigation. */
   @media (width < 40rem) and (height <= 600px) {
     .sidebar-drawer {

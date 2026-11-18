@@ -6,10 +6,9 @@
   const segmentedControlVariants = tv({
     base: "group/segmented-control inline-flex w-fit items-center justify-center gap-1 p-[3px] text-muted-foreground",
     variants: {
-      framed: {
-        true: "relative isolate gap-0 rounded-lg border border-border/80 bg-muted/25 p-0",
-      },
       size: {
+        header:
+          "relative isolate inline-grid w-max max-w-full shrink-0 auto-cols-fr grid-flow-col items-stretch gap-0 p-0",
         default: "h-8",
         form: "h-[calc(var(--control-default)+6px)]",
         navigation:
@@ -32,13 +31,11 @@
     value = $bindable(""),
     size = "default",
     wrap = false,
-    framed = false,
     class: className,
     ...restProps
   }: Omit<RadioGroupPrimitive.RootProps, "orientation"> & {
     size?: VariantProps<typeof segmentedControlVariants>["size"];
     wrap?: boolean;
-    framed?: boolean;
   } = $props();
 </script>
 
@@ -49,7 +46,6 @@
   data-slot="segmented-control"
   data-size={size}
   data-wrap={wrap || undefined}
-  data-framed={framed || undefined}
-  class={cn(segmentedControlVariants({ size, wrap, framed }), className)}
+  class={cn(segmentedControlVariants({ size, wrap }), className)}
   {...restProps}
 />

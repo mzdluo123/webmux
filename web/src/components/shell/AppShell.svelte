@@ -282,7 +282,9 @@
         : null;
     const timer = setTimeout(() => {
       if (!sidebarDrawer?.contains(document.activeElement))
-        sidebarDrawer?.querySelector("button")?.focus();
+        sidebarDrawer
+          ?.querySelector<HTMLButtonElement>("[data-sidebar-close]")
+          ?.focus();
     });
     return () => clearTimeout(timer);
   });
@@ -408,6 +410,15 @@
   <Drawer.Content
     bind:ref={sidebarDrawer}
     class="w-80 max-w-[85vw] lg:hidden"
+    onOpenAutoFocus={(event) => {
+      const close = sidebarDrawer?.querySelector<HTMLButtonElement>(
+        "[data-sidebar-close]",
+      );
+      if (close) {
+        event.preventDefault();
+        close.focus();
+      }
+    }}
     onCloseAutoFocus={restoreDrawerFocus}
   >
     <Drawer.Title class="sr-only">{m.s1_navigation()}</Drawer.Title>

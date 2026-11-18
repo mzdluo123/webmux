@@ -422,7 +422,9 @@ test.describe("phone drawer", () => {
     await expect(marker).toHaveCSS("transition-property", "none");
   });
 
-  test("drawer grouping labels fit with enlarged text", async ({ page }) => {
+  test("drawer grouping and close targets fit with enlarged text", async ({
+    page,
+  }) => {
     await page.addInitScript(() => localStorage.setItem("webmux.locale", "en"));
     await page.setViewportSize({ width: 320, height: 568 });
     await page.goto("/");
@@ -430,28 +432,45 @@ test.describe("phone drawer", () => {
       .getByRole("button", { name: "Open sidebar", exact: true })
       .click();
     const drawer = page.getByRole("dialog", { name: "Navigation" });
-    const workbench = drawer
-      .getByRole("radio", { name: "Branch" })
-      .locator("..");
-    await expect(workbench).toBeVisible();
+    const conversations = drawer.getByRole("radio", { name: "Session" });
+    const branches = drawer.getByRole("radio", { name: "Branch" });
+    await expect(conversations).toBeVisible();
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "200%";
     });
-    const fits = await workbench.evaluate((button) => {
-      const contents = document.createRange();
-      contents.selectNodeContents(button);
-      const text = contents.getBoundingClientRect();
-      const box = button.getBoundingClientRect();
-      return text.left >= box.left && text.right <= box.right;
-    });
-    const label = workbench.getByText("Conversation", { exact: true });
-    const lines = await label.evaluate((element) => {
-      const range = document.createRange();
-      range.selectNodeContents(element);
-      return range.getClientRects().length;
-    });
-    expect(lines).toBeLessThanOrEqual(3);
-    expect(fits).toBe(true);
+    await expect(conversations).toHaveCSS("font-size", "26px");
+    await expect(conversations).toHaveText("Session");
+    await expect(conversations).toHaveAttribute("title", "Session");
+    await expect(branches).toHaveText("Branch");
+    for (const option of [conversations, branches]) {
+      const box = (await option.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      await option.tap();
+      await expect(option).toBeChecked();
+    }
+    const close = drawer.getByRole("button", { name: "Close sidebar" });
+    for (const option of [conversations, branches]) {
+      expect(
+        await option.evaluate((button) => {
+          const text = document.createRange();
+          text.selectNodeContents(button);
+          const label = text.getBoundingClientRect();
+          const control = button.getBoundingClientRect();
+          return label.left >= control.left && label.right <= control.right;
+        }),
+      ).toBe(true);
+    }
+    const branchBox = (await branches.boundingBox())!;
+    const closeBox = (await close.boundingBox())!;
+    expect(branchBox.y).toBeGreaterThanOrEqual(closeBox.y + closeBox.height);
+    expect(branchBox.x + branchBox.width).toBeCloseTo(
+      closeBox.x + closeBox.width,
+      0,
+    );
+    expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(320);
+    await close.tap();
+    await expect(drawer).toBeHidden();
   });
 });
 
@@ -488,39 +507,77 @@ test.describe("sidebar is always reachable", () => {
 
 // The brand row and grouping switch must fit at minimum width and larger text.
 test.describe("sidebar header never overlaps", () => {
-  for (const fontSize of ["100%", "150%"])
+  for (const fontSize of ["100%", "150%", "200%"])
     test(`collapse button, brand and grouping switch stay apart at the narrowest width (font ${fontSize})`, async ({
       page,
     }) => {
-      await page.addInitScript(() => {
-        localStorage.setItem("webmux.sidebarCollapsed", "false");
-        localStorage.setItem("webmux.sidebarWidth", "1");
-      });
+      const english = fontSize === "200%";
+      await page.addInitScript(
+        (locale) => {
+          localStorage.setItem("webmux.locale", locale);
+          localStorage.setItem("webmux.sidebarCollapsed", "false");
+          localStorage.setItem("webmux.sidebarWidth", "1");
+        },
+        english ? "en" : "zh-CN",
+      );
       await page.setViewportSize({ width: 1280, height: 800 });
       await page.goto("/");
       await page.evaluate((size) => {
         document.documentElement.style.fontSize = size;
       }, fontSize);
-      const sidebar = page.getByRole("complementary", { name: "侧栏" });
-      const nav = sidebar.getByRole("navigation", { name: "导航" });
+      const sidebar = page.getByRole("complementary", {
+        name: english ? "Sidebar" : "侧栏",
+        exact: true,
+      });
+      const nav = sidebar.getByRole("navigation", {
+        name: english ? "Navigation" : "导航",
+      });
       await expect(nav).toBeVisible();
-      const collapse = nav.getByRole("button", { name: "收起侧栏" });
-      const brand = nav.locator(".brand");
-      const modes = nav.getByRole("radio", { name: "按分支" }).locator("..");
-      await expect(modes.getByText("按会话", { exact: true })).toBeVisible();
-      await expect(modes.getByText("按分支", { exact: true })).toBeVisible();
+      const collapse = nav.getByRole("button", {
+        name: english ? "Collapse sidebar" : "收起侧栏",
+      });
+      const brand = nav.locator(".brand-mark");
+      const modes = nav.getByRole("radiogroup", {
+        name: english ? "Session grouping" : "会话分组",
+      });
       for (const part of [collapse, brand, modes])
         await expect(part).toBeVisible();
       const toggle = (await collapse.boundingBox())!;
       const logo = (await brand.boundingBox())!;
       const group = (await modes.boundingBox())!;
-      const side = (await sidebar.boundingBox())!;
       expect(toggle.x + toggle.width).toBeLessThanOrEqual(logo.x + 0.5);
-      expect(
-        Math.max(toggle.y + toggle.height, logo.y + logo.height),
-      ).toBeLessThanOrEqual(group.y + 0.5);
-      expect(group.x).toBeGreaterThanOrEqual(side.x);
-      expect(group.x + group.width).toBeLessThanOrEqual(side.x + side.width);
+      const shortcut = (await nav
+        .getByRole("button", {
+          name: english ? "Switch session" : "快速切换会话",
+          exact: true,
+        })
+        .boundingBox())!;
+      if (english) {
+        await expect(modes.getByRole("radio", { name: "Session" })).toHaveCSS(
+          "font-size",
+          "26px",
+        );
+        expect(group.y).toBeGreaterThanOrEqual(shortcut.y + shortcut.height);
+        expect(group.x + group.width).toBeCloseTo(
+          shortcut.x + shortcut.width,
+          0,
+        );
+      } else {
+        expect(group.x - (logo.x + logo.width)).toBeGreaterThanOrEqual(12);
+        expect(group.y).toBeLessThan(logo.y + logo.height);
+        expect(group.y + group.height).toBeGreaterThan(logo.y);
+        expect(shortcut.x - (group.x + group.width)).toBeCloseTo(8, 0);
+      }
+      const refresh = (await nav
+        .getByRole("button", {
+          name: english ? "Refresh workspaces" : "刷新工作区",
+          exact: true,
+        })
+        .boundingBox())!;
+      expect(shortcut.x + shortcut.width).toBeCloseTo(
+        refresh.x + refresh.width,
+        0,
+      );
     });
 });
 
