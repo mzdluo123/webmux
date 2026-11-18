@@ -127,7 +127,7 @@ test("production tree keeps expand/collapse keys and a leaf can exit into the ma
 test("a row's ⋯ trigger keeps remote arrows instead of opening its menu", async () => {
   await page.viewport(1280, 720);
   await render(TreeHarness);
-  const trigger = page.getByRole("button", { name: "仓库操作：全部仓库" });
+  const trigger = page.getByRole("button", { name: "仓库操作：webmux" });
   await expect.element(trigger).toBeVisible();
   (trigger.element() as HTMLElement).focus();
   await expect.element(trigger).toHaveFocus();
