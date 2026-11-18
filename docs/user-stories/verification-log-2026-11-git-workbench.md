@@ -241,6 +241,7 @@
     - Storybook 多视口套件 `test/storybook/git-workbench.spec.ts`（27 项）通过；
   - 端到端与多视口视觉证据：
     - 隔离实例 Playwright E2E `git-workbench-log.spec.ts`、`git-workbench-commit-push.spec.ts`、`git-workbench-task-baseline.spec.ts`、`git-workbench-stash-blame.spec.ts`（24 项）通过；
+    - 2026-11-19（T064）：隔离 Chromium 验证比较加载、失败及路径过滤的文件结果区保持几何稳定，反向重命名仍选中同一文件。浏览器用例 `GitLogController.test.ts` 验证快速反向与过期响应处理。
     - 在隔离实例采集 `Log` 与 `Commit` 在桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色共 24 张修改前后对比截图，并通过 `1280×900` 至 `320×568` 及 `667×375` 共 7 组视口的 `scrollWidth <= innerWidth` 防溢出校验。
 - 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证物理 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核验；未重新核对本组以外的其余故事。
 
