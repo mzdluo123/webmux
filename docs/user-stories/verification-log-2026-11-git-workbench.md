@@ -119,6 +119,12 @@
   - 隔离实例全量 Playwright E2E（490 项，含 `git-workbench-v1-collab.spec.ts` 桌面与 320px 手机视口）及性能套件（`test:performance`）通过。
 - 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。
 
+### 2026-11-19：解决草稿冲突后恢复正文编辑位置（US-J25）
+
+- 隔离 Chromium 与 Vitest 浏览器套件（`GitWorkbenchCommitPush.test.ts`）验证保留本机、合并两份与采用远端版本时的正文内容、选区、内部滚动与自动聚焦门禁，覆盖手机窄屏 `max-sm:max-h-40` 与桌面宽屏正文高度。
+- `git-workbench-v1-collab.spec.ts` 的两端 409 与草稿落盘用例在桌面及 iPhone SE Chromium 均通过。
+- 本轮使用无头 Linux Chromium，未在物理触屏或真机浏览器核对。
+
 ## 2026-11-13：Git 工作台 09（V2）历史分叉与多步操作预览、无状态协调恢复及三方冲突解决器（US-J22、US-J23、US-J26）
 
 - 范围：

@@ -18,6 +18,7 @@
 </script>
 
 <script lang="ts">
+  import { tick } from "svelte";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconCheck from "~icons/tabler/check";
   import IconGitBranch from "~icons/tabler/git-branch";
@@ -30,6 +31,7 @@
   import type { GitWorktreeContext } from "../../contracts/git-workbench-schemas";
   import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
   import { validateAuthorOverrideInput } from "../../domains/workspace/git-v2-adapter";
+  import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitCommitAdvancedOptions from "./GitCommitAdvancedOptions.svelte";
   import GitCommitDraftConflictCard from "./GitCommitDraftConflictCard.svelte";
@@ -152,6 +154,51 @@
     return "";
   });
 
+  let bodyEditor = $state<HTMLTextAreaElement | null>(null);
+
+  async function resolveDraft(
+    action: () => void,
+    mode: "keep" | "adopt" | "merge",
+  ) {
+    const editor = bodyEditor;
+    const reading = editor && {
+      body: editor.value,
+      start: editor.selectionStart,
+      end: editor.selectionEnd,
+      direction: editor.selectionDirection,
+      top: editor.scrollTop,
+    };
+    action();
+    await tick();
+    if (!editor?.isConnected || editor.disabled || !reading) return;
+
+    if (allowAutomaticInputFocus()) {
+      editor.focus({ preventScroll: true });
+    }
+    if (mode === "adopt") {
+      editor.setSelectionRange(0, 0);
+      editor.scrollTop = 0;
+    } else {
+      // A merged body can introduce a heading before the original text.
+      const prefixLength =
+        mode === "merge" && reading.body
+          ? editor.value.indexOf(reading.body)
+          : 0;
+      const offset = Math.max(0, prefixLength);
+      const precedingLines =
+        editor.value.slice(0, offset).split("\n").length - 1;
+      const lineHeight =
+        Number.parseFloat(getComputedStyle(editor).lineHeight) || 20;
+      editor.setSelectionRange(
+        reading.start + offset,
+        reading.end + offset,
+        reading.direction,
+      );
+      editor.scrollTop = reading.top + precedingLines * lineHeight;
+    }
+    editor.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
@@ -216,9 +263,10 @@
     <GitCommitDraftConflictCard
       conflict={draftConflict}
       saving={draftSaving}
-      onKeepLocal={onResolveDraftKeepLocal}
-      onAdoptRemote={onResolveDraftAdoptRemote}
-      onMergeBoth={onResolveDraftMergeBoth}
+      onKeepLocal={() => void resolveDraft(onResolveDraftKeepLocal, "keep")}
+      onAdoptRemote={() =>
+        void resolveDraft(onResolveDraftAdoptRemote, "adopt")}
+      onMergeBoth={() => void resolveDraft(onResolveDraftMergeBoth, "merge")}
     />
   {/if}
 
@@ -250,6 +298,8 @@
   />
 
   <Textarea
+    bind:ref={bodyEditor}
+    class="max-sm:max-h-40"
     rows={2}
     value={parsed.body}
     placeholder={m.s6_commit_body_placeholder()}

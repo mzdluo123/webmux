@@ -12,6 +12,7 @@ import {
 } from "../../stories/git-workbench-fixtures";
 import GitCommitPreviewDialog from "../../src/components/workspace/GitCommitPreviewDialog.svelte";
 import GitStashApplyDialog from "../../src/components/workspace/GitStashApplyDialog.svelte";
+import ComposerHarness from "./GitCommitComposerHarness.svelte";
 import Harness from "./GitWorkbenchHarness.svelte";
 
 afterEach(async () => {
@@ -229,6 +230,84 @@ test("wide ~900px Push dialog lists all outgoing commits and switches file Pierr
     .closest('[data-slot="scroll-area-viewport"]') as HTMLElement;
   expect(fileListViewport.getBoundingClientRect().height).toBeLessThan(64);
   await expect.element(dialog.getByTestId("git-push-file-diff")).toBeVisible();
+});
+
+test("Commit draft conflict resolution preserves local selection and scroll on keep-local and resets to 0 on adopt-remote", async () => {
+  await page.viewport(390, 844);
+  const base = fixture("commit-staging");
+  const localBody = Array.from(
+    { length: 22 },
+    (_, idx) => `Local paragraph line ${idx + 1} with detailed notes`,
+  ).join("\n");
+  const remoteBody = Array.from(
+    { length: 20 },
+    (_, idx) => `Remote revision line ${idx + 1} from another browser`,
+  ).join("\n");
+  const conflict = {
+    localSubject: "feat(git): local draft subject",
+    localBody,
+    remoteDraft: {
+      subject: "feat(git): remote draft subject",
+      body: remoteBody,
+      revision: 3,
+      updatedAt: "2026-11-19T00:00:00Z",
+    },
+    message: "远端已有更新的提交草稿",
+  };
+
+  await render(ComposerHarness, {
+    props: {
+      context: base.context,
+      initialMessage: `feat(git): local draft subject\n\n${localBody}`,
+      initialConflict: conflict,
+    },
+  });
+
+  const bodyField = page.getByRole("textbox", { name: "补充正文描述" });
+  await expect.element(bodyField).toBeVisible();
+  const textarea = bodyField.element() as HTMLTextAreaElement;
+  expect(getComputedStyle(textarea).maxHeight).not.toBe("none");
+
+  textarea.scrollTop = 96;
+  textarea.setSelectionRange(24, 42);
+  const savedScrollTop = textarea.scrollTop;
+  expect(savedScrollTop).toBeGreaterThan(0);
+
+  await page.getByTestId("git-draft-keep-local").click();
+  await expect
+    .element(page.getByTestId("git-commit-draft-conflict"))
+    .not.toBeInTheDocument();
+  expect(textarea.selectionStart).toBe(24);
+  expect(textarea.selectionEnd).toBe(42);
+  expect(textarea.scrollTop).toBeCloseTo(savedScrollTop, 0);
+
+  await cleanup();
+  await render(ComposerHarness, {
+    props: {
+      context: base.context,
+      initialMessage: `feat(git): local draft subject\n\n${localBody}`,
+      initialConflict: conflict,
+    },
+  });
+
+  const adoptBodyField = page.getByRole("textbox", { name: "补充正文描述" });
+  await expect.element(adoptBodyField).toBeVisible();
+  const adoptTextarea = adoptBodyField.element() as HTMLTextAreaElement;
+  adoptTextarea.scrollTop = 96;
+  adoptTextarea.setSelectionRange(24, 42);
+  expect(adoptTextarea.scrollTop).toBeGreaterThan(0);
+
+  await page.getByTestId("git-draft-adopt-remote").click();
+  await expect
+    .element(page.getByTestId("git-commit-draft-conflict"))
+    .not.toBeInTheDocument();
+  expect(adoptTextarea.value).toBe(remoteBody);
+  expect(adoptTextarea.selectionStart).toBe(0);
+  expect(adoptTextarea.selectionEnd).toBe(0);
+  expect(adoptTextarea.scrollTop).toBe(0);
+
+  await page.viewport(1280, 900);
+  expect(getComputedStyle(adoptTextarea).maxHeight).toBe("none");
 });
 
 test("Stash apply dialog resets outer ResponsiveDialog scroll on mode toggle even when dialogError is non-empty", async () => {
