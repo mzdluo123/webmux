@@ -81,3 +81,4 @@
 - 隔离 Chromium 以本地夹具切换长短主机名，并控制健康探针、P2P RTT 和 Relay 路径。桌面中转说明曾令详情增加 32px。修复后详情高度 199.5px，测量中、9→2999ms、Relay 和重连时延时行位置保持一致。
 - 320px 视口在 200% 字号下可打开并滚动详情，重连状态即时更新。P2P 和 Relay 数据由夹具注入了客户端状态。
 - 连接播报使用简短状态文本。修正重复重连文案后，隔离后端的 `workspace-discovery.spec.ts -g 'a disconnected session list reconnects'` 在桌面与手机 Chromium 均通过。
+- `workspace-ui.spec.ts` 在主机状态按钮中核对长短主机名和首个操作的几何，并单独核对状态区域。与 `workspace-discovery.spec.ts` 合计 16 通过，2 个桌面专属用例在手机项目跳过。
