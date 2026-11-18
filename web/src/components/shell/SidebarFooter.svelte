@@ -160,7 +160,7 @@
     ? "flex flex-col items-center gap-1 border-t py-2"
     : "flex flex-wrap items-center border-t px-2 py-1.5 sm:gap-1 sm:px-3"}
 >
-  <span role="status" class="sr-only">{statusLabel}</span>
+  <span role="status" class="sr-only">{connectionLabel}</span>
   <Popover.Root open={detailsOpen} onOpenChange={detailsChanged}>
     <Popover.Trigger
       type="button"
