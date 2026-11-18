@@ -40,11 +40,12 @@
 - `go test -race -count=1 ./internal/codexrollout ./internal/agent/codex/history ./internal/historyimport ./internal/historysource ./internal/historyprojection ./internal/handoff` 六个包通过，覆盖默认分页图片、任务原文、来源冻结与预览到期。
 - `make docs-check` 通过。
 
-## T047 草稿恢复操作（US-F05）
+## T047 草稿恢复操作（US-F05、US-F06）
 
-- 隔离 Chromium 模拟 390 × 390 可视区域，发送、部分写入、结果未知、重发、转回草稿和取消清空前后的编辑区高度均为 32 px，选区保留在 8–14。
+- 窄栏常规草稿编辑在无提交状态且无不可发送提示时不渲染状态行，保留完整编辑区高度；出现提交状态或不可发送提示时状态行以 `max-h-[2lh]` 展示。
+- `TerminalDraft.test.ts` 浏览器用例验证重发原提交与转为草稿在 `tick()` 解除只读后于非触屏环境恢复编辑区焦点并保留选区，在 `(any-pointer: coarse)` 触屏环境下保持不自动聚焦（US-H02）。
 - `composer.spec.ts` 的桌面和 iPhone SE Chromium 用例覆盖真实 PTY 输入隔离和草稿编辑。未测试真机软键盘。
-- 320×568 与 200% 字号下，恢复按钮换行且全部在可用宽度内。独立浏览器的编辑区保持 34 px、选区保持 8–14。草稿和满暂存列表的 2 项 Storybook 溢出回归通过。
+- 320×568 与 200% 字号下，恢复按钮换行且全部在可用宽度内。草稿和满暂存列表的 2 项 Storybook 溢出回归通过。
 
 ## 原生历史最低版本基线（US-Q19、US-Q20）
 

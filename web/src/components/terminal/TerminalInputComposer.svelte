@@ -7,6 +7,7 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import { locale } from "$lib/locale";
   import { m } from "$lib/paraglide/messages.js";
+  import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
   import { useTextareaDraft } from "../../hooks/terminal/textarea-draft.svelte";
   import { editDraftKey } from "../../domains/terminal/draft-key";
   import type {
@@ -66,6 +67,10 @@
   );
   export function focus() {
     textarea?.focus({ preventScroll: true });
+  }
+  async function restoreFocusAfterRecovery() {
+    await tick();
+    if (allowAutomaticInputFocus()) focus();
   }
   // Toggles the soft keyboard; `beforeOpen` runs just before focusing.
   export function keyboard(beforeOpen?: (target: HTMLElement) => void) {
@@ -169,7 +174,7 @@
           title={m.s4_resend_original_title()}
           onclick={() => {
             resend();
-            focus();
+            void restoreFocusAfterRecovery();
           }}>{m.s4_resend_original()}</Button
         >
       {/if}
@@ -180,7 +185,7 @@
           title={m.s4_release_to_draft_title()}
           onclick={() => {
             release();
-            focus();
+            void restoreFocusAfterRecovery();
           }}>{m.s4_release_to_draft()}</Button
         >
       {/if}
@@ -222,13 +227,17 @@
         >
       {/if}
     </div>
-    <p
-      class="h-[2lh] min-w-0 shrink-0 overflow-y-auto wrap-anywhere text-xs text-muted-foreground @2xl/draft:flex-1"
-      role="status"
-      aria-label={m.s4_draft_submission_status_aria()}
-    >
-      {draft.submission ? submissionText(draft.submission.state) : unavailable}
-    </p>
+    {#if draft.submission || unavailable}
+      <p
+        class="max-h-[2lh] min-w-0 shrink-0 overflow-y-auto wrap-anywhere text-xs text-muted-foreground @2xl/draft:flex-1"
+        role="status"
+        aria-label={m.s4_draft_submission_status_aria()}
+      >
+        {draft.submission
+          ? submissionText(draft.submission.state)
+          : unavailable}
+      </p>
+    {/if}
   </div>
 </section>
 
