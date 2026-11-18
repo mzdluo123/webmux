@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import IconFileSearch from "~icons/tabler/file-search";
@@ -41,15 +42,39 @@
 
   const desktop = new MediaQuery("(min-width: 1024px)");
   let mobileShowDiff = $state(false);
+  let list = $state<HTMLDivElement | null>(null);
+  let backButton = $state<HTMLButtonElement | null>(null);
+  let opener: HTMLElement | null = null;
+
+  async function showDiff(row: GitFileHistoryRow, button: HTMLElement) {
+    onSelectRow(row);
+    if (desktop.current) return;
+    opener = button;
+    mobileShowDiff = true;
+    await tick();
+    backButton?.focus({ preventScroll: true });
+  }
+
+  async function showList() {
+    mobileShowDiff = false;
+    await tick();
+    if (opener?.isConnected) opener.focus({ preventScroll: true });
+    else list?.focus({ preventScroll: true });
+  }
 
   const activeRow = $derived(
     rows.find((r) => r.oid === selectedOid) ?? rows[0] ?? null,
   );
 </script>
 
-{#snippet historyList(isMobile: boolean)}
+{#snippet historyList()}
   <div
-    class="flex h-full min-h-0 min-w-0 flex-col lg:w-80 lg:shrink-0 lg:border-r"
+    bind:this={list}
+    tabindex="-1"
+    class={[
+      "h-full min-h-0 min-w-0 flex-col lg:w-80 lg:shrink-0 lg:border-r",
+      !desktop.current && mobileShowDiff ? "hidden" : "flex",
+    ]}
     data-testid="git-file-history-list"
   >
     <ScrollArea class="min-h-8 flex-1">
@@ -58,7 +83,7 @@
           <p class="p-3 text-xs text-muted-foreground" role="status">
             {m.s6_file_history_loading()}
           </p>
-        {:else if error}
+        {:else if error && rows.length === 0}
           <div class="p-2">
             <InlineNotice tone="danger">{error}</InlineNotice>
           </div>
@@ -74,10 +99,7 @@
               variant="compact-row"
               aria-selected={selected}
               data-file-history-row={row.shortOid}
-              onclick={() => {
-                onSelectRow(row);
-                if (isMobile) mobileShowDiff = true;
-              }}
+              onclick={(event) => void showDiff(row, event.currentTarget)}
             >
               <div class="flex min-w-0 flex-1 flex-col gap-1">
                 <div class="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -113,6 +135,10 @@
             </ListButton>
           {/each}
 
+          {#if error}
+            <InlineNotice tone="danger">{error}</InlineNotice>
+          {/if}
+
           {#if nextCursor && onLoadMore}
             <div class="pt-1.5 text-center">
               <Button
@@ -144,7 +170,8 @@
             <Button
               size="sm"
               variant="ghost"
-              onclick={() => (mobileShowDiff = false)}
+              bind:ref={backButton}
+              onclick={() => void showList()}
             >
               <IconArrowLeft aria-hidden="true" />
               {m.s6_back_to_commit_list()}
@@ -201,12 +228,8 @@
   class="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
   data-testid="git-file-history-view"
 >
-  {#if desktop.current}
-    {@render historyList(false)}
-    {@render historyDiffSection(false)}
-  {:else if !mobileShowDiff}
-    {@render historyList(true)}
-  {:else}
-    {@render historyDiffSection(true)}
+  {@render historyList()}
+  {#if desktop.current || mobileShowDiff}
+    {@render historyDiffSection(!desktop.current)}
   {/if}
 </div>

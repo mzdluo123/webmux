@@ -2,6 +2,8 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import { buildGitWorkbenchFixture } from "../../stories/git-workbench-fixtures";
+import GitFileInspectorDialog from "../../src/components/workspace/GitFileInspectorDialog.svelte";
+import type { GitFileHistoryRow } from "../../src/contracts/schemas";
 import Harness from "./GitWorkbenchHarness.svelte";
 
 afterEach(async () => {
@@ -77,4 +79,44 @@ test("Branches pane renders Tags and redacted Remotes management section", async
         .first(),
     )
     .toBeVisible();
+});
+
+test("file history returns to the scrolled commit row on phones", async () => {
+  await page.viewport(390, 844);
+  const rows: GitFileHistoryRow[] = Array.from({ length: 32 }, (_, index) => {
+    const shortOid = String(index + 1).padStart(7, "0");
+    return {
+      oid: shortOid.padEnd(40, "0"),
+      shortOid,
+      parents: [],
+      subject: `Parser edit ${index + 1}`,
+      authorName: "Developer",
+      authorEmail: "",
+      authorAt: "",
+      status: index === 19 ? "R100" : "M",
+      path: "src/parser.ts",
+      oldPath: index === 19 ? "src/old-parser.ts" : undefined,
+    };
+  });
+  render(GitFileInspectorDialog, { fixtureHistoryRows: rows });
+
+  const list = page.getByTestId("git-file-history-list");
+  const commit = list.getByRole("button", { name: /Parser edit 20/ });
+  await expect.element(commit).toBeVisible();
+  commit.element().scrollIntoView({ block: "center" });
+  const viewport = list
+    .element()
+    .querySelector("[data-slot=scroll-area-viewport]")!;
+  const offset = viewport.scrollTop;
+  expect(offset).toBeGreaterThan(0);
+
+  (commit.element() as HTMLElement).focus({ preventScroll: true });
+  await userEvent.keyboard("{Enter}");
+  const back = page.getByRole("button", { name: "返回提交列表" });
+  await expect.element(back).toHaveFocus();
+  await expect.element(list).not.toBeVisible();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(commit).toHaveFocus();
+  await expect.element(commit).toHaveAttribute("aria-selected", "true");
+  expect(viewport.scrollTop).toBe(offset);
 });
