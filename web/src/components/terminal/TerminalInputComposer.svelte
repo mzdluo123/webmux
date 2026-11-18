@@ -159,7 +159,7 @@
     class="flex shrink-0 flex-col gap-1 @2xl/draft:flex-row-reverse @2xl/draft:items-center"
   >
     <div
-      class="ml-auto flex w-full items-center justify-end-safe gap-2 overflow-x-auto px-1 py-0.5 @2xl/draft:w-auto"
+      class="ml-auto flex w-full min-w-0 max-w-full flex-wrap items-center justify-end gap-2 px-1 py-0.5 @2xl/draft:w-auto"
     >
       {#if draft.submission?.state === "unknown"}
         <Button
