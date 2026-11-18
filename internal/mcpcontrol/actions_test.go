@@ -103,3 +103,57 @@ func TestLaunchDoesNotInventInitialTurn(t *testing.T) {
 		}
 	}
 }
+
+func TestLaunchUpstreamChallengePreservesBodyAndChoice(t *testing.T) {
+	challenge := `{"error":"upstream changed","reason":"worktree_upstream_confirmation","worktreeUpstream":{"confirmationId":"confirm-one","branch":"refs/heads/main","localHead":"old","upstream":"origin/main","upstreamHead":"new","warning":"","canUseUpstream":true},"extra":"preserved"}`
+	var requests []contract.CreateSessionRequest
+	c := Client{API: &localclient.Client{HTTP: &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/api/sessions" {
+			return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{}`))}, nil
+		}
+		var req contract.CreateSessionRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal(err)
+		}
+		requests = append(requests, req)
+		status, body := http.StatusConflict, challenge
+		if req.NewWorktree.UpstreamChoice != nil {
+			status, body = http.StatusCreated, `{"session":{"id":"created"}}`
+		}
+		return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body))}, nil
+	})}}}
+	raw := json.RawMessage(`{"clientRequestId":"stable-request","cmd":["true"],"newWorktree":{"repositoryId":"repo","mode":"new","base":"refs/heads/main"}}`)
+	if _, err := c.launch(context.Background(), raw); err == nil || err.Error() != challenge {
+		t.Fatalf("challenge body lost: %v", err)
+	}
+	for _, useUpstream := range []bool{true, false} {
+		var req contract.CreateSessionRequest
+		if err := json.Unmarshal(raw, &req); err != nil {
+			t.Fatal(err)
+		}
+		req.NewWorktree.UpstreamChoice = &contract.UpstreamChoice{ConfirmationID: "confirm-one", UseUpstream: useUpstream}
+		retry, err := json.Marshal(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.launch(context.Background(), retry); err != nil {
+			t.Fatal(err)
+		}
+		got := requests[len(requests)-1]
+		if got.ClientRequestID != requests[0].ClientRequestID || got.NewWorktree.Base != "refs/heads/main" ||
+			got.NewWorktree.UpstreamChoice == nil || *got.NewWorktree.UpstreamChoice != *req.NewWorktree.UpstreamChoice {
+			t.Fatalf("choice not forwarded: %+v", got)
+		}
+	}
+}
+
+func TestLaunchSchemaAllowsExplicitUpstreamChoice(t *testing.T) {
+	tree := createProperties()["newWorktree"].(map[string]any)
+	choice := tree["properties"].(map[string]any)["upstreamChoice"].(map[string]any)
+	properties := choice["properties"].(map[string]any)
+	required := choice["required"].([]string)
+	if properties["confirmationId"] == nil || properties["useUpstream"] == nil ||
+		len(required) != 2 || required[0] != "confirmationId" || required[1] != "useUpstream" {
+		t.Fatalf("incomplete upstream choice schema: %#v", choice)
+	}
+}

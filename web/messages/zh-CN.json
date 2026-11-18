@@ -4324,5 +4324,13 @@
   "relay_auth_check_again": "再次检查连接",
   "relay_auth_login": "通过 WebMux 控制台登录",
   "relay_reconnect_paused": "无法连接主机，重连已暂停",
-  "relay_reconnect_status_aria": "重连状态：{status}"
+  "relay_reconnect_status_aria": "重连状态：{status}",
+  "worktree_upstream_title": "选择工作树基线",
+  "worktree_upstream_description": "创建前请核对已拉取的上游。刷新预览不会替你选择基线。",
+  "worktree_upstream_local": "本地 · {branch}",
+  "worktree_upstream_remote": "上游 · {branch}",
+  "worktree_upstream_latest": "使用上游最新",
+  "worktree_upstream_keep": "保留本地",
+  "worktree_upstream_preview": "上游预览 · {branch}。创建时再确认基线。",
+  "worktree_upstream_waiting": "等待选择工作树基线"
 }

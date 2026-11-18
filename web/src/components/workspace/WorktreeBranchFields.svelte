@@ -20,7 +20,6 @@
     refreshing = false,
     baseSource,
     upstream,
-    baseSubject,
     lastRefreshedAt,
     refreshWarning,
     localBranches,
@@ -41,7 +40,6 @@
     refreshing?: boolean;
     baseSource: "local" | "remote" | "";
     upstream: string;
-    baseSubject: string;
     lastRefreshedAt: Date | null;
     refreshWarning: string;
     localBranches: readonly { name: string }[];
@@ -135,7 +133,6 @@
         {startBranch}
         {baseSource}
         {upstream}
-        {baseSubject}
         {lastRefreshedAt}
         {refreshWarning}
       />

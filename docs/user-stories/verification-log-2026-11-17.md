@@ -313,6 +313,32 @@
 - 本轮覆盖文本来源读取、预览、真实工具链与跨 Agent 恢复；图片 UI、图片投影与发送管线保持原样。
 - CLI 的已有认证由 Agent 自身使用；未读取 Token、执行登录或处理 Claude 的 `auth_required`。
 
+## 工作树创建前上游确认（US-J04、US-J05、US-S07、US-S16、US-Q18、US-Q20）
+
+### 范围
+
+- 独立创建、新建会话、快速开始、项目来源、交接、CLI 与控制 MCP 共用创建前上游检查；上游更新或获取失败时明确选择。
+- 新分支选择上游保持源分支不变；已有分支仅安全快进，分叉保留独有提交。
+- 无上游、空仓、孤立分支、显式历史提交与已释放工作树重建保持各自语义。
+- 交接等待上游确认时保留原操作与冻结页集，取消、过期及重复确认保持资源与发送边界。
+- 用户故事编号与数量保持不变。
+
+### 已执行验证
+
+- `pnpm --dir web install --frozen-lockfile` 成功，完成依赖安装与本地化编译。
+- `go test -race ./internal/handoff` 通过，覆盖本地/上游选择、引用变化重问、并发重复确认、取消与过期。
+- `go test -race` 覆盖 workspace、sessioncreate、featurewire、featureapi、wire、clicmd、mcpcontrol、localclient 与 agentguide；迁移自动 fetch 后的旧夹具，workspace 最后一项失效上游夹具调整后单独复测通过。
+- API 针对性 race 验证通过：工作树/会话上游确认、原生交接、workspace 与 wire snapshots。
+- 前端 `check`、`check:test`、`lint`、`check:arch` 与源码格式检查通过；97 项相关浏览器组件测试、22 项工作树 E2E 通过。
+- 前端生产构建与隔离 Go 二进制构建成功；修复检查发现的交接分段控件导入与空基线类型，应用浮层拆为独立组件以满足文件行数守卫。
+- 本地化生成与架构检查并发时曾遇到生成文件暂缺；按先生成、后架构检查的依赖顺序执行后通过。
+- `go test -count=1 ./internal/docguard` 通过；用户故事编号、数量与文档链接保持一致。
+- 隔离浏览器真实创建分别验证：选择上游得到 `518a0d5`，保留本地得到 `3a2fee3`，源分支保持不变，取消没有新增工作树。
+- 实际 CLI 非交互调用返回完整确认 JSON 并以 1 退出；显式 `--upstream=latest|local` 创建的分支分别指向上游和本地提交。
+- 真实应用检查桌面 1280×900、平板 768×800、手机 390×844、375×667、320×568 与横屏 667×375 的明暗主题；所有确认浮层留在视口内，页面无横向溢出，键盘可操作。
+- 截图和创建/确认/取消 GIF 保存于 `.github/pr-assets/worktree-upstream/`。未验证真实设备与真实粗指针行为；无头浏览器的悬停未触发行尾控件显隐，本轮使用键盘打开菜单。
+- 首轮 PR CI 的前端、四组 E2E、Storybook、性能与打包通过；Go gate 暴露 Git 历史隔离夹具未处理上游确认，迁移为显式保留本地并校验精确 HEAD 后，`TestGitReadAPIHistoryCommitDetailAndIsolation` 的 race 复测通过。
+
 ## OMP 扩展消息交接兼容（US-Q20）
 
 ### 行为与边界

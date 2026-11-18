@@ -47,10 +47,11 @@ Web 端的新建会话对话框、快速开始页与 `webmux run` 都调用它�
 
 - `cwd`：直接目录。
 - `workspace: {repositoryId, worktreeId}`：已登记 worktree。省略 `cwd` 时使用工作树根目录，提供时必须位于该工作树内。
-- `newWorktree: {repositoryId, mode, branch?, base?, path?}`：先新建 worktree，再在其根目录创建会话。
+- `newWorktree: {repositoryId, mode, branch?, base?, path?, upstreamChoice?}`：先新建 worktree，再在其根目录创建会话。
   - `mode` 为 `new`（从 `base` 新建分支 `branch`）或 `existing`（检出已有分支 `branch`）。
   - `mode` 为 `new` 且省略 `branch` 时，服务端生成 `wt/<日期>-<时间>`，与已有分支或目录冲突时追加 `-2`、`-3` 等后缀。
   - 省略 `base` 时取仓库的默认基点；省略 `path` 时取 `defaultParent/<分支名末段>`。
+  - 创建前检查分支上游；409 `reason: "worktree_upstream_confirmation"` 的 `worktreeUpstream` 给出确认信息，确认后在 `newWorktree.upstreamChoice` 传回选择，详见[工作树上游确认](http-workspace.md#创建前的上游确认)。
 
 **命令**二选一：
 
@@ -153,6 +154,7 @@ Web 端的新建会话对话框、快速开始页与 `webmux run` 都调用它�
 
 **去重**：带 `clientRequestId`（`[A-Za-z0-9_-]{8,64}`）的请求在第一次执行进行中或完成后 10 分钟内重复提交时，等待并返回第一次的结果，不再创建 worktree、会话或提示；首条提示复用该 ID。
 缺省时不去重。处理不依赖客户端连接，最长 3 分钟。
+上游确认响应尚未创建资源，不作为最终创建结果保留；收到确认信息后可用同一 `clientRequestId` 提交带 `upstreamChoice` 的请求。其他失败与成功仍遵循上述去重窗口。
 
 ## 创建前的上传与选项探测
 

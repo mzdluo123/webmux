@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -84,13 +85,29 @@ func registerTest(t *testing.T, s *Service, path string) Repository {
 	}
 	return repository
 }
-func linkedTest(t *testing.T, s *Service, r Repository, branch string) Worktree {
+
+// createKeepingLocalTest makes fixture baseline selection explicit when the
+// source has newer upstream commits. It still exercises the creation challenge.
+func createKeepingLocalTest(t *testing.T, s *Service, r Repository, req CreateRequest) Worktree {
 	t.Helper()
-	tree, err := s.CreateWorktree(context.Background(), r.ID, CreateRequest{Path: filepath.Join(t.TempDir(), "linked "+branch), Mode: "new", Branch: branch, Base: "HEAD"})
+	tree, err := s.CreateWorktree(context.Background(), r.ID, req)
+	var confirmation *UpstreamConfirmationError
+	if errors.As(err, &confirmation) {
+		req.UpstreamChoice = &UpstreamChoice{ConfirmationID: confirmation.WorktreeUpstream.ConfirmationID}
+		tree, err = s.CreateWorktree(context.Background(), r.ID, req)
+		if err == nil && (tree.Head == nil || *tree.Head != confirmation.WorktreeUpstream.LocalHead) {
+			t.Fatalf("keep-local fixture changed its baseline: %+v", tree)
+		}
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
 	return tree
+}
+
+func linkedTest(t *testing.T, s *Service, r Repository, branch string) Worktree {
+	t.Helper()
+	return createKeepingLocalTest(t, s, r, CreateRequest{Path: filepath.Join(t.TempDir(), "linked "+branch), Mode: "new", Branch: branch, Base: "HEAD"})
 }
 func waitDone(t *testing.T, item *session.Session) {
 	t.Helper()
