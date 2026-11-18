@@ -3,7 +3,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import { Textarea } from "$lib/components/ui/textarea";
+  import GitConflictResultEditor from "./GitConflictResultEditor.svelte";
   import { m } from "$lib/paraglide/messages.js";
   import type { GitConflictFileDetail } from "../../contracts/schemas";
   import type {
@@ -24,6 +24,7 @@
     onToggleNonConflicting,
     onConfirmManualEdits,
     onChangeResultText,
+    resultEditor = $bindable(null),
   }: {
     detail: GitConflictFileDetail;
     draft: GitConflictDraftState;
@@ -33,6 +34,7 @@
     onChooseChunk: (segmentId: string, choice: GitConflictChunkChoice) => void;
     onToggleNonConflicting: (segmentId: string) => void;
     onConfirmManualEdits: () => void;
+    resultEditor?: HTMLTextAreaElement | null;
     onChangeResultText: (nextText: string) => void;
   } = $props();
 </script>
@@ -122,14 +124,10 @@
     >
       <ScrollArea class="min-h-8 flex-1">
         <div class="flex min-h-full flex-col p-2">
-          <Textarea
-            variant="bare"
-            code
-            aria-label={m.s6_conflict_result_editor_aria()}
+          <GitConflictResultEditor
+            bind:ref={resultEditor}
             value={draft.resultText}
-            oninput={(e) => onChangeResultText(e.currentTarget.value)}
-            class="min-h-full flex-1"
-            data-testid="git-conflict-result-textarea"
+            oninput={onChangeResultText}
           />
         </div>
       </ScrollArea>
