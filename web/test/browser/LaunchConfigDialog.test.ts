@@ -416,7 +416,22 @@ test.each([
     await expect
       .element(page.getByLabelText("启动命令"))
       .toHaveValue("codex --resume 'a b' '' '$HOME'");
-    if (!enabled) await checkbox.click();
+    if (!enabled) {
+      const env = page.getByLabelText("变量名 1").element();
+      const startup = checkbox.element();
+      const offset = () =>
+        (env.getBoundingClientRect().top -
+          startup.getBoundingClientRect().top) /
+        (env.getBoundingClientRect().height /
+          (env as HTMLElement).offsetHeight);
+      const expanded = offset();
+      await checkbox.click();
+      expect(offset()).toBeCloseTo(expanded, 0);
+      await userEvent.keyboard("{Tab}");
+      expect(document.activeElement?.id).not.toBe(
+        "launch-config-startup-shell",
+      );
+    }
     await save().click();
     await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
     expect(savedRequest(requests)).toMatchObject({

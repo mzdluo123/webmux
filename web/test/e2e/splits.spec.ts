@@ -288,6 +288,24 @@ test("existing sessions can join a split and missing panes can be dismissed", as
   await expect(page.locator(`[data-session-id="${id}"]`)).toBeVisible();
 });
 
+test("Escape from the split chooser returns keyboard focus to its pane", async ({
+  page,
+  workDir,
+}, testInfo) => {
+  test.skip(testInfo.project.use.isMobile, "Uses physical keyboard focus");
+  const id = await createShell(page, "Split chooser anchor", workDir);
+  const pane = page.locator(`[data-session-id="${id}"]`);
+  await openSplitPanel(pane);
+  await page
+    .getByRole("button", { name: "加入已有会话…", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("textbox", { name: "搜索已有会话" }).focus();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(pane.locator(".xterm-helper-textarea")).toBeFocused();
+});
+
 test("返回列表 in a split leaves only its own pane", async ({
   page,
   request,

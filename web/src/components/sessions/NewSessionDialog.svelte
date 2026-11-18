@@ -397,6 +397,7 @@
       ? m.s3_new_session_project_desc()
       : m.s3_new_session_default_desc()}
   class="p-5 sm:max-w-3xl"
+  drawerFullScreen={projectEnabled && !projectRestricted}
   pinDrawerHeader
   {busy}
   {onclose}
