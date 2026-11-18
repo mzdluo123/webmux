@@ -82,7 +82,7 @@
       group.sessions.push(session);
     }
     return [...byRepository.values(), direct].filter(
-      (group) => group.sessions.length || (!attentionOnly && group !== direct),
+      (group) => group.sessions.length > 0,
     );
   });
 
@@ -131,8 +131,7 @@
     </p>
   {/if}
   {#each groups as group (group.id)}
-    {@const hasSessions = group.sessions.length > 0}
-    {@const open = hasSessions && workbenchLayout.isProjectOpen(group.id)}
+    {@const open = workbenchLayout.isProjectOpen(group.id)}
     {@const repositoryId = group.id === "direct" ? undefined : group.id}
     {@const createLabel = repositoryId
       ? m.s8_sidebar_create_session({ project: group.name })
@@ -147,7 +146,7 @@
           data-layout-row={repositoryId ? `r:${repositoryId}` : "direct"}
         >
           <h2 class="min-w-0 flex-1">
-            <Collapsible.Trigger disabled={!hasSessions}>
+            <Collapsible.Trigger>
               {#snippet child({ props })}
                 <ListButton {...props} variant="section-header">
                   <SidebarProjectAvatar name={group.name} {repositoryId} />
@@ -161,7 +160,6 @@
                     class={[
                       "size-3.5 shrink-0 motion-safe:transition-transform",
                       open && "rotate-90",
-                      !hasSessions && "invisible",
                     ]}
                     aria-hidden="true"
                   />
@@ -180,7 +178,7 @@
           </Button>
         </div>
         <Collapsible.Content>
-          <ul class="mt-1 space-y-1" aria-label={group.name}>
+          <ul class="ms-3 mt-1 space-y-1" aria-label={group.name}>
             {#each group.sessions as session (session.id)}
               {@const location = queueWorkspaceLocation(
                 session,
