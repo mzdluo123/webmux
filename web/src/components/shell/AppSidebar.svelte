@@ -256,7 +256,11 @@
   />
 {/snippet}
 
-<nav class="flex h-full min-h-0 flex-col" aria-label={m.s1_navigation()}>
+<nav
+  class="flex h-full min-h-0 flex-col"
+  class:sidebar-drawer={Boolean(onclose)}
+  aria-label={m.s1_navigation()}
+>
   <div class="flex items-center gap-1 px-2 pt-2 pb-1">
     {#if collapsible}
       <Button
@@ -445,3 +449,22 @@
     {/snippet}
   </LazyDialog>
 {/if}
+
+<style>
+  /* Short drawers need one scroller for both the header and its navigation. */
+  @media (width < 40rem) and (height <= 600px) {
+    .sidebar-drawer {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    .sidebar-drawer > :global([data-slot="scroll-area"]) {
+      flex: none;
+    }
+
+    .sidebar-drawer
+      > :global([data-slot="scroll-area"] [data-slot="scroll-area-viewport"]) {
+      height: auto;
+    }
+  }
+</style>

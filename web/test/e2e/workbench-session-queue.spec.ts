@@ -227,7 +227,7 @@ test("closing the docked preview returns focus after a running session exits", a
 test("both sidebar filters fit at double text size on a narrow screen", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 320, height: 844 });
+  await page.setViewportSize({ width: 320, height: 568 });
   await page.goto("/");
   await page.evaluate(() => localStorage.setItem("webmux.locale", "en"));
   await page.reload();
@@ -241,6 +241,7 @@ test("both sidebar filters fit at double text size on a narrow screen", async ({
     name: "Needs attention",
     exact: true,
   });
+  await pending.scrollIntoViewIfNeeded();
   await expect(all).toBeInViewport({ ratio: 1 });
   await expect(pending).toBeInViewport({ ratio: 1 });
   await pending.click();
