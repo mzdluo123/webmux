@@ -471,6 +471,25 @@ export async function openSessionLink(page: Page, name: string): Promise<Page> {
   return page;
 }
 
+/** Holds the terminal renderer until the test releases the real font loader. */
+export async function holdTerminalFont(page: Page) {
+  await page.addInitScript(() => {
+    const load = document.fonts.load.bind(document.fonts);
+    const released = Promise.withResolvers<void>();
+    window.addEventListener(
+      "webmux:e2e-release-font",
+      () => released.resolve(),
+      { once: true },
+    );
+    document.fonts.load = (font, text) =>
+      released.promise.then(() => load(font, text));
+  });
+  return () =>
+    page.evaluate(() =>
+      window.dispatchEvent(new Event("webmux:e2e-release-font")),
+    );
+}
+
 // A healthy connection shows no text; the status dot names it instead.
 export async function expectConnected(page: Page) {
   const header = page.locator(".terminal-header");

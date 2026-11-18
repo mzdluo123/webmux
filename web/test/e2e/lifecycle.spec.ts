@@ -9,6 +9,7 @@ import {
   runCommand,
   expectTerminalLine,
   expectConnected,
+  holdTerminalFont,
   toggleCode,
   backToList,
 } from "./fixtures";
@@ -30,21 +31,10 @@ for (const initialization of ["connected", "font-pending"] as const) {
         socket.on("close", () => closed++);
       }
     });
-    if (initialization === "font-pending") {
-      // Hold the real font load until after leaving, exercising the delayed
-      // terminal mount without substituting terminal output or server frames.
-      await page.addInitScript(() => {
-        const load = document.fonts.load.bind(document.fonts);
-        const released = Promise.withResolvers<void>();
-        window.addEventListener(
-          "webmux:e2e-release-font",
-          () => released.resolve(),
-          { once: true },
-        );
-        document.fonts.load = (font, text) =>
-          released.promise.then(() => load(font, text));
-      });
-    }
+    const releaseFont =
+      initialization === "font-pending"
+        ? await holdTerminalFont(page)
+        : undefined;
     const name = `Back navigation ${initialization}`;
     const created = await request.post("/api/sessions", {
       data: {
@@ -123,9 +113,9 @@ for (const initialization of ["connected", "font-pending"] as const) {
       expect(errors).toEqual([]);
     };
     await returnToList();
-    if (initialization === "font-pending") {
+    if (releaseFont) {
+      await releaseFont();
       await page.evaluate(async () => {
-        window.dispatchEvent(new Event("webmux:e2e-release-font"));
         await document.fonts.load('14px "Maple Mono NF CN"', "A");
         const frame = Promise.withResolvers<void>();
         requestAnimationFrame(() =>

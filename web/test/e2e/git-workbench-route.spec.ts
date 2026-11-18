@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
 import {
   expect,
+  holdTerminalFont,
   revealSidebar,
   test,
   toggleCode,
@@ -591,6 +592,7 @@ test("the layout switch moves shared session rows and respects reduced motion", 
   });
   expect(created.status()).toBe(201);
   const { session } = await created.json();
+  const releaseFont = await holdTerminalFont(page);
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto(`/s/${session.id}`);
   await revealSidebar(page);
@@ -613,6 +615,8 @@ test("the layout switch moves shared session rows and respects reduced motion", 
   });
   await toggle.press("Space");
   await expect(toggle).toBeChecked();
+  await releaseFont();
+  await expect(page.locator(".xterm-helper-textarea")).toHaveCount(1);
   await expect(toggle).toBeFocused();
   await expect(
     sidebar.getByRole("treeitem", { name: /^Keep this session open/ }),
