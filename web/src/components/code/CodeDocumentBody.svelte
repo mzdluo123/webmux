@@ -171,7 +171,12 @@
         {#if calculation === "pending" || modelSnapshot !== shownDiff.snapshotId}
           <p role="status" class="text-sm">{m.s5_calculating_diff()}</p>
         {:else}
-          <p role="alert" class="text-sm break-words">{calculationReason}</p>
+          <p
+            role={calculation === "error" ? "alert" : "status"}
+            class="text-sm break-words"
+          >
+            {calculationReason}
+          </p>
           <Button
             variant="outline"
             size="sm"
