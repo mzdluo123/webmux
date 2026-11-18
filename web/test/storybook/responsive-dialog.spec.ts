@@ -5,7 +5,7 @@ for (const width of [639, 640]) {
     test(`project picker retains its context across ${width}px (${reducedMotion})`, async ({
       page,
     }) => {
-      await page.setViewportSize({ width, height: 320 });
+      await page.setViewportSize({ width, height: 240 });
       await page.emulateMedia({ reducedMotion });
       await page.goto("/iframe.html?id=workspace-project-picker--projects");
       const dialog = page.getByRole("dialog");
@@ -25,13 +25,25 @@ for (const width of [639, 640]) {
       const viewport = dialog
         .locator('[data-slot="scroll-area-viewport"]')
         .first();
+      await dialog.evaluate(async (element) => {
+        await Promise.all(
+          element
+            .getAnimations({ subtree: true })
+            .filter(
+              (animation) =>
+                animation.effect?.getComputedTiming().endTime !== Infinity,
+            )
+            .map((animation) => animation.finished.catch(() => undefined)),
+        );
+      });
       const scroll = await viewport.evaluate((el) => {
         el.scrollTop = 16;
         return el.scrollTop;
       });
+      expect(scroll).toBeGreaterThan(0);
       await page.setViewportSize({
         width: width === 639 ? 640 : 639,
-        height: 320,
+        height: 240,
       });
       await expect(
         dialog.getByRole("heading", { name: "添加项目" }),
