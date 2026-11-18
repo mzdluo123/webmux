@@ -8,6 +8,7 @@
   import IconTerminal2 from "~icons/tabler/terminal-2";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import { useManualDisclosureMotion } from "$lib/components/ui/collapsible/manual-motion.svelte";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import * as Item from "$lib/components/ui/item";
@@ -75,6 +76,11 @@
     override = undefined;
   });
   const open = $derived(override ?? (reveal || expanded));
+  let panel: HTMLDivElement | null = null;
+  const motion = useManualDisclosureMotion(
+    () => panel,
+    () => open,
+  );
   const shown = $derived(
     showAll || archive.filtering ? history : history.slice(0, PAGE),
   );
@@ -123,10 +129,11 @@
 >
   <Collapsible.Root
     {open}
-    onOpenChange={(value) => {
-      if (reveal) override = value;
-      else expanded = value;
-    }}
+    onOpenChange={(value) =>
+      motion.toggle(value, (next) => {
+        if (reveal) override = next;
+        else expanded = next;
+      })}
   >
     <!-- The interrupted count sits beside the trigger, so large text on a
          narrow screen wraps it under the button instead of widening it. -->
@@ -151,165 +158,167 @@
           })}</Badge
         >{/if}
     </div>
-    <!-- Mounted while closed and hidden by hand, like the repository groups:
-         a section opened by a reveal right after it mounted otherwise kept
-         bits-ui's `hidden` on its content although its state was open. -->
-    <Collapsible.Content
-      forceMount
-      hidden={!open}
-      class="mt-2 grid min-w-0 grid-cols-1 gap-2"
-    >
-      {#if error}<InlineNotice tone="danger">{error}</InlineNotice>{/if}
-      {#each shown as record (record.id)}
-        {@const removableWorktree = record.released
-          ? undefined
-          : (resolveWorktree?.(record) ?? worktree)}
-        {@const hasMoreActions = Boolean(
-          removableWorktree &&
-          (archive.release || archive.removeRecordAndWorktree),
-        )}
-        <Item.Root
-          variant={timeline ? "divided" : "muted"}
-          class="min-w-0 flex-col flex-nowrap items-stretch"
-          data-archived-id={record.id}
-        >
-          <Item.Content class="min-w-0">
-            <div class="flex min-w-0 items-center gap-2">
-              {#if hasLaunchIcon(record.agent.icon)}<LaunchConfigIcon
-                  icon={record.agent.icon}
-                  size="sm"
-                />{/if}
-              <Item.Title
-                class="min-w-0 max-w-full"
-                title={recordTitle(record)}
+    <div bind:this={panel} inert={!open} class:overflow-clip={motion.moving}>
+      <!-- Mounted while closed and hidden by hand, like the repository groups:
+           a section opened by a reveal right after it mounted otherwise kept
+           bits-ui's `hidden` on its content although its state was open. -->
+      <Collapsible.Content
+        forceMount
+        hidden={!open && !motion.moving}
+        class="grid min-w-0 grid-cols-1 gap-2 pt-2"
+      >
+        {#if error}<InlineNotice tone="danger">{error}</InlineNotice>{/if}
+        {#each shown as record (record.id)}
+          {@const removableWorktree = record.released
+            ? undefined
+            : (resolveWorktree?.(record) ?? worktree)}
+          {@const hasMoreActions = Boolean(
+            removableWorktree &&
+            (archive.release || archive.removeRecordAndWorktree),
+          )}
+          <Item.Root
+            variant={timeline ? "divided" : "muted"}
+            class="min-w-0 flex-col flex-nowrap items-stretch"
+            data-archived-id={record.id}
+          >
+            <Item.Content class="min-w-0">
+              <div class="flex min-w-0 items-center gap-2">
+                {#if hasLaunchIcon(record.agent.icon)}<LaunchConfigIcon
+                    icon={record.agent.icon}
+                    size="sm"
+                  />{/if}
+                <Item.Title
+                  class="min-w-0 max-w-full"
+                  title={recordTitle(record)}
+                >
+                  <span class="truncate">{recordTitle(record)}</span>
+                </Item.Title>
+                {#if record.released}<ReleasedBadge
+                    released={record.released}
+                  />{/if}
+              </div>
+              <Item.Description>
+                <span class="flex flex-wrap gap-x-3 gap-y-1">
+                  <span>{record.agent.name}</span>
+                  <span class="inline-flex items-center gap-1"
+                    >{#if record.view === "chat"}<IconMessageCircle
+                        class="shrink-0"
+                        aria-hidden="true"
+                      />{m.s3_view_chat()}{:else}<IconTerminal2
+                        class="shrink-0"
+                        aria-hidden="true"
+                      />{m.s3_view_terminal()}{/if}</span
+                  >
+                </span>
+              </Item.Description>
+              <!-- The omp history line: time, stored size, outcome, directory.
+                   Each field keeps its own element so a narrow screen wraps
+                   them instead of clipping the path, while >= sm truncates
+                   long paths inline without leaving a trailing separator. -->
+              <p
+                class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
               >
-                <span class="truncate">{recordTitle(record)}</span>
-              </Item.Title>
-              {#if record.released}<ReleasedBadge
-                  released={record.released}
-                />{/if}
-            </div>
-            <Item.Description>
-              <span class="flex flex-wrap gap-x-3 gap-y-1">
-                <span>{record.agent.name}</span>
-                <span class="inline-flex items-center gap-1"
-                  >{#if record.view === "chat"}<IconMessageCircle
+                <span class="sm:shrink-0">{since(record)}</span>
+                <span aria-hidden="true" class="max-sm:hidden">·</span>
+                {#if record.state === "closed"}
+                  <span
+                    class="inline-flex items-center gap-1 text-success sm:shrink-0"
+                  >
+                    <IconCircleCheck
                       class="shrink-0"
                       aria-hidden="true"
-                    />{m.s3_view_chat()}{:else}<IconTerminal2
+                    />{m.s3_state_closed()}
+                  </span>
+                {:else}
+                  <span
+                    class="inline-flex items-center gap-1 text-warning sm:shrink-0"
+                  >
+                    <IconAlertTriangle
                       class="shrink-0"
                       aria-hidden="true"
-                    />{m.s3_view_terminal()}{/if}</span
-                >
-              </span>
-            </Item.Description>
-            <!-- The omp history line: time, stored size, outcome, directory.
-                 Each field keeps its own element so a narrow screen wraps
-                 them instead of clipping the path, while >= sm truncates
-                 long paths inline without leaving a trailing separator. -->
-            <p
-              class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
-            >
-              <span class="sm:shrink-0">{since(record)}</span>
-              <span aria-hidden="true" class="max-sm:hidden">·</span>
-              {#if record.state === "closed"}
+                    />{m.s3_turn_cancelled()}
+                  </span>
+                {/if}
+                <span aria-hidden="true" class="max-sm:hidden">·</span>
                 <span
-                  class="inline-flex items-center gap-1 text-success sm:shrink-0"
+                  class="min-w-0 max-w-full truncate font-mono sm:flex-1"
+                  title={record.cwd}>{record.cwd}</span
                 >
-                  <IconCircleCheck
-                    class="shrink-0"
-                    aria-hidden="true"
-                  />{m.s3_state_closed()}
-                </span>
-              {:else}
-                <span
-                  class="inline-flex items-center gap-1 text-warning sm:shrink-0"
-                >
-                  <IconAlertTriangle
-                    class="shrink-0"
-                    aria-hidden="true"
-                  />{m.s3_turn_cancelled()}
-                </span>
+              </p>
+              <HybridRecordHints {record} />
+            </Item.Content>
+            <Item.Actions class="flex flex-wrap gap-2">
+              <HybridResumeActions
+                {record}
+                resume={archive.resume}
+                onresumed={archive.onresumed}
+                onrebuilt={archive.onrebuilt}
+                disabled={!!busy}
+                onbusy={(active) => (busy = active ? record.id : "")}
+                onerror={(message) => (error = message)}
+              />
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={!!busy}
+                aria-label={m.s3_delete_named({ title: recordTitle(record) })}
+                onclick={() => {
+                  removing = record;
+                  removeOpen = true;
+                }}>{m.s3_delete()}</Button
+              >
+              {#if removableWorktree && hasMoreActions}
+                <DropdownMenu.Root>
+                  <DropdownMenu.Trigger disabled={!!busy}>
+                    {#snippet child({ props })}
+                      <Button
+                        {...props}
+                        size="icon-sm"
+                        variant="ghost"
+                        title={m.s3_more_actions_named({
+                          title: recordTitle(record),
+                        })}
+                        aria-label={m.s3_more_actions_named({
+                          title: recordTitle(record),
+                        })}><IconDots aria-hidden="true" /></Button
+                      >
+                    {/snippet}
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Content align="end" class="min-w-48">
+                    {#if archive.release}
+                      {@const release = archive.release}
+                      <DropdownMenu.Item
+                        onSelect={() => release(removableWorktree)}
+                        >{m.s3_release_space()}</DropdownMenu.Item
+                      >
+                      {#if archive.removeRecordAndWorktree}<DropdownMenu.Separator
+                        />{/if}
+                    {/if}
+                    {#if archive.removeRecordAndWorktree}
+                      {@const removeRecordAndWorktree =
+                        archive.removeRecordAndWorktree}
+                      <DropdownMenu.Item
+                        variant="destructive"
+                        onSelect={() =>
+                          removeRecordAndWorktree(record, removableWorktree)}
+                        >{m.s3_delete_record_and_worktree()}</DropdownMenu.Item
+                      >
+                    {/if}
+                  </DropdownMenu.Content>
+                </DropdownMenu.Root>
               {/if}
-              <span aria-hidden="true" class="max-sm:hidden">·</span>
-              <span
-                class="min-w-0 max-w-full truncate font-mono sm:flex-1"
-                title={record.cwd}>{record.cwd}</span
-              >
-            </p>
-            <HybridRecordHints {record} />
-          </Item.Content>
-          <Item.Actions class="flex flex-wrap gap-2">
-            <HybridResumeActions
-              {record}
-              resume={archive.resume}
-              onresumed={archive.onresumed}
-              onrebuilt={archive.onrebuilt}
-              disabled={!!busy}
-              onbusy={(active) => (busy = active ? record.id : "")}
-              onerror={(message) => (error = message)}
-            />
-            <Button
-              size="sm"
-              variant="destructive"
-              disabled={!!busy}
-              aria-label={m.s3_delete_named({ title: recordTitle(record) })}
-              onclick={() => {
-                removing = record;
-                removeOpen = true;
-              }}>{m.s3_delete()}</Button
-            >
-            {#if removableWorktree && hasMoreActions}
-              <DropdownMenu.Root>
-                <DropdownMenu.Trigger disabled={!!busy}>
-                  {#snippet child({ props })}
-                    <Button
-                      {...props}
-                      size="icon-sm"
-                      variant="ghost"
-                      title={m.s3_more_actions_named({
-                        title: recordTitle(record),
-                      })}
-                      aria-label={m.s3_more_actions_named({
-                        title: recordTitle(record),
-                      })}><IconDots aria-hidden="true" /></Button
-                    >
-                  {/snippet}
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Content align="end" class="min-w-48">
-                  {#if archive.release}
-                    {@const release = archive.release}
-                    <DropdownMenu.Item
-                      onSelect={() => release(removableWorktree)}
-                      >{m.s3_release_space()}</DropdownMenu.Item
-                    >
-                    {#if archive.removeRecordAndWorktree}<DropdownMenu.Separator
-                      />{/if}
-                  {/if}
-                  {#if archive.removeRecordAndWorktree}
-                    {@const removeRecordAndWorktree =
-                      archive.removeRecordAndWorktree}
-                    <DropdownMenu.Item
-                      variant="destructive"
-                      onSelect={() =>
-                        removeRecordAndWorktree(record, removableWorktree)}
-                      >{m.s3_delete_record_and_worktree()}</DropdownMenu.Item
-                    >
-                  {/if}
-                </DropdownMenu.Content>
-              </DropdownMenu.Root>
-            {/if}
-          </Item.Actions>
-        </Item.Root>
-      {/each}
-      {#if shown.length < history.length}<Button
-          variant="link"
-          size="sm"
-          class="justify-self-start"
-          onclick={() => (showAll = true)}
-          >{m.s3_show_all_count({ count: String(history.length) })}</Button
-        >{/if}
-    </Collapsible.Content>
+            </Item.Actions>
+          </Item.Root>
+        {/each}
+        {#if shown.length < history.length}<Button
+            variant="link"
+            size="sm"
+            class="justify-self-start"
+            onclick={() => (showAll = true)}
+            >{m.s3_show_all_count({ count: String(history.length) })}</Button
+          >{/if}
+      </Collapsible.Content>
+    </div>
   </Collapsible.Root>
 </section>
 
