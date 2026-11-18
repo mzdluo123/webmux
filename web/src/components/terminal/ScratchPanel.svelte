@@ -178,7 +178,7 @@
 
 <Dialog.Root bind:open>
   <Dialog.Content
-    class="flex h-[min(48rem,calc(100dvh-1rem))] max-h-[calc(100dvh-1rem)] max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 sm:h-[min(48rem,calc(100dvh-4rem))] sm:max-w-2xl"
+    class="flex h-[min(48rem,calc(100dvh-1rem))] max-h-[calc(100dvh-1rem)] max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 sm:h-[min(48rem,calc(100dvh-4rem))] sm:max-w-2xl sm:[@media(max-height:480px)]:h-[calc(100dvh-1rem)]"
     showCloseButton={false}
     onOpenAutoFocus={(event) => {
       event.preventDefault();
@@ -193,7 +193,7 @@
     }}
   >
     <div
-      class="flex shrink-0 items-start gap-3 border-b px-4 py-4 sm:px-6 sm:py-5"
+      class="flex shrink-0 items-start gap-3 border-b px-4 py-4 sm:px-6 sm:py-5 sm:[@media(max-height:480px)]:py-2"
     >
       <span
         class="hidden size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:flex"
