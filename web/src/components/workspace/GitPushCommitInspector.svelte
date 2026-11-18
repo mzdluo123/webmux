@@ -40,10 +40,20 @@
       : { selectedParent: "", files: [] as GitCommitFile[] },
   );
   const activeFile = $derived(
-    resolved.files.find((f) => (f.newPath || f.oldPath) === selectedFilePath) ??
-      resolved.files[0] ??
-      null,
+    detailLoading
+      ? null
+      : (resolved.files.find(
+          (f) => (f.newPath || f.oldPath) === selectedFilePath,
+        ) ??
+          resolved.files[0] ??
+          null),
   );
+
+  const activePath = $derived(activeFile?.newPath || activeFile?.oldPath || "");
+  const fileListKey = $derived(
+    JSON.stringify([detail?.oid, resolved.selectedParent]),
+  );
+  const diffKey = $derived(JSON.stringify([fileListKey, activePath]));
 
   // Offline / Storybook fallback via createOfflineHunkDiffState
   $effect(() =>
@@ -53,7 +63,7 @@
       binary: Boolean(activeFile?.binary),
       binaryReason: m.s6_binary_no_text_diff(),
       emptyReason: m.s6_push_inspector_mode_rename_only(),
-      snapshotKey: `push-fixture:${detail?.oid ?? ""}:${activeFile?.newPath ?? ""}`,
+      snapshotKey: diffKey,
       path: activeFile?.newPath ?? "",
       oldPath: activeFile?.oldPath ?? "",
       status: activeFile?.status ?? "",
@@ -74,14 +84,16 @@
 
 <div class="flex min-w-0 flex-col gap-2.5">
   <div class="rounded-lg border bg-background p-2">
-    <div class="flex flex-wrap items-center justify-between gap-2 px-1 pb-1">
+    <div
+      class="flex min-h-9 flex-wrap items-center justify-between gap-2 px-1 pb-1"
+    >
       <span class="text-xs font-semibold text-foreground">
         {m.s6_push_inspector_files_heading({
           count: String(resolved.files.length),
         })}
       </span>
       {#if detail && detail.parents.length > 1 && onSelectParent}
-        <div class="flex items-center gap-1.5 text-xs">
+        <div class="flex min-w-0 items-center gap-1.5 text-xs">
           <span class="text-muted-foreground"
             >{m.s6_push_inspector_merge_parent()}</span
           >
@@ -101,68 +113,82 @@
       {/if}
     </div>
 
-    {#if detailLoading}
-      <p class="px-2 py-2 text-xs text-muted-foreground">
-        {m.s6_push_inspector_loading_files()}
-      </p>
-    {:else if !detail}
-      <p class="px-2 py-2 text-xs text-muted-foreground">
-        {m.s6_push_inspector_select_prompt()}
-      </p>
-    {:else if resolved.files.length === 0}
-      <p class="px-2 py-2 text-xs text-muted-foreground">
-        {m.s6_push_inspector_no_changes()}
-      </p>
-    {:else}
-      <ScrollArea viewportClasses="max-h-32">
-        <div class="space-y-0.5">
-          {#each resolved.files as file (file.newPath || file.oldPath)}
-            {@const fPath = file.newPath || file.oldPath}
-            <ListButton
-              variant="compact-row"
-              aria-selected={(activeFile?.newPath || activeFile?.oldPath) ===
-                fPath}
-              onclick={() => onSelectFile(fPath)}
-            >
-              <Badge variant="outline">{file.status}</Badge>
-              <span class="min-w-0 flex-1 truncate font-mono" title={fPath}>
-                {file.oldPath && file.oldPath !== file.newPath
-                  ? `${file.oldPath} → ${file.newPath}`
-                  : fPath}
-              </span>
-            </ListButton>
-          {/each}
-        </div>
-      </ScrollArea>
-    {/if}
+    <div class="h-32 min-w-0">
+      {#if detailLoading}
+        <p class="px-2 py-2 text-xs text-muted-foreground">
+          {m.s6_push_inspector_loading_files()}
+        </p>
+      {:else if !detail}
+        <p class="px-2 py-2 text-xs text-muted-foreground">
+          {m.s6_push_inspector_select_prompt()}
+        </p>
+      {:else if resolved.files.length === 0}
+        <p class="px-2 py-2 text-xs text-muted-foreground">
+          {m.s6_push_inspector_no_changes()}
+        </p>
+      {:else}
+        {#key fileListKey}
+          <ScrollArea class="h-full" viewportClasses="overscroll-contain">
+            <div class="space-y-0.5">
+              {#each resolved.files as file (file.newPath || file.oldPath)}
+                {@const fPath = file.newPath || file.oldPath}
+                <ListButton
+                  variant="compact-row"
+                  aria-selected={(activeFile?.newPath ||
+                    activeFile?.oldPath) === fPath}
+                  onclick={() => onSelectFile(fPath)}
+                >
+                  <Badge variant="outline">{file.status}</Badge>
+                  <span class="min-w-0 flex-1 truncate font-mono" title={fPath}>
+                    {file.oldPath && file.oldPath !== file.newPath
+                      ? `${file.oldPath} → ${file.newPath}`
+                      : fPath}
+                  </span>
+                </ListButton>
+              {/each}
+            </div>
+          </ScrollArea>
+        {/key}
+      {/if}
+    </div>
   </div>
 
-  {#if activeFile}
+  {#if activeFile || detailLoading}
     <div
       class="code-panel flex h-44 min-w-0 flex-col overflow-hidden rounded-lg border bg-background sm:h-52"
       data-testid="git-push-file-diff"
     >
-      {#if diffPhase === "loading"}
-        <p class="p-3 text-xs text-muted-foreground">
-          {m.s6_push_inspector_loading_diff({
-            path: activeFile.newPath || activeFile.oldPath,
-          })}
+      {#if activePath}
+        <p
+          class="shrink-0 truncate border-b px-2 py-1 font-mono text-xs text-muted-foreground"
+          title={activePath}
+        >
+          {activePath}
         </p>
-      {:else if diffPhase === "ready" && diffMeta}
-        <CodeDiffReader
-          fileDiff={diffMeta}
-          side="new"
-          expired={false}
-          draftEnabled={false}
-          preferredDiffStyle="split"
-          onselect={() => {}}
-        />
-      {:else}
-        <div class="p-3">
-          <InlineNotice tone={diffPhase === "error" ? "danger" : "info"}>
-            {diffReason || m.s6_push_inspector_no_diff_preview()}
-          </InlineNotice>
-        </div>
+      {/if}
+      {#if !detailLoading}
+        {#if diffPhase === "loading" || (liveDiffState && liveDiffState.path !== activePath)}
+          <p class="p-3 text-xs text-muted-foreground" role="status">
+            {m.s6_loading_ellipsis()}
+          </p>
+        {:else if diffPhase === "ready" && diffMeta}
+          {#key diffKey}
+            <CodeDiffReader
+              fileDiff={diffMeta}
+              side="new"
+              expired={false}
+              draftEnabled={false}
+              preferredDiffStyle="split"
+              onselect={() => {}}
+            />
+          {/key}
+        {:else}
+          <div class="p-3">
+            <InlineNotice tone={diffPhase === "error" ? "danger" : "info"}>
+              {diffReason || m.s6_push_inspector_no_diff_preview()}
+            </InlineNotice>
+          </div>
+        {/if}
       {/if}
     </div>
   {/if}
@@ -176,18 +202,26 @@
         class="flex flex-wrap items-center justify-between gap-1.5 text-muted-foreground"
       >
         <span class="font-mono">{detail.shortOid}</span>
-        <span>{detail.authorName} &lt;{detail.authorEmail}&gt;</span>
+        <span class="min-w-0 wrap-anywhere"
+          >{detail.authorName} &lt;{detail.authorEmail}&gt;</span
+        >
         <span>{detail.authorAt}</span>
       </div>
       <p class="mt-1 font-medium wrap-anywhere text-foreground">
         {detail.subject}
       </p>
       {#if detail.body}
-        <p
-          class="mt-1 font-mono whitespace-pre-wrap wrap-anywhere text-muted-foreground"
+        <ScrollArea
+          class="mt-1"
+          viewportClasses="max-h-24 overscroll-contain"
+          viewportProps={{ tabindex: 0 }}
         >
-          {detail.body}
-        </p>
+          <p
+            class="font-mono whitespace-pre-wrap wrap-anywhere text-muted-foreground"
+          >
+            {detail.body}
+          </p>
+        </ScrollArea>
       {/if}
     </div>
   {/if}

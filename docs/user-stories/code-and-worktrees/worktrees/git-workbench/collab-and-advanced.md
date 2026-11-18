@@ -42,9 +42,10 @@
     - 多处统一操作入口：
       - 顶栏分支弹层、`Log` 引用树与 `Branches` 视图提供“合并到当前分支… (Merge)”与“将当前分支变基到此处… (Rebase)”；
       - `Log` 提交行菜单与提交详情提供“遴选此提交… (Cherry-pick)”与“还原此提交… (Revert)”；
-      - `GitPushDialog` 在远端非快进拒绝后原位展示“获取远程 (Fetch)”、“快进更新…”、“合并远端分支… (Merge)”与“变基到远端分支… (Rebase)”（全程禁止 `--force`）；
+      - `GitPushDialog` 在远端非快进拒绝后原位展示“获取远程 (Fetch)”、“快进更新…”、“合并远端分支… (Merge)”与“变基到远端分支… (Rebase)”（全程禁止 `--force`）。拒绝原因即时显示，长消息可在恢复按钮上方滚动；
     - 两阶段预览与活跃会话确认：
       - 四类操作均采用 `*-preview` → 限时 `confirmationId` 确认，列出目标工作树、当前分支、源引用或提交、方向语句（`merge A into B` / `rebase B onto A`）、待合入或重放提交计数及 `git merge-tree` 预判冲突路径；
+      - 快进、已是最新和有分歧历史的合并预览共用固定确认区。读取或执行出错时，预览首先展示错误；
       - 目标工作树存在运行中会话时强制要求显式勾选 `acknowledgeSessions`（未确认返回 `409 session_ack_required`）；
     - 执行前自动写入私有保护引用 `refs/webmux/recovery/<worktreeId>/<kind>` 保存操作前 `HEAD`，完成后、中止后或移除/释放工作树时自动清理；
   - 无状态重进协调恢复横幅与诚实 `Abort` 预览（`A13`、`G10`）：
@@ -71,7 +72,7 @@
     - 顶栏模式切换支持 `贮藏`（`?view=stash`）及提交面板快捷创建入口，因 `refs/stash` 归属仓库共享栈而在只读仓库与各工作树一致列出 `oid`、`stashRef`、`branch`、`baseOid` 与 `hasUntracked`；
     - 新建贮藏采用两阶段预览确认，支持自定义说明、`-u`（包含未跟踪文件）与 `--keep-index`，活跃会话存在时要求显式勾选知晓确认；
     - 贮藏详情合并展示已跟踪改动（`base -> S`）与第 3 父节点未跟踪文件（`S^3`，标注 `未跟踪 (S^3)`），复用 Pierre `CodeDiffReader` 只读检视差异；
-    - `Apply` 与 `Pop` 支持 `--index` 恢复原暂存态：
+    - `Apply` 与 `Pop` 支持 `--index` 恢复原暂存态。覆盖路径在确认区上方滚动。切换模式或索引选项会撤下旧确认，等新预览成功后才可确认：
       - 安全两步 `Pop` 先执行 `git stash apply --quiet <oid>`，仅在无冲突成功时才按精确 OID 清理条目；
       - 一旦产生合并冲突则**100% 保留原贮藏条目**并直接进入 `GitConflictView`（`operation.kind = "unstash"`，`canContinue = false`，隐藏多步序列 `Continue` 按钮）；
     - 单条 `Drop` 复核 `stashRef` 仍指向预期 `oid` 后删除并提供 `git stash apply <oid>` 恢复命令，全程不提供 `stash clear`；

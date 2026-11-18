@@ -19,6 +19,7 @@
   import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import GitDialogFooter from "./GitDialogFooter.svelte";
   import GitIssueList from "./GitIssueList.svelte";
+  import GitReviewBody from "./GitReviewBody.svelte";
   import GitOperationSessionAck from "./GitOperationSessionAck.svelte";
 
   let {
@@ -56,26 +57,54 @@
     : m.s6_stash_apply_title_apply()}
   description={m.s6_stash_apply_desc()}
   drawerDescription={m.s6_stash_apply_drawer_desc()}
+  pinDrawerHeader
   busy={submitting}
   class="sm:max-w-lg"
   onclose={onClose}
 >
-  <div class="space-y-3" data-testid="git-stash-apply-dialog">
-    <SegmentedControl
-      wrap
-      value={mode}
-      onValueChange={(val) => {
-        if (val === "apply" || val === "pop") onModeChange(val);
-      }}
-      aria-label={m.s6_stash_apply_mode_aria()}
-    >
-      <SegmentedControlItem value="pop">
-        {m.s6_stash_mode_pop()}
-      </SegmentedControlItem>
-      <SegmentedControlItem value="apply">
-        {m.s6_stash_mode_apply()}
-      </SegmentedControlItem>
-    </SegmentedControl>
+  <GitReviewBody
+    testId="git-stash-apply-dialog"
+    resetScrollOn={dialogError || mode}
+  >
+    {#snippet controls()}
+      <SegmentedControl
+        wrap
+        disabled={submitting}
+        value={mode}
+        onValueChange={(val) => {
+          if (val === "apply" || val === "pop") onModeChange(val);
+        }}
+        aria-label={m.s6_stash_apply_mode_aria()}
+      >
+        <SegmentedControlItem value="pop">
+          {m.s6_stash_mode_pop()}
+        </SegmentedControlItem>
+        <SegmentedControlItem value="apply">
+          {m.s6_stash_mode_apply()}
+        </SegmentedControlItem>
+      </SegmentedControl>
+
+      <div class="rounded-lg border bg-background p-3">
+        <Label class="items-start">
+          <Checkbox
+            checked={reinstateIndex}
+            disabled={submitting}
+            onCheckedChange={(val) => onReinstateIndexChange(Boolean(val))}
+            class="mt-0.5"
+            data-testid="git-stash-reinstate-index-checkbox"
+          />
+          <span class="text-xs leading-snug">
+            {m.s6_stash_reinstate_index_before()}<span class="font-mono"
+              >--index</span
+            >)
+          </span>
+        </Label>
+      </div>
+    {/snippet}
+
+    {#if dialogError}
+      <InlineNotice tone="danger">{dialogError}</InlineNotice>
+    {/if}
 
     {#if entry}
       <div class="space-y-1 rounded-lg border bg-background p-3 text-xs">
@@ -90,23 +119,6 @@
         <p class="font-medium wrap-anywhere text-foreground">{entry.summary}</p>
       </div>
     {/if}
-
-    <div class="rounded-lg border bg-background p-3">
-      <Label class="items-start">
-        <Checkbox
-          checked={reinstateIndex}
-          disabled={submitting}
-          onCheckedChange={(val) => onReinstateIndexChange(Boolean(val))}
-          class="mt-0.5"
-          data-testid="git-stash-reinstate-index-checkbox"
-        />
-        <span class="text-xs leading-snug">
-          {m.s6_stash_reinstate_index_before()}<span class="font-mono"
-            >--index</span
-          >)
-        </span>
-      </Label>
-    </div>
 
     {#if mode === "pop"}
       <InlineNotice tone="info">
@@ -141,19 +153,20 @@
       />
     {/if}
 
-    <GitDialogFooter
-      {dialogError}
-      {submitting}
-      {canConfirm}
-      confirmLabel={mode === "pop"
-        ? m.s6_stash_confirm_pop()
-        : m.s6_stash_confirm_apply()}
-      submittingLabel={mode === "pop"
-        ? m.s6_stash_submitting_pop()
-        : m.s6_stash_submitting_apply()}
-      confirmTestId="git-stash-apply-confirm-btn"
-      {onConfirm}
-      {onClose}
-    />
-  </div>
+    {#snippet footer()}
+      <GitDialogFooter
+        {submitting}
+        {canConfirm}
+        confirmLabel={mode === "pop"
+          ? m.s6_stash_confirm_pop()
+          : m.s6_stash_confirm_apply()}
+        submittingLabel={mode === "pop"
+          ? m.s6_stash_submitting_pop()
+          : m.s6_stash_submitting_apply()}
+        confirmTestId="git-stash-apply-confirm-btn"
+        {onConfirm}
+        {onClose}
+      />
+    {/snippet}
+  </GitReviewBody>
 </ResponsiveDialog>

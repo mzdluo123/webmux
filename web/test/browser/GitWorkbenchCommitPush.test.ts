@@ -75,7 +75,7 @@ test("needs_review commit outcome in Commit & Push aborts auto-opening Push dial
 
   // Push dialog MUST NOT auto-open; needs_review outcome banner must be shown instead!
   await expect
-    .element(page.getByText(/推送确认 · main/))
+    .element(page.getByRole("dialog", { name: "推送确认" }))
     .not.toBeInTheDocument();
   await expect
     .element(

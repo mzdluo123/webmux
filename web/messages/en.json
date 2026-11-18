@@ -3126,7 +3126,7 @@
       }
     }
   ],
-  "s6_push_dialog_title": "Confirm Push · {source} → {remote}/{target}",
+  "s6_push_dialog_title": "Confirm Push",
   "s6_push_fetch_btn": "Fetch",
   "s6_push_ff_update_btn": "Fast-Forward…",
   "s6_push_inspector_files_heading": "Changed Files in Commit ({count})",

@@ -2694,7 +2694,7 @@
   "s6_push_dialog_desc_no_url": "仓库 {repo} · 核对待推提交与文件差异后确认推送",
   "s6_push_dialog_desc_with_url": "仓库 {repo} · 目标远端 {url} · 共 {count} 个待推提交",
   "s6_push_dialog_drawer_desc": "共 {count} 个待推提交 · 核对差异后确认推送",
-  "s6_push_dialog_title": "推送确认 · {source} → {remote}/{target}",
+  "s6_push_dialog_title": "推送确认",
   "s6_push_fetch_btn": "获取远程 (Fetch)",
   "s6_push_ff_update_btn": "快进更新… (Update)",
   "s6_push_inspector_files_heading": "选中提交变更文件 ({count})",
