@@ -140,6 +140,26 @@ test("a branch failure can be retried without hiding sibling folders", async () 
     .toBeVisible();
 });
 
+test("a late listing stays cached without mounting children of a closed folder", async () => {
+  const response = Promise.withResolvers<CodeListing>();
+  const fetchDirectory = vi.fn(() => response.promise);
+  const { view } = setup(fetchDirectory);
+  const mounted = await view;
+  const folder = page.getByRole("button", { name: "docs", exact: true });
+  await folder.click();
+  await expect.element(page.getByRole("status")).toBeVisible();
+  await folder.click();
+  response.resolve(listing(["docs/architecture.md"]));
+  await expect.poll(() => mounted.component.capture().branches.length).toBe(1);
+  expect(document.querySelector('[title="docs/architecture.md"]')).toBeNull();
+  await expect.element(folder).toHaveAttribute("aria-expanded", "false");
+  await folder.click();
+  await expect
+    .element(page.getByRole("button", { name: "architecture.md" }))
+    .toBeVisible();
+  expect(fetchDirectory).toHaveBeenCalledTimes(1);
+});
+
 test("locating a directory expands every ancestor and cancels in-flight reads on teardown", async () => {
   const signals: AbortSignal[] = [];
   setup(async (path, _cursor, signal) => {
