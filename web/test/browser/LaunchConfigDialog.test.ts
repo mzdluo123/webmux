@@ -68,6 +68,37 @@ afterEach(async () => {
 
 const save = () => page.getByRole("button", { name: "保存", exact: true });
 
+test("saves global preview defaults after invalid custom values", async () => {
+  const onsaved = vi.fn();
+  const requests = serve({
+    "/api/launch-configs/abcdefg2": (method, body) =>
+      method === "GET"
+        ? Response.json({ ...saved, preview: { lines: 8, skip: 2 } })
+        : Response.json({ ...saved, ...(body as object) }),
+  });
+  render(LaunchConfigDialog, { open: true, configId: saved.id, onsaved });
+
+  const followDefaults = page.getByRole("checkbox", {
+    name: /跟随全局默认.*输出预览/,
+  });
+  const lines = page.getByRole("spinbutton", { name: "显示行数" });
+  const skip = page.getByRole("spinbutton", { name: "跳过末尾行数" });
+  await expect.element(lines).toHaveValue(8);
+  await lines.fill("51");
+  await skip.fill("-1");
+  await expect.element(save()).toBeDisabled();
+
+  await followDefaults.click();
+  await expect.element(followDefaults).toBeChecked();
+  await expect.element(save()).toBeEnabled();
+  await save().click();
+  await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
+  expect(savedRequest(requests)).toMatchObject({
+    method: "PUT",
+    body: { preview: null },
+  });
+});
+
 test.each([
   ["Antigravity CLI", "antigravity"],
   ["Gemini CLI（旧配置）", "geminicli"],
@@ -565,6 +596,44 @@ test("the hybrid checkbox follows the server's verdict for the edited command", 
     method: "PUT",
     body: { cmd: ["omp", "--model", "haiku"], chat: true },
   });
+});
+
+test("an obsolete support reply cannot replace the current command result", async () => {
+  const stale = Promise.withResolvers<Response>();
+  const requests = serve({
+    "/api/launch-configs/abcdefg2": () => Response.json(saved),
+    "/api/launch-configs/chat-support": (_method, body) =>
+      (body as { cmd: string[] }).cmd[0] === "old-probe"
+        ? stale.promise
+        : Response.json({ supported: true, supportedAgents: [] }),
+  });
+  render(LaunchConfigDialog, {
+    open: true,
+    configId: saved.id,
+    onsaved: () => {},
+  });
+  const command = page.getByLabelText("启动命令");
+  const hybrid = page.getByRole("checkbox", {
+    name: "混合模式（聊天 ↔ 终端）",
+  });
+  await expect.element(command).toHaveValue("claude --resume");
+  await command.fill("old-probe");
+  await vi.waitFor(() =>
+    expect(requests.at(-1)?.body).toEqual({ cmd: ["old-probe"] }),
+  );
+  await command.fill("new-probe");
+  await expect.element(hybrid).toBeEnabled();
+
+  const obsolete = Response.json({
+    supported: false,
+    supportedAgents: [],
+    reason: "unknown_agent",
+  });
+  const consumed = vi.spyOn(obsolete, "json");
+  stale.resolve(obsolete);
+  await vi.waitFor(() => expect(consumed).toHaveBeenCalledOnce());
+  await expect.element(hybrid).toBeEnabled();
+  await expect.element(command).toHaveValue("new-probe");
 });
 
 test("launch-only editing preserves inactive feature fields and never probes chat support", async () => {
