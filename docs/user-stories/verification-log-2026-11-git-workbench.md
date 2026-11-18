@@ -68,6 +68,12 @@
     - 同一 E2E 进一步验证远端超前两步独立报错、首次发布分支、工作树占用保护与 `Shift+F10` 检出脏文件/活跃会话警告，并在真实运行实例上完成桌面、平板、手机浅色与深色前后对比截图及常速交互 GIF 核查。
 - 限制：无头 Chromium 的键盘焦点样式与物理移动设备触控反馈无法完全替代真机 iOS/Android 浏览器验收；外部 GPG 硬件密钥交互签名未在无头 CI 环境实测。
 
+### 2026-11-19：平滑开合 Git 变更文件四组（US-J22）
+
+- `GitUncommittedChangesPane.svelte` 统一对冲突、已暂存、未暂存与未跟踪四组接入 `Collapsible.MotionRoot` 手动折叠过渡，收起期间立即惰性跳过键盘导航并在过渡结束后卸载隐藏文件行，后台刷新即时更新。
+- `pnpm --dir web exec vp test run --config vitest.browser.config.ts test/browser/GitWorkbench.test.ts` 通过，覆盖四组折叠动画、收起惰性与结束后 DOM 卸载、连按反转及后台刷新零误触发动画。
+- 本轮使用无头 Linux Chromium，未在物理触屏或真机浏览器核对。
+
 ## 2026-11-12：Git 工作台 06（V1a）持久 Git 操作账本、幂等恢复与底部状态栏（US-J23）
 
 - 范围：
