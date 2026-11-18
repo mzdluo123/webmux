@@ -105,6 +105,33 @@ test("read-only virtualized full file, real line selection, search and goto", as
     .toContain("const line850");
 });
 
+test("reader controls open without moving the displayed lines", async () => {
+  render(Harness, {
+    text: Array.from({ length: 40 }, (_, i) => `line ${i + 1}`).join("\n"),
+  });
+  const surface = page.getByLabelText("只读代码");
+  await expect.poll(() => row(12)?.textContent).toBe("line 12");
+  const lineY = () => row(12)?.getBoundingClientRect().y;
+  const initialY = lineY();
+
+  await page.getByRole("button", { name: "文件内查找" }).click();
+  const search = page.getByRole("textbox", { name: "查找" });
+  await expect.element(search).toHaveFocus();
+  await search.fill("line");
+  expect(lineY()).toBe(initialY);
+  await userEvent.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
+  await expect
+    .element(page.getByRole("textbox", { name: "跳转到行" }))
+    .toHaveFocus();
+  expect(lineY()).toBe(initialY);
+  await page.getByRole("button", { name: "缩放", exact: true }).click();
+  await expect.element(page.getByRole("slider")).toHaveFocus();
+  expect(lineY()).toBe(initialY);
+  await userEvent.keyboard("{Escape}");
+  await expect.element(surface).toHaveFocus();
+  expect(lineY()).toBe(initialY);
+});
+
 test("goto accepts N:column and scrolls the code horizontally", async () => {
   const long = `const ${"x".repeat(400)} = 1;`;
   const text = Array.from({ length: 1000 }, (_, i) =>

@@ -20,7 +20,7 @@ async function focusCodePanel(root: ParentNode) {
     .querySelector<HTMLElement>(
       "[data-code-search] input, [data-code-goto-line] input, [data-code-zoom] [role='slider']",
     )
-    ?.focus();
+    ?.focus({ preventScroll: true });
 }
 
 /** Toggles the named panel, or closes it when it is already open. */
@@ -50,7 +50,7 @@ function closeCodePanel(
   setPanel: (panel: undefined) => void,
 ) {
   setPanel(undefined);
-  host.focus();
+  host.focus({ preventScroll: true });
 }
 
 /** Panel toggling, search edits and match stepping for a code reader. */
