@@ -356,8 +356,10 @@
       />
     </span>
   {/snippet}
-  {#snippet accessories({ size, variant })}
+  {#snippet status()}
     {#if chat.usage}<UsageRing usage={chat.usage} />{/if}
+  {/snippet}
+  {#snippet accessories({ size, variant })}
     {@render quickMenu?.("top", size, variant)}
   {/snippet}
   {#snippet below()}

@@ -2055,6 +2055,44 @@ test("the usage ring opens the exact token counts", async () => {
     .toHaveAttribute("aria-valuenow", "1");
 });
 
+test("context usage stays accessible when the phone composer collapses", async () => {
+  await page.viewport(320, 568);
+  try {
+    const socket = await open();
+    socket.frame(
+      snapshot(chatState({ usage: { used: 53_000, size: 200_000 } })),
+    );
+    socket.frame({
+      type: "events",
+      generation: "g1",
+      items: events({
+        kind: "message.append",
+        message: {
+          messageId: "usage",
+          role: "agent",
+          text: "上下文用量已更新",
+        },
+      }),
+    });
+    await page.getByRole("textbox", { name: "消息" }).click();
+    const usage = page.getByRole("button", { name: /^上下文已用 27%/ });
+    await expect.element(usage).toBeVisible();
+    await page.getByText("上下文用量已更新", { exact: true }).click();
+    await expect
+      .element(
+        page.getByRole("button", { name: "快捷指令", includeHidden: true }),
+      )
+      .not.toBeVisible();
+    await usage.click();
+    const details = page.getByRole("dialog", { name: "Token 使用情况" });
+    await expect.element(details.getByText("200,000 tokens")).toBeVisible();
+    await expect.element(details.getByText("147,000 tokens")).toBeVisible();
+    expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(320);
+  } finally {
+    await page.viewport(1024, 900);
+  }
+});
+
 test("the jump-to-latest button stays above a tall composer area", async () => {
   const socket = await open();
   socket.frame(snapshot(chatState()));
