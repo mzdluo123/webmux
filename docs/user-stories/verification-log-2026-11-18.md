@@ -64,3 +64,8 @@
   - `go test -race -count=1 ./cmd/... ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过；
   - Playwright E2E `agent-tools.spec.ts`、`relay-settings.spec.ts` 与 `worktrees.spec.ts`（直接目录创建降级）共 10 项通过。
+
+### T045 终端查找与回放提示（US-D11）
+
+- 隔离 Chromium 的桌面、平板和手机用例测得查找框在匹配结果和回放提示切换时保持高度，Esc 保留匹配行。实测参考 PR 附图及录屏。
+- `terminal.spec.ts` 的桌面和 iPhone SE Chromium 用例覆盖焦点、匹配复制和关闭后的 PTY 输入。

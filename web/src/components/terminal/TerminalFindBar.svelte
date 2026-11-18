@@ -52,14 +52,19 @@
     !t.canFind || t.restoring || !query || !!error || composing,
   );
   const results = $derived(terminalFindResultText(t.findResults));
+  const replay = $derived(terminalFindReplayText(t.restoring, t.findReplayed));
+  const replayMessages = $derived([
+    terminalFindReplayText(true, false),
+    terminalFindReplayText(false, true),
+  ]);
   $effect(() => {
     if (open)
       void tick().then(() => {
-        if (open) input?.focus();
+        if (open) focus();
       });
   });
   export function focus() {
-    input?.focus();
+    input?.focus({ preventScroll: true });
   }
   function search(previous = false, incremental = false) {
     if (composing) return;
@@ -96,7 +101,7 @@
   <form
     role="search"
     aria-label={m.s4_find_terminal_output()}
-    class="absolute inset-x-2 top-2 z-20 rounded-md border bg-popover p-2 text-popover-foreground shadow-md"
+    class="absolute inset-x-2 top-2 z-20 max-h-[calc(100%-1rem)] overflow-y-auto overscroll-contain rounded-md border bg-popover p-2 text-popover-foreground shadow-md"
     onsubmit={(event) => event.preventDefault()}
     use:findKeys
   >
@@ -170,7 +175,7 @@
       role="status"
       aria-live="polite"
       aria-label={m.s4_find_results_aria()}
-      class="mt-1 text-xs"
+      class="mt-1 min-h-lh text-xs"
       class:text-destructive={!!error}
     >
       {error || results}
@@ -178,10 +183,13 @@
     <p class="mt-1 text-xs text-muted-foreground">
       {terminalFindScope(t.scrollback, t.bufferType, t.historyTruncated)}
     </p>
-    {#if query && terminalFindReplayText(t.restoring, t.findReplayed)}<p
-        class="mt-1 text-xs text-muted-foreground"
-      >
-        {terminalFindReplayText(t.restoring, t.findReplayed)}
-      </p>{/if}
+    <div class="mt-1 grid text-xs text-muted-foreground">
+      {#each replayMessages as message (message)}
+        <span class="invisible col-start-1 row-start-1" aria-hidden="true"
+          >{message}</span
+        >
+      {/each}
+      <p class="col-start-1 row-start-1" role="status">{query ? replay : ""}</p>
+    </div>
   </form>
 {/if}
