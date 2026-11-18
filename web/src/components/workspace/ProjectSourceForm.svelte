@@ -2,6 +2,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { Label } from "$lib/components/ui/label";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { featureAvailable } from "../../platform/feature-host.svelte";
@@ -49,15 +50,26 @@
         <Label for="project-name">{m.s8_proj_form_name_label()}</Label><Input
           id="project-name"
           bind:value={name}
+          aria-describedby={name ? "project-path-preview" : undefined}
           required
           autocomplete="off"
         />
       </div>
-      {#if name}<p class="break-all font-mono text-xs text-muted-foreground">
-          {m.s8_proj_form_will_create({
-            path: `${parent.replace(/\/+$/, "")}/${name}`,
-          })}
-        </p>{/if}
+      <ScrollArea
+        class="h-12"
+        type="auto"
+        viewportClasses="overscroll-y-contain"
+        viewportProps={{ tabindex: name ? 0 : undefined }}
+      >
+        {#if name}<p
+            id="project-path-preview"
+            class="pr-3 font-mono text-xs wrap-anywhere text-muted-foreground"
+          >
+            {m.s8_proj_form_will_create({
+              path: `${parent.replace(/\/+$/, "")}/${name}`,
+            })}
+          </p>{/if}
+      </ScrollArea>
       <Label
         ><Checkbox
           bind:checked={initializeGit}
@@ -103,6 +115,7 @@
     {/if}
     <Button
       type="submit"
+      wrap={source === "new"}
       disabled={disabled ||
         (source === "git" && !featureAvailable("workspace.clone"))}
       >{controller.busy

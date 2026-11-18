@@ -381,10 +381,12 @@ export async function uploadCodeFilesBatch(input: {
 }
 
 export function formatDownloadProgress(name: string, bytes: number) {
-  const size = formatBytes(bytes);
-  return name.endsWith(".zip")
-    ? m.s5_archiving_and_downloading({ name, size })
-    : m.s5_downloading_progress({ name, size });
+  return {
+    label: name.endsWith(".zip")
+      ? m.s5_archiving_and_downloading({ name })
+      : m.s5_downloading_progress({ name }),
+    size: formatBytes(bytes),
+  };
 }
 
 export function formatClipboardSummary(clipboard: CodeFileClipboard) {

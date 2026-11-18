@@ -16,6 +16,7 @@
     groupAndSortGitBranches,
     type GitSharedBranchActionKind,
   } from "../../domains/workspace/git-branches-model";
+  import { useLayoutRowsMotion } from "../../hooks/shared/layout-rows-motion.svelte";
   import GitBranchListItem from "./GitBranchListItem.svelte";
 
   let {
@@ -49,6 +50,14 @@
 
   let refQuery = $state("");
   let collapsed = $state<Record<string, boolean>>({});
+  let treeEl = $state<HTMLElement | null>(null);
+  let sectionChange = $state(0);
+
+  useLayoutRowsMotion(
+    () => treeEl,
+    () => (refQuery ? "" : String(sectionChange)),
+    "[data-layout-row]",
+  );
 
   const effectiveContext = $derived<GitWorktreeContext>(
     context ??
@@ -101,6 +110,7 @@
 
   function toggleSection(id: string) {
     collapsed = { ...collapsed, [id]: !collapsed[id] };
+    sectionChange++;
   }
 
   function handleTreeAction(
@@ -154,8 +164,8 @@
     />
   </div>
 
-  <ScrollArea class="min-h-8 flex-1">
-    <div class="space-y-1.5 p-1.5">
+  <ScrollArea class="min-h-8 flex-1" viewportClasses="[overflow-anchor:none]">
+    <div bind:this={treeEl} class="space-y-1.5 p-1.5">
       <ListButton
         variant="compact-row"
         aria-selected={branchFilter === null}
@@ -176,7 +186,7 @@
         </p>
       {:else}
         {#each treeSections as section (section.id)}
-          <div class="space-y-0.5">
+          <div class="space-y-0.5" data-layout-row={section.id}>
             <ListButton
               variant="section-header"
               aria-expanded={!collapsed[section.id]}
