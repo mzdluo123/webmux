@@ -58,6 +58,9 @@
   let usage = $state<WorktreeUsage | null>(null);
   let measuring = $state(false);
   let usageError = $state("");
+  const hasUsageOutput = $derived(
+    measuring || Boolean(usage) || Boolean(usageError),
+  );
   const requests = new LatestRequest();
   onDestroy(() => requests.dispose());
   async function measure(target: Worktree) {
@@ -133,12 +136,15 @@
           variant="outline"
           disabled={!worktree.available}
           aria-disabled={measuring || undefined}
-          onclick={() => void measure(worktree)}
-          >{usage ? m.s8_recalculate() : m.s8_calculate_usage()}</Button
+          tabindex={measuring ? -1 : undefined}
+          onclick={() => {
+            if (measuring || !worktree.available) return;
+            void measure(worktree);
+          }}>{usage ? m.s8_recalculate() : m.s8_calculate_usage()}</Button
         >
-        {#if worktree.available}
+        {#if worktree.available && hasUsageOutput}
           <ScrollArea
-            class="h-12 w-full"
+            class="max-h-16 w-full"
             viewportClasses="overscroll-contain wrap-anywhere"
             viewportProps={{
               role: "region",
@@ -146,23 +152,28 @@
               "aria-label": m.s8_label_disk_usage(),
             }}
           >
-            <div role="status" class="tabular-nums">
-              {#if measuring}
-                {m.s8_calculating()}
-              {:else if usage && !usageError}
-                {@const entries = usage.entries.toLocaleString(locale.current)}
-                {usage.complete
-                  ? m.s8_details_usage({
-                      bytes: formatBytes(usage.bytes),
-                      entries,
-                    })
-                  : m.s8_details_usage_incomplete({
-                      bytes: formatBytes(usage.bytes),
-                      entries,
-                    })}
-              {/if}
-            </div>
-            <div role="alert" class="text-destructive">{usageError}</div>
+            {#if usageError}
+              <div role="alert" class="text-destructive">{usageError}</div>
+            {:else}
+              <div role="status" class="tabular-nums">
+                {#if measuring}
+                  {m.s8_calculating()}
+                {:else if usage}
+                  {@const entries = usage.entries.toLocaleString(
+                    locale.current,
+                  )}
+                  {usage.complete
+                    ? m.s8_details_usage({
+                        bytes: formatBytes(usage.bytes),
+                        entries,
+                      })
+                    : m.s8_details_usage_incomplete({
+                        bytes: formatBytes(usage.bytes),
+                        entries,
+                      })}
+                {/if}
+              </div>
+            {/if}
           </ScrollArea>
         {/if}
       </dd>

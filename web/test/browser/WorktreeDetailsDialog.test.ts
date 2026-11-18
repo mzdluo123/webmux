@@ -50,7 +50,7 @@ test("the size is only walked when asked for, and a partial count says so", asyn
     .toBeEnabled();
 });
 
-test("measuring and retrying keep focus and the section below in place", async () => {
+test("measuring and retrying keep focus, omit empty containers when idle, and bound long errors", async () => {
   const first = Promise.withResolvers<Response>();
   let attempts = 0;
   respond(usagePath, () => {
@@ -62,28 +62,42 @@ test("measuring and retrying keep focus and the section below in place", async (
   open({ path: "/repos/" + "isolated-worktree/".repeat(8) });
   const measure = page.getByRole("button", { name: "计算容量" });
   await expect.element(measure).toBeEnabled();
+  expect(page.getByRole("alert").elements()).toEqual([]);
+  expect(page.getByRole("region", { name: "磁盘占用" }).elements()).toEqual([]);
+
   const following = page.getByRole("region", { name: "分支与上游" }).element();
   const usageRow = measure.element().closest("dd")!;
   // Layout coordinates stay constant through the dialog's entrance transform.
   const gap = () => (following as HTMLElement).offsetTop - usageRow.offsetTop;
-  const before = gap();
+  const idleGap = gap();
 
   await measure.click();
   await expect.element(measure).toBeDisabled();
+  await expect.element(measure).toHaveAttribute("aria-disabled", "true");
+  await expect.element(measure).toHaveAttribute("tabindex", "-1");
   await expect.element(measure).toHaveFocus();
-  expect(gap()).toBeCloseTo(before, 0);
+  expect(page.getByRole("alert").elements()).toEqual([]);
+  const measuringGap = gap();
+  expect(measuringGap).toBeGreaterThan(idleGap);
+
+  // Guard blocks duplicate click and keyboard activation while measuring.
+  (measure.element() as HTMLButtonElement).click();
+  await userEvent.keyboard("{Enter}");
+  expect(attempts).toBe(1);
 
   const message = "无法读取工作树目录 /" + "very-long-path/".repeat(30);
   first.resolve(Response.json({ error: message }, { status: 503 }));
   await expect.element(page.getByRole("alert")).toHaveTextContent(message);
   await expect.element(measure).toHaveFocus();
-  expect(gap()).toBeCloseTo(before, 0);
+  expect(gap() - idleGap).toBeLessThanOrEqual(72);
+
   await userEvent.keyboard("{Enter}");
   await expect.element(page.getByRole("status")).toMatchTextContent(/120,000/);
+  expect(page.getByRole("alert").elements()).toEqual([]);
   await expect
     .element(page.getByRole("button", { name: "重新计算" }))
     .toHaveFocus();
-  expect(gap()).toBeCloseTo(before, 0);
+  expect(gap()).toBeCloseTo(measuringGap, 0);
   expect(attempts).toBe(2);
 });
 
