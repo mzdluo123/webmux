@@ -15,6 +15,9 @@ async function split(pane: Locator, direction: "左右" | "上下") {
     .click();
 }
 async function command(page: Page, pane: Locator, value: string) {
+  // A connected socket can still be restoring before it accepts keystrokes.
+  await expect(pane.locator(".restore-overlay")).toBeHidden();
+  await expect(pane.locator(".xterm-rows")).toContainText("webmux-e2e$");
   await pane.locator(".xterm-helper-textarea").focus();
   await page.keyboard.type(value);
   await page.keyboard.press("Enter");
