@@ -95,6 +95,7 @@
     - 逐行暂存（`index -> worktree`）仅将选中的 `-` 行从 `index` 删除、选中的 `+` 行写入 `index`（未选中的 `-` 行保留在 `index`、未选中的 `+` 行不进入 `index`）；逐行取消暂存（`HEAD -> index`）仅把 `index` 中选中的变更行还原回 `HEAD`（含 `unborn HEAD`），**全程不改写工作区文件任何字节**；
     - 合成目标索引 blob 时完整保留文件权限（`100644` / `100755`）、行尾（`LF` / `CRLF`）与文件末尾无换行（`none`）语义，校验 `StageFileIdentity` 过期即返回 `409 stale`；
     - 前端提供桌面与触屏常驻可达的逐行选择面板（单行复选框、`Shift+点击` 连续范围、按块全选/清空，窄屏隐藏重复 Hunk 条保持 `320px` 与 `200%` 大字号零横向溢出），并支持在 Pierre `CodeDiffReader` 中拖选行范围直接一键暂存或取消暂存选中变更行；
+    - 首次勾选、连续扩选和清空时，操作栏高度与当前行的阅读位置稳定；
   - 受控 `丢弃更改 (Discard Changes)`、写盘前新鲜度门禁与恢复快照（`G11`）：
     - 与只改 `.git/index` 的 `Unstage` 严格分离：仅面向 `Unstaged` 与 `Untracked` 开放单文件、左侧列表多选文件（含已跟踪 + 未跟踪混合批量）、单 Hunk 与选中行四级丢弃范围，**绝不触碰已暂存索引条目**；
     - 两阶段预览确认（`POST .../git/discard-preview` → `POST .../git/discard`）列出将被覆盖或删除的路径及活跃会话警告（有运行中会话时强制要求 `acknowledgeSessions`）；
