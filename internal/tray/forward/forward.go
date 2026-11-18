@@ -131,9 +131,6 @@ func serve(l net.Listener, o Options) *Forwarder {
 	return f
 }
 
-// Addr is the bound address.
-func (f *Forwarder) Addr() net.Addr { return f.listener.Addr() }
-
 // Close stops listening and closes every connection, including upgraded
 // WebSocket connections the HTTP server no longer tracks.
 func (f *Forwarder) Close() error {
