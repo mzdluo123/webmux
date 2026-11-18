@@ -72,7 +72,8 @@ Oxlint 只解析 Svelte 的 `<script>`，不提供模板规则，也不对 `.sve
 
 类型感知模式同时启用其余 correctness 规则（`await-thenable`、`no-array-delete`、`no-base-to-string`、`no-implied-eval`、`no-misused-spread` 与 `unbound-method`）；`code-popout.ts` 的属性描述符解构和 `terminal.svelte.ts` 的对象方法转交不依赖 `this`，在这两个文件关闭 `unbound-method`。
 
-`check`、`build`、`check:storybook` 与 `check:test` 都保留 `svelte-check --tsgo --fail-on-warnings`，警告不得静默累积；`vp lint` 不替代该类型检查。
+`check`、`build`、`check:storybook` 与 `check:test` 都保留 `svelte-check --tsrs --fail-on-warnings`，警告不得静默累积；`vp lint` 不替代该类型检查。
+`web/patches/` 为 `svelte-check` 提供 `--tsrs`，继续使用其 Svelte 虚拟文件和源位置映射。
 引入带存量违规的新规则时，先记录基线，再按 [前端架构守卫](frontend-architecture.md#基线与新规则) 的方式收紧。
 
 - Markdown 预览唯一保留的 `{@html}` 必须先经过专用 DOMPurify 实例。

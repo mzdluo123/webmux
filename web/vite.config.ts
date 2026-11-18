@@ -46,7 +46,7 @@ export default defineConfig({
   lint: {
     options: {
       typeAware: true,
-      // Svelte-aware type checking remains with svelte-check --tsgo.
+      // Svelte-aware type checking remains with svelte-check --tsrs.
       typeCheck: false,
     },
     categories: { correctness: "error" },

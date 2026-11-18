@@ -9,6 +9,8 @@ catalog:
 overrides:
   vite@*: "catalog:"
   vitest@*: "catalog:"
+patchedDependencies:
+  svelte-check@4.7.8: patches/svelte-check@4.7.8.patch
 peerDependencyRules:
   allowAny:
     - vite
