@@ -30,5 +30,4 @@
 
 - `pnpm --dir web test:browser test/browser/LaunchConfigDialog.test.ts` 通过。方向键连续切换全部提醒、仅需介入和关闭时依赖字段保留位置，阈值范围错误立即写入实时播报区。
 
-
 - [PR #786 的浏览器证据](https://github.com/mzdluo123/webmux/pull/786)。
