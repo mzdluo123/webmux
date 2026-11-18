@@ -3,9 +3,11 @@
   import { m } from "$lib/paraglide/messages.js";
   import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
+  import MainWorktreeMark from "./MainWorktreeMark.svelte";
 
   let {
     title,
+    mainWorktree = false,
     actions,
     loading,
     filtering,
@@ -20,6 +22,7 @@
     children,
   }: {
     title?: string;
+    mainWorktree?: boolean;
     /** Icon controls; phones show them in the top bar instead. */
     actions: Snippet;
     loading: boolean;
@@ -58,11 +61,14 @@
         {m.s8_toolbar_refreshing_git()}{/if}
     </p>
     <div class="min-w-0 flex-1 sm:mr-3">
-      <h1
-        class="text-lg leading-tight font-semibold tracking-tight wrap-anywhere sm:text-3xl"
-      >
-        {resolvedTitle}
-      </h1>
+      <div class="flex min-w-0 items-center gap-1.5">
+        <h1
+          class="text-lg leading-tight font-semibold tracking-tight wrap-anywhere sm:text-3xl"
+        >
+          {resolvedTitle}
+        </h1>
+        {#if mainWorktree}<MainWorktreeMark srLabel size="md" />{/if}
+      </div>
       <p
         aria-hidden="true"
         class="mt-1 hidden text-sm text-muted-foreground sm:block"

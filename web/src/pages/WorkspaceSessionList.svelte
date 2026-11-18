@@ -307,6 +307,7 @@
           title={selectedRepository === "all"
             ? m.s1_all_repositories()
             : scopeLabel}
+          mainWorktree={selectedWorktree?.kind === "main"}
           {loading}
           {filtering}
           visibleCount={visible.length}

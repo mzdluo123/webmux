@@ -176,6 +176,7 @@
   "s1_no_matching_sessions": "No matching sessions found. Try part of a name or directory.",
   "s1_no_matching_sessions_short": "No matching sessions.",
   "s1_no_sessions_yet": "No sessions yet. Start one from the workspace.",
+  "s1_node_main_worktree": "{label}, main worktree",
   "s1_node_reason_title": "{label}: {reason}",
   "s1_node_sessions_count": [
     {

@@ -167,6 +167,7 @@
   "s1_no_matching_sessions": "找不到匹配的会话。试试名称或目录的一部分。",
   "s1_no_matching_sessions_short": "没有匹配的会话。",
   "s1_no_sessions_yet": "暂无会话。可在工作区新建会话。",
+  "s1_node_main_worktree": "{label}，主工作区",
   "s1_node_reason_title": "{label}：{reason}",
   "s1_node_sessions_count": "{label}，{count} 个会话",
   "s1_node_sessions_waiting": "{label}，{count} 个会话，{waiting} 个等待",
