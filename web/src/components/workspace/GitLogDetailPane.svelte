@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { tick, untrack } from "svelte";
   import IconCheck from "~icons/tabler/check";
   import IconCopy from "~icons/tabler/copy";
   import IconGitCherryPick from "~icons/tabler/git-cherry-pick";
@@ -15,6 +14,7 @@
   } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import { resolveCommitParentFiles } from "../../domains/workspace/git-workbench-state";
+  import { tick, untrack } from "svelte";
   import type {
     GitCommitDetail,
     GitCompareViewState,
