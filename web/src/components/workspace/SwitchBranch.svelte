@@ -90,6 +90,7 @@
   // (blockers, warnings, the sessions that keep running) and only a clean
   // preview can be confirmed (or carried across via tracked-stash Smart Checkout).
   let {
+    formId,
     repository,
     worktree,
     initialBranch,
@@ -104,6 +105,7 @@
     onopenconflict,
     oncancel,
   }: {
+    formId?: string;
     repository: Repository;
     worktree: Worktree;
     initialBranch?: string;
@@ -255,7 +257,15 @@
     const request = previews.begin();
     previewing = true;
     previewError = "";
-    if (previewViewport) previewViewport.scrollTop = 0;
+    if (previewViewport) {
+      previewViewport.scrollTop = 0;
+      const outer = previewViewport.closest<HTMLElement>(
+        '[data-slot="scroll-area-viewport"]',
+      );
+      if (outer && outer.scrollTop > previewViewport.offsetTop) {
+        outer.scrollTop = previewViewport.offsetTop;
+      }
+    }
     try {
       const result = await source.preview(worktree, next, request.signal);
       if (!request.current()) return;
@@ -311,6 +321,10 @@
     resolveSwitchNewWorktreePreset(preview, target, startIsBranch),
   );
 
+  export function isSwitchReady() {
+    return canSwitch;
+  }
+
   let previewViewport = $state<HTMLElement | null>(null);
 
   function retryPreview() {
@@ -351,6 +365,7 @@
 </script>
 
 <SwitchBranchForm
+  {formId}
   worktreePath={worktree.path}
   {busy}
   {canSwitch}
