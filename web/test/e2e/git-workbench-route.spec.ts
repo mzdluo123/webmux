@@ -104,13 +104,16 @@ test("the Git and session views switch in both directions without losing the sel
   page,
   request,
   workDir,
+  isMobile,
 }) => {
   const { repo, featWt, mainWt } = await setupRepoWithLinkedWorktree(
     request,
     workDir,
   );
+  const longTitle =
+    "Review branch output and compare the detailed terminal logs from the previous deployment";
   for (const [name, worktreeId] of [
-    ["Review branch output", featWt.id],
+    [longTitle, featWt.id],
     ["Watch the main branch", mainWt.id],
   ]) {
     expect(
@@ -151,6 +154,16 @@ test("the Git and session views switch in both directions without losing the sel
     await expect(session).toHaveAccessibleDescription(branch);
     expect(await session.getAttribute("title")).toBeNull();
     await expect(location.locator("[title]")).toHaveCount(0);
+  }
+  if (!isMobile) {
+    const short = project.getByRole("button", {
+      name: /^Watch the main branch/,
+    });
+    await short.hover();
+    expect(await short.getAttribute("title")).toBeNull();
+    const long = project.getByRole("button", { name: /^Review branch output/ });
+    await long.hover();
+    await expect(long).toHaveAttribute("title", `${longTitle}\nfeat/route`);
   }
   const direct = sidebar
     .getByRole("list", { name: "直接会话", exact: true })

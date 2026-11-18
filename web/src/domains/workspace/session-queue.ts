@@ -67,14 +67,9 @@ export function queueWorkspaceLocation(
     (item) => item.id === session.workspace?.worktreeId,
   );
   if (tree) return { text: worktreeTitle(tree), branch: Boolean(tree.branch) };
-  if (session.released?.branch) {
-    return { text: session.released.branch, branch: true };
-  }
+  const branch = session.released?.branch;
   return {
-    text:
-      session.released?.branch ??
-      session.workspace?.worktreePath ??
-      session.cwd,
-    branch: false,
+    text: branch ?? session.workspace?.worktreePath ?? session.cwd,
+    branch: Boolean(branch),
   };
 }

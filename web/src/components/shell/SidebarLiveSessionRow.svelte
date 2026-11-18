@@ -36,6 +36,15 @@
     onclose: (session: SessionInfo) => void;
   } = $props();
   const locationId = $props.id();
+  let showFullLabel = $state(false);
+
+  function onLabelHover(event: PointerEvent & { currentTarget: HTMLElement }) {
+    showFullLabel = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>(
+        "[data-sidebar-session-text]",
+      ),
+    ).some((label) => label.scrollWidth > label.clientWidth);
+  }
 </script>
 
 <li class="group/row relative" data-sidebar-session-id={session.id}>
@@ -45,7 +54,15 @@
     aria-label={pinned
       ? m.s1_pinned_prefix({ label: sessionRowLabel(session) })
       : sessionRowLabel(session)}
-    title={locationIsBranch ? undefined : sessionRowTitle(session)}
+    title={locationIsBranch
+      ? showFullLabel
+        ? [session.title, location].join("\n")
+        : undefined
+      : sessionRowTitle(session)}
+    onpointerenter={locationIsBranch ? onLabelHover : undefined}
+    onpointerleave={locationIsBranch
+      ? () => (showFullLabel = false)
+      : undefined}
     aria-describedby={location ? locationId : undefined}
     data-allow-wrap={location ? true : undefined}
     onclick={() => onopen(session)}

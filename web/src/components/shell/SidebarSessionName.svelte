@@ -18,7 +18,9 @@
 
 {#if location}
   <span class="min-w-0 flex-1">
-    <span class={["block truncate", archived && "text-muted-foreground"]}
+    <span
+      data-sidebar-session-text
+      class={["block truncate", archived && "text-muted-foreground"]}
       >{title}</span
     >
     <span
@@ -33,6 +35,7 @@
         <IconGitBranch class="size-3 shrink-0" aria-hidden="true" />
       {/if}
       <span
+        data-sidebar-session-text
         class="min-w-0 truncate"
         title={locationIsBranch ? undefined : location}>{location}</span
       >
