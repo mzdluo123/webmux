@@ -150,22 +150,29 @@
 </script>
 
 <div class="space-y-4">
-  <div class="flex flex-wrap items-center justify-between gap-2">
-    <div class="space-y-1">
+  <div class="space-y-1">
+    <div class="flex items-start justify-between gap-2">
       <h3 class="text-base font-medium">{m.s2_p2p_title()}</h3>
-      <p class="text-xs text-muted-foreground">
-        {#if relayAuth.authenticated}
-          {m.relay_p2p_description()}
-        {:else}
-          {m.s2_p2p_desc()}
-        {/if}
-      </p>
+      <div class="grid shrink-0">
+        {#each [m.s2_source_config(), m.s2_source_web()] as label, index (index)}
+          {@const current = status?.source === (index === 0 ? "config" : "web")}
+          <Badge
+            variant={index === 0 ? "outline" : "info"}
+            class={current
+              ? "col-start-1 row-start-1 justify-self-end"
+              : "invisible col-start-1 row-start-1 justify-self-end"}
+            aria-hidden={!current}>{label}</Badge
+          >
+        {/each}
+      </div>
     </div>
-    {#if status}
-      <Badge variant={status.source === "web" ? "info" : "outline"}>
-        {status.source === "web" ? m.s2_source_web() : m.s2_source_config()}
-      </Badge>
-    {/if}
+    <p class="text-xs text-muted-foreground">
+      {#if relayAuth.authenticated}
+        {m.relay_p2p_description()}
+      {:else}
+        {m.s2_p2p_desc()}
+      {/if}
+    </p>
   </div>
 
   {#if ui.failure && !status}
@@ -177,12 +184,6 @@
       {m.s2_p2p_nop2p_before()}<code>-tags nop2p</code>{m.s2_p2p_nop2p_after()}
     </InlineNotice>
   {:else if status}
-    {#if !status.storageAvailable && status.storageError}
-      <InlineNotice tone="warning"
-        >{m.s2_p2p_storage_err({ error: status.storageError })}</InlineNotice
-      >
-    {/if}
-
     <div class="space-y-2">
       <div class="flex items-center justify-between gap-4">
         <Label for="p2p-enabled">{m.s2_p2p_enable_label()}</Label>
@@ -223,6 +224,7 @@
       <Label for="p2p-stun-servers">{m.s2_p2p_stun_label()}</Label>
       <Textarea
         id="p2p-stun-servers"
+        class="field-sizing-fixed"
         code
         rows={3}
         disabled={!canEdit}
@@ -232,7 +234,9 @@
           if (stunError) parseStunLines(stunText);
         }}
         aria-invalid={!!stunError}
-        aria-describedby="p2p-stun-help"
+        aria-describedby={stunError
+          ? "p2p-stun-help p2p-stun-feedback"
+          : "p2p-stun-help"}
         placeholder="stun:stun.cloudflare.com:3478"
       />
       <p id="p2p-stun-help" class="text-xs text-muted-foreground">
@@ -240,9 +244,6 @@
           >stuns:</code
         >{m.s2_p2p_stun_help_3()}<code>turn:</code>{m.s2_p2p_stun_help_4()}
       </p>
-      {#if stunError}
-        <p role="alert" class="text-xs text-destructive">{stunError}</p>
-      {/if}
       <div class="flex flex-wrap items-center gap-2">
         <Button
           variant="outline"
@@ -254,17 +255,31 @@
           disabled={!canReset}
           onclick={() => void resetToConfig()}>{m.s2_p2p_reset_config()}</Button
         >
-        {#if ui.feedback}
-          <span role="status" class="text-xs text-muted-foreground"
-            >{ui.feedback}</span
+      </div>
+      <div class="h-20 overflow-y-auto overscroll-contain">
+        {#if stunError}
+          <p
+            id="p2p-stun-feedback"
+            role="alert"
+            class="text-xs wrap-anywhere text-destructive"
           >
+            {stunError}
+          </p>
+        {/if}
+        {#if !status.storageAvailable && status.storageError}
+          <InlineNotice tone="warning" size="compact">
+            {m.s2_p2p_storage_err({ error: status.storageError })}
+          </InlineNotice>
+        {/if}
+        {#if ui.failure}
+          <InlineNotice tone="danger" size="compact">{ui.failure}</InlineNotice>
+        {:else if ui.feedback}
+          <p role="status" class="text-xs text-muted-foreground">
+            {ui.feedback}
+          </p>
         {/if}
       </div>
     </div>
-
-    {#if ui.failure}
-      <InlineNotice tone="danger">{ui.failure}</InlineNotice>
-    {/if}
 
     <section
       aria-label={m.s2_p2p_diag_aria()}

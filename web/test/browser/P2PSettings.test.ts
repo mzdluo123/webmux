@@ -194,3 +194,92 @@ test("SidebarFooter host status popover reflects P2P direct mode and RTT", async
     .toBeVisible();
   await expect.element(dialog.getByText("9 ms", { exact: true })).toBeVisible();
 });
+test("STUN validation and feedback keep actions in place", async () => {
+  serveP2P();
+  const container = Object.assign(document.createElement("section"), {
+    style: "width: 390px; max-width: 100%; margin: 0 auto",
+  });
+  document.body.append(container);
+  try {
+    render(P2PSettings, { target: container });
+    const input = page.getByLabelText(/STUN 服务器/);
+    await expect.element(input).toBeEnabled();
+    const save = page.getByRole("button", { name: "保存 STUN 列表" });
+    const reset = page.getByRole("button", { name: "恢复配置文件默认" });
+    const diagnostics = page.getByRole("region", { name: /P2P/ }).element();
+    const top = (element: Element) =>
+      element.getBoundingClientRect().top -
+      container.getBoundingClientRect().top;
+    await input.fill("turn:" + "long-invalid.example".repeat(15) + ":3478");
+    const before = [
+      top(save.element()),
+      top(reset.element()),
+      top(diagnostics),
+    ];
+    await save.click();
+    await expect
+      .element(page.getByText(/必须以 stun: 或 stuns: 开头/))
+      .toBeVisible();
+    const invalid = [
+      top(save.element()),
+      top(reset.element()),
+      top(diagnostics),
+    ];
+    await input.fill("stun:another.example.test:3478");
+    await save.click();
+    await expect.element(reset).toBeEnabled();
+    const saved = [top(save.element()), top(reset.element()), top(diagnostics)];
+    expect(invalid).toEqual(before);
+    expect(saved).toEqual(before);
+  } finally {
+    container.remove();
+  }
+});
+
+test("a probing status reply cannot replace a newer failed STUN save", async () => {
+  const probing = {
+    ...baseStatus,
+    portMap: { state: "probing" as const },
+  };
+  const poll = Promise.withResolvers<Response>();
+  const write = Promise.withResolvers<Response>();
+  let reads = 0;
+  let writing = false;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>((input, init) => {
+      const path = new URL(String(input), location.href).pathname;
+      if (path === "/api/p2p") {
+        reads++;
+        return reads === 2
+          ? poll.promise
+          : Promise.resolve(Response.json(probing));
+      }
+      if (path === "/api/p2p/settings" && init?.method === "PUT") {
+        writing = true;
+        return write.promise;
+      }
+      return Promise.resolve(
+        Response.json({ error: "not found" }, { status: 404 }),
+      );
+    }),
+  );
+  render(P2PSettings);
+  const input = page.getByLabelText(/STUN 服务器/);
+  await expect.element(input).toBeEnabled();
+  const draft = "stuns:private-stun.example.test";
+  await input.fill(draft);
+  await vi.waitFor(() => expect(reads).toBe(2), { timeout: 3000 });
+  await page.getByRole("button", { name: "保存 STUN 列表" }).click();
+  await vi.waitFor(() => expect(writing).toBe(true));
+  write.resolve(
+    Response.json({ error: "newer settings error" }, { status: 502 }),
+  );
+  await expect.element(page.getByText("newer settings error")).toBeVisible();
+  poll.resolve(
+    Response.json({ ...probing, stunServers: ["stun:older.example.test"] }),
+  );
+  await vi.waitFor(() => expect(reads).toBe(3), { timeout: 3000 });
+  await expect.element(page.getByText("newer settings error")).toBeVisible();
+  await expect.element(input).toHaveValue(draft);
+});
