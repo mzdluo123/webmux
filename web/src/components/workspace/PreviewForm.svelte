@@ -41,7 +41,7 @@
 >
   {#if formId}
     <div
-      class="sticky top-0 z-10 bg-background pb-2 [@media(height<480px)]:static"
+      class="sticky top-0 z-10 bg-popover pb-2 [@media(height<480px)]:static"
     >
       {@render summary()}
     </div>
