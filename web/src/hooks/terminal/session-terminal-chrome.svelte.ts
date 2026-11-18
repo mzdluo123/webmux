@@ -24,7 +24,6 @@ import { hasTouchInput } from "../../platform/touch-input";
 import { createKeyboardSizeHold } from "./keyboard-size-hold";
 import { keyboardSizeHold } from "./keyboard-size-hold-preference.svelte";
 import type { KeyboardVisibility } from "../shared/viewport.svelte";
-import { headsetMode } from "../shared/headset-mode.svelte";
 import { allowAutomaticInputFocus } from "../shared/input-focus";
 import { m } from "$lib/paraglide/messages.js";
 
@@ -82,8 +81,7 @@ export function useSessionTerminalChrome(options: {
   let choiceClosed = $state(false);
 
   const hold = createKeyboardSizeHold({
-    canHold: () =>
-      keyboardSizeHold.enabled && (hasTouchInput() || headsetMode.enabled),
+    canHold: () => keyboardSizeHold.enabled && hasTouchInput(),
     keyboardStays: isEditableActiveElement,
     onActive: (value) => (keyboardHeld = value),
     release: () => void tick().then(() => options.fitTerminal()),
@@ -112,7 +110,7 @@ export function useSessionTerminalChrome(options: {
     findOpen = false;
     clearFindFocus(
       options.clearTerminalFind,
-      hasTouchInput() || headsetMode.enabled,
+      hasTouchInput(),
       options.isActiveAndVisible,
       findReturnFocus,
       options.focusFallback,

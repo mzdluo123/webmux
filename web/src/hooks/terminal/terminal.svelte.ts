@@ -320,11 +320,6 @@ export function useTerminal(
     get emulator() {
       return terminal;
     },
-    scrollLines(lines) {
-      if (!Number.isFinite(lines)) return;
-      terminal?.scrollLines(Math.trunc(lines));
-      updateBottom(true);
-    },
     resizeGrid(cols, rows) {
       if (!resizeTerminalGrid(terminal, stream.controlling, cols, rows))
         return false;

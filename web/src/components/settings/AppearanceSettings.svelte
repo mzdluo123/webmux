@@ -22,8 +22,6 @@
   import { m } from "$lib/paraglide/messages.js";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import LocaleChoice from "../shared/LocaleChoice.svelte";
-  import { tvMode } from "../../hooks/shared/tv-mode.svelte";
-  import { headsetMode } from "../../hooks/shared/headset-mode.svelte";
 
   let fontDraft = $state<number | undefined>(undefined);
   const fontInput = $derived(fontDraft ?? terminalFont.size);
@@ -97,32 +95,6 @@
           terminalFont.reset();
         }}>{m.s2_reset_default_font()}</Button
       >
-    </div>
-    <div class="flex items-center justify-between gap-4">
-      <div class="space-y-1">
-        <Label for="tv-mode">{m.s2_tv_mode()}</Label>
-        <p class="text-sm text-muted-foreground">
-          {m.s2_tv_mode_desc()}
-        </p>
-      </div>
-      <Switch
-        id="tv-mode"
-        bind:checked={tvMode.enabled}
-        aria-label={m.s2_tv_mode()}
-      />
-    </div>
-    <div class="flex items-center justify-between gap-4">
-      <div class="space-y-1">
-        <Label for="headset-mode">{m.s2_headset_mode()}</Label>
-        <p class="text-sm text-muted-foreground">
-          {m.s2_headset_mode_desc()}
-        </p>
-      </div>
-      <Switch
-        id="headset-mode"
-        bind:checked={headsetMode.enabled}
-        aria-label={m.s2_headset_mode()}
-      />
     </div>
     <div class="flex flex-wrap items-center justify-between gap-3">
       <p role="status" class="text-sm text-muted-foreground">

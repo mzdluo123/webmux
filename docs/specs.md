@@ -170,8 +170,3 @@
 - [controller-service-layering](../openspec/specs/controller-service-layering/spec.md)：后端 Controller 与 Service 分层
 - [frontend-architecture-guard](../openspec/specs/frontend-architecture-guard/spec.md)：前端架构检查入口
 - [hub-message-conn](../openspec/specs/hub-message-conn/spec.md)：Hub 消息连接与生命周期
-
-## 头显与电视
-
-- [headset-browser-support](../openspec/specs/headset-browser-support/spec.md)：头显浏览器的二维工作区适配
-- [tv-browser-support](../openspec/specs/tv-browser-support/spec.md)：电视浏览器的大屏和遥控器操作

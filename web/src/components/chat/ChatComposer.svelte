@@ -8,7 +8,6 @@
   import type { TimelineEntry } from "../../domains/chat/chat-model";
   import { errorMessage } from "../../platform/error";
   import { useTextareaDraft } from "../../hooks/terminal/textarea-draft.svelte";
-  import { tvMode } from "../../hooks/shared/tv-mode.svelte";
   import type { ChatUploads } from "../../hooks/shared/upload.svelte";
   import type {
     ChatCommand,
@@ -106,23 +105,6 @@
   const menuOpen = $derived(
     !disabled && matches.length > 0 && menuDismissed !== draft.text,
   );
-  $effect(() => {
-    if (!tvMode.enabled) return;
-    const dismiss = (event: Event) => {
-      if (
-        event instanceof CustomEvent &&
-        !event.defaultPrevented &&
-        event.detail === "capture" &&
-        menuOpen &&
-        document.activeElement === textarea
-      ) {
-        event.preventDefault();
-        menuDismissed = draft.text;
-      }
-    };
-    window.addEventListener("webmux:tv-back", dismiss);
-    return () => window.removeEventListener("webmux:tv-back", dismiss);
-  });
   const active = $derived(Math.min(highlighted, matches.length - 1));
 
   async function submit(mode: "auto" | "steer") {
@@ -310,7 +292,6 @@
   textareaProps={{
     "aria-controls": menuOpen ? "chat-commands" : undefined,
     "aria-expanded": menuOpen,
-    "data-tv-native-keys": "",
     ...selection.selectionProps,
     onkeydown: keydown,
   }}

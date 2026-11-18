@@ -124,7 +124,6 @@ export function executeTerminalFind(
 
 export interface TerminalController {
   readonly emulator: Terminal | undefined;
-  scrollLines(lines: number): void;
   resizeGrid(cols: number, rows: number): boolean;
   readonly ready: boolean;
   readonly info: SessionInfo | undefined;
