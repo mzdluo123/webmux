@@ -107,7 +107,10 @@ export function resolveScopedArchive(
   const entry = placement.repositories.get(selectedRepository);
   if (selectedWorktree)
     return [...(entry?.worktrees.get(selectedWorktree.id) ?? [])];
-  return entry ? repositoryRecords(entry) : [];
+  if (!entry) return [];
+  // Preserve the archive feed's order across worktree and missing groups.
+  const recordIds = new Set(repositoryRecords(entry).map(({ id }) => id));
+  return recoverable.filter(({ id }) => recordIds.has(id));
 }
 
 export function resolveScopedSessions(
