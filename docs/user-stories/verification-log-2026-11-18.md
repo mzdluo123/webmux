@@ -39,6 +39,11 @@
 - `go test -race -count=1 ./internal/codexrollout ./internal/agent/{codex,kimi,omp,qoder,qodercn,opencode,agy,claudecode,devin}/history ./internal/{historyimport,historysource,historyprojection,handoff}` 的 14 个包通过。
 - 派生样本覆盖 Codex 0.170.0 和 9.99.0、Kimi Wire 1.10 和 2.0 与状态 v3、omp session v4、Qoder/QoderCN 较高版本，并核对正文和工具关联。OpenCode 在同一数据库内读取两种 SQLite 表结构。
 
+## T049 终端端口提示（US-R04）
+
+- `TerminalNotices.test.ts` 通过，验证晚发现的较小端口保留现有按钮位置与焦点，并可点击「查看全部」。
+- `port-forwarding.spec.ts` 的桌面与 iPhone SE Chromium 两项通过。隔离 Chromium 中交错发现三个端口并输入 abc，字符按顺序交付 xterm。
+
 ## 侧栏添加仓库入口（US-C16）
 
 - 「添加仓库」从「全部仓库」行菜单移到侧栏底部；按会话、按分支、窄栏及移动端抽屉共用登记弹窗和可用性条件。
@@ -64,8 +69,3 @@
   - `go test -race -count=1 ./cmd/... ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过；
   - Playwright E2E `agent-tools.spec.ts`、`relay-settings.spec.ts` 与 `worktrees.spec.ts`（直接目录创建降级）共 10 项通过。
-
-### T049 终端端口提示（US-R04）
-
-- `TerminalNotices.test.ts` 通过，验证晚发现的较小端口保留现有按钮位置与焦点，并可点击「查看全部」。
-- `port-forwarding.spec.ts` 的桌面与 iPhone SE Chromium 两项通过。隔离 Chromium 中交错发现三个端口并输入 abc，字符按顺序交付 xterm。
