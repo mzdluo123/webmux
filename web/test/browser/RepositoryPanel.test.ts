@@ -1399,3 +1399,23 @@ test("a worktree's details offer its branch actions inside the panel", async () 
   await flow.getByRole("button", { name: "返回" }).click();
   await expect.element(details).toBeVisible();
 });
+
+test("switching tabs keeps tab panels untransformed and entering a subview settles tab motion", async () => {
+  renderPanel({ initialTab: "overview" });
+  await dialog().getByRole("tab", { name: "工作树" }).click();
+  const worktreesPanel = dialog()
+    .getByRole("tabpanel", { name: "工作树" })
+    .element() as HTMLElement;
+  expect(worktreesPanel.style.transform).toBe("");
+  const panels = worktreesPanel.parentElement as HTMLElement;
+  await dialog()
+    .getByRole("button", { name: /^wt\/clean-feature/ })
+    .click();
+  await expect
+    .element(
+      dialog().getByRole("region", { name: "工作树详情：wt/clean-feature" }),
+    )
+    .toBeVisible();
+  expect(panels.style.height).toBe("");
+  expect(panels.style.overflow).toBe("");
+});
