@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { test, expect, nameSession } from "./fixtures";
+import { workspaceLayoutTest as test, expect, nameSession } from "./fixtures";
 import { openAllRepositoriesMenu } from "./repository-menu";
 
 test("workspace search shortcuts clear filters without capturing dialog input", async ({

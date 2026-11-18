@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
+import { workbenchLayout } from "../../src/domains/workspace/workbench-layout.svelte";
 import { resetAttentionToasts } from "../../src/domains/notifications/attention-toast.svelte";
 import {
   openSession,
@@ -28,6 +29,7 @@ installChatFixture();
 beforeEach(() => {
   resetAttentionToasts();
   shellUi.setMode("workbench");
+  workbenchLayout.value = "workspaces";
   shellUi.setCollapsed(false);
   history.replaceState(null, "", "/");
   respond(/^GET \/api\/repositories$/, () => Response.json([repository()]));
@@ -39,6 +41,8 @@ afterEach(() => {
   localStorage.removeItem("webmux.sidebarCollapsed");
   localStorage.removeItem("webmux.toastNotifications");
   localStorage.removeItem("webmux.workbenchTree");
+  workbenchLayout.value = "queue";
+  localStorage.removeItem("webmux.workbenchLayout");
   resetAttentionToasts();
   history.replaceState(null, "", "/");
 });

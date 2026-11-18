@@ -252,6 +252,18 @@ export const test = base.extend<
   ],
 });
 
+// Specs for the repository-card and nested tree workflows exercise that
+// layout explicitly. The regular fixture keeps the production queue default.
+export const workspaceLayoutTest = test.extend({
+  page: async ({ page }, use) => {
+    await page.addInitScript(() => {
+      if (!localStorage.getItem("webmux.workbenchLayout"))
+        localStorage.setItem("webmux.workbenchLayout", "workspaces");
+    });
+    await use(page);
+  },
+});
+
 export const coreTest = test.extend<{}, { features: FeatureID[] | undefined }>({
   features: [[], { scope: "worker", option: true }],
 });

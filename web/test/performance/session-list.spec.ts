@@ -1,4 +1,4 @@
-import { test, expect } from "../e2e/fixtures";
+import { workspaceLayoutTest as test, expect } from "../e2e/fixtures";
 import { observePerformance, performanceReport, settled } from "./performance";
 import type { SessionInfo } from "../../src/contracts/schemas";
 

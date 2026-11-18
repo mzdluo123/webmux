@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { Page } from "@playwright/test";
-import { test, expect } from "./fixtures";
+import { workspaceLayoutTest as test, expect } from "./fixtures";
 import { repositoryMenu, worktreeMenu } from "./repository-menu";
 
 const exec = promisify(execFile);

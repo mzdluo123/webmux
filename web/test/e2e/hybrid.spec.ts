@@ -14,7 +14,7 @@ import {
   toggleCode,
   runCommand,
   revealSidebar,
-  test,
+  workspaceLayoutTest as test,
   useDirectory,
 } from "./fixtures";
 import type { E2EServer } from "./server.mjs";

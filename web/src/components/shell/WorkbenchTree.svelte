@@ -62,6 +62,7 @@
   // sessions only.
   let {
     repositories,
+    scopesOnly = false,
     sessions,
     records,
     resuming = "",
@@ -89,6 +90,7 @@
     onremove,
   }: {
     repositories: readonly Repository[];
+    scopesOnly?: boolean;
     /** Live sessions, as the home page lists them. */
     sessions: readonly SessionInfo[];
     /** Archived records; those fitting no worktree sit under their repository's unavailable workspaces. */
@@ -138,11 +140,24 @@
     onremove: (record: ArchivedSession) => void;
   } = $props();
 
-  const nodes = $derived(workbenchTree(repositories, sessions, home, records));
+  const fullTree = $derived(
+    workbenchTree(repositories, sessions, home, records),
+  );
+  const nodes = $derived(
+    scopesOnly
+      ? fullTree.map((node) => ({
+          ...node,
+          children:
+            node.kind === "repository"
+              ? node.children.map((child) => ({ ...child, children: [] }))
+              : [],
+        }))
+      : fullTree,
+  );
   let saved = $state<FolderMemory>(
     readFolderMemory(stored("workbenchTree", "{}")),
   );
-  const effective = $derived(reconcileFolderMemory(saved, nodes));
+  const effective = $derived(reconcileFolderMemory(saved, fullTree));
   $effect(() => {
     const next = effective;
     if (next !== saved) {
@@ -165,7 +180,7 @@
       }
       return [];
     };
-    return find(nodes, []);
+    return find(fullTree, []);
   });
   function isOpen(node: TreeNode) {
     if (!node.children.length || node.reason) return false;
@@ -241,6 +256,7 @@
   function isCurrent(node: TreeNode) {
     if (node.kind === "session") return node.session?.id === current;
     if (node.kind === "archived") return node.record?.id === current;
+    if (current && scopesOnly) return node.key === forced.at(-1);
     if (current || node.kind === "missing") return false;
     if (node.kind === "worktree")
       return scope === node.repositoryId && worktree === node.worktreeId;

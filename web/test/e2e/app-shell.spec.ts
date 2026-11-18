@@ -2,7 +2,12 @@ import { spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { expect, expectConnected, test, toggleCode } from "./fixtures";
+import {
+  expect,
+  expectConnected,
+  workspaceLayoutTest as test,
+  toggleCode,
+} from "./fixtures";
 
 // The app shell around the home page, quick start and session pages: the
 // sidebar beside a session, its workbench tree, rename, and the phone
@@ -588,6 +593,9 @@ test("session pins and their order sync to another browser", async ({
     hasTouch: info.project.use.hasTouch,
   });
   try {
+    await other.addInitScript(() =>
+      localStorage.setItem("webmux.workbenchLayout", "workspaces"),
+    );
     const device = await other.newPage();
     await device.goto(new URL(`/s/${id}`, page.url()).href);
     if (mobile) await drawer(device);

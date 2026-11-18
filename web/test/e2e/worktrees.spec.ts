@@ -4,7 +4,7 @@ import { mkdir, writeFile, access, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { Page, Locator } from "@playwright/test";
 import {
-  test,
+  workspaceLayoutTest as test,
   expect,
   runCommand,
   expectTerminalLine,

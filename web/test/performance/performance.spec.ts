@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  test,
+  workspaceLayoutTest as test,
   expect,
   createShell,
   runCommand,

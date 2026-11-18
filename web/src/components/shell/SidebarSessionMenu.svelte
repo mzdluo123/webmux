@@ -32,12 +32,14 @@
       };
   let {
     label,
+    onmenuopen,
     target,
     tabindex,
     disabled = false,
   }: {
     /** The row's title, naming the button. */
     label: string;
+    onmenuopen?: (open: boolean) => void;
     target: Target;
     tabindex?: number;
     disabled?: boolean;
@@ -83,6 +85,7 @@
   ariaLabel={m.s1_session_actions({ label })}
   {tabindex}
   {disabled}
+  {onmenuopen}
 >
   {#if target.kind === "live"}
     {@const { session, onrename, onclose } = target}

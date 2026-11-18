@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import type { WebSocket } from "@playwright/test";
 import {
-  test,
+  workspaceLayoutTest as test,
   expect,
   createShell,
   runCommand,

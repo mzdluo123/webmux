@@ -8,7 +8,7 @@ import {
   chooseLocation,
   expect,
   openSplitPanel,
-  test,
+  workspaceLayoutTest as test,
   useCustomCommand,
 } from "./fixtures";
 import { chooseSessionProject, sessionLocation } from "./session-project";

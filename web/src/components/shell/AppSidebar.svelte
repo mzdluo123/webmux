@@ -24,6 +24,8 @@
     shellUi,
     type ShellMode,
   } from "../../hooks/shared/shell.svelte";
+  import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
+  import { queueGroup } from "../../domains/workspace/session-queue";
   import { paneEnter } from "../../hooks/shared/pane-enter";
   import Brand from "./Brand.svelte";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
@@ -71,6 +73,18 @@
   const current = $derived(route.name === "terminal" ? route.id : "");
   const live = $derived(
     shell.sessions.sessions.filter((session) => session.state === "active"),
+  );
+  const queue = $derived(
+    Boolean(
+      workspace &&
+      shellUi.mode === "workbench" &&
+      workbenchLayout.value === "queue",
+    ),
+  );
+  const attentionCount = $derived(
+    queue
+      ? live.filter((session) => queueGroup(session) === "attention").length
+      : 0,
   );
   const pinned = $derived(sessionPins.ordered(live));
   const pinnedIDs = $derived(new Set(pinned.map((session) => session.id)));
@@ -209,6 +223,7 @@
     };
   }
   function scope(next: string, worktreeId?: string) {
+    workbenchLayout.attentionOnly = false;
     shellUi.setMode("workbench");
     shell.repositories?.select(next, worktreeId);
     openPage("/");
@@ -276,13 +291,16 @@
       >
     </div>
   {/if}
-  {#if notifications}<notifications.Inbox sessions={live} />{/if}
+  {#if notifications}<notifications.Inbox
+      sessions={live}
+      triggerLabel={queue ? m.s8_queue_notifications() : undefined}
+    />{/if}
   <ScrollArea
     type="hover"
     class="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]]:overscroll-contain [&_[data-slot=scroll-area-viewport]>div]:!block"
   >
     <div class="px-2 py-2">
-      {#if pinned.length}
+      {#if pinned.length && !queue}
         <section class="mb-3 border-b pb-3" aria-label={m.s1_pinned_sessions()}>
           <h2 class="px-3 pb-1 text-xs text-muted-foreground">
             {m.s1_pinned()}
@@ -329,11 +347,30 @@
             onremoveworktree={askRemoveWithWorktree}
           />
         {:else if workspace && shell.repositories && !shell.sessions.loading && (shell.repositories.settled || shell.repositories.list.length)}
+          {#if queue}
+            <Button
+              variant="ghost"
+              size="sm-touch"
+              class="mb-2 w-full justify-between"
+              aria-current={route.name === "sessions" &&
+              workbenchLayout.attentionOnly
+                ? "page"
+                : undefined}
+              onclick={() => {
+                scope("all");
+                workbenchLayout.attentionOnly = true;
+              }}
+            >
+              {m.s8_queue_attention_view()}
+              <span class="font-mono tabular-nums">{attentionCount}</span>
+            </Button>
+          {/if}
           <workspace.Tree
             repositories={shell.repositories.list}
-            sessions={unpinned}
+            scopesOnly={queue}
+            sessions={queue ? live : unpinned}
             home={workspace.homeWorktrees.value}
-            scope={route.name === "sessions"
+            scope={route.name === "sessions" && !workbenchLayout.attentionOnly
               ? (shell.repositories?.choice ?? "all")
               : ""}
             worktree={route.name === "sessions"

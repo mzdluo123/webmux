@@ -5,6 +5,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import SessionViewControls from "../sessions/SessionViewControls.svelte";
+  import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
   import GitWorkbenchButton from "./GitWorkbenchButton.svelte";
 
   // The icon controls of the home page: list density, a Git refresh, the Git
@@ -31,7 +32,10 @@
   } = $props();
 </script>
 
-<SessionViewControls {compact} {onchange} />
+{#if workbenchLayout.value === "workspaces"}<SessionViewControls
+    {compact}
+    {onchange}
+  />{/if}
 <Button
   variant="ghost"
   size="icon-sm"
