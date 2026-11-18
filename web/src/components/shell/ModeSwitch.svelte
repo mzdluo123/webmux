@@ -55,6 +55,6 @@
     hidden
     aria-hidden="true"
     data-sidebar-mode-indicator
-    class="pointer-events-none absolute top-0 left-0 h-0.5 w-(--mode-width) translate-x-(--mode-x) translate-y-(--mode-y) bg-foreground motion-safe:data-moving:transition-all motion-safe:data-moving:duration-200 motion-safe:data-moving:ease-out"
+    class="pointer-events-none absolute top-0 left-0 h-0.5 w-(--mode-width) translate-x-(--mode-x) translate-y-(--mode-y) bg-foreground motion-safe:data-moving:transition-all motion-safe:data-moving:duration-200 motion-safe:data-moving:ease-out motion-reduce:transition-none"
   ></span>
 </div>
