@@ -96,6 +96,15 @@
       ? `${p2pState.candidateType}${p2pState.ipFamily ? `/${p2pState.ipFamily}` : ""}`
       : "",
   );
+  const relayTransport = $derived(
+    m.relay_mixed_streams({
+      count: String(
+        p2pState.streams.filter(
+          ({ path }) => path === "webrtc-direct" || path === "webrtc-turn",
+        ).length,
+      ),
+    }),
+  );
   // A probe that never answers (a stalled path, e.g. over a VPN after a
   // network change) must end, or `measuring` would block every later one.
   const PROBE_TIMEOUT_MS = 10_000;
@@ -149,8 +158,9 @@
 <div
   class={rail
     ? "flex flex-col items-center gap-1 border-t py-2"
-    : "flex items-center border-t px-2 py-1.5 sm:gap-1 sm:px-3"}
+    : "flex flex-wrap items-center border-t px-2 py-1.5 sm:gap-1 sm:px-3"}
 >
+  <span role="status" class="sr-only">{statusLabel}</span>
   <Popover.Root open={detailsOpen} onOpenChange={detailsChanged}>
     <Popover.Trigger
       type="button"
@@ -158,19 +168,18 @@
       title={statusLabel}
       class={rail
         ? "flex size-8 cursor-pointer items-center justify-center rounded-sm hover:bg-muted/60"
-        : "flex h-5 min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm text-xs text-muted-foreground hover:bg-muted/60"}
+        : "flex h-5 min-w-5 flex-1 cursor-pointer items-center gap-2 rounded-sm text-xs text-muted-foreground hover:bg-muted/60"}
     >
       <!-- min-h-4 is the text line: the hostname arriving later must not move the dot. -->
-      <span role="status" class="flex min-h-4 min-w-0 items-center gap-2">
+      <span aria-hidden="true" class="flex min-h-4 min-w-0 items-center gap-2">
         <span
           class={`status-dot shrink-0 ${connection === "connected" && !strain ? "status-running" : "status-waiting"}`}
-        ></span>{#if rail}<span class="sr-only">{statusLabel}</span
-          >{:else if connection === "reconnecting"}<span
+        ></span>{#if !rail && connection === "reconnecting"}<span
             class="truncate text-warning"
             >{m.s1_disconnected_reconnecting()}</span
-          >{:else if connection === "connected" && setupSettled}<span
+          >{:else if !rail && connection === "connected" && setupSettled}<span
             class="truncate">{hostname || m.s1_online()}</span
-          >{:else}<span class="sr-only">{statusLabel}</span>{/if}
+          >{/if}
       </span>
     </Popover.Trigger>
     <Popover.Content
@@ -178,7 +187,7 @@
       align="start"
       role="dialog"
       aria-label={m.s1_host_status_details()}
-      class="w-[min(18rem,calc(100vw-2rem))] gap-3"
+      class="@container/host-status max-h-(--bits-popover-content-available-height) w-[min(18rem,calc(100vw-2rem))] gap-3 overflow-y-auto"
     >
       <Popover.Header>
         <Popover.Title>{m.s1_host_status()}</Popover.Title>
@@ -186,7 +195,9 @@
           >{m.s1_host_status_description()}</Popover.Description
         >
       </Popover.Header>
-      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
+      <dl
+        class="grid grid-cols-1 gap-x-4 gap-y-2 text-xs @min-[12rem]/host-status:grid-cols-[auto_minmax(0,1fr)]"
+      >
         <dt class="text-muted-foreground">{m.s1_hostname()}</dt>
         <dd class="min-w-0 truncate font-medium" title={hostname}>
           {hostname || m.s1_hostname_unavailable()}
@@ -198,30 +209,32 @@
           {connectionLabel}
         </dd>
         <dt class="text-muted-foreground">{m.s1_transport_path()}</dt>
-        <dd class={p2pState.mode === "p2p" ? "text-success" : ""}>
-          {#if relayAuth.authenticated}
-            {m.relay_mixed_streams({
-              count: String(
-                p2pState.streams.reduce(
-                  (count, stream) =>
-                    count +
-                    Number(
-                      stream.path === "webrtc-direct" ||
-                        stream.path === "webrtc-turn",
-                    ),
-                  0,
-                ),
-              ),
-            })}
-          {:else if p2pState.mode === "p2p"}{p2pDetail
-              ? m.s1_transport_p2p_detail({ detail: p2pDetail })
-              : m.s1_transport_p2p()}{:else}WebSocket{/if}
+        <dd
+          class="grid min-w-0 grid-cols-1 wrap-anywhere"
+          class:text-success={p2pState.mode === "p2p"}
+        >
+          <!-- Reserve the space for the longest transport description at this width. -->
+          <span class="invisible col-start-1 row-start-1" aria-hidden="true"
+            >{relayTransport}</span
+          >
+          <span class="col-start-1 row-start-1">
+            {relayAuth.authenticated
+              ? relayTransport
+              : p2pState.mode === "p2p"
+                ? p2pDetail
+                  ? m.s1_transport_p2p_detail({ detail: p2pDetail })
+                  : m.s1_transport_p2p()
+                : "WebSocket"}
+          </span>
         </dd>
         <dt class="text-muted-foreground">{m.s1_network_latency()}</dt>
         <dd
-          class={effectiveLatency !== null && effectiveLatency > SLOW_LATENCY_MS
-            ? "text-warning"
-            : ""}
+          class={[
+            "tabular-nums whitespace-nowrap",
+            effectiveLatency !== null &&
+              effectiveLatency > SLOW_LATENCY_MS &&
+              "text-warning",
+          ]}
         >
           {#if connection !== "connected"}{m.s1_not_available()}{:else if measuring && effectiveLatency === null}{m.s1_measuring()}{:else if effectiveLatency !== null}{effectiveLatency}
             ms{:else}{m.s1_not_available()}{/if}
@@ -272,33 +285,39 @@
       {/if}
     </Popover.Content>
   </Popover.Root>
-  {#if onaddrepository}
+  <div
+    class={rail
+      ? "flex flex-col items-center gap-1"
+      : "flex max-w-full flex-wrap items-center sm:gap-1"}
+  >
+    {#if onaddrepository}
+      <Button
+        variant="ghost"
+        size="icon-touch"
+        aria-label={m.s8_add_repo_title()}
+        title={m.s8_add_repo_title()}
+        disabled={!canAddRepository}
+        onclick={onaddrepository}><IconFolderPlus aria-hidden="true" /></Button
+      >
+    {/if}
+    {#if forward}<forward.Button onclick={onforward} />{/if}
+    <Button
+      href="/settings"
+      variant="ghost"
+      size="icon-touch"
+      aria-label={m.s1_settings()}
+      title={m.s1_settings()}><IconSettings aria-hidden="true" /></Button
+    >
     <Button
       variant="ghost"
       size="icon-touch"
-      aria-label={m.s8_add_repo_title()}
-      title={m.s8_add_repo_title()}
-      disabled={!canAddRepository}
-      onclick={onaddrepository}><IconFolderPlus aria-hidden="true" /></Button
+      class="shrink-0"
+      aria-label={dark ? m.s1_switch_light_theme() : m.s1_switch_dark_theme()}
+      title={dark ? m.s1_switch_light_theme() : m.s1_switch_dark_theme()}
+      onclick={toggleTheme}
+      >{#if dark}<IconSun aria-hidden="true" />{:else}<IconMoon
+          aria-hidden="true"
+        />{/if}</Button
     >
-  {/if}
-  {#if forward}<forward.Button onclick={onforward} />{/if}
-  <Button
-    href="/settings"
-    variant="ghost"
-    size="icon-touch"
-    aria-label={m.s1_settings()}
-    title={m.s1_settings()}><IconSettings aria-hidden="true" /></Button
-  >
-  <Button
-    variant="ghost"
-    size="icon-touch"
-    class="shrink-0"
-    aria-label={dark ? m.s1_switch_light_theme() : m.s1_switch_dark_theme()}
-    title={dark ? m.s1_switch_light_theme() : m.s1_switch_dark_theme()}
-    onclick={toggleTheme}
-    >{#if dark}<IconSun aria-hidden="true" />{:else}<IconMoon
-        aria-hidden="true"
-      />{/if}</Button
-  >
+  </div>
 </div>

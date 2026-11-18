@@ -75,3 +75,8 @@
 
 - 三端 Chromium 复现空结果与聊天命中之间的输入框位移，桌面差值 168px。修复后桌面结果区保持 400px，手机保持 422px，键盘选中项仍可滚动进入视口。Esc 恢复原输入、焦点和文字选区。
 - `pnpm --dir web exec vp test run --config vitest.browser.config.ts test/browser/SessionSwitcher.test.ts` 通过。隔离后端执行 `pnpm --dir web exec playwright test test/e2e/session-switcher.spec.ts` 通过，涵盖终端焦点和输入。
+
+## 侧栏主机状态（US-A04）
+
+- 隔离 Chromium 以本地夹具切换长短主机名，并控制健康探针、P2P RTT 和 Relay 路径。桌面中转说明曾令详情增加 32px。修复后详情高度 199.5px，测量中、9→2999ms、Relay 和重连时延时行位置保持一致。
+- 320px 视口在 200% 字号下可打开并滚动详情，重连状态即时更新。P2P 和 Relay 数据由夹具注入了客户端状态。
