@@ -1,6 +1,6 @@
 import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { coreTest, expect, test } from "./fixtures";
+import { expect, test } from "./fixtures";
 import type { AgentToolsReport } from "../../src/contracts/schemas";
 
 test("settings agent-tools card scans local tools via startup shell, copies commands, and checks updates on demand", async ({
@@ -139,19 +139,3 @@ test("settings agent-tools card scans local tools via startup shell, copies comm
   expect(remoteChecks).toHaveLength(1);
   expect(await fitsViewport()).toBe(true);
 });
-
-coreTest(
-  "disabling launch hides agent-tools UI and unmounts /api/agent-tools",
-  async ({ page, request }) => {
-    expect((await request.get("/api/agent-tools")).status()).toBe(404);
-    expect(
-      (await request.post("/api/agent-tools/check", { data: {} })).status(),
-    ).toBe(404);
-
-    await page.goto("/settings");
-    const nav = page.getByRole("navigation", { name: "设置分区", exact: true });
-    await expect(nav).toBeVisible();
-    await expect(nav.locator('a[href="#agent-tools"]')).toHaveCount(0);
-    await expect(page.locator("#agent-tools")).toHaveCount(0);
-  },
-);

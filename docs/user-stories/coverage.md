@@ -15,7 +15,7 @@ Dokku 隔离、HTTPS 上游、离线节点 CA、同 key 续签与公开上线状
 Relay 页内配对、宿主权威流程、导航恢复与操作核对：US-A10；用户码仅经鉴权专用接口返回，诊断与危险操作作为次级入口。
 
 原生历史冻结、默认图片/显式文本预览、完整页集、能力门禁、单次发送与进程内状态：US-Q20；原生正文/工具提取与归档恢复：US-Q12、US-Q19；文本及图片预算边界：US-K04。
-功能选择、固定旧配置语义与重启边界：US-K18；核心 PTY 与遗留偏好降级：US-K19；认证能力发现、动态入口及禁用路由：US-K20；禁用数据保留与有序关闭：US-K21。
+配置文件功能开关退役与遗留表忽略（US-K18 已退役，配置解析归 US-K03）；程序化核心 PTY 与遗留偏好降级基建：US-K19；认证能力发现、动态入口及禁用路由：US-K20；测试隔离数据保留与有序关闭：US-K21。
 
 目录共 264 条（A 组 US-A01–US-A10，共 10 条；K 组 US-K01–US-K21，共 21 条）。可选行为以对应功能已选择且能力可用为前提，依赖矩阵见[阅读约定](../user-stories.md#阅读约定与产品边界)，不是全目录已重验声明。
 
@@ -145,8 +145,8 @@ Relay 页内配对、宿主权威流程、导航恢复与操作核对：US-A10�
 | 运行中服务的待生效版本：状态、本机 API、配置响应与 Web UI 提示                                                                                                               | US-K16                                                        |
 | 更新通道：`update channel`、`/etc/webmux/update-channel`、开发版通道与切回不降级                                                                                             | US-K17                                                        |
 | `install.sh` 开发版安装：`WEBMUX_CHANNEL`、当前开发版 `WEBMUX_VERSION`                                                                                                       | US-K11                                                        |
-| config init/path/show/validate/check、启动时旧功能配置迁移、核心终端、能力发现与数据保留                                                                                     | US-K02–US-K04；US-K18–US-K21                                  |
-| 所有 TOML 配置项：访问、会话、提醒、存储、内置功能                                                                                                                           | US-A03；US-K03–US-K04；US-K08–US-K09；US-K18；US-N01–US-N04   |
+| config init/path/show/validate/check、遗留功能配置忽略（US-K18 已退役）、核心终端基建、能力发现与有序退出                                                                    | US-K02–US-K04；US-K19–US-K21                                  |
+| 所有 TOML 配置项：访问、会话、提醒、存储                                                                                                                                     | US-A03；US-K03–US-K04；US-K08–US-K09；US-N01–US-N04           |
 | service install/--dry-run/--force/start/stop/restart/status/logs/uninstall                                                                                                   | US-K05–US-K07                                                 |
 | version/version --json/help、VPN/HTTPS 代理与升级                                                                                                                            | US-K09                                                        |
 | 持久化文件、锁、写入入口与清单防漂移                                                                                                                                         | US-L10                                                        |

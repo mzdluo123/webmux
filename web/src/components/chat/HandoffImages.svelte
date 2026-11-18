@@ -5,6 +5,10 @@
   import type { HandoffPreview } from "../../contracts/handoff-schemas";
 
   let { pages }: { pages: HandoffPreview["pages"] } = $props();
+  let open = $state(false);
+  let actualSize = $state(false);
+  let trigger: HTMLElement | undefined;
+  let imageViewport = $state<HTMLDivElement>();
   let enlarged = $state<string | null>(null);
   const selected = $derived(pages.find((page) => page.sha256 === enlarged));
 </script>
@@ -17,7 +21,7 @@
         alt={m.handoff_image_page({ page: page.index + 1 })}
         width={page.width}
         height={page.height}
-        class="h-auto w-full"
+        class="aspect-4/3 h-auto w-full rounded-md bg-muted object-contain"
       />
       <figcaption class="flex flex-wrap items-center gap-2">
         <span class="text-xs text-muted-foreground"
@@ -26,7 +30,12 @@
         <Button
           variant="outline"
           size="sm"
-          onclick={() => (enlarged = page.sha256)}
+          onclick={(event) => {
+            trigger = event.currentTarget;
+            enlarged = page.sha256;
+            actualSize = false;
+            open = true;
+          }}
         >
           {m.handoff_image_zoom({ page: page.index + 1 })}
         </Button>
@@ -34,15 +43,17 @@
     </figure>
   {/each}
 </div>
-<Dialog.Root
-  open={!!selected}
-  onOpenChange={(open) => {
-    if (!open) enlarged = null;
-  }}
->
-  <Dialog.Content class="sm:max-w-6xl">
+<Dialog.Root open={open && !!selected} onOpenChange={(value) => (open = value)}>
+  <Dialog.Content
+    class="flex h-[min(48rem,calc(100dvh-2rem))] flex-col overflow-hidden sm:max-w-6xl"
+    onCloseAutoFocus={(event) => {
+      if (!trigger?.isConnected) return;
+      event.preventDefault();
+      trigger.focus({ preventScroll: true });
+    }}
+  >
     {#if selected}
-      <Dialog.Header>
+      <Dialog.Header class="shrink-0">
         <Dialog.Title
           >{m.handoff_image_page({ page: selected.index + 1 })}</Dialog.Title
         >
@@ -50,13 +61,31 @@
           >{selected.width} × {selected.height} · {selected.bytes} B</Dialog.Description
         >
       </Dialog.Header>
-      <div class="min-w-0 overflow-auto">
+      <div>
+        <Button
+          variant="outline"
+          size="sm-touch"
+          aria-pressed={actualSize}
+          onclick={() => {
+            actualSize = !actualSize;
+            imageViewport?.scrollTo({ top: 0, left: 0 });
+          }}>{m.s5_actual_size_1_1()}</Button
+        >
+      </div>
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex (the original image can pan with the keyboard) -->
+      <div
+        bind:this={imageViewport}
+        class="min-h-0 flex-1 overflow-auto overscroll-contain"
+        role="region"
+        aria-label={m.handoff_image_page({ page: selected.index + 1 })}
+        tabindex={actualSize ? 0 : undefined}
+      >
         <img
           src={`data:${selected.mimeType};base64,${selected.data}`}
           alt={m.handoff_image_page({ page: selected.index + 1 })}
           width={selected.width}
           height={selected.height}
-          class="max-w-none"
+          class={actualSize ? "max-w-none" : "size-full object-scale-down"}
         />
       </div>
     {/if}
