@@ -1,17 +1,17 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconArrowUpRight from "~icons/tabler/arrow-up-right";
   import IconDots from "~icons/tabler/dots";
   import IconInbox from "~icons/tabler/inbox";
-  import IconPlus from "~icons/tabler/plus";
   import IconTrash from "~icons/tabler/trash";
   import IconX from "~icons/tabler/x";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { Button } from "$lib/components/ui/button";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
-  import { Label } from "$lib/components/ui/label";
+  import ScratchNoteEditor from "./ScratchNoteEditor.svelte";
   import { Textarea } from "$lib/components/ui/textarea";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Dialog from "$lib/components/ui/dialog";
@@ -44,6 +44,11 @@
   } = $props();
   let closeButton = $state<HTMLButtonElement | null>(null);
   let newText = $state("");
+  let newEditor = $state<HTMLTextAreaElement | null>(null);
+  let noteList = $state<HTMLDivElement>();
+  let opener: HTMLButtonElement | null = null;
+  let conflictTrigger: HTMLElement | undefined;
+  let focusNoteId: string | undefined;
   let notice = $state("");
   let noticeTone = $state<"danger" | "success">("danger");
   let conflictId = $state<string | null>(null);
@@ -75,6 +80,7 @@
     const result = drafts.addScratch(draft, newText);
     if (result === "added") {
       newText = "";
+      newEditor?.focus({ preventScroll: true });
       if (!draft.scratchPersisted) {
         notice = m.s4_scratch_added_unpersisted();
         noticeTone = "danger";
@@ -99,7 +105,7 @@
       noticeTone = "danger";
     }
   }
-  function take(id: string) {
+  function take(id: string, trigger: HTMLElement) {
     const item = draft.scratch.find((candidate) => candidate.id === id);
     if (!item?.text) {
       notice = m.s4_scratch_item_empty();
@@ -112,18 +118,37 @@
       return;
     }
     if (draft.text) {
+      conflictTrigger = trigger;
       conflictId = id;
       return;
     }
     takeNow(id, "replace");
   }
+  function focusAvailableNote() {
+    const next = Array.from(
+      noteList?.querySelectorAll<HTMLButtonElement>(
+        "[data-scratch-take]:enabled",
+      ) ?? [],
+    ).find((button) => button.dataset.scratchTake === focusNoteId);
+    (next ?? newEditor)?.focus();
+    focusNoteId = undefined;
+  }
   function takeNow(id: string, mode: ScratchTakeMode) {
+    const index = draft.scratch.findIndex((item) => item.id === id);
+    const fromConflict = conflictId !== null;
     const result = drafts.takeScratch(draft, id, mode);
     conflictId = null;
     if (result === "taken") {
       if (!draft.scratchPersisted || !draft.persisted) {
         notice = m.s4_scratch_taken_unpersisted();
         noticeTone = "danger";
+        const available = (item: TerminalDraft["scratch"][number]) =>
+          !!item.text;
+        focusNoteId = (
+          draft.scratch.slice(index).find(available) ??
+          draft.scratch.slice(0, index).reverse().find(available)
+        )?.id;
+        if (!fromConflict) void tick().then(focusAvailableNote);
       } else {
         notice = "";
         open = false;
@@ -157,7 +182,14 @@
     showCloseButton={false}
     onOpenAutoFocus={(event) => {
       event.preventDefault();
+      const active = document.activeElement;
+      opener = active instanceof HTMLButtonElement ? active : null;
       closeButton?.focus();
+    }}
+    onCloseAutoFocus={(event) => {
+      if (!opener?.isConnected) return;
+      event.preventDefault();
+      opener.focus({ preventScroll: true });
     }}
   >
     <div
@@ -243,6 +275,7 @@
         </div>
         {#if draft.scratch.length}
           <div
+            bind:this={noteList}
             class="grid min-w-0 gap-3 [&>*]:min-w-0"
             role="list"
             aria-label={m.s4_scratch_list_label()}
@@ -324,7 +357,8 @@
                     aria-label={m.s4_scratch_use_aria({
                       index: String(index + 1),
                     })}
-                    onclick={() => take(item.id)}
+                    data-scratch-take={item.id}
+                    onclick={(event) => take(item.id, event.currentTarget)}
                     ><IconArrowUpRight
                       class="text-primary"
                       aria-hidden="true"
@@ -387,50 +421,28 @@
         {/if}
       </div>
     </div>
-
-    <div
-      class="grid max-h-[50dvh] shrink-0 gap-3 overflow-y-auto border-t bg-muted/30 px-4 py-4 sm:px-6"
-    >
-      {#if notice}
-        <InlineNotice tone={noticeTone}>{notice}</InlineNotice>
-      {/if}
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <Label for="scratch-new">{m.s4_scratch_new_label()}</Label>
-        <span class="text-xs text-muted-foreground" role="status">{saved}</span>
-      </div>
-      <Textarea
-        id="scratch-new"
-        bind:value={newText}
-        rows={2}
-        maxlength={scratchEntryLimit}
-        placeholder={m.s4_scratch_new_placeholder()}
-        code
-        class="h-20 min-h-20 resize-none field-sizing-fixed"
-        aria-describedby="scratch-new-limits"
-      />
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="min-w-0 text-xs text-muted-foreground">
-          <p>{m.s4_scratch_manual_send_hint()}</p>
-          <p id="scratch-new-limits" class="mt-1 tabular-nums">
-            {m.s4_scratch_char_ratio({
-              current: newText.length.toLocaleString(locale.current),
-              limit: scratchEntryLimit.toLocaleString(locale.current),
-            })}<span class="sr-only"
-              >{m.s4_scratch_limits_sr({
-                entries: String(scratchEntriesLimit),
-                total: scratchStorageLimit.toLocaleString(locale.current),
-              })}</span
-            >
+    {#if notice || full}
+      <div class="shrink-0 space-y-2 border-t px-4 py-2 sm:px-6">
+        {#if notice}
+          <InlineNotice tone={noticeTone} size="compact">{notice}</InlineNotice>
+        {/if}
+        {#if full}
+          <p class="text-xs text-warning" role="status">
+            {m.s4_scratch_limit_reached({
+              limit: String(scratchEntriesLimit),
+            })}
           </p>
-        </div>
-        <Button size="sm-touch" disabled={!newText || full} onclick={add}
-          ><IconPlus aria-hidden="true" />{m.s4_scratch_add_button()}</Button
-        >
+        {/if}
       </div>
-      {#if full}<p class="text-xs text-warning" role="status">
-          {m.s4_scratch_limit_reached({ limit: String(scratchEntriesLimit) })}
-        </p>{/if}
-    </div>
+    {/if}
+
+    <ScratchNoteEditor
+      bind:editor={newEditor}
+      bind:text={newText}
+      {saved}
+      {full}
+      onadd={add}
+    />
   </Dialog.Content>
 </Dialog.Root>
 
@@ -440,7 +452,19 @@
     if (!value) conflictId = null;
   }}
 >
-  <AlertDialog.Content>
+  <AlertDialog.Content
+    onCloseAutoFocus={(event) => {
+      event.preventDefault();
+      void tick().then(() => {
+        if (!open || conflictId !== null) return;
+        if (conflictTrigger?.isConnected) {
+          conflictTrigger.focus({ preventScroll: true });
+        } else {
+          focusAvailableNote();
+        }
+      });
+    }}
+  >
     <AlertDialog.Header>
       <AlertDialog.Title>{m.s4_scratch_conflict_title()}</AlertDialog.Title>
       <AlertDialog.Description
