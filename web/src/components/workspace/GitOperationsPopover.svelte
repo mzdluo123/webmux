@@ -179,7 +179,7 @@
       side="bottom"
       align="end"
       collisionPadding={8}
-      class="h-[min(26rem,var(--bits-popover-content-available-height))] w-[min(92vw,30rem)] gap-0 p-0"
+      class="max-h-[min(26rem,var(--bits-popover-content-available-height))] w-[min(92vw,30rem)] gap-0 overflow-hidden p-0"
       data-testid="git-operations-popover"
     >
       <div class="shrink-0 space-y-2 border-b px-3 pt-3 pb-2">
@@ -210,7 +210,7 @@
           {/if}
         </div>
 
-        <ScrollArea class="h-10">
+        <ScrollArea viewportClasses="max-h-16">
           {#if activeOperation && activeOperation.phase !== "idle"}
             <div
               class="flex min-w-0 items-start gap-2 text-xs"
@@ -252,7 +252,7 @@
           {/if}
         </ScrollArea>
       </div>
-      <ScrollArea class="flex-1">
+      <ScrollArea class="min-h-0">
         <div class="space-y-3 p-3">
           {#if operations.length === 0}
             <p class="py-3 text-center text-xs text-muted-foreground">

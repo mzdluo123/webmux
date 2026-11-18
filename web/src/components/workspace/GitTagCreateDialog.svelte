@@ -68,7 +68,9 @@
       >
       <span class="font-mono text-foreground">{targetOid.slice(0, 12)}</span>
       {#if targetLabel}
-        <span class="text-muted-foreground"> · {targetLabel}</span>
+        <span class="wrap-anywhere text-muted-foreground">
+          · {targetLabel}</span
+        >
       {/if}
     </div>
 

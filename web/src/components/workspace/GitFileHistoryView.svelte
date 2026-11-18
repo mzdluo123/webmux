@@ -72,7 +72,7 @@
     bind:this={list}
     tabindex="-1"
     class={[
-      "h-full min-h-0 min-w-0 flex-col lg:w-80 lg:shrink-0 lg:border-r",
+      "h-full min-h-0 min-w-0 flex-col lg:w-80 lg:max-w-[42%] lg:shrink-0 lg:border-r",
       !desktop.current && mobileShowDiff ? "hidden" : "flex",
     ]}
     data-testid="git-file-history-list"
@@ -165,7 +165,7 @@
       <div
         class="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b bg-background px-2.5 py-1.5 text-xs"
       >
-        <div class="flex min-w-0 items-center gap-1.5">
+        <div class="flex min-w-0 flex-wrap items-center gap-1.5">
           {#if isMobile}
             <Button
               size="sm"
