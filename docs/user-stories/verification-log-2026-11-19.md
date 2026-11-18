@@ -1,33 +1,24 @@
-# 核对记录：2026-11-19
+# 核对记录：2026-11-19 起
 
-这些记录对应 WebMux 尺寸审计的智能检出、工作树容量和启动配置。验证使用隔离 Linux Chromium，未连接生产后端或使用真机。各条目的 PR 提供三端浅深前后截图和交互录屏。
+承接 [verification-log-2026-11-18](verification-log-2026-11-18.md)，收录 2026-11-19 起的局部核对记录；索引见 [WebMux User Stories](../user-stories.md#核对记录)。
 
-## 智能检出恢复（T084，US-J28）
+## 2026-11-19：启动配置完成与介入提醒范围切换（T090，US-B08）
 
-- `pnpm --dir web test:browser test/browser/GitWorkbenchLineSmart.test.ts` 通过，覆盖活跃会话确认和冲突解决入口。隔离 Chromium 核对回滚保留贮藏与冲突结果，复制了 238 字符恢复命令。
+### 范围
 
-- [PR #782 的浏览器证据](https://github.com/mzdluo123/webmux/pull/782)。
+- 故事编号、总数与覆盖索引保持不变，更新 US-B08 的提醒范围交互验收标准：
+  - `web/src/components/settings/LaunchAttentionFields.svelte`：方向键可在「全部提醒」「仅需介入」「关闭」三档之间连续切换；
+  - 选「仅需介入」时四类信号源保持可用，时间阈值原位禁用并维持与「全部提醒」一致的高度；
+  - 选「关闭」时信号源、优先级说明与时间阈值通过 `useDockMotion` 收起并标记 `hidden` 与 `inert`，开启减少动态效果时直接切换；
+  - 时间阈值超出 `0–300` 秒或 `0–60` 秒范围时按需渲染 `role="alert"` 实时错误文本，无错误时保持紧凑布局。
 
-## 工作树容量结果（T085，US-J02）
+### 已执行验证与局限
 
-- `pnpm --dir web test:browser test/browser/WorktreeDetailsDialog.test.ts` 的 5 项通过。延迟的测量请求失败后可用键盘重试，下方分支与上游区的位置保持稳定。
-
-- [PR #783 的浏览器证据](https://github.com/mzdluo123/webmux/pull/783)。
-
-## 启动环境变量编辑（T088，US-B08、US-G07）
-
-- `pnpm --dir web test:browser test/browser/LaunchConfigDialog.test.ts` 通过。添加和删除后焦点落到对应变量名或添加按钮，值继续默认遮挡，错误与对应输入关联。
-
-- [PR #784 的浏览器证据](https://github.com/mzdluo123/webmux/pull/784)。
-
-## 加载 shell 启动文件（T089，US-B08）
-
-- `pnpm --dir web test:browser test/browser/LaunchConfigDialog.test.ts` 通过。切换 Bash 或 Zsh 包装时环境变量字段位置稳定，收起后 Tab 跳过选择框，按原样保存命令参数和环境变量。
-
-- [PR #785 的浏览器证据](https://github.com/mzdluo123/webmux/pull/785)。
-
-## 启动配置提醒范围（T090，US-B08）
-
-- `pnpm --dir web test:browser test/browser/LaunchConfigDialog.test.ts` 通过。方向键连续切换全部提醒、仅需介入和关闭时依赖字段保留位置，阈值范围错误立即写入实时播报区。
-
-- [PR #786 的浏览器证据](https://github.com/mzdluo123/webmux/pull/786)。
+- 前端类型、静态与文档门禁：
+  - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint` 与 `pnpm --dir web check:arch` 通过；
+  - `go test -count=1 ./internal/docguard` 通过。
+- 浏览器组件测试：
+  - `pnpm --dir web exec vp test run --config vitest.browser.config.ts test/browser/LaunchConfigDialog.test.ts` 通过，覆盖提醒范围键盘切换、「关闭」收起高度、阈值原位禁用与范围错误按需播报。
+- 局限：
+  - 本轮验证在无头 Linux Chromium 中执行，未连接生产后端，未在物理触屏或真机浏览器上复测。
+  - 视觉证据见 [PR #786](https://github.com/mzdluo123/webmux/pull/786)。

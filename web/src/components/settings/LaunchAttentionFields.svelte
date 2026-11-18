@@ -8,6 +8,7 @@
     SegmentedControl,
     SegmentedControlItem,
   } from "$lib/components/ui/segmented-control";
+  import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
   import type {
     AttentionMode,
     AttentionSettings,
@@ -110,6 +111,12 @@
         attentionDoneDelaySeconds < LAUNCH_ATTENTION_DONE_DELAY_MIN ||
         attentionDoneDelaySeconds > LAUNCH_ATTENTION_DONE_DELAY_MAX),
   );
+  const isOff = $derived(attentionMode === "off");
+  let details = $state<HTMLDivElement | null>(null);
+  useDockMotion(
+    () => details,
+    () => !isOff,
+  );
 </script>
 
 <fieldset id="launch-config-attention-fieldset" class="grid min-w-0 gap-2">
@@ -147,7 +154,7 @@
       {m.s2_launch_attn_default_help()}
     </p>
   {:else}
-    <div class="grid min-w-0 gap-3 pt-1">
+    <div class="min-w-0 pt-1">
       <div class="grid gap-1.5">
         <Label for="launch-config-attention-mode"
           >{m.s2_launch_attn_scope()}</Label
@@ -180,107 +187,109 @@
           {/each}
         </div>
       </div>
-      <div class="grid gap-2">
-        <span class="text-xs font-medium text-foreground"
-          >{m.s2_launch_attn_sources()}</span
-        >
-        <div class="grid gap-2 sm:grid-cols-2">
-          <div class="flex items-center gap-2">
-            <Checkbox
-              id="launch-config-attention-program-status"
-              bind:checked={attentionProgramStatus}
-              disabled={attentionMode === "off"}
-            />
-            <Label for="launch-config-attention-program-status"
-              >{m.s2_launch_attn_osc7501()}</Label
+      <div bind:this={details} hidden={isOff} inert={isOff} class="flow-root">
+        <div class="grid min-w-0 gap-3 pt-3">
+          <div class="grid gap-2">
+            <span class="text-xs font-medium text-foreground"
+              >{m.s2_launch_attn_sources()}</span
             >
+            <div class="grid gap-2 sm:grid-cols-2">
+              <div class="flex items-center gap-2">
+                <Checkbox
+                  id="launch-config-attention-program-status"
+                  bind:checked={attentionProgramStatus}
+                />
+                <Label for="launch-config-attention-program-status"
+                  >{m.s2_launch_attn_osc7501()}</Label
+                >
+              </div>
+              <div class="flex items-center gap-2">
+                <Checkbox
+                  id="launch-config-attention-agent-protocol"
+                  bind:checked={attentionAgentProtocol}
+                />
+                <Label for="launch-config-attention-agent-protocol"
+                  >{m.s2_launch_attn_warp()}</Label
+                >
+              </div>
+              <div class="flex items-center gap-2">
+                <Checkbox
+                  id="launch-config-attention-notify"
+                  bind:checked={attentionNotify}
+                />
+                <Label for="launch-config-attention-notify"
+                  >{m.s2_launch_attn_osc_notify()}</Label
+                >
+              </div>
+              <div class="flex items-center gap-2">
+                <Checkbox
+                  id="launch-config-attention-bell"
+                  bind:checked={attentionBell}
+                />
+                <Label for="launch-config-attention-bell"
+                  >{m.s2_launch_attn_bell()}</Label
+                >
+              </div>
+            </div>
+            <p class="text-xs text-muted-foreground">
+              {m.s2_launch_attn_priority_help()}
+            </p>
           </div>
-          <div class="flex items-center gap-2">
-            <Checkbox
-              id="launch-config-attention-agent-protocol"
-              bind:checked={attentionAgentProtocol}
-              disabled={attentionMode === "off"}
-            />
-            <Label for="launch-config-attention-agent-protocol"
-              >{m.s2_launch_attn_warp()}</Label
+          <div class="grid min-w-0 gap-4 sm:grid-cols-2">
+            <div class="grid gap-2">
+              <Label for="launch-config-attention-min-turn"
+                >{m.s2_launch_attn_min_turn()}</Label
+              >
+              <Input
+                id="launch-config-attention-min-turn"
+                type="number"
+                min={LAUNCH_ATTENTION_MIN_TURN_MIN}
+                max={LAUNCH_ATTENTION_MIN_TURN_MAX}
+                step={1}
+                bind:value={attentionMinTurnSeconds}
+                disabled={attentionMode !== "all"}
+                aria-invalid={attentionMinTurnInvalid}
+                aria-describedby={attentionError
+                  ? "launch-config-attention-threshold-help launch-config-attention-error"
+                  : "launch-config-attention-threshold-help"}
+              />
+            </div>
+            <div class="grid gap-2">
+              <Label for="launch-config-attention-done-delay"
+                >{m.s2_launch_attn_done_delay()}</Label
+              >
+              <Input
+                id="launch-config-attention-done-delay"
+                type="number"
+                min={LAUNCH_ATTENTION_DONE_DELAY_MIN}
+                max={LAUNCH_ATTENTION_DONE_DELAY_MAX}
+                step={1}
+                bind:value={attentionDoneDelaySeconds}
+                disabled={attentionMode !== "all"}
+                aria-invalid={attentionDoneDelayInvalid}
+                aria-describedby={attentionError
+                  ? "launch-config-attention-threshold-help launch-config-attention-error"
+                  : "launch-config-attention-threshold-help"}
+              />
+            </div>
+          </div>
+          {#if attentionError}
+            <p
+              id="launch-config-attention-error"
+              role="alert"
+              class="text-xs wrap-anywhere text-destructive"
             >
-          </div>
-          <div class="flex items-center gap-2">
-            <Checkbox
-              id="launch-config-attention-notify"
-              bind:checked={attentionNotify}
-              disabled={attentionMode === "off"}
-            />
-            <Label for="launch-config-attention-notify"
-              >{m.s2_launch_attn_osc_notify()}</Label
-            >
-          </div>
-          <div class="flex items-center gap-2">
-            <Checkbox
-              id="launch-config-attention-bell"
-              bind:checked={attentionBell}
-              disabled={attentionMode === "off"}
-            />
-            <Label for="launch-config-attention-bell"
-              >{m.s2_launch_attn_bell()}</Label
-            >
-          </div>
-        </div>
-        <p class="text-xs text-muted-foreground">
-          {m.s2_launch_attn_priority_help()}
-        </p>
-      </div>
-      <div class="grid min-w-0 gap-4 sm:grid-cols-2">
-        <div class="grid gap-2">
-          <Label for="launch-config-attention-min-turn"
-            >{m.s2_launch_attn_min_turn()}</Label
+              {attentionError}
+            </p>
+          {/if}
+          <p
+            id="launch-config-attention-threshold-help"
+            class="text-xs text-muted-foreground"
           >
-          <Input
-            id="launch-config-attention-min-turn"
-            type="number"
-            min={LAUNCH_ATTENTION_MIN_TURN_MIN}
-            max={LAUNCH_ATTENTION_MIN_TURN_MAX}
-            step={1}
-            bind:value={attentionMinTurnSeconds}
-            disabled={attentionMode !== "all"}
-            aria-invalid={attentionMinTurnInvalid}
-            aria-describedby={attentionError
-              ? "launch-config-attention-threshold-help launch-config-attention-error"
-              : "launch-config-attention-threshold-help"}
-          />
-        </div>
-        <div class="grid gap-2">
-          <Label for="launch-config-attention-done-delay"
-            >{m.s2_launch_attn_done_delay()}</Label
-          >
-          <Input
-            id="launch-config-attention-done-delay"
-            type="number"
-            min={LAUNCH_ATTENTION_DONE_DELAY_MIN}
-            max={LAUNCH_ATTENTION_DONE_DELAY_MAX}
-            step={1}
-            bind:value={attentionDoneDelaySeconds}
-            disabled={attentionMode !== "all"}
-            aria-invalid={attentionDoneDelayInvalid}
-            aria-describedby={attentionError
-              ? "launch-config-attention-threshold-help launch-config-attention-error"
-              : "launch-config-attention-threshold-help"}
-          />
+            {m.s2_launch_attn_threshold_help()}
+          </p>
         </div>
       </div>
-      <div
-        id="launch-config-attention-error"
-        role="alert"
-        class="min-h-10 text-xs text-destructive sm:min-h-8"
-      >
-        {attentionError ?? ""}
-      </div>
-      <p
-        id="launch-config-attention-threshold-help"
-        class="text-xs text-muted-foreground"
-      >
-        {m.s2_launch_attn_threshold_help()}
-      </p>
     </div>
   {/if}
 </fieldset>

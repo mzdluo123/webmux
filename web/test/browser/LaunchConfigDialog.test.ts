@@ -319,27 +319,34 @@ test("keeps alert controls in place while changing modes and announcing errors",
   const all = page.getByRole("radio", { name: "全部提醒", exact: true });
   const urgent = page.getByRole("radio", { name: "仅需介入", exact: true });
   const off = page.getByRole("radio", { name: "关闭", exact: true });
-  const editor = document.getElementById("launch-config-attention-fieldset");
-  const height = editor?.getBoundingClientRect().height;
+  const editor = document.getElementById("launch-config-attention-fieldset")!;
+  expect(page.getByRole("alert").elements()).toHaveLength(0);
+  const activeHeight = editor.offsetHeight;
 
   await all.click();
   await userEvent.keyboard("{ArrowRight}");
   await expect.element(urgent).toHaveFocus();
   await expect.element(threshold).toBeDisabled();
   await expect.element(agentEvents).toBeEnabled();
+  expect(editor.offsetHeight).toBe(activeHeight);
+  const details = agentEvents.element().closest(".flow-root") as HTMLElement;
 
   await userEvent.keyboard("{ArrowRight}");
   await expect.element(off).toHaveFocus();
-  await expect.element(agentEvents).toBeDisabled();
-  expect(editor?.getBoundingClientRect().height).toBe(height);
+  expect(details.inert).toBe(true);
+  await expect.poll(() => details.hidden).toBe(true);
+  expect(agentEvents.elements()).toHaveLength(0);
+  expect(editor.offsetHeight).toBeLessThan(activeHeight - 150);
 
   await userEvent.keyboard("{ArrowRight}");
   await expect.element(all).toHaveFocus();
+  await expect.element(agentEvents).toBeVisible();
+  expect(details.inert).toBe(false);
   await threshold.fill("301");
   await expect.element(page.getByRole("alert")).toMatchTextContent(/0–300/);
   await expect.element(threshold).toHaveAttribute("aria-invalid", "true");
-  expect(editor?.getBoundingClientRect().height).toBe(height);
   await threshold.fill("10");
+  expect(page.getByRole("alert").elements()).toHaveLength(0);
   const scrollBody = page.getByTestId("launch-config-scroll");
   await expect.element(scrollBody).toBeVisible();
   await save().click();
