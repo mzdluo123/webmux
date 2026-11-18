@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import ScratchPanelHarness from "./ScratchPanelHarness.svelte";
+import { createDraftStorage } from "../../src/domains/terminal/draft-storage";
 import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
 
 afterEach(() => cleanup());
@@ -19,6 +20,7 @@ test("adds a scratch note and takes it into the draft without sending", async ()
   await expect.element(page.getByText(/还没有暂存/)).toBeVisible();
   await page.getByLabelText("新建暂存").fill("稍后检查测试结果");
   await page.getByRole("button", { name: "添加暂存" }).click();
+  await expect.element(page.getByLabelText("新建暂存")).toHaveFocus();
   await expect
     .element(page.getByLabelText("暂存第 1 条"))
     .toHaveValue("稍后检查测试结果");
@@ -28,6 +30,31 @@ test("adds a scratch note and takes it into the draft without sending", async ()
   await expect
     .element(page.getByRole("dialog", { name: "暂存" }))
     .not.toBeInTheDocument();
+  await expect
+    .element(page.getByRole("button", { name: /打开暂存/ }))
+    .toHaveFocus();
+});
+
+test("takes a note without moving the editor when persistence fails", async () => {
+  const drafts = createTerminalDrafts({ storage: createDraftStorage(null) });
+  const draft = drafts.get("aaaaaaaa");
+  drafts.setEnabled(draft, true);
+  drafts.edit(draft, "current");
+  drafts.addScratch(draft, "first");
+  drafts.addScratch(draft, "second");
+  await render(ScratchPanelHarness, { drafts });
+  await openPanel();
+  const editor = page.getByLabelText("新建暂存");
+  await editor.click();
+  const before = editor.element().getBoundingClientRect().top;
+  await page.getByRole("button", { name: "取用暂存第 1 条" }).click();
+  await page.getByRole("button", { name: "追加到当前草稿" }).click();
+  await expect.element(page.getByRole("alert")).toBeVisible();
+  await expect
+    .element(page.getByRole("button", { name: "取用暂存第 1 条" }))
+    .toHaveFocus();
+  expect(draft.scratch.map((item) => item.text)).toEqual(["second"]);
+  expect(editor.element().getBoundingClientRect().top).toBeCloseTo(before, 0);
 });
 
 test("asks how to combine scratch with a non-empty draft", async () => {
