@@ -183,3 +183,16 @@ test("public-origin configuration changes warn and cancellation keeps credential
   await dialog().getByRole("button", { name: "取消", exact: true }).click();
   expect(writes).toEqual([]);
 });
+
+test("switching tunnel modes keeps tab panels untransformed during height transition", async () => {
+  serve();
+  render(TunnelManager);
+  await expect
+    .element(page.getByRole("tabpanel", { name: "Quick Tunnel" }))
+    .toBeVisible();
+  await page.getByRole("tab", { name: "Named Tunnel", exact: true }).click();
+  const namedPanel = page
+    .getByRole("tabpanel", { name: "Named Tunnel" })
+    .element() as HTMLElement;
+  expect(namedPanel.style.transform).toBe("");
+});
