@@ -30,8 +30,11 @@
   } = $props();
   const available = $derived(featureAvailable("workspace.github"));
   let refreshError = $state("");
+  let debouncePending = $state(false);
+  let queryRevision = $state(0);
   async function retry() {
     refreshError = "";
+    debouncePending = false;
     try {
       if (available) await controller.searchGitHub(query);
       else await requestFeatureHostRefresh();
@@ -40,20 +43,31 @@
     }
   }
   $effect(() => {
+    void queryRevision;
     if (!available) return;
     const search = query;
-    const timer = setTimeout(() => void controller.searchGitHub(search), 250);
+    const timer = setTimeout(() => {
+      debouncePending = false;
+      void controller.searchGitHub(search);
+    }, 250);
     return () => clearTimeout(timer);
   });
   const disabled = $derived(controller.busy || !!controller.pending);
   const loading = $derived(
-    available && (controller.githubLoading || controller.githubQuery !== query),
+    available &&
+      (debouncePending ||
+        controller.githubLoading ||
+        controller.githubQuery !== query),
   );
   const github = $derived(available && !loading ? controller.github : null);
   function updateQuery(next: string) {
     if (next === query) return;
     query = next;
+    queryRevision += 1;
     url = "";
+    refreshError = "";
+    debouncePending = available;
+    controller.cancelGitHubSearch();
   }
 </script>
 
@@ -69,11 +83,16 @@
       disabled={disabled || !available}
     />
     <Command.List class="h-56">
+      {#if !loading && refreshError}
+        <p role="alert" class="p-3 wrap-anywhere text-sm text-destructive">
+          {refreshError}
+        </p>
+      {/if}
       {#if !available}<p
           role="status"
           class="p-3 text-sm text-muted-foreground"
         >
-          {refreshError || m.s6_github_unavailable()}
+          {m.s6_github_unavailable()}
         </p>
       {:else if loading}<p
           role="status"
@@ -86,7 +105,9 @@
           {controller.githubError}
         </p>
       {:else if github?.available}
-        <Command.Empty>{m.s6_github_no_matches()}</Command.Empty>
+        {#if !refreshError}
+          <Command.Empty>{m.s6_github_no_matches()}</Command.Empty>
+        {/if}
         {#each github.repositories as repo (repo.fullName)}
           <Command.Item
             value={repo.fullName}
@@ -107,11 +128,11 @@
               >{/if}
           </Command.Item>
         {/each}
-      {:else}<p
+      {:else if !refreshError}<p
           role="status"
           class="p-3 wrap-anywhere text-sm text-muted-foreground"
         >
-          {refreshError || github?.reason || m.s6_github_waiting_identity()}
+          {github?.reason || m.s6_github_waiting_identity()}
         </p>{/if}
     </Command.List>
   </Command.Root>

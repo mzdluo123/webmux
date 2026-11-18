@@ -321,6 +321,14 @@ export function createProjectSources(
       operation = null;
       error = "";
     },
+    cancelGitHubSearch() {
+      ++githubGeneration;
+      githubAbort?.abort();
+      githubAbort = undefined;
+      githubLoading = false;
+      githubQuery = null;
+      githubError = "";
+    },
     async searchGitHub(query: string, page = 1) {
       const generation = ++githubGeneration;
       githubAbort?.abort();

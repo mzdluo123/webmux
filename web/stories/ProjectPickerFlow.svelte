@@ -70,31 +70,41 @@
         }
       : null,
   );
+  const githubRepositories = [
+    {
+      fullName: "demo/webmux",
+      description: "持久终端与 CLI 工作区",
+      private: true,
+      cloneUrl: "https://github.com/demo/webmux.git",
+    },
+  ];
+  let githubQuery = $state<string | null>("");
   const controller: ProjectSources = {
     projects: initial === "empty" ? [] : projects,
     loading: false,
     busy: false,
     error: "",
     githubLoading: false,
-    githubQuery: "",
+    get githubQuery() {
+      return githubQuery;
+    },
     githubError: "",
-    github: {
-      available: initial !== "github-unavailable",
-      reason:
-        initial === "github-unavailable"
-          ? "无法验证服务端 GitHub 身份，请检查服务用户的 gh 登录、权限与网络"
-          : "",
-      login: "demo",
-      repositories: [
-        {
-          fullName: "demo/webmux",
-          description: "持久终端与 CLI 工作区",
-          private: true,
-          cloneUrl: "https://github.com/demo/webmux.git",
-        },
-      ],
-      page: 1,
-      hasMore: false,
+    get github() {
+      return {
+        available: initial !== "github-unavailable",
+        reason:
+          initial === "github-unavailable"
+            ? "无法验证服务端 GitHub 身份，请检查服务用户的 gh 登录、权限与网络"
+            : "",
+        login: "demo",
+        repositories: githubRepositories.filter(
+          (repo) =>
+            !githubQuery ||
+            repo.fullName.toLowerCase().includes(githubQuery.toLowerCase()),
+        ),
+        page: 1,
+        hasMore: false,
+      };
     },
     get operation() {
       return operation;
@@ -132,7 +142,12 @@
     clearClone: () => {
       operation = null;
     },
-    searchGitHub: async () => {},
+    cancelGitHubSearch: () => {
+      githubQuery = null;
+    },
+    searchGitHub: async (q) => {
+      githubQuery = q;
+    },
     dispose: () => {},
   };
   const initialStep =
