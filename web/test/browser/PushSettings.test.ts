@@ -173,6 +173,10 @@ test("a pending permission prompt explains where to allow notifications", async 
     loadStatus: async () => available,
   });
   const toggle = page.getByRole("switch", { name: "在本设备开启推送" });
+  await expect.element(toggle).toBeVisible();
+  const testAction = page.getByRole("button", { name: /发送测试通知/ });
+  const initial = testAction.element().getBoundingClientRect().top;
+  toggle.element().focus();
   await toggle.click();
   const hint = page.getByText("等待浏览器通知授权");
   await expect.element(hint).toBeVisible();
@@ -181,6 +185,7 @@ test("a pending permission prompt explains where to allow notifications", async 
     .toBeVisible();
   await expect.element(toggle).toBeDisabled();
 
+  expect(testAction.element().getBoundingClientRect().top).toBe(initial);
   prompt.resolve("denied");
   await expect
     .element(page.getByText("未获得通知权限", { exact: false }))
@@ -188,4 +193,6 @@ test("a pending permission prompt explains where to allow notifications", async 
   await expect.element(hint).not.toBeInTheDocument();
   await expect.element(toggle).not.toBeChecked();
   await expect.element(toggle).toBeEnabled();
+  await expect.element(toggle).toHaveFocus();
+  expect(testAction.element().getBoundingClientRect().top).toBe(initial);
 });
