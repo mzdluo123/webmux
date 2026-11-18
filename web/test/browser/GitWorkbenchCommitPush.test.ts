@@ -3,12 +3,14 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import {
   GitCommitOutcomeSchema,
+  GitCommitPreviewModelSchema,
   type GitWorkbenchViewState,
 } from "../../src/contracts/git-workbench-schemas";
 import {
   buildGitWorkbenchFixture,
   type GitWorkbenchScenario,
 } from "../../stories/git-workbench-fixtures";
+import GitCommitPreviewDialog from "../../src/components/workspace/GitCommitPreviewDialog.svelte";
 import Harness from "./GitWorkbenchHarness.svelte";
 
 afterEach(async () => {
@@ -51,6 +53,73 @@ test("Ctrl+Enter in Commit Subject or Body only opens preview dialog and never c
 
   await previewDialog.getByRole("button", { name: "取消" }).click();
   await expect.element(previewDialog).not.toBeInTheDocument();
+});
+
+test("stale commit previews pin the disabled action and let users inspect the refreshed list", async () => {
+  await page.viewport(390, 844);
+  const original = GitCommitPreviewModelSchema.parse({
+    repositoryName: "fixture",
+    worktreePath: "/fixture",
+    headState: "branch",
+    branch: "main",
+    headOid: "abc",
+    expectedTreeOid: "before",
+    authorName: "Demo",
+    authorEmail: "demo@example.invalid",
+    signEnabled: false,
+    executableHooks: [],
+    stagedFiles: [
+      {
+        id: "change",
+        path: "before.ts",
+        group: "staged",
+        status: "M",
+        hunkStageAvailable: false,
+      },
+    ],
+    unstagedCount: 0,
+    untrackedCount: 0,
+    conflictedCount: 0,
+    followUpPush: false,
+    blockers: [],
+    warnings: [],
+  });
+  const preview = await render(GitCommitPreviewDialog, {
+    model: original,
+    commitMessage: "Keep this draft",
+    onConfirm: () => {},
+    onRefreshPreview: () => {},
+    onClose: () => {},
+  });
+  const confirm = page.getByTestId("git-commit-preview-confirm-btn");
+  await expect.element(confirm).toBeEnabled();
+  await expect
+    .poll(() => confirm.element().getBoundingClientRect().bottom)
+    .toBeLessThan(844);
+  const initial = confirm.element().getBoundingClientRect().top;
+  await preview.rerender({
+    model: { ...original, stale: true, dialogError: "暂存已变化。".repeat(70) },
+  });
+  await expect.element(confirm).toBeDisabled();
+  const refresh = page.getByRole("button", { name: /重新生成.*预览/ });
+  await expect.element(refresh).toBeVisible();
+  expect(confirm.element().getBoundingClientRect().top).toBeCloseTo(initial, 0);
+  await refresh.click();
+  await preview.rerender({
+    model: {
+      ...original,
+      expectedTreeOid: "after",
+      stagedFiles: [{ ...original.stagedFiles[0], path: "after.ts" }],
+    },
+  });
+  await expect.element(confirm).toBeEnabled();
+  await expect
+    .element(page.getByText("after.ts", { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(page.getByTestId("git-commit-preview-message"))
+    .toHaveTextContent("Keep this draft");
+  expect(confirm.element().getBoundingClientRect().top).toBeCloseTo(initial, 0);
 });
 
 test("needs_review commit outcome in Commit & Push aborts auto-opening Push dialog (A05)", async () => {

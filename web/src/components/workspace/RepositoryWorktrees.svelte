@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import { m } from "$lib/paraglide/messages.js";
   import { api } from "../../platform/api";
@@ -78,6 +79,48 @@
   let preview = $state<BatchRemovalPreview | null>(null);
   let includeForce = $state(false);
   let lastResult = $state<BatchRemoveResult | null>(null);
+  let stepBody = $state<HTMLDivElement | null>(null);
+  let stepHeading = $state<HTMLHeadingElement | null>(null);
+  let selectionAnchor: { id: string; offset: number } | undefined;
+  let selectionScrollTop = 0;
+
+  function viewport() {
+    return stepBody?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
+  }
+
+  function checkbox(id: string) {
+    return stepBody?.querySelector<HTMLElement>(
+      `[data-worktree-checkbox="${CSS.escape(id)}"]`,
+    );
+  }
+
+  async function showReviewStep(next: "preview" | "result") {
+    stage = next;
+    await tick();
+    if (!stepHeading || stage !== next) return;
+    stepHeading.focus({ preventScroll: true });
+    stepHeading.scrollIntoView({ block: "start", inline: "nearest" });
+  }
+
+  async function returnToSelection() {
+    error = "";
+    stage = "select";
+    await tick();
+    const scroller = viewport();
+    if (stage !== "select" || !scroller) return;
+    const anchor = selectionAnchor;
+    const target = anchor && checkbox(anchor.id);
+    if (target && !target.matches(":disabled,[aria-disabled=true]")) {
+      target.focus({ preventScroll: true });
+      scroller.scrollTop +=
+        target.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top -
+        anchor.offset;
+    } else {
+      stepBody?.focus({ preventScroll: true });
+      scroller.scrollTop = selectionScrollTop;
+    }
+  }
 
   const entries = $derived(
     buildWorktreeBatchEntries(repository, home, sessions, archived),
@@ -141,6 +184,16 @@
 
   function toggleWorktree(id: string, checked: boolean) {
     error = "";
+    const target = checkbox(id);
+    const scroller = viewport();
+    if (target && scroller) {
+      selectionAnchor = {
+        id,
+        offset:
+          target.getBoundingClientRect().top -
+          scroller.getBoundingClientRect().top,
+      };
+    }
     if (checked) {
       if (selectedIds.length >= MAX_BATCH_WORKTREES && !selected.has(id)) {
         error = m.s8_batch_err_max_select({ max: String(MAX_BATCH_WORKTREES) });
@@ -170,6 +223,8 @@
   }
 
   function startSelecting() {
+    selectionAnchor = undefined;
+    selectionScrollTop = 0;
     error = "";
     done = "";
     stage = "select";
@@ -184,6 +239,8 @@
   // Selects exactly the stale registrations and previews them; a failed
   // preview leaves the selection to review.
   async function pruneStale() {
+    selectionAnchor = undefined;
+    selectionScrollTop = 0;
     done = "";
     selected.clear();
     for (const id of stale) selected.add(id);
@@ -193,6 +250,7 @@
 
   async function loadPreview(ids: readonly string[] = selectedIds) {
     if (ids.length === 0) return;
+    if (stage === "select") selectionScrollTop = viewport()?.scrollTop ?? 0;
     busy = true;
     error = "";
     includeForce = false;
@@ -206,7 +264,7 @@
         BatchRemovalPreviewRequestSchema,
       );
       lastResult = null;
-      stage = "preview";
+      void showReviewStep("preview");
     } catch (err) {
       error = errorMessage(err);
       onchange();
@@ -249,7 +307,7 @@
       }
       for (const item of failed) selected.add(item.worktreeId);
       lastResult = res;
-      stage = "result";
+      void showReviewStep("result");
     } catch (err) {
       error = m.s8_batch_err_reload_preview({ error: errorMessage(err) });
       preview = null;
@@ -262,7 +320,7 @@
   }
 </script>
 
-<div class="space-y-4">
+<div bind:this={stepBody} class="space-y-4" tabindex="-1">
   {#if stage === "browse" || stage === "select"}
     <RepositoryWorktreesToolbar
       {stage}
@@ -299,7 +357,9 @@
     />
   {:else}
     <div class="space-y-1">
-      <h3 class="text-sm font-medium">{heading}</h3>
+      <h3 bind:this={stepHeading} tabindex="-1" class="text-sm font-medium">
+        {heading}
+      </h3>
       <p class="text-xs text-muted-foreground">{description}</p>
     </div>
     {#if stage === "preview" && preview}
@@ -342,8 +402,7 @@
           onclick={() => {
             preview = null;
             includeForce = false;
-            error = "";
-            stage = "select";
+            void returnToSelection();
           }}
         >
           {m.s8_wt_back_reselect()}
@@ -379,8 +438,7 @@
           disabled={busy}
           onclick={() => {
             lastResult = null;
-            error = "";
-            stage = "select";
+            void returnToSelection();
           }}
         >
           {m.s8_wt_back_to_list()}
