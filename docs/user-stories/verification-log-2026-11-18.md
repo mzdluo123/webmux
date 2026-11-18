@@ -64,3 +64,9 @@
   - `go test -race -count=1 ./cmd/... ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过；
   - Playwright E2E `agent-tools.spec.ts`、`relay-settings.spec.ts` 与 `worktrees.spec.ts`（直接目录创建降级）共 10 项通过。
+
+## 侧栏会话通知与待处理筛选（US-C06、US-C17）
+
+- 隔离 Chromium 复现首条急件下推桌面导航 40px、手机导航 51px，空收件箱关闭后焦点落在页面主体。保留入口与筛选器的计数位后，背景事件进出时三个视口的导航起点、阅读行和滚动值保持一致。
+- 聚焦的末项解除后回到「待处理」。按方向键可继续选择「全部」。收件箱清空时按 Esc 回到可见入口。
+- 使用隔离后端运行 `pnpm --dir web exec playwright test test/e2e/attention.spec.ts test/e2e/workbench-session-queue.spec.ts` 覆盖即时状态、末项焦点、侧栏菜单与 PTY 输入。已在 Linux Chromium 验证。

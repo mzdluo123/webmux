@@ -118,11 +118,15 @@
     onValueChange={(value) => onfilter(value === "attention")}
   >
     <SegmentedControlItem value="all">{m.s3_filter_all()}</SegmentedControlItem>
-    <SegmentedControlItem value="attention" bind:ref={attentionFilter}>
+    <SegmentedControlItem
+      value="attention"
+      class="flex-[2]"
+      bind:ref={attentionFilter}
+    >
       <span class="min-w-0 wrap-anywhere">{m.s8_sidebar_attention()}</span>
-      {#if pending.length}
-        <span class="shrink-0 font-mono tabular-nums">{pending.length}</span>
-      {/if}
+      <span class="min-w-[3ch] shrink-0 text-end font-mono tabular-nums"
+        >{pending.length || ""}</span
+      >
     </SegmentedControlItem>
   </SegmentedControl>
   {#if attentionOnly && !groups.length}
