@@ -95,6 +95,13 @@ func TestEvaluateFirewall(t *testing.T) {
 		}
 	})
 
+	t.Run("any protocol includes TCP", func(t *testing.T) {
+		raw := strings.Replace(validRule, "Protocol=6", "Protocol=256", 1)
+		if st := EvaluateFirewall(rule, []string{raw}, nil, FirewallProfiles{}, nil); !st.RuleValid {
+			t.Fatalf("expected valid rule: %+v", st)
+		}
+	})
+
 	for _, tc := range []struct {
 		name string
 		raw  string
@@ -139,7 +146,7 @@ func TestEvaluateFirewall(t *testing.T) {
 		}
 		st := EvaluateFirewall(rule, rules, nil, FirewallProfiles{}, nil)
 		wantBlocks := []string{"WebMux", "webmux-tray.exe"}
-		if !reflect.DeepEqual(st.LocalBlockNames, wantBlocks) || st.UnnamedLocalBlock {
+		if !reflect.DeepEqual(st.LocalBlockNames, wantBlocks) || st.ManualLocalBlock {
 			t.Fatalf("blocks = %+v, want %v", st, wantBlocks)
 		}
 	})
@@ -212,6 +219,8 @@ func TestFirewallApply(t *testing.T) {
 	disabledRule := "v2.31|Action=Allow|Active=FALSE|Dir=In|Protocol=6|Profile=Domain|Profile=Private|App=" + exe + "|Name=" + rule.Name() + "|"
 	localBlock := "v2.31|Action=Block|Active=TRUE|Dir=In|Protocol=6|Profile=Private|App=" + exe + "|Name=webmux-tray.exe|"
 	unnamedBlock := "v2.31|Action=Block|Active=TRUE|Dir=In|Protocol=6|Profile=Private|App=" + exe + "|"
+	collidingAllow := strings.Replace(localBlock, "Action=Block", "Action=Allow", 1)
+	wildcardBlock := strings.Replace(localBlock, "Name=webmux-tray.exe", "Name=ALL", 1)
 
 	for _, tc := range []struct {
 		name        string
@@ -226,6 +235,8 @@ func TestFirewallApply(t *testing.T) {
 		{name: "allow repairs disabled rule in one batch", netsh: fakeNetsh{rules: []string{disabledRule}}, allow: true, want: FirewallDone, verbs: []string{"delete", "add"}},
 		{name: "allow clears local block and repairs in one batch", netsh: fakeNetsh{rules: []string{validRule, localBlock}}, allow: true, clearBlocks: true, want: FirewallDone, verbs: []string{"delete", "delete", "add"}},
 		{name: "allow unnamed block fails without elevation", netsh: fakeNetsh{rules: []string{unnamedBlock}}, allow: true, clearBlocks: true, want: FirewallFailed},
+		{name: "same selector as allow rule needs manual cleanup", netsh: fakeNetsh{rules: []string{localBlock, collidingAllow}}, allow: true, clearBlocks: true, want: FirewallFailed},
+		{name: "reserved all name needs manual cleanup", netsh: fakeNetsh{rules: []string{wildcardBlock}}, allow: true, clearBlocks: true, want: FirewallFailed},
 		{name: "remove deletes the rule", netsh: fakeNetsh{rules: []string{validRule}}, allow: false, want: FirewallDone, verbs: []string{"delete"}},
 		{name: "remove without a rule asks nothing", netsh: fakeNetsh{}, allow: false, want: FirewallDone},
 		{name: "declined prompt", netsh: fakeNetsh{err: ErrElevationDeclined}, allow: true, want: FirewallDeclined, verbs: []string{"add"}},

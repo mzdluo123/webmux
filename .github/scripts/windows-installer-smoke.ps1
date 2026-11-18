@@ -212,12 +212,16 @@ try {
     Check ($rule.Count -eq 1 -and "$($rule[0].Action)" -eq 'Allow' -and "$($rule[0].Profile)" -eq 'Domain, Private') 'block-tampered rule replaced cleanly'
 
     $blockRule = New-NetFirewallRule -DisplayName 'WebMux Smoke Block' -Direction Inbound -Action Block -Protocol TCP -Profile Private -Program $tray
+    $udpBlock = New-NetFirewallRule -DisplayName 'WebMux Smoke Block' -Direction Inbound -Action Block -Protocol UDP -Profile Private -Program $tray
+    $outboundBlock = New-NetFirewallRule -DisplayName 'WebMux Smoke Block' -Direction Outbound -Action Block -Protocol TCP -Profile Private -Program $tray
     try {
       Check ((Run $tray @('firewall', 'allow', '--clear-blocks')) -eq 0) 'firewall allow --clear-blocks exits 0'
       $remainingBlock = @(Get-NetFirewallRule -Name $blockRule.Name -ErrorAction SilentlyContinue)
       Check ($remainingBlock.Count -eq 0 -and @(FirewallRules).Count -eq 1) 'conflicting local inbound block rule removed'
+      Check (@(Get-NetFirewallRule -Name $udpBlock.Name,$outboundBlock.Name).Count -eq 2) 'UDP and outbound rules with the same display name are preserved'
     } finally {
       Remove-NetFirewallRule -Name $blockRule.Name -ErrorAction SilentlyContinue
+      Remove-NetFirewallRule -Name $udpBlock.Name,$outboundBlock.Name -ErrorAction SilentlyContinue
     }
 
     Check ((Run $tray @('firewall', 'remove')) -eq 0 -and @(FirewallRules).Count -eq 0) 'firewall remove deletes the rule'

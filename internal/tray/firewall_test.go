@@ -65,6 +65,13 @@ func TestLANFirewallEntry(t *testing.T) {
 		}
 	})
 
+	t.Run("duplicate managed rule still offers repair when TCP is allowed", func(t *testing.T) {
+		got := LANFirewallEntry(lanOn, privatePlan, FirewallCheck{Checked: true, RulePresent: true, AllowedPrivateDomain: true})
+		if !got.Show || got.ActionTitle != "修复 Windows 防火墙规则…" {
+			t.Fatalf("duplicate rule: %+v", got)
+		}
+	})
+
 	t.Run("local block rule offers clear-and-allow with confirmation", func(t *testing.T) {
 		got := LANFirewallEntry(lanOn, privatePlan, FirewallCheck{
 			Checked:              true,

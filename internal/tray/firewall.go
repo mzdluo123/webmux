@@ -24,7 +24,7 @@ type FirewallCheck struct {
 	RuleValid            bool
 	AllowedPrivateDomain bool
 	LocalBlocks          []string
-	UnnamedLocalBlock    bool
+	ManualLocalBlock     bool
 	PolicyBlocked        bool
 	DomainShielded       bool // DoNotAllowExceptions=1 on active Domain profile
 	PrivateShielded      bool // DoNotAllowExceptions=1 on active Private profile
@@ -110,14 +110,14 @@ func AssessLANFirewall(plan ForwardPlan, fw FirewallCheck) LANFirewallItem {
 		}
 	}
 
-	if fw.UnnamedLocalBlock {
+	if fw.ManualLocalBlock {
 		return LANFirewallItem{
 			Show:         true,
 			Info:         "防火墙存在阻止规则，其他设备无法连接",
 			ActionTitle:  "防火墙与网络说明…",
 			Action:       LANFirewallExplain,
 			WarnOnToggle: true,
-			Guide: "检测到本机 Windows 防火墙中存在针对当前托盘（webmux-tray.exe）的无名称入站阻止规则；Windows 防火墙中阻止规则优先于允许规则。\n\n" +
+			Guide: "检测到针对当前托盘（webmux-tray.exe）的入站阻止规则，该规则无法通过名称安全地单独清理。Windows 防火墙中阻止规则优先于允许规则。\n\n" +
 				"请打开“高级安全 Windows Defender 防火墙（wf.msc） → 入站规则”，按程序路径筛选并删除针对 webmux-tray.exe 的阻止规则。",
 		}
 	}
@@ -136,17 +136,17 @@ func AssessLANFirewall(plan ForwardPlan, fw FirewallCheck) LANFirewallItem {
 		}
 	}
 
-	if !fw.AllowedPrivateDomain {
-		if fw.RulePresent && !fw.RuleValid {
-			return LANFirewallItem{
-				Show:        true,
-				Info:        "防火墙规则已失效，其他设备可能无法连接",
-				ActionTitle: "修复 Windows 防火墙规则…",
-				Action:      LANFirewallAllow,
-				TogglePrompt: "当前托盘的 Windows 防火墙放行规则已被禁用或属性变更，其他设备可能无法经托盘转发访问 WebMux。\n\n" +
-					"选择“是”将弹出一次管理员确认，重建专用网络与域网络的入站 TCP 允许规则；选择“否”仍开启局域网访问，稍后可在托盘菜单中修复。" + publicNote,
-			}
+	if fw.RulePresent && !fw.RuleValid {
+		return LANFirewallItem{
+			Show:        true,
+			Info:        "防火墙规则已失效，其他设备可能无法连接",
+			ActionTitle: "修复 Windows 防火墙规则…",
+			Action:      LANFirewallAllow,
+			TogglePrompt: "当前托盘的 Windows 防火墙放行规则已被禁用、重复或属性变更。\n\n" +
+				"选择“是”将弹出一次管理员确认，重建专用网络与域网络的入站 TCP 允许规则；选择“否”仍开启局域网访问，稍后可在托盘菜单中修复。" + publicNote,
 		}
+	}
+	if !fw.AllowedPrivateDomain {
 		return LANFirewallItem{
 			Show:        true,
 			Info:        "防火墙未放行，其他设备可能无法连接",

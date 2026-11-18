@@ -130,9 +130,6 @@ func runFirewall(args []string, selfExe string) int {
 			if alreadyElevated {
 				return runNetshBatch(netsh, cmds)
 			}
-			if len(cmds) == 1 {
-				return runElevated(netsh, cmds[0])
-			}
 			childArgs := []string{"firewall"}
 			if req.Allow {
 				childArgs = append(childArgs, "allow")

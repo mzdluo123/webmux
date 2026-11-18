@@ -124,10 +124,13 @@ func (r FirewallRule) DeleteArgs() []string {
 	return []string{"advfirewall", "firewall", "delete", "rule", "name=" + r.Name()}
 }
 
-// DeleteProgramRuleArgs returns the netsh arguments deleting rules matching
-// both name and this executable's path.
-func (r FirewallRule) DeleteProgramRuleArgs(name string) []string {
-	return []string{"advfirewall", "firewall", "delete", "rule", "name=" + name, "program=" + r.Exe}
+// DeleteProgramRuleArgs targets inbound rules with this name and executable.
+func (r FirewallRule) DeleteProgramRuleArgs(name string, anyProtocol bool) []string {
+	args := []string{"advfirewall", "firewall", "delete", "rule", "name=" + name, "program=" + r.Exe, "dir=in"}
+	if !anyProtocol {
+		args = append(args, "protocol=TCP")
+	}
+	return args
 }
 
 // ProfileMask is a bitmask of Windows Defender Firewall profiles.
@@ -247,10 +250,11 @@ type FirewallStatus struct {
 	// LocalBlockNames lists sorted unique display names of active local inbound
 	// Block rules targeting Rule.Exe on Domain or Private profiles (excluding
 	// Rule.Name(), which DeleteArgs removes directly).
-	LocalBlockNames []string
-	// UnnamedLocalBlock reports an active local inbound Block rule with an
-	// empty display name.
-	UnnamedLocalBlock bool
+	LocalBlockNames   []string
+	anyProtocolBlocks map[string]bool
+	// ManualLocalBlock reports a block that netsh cannot select without
+	// possibly deleting an unrelated rule.
+	ManualLocalBlock bool
 	// PolicyBlocked reports an active policy/MDM inbound Block rule targeting
 	// Rule.Exe on Domain or Private profiles.
 	PolicyBlocked bool
@@ -267,7 +271,12 @@ func EvaluateFirewall(rule FirewallRule, localRules, policyRules []string, profi
 	st := FirewallStatus{Profiles: profiles}
 
 	namedTotal, namedValid := 0, 0
-	blockSet := map[string]struct{}{}
+	type selector struct {
+		block           string
+		anyProtocol     bool
+		other, otherTCP bool
+	}
+	selectors := map[string]selector{}
 	for _, raw := range localRules {
 		p, ok := ParseFirewallRuleString(raw)
 		if !ok {
@@ -276,41 +285,59 @@ func EvaluateFirewall(rule FirewallRule, localRules, policyRules []string, profi
 		isNamed := strings.EqualFold(p.Name, wantName)
 		if isNamed {
 			namedTotal++
-			if p.Active && p.Dir == "in" && p.Action == "allow" && p.Protocol == "6" &&
+			if p.Active && p.Dir == "in" && p.Action == "allow" && (p.Protocol == "" || p.Protocol == "6") &&
 				p.Profiles == privateDomain && p.App != "" && sameExe(p.App, rule.Exe) && !p.Narrowed {
 				namedValid++
 			}
 		}
-		if !p.Active || p.Dir != "in" || (p.Protocol != "" && p.Protocol != "6") || p.App == "" || !sameExe(p.App, rule.Exe) {
+		if p.Dir != "in" || p.App == "" || !sameExe(p.App, rule.Exe) {
 			continue
 		}
-		switch p.Action {
-		case "allow":
-			if !p.Narrowed && p.Profiles&privateDomain == privateDomain {
-				st.AllowedPrivateDomain = true
-			}
-		case "block":
-			if p.Profiles&privateDomain != 0 && !isNamed {
-				if p.Name == "" {
-					st.UnnamedLocalBlock = true
-				} else {
-					blockSet[p.Name] = struct{}{}
-				}
-			}
+		tcpRule := p.Protocol == "6"
+		coversTCP := p.Active && (p.Protocol == "" || tcpRule)
+		if coversTCP && p.Action == "allow" && !p.Narrowed && p.Profiles&privateDomain == privateDomain {
+			st.AllowedPrivateDomain = true
 		}
+		if isNamed {
+			continue
+		}
+		key := strings.ToLower(p.Name)
+		s := selectors[key]
+		if coversTCP && p.Action == "block" && p.Profiles&privateDomain != 0 {
+			if key == "" || strings.TrimSpace(key) == "all" {
+				st.ManualLocalBlock = true // netsh reserves name=all as a wildcard.
+			} else {
+				s.block = p.Name
+				s.anyProtocol = s.anyProtocol || !tcpRule
+			}
+		} else {
+			s.other = true
+			s.otherTCP = s.otherTCP || tcpRule
+		}
+		selectors[key] = s
 	}
 	st.RulePresent = namedTotal > 0
 	st.RuleValid = namedTotal == 1 && namedValid == 1
 	if st.RuleValid {
 		st.AllowedPrivateDomain = true
 	}
-	if len(blockSet) > 0 {
-		st.LocalBlockNames = make([]string, 0, len(blockSet))
-		for name := range blockSet {
-			st.LocalBlockNames = append(st.LocalBlockNames, name)
+	for _, s := range selectors {
+		if s.block == "" {
+			continue
 		}
-		sort.Strings(st.LocalBlockNames)
+		if s.otherTCP || (s.anyProtocol && s.other) {
+			st.ManualLocalBlock = true
+		} else {
+			st.LocalBlockNames = append(st.LocalBlockNames, s.block)
+			if s.anyProtocol {
+				if st.anyProtocolBlocks == nil {
+					st.anyProtocolBlocks = make(map[string]bool)
+				}
+				st.anyProtocolBlocks[s.block] = true
+			}
+		}
 	}
+	sort.Strings(st.LocalBlockNames)
 
 	for _, raw := range policyRules {
 		p, ok := ParseFirewallRuleString(raw)
@@ -374,7 +401,7 @@ func (f Firewall) Apply(allow, clearBlocks bool) int {
 		return FirewallDone
 	}
 
-	if clearBlocks && st.UnnamedLocalBlock {
+	if clearBlocks && st.ManualLocalBlock {
 		return FirewallFailed
 	}
 	needUnblock := clearBlocks && len(st.LocalBlockNames) > 0
@@ -388,7 +415,7 @@ func (f Firewall) Apply(allow, clearBlocks bool) int {
 	if needUnblock {
 		for _, name := range st.LocalBlockNames {
 			if !strings.EqualFold(name, f.Rule.Name()) {
-				cmds = append(cmds, f.Rule.DeleteProgramRuleArgs(name))
+				cmds = append(cmds, f.Rule.DeleteProgramRuleArgs(name, st.anyProtocolBlocks[name]))
 			}
 		}
 	}
@@ -400,7 +427,7 @@ func (f Firewall) Apply(allow, clearBlocks bool) int {
 	if err != nil || !st.RuleValid {
 		return FirewallFailed
 	}
-	if clearBlocks && (len(st.LocalBlockNames) > 0 || st.UnnamedLocalBlock) {
+	if clearBlocks && (len(st.LocalBlockNames) > 0 || st.ManualLocalBlock) {
 		return FirewallFailed
 	}
 	return FirewallDone

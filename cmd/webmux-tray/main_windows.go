@@ -153,7 +153,7 @@ func inspectFirewall(exe string) tray.FirewallCheck {
 		RuleValid:            st.RuleValid,
 		AllowedPrivateDomain: st.AllowedPrivateDomain,
 		LocalBlocks:          st.LocalBlockNames,
-		UnnamedLocalBlock:    st.UnnamedLocalBlock,
+		ManualLocalBlock:     st.ManualLocalBlock,
 		PolicyBlocked:        st.PolicyBlocked,
 		DomainShielded:       st.Profiles.Domain.BlockAllInbound,
 		PrivateShielded:      st.Profiles.Private.BlockAllInbound,
