@@ -53,6 +53,12 @@
 - 隔离 Chromium 中核对了 6 个视口的明暗主题、长标题和页面横向溢出，以及桌面键盘焦点与悬停提示。未验证实体触屏或真机。
 - [手机上为隐藏的项目创建首个会话](../images/pr/sidebar-session-groups/interaction-phone.gif)。
 
+## 2026-11-19：批量管理工作树返回原选择行（US-J14）
+
+- 隔离 Chromium 实测选择→预览→返回，以及确认→长结果→返回。验证桌面、平板、手机与手机减少动态效果。
+- `RepositoryPanel.test.ts` 及 `worktrees.spec.ts` 的批量清理用例通过，E2E 覆盖桌面及 iPhone SE Chromium。
+- 本轮使用无头 Linux Chromium，未在物理触屏或真机浏览器核对。
+
 ## 2026-11-19：关闭配置文件功能开关并固定启用全部内置模块（US-K18 退役、US-K03）
 
 - 故事编号与总数（264）保持不变，将 US-K18 标为已退役并同步覆盖索引：
