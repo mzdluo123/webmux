@@ -32,6 +32,11 @@
   - 本机免密与 Relay 浏览器顶层导航的非执行行为通过 HTTP 响应头契约（`application/octet-stream`、`attachment`、`nosniff` 与 `sandbox` CSP）回归验证，未连接公网 Relay 节点演练；
   - 浏览器与端到端用例仅在 Linux 无头 Chromium 中执行，未在 macOS / iOS / Android 真机浏览器上复测。
 
+## T045 终端查找与回放提示（US-D11）
+
+- 查找栏在查询为空且未回放时省略状态行保持紧凑覆盖高度；有查询或回放提示时仅挂载单个命名的 `role="status"`（`查找结果`），切换匹配结果与回放提示期间高度保持一致，并在回放完成前后保留输入框或按钮焦点。
+- `TerminalRendering.test.ts` 与 `terminal.spec.ts` 的桌面和 iPhone SE Chromium 用例覆盖紧凑初始高度、单一状态播报、回放焦点保留、匹配复制和关闭后的 PTY 输入。
+
 ## Codex 原生历史版本兼容（US-Q19、US-Q20）
 
 - 修复前，`go test -count=1 ./internal/agent/codex/history -run '^TestRuntimeDiscoveryCurrentCaptureAndFreeze$'` 在三个新增版本上均复现 byte 0 格式错误。
@@ -39,6 +44,13 @@
 - 回归测试使用公开夹具正文和派生版本头验证较新版本、运行时来源发现、冻结后补查及同一身份冲突。无效写入版本和引用式分支返回不同格式错误。
 - `go test -race -count=1 ./internal/codexrollout ./internal/agent/codex/history ./internal/historyimport ./internal/historysource ./internal/historyprojection ./internal/handoff` 六个包通过，覆盖默认分页图片、任务原文、来源冻结与预览到期。
 - `make docs-check` 通过。
+
+## T047 草稿恢复操作（US-F05、US-F06）
+
+- 窄栏常规草稿编辑在无提交状态且无不可发送提示时不渲染状态行，保留完整编辑区高度；出现提交状态或不可发送提示时状态行以 `max-h-[2lh]` 展示。
+- `TerminalDraft.test.ts` 浏览器用例验证重发原提交与转为草稿在 `tick()` 解除只读后于非触屏环境恢复编辑区焦点并保留选区，在 `(any-pointer: coarse)` 触屏环境下保持不自动聚焦（US-H02）。
+- `composer.spec.ts` 的桌面和 iPhone SE Chromium 用例覆盖真实 PTY 输入隔离和草稿编辑。未测试真机软键盘。
+- 320×568 与 200% 字号下，恢复按钮换行且全部在可用宽度内。草稿和满暂存列表的 2 项 Storybook 溢出回归通过。
 
 ## 原生历史最低版本基线（US-Q19、US-Q20）
 

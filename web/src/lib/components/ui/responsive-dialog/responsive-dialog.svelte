@@ -65,10 +65,14 @@
 {#snippet drawerBody()}
   {#if pinDrawerHeader}
     <ScrollArea class="min-h-8 flex-1">
-      <div class="px-4 pt-1 pb-safe-4">{@render children()}</div>
+      <div class={["px-4 pt-1", !footer && "pb-safe-4"]}>
+        {@render children()}
+      </div>
     </ScrollArea>
   {:else}
-    <div class="px-4 pt-1 pb-safe-4">{@render children()}</div>
+    <div class={["px-4 pt-1", !footer && "pb-safe-4"]}>
+      {@render children()}
+    </div>
   {/if}
 {/snippet}
 
@@ -114,7 +118,9 @@
       }}
     >
       <ScrollArea class="min-h-8">
-        <div class="grid gap-4 [&>*]:min-w-0 max-sm:pb-safe-4">
+        <div
+          class={["grid gap-4 [&>*]:min-w-0", !footer && "max-sm:pb-safe-4"]}
+        >
           {#if actions}
             <div class="flex min-w-0 items-start gap-3 pr-8">
               <Dialog.Header class="min-w-0 flex-1 pr-0">
@@ -132,7 +138,9 @@
           {@render children()}
         </div>
       </ScrollArea>
-      {#if footer}<div class="shrink-0">{@render footer()}</div>{/if}
+      {#if footer}<div class="shrink-0 max-sm:pb-safe-4">
+          {@render footer()}
+        </div>{/if}
     </Dialog.Content>
   </Dialog.Root>
 {:else}

@@ -455,14 +455,6 @@
       onclick={toggleGutter}><IconNumber aria-hidden="true" /></Button
     >
   </div>
-  <CodeReaderPanels
-    panel={find.panel}
-    query={find.search}
-    line={selected?.start ?? line()}
-    status={find.status}
-    {...find.panelProps}
-    ongoto={goto}
-  />
   <div class="relative min-h-0 min-w-0 flex-1">
     <div
       bind:this={host}
@@ -474,6 +466,14 @@
       class="code-reader h-full overflow-x-hidden overflow-y-auto overscroll-contain outline-none contain-strict [overflow-anchor:none]"
     ></div>
   </div>
+  <CodeReaderPanels
+    panel={find.panel}
+    query={find.search}
+    line={selected?.start ?? line()}
+    status={find.status}
+    {...find.panelProps}
+    ongoto={goto}
+  />
   <CodeHorizontalScrollbar
     {track}
     bind:trackElement

@@ -164,10 +164,14 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
   }
 
   async function refreshApplyPreview() {
+    previewReq.cancel();
+    applyPreview = null;
+    acknowledgeSessions = false;
     const repoId = deps.getRepoId();
     const wtId = deps.getWorktreeId();
     const target = applyTarget;
     if (!repoId || !wtId || !target) {
+      loadingPreview = false;
       dialogError = m.s7_stash_select_writable_apply();
       return;
     }
@@ -210,7 +214,19 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
     const repoId = deps.getRepoId();
     const wtId = deps.getWorktreeId();
     const cur = applyPreview;
-    if (!repoId || !wtId || !cur?.confirmationId || submitting) return;
+    if (
+      !applyOpen ||
+      !repoId ||
+      !wtId ||
+      !cur?.confirmationId ||
+      cur.mode !== applyMode ||
+      cur.reinstateIndex !== applyReinstateIndex ||
+      cur.blockers.length > 0 ||
+      (cur.sessions.length > 0 && !acknowledgeSessions) ||
+      loadingPreview ||
+      submitting
+    )
+      return;
     submitting = true;
     dialogError = "";
     const opKind = applyMode === "pop" ? "stash_pop" : "stash_apply";
@@ -354,6 +370,7 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
       return applyMode;
     },
     setApplyMode(mode: "apply" | "pop") {
+      if (submitting || mode === applyMode) return;
       applyMode = mode;
       void refreshApplyPreview();
     },
@@ -361,6 +378,7 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
       return applyReinstateIndex;
     },
     setApplyReinstateIndex(val: boolean) {
+      if (submitting || val === applyReinstateIndex) return;
       applyReinstateIndex = val;
       void refreshApplyPreview();
     },

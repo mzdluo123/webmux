@@ -7,6 +7,7 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import { locale } from "$lib/locale";
   import { m } from "$lib/paraglide/messages.js";
+  import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
   import { useTextareaDraft } from "../../hooks/terminal/textarea-draft.svelte";
   import { editDraftKey } from "../../domains/terminal/draft-key";
   import type {
@@ -67,6 +68,10 @@
   export function focus() {
     textarea?.focus({ preventScroll: true });
   }
+  async function restoreFocusAfterRecovery() {
+    await tick();
+    if (allowAutomaticInputFocus()) focus();
+  }
   // Toggles the soft keyboard; `beforeOpen` runs just before focusing.
   export function keyboard(beforeOpen?: (target: HTMLElement) => void) {
     const focused = document.activeElement === textarea;
@@ -119,7 +124,10 @@
   }
 </script>
 
-<section class="terminal-composer" aria-label={m.s4_composer_aria()}>
+<section
+  class="terminal-composer @container/draft"
+  aria-label={m.s4_composer_aria()}
+>
   {#if draft.restoredAt}
     <p class="shrink-0 truncate text-xs text-muted-foreground" role="status">
       {m.s4_draft_restored_banner({
@@ -152,17 +160,11 @@
         event.preventDefault();
     }}
   />
-  <div class="flex shrink-0 flex-wrap items-center gap-2">
-    {#if draft.submission || unavailable}<span
-        class="min-w-0 flex-[1_1_100%] wrap-anywhere sm:flex-[1_1_12rem] text-xs text-muted-foreground"
-        role="status"
-        aria-label={m.s4_draft_submission_status_aria()}
-        >{draft.submission
-          ? submissionText(draft.submission.state)
-          : unavailable}</span
-      >{/if}
+  <div
+    class="flex shrink-0 flex-col gap-1 @2xl/draft:flex-row-reverse @2xl/draft:items-center"
+  >
     <div
-      class="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2"
+      class="ml-auto flex w-full min-w-0 max-w-full flex-wrap items-center justify-end gap-2 px-1 py-0.5 @2xl/draft:w-auto"
     >
       {#if draft.submission?.state === "unknown"}
         <Button
@@ -170,7 +172,10 @@
           size="sm"
           disabled={!!unavailable}
           title={m.s4_resend_original_title()}
-          onclick={resend}>{m.s4_resend_original()}</Button
+          onclick={() => {
+            resend();
+            void restoreFocusAfterRecovery();
+          }}>{m.s4_resend_original()}</Button
         >
       {/if}
       {#if draft.submission?.state === "unknown" || draft.submission?.state === "partial"}
@@ -178,7 +183,10 @@
           variant="outline"
           size="sm"
           title={m.s4_release_to_draft_title()}
-          onclick={release}>{m.s4_release_to_draft()}</Button
+          onclick={() => {
+            release();
+            void restoreFocusAfterRecovery();
+          }}>{m.s4_release_to_draft()}</Button
         >
       {/if}
       {#if voice}{@render voice()}{/if}
@@ -219,6 +227,17 @@
         >
       {/if}
     </div>
+    {#if draft.submission || unavailable}
+      <p
+        class="max-h-[2lh] min-w-0 shrink-0 overflow-y-auto wrap-anywhere text-xs text-muted-foreground @2xl/draft:flex-1"
+        role="status"
+        aria-label={m.s4_draft_submission_status_aria()}
+      >
+        {draft.submission
+          ? submissionText(draft.submission.state)
+          : unavailable}
+      </p>
+    {/if}
   </div>
 </section>
 
