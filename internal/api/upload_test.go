@@ -11,8 +11,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +22,7 @@ import (
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/transport"
 )
 
 // uploadAPI serves one live session whose artifacts folders live under
@@ -154,6 +157,29 @@ func TestUploadPersistsBinaryInSessionUploadsFolder(t *testing.T) {
 	}
 }
 
+func requireUploadReadHeaders(t *testing.T, h http.Header, wantType, wantDisposition, wantFilename string, wantLen int) {
+	t.Helper()
+	if got := h.Get("Content-Type"); got != wantType {
+		t.Fatalf("Content-Type %q, want %q", got, wantType)
+	}
+	if got := h.Get("Content-Length"); got != strconv.Itoa(wantLen) {
+		t.Fatalf("Content-Length %q, want %d", got, wantLen)
+	}
+	if got := h.Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control %q, want no-store", got)
+	}
+	if got := h.Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("X-Content-Type-Options %q, want nosniff", got)
+	}
+	if got := h.Get("Content-Security-Policy"); got != "default-src 'none'; sandbox" {
+		t.Fatalf("Content-Security-Policy %q, want default-src 'none'; sandbox", got)
+	}
+	kind, params, err := mime.ParseMediaType(h.Get("Content-Disposition"))
+	if err != nil || kind != wantDisposition || params["filename"] != wantFilename {
+		t.Fatalf("Content-Disposition %q (%v), want %s filename=%q", h.Get("Content-Disposition"), err, wantDisposition, wantFilename)
+	}
+}
+
 func TestReadUploadServesSessionUploadedFileWithSniffedMediaType(t *testing.T) {
 	handler, _, item, _, uploads := uploadAPI(t)
 	png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89")
@@ -170,22 +196,27 @@ func TestReadUploadServesSessionUploadedFileWithSniffedMediaType(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	get := httptest.NewRequest(http.MethodGet, "http://webmux.example/api/sessions/"+item.Info().ID+"/upload?path="+uploaded.Path, nil)
+	readURL := "http://webmux.example/api/sessions/" + item.Info().ID + "/upload?path=" + url.QueryEscape(uploaded.Path)
+	get := httptest.NewRequest(http.MethodGet, readURL, nil)
 	get.Header.Set("Authorization", "Bearer secret")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, get)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("read upload: %d %s", rec.Code, rec.Body.String())
 	}
-	if got := rec.Header().Get("Content-Type"); got != "image/png" {
-		t.Fatalf("Content-Type %q, want image/png", got)
-	}
-	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
-		t.Fatalf("Cache-Control %q, want no-store", got)
-	}
+	requireUploadReadHeaders(t, rec.Header(), "image/png", "inline", "shot.png", len(png))
 	if !bytes.Equal(rec.Body.Bytes(), png) {
 		t.Fatalf("body %v, want %v", rec.Body.Bytes(), png)
 	}
+
+	head := httptest.NewRequest(http.MethodHead, readURL, nil)
+	head.Header.Set("Authorization", "Bearer secret")
+	headRec := httptest.NewRecorder()
+	handler.ServeHTTP(headRec, head)
+	if headRec.Code != http.StatusOK || headRec.Body.Len() != 0 {
+		t.Fatalf("HEAD read upload: %d len=%d", headRec.Code, headRec.Body.Len())
+	}
+	requireUploadReadHeaders(t, headRec.Header(), "image/png", "inline", "shot.png", len(png))
 
 	for _, row := range []struct {
 		name   string
@@ -215,6 +246,236 @@ func TestReadUploadServesSessionUploadedFileWithSniffedMediaType(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReadUploadForcesAttachmentAndSandboxForNonRasterFiles(t *testing.T) {
+	handler, _, item, _, uploads := uploadAPI(t)
+	if err := os.MkdirAll(uploads, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Dir(uploads), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(uploads, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		giveName        string
+		giveData        []byte
+		wantContentType string
+		wantDisposition string
+	}{
+		{
+			giveName:        "photo.jpg",
+			giveData:        []byte{0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 'J', 'F', 'I', 'F'},
+			wantContentType: "image/jpeg",
+			wantDisposition: "inline",
+		},
+		{
+			giveName:        "anim.gif",
+			giveData:        []byte("GIF89a\x01\x00\x01\x00\x00\x00\x00;"),
+			wantContentType: "image/gif",
+			wantDisposition: "inline",
+		},
+		{
+			giveName:        "banner.webp",
+			giveData:        []byte("RIFF\x0c\x00\x00\x00WEBPVP8 "),
+			wantContentType: "image/webp",
+			wantDisposition: "inline",
+		},
+		{
+			giveName:        "cover.avif",
+			giveData:        []byte("\x00\x00\x00\x18ftypavif\x00\x00\x00\x00mif1"),
+			wantContentType: "image/avif",
+			wantDisposition: "inline",
+		},
+		{
+			giveName:        "bitmap.bmp",
+			giveData:        []byte("BM\x00\x00\x00\x00"),
+			wantContentType: "image/bmp",
+			wantDisposition: "inline",
+		},
+		{
+			giveName:        "favicon.ico",
+			giveData:        []byte{0x00, 0x00, 0x01, 0x00, 0x01, 0x00},
+			wantContentType: "image/x-icon",
+			wantDisposition: "inline",
+		},
+		{
+			giveName:        "report.html",
+			giveData:        []byte("<!DOCTYPE html><html><body><script>fetch('/api/sessions',{method:'POST'})</script></body></html>"),
+			wantContentType: "application/octet-stream",
+			wantDisposition: "attachment",
+		},
+		{
+			giveName:        "disguised.png",
+			giveData:        []byte("<html><script>alert(1)</script></html>"),
+			wantContentType: "application/octet-stream",
+			wantDisposition: "attachment",
+		},
+		{
+			giveName:        "payload.xml",
+			giveData:        []byte(`<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><script>alert(1)</script></html>`),
+			wantContentType: "application/octet-stream",
+			wantDisposition: "attachment",
+		},
+		{
+			giveName:        "chart-xml.svg",
+			giveData:        []byte(`<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`),
+			wantContentType: "application/octet-stream",
+			wantDisposition: "attachment",
+		},
+		{
+			giveName:        "chart.svg",
+			giveData:        []byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`),
+			wantContentType: "application/octet-stream",
+			wantDisposition: "attachment",
+		},
+		{
+			giveName:        "manual.pdf",
+			giveData:        []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\n"),
+			wantContentType: "application/octet-stream",
+			wantDisposition: "attachment",
+		},
+		{
+			giveName:        "notes.txt",
+			giveData:        []byte("plain text"),
+			wantContentType: "application/octet-stream",
+			wantDisposition: "attachment",
+		},
+		{
+			giveName:        "empty.bin",
+			giveData:        nil,
+			wantContentType: "application/octet-stream",
+			wantDisposition: "attachment",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.giveName, func(t *testing.T) {
+			target := filepath.Join(uploads, tt.giveName)
+			if err := os.WriteFile(target, tt.giveData, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			r := httptest.NewRequest(http.MethodGet, "http://webmux.example/api/sessions/"+item.Info().ID+"/upload?path="+url.QueryEscape(target), nil)
+			r.Header.Set("Authorization", "Bearer secret")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, r)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+			}
+			requireUploadReadHeaders(t, rec.Header(), tt.wantContentType, tt.wantDisposition, tt.giveName, len(tt.giveData))
+			if !bytes.Equal(rec.Body.Bytes(), tt.giveData) {
+				t.Fatalf("body %q, want %q", rec.Body.Bytes(), tt.giveData)
+			}
+		})
+	}
+}
+
+func TestReadUploadTopLevelNavigationBlocksScriptExecutionAcrossAuthModes(t *testing.T) {
+	root := t.TempDir()
+	cwd := t.TempDir()
+	m := session.NewManager(session.Options{DefaultCwd: cwd})
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+		defer cancel()
+		m.Shutdown(ctx)
+	})
+	item, err := m.Create(session.CreateInput{Cwd: cwd, Cmd: []string{"/bin/sh"}, Name: "nav"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	folders := artifacts.New(artifacts.Options{TempDir: root, StateDir: t.TempDir(), Manager: m})
+	folders.Start(func(string) bool { return false })
+	t.Cleanup(folders.Close)
+	uploads, err := folders.EnsureUploads(item.Info().ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	htmlPayload := []byte("<!DOCTYPE html><html><script>fetch('/api/sessions',{method:'POST'})</script></html>")
+	xmlSVGPayload := []byte(`<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><script>fetch('/api/relay/auth/session')</script></svg>`)
+	htmlPath := filepath.Join(uploads, "report.html")
+	xmlPath := filepath.Join(uploads, "diagram.svg")
+	if err := os.WriteFile(htmlPath, htmlPayload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(xmlPath, xmlSVGPayload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("local passwordless top-level GET", func(t *testing.T) {
+		localHandler := New(testDeps(t, testServices{
+			Config:    config.Config{Listen: "127.0.0.1:7681", Token: ""},
+			Manager:   m,
+			Workspace: testWorkspace(t, m, cwd),
+			Artifacts: folders,
+		}))
+		for _, tt := range []struct {
+			giveName string
+			givePath string
+			giveData []byte
+		}{
+			{giveName: "report.html", givePath: htmlPath, giveData: htmlPayload},
+			{giveName: "diagram.svg", givePath: xmlPath, giveData: xmlSVGPayload},
+		} {
+			r := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:7681/api/sessions/"+item.Info().ID+"/upload?path="+url.QueryEscape(tt.givePath), nil)
+			rec := httptest.NewRecorder()
+			localHandler.ServeHTTP(rec, r)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("%s status %d: %s", tt.giveName, rec.Code, rec.Body.String())
+			}
+			requireUploadReadHeaders(t, rec.Header(), "application/octet-stream", "attachment", tt.giveName, len(tt.giveData))
+		}
+	})
+
+	t.Run("relay owner browser top-level GET", func(t *testing.T) {
+		rf := newRelayBrowserFixture(t)
+		cookie := rf.login(t, "/")
+		principal, err := rf.auth.Authenticate(cookie.Value, rf.origin)
+		if err != nil {
+			t.Fatal(err)
+		}
+		deps := testDeps(t, testServices{
+			Config:    config.Config{Listen: "127.0.0.1:7681", Token: strings.Repeat("s", 43)},
+			Manager:   m,
+			Workspace: testWorkspace(t, m, cwd),
+			Artifacts: folders,
+		})
+		deps.Public = rf.server.Public
+		deps.Relay = rf.server.Relay
+		relayHandler := New(deps)
+		for _, tt := range []struct {
+			giveName string
+			givePath string
+			giveData []byte
+		}{
+			{giveName: "report.html", givePath: htmlPath, giveData: htmlPayload},
+			{giveName: "diagram.svg", givePath: xmlPath, giveData: xmlSVGPayload},
+		} {
+			targetPath := "/api/sessions/" + item.Info().ID + "/upload?path=" + url.QueryEscape(tt.givePath)
+
+			cookieReq := httptest.NewRequest(http.MethodGet, rf.origin+targetPath, nil)
+			cookieReq.AddCookie(cookie)
+			cookieReq = cookieReq.WithContext(transport.TrustedRelayContext(cookieReq.Context()))
+			cookieRec := httptest.NewRecorder()
+			relayHandler.ServeHTTP(cookieRec, cookieReq)
+			if cookieRec.Code != http.StatusOK {
+				t.Fatalf("%s cookie status %d: %s", tt.giveName, cookieRec.Code, cookieRec.Body.String())
+			}
+			requireUploadReadHeaders(t, cookieRec.Header(), "application/octet-stream", "attachment", tt.giveName, len(tt.giveData))
+
+			ownerReq := httptest.NewRequest(http.MethodGet, rf.origin+targetPath, nil)
+			ownerReq = ownerReq.WithContext(RelayOwnerContext(ownerReq.Context(), principal))
+			ownerRec := httptest.NewRecorder()
+			relayHandler.ServeHTTP(ownerRec, ownerReq)
+			if ownerRec.Code != http.StatusOK {
+				t.Fatalf("%s owner status %d: %s", tt.giveName, ownerRec.Code, ownerRec.Body.String())
+			}
+			requireUploadReadHeaders(t, ownerRec.Header(), "application/octet-stream", "attachment", tt.giveName, len(tt.giveData))
+		}
+	})
 }
 
 func TestUploadNormalizesTraversalFilenames(t *testing.T) {
