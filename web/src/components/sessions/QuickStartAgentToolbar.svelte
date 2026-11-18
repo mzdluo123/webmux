@@ -113,7 +113,19 @@
     role="toolbar"
     aria-label={m.s3_qs_launch_options_label()}
   >
-    <div class="ms-auto flex shrink-0 items-center gap-0.5">
+    <div
+      class="ms-auto flex min-h-(--control-xs) shrink-0 items-center gap-0.5"
+    >
+      {#if chat && probing}
+        <span
+          class="flex shrink-0 items-center gap-1.5 px-2 text-xs text-muted-foreground"
+          role="status"
+          ><IconLoader2
+            class="size-3.5 animate-spin motion-reduce:animate-none"
+            aria-hidden="true"
+          />{m.s3_loading_config()}</span
+        >
+      {/if}
       {@render agentPicker()}
       {@render sidePicker()}
       {#if chat}
@@ -131,18 +143,6 @@
             onchange={onoptionchange}
           />
         {/if}
-        <span
-          class={[
-            "flex shrink-0 items-center gap-1.5 px-2 text-xs text-muted-foreground",
-            !probing && "invisible",
-          ]}
-          role={probing ? "status" : undefined}
-          aria-hidden={!probing}
-          ><IconLoader2
-            class={["size-3.5", probing && "motion-safe:animate-spin"]}
-            aria-hidden="true"
-          />{m.s3_loading_config()}</span
-        >
       {/if}
     </div>
   </div>

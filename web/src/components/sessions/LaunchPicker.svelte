@@ -44,12 +44,18 @@
     onchoose: () => void;
   } = $props();
   let open = $state(false);
+  const isCustom = $derived(source === "custom");
   let commandPanel = $state<HTMLDivElement | null>(null);
-  let commandChange = $state(0);
+  let manualCustomChange = false;
   useDockMotion(
     () => commandPanel,
-    () => true,
-    () => String(commandChange),
+    () => isCustom,
+    undefined,
+    () => {
+      const animate = manualCustomChange;
+      manualCustomChange = false;
+      return animate;
+    },
   );
   const providers = getFeatureContributions().creation;
   const chatEnabled = $derived(
@@ -71,7 +77,8 @@
   );
 
   async function choose(next: LaunchSource, id = configId) {
-    if ((source === "custom") !== (next === "custom")) commandChange++;
+    if ((source === "custom") !== (next === "custom"))
+      manualCustomChange = true;
     source = next;
     configId = id;
     setOpen(false);
@@ -198,17 +205,21 @@
       </p>
     {/if}
   </div>
-  <div bind:this={commandPanel} class="flow-root">
-    {#if source === "custom"}
-      <div class="pt-2"><CustomCommandField bind:command {disabled} /></div>
-    {:else if chosen?.chat && chatEnabled && providers.LaunchStartSideFields}
-      <div class="pt-2">
-        <providers.LaunchStartSideFields
-          bind:startSide
-          support={chosen.chatSupport}
-          {disabled}
-        />
-      </div>
-    {/if}
+  <div
+    bind:this={commandPanel}
+    hidden={!isCustom}
+    inert={!isCustom}
+    class="flow-root"
+  >
+    <div class="pt-2"><CustomCommandField bind:command {disabled} /></div>
   </div>
+  {#if chosen?.chat && chatEnabled && providers.LaunchStartSideFields}
+    <div class="pt-2">
+      <providers.LaunchStartSideFields
+        bind:startSide
+        support={chosen.chatSupport}
+        {disabled}
+      />
+    </div>
+  {/if}
 </div>

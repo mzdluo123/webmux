@@ -26,7 +26,7 @@
     config,
     disabled,
     modeDisabled,
-    loading,
+    loading = false,
     error = "",
     onmodechange,
     onconfigchange,
@@ -124,17 +124,13 @@
     <div
       class="flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pb-safe-4"
     >
-      {#if loading !== undefined}
+      {#if loading}
         <p
-          class={[
-            "flex items-center gap-1.5 text-xs text-muted-foreground",
-            !loading && "invisible",
-          ]}
-          role={loading ? "status" : undefined}
-          aria-hidden={!loading}
+          class="flex items-center gap-1.5 text-xs text-muted-foreground"
+          role="status"
         >
           <IconLoader2
-            class={["size-3.5", loading && "motion-safe:animate-spin"]}
+            class="size-3.5 animate-spin motion-reduce:animate-none"
             aria-hidden="true"
           />{m.s3_loading_config()}
         </p>

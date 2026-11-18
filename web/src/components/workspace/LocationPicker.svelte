@@ -79,6 +79,15 @@
   const worktree = $derived(
     repository && treesOf(repository).find((tree) => tree.id === worktreeId),
   );
+  const hasSecondary = $derived(
+    kind === "directory"
+      ? Boolean(projectScoped && cwd)
+      : kind === "new-worktree"
+        ? Boolean(newWorktreeSummary)
+        : worktree
+          ? Boolean(worktree.path)
+          : Boolean(repository),
+  );
 
   async function closeSelection() {
     setOpen(false);
@@ -179,7 +188,10 @@
   <PickerField id="session-location" bind:open={() => open, setOpen} {disabled}>
     {#snippet trigger()}
       <span
-        class="flex min-h-10 min-w-0 flex-1 items-start gap-2 [&>svg]:self-center"
+        class={[
+          "flex min-h-10 min-w-0 flex-1 gap-2 [&>svg]:self-center",
+          hasSecondary ? "items-start" : "items-center",
+        ]}
       >
         {#if kind === "directory"}
           <IconFolder
