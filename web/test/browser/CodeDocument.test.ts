@@ -386,7 +386,7 @@ test("replacing or hiding a document cancels its Worker and ignores late results
       result: { kind: "limited", reason: "计算受限" },
     },
   });
-  await expect.element(page.getByRole("status")).toHaveTextContent("计算受限");
+  await expect.element(page.getByRole("alert")).toHaveTextContent("计算受限");
   await expect
     .element(page.getByRole("button", { name: "完整文件", exact: true }))
     .toBeEnabled();
