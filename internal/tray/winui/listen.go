@@ -78,6 +78,7 @@ func (a *App) listen() {
 	})
 	on(m.install, a.installWebmux)
 	on(m.lanAccess, a.toggleLANAccess)
+	on(m.lanFirewallAction, a.handleLANFirewallAction)
 	on(m.start, a.sup.Start)
 	on(m.stop, a.stopWebMux)
 	on(m.restart, a.restartWebMux)

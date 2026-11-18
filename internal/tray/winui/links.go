@@ -121,6 +121,9 @@ func (a *App) toggleLANAccess() {
 		a.kickUI()
 		return
 	}
+	if enable {
+		a.checkFirewallBeforeLAN(snap)
+	}
 	addr := tray.LANListenAddress(snap, enable)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	err := a.svc.Current().ConfigListen(ctx, addr)

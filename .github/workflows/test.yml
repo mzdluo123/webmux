@@ -381,9 +381,13 @@ jobs:
           frontend: "false"
           node: "false"
           go: "true"
-      - name: Check Windows stdin EOF and cancellation
+      - name: Check Windows stdin EOF, cancellation and tray host inspection
         shell: pwsh
-        run: go test ./internal/attach -run TestReadInputWindows -count=1
+        run: |
+          go test ./internal/attach -run TestReadInputWindows -count=1
+          if ($LASTEXITCODE) { exit 1 }
+          go test ./internal/tray/traysys -count=1
+          if ($LASTEXITCODE) { exit 1 }
       - name: Build installers
         shell: pwsh
         run: |

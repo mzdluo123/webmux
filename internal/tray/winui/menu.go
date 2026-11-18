@@ -83,7 +83,8 @@ type menu struct {
 	tailscale, tailscaleInfo, tsSettings   *item
 	pushInfo, pushGuide                    *item
 
-	lanAccess *item
+	lanAccess                          *item
+	lanFirewallInfo, lanFirewallAction *item
 
 	start, stop, restart, install, update *item
 
@@ -103,11 +104,12 @@ type menu struct {
 
 // bindings are what the dynamic items currently stand for.
 type bindings struct {
-	remote   []remoteLink // fills remoteLinks then forwardLinks, in order
-	reported int          // remote[:reported] fill remoteLinks
-	access   []tray.AccessItem
-	distros  []string
-	update   tray.UpdateItem
+	remote      []remoteLink // fills remoteLinks then forwardLinks, in order
+	reported    int          // remote[:reported] fill remoteLinks
+	access      []tray.AccessItem
+	distros     []string
+	update      tray.UpdateItem
+	lanFirewall tray.LANFirewallItem
 }
 
 func add(title string) *item { return newItem(systray.AddMenuItem(title, ""), title) }
@@ -180,6 +182,12 @@ func buildMenu() *menu {
 		it.hide()
 	}
 	m.lanAccess = add("允许局域网访问")
+	m.lanFirewallInfo = add("")
+	m.lanFirewallInfo.mi.Disable()
+	m.lanFirewallInfo.enabled = false
+	m.lanFirewallInfo.hide()
+	m.lanFirewallAction = add("放行 Windows 防火墙…")
+	m.lanFirewallAction.hide()
 	systray.AddSeparator()
 
 	m.start = add("启动")

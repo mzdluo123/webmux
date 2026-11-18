@@ -8,11 +8,22 @@ import (
 	"github.com/rainchan/webmux/internal/contract"
 )
 
+// NetworkCategory names the Windows Firewall network profile of an interface.
+type NetworkCategory string
+
+const (
+	NetworkUnknown NetworkCategory = ""
+	NetworkPublic  NetworkCategory = "public"
+	NetworkPrivate NetworkCategory = "private"
+	NetworkDomain  NetworkCategory = "domain"
+)
+
 // WinInterface is one Windows network interface.
 type WinInterface struct {
 	Name     string
 	Up       bool
 	Loopback bool
+	Category NetworkCategory
 	Addrs    []net.IP
 }
 
@@ -21,7 +32,8 @@ type Candidate struct {
 	Address   string
 	Interface string
 	// Kind is "tailscale" or "lan".
-	Kind string
+	Kind     string
+	Category NetworkCategory
 }
 
 // WindowsCandidates lists enabled private LAN (RFC 1918) and Tailscale IPv4
@@ -42,14 +54,19 @@ func WindowsCandidates(list []WinInterface) []Candidate {
 			if !v4.IsPrivate() && kind != "tailscale" {
 				continue
 			}
-			out = append(out, Candidate{Address: v4.String(), Interface: iface.Name, Kind: kind})
+			out = append(out, Candidate{
+				Address:   v4.String(),
+				Interface: iface.Name,
+				Kind:      kind,
+				Category:  iface.Category,
+			})
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Kind == "tailscale" && out[j].Kind != "tailscale" })
 	return out
 }
 
-// ForwardPlan drives the "远程访问" submenu.
+// ForwardPlan drives Windows-side forwarding and its firewall guidance.
 type ForwardPlan struct {
 	// Needed is false when WSL is already reachable from other devices.
 	Needed bool

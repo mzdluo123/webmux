@@ -19,12 +19,12 @@
 ; Silent mode (/S) over an existing install keeps its directory and the
 ; login item as they are; internal/tray updates itself this way.
 ;
-; The only administrator prompt is the optional firewall rule of the
-; interactive install ("安装选项"): `webmux-tray firewall allow` adds it for
-; the installed tray and FirewallRule records that tray's path. Unchecking
-; the option on a later interactive install, or uninstalling, removes the
-; recorded rule. Silent installs never prompt and leave the rule as it is;
-; a silent update in place keeps it, since the rule follows the tray's path.
+; The installer itself runs as the user (`RequestExecutionLevel user`).
+; Adding a firewall rule (`webmux-tray firewall allow`) prompts for
+; administrator confirmation once — either when the optional install checkbox
+; is kept checked, or later when enabling LAN access from the tray menu.
+; Silent installs never prompt and leave any existing rule untouched; an
+; in-place silent update keeps it because the rule follows the tray's path.
 
 !ifndef VERSION | ARCH | TRAY | SERVER | ICON | OUTFILE
   !error "VERSION, ARCH, TRAY, SERVER, ICON and OUTFILE must be defined with -D"
@@ -214,7 +214,7 @@ Function optionsPage
   ${NSD_CreateCheckbox} 0 44u 100% 12u "允许其他设备通过托盘转发访问 WebMux（添加 Windows 防火墙规则）"
   Pop $FirewallBox
   ${NSD_SetState} $FirewallBox $Firewall
-  ${NSD_CreateLabel} 12u 58u -12u 36u "只放行专用网络与域网络上对托盘的入站连接，不放行公用网络。安装时会弹出一次管理员确认；不使用托盘转发可以取消勾选。"
+  ${NSD_CreateLabel} 12u 58u -12u 36u "只放行专用网络与域网络上对托盘的入站连接，不放行公用网络。安装时会弹出一次管理员确认；取消勾选后仍可在托盘开启“允许局域网访问”时再放行。"
   Pop $0
   nsDialogs::Show
 FunctionEnd
@@ -311,9 +311,9 @@ Section "-WebMux tray"
         ClearErrors
       ${EndIf}
     ${ElseIf} $0 == 3
-      MessageBox MB_OK|MB_ICONINFORMATION "已跳过 Windows 防火墙规则，其他设备暂时无法通过托盘转发访问。$\r$\n$\r$\n需要时重新运行安装程序并保持勾选，或在命令行运行：$\r$\n$\"$INSTDIR\webmux-tray.exe$\" firewall allow" /SD IDOK
+      MessageBox MB_OK|MB_ICONINFORMATION "已跳过 Windows 防火墙规则，其他设备暂时无法通过托盘转发访问。$\r$\n$\r$\n之后可在托盘开启“允许局域网访问”时放行，或在命令行运行：$\r$\n$\"$INSTDIR\webmux-tray.exe$\" firewall allow" /SD IDOK
     ${Else}
-      MessageBox MB_OK|MB_ICONEXCLAMATION "未能添加 Windows 防火墙规则（代码 $0）。托盘已安装，本机使用不受影响。$\r$\n$\r$\n需要时可在命令行重试：$\r$\n$\"$INSTDIR\webmux-tray.exe$\" firewall allow" /SD IDOK
+      MessageBox MB_OK|MB_ICONEXCLAMATION "未能添加 Windows 防火墙规则（代码 $0）。托盘已安装，本机使用不受影响。$\r$\n$\r$\n之后可在托盘菜单重试，或在命令行运行：$\r$\n$\"$INSTDIR\webmux-tray.exe$\" firewall allow" /SD IDOK
     ${EndIf}
   ${ElseIfNot} ${Silent}
   ${AndIf} $FirewallOld != ""
@@ -343,17 +343,29 @@ SectionEnd
 Section "Uninstall"
   Call un.closeTray
 
-  ; The rule the installer added for this tray; removing it shows the
-  ; administrator prompt once.
+  ; Remove any firewall rule for the installed tray (including rules added at
+  ; runtime from the tray menu; exits 0 without UAC when none exists) as well
+  ; as any rule recorded for an earlier install directory.
   ReadRegStr $1 HKCU "${UNINST_KEY}" "FirewallRule"
+  StrCpy $2 0
+  ClearErrors
+  ExecWait '"$INSTDIR\webmux-tray.exe" firewall remove' $0
+  ${If} ${Errors}
+  ${OrIf} $0 != 0
+    StrCpy $2 1
+  ${EndIf}
+  ClearErrors
   ${If} $1 != ""
-    ClearErrors
+  ${AndIf} $1 != "$INSTDIR\webmux-tray.exe"
     ExecWait '"$INSTDIR\webmux-tray.exe" firewall remove "$1"' $0
     ${If} ${Errors}
     ${OrIf} $0 != 0
-      MessageBox MB_OK|MB_ICONINFORMATION "未删除 WebMux 添加的 Windows 防火墙规则。$\r$\n$\r$\n可在“高级安全 Windows Defender 防火墙”的入站规则中删除以“WebMux tray forwarding”开头的规则。" /SD IDOK
+      StrCpy $2 1
     ${EndIf}
     ClearErrors
+  ${EndIf}
+  ${If} $2 != 0
+    MessageBox MB_OK|MB_ICONINFORMATION "未删除 WebMux 添加的 Windows 防火墙规则。$\r$\n$\r$\n可在“高级安全 Windows Defender 防火墙”的入站规则中删除以“WebMux tray forwarding”开头的规则。" /SD IDOK
   ${EndIf}
 
   ReadRegStr $1 HKCU "${RUN_KEY}" "${RUN_VALUE}"

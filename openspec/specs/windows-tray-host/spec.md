@@ -61,7 +61,7 @@
 左键单击图标 SHALL 打开 WebMux（与菜单“打开 WebMux”相同），右键单击 SHALL 弹出菜单。菜单 SHALL 按以下分组依次包含：
 
 1. 不可点击的状态行：状态、会话数、WebMux 版本、发行版名称、当前启动方式；有提示时（配置已修改需重启、外部实例、Windows 侧不可达等）追加一行说明。
-2. 访问：打开 WebMux、复制链接（子菜单：本机、远程、经托盘转发与公网链接，见 `windows-tray-access`；无可复制链接时隐藏）、复制 Token（仅在配置了 Token 时显示）、远程访问（子菜单，见 `windows-tray-forwarding`）。
+2. 访问：打开 WebMux、复制链接（子菜单：本机、远程、经托盘转发与公网链接，见 `windows-tray-access`；无可复制链接时隐藏）、复制 Token（仅在配置了 Token 时显示）、公网访问（子菜单）、允许局域网访问（复选项，及按需显示的防火墙状态与修复/说明项，见 `windows-tray-forwarding`）。
 3. 服务：启动、停止、重启。
 4. 维护：打开日志、打开 WebMux 配置文件（配置文件不存在时替换为“初始化配置（生成 Token）”）、发行版（子菜单）、启动方式（子菜单）、编辑托盘设置。
 5. 登录时自动启动（复选项）。
@@ -220,21 +220,36 @@
 
 ### Requirement: 防火墙规则命令
 
-托盘程序 SHALL 提供 `firewall allow` 与 `firewall remove [路径]` 子命令，为自身所在路径的 `webmux-tray.exe` 添加或删除转发所用的入站防火墙规则；`remove` 可以指定另一个托盘的绝对路径，删除该路径的规则，相对路径 SHALL 视为参数无效。该命令 SHALL NOT 创建托盘图标，也 SHALL NOT 影响正在运行的托盘。
+托盘程序 SHALL 提供 `firewall allow [--clear-blocks]` 与 `firewall remove [路径]` 子命令，为自身所在路径的 `webmux-tray.exe` 添加、修复或删除转发所用的入站防火墙规则。
+
+`remove` 可指定另一个托盘的绝对路径以删除该路径的规则，相对路径 SHALL 视为参数无效；该命令 SHALL NOT 创建托盘图标，也 SHALL NOT 影响正在运行的托盘。
 
 - 规则名称 SHALL 以 `WebMux tray forwarding` 开头并标识该托盘路径，不同路径的规则互不影响。
-- 规则 SHALL 为入站、允许、TCP，只适用于专用网络与域网络。
-- 规则已是目标状态时 SHALL 直接以 0 结束，不请求管理员权限；否则 SHALL 弹出一次管理员确认并以 argv 运行系统的 `netsh`，完成后再次确认规则状态。
+- 规则 SHALL 为已启用、入站、允许、TCP、程序路径匹配该托盘、未附加端口/地址/服务缩窄限制，且只适用于专用网络与域网络。
+- 只读检查 SHALL 直接解析本机防火墙注册表规则各项属性；同名规则被禁用、改为阻止、范围变更或存在重复同名项时 SHALL 判定为失效，由 `firewall allow` 在单次管理员提权内先删除同名旧规则再重建干净规则。
+- 指定 `--clear-blocks` 时，`firewall allow` SHALL 在同一次管理员提权内一并删除指向当前托盘路径、作用于专用或域网络的本机入站阻止规则，再写入允许规则并回读确认。
+- 当前托盘属于安装目录（`InstalledCopy`）且命令以 0 结束时，`allow` SHALL 在当前用户卸载项中同步记录 `FirewallRule` 路径，`remove` 在匹配该路径时 SHALL 清除该记录。
+- 规则已是目标有效状态（且未请求清理仍存在的本机阻止规则）时 SHALL 直接以 0 结束，不请求管理员权限；否则 SHALL 最多弹出一次管理员确认并以 argv 执行 `netsh`，完成后再次只读核验规则状态。
 - 退出码：0 已是目标状态；1 失败；2 参数无效；3 用户取消管理员确认。
 
-#### Scenario: 已有规则
+#### Scenario: 已有有效规则
 
-- **WHEN** 规则已存在，用户运行 `webmux-tray.exe firewall allow`
+- **WHEN** 指向当前托盘的规则已存在且启用、方向/协议/动作/配置文件均匹配，用户运行 `webmux-tray.exe firewall allow`
 - **THEN** 不出现管理员确认，命令以 0 结束
+
+#### Scenario: 同名规则被禁用或篡改时修复
+
+- **WHEN** 同名规则已被禁用或动作被改为阻止，用户运行 `webmux-tray.exe firewall allow` 并通过一次管理员确认
+- **THEN** 旧失效规则被清理并重建为单条有效的专用与域网络入站 TCP 允许规则，命令以 0 结束
+
+#### Scenario: 清理本机入站阻止规则并放行
+
+- **WHEN** 本机防火墙存在针对当前托盘的入站阻止规则，用户运行 `webmux-tray.exe firewall allow --clear-blocks` 并通过一次管理员确认
+- **THEN** 该本机入站阻止规则被移除且专用与域网络允许规则生效，命令以 0 结束
 
 #### Scenario: 取消确认
 
-- **WHEN** 没有规则，用户运行 `webmux-tray.exe firewall allow` 并在管理员确认中选择“否”
+- **WHEN** 没有有效规则，用户运行 `webmux-tray.exe firewall allow` 并在管理员确认中选择“否”
 - **THEN** 命令以 3 结束，防火墙规则不变
 
 #### Scenario: 删除不存在的规则

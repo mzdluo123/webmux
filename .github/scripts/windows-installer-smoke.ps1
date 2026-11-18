@@ -143,9 +143,31 @@ try {
   if ($identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Check ((Run $tray @('firewall', 'allow')) -eq 0) 'firewall allow exits 0'
     $rule = @(FirewallRules)
-    Check ($rule.Count -eq 1 -and "$($rule[0].Direction)" -eq 'Inbound' -and "$($rule[0].Action)" -eq 'Allow' -and "$($rule[0].Profile)" -eq 'Domain, Private') 'rule allows inbound to this tray on private and domain networks only'
+    Check ($rule.Count -eq 1 -and "$($rule[0].Direction)" -eq 'Inbound' -and "$($rule[0].Action)" -eq 'Allow' -and "$($rule[0].Profile)" -eq 'Domain, Private' -and "$($rule[0].Enabled)" -eq 'True') 'rule allows inbound to this tray on private and domain networks only'
+    Check ((Get-ItemProperty $uninstKey).FirewallRule -ieq $tray) 'firewall allow records FirewallRule on an installed copy'
     Check ((Run $tray @('firewall', 'allow')) -eq 0 -and @(FirewallRules).Count -eq 1) 'firewall allow is idempotent'
+
+    Set-NetFirewallRule -Name $rule[0].Name -Enabled False
+    Check ((Run $tray @('firewall', 'allow')) -eq 0) 'firewall allow repairs a disabled rule'
+    $rule = @(FirewallRules)
+    Check ($rule.Count -eq 1 -and "$($rule[0].Enabled)" -eq 'True' -and "$($rule[0].Action)" -eq 'Allow') 'disabled rule repaired without duplicates'
+
+    Set-NetFirewallRule -Name $rule[0].Name -Action Block
+    Check ((Run $tray @('firewall', 'allow')) -eq 0) 'firewall allow repairs a rule changed to Block'
+    $rule = @(FirewallRules)
+    Check ($rule.Count -eq 1 -and "$($rule[0].Action)" -eq 'Allow' -and "$($rule[0].Profile)" -eq 'Domain, Private') 'block-tampered rule replaced cleanly'
+
+    $blockRule = New-NetFirewallRule -DisplayName 'WebMux Smoke Block' -Direction Inbound -Action Block -Protocol TCP -Profile Private -Program $tray
+    try {
+      Check ((Run $tray @('firewall', 'allow', '--clear-blocks')) -eq 0) 'firewall allow --clear-blocks exits 0'
+      $remainingBlock = @(Get-NetFirewallRule -Name $blockRule.Name -ErrorAction SilentlyContinue)
+      Check ($remainingBlock.Count -eq 0 -and @(FirewallRules).Count -eq 1) 'conflicting local inbound block rule removed'
+    } finally {
+      Remove-NetFirewallRule -Name $blockRule.Name -ErrorAction SilentlyContinue
+    }
+
     Check ((Run $tray @('firewall', 'remove')) -eq 0 -and @(FirewallRules).Count -eq 0) 'firewall remove deletes the rule'
+    Check ($null -eq (Get-ItemProperty $uninstKey -Name FirewallRule -ErrorAction SilentlyContinue)) 'firewall remove clears FirewallRule record'
   } else {
     Write-Host 'skip - firewall allow and remove need an elevated session'
   }
@@ -157,7 +179,12 @@ try {
   Check ((Run $Setup @('/S')) -eq 0) 'upgrade over a running tray exits 0'
   Check (WaitFor { $p = TrayProcesses $tray; $p.Count -eq 1 -and $p[0].Id -ne $before }) 'old tray replaced by a new one'
 
-  # Uninstall keeps settings, logs and a login item that points elsewhere.
+  # Uninstall keeps settings, logs and a login item that points elsewhere,
+  # while cleaning up a runtime-added firewall rule even without FirewallRule.
+  if ($identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Check ((Run $tray @('firewall', 'allow')) -eq 0 -and @(FirewallRules).Count -eq 1) 'runtime firewall rule added before uninstall'
+    Remove-ItemProperty $uninstKey FirewallRule -ErrorAction SilentlyContinue
+  }
   $settings = Join-Path $env:APPDATA 'WebMux\tray.json'
   if (-not (Test-Path $settings)) { New-Item -ItemType File -Force $settings | Out-Null }
   Set-ItemProperty $runKey WebMuxTray "`"$fake`""
@@ -166,6 +193,9 @@ try {
   Check ((TrayProcesses $tray).Count -eq 0) 'tray closed by the uninstaller'
   Check (-not (Test-Path $installDir) -and -not (Test-Path $shortcut)) 'install directory and shortcut removed'
   Check (-not (Test-Path $preseed)) 'pre-seeded server removed'
+  if ($identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Check (@(FirewallRules).Count -eq 0) 'uninstall removes runtime firewall rule without FirewallRule registry entry'
+  }
   Check ((Test-Path $settings) -and (Test-Path (Join-Path $env:LOCALAPPDATA 'WebMux\tray.log'))) 'tray settings and log kept'
   Check ((RunValue) -ieq "`"$fake`"") 'login item pointing elsewhere kept'
   Remove-ItemProperty $runKey WebMuxTray

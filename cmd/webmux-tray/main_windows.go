@@ -116,11 +116,46 @@ func run() error {
 		LaunchInstaller:  traysys.LaunchInstaller,
 		AutostartEnabled: traysys.AutostartEnabled,
 		SetAutostart:     traysys.SetAutostart,
-		OpenURL:          traysys.OpenURL,
-		OpenInNotepad:    traysys.OpenInNotepad,
-		WSLPath:          traysys.WSLPath,
-		UpdatesDir:       filepath.Join(localAppData, "WebMux", "updates"),
-		Releases:         func(ch update.Channel) tray.ReleaseClient { return update.Client{Channel: ch} },
+		InspectFirewall:  inspectFirewall,
+		ApplyFirewall: func(path string, allow, clearBlocks bool) tray.FirewallApplyResult {
+			return tray.FirewallApplyResult(traysys.ApplyFirewall(path, allow, clearBlocks))
+		},
+		AdapterCategories: adapterCategories,
+		OpenURL:           traysys.OpenURL,
+		OpenInNotepad:     traysys.OpenInNotepad,
+		WSLPath:           traysys.WSLPath,
+		UpdatesDir:        filepath.Join(localAppData, "WebMux", "updates"),
+		Releases:          func(ch update.Channel) tray.ReleaseClient { return update.Client{Channel: ch} },
 	})
 	return nil
+}
+
+func inspectFirewall(exe string) tray.FirewallCheck {
+	st, err := traysys.InspectFirewall(exe)
+	if err != nil {
+		return tray.FirewallCheck{Checked: true, Err: err.Error()}
+	}
+	return tray.FirewallCheck{
+		Checked:              true,
+		RulePresent:          st.RulePresent,
+		RuleValid:            st.RuleValid,
+		AllowedPrivateDomain: st.AllowedPrivateDomain,
+		LocalBlocks:          st.LocalBlockNames,
+		UnnamedLocalBlock:    st.UnnamedLocalBlock,
+		PolicyBlocked:        st.PolicyBlocked,
+		DomainShielded:       st.Profiles.Domain.BlockAllInbound,
+		PrivateShielded:      st.Profiles.Private.BlockAllInbound,
+	}
+}
+
+func adapterCategories() map[string]tray.NetworkCategory {
+	raw := traysys.AdapterCategories()
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make(map[string]tray.NetworkCategory, len(raw))
+	for name, cat := range raw {
+		out[name] = tray.NetworkCategory(cat)
+	}
+	return out
 }

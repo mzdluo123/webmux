@@ -2,13 +2,12 @@ package traysys
 
 import (
 	"errors"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 )
 
-// allow always targets this tray; only remove names another path, which
-// must be absolute so a relative argument cannot pick an unintended rule.
 func TestParseFirewall(t *testing.T) {
 	for _, tc := range []struct {
 		args    []string
@@ -32,12 +31,34 @@ func TestParseFirewall(t *testing.T) {
 	}
 }
 
-// One rule per tray executable: the name follows the path (Windows paths
-// compare case-insensitively), so another install never shares it.
+func TestParseFirewallRequest(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want FirewallRequest
+		ok   bool
+	}{
+		{[]string{"allow"}, FirewallRequest{Allow: true}, true},
+		{[]string{"allow", "--clear-blocks"}, FirewallRequest{Allow: true, ClearBlocks: true}, true},
+		{[]string{"allow", "--clear-blocks", "--elevated"}, FirewallRequest{Allow: true, ClearBlocks: true, Elevated: true}, true},
+		{[]string{"remove", "--elevated", `C:\WebMux\webmux-tray.exe`}, FirewallRequest{Elevated: true, Program: `C:\WebMux\webmux-tray.exe`}, true},
+		{[]string{"remove", "--clear-blocks"}, FirewallRequest{}, false},
+		{[]string{"allow", "--clear-blocks", `C:\Other\app.exe`}, FirewallRequest{}, false},
+		{[]string{"remove", `C:\A\a.exe`, `C:\B\b.exe`}, FirewallRequest{}, false},
+	} {
+		got, err := ParseFirewallRequest(tc.args)
+		if (err == nil) != tc.ok || (tc.ok && got != tc.want) {
+			t.Errorf("ParseFirewallRequest(%q) = %+v, %v", tc.args, got, err)
+		}
+	}
+}
+
 func TestFirewallRuleNamePerExecutable(t *testing.T) {
 	a := FirewallRule{Exe: `C:\Users\u\AppData\Local\Programs\WebMux\webmux-tray.exe`}
 	if got := (FirewallRule{Exe: strings.ToUpper(a.Exe)}).Name(); got != a.Name() {
 		t.Errorf("case changed the name: %q vs %q", got, a.Name())
+	}
+	if got := (FirewallRule{Exe: strings.ReplaceAll(a.Exe, `\`, `/`)}).Name(); got != a.Name() {
+		t.Errorf("slash changed the name: %q vs %q", got, a.Name())
 	}
 	if b := (FirewallRule{Exe: `D:\Tools\WebMux\webmux-tray.exe`}); b.Name() == a.Name() {
 		t.Errorf("two paths share %q", a.Name())
@@ -47,8 +68,6 @@ func TestFirewallRuleNamePerExecutable(t *testing.T) {
 	}
 }
 
-// The rule opens inbound TCP for exactly this program and never on public
-// networks.
 func TestFirewallRuleAddArgs(t *testing.T) {
 	r := FirewallRule{Exe: `C:\Program Files\Web Mux\webmux-tray.exe`}
 	args := r.AddArgs()
@@ -64,62 +83,176 @@ func TestFirewallRuleAddArgs(t *testing.T) {
 	}
 }
 
+func TestEvaluateFirewall(t *testing.T) {
+	const exe = `C:\WebMux\webmux-tray.exe`
+	rule := FirewallRule{Exe: exe}
+	validRule := "v2.31|Action=Allow|Active=TRUE|Dir=In|Protocol=6|Profile=Domain|Profile=Private|App=" + exe + "|Name=" + rule.Name() + "|Desc=WebMux|"
+
+	t.Run("valid rule", func(t *testing.T) {
+		st := EvaluateFirewall(rule, []string{validRule}, nil, FirewallProfiles{}, nil)
+		if !st.RulePresent || !st.RuleValid || !st.AllowedPrivateDomain || len(st.LocalBlockNames) != 0 || st.PolicyBlocked {
+			t.Fatalf("unexpected status: %+v", st)
+		}
+	})
+
+	for _, tc := range []struct {
+		name string
+		raw  string
+	}{
+		{"disabled", "v2.31|Action=Allow|Active=FALSE|Dir=In|Protocol=6|Profile=Domain|Profile=Private|App=" + exe + "|Name=" + rule.Name() + "|"},
+		{"active omitted", "v2.31|Action=Allow|Dir=In|Protocol=6|Profile=Domain|Profile=Private|App=" + exe + "|Name=" + rule.Name() + "|"},
+		{"action block", "v2.31|Action=Block|Active=TRUE|Dir=In|Protocol=6|Profile=Domain|Profile=Private|App=" + exe + "|Name=" + rule.Name() + "|"},
+		{"outbound", "v2.31|Action=Allow|Active=TRUE|Dir=Out|Protocol=6|Profile=Domain|Profile=Private|App=" + exe + "|Name=" + rule.Name() + "|"},
+		{"udp only", "v2.31|Action=Allow|Active=TRUE|Dir=In|Protocol=17|Profile=Domain|Profile=Private|App=" + exe + "|Name=" + rule.Name() + "|"},
+		{"missing domain", "v2.31|Action=Allow|Active=TRUE|Dir=In|Protocol=6|Profile=Private|App=" + exe + "|Name=" + rule.Name() + "|"},
+		{"widened to public", "v2.31|Action=Allow|Active=TRUE|Dir=In|Protocol=6|App=" + exe + "|Name=" + rule.Name() + "|"},
+		{"other app", "v2.31|Action=Allow|Active=TRUE|Dir=In|Protocol=6|Profile=Domain|Profile=Private|App=C:\\Other\\webmux-tray.exe|Name=" + rule.Name() + "|"},
+		{"narrowed port", "v2.31|Action=Allow|Active=TRUE|Dir=In|Protocol=6|LPort=8080|Profile=Domain|Profile=Private|App=" + exe + "|Name=" + rule.Name() + "|"},
+	} {
+		t.Run("tampered/"+tc.name, func(t *testing.T) {
+			st := EvaluateFirewall(rule, []string{tc.raw}, nil, FirewallProfiles{}, nil)
+			if !st.RulePresent || st.RuleValid {
+				t.Fatalf("expected present invalid rule, got %+v", st)
+			}
+		})
+	}
+
+	t.Run("duplicate named rules require cleanup", func(t *testing.T) {
+		st := EvaluateFirewall(rule, []string{validRule, validRule}, nil, FirewallProfiles{}, nil)
+		if !st.RulePresent || st.RuleValid {
+			t.Fatalf("duplicate rules treated as valid: %+v", st)
+		}
+	})
+
+	t.Run("local block rules vs public-only or other-app blocks", func(t *testing.T) {
+		rules := []string{
+			validRule,
+			// Active inbound TCP/Any blocks for exe on Private/All:
+			"v2.31|Action=Block|Active=TRUE|Dir=In|Protocol=6|Profile=Private|App=" + strings.ToLower(exe) + "|Name=webmux-tray.exe|",
+			"v2.31|Action=Block|Active=TRUE|Dir=In|App=" + exe + "|Name=WebMux|",
+			// Ignored: Public-only block, UDP-only block, disabled block, generic port block without App, other executable:
+			"v2.31|Action=Block|Active=TRUE|Dir=In|Protocol=6|Profile=Public|App=" + exe + "|Name=PublicBlock|",
+			"v2.31|Action=Block|Active=TRUE|Dir=In|Protocol=17|Profile=Private|App=" + exe + "|Name=UDPBlock|",
+			"v2.31|Action=Block|Active=FALSE|Dir=In|Protocol=6|Profile=Private|App=" + exe + "|Name=DisabledBlock|",
+			"v2.31|Action=Block|Active=TRUE|Dir=In|Protocol=6|LPort=445|Name=SMBBlock|",
+			"v2.31|Action=Block|Active=TRUE|Dir=In|Protocol=6|App=C:\\Other\\app.exe|Name=OtherApp|",
+		}
+		st := EvaluateFirewall(rule, rules, nil, FirewallProfiles{}, nil)
+		wantBlocks := []string{"WebMux", "webmux-tray.exe"}
+		if !reflect.DeepEqual(st.LocalBlockNames, wantBlocks) || st.UnnamedLocalBlock {
+			t.Fatalf("blocks = %+v, want %v", st, wantBlocks)
+		}
+	})
+
+	t.Run("policy allow and policy block", func(t *testing.T) {
+		gpoAllow := "v2.31|Action=Allow|Active=TRUE|Dir=In|Protocol=6|Profile=Domain,Private|App=" + exe + "|Name=CorpAllow|"
+		st := EvaluateFirewall(rule, nil, []string{gpoAllow}, FirewallProfiles{}, nil)
+		if st.RulePresent || st.RuleValid || !st.AllowedPrivateDomain || st.PolicyBlocked {
+			t.Fatalf("gpo allow: %+v", st)
+		}
+		gpoBlock := "v2.31|Action=Block|Active=TRUE|Dir=In|Protocol=6|Profile=Private|App=" + exe + "|Name=CorpBlock|"
+		st = EvaluateFirewall(rule, []string{validRule}, []string{gpoBlock}, FirewallProfiles{}, nil)
+		if !st.PolicyBlocked {
+			t.Fatalf("expected PolicyBlocked: %+v", st)
+		}
+	})
+}
+
 type fakeNetsh struct {
-	exists   bool
-	showErr  error
-	elevated [][]string
-	code     int
-	err      error
-	// apply makes a successful elevated run change exists.
-	apply bool
+	rules      []string
+	inspectErr error
+	batches    [][][]string
+	code       int
+	err        error
+	noMutate   bool
 }
 
 func (n *fakeNetsh) firewall() Firewall {
+	const exe = `C:\WebMux\webmux-tray.exe`
+	rule := FirewallRule{Exe: exe}
 	return Firewall{
-		Rule: FirewallRule{Exe: `C:\WebMux\webmux-tray.exe`},
-		Exists: func(args []string) (bool, error) {
-			if !slices.Equal(args[:4], []string{"advfirewall", "firewall", "show", "rule"}) {
-				return false, errors.New("unexpected show args")
+		Rule: rule,
+		Inspect: func() (FirewallStatus, error) {
+			if n.inspectErr != nil {
+				return FirewallStatus{}, n.inspectErr
 			}
-			return n.exists, n.showErr
+			return EvaluateFirewall(rule, n.rules, nil, FirewallProfiles{}, nil), nil
 		},
-		Elevate: func(args []string) (int, error) {
-			n.elevated = append(n.elevated, args)
-			if n.err == nil && n.code == 0 && n.apply {
-				n.exists = args[2] == "add"
+		Run: func(cmds [][]string) (int, error) {
+			n.batches = append(n.batches, cmds)
+			if n.err != nil || n.code != 0 || n.noMutate {
+				return n.code, n.err
 			}
-			return n.code, n.err
+			for _, cmd := range cmds {
+				switch cmd[2] {
+				case "delete":
+					targetName := strings.TrimPrefix(cmd[4], "name=")
+					filtered := n.rules[:0]
+					for _, raw := range n.rules {
+						p, ok := ParseFirewallRuleString(raw)
+						if ok && strings.EqualFold(p.Name, targetName) {
+							continue
+						}
+						filtered = append(filtered, raw)
+					}
+					n.rules = filtered
+				case "add":
+					n.rules = append(n.rules, "v2.31|Action=Allow|Active=TRUE|Dir=In|Protocol=6|Profile=Domain|Profile=Private|App="+exe+"|Name="+rule.Name()+"|")
+				}
+			}
+			return 0, nil
 		},
 	}
 }
 
 func TestFirewallApply(t *testing.T) {
+	const exe = `C:\WebMux\webmux-tray.exe`
+	rule := FirewallRule{Exe: exe}
+	validRule := "v2.31|Action=Allow|Active=TRUE|Dir=In|Protocol=6|Profile=Domain|Profile=Private|App=" + exe + "|Name=" + rule.Name() + "|"
+	disabledRule := "v2.31|Action=Allow|Active=FALSE|Dir=In|Protocol=6|Profile=Domain|Profile=Private|App=" + exe + "|Name=" + rule.Name() + "|"
+	localBlock := "v2.31|Action=Block|Active=TRUE|Dir=In|Protocol=6|Profile=Private|App=" + exe + "|Name=webmux-tray.exe|"
+	unnamedBlock := "v2.31|Action=Block|Active=TRUE|Dir=In|Protocol=6|Profile=Private|App=" + exe + "|"
+
 	for _, tc := range []struct {
-		name      string
-		netsh     fakeNetsh
-		allow     bool
-		want      int
-		elevation string // the netsh verb run as administrator, or ""
+		name        string
+		netsh       fakeNetsh
+		allow       bool
+		clearBlocks bool
+		want        int
+		verbs       []string // verbs inside the single Run batch, or nil when no elevation
 	}{
-		{name: "allow adds a missing rule", netsh: fakeNetsh{apply: true}, allow: true, want: FirewallDone, elevation: "add"},
-		{name: "allow with the rule present asks nothing", netsh: fakeNetsh{exists: true}, allow: true, want: FirewallDone},
-		{name: "remove deletes the rule", netsh: fakeNetsh{exists: true, apply: true}, allow: false, want: FirewallDone, elevation: "delete"},
+		{name: "allow adds a missing rule", netsh: fakeNetsh{}, allow: true, want: FirewallDone, verbs: []string{"add"}},
+		{name: "allow with valid rule present asks nothing", netsh: fakeNetsh{rules: []string{validRule}}, allow: true, want: FirewallDone},
+		{name: "allow repairs disabled rule in one batch", netsh: fakeNetsh{rules: []string{disabledRule}}, allow: true, want: FirewallDone, verbs: []string{"delete", "add"}},
+		{name: "allow clears local block and repairs in one batch", netsh: fakeNetsh{rules: []string{validRule, localBlock}}, allow: true, clearBlocks: true, want: FirewallDone, verbs: []string{"delete", "delete", "add"}},
+		{name: "allow unnamed block fails without elevation", netsh: fakeNetsh{rules: []string{unnamedBlock}}, allow: true, clearBlocks: true, want: FirewallFailed},
+		{name: "remove deletes the rule", netsh: fakeNetsh{rules: []string{validRule}}, allow: false, want: FirewallDone, verbs: []string{"delete"}},
 		{name: "remove without a rule asks nothing", netsh: fakeNetsh{}, allow: false, want: FirewallDone},
-		{name: "declined prompt", netsh: fakeNetsh{err: ErrElevationDeclined}, allow: true, want: FirewallDeclined, elevation: "add"},
-		{name: "netsh fails", netsh: fakeNetsh{code: 1}, allow: true, want: FirewallFailed, elevation: "add"},
-		{name: "rule still missing after netsh", netsh: fakeNetsh{}, allow: true, want: FirewallFailed, elevation: "add"},
-		{name: "cannot query rules", netsh: fakeNetsh{showErr: errors.New("no netsh")}, allow: true, want: FirewallFailed},
+		{name: "declined prompt", netsh: fakeNetsh{err: ErrElevationDeclined}, allow: true, want: FirewallDeclined, verbs: []string{"add"}},
+		{name: "netsh fails", netsh: fakeNetsh{code: 1}, allow: true, want: FirewallFailed, verbs: []string{"add"}},
+		{name: "rule still missing after netsh", netsh: fakeNetsh{noMutate: true}, allow: true, want: FirewallFailed, verbs: []string{"add"}},
+		{name: "cannot query rules", netsh: fakeNetsh{inspectErr: errors.New("registry denied")}, allow: true, want: FirewallFailed},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			n := tc.netsh
-			if got := n.firewall().Apply(tc.allow); got != tc.want {
-				t.Errorf("Apply(%v) = %d, want %d", tc.allow, got, tc.want)
+			if got := n.firewall().Apply(tc.allow, tc.clearBlocks); got != tc.want {
+				t.Errorf("Apply(%v, %v) = %d, want %d", tc.allow, tc.clearBlocks, got, tc.want)
 			}
-			switch {
-			case tc.elevation == "" && len(n.elevated) != 0:
-				t.Errorf("asked for administrator rights: %q", n.elevated)
-			case tc.elevation != "" && (len(n.elevated) != 1 || n.elevated[0][2] != tc.elevation):
-				t.Errorf("elevated %q, want one %s", n.elevated, tc.elevation)
+			if tc.verbs == nil {
+				if len(n.batches) != 0 {
+					t.Fatalf("unexpected elevation batches: %q", n.batches)
+				}
+				return
+			}
+			if len(n.batches) != 1 {
+				t.Fatalf("expected 1 elevation batch, got %d: %q", len(n.batches), n.batches)
+			}
+			var gotVerbs []string
+			for _, cmd := range n.batches[0] {
+				gotVerbs = append(gotVerbs, cmd[2])
+			}
+			if !slices.Equal(gotVerbs, tc.verbs) {
+				t.Errorf("batch verbs = %v, want %v (%q)", gotVerbs, tc.verbs, n.batches[0])
 			}
 		})
 	}
