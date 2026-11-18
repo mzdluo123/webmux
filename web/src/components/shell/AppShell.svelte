@@ -53,6 +53,7 @@
   let {
     route,
     drafts,
+    requestRouteFocus,
     reconnection,
     children,
   }: {
@@ -61,6 +62,7 @@
       { name: "sessions" | "quick-start" | "terminal" | "handoff" | "git" }
     >;
     drafts: TerminalDrafts;
+    requestRouteFocus?: (target: "sidebar-opener") => void;
     reconnection?: RelayReconnection;
     children: Snippet;
   } = $props();
@@ -291,20 +293,17 @@
 
   function restoreDrawerFocus(event: Event) {
     if (shellUi.drawerOpen) return;
-    let target = drawerOpener?.isConnected ? drawerOpener : null;
-    if (
-      !target &&
+    if (drawerOpener?.isConnected) {
+      event.preventDefault();
+      drawerOpener.focus();
+    } else if (
       modeChangedInDrawer &&
       (route.name === "sessions" || route.name === "quick-start")
     ) {
-      // Switching home modes replaces the header while the drawer stays open.
-      target = document.querySelector<HTMLElement>(
-        ".app-shell-main [data-sidebar-opener]",
-      );
+      // The replacement home header can mount after the drawer closes.
+      event.preventDefault();
+      requestRouteFocus?.("sidebar-opener");
     }
-    if (!target) return;
-    event.preventDefault();
-    target.focus();
   }
 
   // A home page decides the mode; a session page keeps the remembered one.

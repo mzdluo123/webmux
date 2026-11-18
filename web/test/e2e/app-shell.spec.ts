@@ -363,9 +363,11 @@ test.describe("phone drawer", () => {
       await drawer
         .getByRole("button", { name: "工作台模式", exact: true })
         .click();
-      await expect(page.locator("main input[type=search]")).toBeVisible();
-      await close.click();
+      await close.press("Enter");
       await expect(drawer).toBeHidden();
+      await expect(
+        page.getByRole("searchbox", { name: "搜索会话" }),
+      ).toBeVisible();
       await expect(openHome).toBeFocused();
       await expect(page).toHaveURL(/\/$/);
     });

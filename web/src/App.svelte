@@ -51,7 +51,7 @@
     routeFeature,
     shellRouteFor,
   } from "./hooks/shared/route";
-  import { enterHome, openSession, shellUi } from "./hooks/shared/shell.svelte";
+  import { enterHome, openSession } from "./hooks/shared/shell.svelte";
   import { createTerminalDrafts } from "./domains/terminal/terminal-draft.svelte";
   import { browserDraftStorage } from "./domains/terminal/draft-storage";
   import { clearHomeCache } from "./domains/workspace/home-cache";
@@ -245,8 +245,7 @@
       pendingSessionOpen = "";
       path = location.pathname;
       search = location.search;
-      // Mode changes inside the navigation drawer keep focus inside it.
-      if (pathChanged && !shellUi.drawerOpen) focusRoute();
+      if (pathChanged) focusRoute();
     };
     const auth = () => {
       const relay = relayAuth.relay;
@@ -413,6 +412,7 @@
       bind:this={shell}
       route={shellRoute}
       {drafts}
+      requestRouteFocus={focusRoute}
       reconnection={relayReconnecting()
         ? {
             checking: reconnect.checking,
