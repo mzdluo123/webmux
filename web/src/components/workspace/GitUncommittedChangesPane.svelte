@@ -219,9 +219,10 @@
   }
 </script>
 
-<section
-  class="flex h-full min-h-0 min-w-0 flex-col overflow-y-auto bg-background"
-  aria-label={m.s7_uncommitted_pane_aria()}
+<ScrollArea
+  class="h-full bg-background"
+  viewportClasses="[&>[data-scroll-area-content]]:flex [&>[data-scroll-area-content]]:flex-col"
+  viewportProps={{ role: "region", "aria-label": m.s7_uncommitted_pane_aria() }}
 >
   <GitPanelToolbar>
     <span class="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
@@ -473,4 +474,4 @@
     {onCommitAuthorOverrideChange}
     {onToggleCommitSignoff}
   />
-</section>
+</ScrollArea>
