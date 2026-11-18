@@ -1,0 +1,429 @@
+{
+  "renderer": "github.com/mzdluo123/snapcompact-go v0.1.1-0.20261117185841-969040513d9e",
+  "cli": "omp 18.22.0",
+  "model": "openai-codex/gpt-6-astra",
+  "history_cap": 64000,
+  "scenarios": {
+    "prose": {
+      "scenario": "long",
+      "seed": 20261118,
+      "coverage": {
+        "archive_omissions": null,
+        "archive_retained_runes": 102237,
+        "archive_source_runes": 102237,
+        "max_record_body_runes": 758,
+        "note": "Projection excludes generated identity headers, matching WebMux. projected.txt is the complete archive serialization and identical source legend, without budget omissions.",
+        "projection_omissions": [],
+        "projection_segment_runes": 102237,
+        "record_count": 148,
+        "same_projected_coverage": true,
+        "source_body_runes": 102239
+      },
+      "archive": {
+        "cache_key": "1b5905aa3fa80ed329e922a2abb0ca2738390b325a70b5cffc85c8b7b9110d9c",
+        "candidate_bytes": 1078962,
+        "estimated_image_tokens": 21644,
+        "missing_glyphs": null,
+        "pages": [
+          {
+            "file": "archive-00.png",
+            "height": 1562,
+            "index": 0,
+            "png_bytes": 142070,
+            "sha256": "01262c1892372a89e67dc83b29990f743157edbf900a870a98365d8033d9165f",
+            "width": 1568
+          },
+          {
+            "file": "archive-01.png",
+            "height": 1562,
+            "index": 1,
+            "png_bytes": 142081,
+            "sha256": "dba7e6c84f1c67c40f7508a992b5c75cdadfca7ad76740a23c6244869cf4149d",
+            "width": 1568
+          },
+          {
+            "file": "archive-02.png",
+            "height": 1562,
+            "index": 2,
+            "png_bytes": 142649,
+            "sha256": "ba3ca103efa93909199dd31dcbb472823344f15b76be4bcb3c5c158f8e1f5dc6",
+            "width": 1568
+          },
+          {
+            "file": "archive-03.png",
+            "height": 1562,
+            "index": 3,
+            "png_bytes": 142830,
+            "sha256": "d227a2738e92979b6db93f3a235385a442daa991e4ba4733c5debe9aeb879b88",
+            "width": 1568
+          },
+          {
+            "file": "archive-04.png",
+            "height": 1562,
+            "index": 4,
+            "png_bytes": 142042,
+            "sha256": "e547e4627dc7592787cba7746e11d0a277a3cd8d22c11e951ed539b0abdc75a9",
+            "width": 1568
+          },
+          {
+            "file": "archive-05.png",
+            "height": 1562,
+            "index": 5,
+            "png_bytes": 146490,
+            "sha256": "b769a6d8fb464bec621c8e40e27b49b3b5c13bb34f2f07e01f3649746d32d516",
+            "width": 1568
+          },
+          {
+            "file": "archive-06.png",
+            "height": 1562,
+            "index": 6,
+            "png_bytes": 142360,
+            "sha256": "61b21f2eb5b585df63064311bd9120533daca2f9692ffbb57f7917fa7101fb90",
+            "width": 1568
+          },
+          {
+            "file": "archive-07.png",
+            "height": 792,
+            "index": 7,
+            "png_bytes": 71719,
+            "sha256": "898d585060093cdc279853208e972db6c80c342d7db30ff7456983f237ea8d4e",
+            "width": 1568
+          }
+        ],
+        "png_bytes": 1072241,
+        "render_ms": 175.079,
+        "shape": "8on22-bw/1568px; 8on16-bw dense middle; Noto 13px Unicode fallback",
+        "token_basis": "pinned catalog 32px patches * 1.2; transport default auto (high/original both preserve this <=1568px square); catalog estimate, not measured here",
+        "token_estimate_known": true,
+        "uncovered": null
+      },
+      "representations": {
+        "archive-head.txt": {
+          "bytes": 2048,
+          "runes": 2045,
+          "sha256": "7a2f7ac64736dba72827eb8b0605f4279202b623e589410f6e64362d66ca3c36"
+        },
+        "archive-retained.txt": {
+          "bytes": 111194,
+          "runes": 110978,
+          "sha256": "4ed37892c80012090bd073b69daba2c06ce22d986776d9553b9a641cf765e2b4"
+        },
+        "archive-tail.txt": {
+          "bytes": 2048,
+          "runes": 2012,
+          "sha256": "e399ed8fd35a2faf32906033f33d8910130956abab94f91c951dd0e1d1bdd739"
+        },
+        "archive.txt": {
+          "bytes": 6721,
+          "runes": 6682,
+          "sha256": "34222909f2cd221db64c7789199ebdfb00f4f8d0917fdfceebb13b397cd7f010"
+        },
+        "projected.txt": {
+          "bytes": 111194,
+          "runes": 110978,
+          "sha256": "4ed37892c80012090bd073b69daba2c06ce22d986776d9553b9a641cf765e2b4"
+        },
+        "raw.txt": {
+          "bytes": 114010,
+          "runes": 113894,
+          "sha256": "ab157be66df78d8e43f49b8050a1d72c75563478c121e3ca1e353e2cc7b33eca"
+        },
+        "task.txt": {
+          "bytes": 939,
+          "runes": 933,
+          "sha256": "31b0456dc21443021370bc709d3a2257e4233ad90c9e35f331fb2cc7dec5aa86"
+        }
+      },
+      "comparison": {
+        "baseline": "projected",
+        "candidate": "archive",
+        "same_projected_coverage": true,
+        "initial_runs_valid": true,
+        "all_initial_fields_correct": true,
+        "baseline_input_tokens": 30312,
+        "candidate_input_tokens": 25659,
+        "input_token_savings_fraction": 0.15350356294536815,
+        "eligible_accuracy_preserving_savings": true,
+        "baseline_total_cost": 0.31427,
+        "candidate_total_cost_including_readback": 0.27364000000000005,
+        "note": "Input includes cached tokens and CLI/system overhead. Token savings use initial calls only; readback costs and final accuracy are separate. Missing usage/cost is unknown."
+      },
+      "runs": [
+        {
+          "mode": "projected",
+          "initial_valid": true,
+          "correct_fields": {
+            "chinese": true,
+            "chinese_fact": true,
+            "command": true,
+            "condition": true,
+            "early_constraint": true,
+            "early_sentinel": true,
+            "indented_return": true,
+            "late_sentinel": true,
+            "middle_sentinel": true,
+            "port": true,
+            "quarter_sentinel": true,
+            "recent_correction": true,
+            "three_quarter_sentinel": true
+          },
+          "supplementary_requests": 0,
+          "metrics": {
+            "input_tokens": 30312,
+            "uncached_input_tokens": 30312,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 223,
+            "total_cost": 0.31427
+          },
+          "wall_seconds": 12.005,
+          "tool_calls": 0
+        },
+        {
+          "mode": "archive",
+          "initial_valid": true,
+          "correct_fields": {
+            "chinese": true,
+            "chinese_fact": true,
+            "command": true,
+            "condition": true,
+            "early_constraint": true,
+            "early_sentinel": true,
+            "indented_return": true,
+            "late_sentinel": true,
+            "middle_sentinel": true,
+            "port": true,
+            "quarter_sentinel": true,
+            "recent_correction": true,
+            "three_quarter_sentinel": true
+          },
+          "supplementary_requests": 0,
+          "metrics": {
+            "input_tokens": 25659,
+            "uncached_input_tokens": 25659,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 341,
+            "total_cost": 0.27364000000000005
+          },
+          "wall_seconds": 13.345,
+          "tool_calls": 0
+        }
+      ]
+    },
+    "tools": {
+      "scenario": "tools",
+      "seed": 20261118,
+      "coverage": {
+        "archive_omissions": null,
+        "archive_retained_runes": 102586,
+        "archive_source_runes": 102586,
+        "max_record_body_runes": 963,
+        "note": "Projection excludes generated identity headers, matching WebMux. projected.txt is the complete archive serialization and identical source legend, without budget omissions.",
+        "projection_omissions": [],
+        "projection_segment_runes": 102586,
+        "record_count": 124,
+        "same_projected_coverage": true,
+        "source_body_runes": 102587
+      },
+      "archive": {
+        "cache_key": "ba181c84e4e37d36e6901a413fb4f9483eed9adb9a3486648b27341c70781694",
+        "candidate_bytes": 1117836,
+        "estimated_image_tokens": 21527,
+        "missing_glyphs": null,
+        "pages": [
+          {
+            "file": "archive-00.png",
+            "height": 1562,
+            "index": 0,
+            "png_bytes": 148611,
+            "sha256": "b72bf2cc5b7aac3575e65ab3e8afce8f15ad6af4c5b62d89e19b4be03a2844c4",
+            "width": 1568
+          },
+          {
+            "file": "archive-01.png",
+            "height": 1562,
+            "index": 1,
+            "png_bytes": 149079,
+            "sha256": "5d585667f239003a1d8358b397fa10448e596d4cdd18d342640e24f64460d8a3",
+            "width": 1568
+          },
+          {
+            "file": "archive-02.png",
+            "height": 1562,
+            "index": 2,
+            "png_bytes": 148547,
+            "sha256": "d7e1a8b3fc2e75e307a009b276b1c418fcb5dafeab92e36b7b9888e8bb1b3084",
+            "width": 1568
+          },
+          {
+            "file": "archive-03.png",
+            "height": 1562,
+            "index": 3,
+            "png_bytes": 148736,
+            "sha256": "7ec2e58ad754dbf20a9a3d54e6b102afdf2307489bb5259656ef50ccb7306cd8",
+            "width": 1568
+          },
+          {
+            "file": "archive-04.png",
+            "height": 1562,
+            "index": 4,
+            "png_bytes": 148733,
+            "sha256": "69127e3afd4b5e2bf656e9fba460cfc7a7c09b2d62e0735d83f9b5439f3ca8e7",
+            "width": 1568
+          },
+          {
+            "file": "archive-05.png",
+            "height": 1562,
+            "index": 5,
+            "png_bytes": 151807,
+            "sha256": "417135933eb36390a6b8744aac845b5552a74a9bae736fb358b79205c3e9b3c8",
+            "width": 1568
+          },
+          {
+            "file": "archive-06.png",
+            "height": 1562,
+            "index": 6,
+            "png_bytes": 148887,
+            "sha256": "7b6a52c7a1c922767448e54b7611332a313baf5f5c0f8f308c6275a5f805633d",
+            "width": 1568
+          },
+          {
+            "file": "archive-07.png",
+            "height": 726,
+            "index": 7,
+            "png_bytes": 67147,
+            "sha256": "b9d34993ed85c41f5de335899d19f86024d54941381033159f6c28de8c5c866a",
+            "width": 1568
+          }
+        ],
+        "png_bytes": 1111547,
+        "render_ms": 170.537,
+        "shape": "8on22-bw/1568px; 8on16-bw dense middle; Noto 13px Unicode fallback",
+        "token_basis": "pinned catalog 32px patches * 1.2; transport default auto (high/original both preserve this <=1568px square); catalog estimate, not measured here",
+        "token_estimate_known": true,
+        "uncovered": null
+      },
+      "representations": {
+        "archive-head.txt": {
+          "bytes": 2048,
+          "runes": 2045,
+          "sha256": "5bb57a14e8368bdd3e8ab80f65910b96303f10b99d1b717c346645968c7daa1c"
+        },
+        "archive-retained.txt": {
+          "bytes": 110055,
+          "runes": 109855,
+          "sha256": "8b71f9738b84bcf0204bfecd96cd29cbeeb65fd91dcb8929f36d1c355824be73"
+        },
+        "archive-tail.txt": {
+          "bytes": 2048,
+          "runes": 2013,
+          "sha256": "49bd858cb2dcace40628fbe39da70af17a33b0d28dcc6677ca1a856cd07b7c41"
+        },
+        "archive.txt": {
+          "bytes": 6289,
+          "runes": 6251,
+          "sha256": "f7605c4d97fef2e6a5318db1bde01a8a4bfd2fd2e2aa979cbd28ac3a856b30b3"
+        },
+        "projected.txt": {
+          "bytes": 110055,
+          "runes": 109855,
+          "sha256": "8b71f9738b84bcf0204bfecd96cd29cbeeb65fd91dcb8929f36d1c355824be73"
+        },
+        "raw.txt": {
+          "bytes": 112454,
+          "runes": 112338,
+          "sha256": "2986126de8211eea8fd8af5d2f801016bc2f48b500af99a4af8b02166045d9e0"
+        },
+        "task.txt": {
+          "bytes": 939,
+          "runes": 933,
+          "sha256": "31b0456dc21443021370bc709d3a2257e4233ad90c9e35f331fb2cc7dec5aa86"
+        }
+      },
+      "comparison": {
+        "baseline": "projected",
+        "candidate": "archive",
+        "same_projected_coverage": true,
+        "initial_runs_valid": true,
+        "all_initial_fields_correct": true,
+        "baseline_input_tokens": 43506,
+        "candidate_input_tokens": 25857,
+        "input_token_savings_fraction": 0.4056681836988002,
+        "eligible_accuracy_preserving_savings": true,
+        "baseline_total_cost": 0.4464100000000001,
+        "candidate_total_cost_including_readback": 0.27467,
+        "note": "Input includes cached tokens and CLI/system overhead. Token savings use initial calls only; readback costs and final accuracy are separate. Missing usage/cost is unknown."
+      },
+      "runs": [
+        {
+          "mode": "projected",
+          "initial_valid": true,
+          "correct_fields": {
+            "chinese": true,
+            "chinese_fact": true,
+            "command": true,
+            "condition": true,
+            "early_constraint": true,
+            "early_sentinel": true,
+            "indented_return": true,
+            "late_sentinel": true,
+            "middle_sentinel": true,
+            "port": true,
+            "quarter_sentinel": true,
+            "recent_correction": true,
+            "three_quarter_sentinel": true
+          },
+          "supplementary_requests": 0,
+          "metrics": {
+            "input_tokens": 43506,
+            "uncached_input_tokens": 43506,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 227,
+            "total_cost": 0.4464100000000001
+          },
+          "wall_seconds": 17.72,
+          "tool_calls": 0
+        },
+        {
+          "mode": "archive",
+          "initial_valid": true,
+          "correct_fields": {
+            "chinese": true,
+            "chinese_fact": true,
+            "command": true,
+            "condition": true,
+            "early_constraint": true,
+            "early_sentinel": true,
+            "indented_return": true,
+            "late_sentinel": true,
+            "middle_sentinel": true,
+            "port": true,
+            "quarter_sentinel": true,
+            "recent_correction": true,
+            "three_quarter_sentinel": true
+          },
+          "supplementary_requests": 0,
+          "metrics": {
+            "input_tokens": 25857,
+            "uncached_input_tokens": 25857,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 322,
+            "total_cost": 0.27467
+          },
+          "wall_seconds": 15.015,
+          "tool_calls": 0
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "One run per representation/scenario; no confidence intervals",
+    "CLI-reported input includes cached input and system overhead; USD uses CLI catalog, not invoice",
+    "CLI experiment does not prove real ACP gateway billing or other model accuracy",
+    "Synthetic history only; no production history or credentials included"
+  ],
+  "measurement_date_utc": "2026-11-17"
+}

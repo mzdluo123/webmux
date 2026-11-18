@@ -2,6 +2,7 @@ package sessioncreate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -103,9 +104,10 @@ func (s *Service) Create(ctx context.Context, in Input) (Result, error) {
 		}
 	}
 	f.result, f.err = s.create(ctx, in)
-	close(f.done)
 	s.mu.Lock()
-	if !s.closed {
+	if errors.Is(f.err, ErrUpstreamConfirmation) {
+		delete(s.flights, in.ClientRequestID)
+	} else if !s.closed {
 		retention := s.retention
 		if retention == 0 {
 			retention = 10 * time.Minute
@@ -118,6 +120,7 @@ func (s *Service) Create(ctx context.Context, in Input) (Result, error) {
 			}
 		})
 	}
+	close(f.done)
 	s.mu.Unlock()
 	return f.result, f.err
 }

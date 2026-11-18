@@ -146,7 +146,7 @@ test("defaults skip what is unusable, and the first send goes in one request", a
     newWorktree: {
       repositoryId: "repo1",
       mode: "new",
-      base: "a".repeat(40),
+      base: "refs/heads/main",
       branch: expect.stringMatching(/^wt\/[a-z]+-[a-z]+$/),
     },
     configId: "cfgclaud",
@@ -514,7 +514,7 @@ test("the base branch is searched and picked by name", async () => {
   await expect.poll(() => location.pathname).toBe("/s/chataaaa");
   const sent = commands().find((c) => c.path === "/api/sessions");
   expect(sent?.body).toMatchObject({
-    newWorktree: { base: "b".repeat(40) },
+    newWorktree: { base: "refs/heads/feature" },
   });
 });
 

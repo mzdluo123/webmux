@@ -310,3 +310,56 @@ func TestBrowserCompatibleStringLimits(t *testing.T) {
 		t.Fatal("null worktree array accepted")
 	}
 }
+
+func TestPinHomeWorktreesSeedsDefaultMainAndPreservesExplicitEmptyEntry(t *testing.T) {
+	s := Open(t.TempDir())
+	defer s.Close()
+	sub, err := s.Subscribe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Close()
+	<-sub.Events // initial snapshot
+
+	if err := s.PinHomeWorktrees("r1", "main-1", []string{"wt-a", "wt-a"}); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := s.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"main-1", "wt-a"}; !slices.Equal(snap.Values.HomeWorktrees["r1"], want) || snap.Revision != 1 {
+		t.Fatalf("got %v rev %d, want %v rev 1", snap.Values.HomeWorktrees["r1"], snap.Revision, want)
+	}
+	ev := <-sub.Events
+	if ev.Revision != 1 || !ev.Changes.Fields["homeWorktrees"] {
+		t.Fatalf("unexpected subscription event: %+v", ev)
+	}
+
+	// Re-pinning an already-pinned worktree is a no-op.
+	if err := s.PinHomeWorktrees("r1", "main-1", []string{"wt-a"}); err != nil {
+		t.Fatal(err)
+	}
+	if snap2, _ := s.Snapshot(); snap2.Revision != 1 {
+		t.Fatalf("duplicate pin bumped revision to %d", snap2.Revision)
+	}
+
+	// If user explicitly unchecked all worktrees (including main) on r2, pinning a new
+	// external worktree does not resurrect main.
+	if _, err := s.Patch(1, Changes{
+		Fields: map[string]bool{"homeWorktrees": true},
+		Values: Values{HomeWorktrees: map[string][]string{"r1": {"main-1"}, "r2": {}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PinHomeWorktrees("r2", "main-2", []string{"wt-b"}); err != nil {
+		t.Fatal(err)
+	}
+	snap3, err := s.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"wt-b"}; !slices.Equal(snap3.Values.HomeWorktrees["r2"], want) {
+		t.Fatalf("r2 got %v, want %v", snap3.Values.HomeWorktrees["r2"], want)
+	}
+}

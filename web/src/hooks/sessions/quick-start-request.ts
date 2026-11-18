@@ -38,30 +38,28 @@ export async function sendQuickStart(
   clientRequestId = newRequestId(),
 ): Promise<QuickStartOutcome> {
   const body = { ...request, clientRequestId };
-  for (let attempt = 0; ; attempt++) {
-    try {
-      const result = await api(
-        "/sessions",
-        CreateSessionResultSchema,
-        "POST",
-        body,
-        undefined,
-        CreateSessionRequestSchema,
-      );
-      return { ok: true, sessionId: result.session.id };
-    } catch (err) {
-      if (err instanceof TypeError && attempt === 0) continue;
-      const failure =
-        err instanceof APIError
-          ? CreateSessionFailureSchema.safeParse(err.body).data
-          : undefined;
-      return {
-        ok: false,
-        failure: failure ?? {
-          error: err instanceof Error ? err.message : String(err),
-          step: "precheck",
-        },
-      };
-    }
+  try {
+    const result = await api(
+      "/sessions",
+      CreateSessionResultSchema,
+      "POST",
+      body,
+      undefined,
+      CreateSessionRequestSchema,
+      true,
+    );
+    return { ok: true, sessionId: result.session.id };
+  } catch (err) {
+    const failure =
+      err instanceof APIError
+        ? CreateSessionFailureSchema.safeParse(err.body).data
+        : undefined;
+    return {
+      ok: false,
+      failure: failure ?? {
+        error: err instanceof Error ? err.message : String(err),
+        step: "precheck",
+      },
+    };
   }
 }

@@ -9,7 +9,8 @@
 Relay 页内配对与宿主授权生命周期覆盖 US-A10：刷新恢复、暂时失败继续查询、未知结果核对及删除/关闭证据分别呈现，编号和总数保持不变。
 Relay 有效期上限由签发端限制、接收端仅检查绝对到期时间的调整覆盖 US-A10；编号与总数保持不变。
 中转浏览器会话断线暂停、控制面重新授权、原路径重新登录与 12 小时绝对期限覆盖 US-A08、US-A10；编号与总数保持不变。
-原生历史默认图片交接、显式文本、冻结页集与失败阻止覆盖 US-Q20；正文/工具提取覆盖 US-Q19，独立预算说明覆盖 US-K04。故事编号与总数不变，实际验证见最新核对记录。
+原生历史混合压缩归档、显式文本、冻结页集、手机页数编辑与失败阻止覆盖 US-Q20；正文/工具提取覆盖 US-Q19，统一上下文预算说明覆盖 US-K04。故事编号与总数不变，实际验证见最新核对记录。
+工作树创建前的上游检查与显式选择覆盖 US-J04、US-J05、US-S07、US-S16、US-Q18、US-Q20；独立创建、会话与交接共享确认，故事编号与数量保持不变。
 
 本次局部核对（2026-11-03）：
 
@@ -100,4 +101,5 @@ Relay 有效期上限由签发端限制、接收端仅检查绝对到期时间�
 | [verification-log-2026-11-12](user-stories/verification-log-2026-11-12.md)                             | 2026-11-12 起                     |
 | [verification-log-2026-11-git-workbench](user-stories/verification-log-2026-11-git-workbench.md)       | 2026-11-12 起的 Git 工作台核对    |
 | [verification-log-2026-11-15](user-stories/verification-log-2026-11-15.md)                             | 2026-11-15 起                     |
-| [verification-log-2026-11-17](user-stories/verification-log-2026-11-17.md)                             | 2026-11-17 起                     |
+| [verification-log-2026-11-17](user-stories/verification-log-2026-11-17.md)                             | 2026-11-17 至 2026-11-18          |
+| [verification-log-2026-11-18](user-stories/verification-log-2026-11-18.md)                             | 2026-11-18 起                     |

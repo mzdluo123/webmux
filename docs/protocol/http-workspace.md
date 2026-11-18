@@ -8,6 +8,7 @@
 | 方法       | 路径                                                            | 说明                                                                                                                                                                                |
 | ---------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | GET / POST | `/api/repositories`                                             | 列出仓库快照；POST `{path}` 登记仓库（新增 201，已存在 200 且保留原指令）                                                                                                           |
+| GET (WS)   | `/ws/repositories`                                              | 订阅已登记仓库及磁盘 Git worktree 拓扑/检出变化；有活跃订阅时按需检测并推送 `{type: "changed"}`，客户端据此重读 `/api/repositories`                                                 |
 | PATCH      | `/api/repositories/{id}`                                        | `{initInstruction}` 修改或清空（空字符串）初始化指令，200 返回仓库；超过 4000 个字符 400                                                                                            |
 | DELETE     | `/api/repositories/{id}`                                        | 仅移除登记，204                                                                                                                                                                     |
 | GET        | `/api/repositories/{id}/worktrees`                              | 刷新仓库快照（含 `checkedAt` 与 `worktrees`）                                                                                                                                       |
@@ -84,6 +85,32 @@
 - 成功：`{branch, base, baseSubject, baseSource: "remote", upstream, fetchWarning: ""}`；仅当本地尖端是上游提交的祖先时，`base` 是本次上游跟踪引用的精确 OID。本地领先或分叉时保留本地尖端并说明。
 - 降级：无上游、上游为本机仓库、fetch 失败或超时仍返回 200。`baseSource` 为 `"local"`，`base` 回退到所选本地分支，`fetchWarning` 给出非阻断说明。
 - 安全：响应不包含 remote URL、命令行或原始 stderr；普通 GET 分支清单始终无网络行为。
+
+### 创建前的上游确认
+
+`POST /api/repositories/{id}/worktrees` 与会话请求的 `newWorktree` 共享创建前检查。选择分支时先获取其上游，发现上游有本地未包含的提交，或获取失败、上游已删除时返回 409：
+
+```jsonc
+{
+  "error": "…",
+  "reason": "worktree_upstream_confirmation",
+  "worktreeUpstream": {
+    "confirmationId": "…",
+    "branch": "main",
+    "localHead": "…",
+    "upstream": "origin/main",
+    "upstreamHead": "…",
+    "warning": "",
+    "canUseUpstream": true,
+  },
+}
+```
+
+- 此时尚未创建工作树或会话。确认后在原创建对象中添加 `upstreamChoice: {confirmationId, useUpstream}`，使用收到的真实确认值；`true` 选择上游提交，`false` 保留本地提交。
+- `canUseUpstream: false` 时仅接受保留本地。已有分支只允许安全快进，分叉时保留独有提交；新分支选择上游不会移动源分支。
+- 确认绑定创建对象与分支状态；状态变化返回新的确认。取消时停止请求即可。
+- 无上游、空仓、孤立分支与明确历史提交保持各自创建语义；已释放工作树重建保持保存的提交。
+- 会话创建与交接通过各自的错误响应保留相同 `reason` 与 `worktreeUpstream`；自动化调用方先取得用户选择，再提交确认。
 
 ### 同步详情字段
 

@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  UpstreamChoiceSchema,
+  WorktreeUpstreamSchema,
+} from "./worktree-upstream-schemas";
 export const handoffMaxPages = 8;
 const HandoffLocationSchema = z.object({
   cwd: z.string(),
@@ -53,6 +57,12 @@ export const HandoffPreviewSchema = z.object({
     bytes: z.number().int(),
     maxBytes: z.number().int(),
     maxRequestBytes: z.number().int(),
+    projectedRunes: z.number().int().nonnegative(),
+    retainedRunes: z.number().int().nonnegative(),
+    estimatedTokens: z.number().int().nonnegative(),
+    tokenEstimateKnown: z.boolean(),
+    tokenBasis: z.string(),
+    shape: z.string(),
   }),
   blockedReason: z.string(),
   capability: z.enum(["supported", "unsupported", "pending"]),
@@ -75,7 +85,15 @@ export const HandoffOperationSchema = z.object({
   id: z.string(),
   previewId: z.string(),
   instanceId: z.string(),
-  state: z.enum(["preparing", "sending", "succeeded", "failed", "unknown"]),
+  state: z.enum([
+    "preparing",
+    "awaiting_upstream",
+    "sending",
+    "succeeded",
+    "failed",
+    "unknown",
+  ]),
+  worktreeUpstream: WorktreeUpstreamSchema.optional(),
   targetSessionId: z.string(),
   error: z.string(),
   worktreeId: z.string(),
@@ -85,6 +103,7 @@ export const HandoffOperationSchema = z.object({
 });
 export const HandoffSendRequestSchema = z.object({
   operationId: z.string().min(1),
+  upstreamChoice: UpstreamChoiceSchema.optional(),
 });
 export type HandoffLocation = z.infer<typeof HandoffLocationSchema>;
 export type HandoffPreview = z.infer<typeof HandoffPreviewSchema>;

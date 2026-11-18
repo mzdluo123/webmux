@@ -161,6 +161,7 @@ test("TV text fields navigate until confirmed, then preserve caret editing", asy
 test("native radio groups retain their own axis and release perpendicular TV navigation", async () => {
   await render(RadioHarness);
   const above = page.getByRole("button", { name: "上方按钮" });
+  const right = page.getByRole("button", { name: "右侧按钮" });
   const below = page.getByRole("button", { name: "下方按钮" });
   const list = page.getByRole("radio", { name: "列表", exact: true });
   const preview = page.getByRole("radio", { name: "预览", exact: true });
@@ -170,6 +171,11 @@ test("native radio groups retain their own axis and release perpendicular TV nav
   await userEvent.keyboard("{ArrowRight}");
   await expect.element(preview).toHaveFocus();
   await expect.element(preview).toHaveAttribute("aria-checked", "true");
+  await userEvent.keyboard("{ArrowRight}");
+  await expect.element(right).toHaveFocus();
+  await expect.element(preview).toHaveAttribute("aria-checked", "true");
+  await userEvent.keyboard("{ArrowLeft}");
+  await expect.element(preview).toHaveFocus();
   await userEvent.keyboard("{ArrowDown}");
   await expect.element(below).toHaveFocus();
   await userEvent.keyboard("{ArrowUp}");

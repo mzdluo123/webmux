@@ -566,10 +566,27 @@ async function openPanelPicker(scope: Locator | Page) {
   return page.getByRole("group", { name: "面板选择", exact: true });
 }
 
+/** Closes the picker: Cancel in the phone sheet, the header button on desktop. */
+export async function closePanelPicker(scope: Locator | Page) {
+  const page = "viewportSize" in scope ? scope : scope.page();
+  const cancel = page
+    .getByRole("group", { name: "面板选择", exact: true })
+    .getByRole("button", { name: "取消", exact: true });
+  if (await cancel.isVisible()) {
+    await cancel.click();
+    return;
+  }
+  await page
+    .getByRole("region", { name: "侧栏面板", exact: true })
+    .getByRole("button", { name: "关闭侧栏面板", exact: true })
+    .click();
+}
+
 export async function toggleCode(scope: Locator | Page) {
   if (await scope.locator(".code-pane").isVisible()) {
+    const page = "viewportSize" in scope ? scope : scope.page();
     await openPanelPicker(scope);
-    await scope
+    await page
       .getByRole("button", { name: "关闭侧栏面板", exact: true })
       .click();
   } else

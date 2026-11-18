@@ -164,8 +164,9 @@
             })
           : undefined,
       };
-      // Pick up configs changed on other devices since the page loaded.
+      // Pick up configs and worktrees changed elsewhere since the page loaded.
       if (launchConfigs) void launchConfigs.load();
+      if (repositories) void repositories.refresh();
     },
     rename(session) {
       shellUi.drawerOpen = false;
@@ -182,6 +183,7 @@
     chooseHomeWorktrees(repository) {
       shellUi.drawerOpen = false;
       choosingHome = repository;
+      if (repositories) void repositories.refresh();
     },
     repositoryDetails(repository, tab = "overview") {
       shellUi.drawerOpen = false;
@@ -192,6 +194,7 @@
     worktreeDetails(worktree) {
       shellUi.drawerOpen = false;
       viewingWorktree = worktree;
+      if (repositories) void repositories.refresh();
     },
     switchBranch(worktree, initial) {
       shellUi.drawerOpen = false;
@@ -294,9 +297,10 @@
 
   // Explicit quick-start pages retain a return path for sessions launched there.
   $effect(() => {
-    if (route.name === "sessions" && shellUi.mode !== "workbench")
+    if (route.name === "sessions" && shellUi.mode !== "workbench") {
       shellUi.setMode("workbench");
-    else if (
+      void repositories?.refresh();
+    } else if (
       (route.name === "quick-start" || route.name === "handoff") &&
       shellUi.mode !== "chat"
     )

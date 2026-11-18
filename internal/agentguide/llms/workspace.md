@@ -11,6 +11,8 @@
 
 - 主页显示与 Web 端一致：`pinned`（加入了主页显示）、`sessions`（未加入，但因为有会话或已归档会话而显示）、`hidden`。从未设置过的仓库只显示主工作区。
 - `webmux worktree create` 与 `run` 的新建 worktree 默认加入主页显示，可以选择不加入；`webmux worktree pin`、`unpin`、`home` 调整显示，只改该仓库的条目，冲突时自动重放。
+- 每次创建前检查源分支上游；有新提交或获取失败时先确认。终端可选择上游最新、保留本地或取消；自动化调用须按用户选择继续，确认信息不代表资源已创建。
+- 已有分支仅安全快进，分叉时保留本地或取消；新分支选择上游保持源本地分支不变。确认后引用变化会重新询问；显式历史提交与已释放工作树恢复保持精确提交。
 - `webmux worktree rm` 先预览其中的会话、已归档会话与阻止原因；强制删除会关闭其中的会话，分支保留。非交互环境下需要明确确认。
 - `webmux worktree switch` 原地切换 worktree 的分支（已有本地分支、`--track` 远程分支、`--create` 新分支或 `--detach` 提交），先在标准错误输出预览。有未提交修改、进行中的 merge/rebase 或目标分支已在别处检出时不切换并以 1 结束；修改不会被贮藏或丢弃。其中的会话不会被关闭，会看到切换后的文件；有运行会话时非交互环境需要 `--yes`，否则以 2 结束。需要并行处理时改用 `worktree create`。
 - `webmux worktree prune` 只清理目录已不存在、未锁定的 linked worktree 登记，不执行 `git worktree prune`：先把预览写到标准错误，确认规则与 `worktree rm` 相同，分支保留；逐项输出 `removed`、`skipped`、`failed`，有 `failed` 时以 1 结束，没有可清理项时以 0 结束。锁定的条目需先在终端解锁。
@@ -24,6 +26,7 @@
 `webmux repo remotes` 列出远程及其 fetch/push 地址，凭据由服务端脱敏。
 `webmux repo fetch` 按名称逐个获取全部远程并清理远端已删除的分支，之后重新检查仓库，领先/落后随之更新。获取不会等待输入：需要密码、令牌或确认 ssh 主机密钥的远程直接报告 `auth`，在终端完成认证后重试；错误信息中的凭据已脱敏。任一远程失败或仓库没有远程时以 1 结束。
 `webmux repo ff`、`push` 与 `branch-rm` 处理分支同步，都先把预览写到标准错误；有阻止原因时不执行并以 1 结束，执行时复核预览后的变化，变化了就要求重新预览。
+
 - `webmux repo ff REPO BRANCH` 把分支快进到本地已有的远程跟踪分支（需要最新上游时先 `repo fetch`），不合并、不变基；没有上游、领先或已分叉、检出它的 worktree 有未提交修改或进行中的 merge/rebase 时不执行。被检出的分支在其 worktree 中更新，其中的会话继续运行并看到新文件；有运行会话时非交互环境需要 `--yes`，否则以 2 结束。
 - `webmux repo push REPO BRANCH` 把领先且不落后的分支推送到上游；没有上游（或上游已删除）时发布到 `--remote`（默认 `remote.pushDefault`、`origin` 或唯一的远程），远端分支名为 `--to`（默认同名），成功后设为上游。推送的是预览时的提交，不强制推送、不推送标签，照常运行 `pre-push` 钩子。非交互环境需要 `--yes`；对有上游的分支给出 `--remote`/`--to`，或无法确定远程时以 2 结束；远端拒绝、认证失败、网络错误或超时以 1 结束，信息已脱敏。
 - `webmux repo branch-rm REPO BRANCH...` 删除未被检出的本地分支及其配置，不删除远端分支；`--cleanup` 选中未被检出、且已合入默认分支或上游已删除的分支。预览分为“已包含”与“有独有提交”（如 squash merge 后的分支）两组，后者只有给出 `--unmerged` 才删除，否则跳过。确认规则与 `worktree prune` 相同；`deleted` 行附带提交与恢复命令 `git branch <名称> <提交>`（在 Git 垃圾回收前有效），有 `failed` 时以 1 结束。

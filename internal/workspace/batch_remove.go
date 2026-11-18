@@ -177,5 +177,6 @@ func (s *Service) BatchRemoveWorktrees(ctx context.Context, repositoryID string,
 		}
 		results[i].Status = "removed"
 	}
+	s.notifyWorkspaces()
 	return BatchRemoveResult{Results: results}, nil
 }

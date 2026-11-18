@@ -38,11 +38,17 @@ type HandoffImagePage struct {
 	Bytes    int    `json:"bytes"`
 }
 type HandoffImageBudget struct {
-	MaxPages        int `json:"maxPages"`
-	Pages           int `json:"pages"`
-	Bytes           int `json:"bytes"`
-	MaxBytes        int `json:"maxBytes"`
-	MaxRequestBytes int `json:"maxRequestBytes"`
+	MaxPages           int    `json:"maxPages"`
+	Pages              int    `json:"pages"`
+	Bytes              int    `json:"bytes"`
+	MaxBytes           int    `json:"maxBytes"`
+	MaxRequestBytes    int    `json:"maxRequestBytes"`
+	ProjectedRunes     int    `json:"projectedRunes"`
+	RetainedRunes      int    `json:"retainedRunes"`
+	EstimatedTokens    int64  `json:"estimatedTokens"`
+	TokenEstimateKnown bool   `json:"tokenEstimateKnown"`
+	TokenBasis         string `json:"tokenBasis"`
+	Shape              string `json:"shape"`
 }
 type HandoffPreview struct {
 	Format          string                `json:"format"`
@@ -67,17 +73,19 @@ type HandoffPreview struct {
 	Budget          HandoffBudget         `json:"budget"`
 }
 type HandoffSendRequest struct {
-	OperationID string `json:"operationId"`
+	OperationID    string          `json:"operationId"`
+	UpstreamChoice *UpstreamChoice `json:"upstreamChoice,omitempty"`
 }
 type HandoffOperation struct {
-	ID              string     `json:"id"`
-	PreviewID       string     `json:"previewId"`
-	InstanceID      string     `json:"instanceId"`
-	State           string     `json:"state"`
-	TargetSessionID string     `json:"targetSessionId"`
-	Error           string     `json:"error"`
-	WorktreeID      string     `json:"worktreeId"`
-	WorktreePath    string     `json:"worktreePath"`
-	StartedAt       time.Time  `json:"startedAt"`
-	FinishedAt      *time.Time `json:"finishedAt"`
+	ID               string            `json:"id"`
+	PreviewID        string            `json:"previewId"`
+	InstanceID       string            `json:"instanceId"`
+	State            string            `json:"state"`
+	TargetSessionID  string            `json:"targetSessionId"`
+	Error            string            `json:"error"`
+	WorktreeID       string            `json:"worktreeId"`
+	WorktreePath     string            `json:"worktreePath"`
+	StartedAt        time.Time         `json:"startedAt"`
+	FinishedAt       *time.Time        `json:"finishedAt"`
+	WorktreeUpstream *WorktreeUpstream `json:"worktreeUpstream,omitempty"`
 }

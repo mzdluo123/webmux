@@ -1,5 +1,5 @@
-snapcompact-go v0.1.0
-Source: https://github.com/mzdluo123/snapcompact-go/releases/tag/v0.1.0
+snapcompact-go v0.1.1-0.20261117185841-969040513d9e
+Source: https://github.com/mzdluo123/snapcompact-go/commit/969040513d9e8d66ade380bc93f8d143434e6f42
 
 MIT License
 
@@ -27,6 +27,10 @@ Snapcompact dependency notices
 
 Code is independently implemented. No Pig/owncode/CLI source is included.
 Noto font notices are in fonts/NOTICE.txt and fonts/LICENSE.
+The archive renderer embeds X.Org fixed 8x13, public domain:
+"Public domain font. Share and enjoy."
+The BDF identifies Markus Kuhn's ucs-fonts revision 1.57 (2006-01-05).
+Noto supplies Unicode fallback; no Silver font is redistributed.
 
 
 === golang/image@v0.48.0 ===

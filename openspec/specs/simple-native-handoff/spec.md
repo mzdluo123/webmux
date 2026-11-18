@@ -2,7 +2,7 @@
 
 ## Purpose
 
-为单用户 WebMux 提供从 Agent 原生历史读取、默认生成 Snapcompact 图片预览并向目标发送一次的交接能力；文本为显式选项。
+为单用户 WebMux 提供从 Agent 原生历史读取、默认生成 Snapcompact 混合压缩归档并向目标发送一次的交接能力；文本为显式选项。
 交接状态保存在当前服务进程的有界内存中，原文通过 Agent 原生来源读取。
 
 ## Requirements
@@ -50,42 +50,52 @@
 - **WHEN** 工具输出超过投影限制，当前任务包含代码缩进和中文
 - **THEN** 预览显示省略信息，当前任务保持原样，用户可在有效范围内补查
 
-### Requirement: 默认图片与显式文本
+### Requirement: 默认压缩归档与显式文本
 
 请求 `format` SHALL 默认为 `image`，并支持显式 `text`；`maxPages` 省略或为 0 SHALL 采用 8 页上限，显式范围 SHALL 为 1–8。
 图片预览 SHALL 包含按序的 `pages`，每页包含 index、mimeType、base64 data、sha256、width、height、bytes。
-预览 SHALL 提供 `imageBudget` 的 maxPages、pages、bytes、maxBytes、maxRequestBytes，以及 blockedReason、capability、historyText。
-图片模式 SHALL 用图片承载历史正文，仅将来源说明、省略提示与当前任务作为文本块发送；historyText SHALL 用于审阅而非重复传送历史正文。
+预览 SHALL 提供 `imageBudget` 的页数、字节、正文保留量、图片 token 估计及依据，以及 blockedReason、capability、historyText。
+归档模式 SHALL 按首部文本、中间图片、尾部文本及当前任务发送；短历史 SHALL 完整保留为文本，historyText SHALL 仅供审阅。
 文本模式 SHALL 按文本预算选取完整片段，保持来源顺序并报告省略。
 
 #### Scenario: 请求省略格式
 
 - **WHEN** 用户使用默认选项生成交接预览
-- **THEN** 系统生成图片预览，任务保持独立文本，图片按页序显示
+- **THEN** 系统生成混合归档预览；短历史无图片，长历史图片按页序显示，任务始终保持独立文本
 
 ### Requirement: 完整页集与失败阻止
 
-系统 SHALL 校验选中片段正文的覆盖范围、缺失字形和页序；超页时 SHALL 重新选择完整历史片段并重新渲染全部选中内容。
-系统 SHALL 明确报告被省略片段，不能把截取的部分页面当作完整投影。
+系统 SHALL 采用紧凑角色标签、模型相关排版和首尾文本，中段容量不足时采用高/低密度分级，再省略较旧中段范围。
+文本范围、图片范围与显式省略范围 SHALL 无缺口、无重叠地划分投影正文，并明确报告正文保留字符数。
 图片字节、页序和 hash SHALL 在预览时冻结；发送 SHALL 使用相同图片，不重新渲染。
-缺字、覆盖不全、渲染失败、能力不足或附件/编码请求超限 SHALL 阻止发送，并提供 blockedReason；系统 SHALL 不静默降级为文本。
+需要图片时，缺字、覆盖不全、渲染失败、能力不足或附件/编码请求超限 SHALL 阻止发送，并提供 blockedReason。
 图片 SHALL 遵守每条最多 8 张、单张 10 MiB、总原始数据 20 MiB、编码请求 30 MiB 及更低服务配置上限。
-图片预算 SHALL 与文本估算分开展示，不把图片字节数声明为视觉 token 或费用。
+文本保守上界与图片 token 估计 SHALL 共同计入上下文预算；图片字节独立校验，未知费率 SHALL 明确标注，不声明为实际 usage。
 
 #### Scenario: 历史超过页数上限
 
 - **WHEN** 完整候选渲染超过 maxPages
-- **THEN** 系统移除完整较旧片段并重新渲染，报告省略；单个片段仍超页时阻止发送
+- **THEN** 系统保留首尾文本并按容量规划中段分级页面，显式报告省略范围；成功页面集与文本范围覆盖所有未省略正文
 
 #### Scenario: 新目标尚未确认图片能力
 
 - **WHEN** 预览目标尚未创建
-- **THEN** capability 为 pending，确认后创建目标并检查实际 ACP 图片能力；能力不足时失败且不发送文本替代
+- **THEN** capability 为 pending；归档含图片时，确认后创建目标并检查实际 ACP 图片能力，能力不足时失败
 
 #### Scenario: 用户改为文本
 
 - **WHEN** 图片预览被阻止且用户明确选择 text
 - **THEN** 系统生成新的文本预览，旧图片预览不会被隐式转换或发送
+
+#### Scenario: 手机逐字编辑页数
+
+- **WHEN** 用户删除原页数，再通过数字键盘输入新值
+- **THEN** 编辑中允许空值，失焦或预览时校验 1–8 的整数；无效或已变更草稿阻止发送旧预览
+
+#### Scenario: 比较长历史节省
+
+- **WHEN** 评估归档相对文本的 token 节省
+- **THEN** 比较相同投影覆盖的真实模型 usage，并单独记录机械截断、预算省略、精确字段错误和补查费用
 
 ### Requirement: 短期预览与失效
 

@@ -89,7 +89,7 @@ func (s *Server) Contributions() []transport.Contribution {
 		s.workspaceRoutes(mux)
 		s.projectRoutes(mux)
 		s.gitRoutes(mux)
-	})
+	}, s.workspaceStream())
 	if s.Config.Features.Has("workspace") && s.Config.Features.Has("code") {
 		add("workspace", s.gitCodeRoutes)
 	}

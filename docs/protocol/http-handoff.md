@@ -20,19 +20,21 @@ GET /api/handoff-previews/{previewId}
 
 - `pages[]` 按页序包含 `index`（从 0 开始）、`mimeType`、base64 `data`、`sha256`、`width`、`height`、原始 `bytes`。
 - `imageBudget` 包含 `maxPages`、实际 `pages`、原始 `bytes`、`maxBytes` 与编码请求上限 `maxRequestBytes`。
-- `capability` 为 `pending`、`supported` 或 `unsupported`；新目标在创建前为 `pending`，发送前检查实际 ACP 图片能力。
-- `blockedReason` 非空时不可发送；用户可明确选择文本模式并重新生成预览，服务端不会静默降级。
-- `historyText` 用于审阅已选择历史。图片模式的 `text` 仅包含来源说明、省略提示和当前任务，历史正文由图片承载。
+  另含投影正文 `projectedRunes`、实际保留正文 `retainedRunes`、图片 `estimatedTokens`、`tokenEstimateKnown`、`tokenBasis` 与 `shape`。
+- `capability` 为 `pending`、`supported` 或 `unsupported`；需要图片的新目标在创建前为 `pending`，发送前检查真实 ACP 图片能力。零页归档无需图片能力。
+- `blockedReason` 非空时不可发送；用户可选择文本模式并重新预览。
+- `historyText` 是保留历史的完整审阅表示。归档模式的 `text` 含来源指引、首尾历史文本与当前任务；ACP 按首部文本、图片、尾部文本及任务的顺序发送。
 
 ## 选择与预算
 
 Snapcompact 从可导出记录的正文和可见工具调用/结果生成机械投影，保留角色、顺序和工具关联；私有推理及 provider 状态不进入投影。
-图片默认按选中投影完整渲染；超页时从完整候选中移除较旧片段，重新渲染并报告省略数量，不截取部分页面冒充完整历史。
-缺字、渲染失败、正文覆盖不全、能力不支持或附件/编码请求超限会阻止发送。失败的部分图片仅供检查。
+归档使用紧凑角色/来源序号、模型相关点阵排版和首尾文本，中段在容量不足时使用高/低密度分级，最后才省略中段较旧范围。
+布局先于 PNG 编码；正文的文本范围、图片范围与明确省略范围必须形成无缺口、无重叠的完整划分。
+短历史可返回空 `pages` 并完整保留文本。需要图片时，缺字、渲染失败、覆盖不全、能力不足或附件/编码请求超限阻止发送。
 每条最多 8 张、单图 10 MiB、原始数据合计 20 MiB；编码请求最多 30 MiB，并受服务端更低配置限制。
-文本模式按预算选择最近的完整片段并恢复来源顺序。文本预算包含当前任务、历史、模型窗口与保留空间，受 `handoff_token_cap` 限制。
-图片页数与字节预算不等于视觉 token 或费用预测，`budget` 中的文本估算不代表真实图片计费。
-预览冻结图片字节、顺序及 SHA-256；确认发送使用这些图片，不重新渲染。
+文本模式按预算选择最近完整片段并恢复来源顺序。上下文预算包含当前任务、历史和保留空间，受 `handoff_token_cap` 限制。
+归档同时计入首尾文本的保守字节上界与模型图片 token 估计；`tokenBasis` 标注目录规则或未知费率预留，均不是实际 usage。
+预览冻结文本、图片字节、顺序及 SHA-256；发送使用这些内容，不重新渲染。已有目标模型配置变化使原预览失效。
 预览在五分钟内有效，最多 32 项；manifest、文本及图片表示共同计入 64 MiB 内存预算。
 
 ## 确认发送与查询
@@ -46,13 +48,19 @@ POST /api/handoff-operations/{operationId}/cancel
 发送体为 `{ "operationId": "<预览返回的操作 ID>" }`，返回 202。
 服务端在调用目标前原子消费预览并登记操作；同一操作的重复请求返回当前结果。
 操作返回 id、previewId、instanceId、state、targetSessionId、worktreeId、worktreePath、error 与时间字段。
-状态为 `preparing`、`sending`、`succeeded`、`failed` 或 `unknown`。
-目标创建和普通 prompt 各执行一次；操作成功表示本轮已获得接收证据，不代表回合结束或任务验收。
+状态为 `preparing`、`sending`、`awaiting_upstream`、`succeeded`、`failed` 或 `unknown`。
+目标成功创建与普通 prompt 各执行一次；操作成功表示本轮已获得接收证据，不代表回合结束或任务验收。
 接收证据包括本轮 Agent 正文、思考、工具调用、plan、当前授权/提问，或成功的 `session/prompt` 响应。
 30 秒 commandTimeout 只约束校验与 actor 接受派发；确认观察绑定该 turn 的共享回执，慢模型不会仅因超过 30 秒变成 unknown。
 尚无活动且连接仍存活时保持 `sending`；取消确认观察或连接断开且没有接收证据时为 `unknown`，不会自动重发。
 准备阶段取消为 `failed`；用户须在目标会话检查指定 turn 的最终输出。
 结果不明返回「可能已发送，请检查目标会话」。操作结果最多保留 256 项，完成十五分钟后失效。
+
+新工作树上游有更新或获取失败时，操作停在 `awaiting_upstream`，`finishedAt` 为 null，`worktreeUpstream` 提供[上游确认信息](http-workspace.md#创建前的上游确认)。此时尚未创建目标资源：
+
+- 确认后向同一 `/send` 提交 `{operationId, upstreamChoice: {confirmationId, useUpstream}}`，继续原操作与冻结页集。
+- 重复相同确认只观察已有操作；上游状态再次变化时重新进入 `awaiting_upstream`。
+- 取消操作或预览过期后无法继续创建，保留来源与原工作树。
 
 ## 原文补查与错误
 

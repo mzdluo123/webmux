@@ -168,6 +168,9 @@ func (s *Service) commitAssociation(info session.Info, association *Association,
 	}
 }
 func (s *Service) reassociate(ctx context.Context) {
+	if s.manager == nil {
+		return
+	}
 	ctx, cancel := context.WithTimeout(ctx, readTimeout)
 	defer cancel()
 	for _, info := range s.manager.List() {

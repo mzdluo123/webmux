@@ -141,60 +141,30 @@ func (e Env) worktreeDir(ctx context.Context, repo contract.Repository, branch, 
 	return dir
 }
 
-// refreshBase fetches the upstream of base (default: the repository's
-// default branch) and returns the commit a new branch starts from; a
-// failed fetch is a warning and the local branch is used.
-func (e Env) refreshBase(ctx context.Context, client *localclient.Client, repo contract.Repository, base string) (string, error) {
-	repoPath := "/api/repositories/" + url.PathEscape(repo.ID)
-	ref := base
-	if ref == "" {
-		var branches contract.Branches
-		if err := client.Do(ctx, http.MethodGet, repoPath+"/branches", nil, &branches); err != nil {
-			return "", err
-		}
-		if branches.DefaultBranch != nil {
-			ref = *branches.DefaultBranch
-		}
-	}
-	var refreshed contract.RefreshBranchBaseResponse
-	if err := client.Do(ctx, http.MethodPost, repoPath+"/branches/refresh", contract.RefreshBranchBaseRequest{Branch: ref}, &refreshed); err != nil {
-		return "", err
-	}
-	if refreshed.FetchWarning != "" {
-		_, _ = fmt.Fprintln(e.Stderr, "webmux: fetching the base failed; using the local branch:", refreshed.FetchWarning)
-	}
-	return refreshed.Base, nil
-}
-
 // createWorktree creates a worktree like the Web UI's dialog and pins it
 // to the home page unless pin is false; a failed pin is only a warning.
-func (e Env) createWorktree(ctx context.Context, client *localclient.Client, repo contract.Repository, branch, base, dir string, existing, refresh, pin bool) (contract.Worktree, error) {
+func (e Env) createWorktree(ctx context.Context, client *localclient.Client, repo contract.Repository, branch, base, dir, upstream string, existing, pin bool) (contract.Worktree, error) {
 	dir = e.worktreeDir(ctx, repo, branch, dir)
 	repoPath := "/api/repositories/" + url.PathEscape(repo.ID)
-	if refresh && !existing {
-		refreshed, err := e.refreshBase(ctx, client, repo, base)
-		if err != nil {
-			return contract.Worktree{}, err
-		}
-		base = refreshed
-	}
 	mode := "new"
 	if existing {
 		mode = "existing"
 	}
-	if base == "" && !existing {
-		var branches contract.Branches
-		if err := client.Do(ctx, http.MethodGet, repoPath+"/branches", nil, &branches); err != nil {
-			return contract.Worktree{}, err
-		}
-		if branches.DefaultBase != nil {
-			base = *branches.DefaultBase
-		}
-	}
 	var tree contract.Worktree
 	request := contract.CreateWorktreeRequest{Path: dir, Mode: mode, Branch: branch, Base: base}
-	if err := client.Do(ctx, http.MethodPost, repoPath+"/worktrees", request, &tree); err != nil {
-		return contract.Worktree{}, fmt.Errorf("create worktree: %w", err)
+	for {
+		err := client.Do(ctx, http.MethodPost, repoPath+"/worktrees", request, &tree)
+		if err == nil {
+			break
+		}
+		check := worktreeUpstreamChallenge(err)
+		if check == nil {
+			return contract.Worktree{}, fmt.Errorf("create worktree: %w", err)
+		}
+		request.UpstreamChoice, err = e.chooseWorktreeUpstream(*check, upstream)
+		if err != nil {
+			return contract.Worktree{}, err
+		}
 	}
 	if pin {
 		refreshed := repo

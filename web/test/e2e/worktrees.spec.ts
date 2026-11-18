@@ -263,9 +263,9 @@ test("external changes refresh and restart retains registry but not sessions", a
   await page.getByRole("button", { name: "刷新 Git 状态" }).click();
   const repo = page.locator(`[data-repository-id="${before[0].id}"]`);
   await expand(repo);
-  // Externally created worktrees stay off the home page until chosen.
-  await expectHomeWorktrees(page, 1, 2);
-  await expect(repo.getByText("external", { exact: true })).toHaveCount(0);
+  // Newly added external worktrees appear on the home page automatically and can be toggled in "主页显示…".
+  await expectHomeWorktrees(page, 2, 2);
+  await expect(repo.getByText("external", { exact: true })).toBeVisible();
   await repositoryMenu(page, "主页显示…");
   // The dialog (a drawer on phones) must stay inside the viewport, even on a
   // 320×568 phone.
@@ -281,6 +281,14 @@ test("external changes refresh and restart retains registry but not sessions", a
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
   }).toPass();
+  // Unchecking hides it even across subsequent refreshes; re-checking restores it.
+  await page.getByRole("option", { name: "external", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(repo.getByText("external", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "刷新 Git 状态" }).click();
+  await expect(repo.getByText("external", { exact: true })).toHaveCount(0);
+  await repositoryMenu(page, "主页显示…");
+  await expect(picker).toBeVisible();
   await page.getByRole("option", { name: "external", exact: true }).click();
   await page.keyboard.press("Escape");
   await expect(repo.getByText("external", { exact: true })).toBeVisible();
@@ -448,7 +456,7 @@ test("multiple repositories keep every session visible through local failure, co
   await addDialog.getByRole("button", { name: "取消", exact: true }).click();
 });
 
-test("upstream refresh selects remote commits and falls back to a creatable local base", async ({
+test("upstream refresh previews commits and creation requires an explicit baseline choice", async ({
   page,
   request,
   workDir,
@@ -477,24 +485,23 @@ test("upstream refresh selects remote commits and falls back to a creatable loca
     await git(other, "push", "origin", "main");
     return git(other, "rev-parse", "HEAD");
   };
-  const remoteOne = await advance("remote one");
+  await advance("remote one");
   await page.goto("/");
   await register(page, root);
   await openWorktreeCreation(page, false);
   const base = page.getByRole("combobox", { name: "起始提交", exact: true });
   const short = (oid: string) => oid.slice(0, 7);
-  await expect(base).toContainText(short(remoteOne));
-  await expect(base).toContainText("remote one");
+  await expect(base).toContainText(short(localHead));
   await expect(
     page.getByRole("status", { name: "上游刷新状态" }),
-  ).toContainText("远程最新 · origin/main · remote one");
+  ).toContainText("上游预览 · origin/main");
 
   const remoteTwo = await advance("remote two");
   await page.getByRole("button", { name: "刷新上游", exact: true }).click();
-  await expect(base).toContainText(short(remoteTwo));
+  await expect(base).toContainText(short(localHead));
   await expect(
     page.getByRole("status", { name: "上游刷新状态" }),
-  ).toContainText("remote two");
+  ).toContainText("上游预览 · origin/main");
   // The fetched tip leads the list, followed by the older history.
   await base.click();
   const choices = page.getByRole("listbox").getByRole("option");
@@ -518,6 +525,15 @@ test("upstream refresh selects remote commits and falls back to a creatable loca
     .getByLabel("新工作树完整路径", { exact: true })
     .inputValue();
   await page.getByRole("button", { name: "创建工作树", exact: true }).click();
+  const confirmation = page.getByRole("dialog", {
+    name: "选择工作树基线",
+    exact: true,
+  });
+  await expect(confirmation).toContainText(localHead);
+  await expect(confirmation).toContainText(remoteTwo);
+  await confirmation
+    .getByRole("button", { name: "保留本地", exact: true })
+    .click();
   await expect(page.getByRole("dialog")).toBeHidden();
   const repo = (await (await request.get("/api/repositories")).json())[0];
   const created = repo.worktrees.find(
@@ -632,7 +648,7 @@ test("late Git response cannot replace a newer refresh", async ({
   );
   const repo = page.locator("[data-repository-id]");
   await expand(repo);
-  await expectHomeWorktrees(page, 1, 2);
+  await expectHomeWorktrees(page, 2, 2);
   const lateResponse = page.waitForResponse((response) =>
     response.url().endsWith("/api/repositories"),
   );
@@ -647,7 +663,7 @@ test("late Git response cannot replace a newer refresh", async ({
   await expect(
     page.getByRole("button", { name: "刷新 Git 状态" }),
   ).toHaveAttribute("aria-busy", "false");
-  await expectHomeWorktrees(page, 1, 2);
+  await expectHomeWorktrees(page, 2, 2);
 });
 
 test("returning home keeps the cached snapshot until a slow Git refresh finishes", async ({
@@ -675,13 +691,13 @@ test("returning home keeps the cached snapshot until a slow Git refresh finishes
     .click();
   await expect(page).toHaveURL(new RegExp(`/s/${id}$`));
   await expect(page.locator(".xterm-helper-textarea")).toBeAttached();
-  const external = join(workDir, "cached-newer");
-  await git(root, "worktree", "add", "-b", "cached-newer", external);
   const held = Promise.withResolvers<void>();
   await page.route("**/api/repositories", async (route) => {
     await held.promise;
     await route.continue();
   });
+  const external = join(workDir, "cached-newer");
+  await git(root, "worktree", "add", "-b", "cached-newer", external);
   try {
     await backToList(page);
     // The cached snapshot keeps the session grouped under its repository
@@ -700,7 +716,7 @@ test("returning home keeps the cached snapshot until a slow Git refresh finishes
     );
     held.resolve();
     await (await refreshed).finished();
-    await expectHomeWorktrees(page, 1, 2);
+    await expectHomeWorktrees(page, 2, 2);
   } finally {
     held.resolve();
   }
@@ -808,4 +824,86 @@ test("batch worktree management cleans unpinned and prunable worktrees while ski
   expect(porcelain).not.toContain(cleanPath);
   expect(porcelain).not.toContain(stalePath);
   expect(porcelain).toContain(dirtyPath);
+});
+
+test("workbench sidebar syncs external worktree additions and removals on a session page", async ({
+  browser,
+  page,
+  request,
+  workDir,
+}) => {
+  const root = await repository(workDir, "live-sync-repo");
+  await request.post("/api/repositories", { data: { path: root } });
+  const [repo] = await (await request.get("/api/repositories")).json();
+  const mainId = repo.worktrees[0].id;
+  const created = await request.post("/api/sessions", {
+    data: {
+      name: "Live terminal",
+      cmd: ["/bin/sh", "-c", "sleep 600"],
+      workspace: { repositoryId: repo.id, worktreeId: mainId },
+    },
+  });
+  expect(created.status()).toBe(201);
+  const { id } = (await created.json()).session;
+
+  await page.goto(`/s/${id}`);
+  await expectConnected(page);
+
+  const openSidebar = page.getByRole("button", { name: "打开侧栏" });
+  const tree = page.getByRole("tree", { name: "仓库与会话" });
+  if (!(await tree.isVisible())) await openSidebar.click();
+  await expect(tree).toBeVisible();
+
+  // External `git worktree add` auto-syncs into the workbench sidebar without leaving the session page.
+  const extPath = join(workDir, "live-ext-wt");
+  await git(root, "worktree", "add", "-b", "wt/live-ext", extPath);
+  await expect(
+    tree.getByRole("treeitem", { name: /^wt\/live-ext(，|$)/ }),
+  ).toBeVisible({ timeout: 8000 });
+
+  // Unpin `wt/live-ext` via shared settings, then open a second fresh browser
+  // context: the second device must NOT re-pin the explicitly hidden worktree.
+  const snap = await (await request.get("/api/settings")).json();
+  const patchRes = await request.patch("/api/settings", {
+    data: {
+      baseRevision: snap.revision,
+      changes: { homeWorktrees: { [repo.id]: [mainId] } },
+    },
+  });
+  expect(patchRes.status()).toBe(200);
+  await expect(
+    tree.getByRole("treeitem", { name: /^wt\/live-ext(，|$)/ }),
+  ).toHaveCount(0);
+
+  await page.close();
+  // Create another worktree while zero browsers are open: opening a fresh
+  // device auto-pins `wt/offline-ext` while keeping `wt/live-ext` hidden.
+  const offlinePath = join(workDir, "offline-ext-wt");
+  await git(root, "worktree", "add", "-b", "wt/offline-ext", offlinePath);
+
+  const secondDevice = await browser.newContext();
+  try {
+    const page2 = await secondDevice.newPage();
+    await page2.goto(`/s/${id}`);
+    await expectConnected(page2);
+    const openSidebar2 = page2.getByRole("button", { name: "打开侧栏" });
+    const tree2 = page2.getByRole("tree", { name: "仓库与会话" });
+    if (!(await tree2.isVisible())) await openSidebar2.click();
+    await expect(tree2).toBeVisible();
+    await expect(
+      tree2.getByRole("treeitem", { name: /^wt\/offline-ext(，|$)/ }),
+    ).toBeVisible({ timeout: 8000 });
+    await expect(
+      tree2.getByRole("treeitem", { name: /^wt\/live-ext(，|$)/ }),
+    ).toHaveCount(0);
+
+    // External `git worktree remove` syncs via the sidebar refresh button (and background watch).
+    await git(root, "worktree", "remove", offlinePath);
+    await page2.getByRole("button", { name: "刷新工作区" }).click();
+    await expect(
+      tree2.getByRole("treeitem", { name: /^wt\/offline-ext(，|$)/ }),
+    ).toHaveCount(0);
+  } finally {
+    await secondDevice.close();
+  }
 });

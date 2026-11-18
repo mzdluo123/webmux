@@ -87,10 +87,11 @@
   - 提供示例与恢复默认；
   - 有效设置保存在服务端并跨设备同步，无效值不覆盖设置；
   - 启动配置可单独覆盖行数与跳过值并选择跟随全局默认，未配置或配置不可用时使用全局值。
-- **US-C08 刷新外部 Git 变化**：作为使用者，我希望终端外发生的工作树变化也能出现在首页，以便总览反映磁盘现状。
+- **US-C08 刷新外部 Git 变化**：作为使用者，我希望终端外发生的工作树变化也能出现在首页与工作台侧栏，以便工作区始终反映磁盘现状。
   验收要点：
   - 仅在选择 `workspace` 时执行这些 Git 刷新；仅选该功能也保留仓库/worktree 管理，Git 工作台另需 `code`；
-  - 打开首页、回到前台、重连、手动刷新和相关操作后重新读取 Git；
+  - 存在活跃订阅客户端时，服务端按需监听已登记仓库的 Git worktree 元数据与目录状态（无客户端订阅时不后台轮询），检测到外部增删、`prune`、目录缺失或分支切换，以及仓库与工作树写操作完成后，经 `GET /ws/repositories` 推送 `{type: "changed"}` 触发前端自动重读（无需切换浏览器窗口）；
+  - 打开外壳或首页、任意页面切回前台、WebSocket 重连、从快速开始返回工作台、打开新建会话/主页显示/工作树详情，以及点击工作台侧栏的“刷新工作区”按钮或首页工具栏的“刷新 Git 状态”按钮后重新读取 Git；
   - 读取时间收在仓库详情浮层，错误始终可见；
   - 较旧的请求结果不能覆盖新结果。
 - **US-C09 切换明暗主题**：作为使用者，我希望页面和终端适应当前设备的明暗偏好，以便在不同光线环境下独立调节阅读外观。
@@ -160,7 +161,7 @@
   验收要点：
   - 快速开始、新聊天与聊天历史需 `chat`，仓库树与添加仓库需 `workspace`，端口转发需 `forward`。缺少相应功能时仍保留核心会话导航与终端；
   - 首页 `/` 打开工作台。旧的聊天模式设置不再影响默认首页。直接访问 `/new` 可继续使用旧的快速开始与聊天历史。禁用 `chat` 时该地址显示“功能未启用”和“返回会话”；
-  - 品牌下方的分段控件在按会话和按分支之间切换。分组控件下方是「新建会话」、导航内容和底部全局区。连接状态、端口转发、设置和主题切换在底部；
+  - 品牌下方的分段控件在按会话和按分支之间切换。分组控件下方是「新建会话」、并排的「刷新工作区」、导航内容和底部全局区。连接状态、端口转发、设置和主题切换在底部；
   - 分组切换保留当前会话，正在运行的终端连接不中断，刚打开的终端也不会移走分组控件上的键盘焦点。工作台首页同时切换主区分组。布局、桌面侧栏宽度和窄栏偏好保存在当前设备；
   - 桌面窄栏保留展开按钮、「新建会话」与运行中会话。快捷行显示启动配置或 agent 图标与状态灯，当前会话用 `aria-current` 标记；
   - 桌面端展开的侧栏右边缘是可聚焦的分隔条（`role="separator"`），拖动或方向键（Shift 加大步长，Home/End 到边界）调整宽度，范围 256–480px，宽度保存在本设备，页面随之让出空间；侧栏顶部的收起按钮、品牌和分组控件在任何宽度下都不重叠；
@@ -220,7 +221,7 @@
 - [显示方式](../../../web/src/components/sessions/SessionViewControls.svelte)、[范围端到端用例](../../../web/test/e2e/repository-scope.spec.ts)
 - [会话首页](../../../web/src/pages/SessionList.svelte)、[会话卡片](../../../web/src/components/sessions/SessionRow.svelte)、[启动配置预览解析](../../../web/src/domains/settings/launch-previews.svelte.ts)
 - [仓库分组](../../../web/src/components/workspace/RepositoryGroup.svelte)、[工作区分组](../../../web/src/components/workspace/WorkspaceGroup.svelte)、[列表事件更新](../../../web/src/hooks/sessions/session-list.ts)
-- [原子快照与订阅](../../../internal/session/manager.go)、[规范会话投影](../../../internal/featurewire/session.go)、[工作区关联](../../../internal/workspace/sessions.go)。
+- [原子快照与订阅](../../../internal/session/manager.go)、[规范会话投影](../../../internal/featurewire/session.go)、[工作区关联](../../../internal/workspace/sessions.go)、[工作区监听](../../../internal/workspace/watch.go)、[工作区变更流](../../../internal/featurehub/workspace.go)。
 - [能力宿主](../../../web/src/platform/feature-host.svelte.ts)、[本地功能入口](../../../web/src/features/registry.svelte.ts)、[侧栏可选资源](../../../web/src/features/shell-resources.ts)。
 - [表单按需加载](../../../web/src/components/shared/LazyDialog.svelte)
 - [目录线索与搜索](../../../web/src/domains/sessions/session-location.ts)、[OSC 7 解析](../../../internal/session/osc.go)、[状态检测](../../../internal/session/status.go)

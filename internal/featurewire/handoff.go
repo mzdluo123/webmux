@@ -31,6 +31,10 @@ func HandoffPreview(p handoff.Preview) contract.HandoffPreview {
 }
 func HandoffOperation(o handoff.Operation) contract.HandoffOperation {
 	out := contract.HandoffOperation{ID: o.ID, PreviewID: o.PreviewID, InstanceID: o.InstanceID, State: o.State, TargetSessionID: o.TargetSessionID, Error: o.Error, StartedAt: o.StartedAt, FinishedAt: o.FinishedAt}
+	if o.WorktreeUpstream != nil {
+		check := contract.WorktreeUpstream(*o.WorktreeUpstream)
+		out.WorktreeUpstream = &check
+	}
 	if o.Location != nil {
 		out.WorktreeID = o.Location.WorktreeID
 		out.WorktreePath = o.Location.Path

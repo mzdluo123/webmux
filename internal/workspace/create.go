@@ -8,6 +8,10 @@ import (
 )
 
 func (s *Service) CreateWorktree(ctx context.Context, repositoryID string, req CreateRequest) (Worktree, error) {
+	check, err := s.checkCreationUpstream(ctx, repositoryID, req)
+	if err != nil {
+		return Worktree{}, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, writeTimeout)
 	defer cancel()
 	r, err := s.repository(repositoryID)
@@ -78,6 +82,9 @@ func (s *Service) CreateWorktree(ctx context.Context, repositoryID string, req C
 		}
 	}
 	isUnbornRepo := branches.DefaultBase == nil && len(branches.Branches) == 0 && len(branches.Bases) == 0
+	if err := s.validateCreationUpstream(ctx, r, req, check); err != nil {
+		return Worktree{}, err
+	}
 	argv := []string{"worktree", "add", "--no-guess-remote"}
 	switch {
 	case req.Mode == "orphan" || (req.Mode == "new" && req.Base == "" && isUnbornRepo):
@@ -92,10 +99,10 @@ func (s *Service) CreateWorktree(ctx context.Context, repositoryID string, req C
 		if exists {
 			return Worktree{}, problemf(ErrConflict, "分支已存在，请选择已有本地分支模式")
 		}
-		if req.Base == "" || strings.HasPrefix(req.Base, "-") || strings.ContainsRune(req.Base, '\x00') {
+		if check.base == "" || strings.HasPrefix(check.base, "-") || strings.ContainsRune(check.base, '\x00') {
 			return Worktree{}, problemf(ErrInvalid, "请选择明确的本地提交基线")
 		}
-		oid, err := s.git(ctx, r.entry.AnchorPath, "rev-parse", "--verify", "--end-of-options", req.Base+"^{commit}")
+		oid, err := s.git(ctx, r.entry.AnchorPath, "rev-parse", "--verify", "--end-of-options", check.base+"^{commit}")
 		if err != nil {
 			if errorKind(err) != ErrInternal {
 				return Worktree{}, err
@@ -116,6 +123,13 @@ func (s *Service) CreateWorktree(ctx context.Context, repositoryID string, req C
 		return Worktree{}, err
 	}
 	defer s.endStart(path)
+	advanced := req.Mode == "existing" && check.useUpstream
+	if advanced {
+		// Compare-and-swap cannot overwrite commits made since confirmation.
+		if _, err := s.git(ctx, r.entry.AnchorPath, "update-ref", check.source.ref, check.source.upstreamHead, check.source.head); err != nil {
+			return Worktree{}, problemf(ErrConflict, "已有分支已变化，未快进: %v", err)
+		}
+	}
 	_, operationErr := s.git(ctx, r.entry.AnchorPath, argv...)
 	// Cancellation is not evidence that Git made no changes. A fresh bounded
 	// read uses its own context; no rollback deletes branches or directories.
@@ -123,6 +137,20 @@ func (s *Service) CreateWorktree(ctx context.Context, repositoryID string, req C
 	defer refreshCancel()
 	actual := s.readRepository(refreshCtx, r)
 	if operationErr != nil {
+		if advanced && actual.Availability == "available" {
+			found := false
+			for _, tree := range actual.Worktrees {
+				if tree.Path == path {
+					found = true
+				}
+			}
+			if !found {
+				// Only undo our own fast-forward, never a concurrent ref update.
+				if _, err := s.git(refreshCtx, r.entry.AnchorPath, "update-ref", check.source.ref, check.source.head, check.source.upstreamHead); err != nil {
+					return Worktree{}, problemf(ErrConflict, "创建失败，分支已被并发修改；请刷新: %v", err)
+				}
+			}
+		}
 		category := errorKind(operationErr)
 		if category == ErrInternal {
 			category = ErrConflict
@@ -134,7 +162,9 @@ func (s *Service) CreateWorktree(ctx context.Context, repositoryID string, req C
 	}
 	for _, tree := range actual.Worktrees {
 		if tree.Path == path {
+			s.recordManagedWorktree(r, actual, tree.ID)
 			s.captureWorktreeCreateBaseline(refreshCtx, r, repositoryID, tree)
+			s.notifyWorkspaces()
 			return tree, nil
 		}
 	}

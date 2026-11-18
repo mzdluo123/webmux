@@ -21,6 +21,12 @@ func CreateInput(r contract.CreateSessionRequest) sessioncreate.Input {
 	}
 	if r.NewWorktree != nil {
 		in.NewWorktree = &sessioncreate.NewWorktree{RepositoryID: r.NewWorktree.RepositoryID, Mode: r.NewWorktree.Mode, Branch: r.NewWorktree.Branch, Base: r.NewWorktree.Base, Path: r.NewWorktree.Path}
+		if choice := r.NewWorktree.UpstreamChoice; choice != nil {
+			in.NewWorktree.UpstreamChoice = &sessioncreate.UpstreamChoice{
+				ConfirmationID: choice.ConfirmationID,
+				UseUpstream:    choice.UseUpstream,
+			}
+		}
 	}
 	if r.Attachments != nil {
 		in.Attachments = make([]string, len(r.Attachments))

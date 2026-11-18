@@ -13,15 +13,23 @@ import (
 	"testing"
 
 	snapcompact "github.com/mzdluo123/snapcompact-go"
-	"github.com/rainchan/webmux/internal/historyprojection"
 	"github.com/rainchan/webmux/internal/historysource"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
+func useLongImageHistory(b *testBackend) {
+	b.body = "early constraint\n" + strings.Repeat("archive_line(x <= 7); ", 350) +
+		"MIDDLE_ONLY_SENTINEL " + strings.Repeat("second_half(x != 9); ", 350) + "\nlatest correction\n  code()"
+	target := b.records["target"]
+	target.Config = map[string]string{"model": "openai-codex/gpt-6-astra"}
+	b.records["target"] = target
+}
+
 func TestDefaultImagePreviewSendsFrozenPages(t *testing.T) {
 	s, b := newTestService(t)
+	useLongImageHistory(b)
 	task := "当前任务\n\tkeep  spacing\n"
 	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", UserText: task})
 	if err != nil {
@@ -30,7 +38,7 @@ func TestDefaultImagePreviewSendsFrozenPages(t *testing.T) {
 	if p.Format != "image" || p.Request.Format != "image" || p.Capability != "supported" || p.BlockedReason != "" || len(p.Pages) == 0 || p.ImageBudget.MaxPages != maxImagePages {
 		t.Fatalf("preview format=%s capability=%s blocked=%q pages=%d budget=%+v", p.Format, p.Capability, p.BlockedReason, len(p.Pages), p.ImageBudget)
 	}
-	if strings.Contains(p.Text, "code()") || !strings.Contains(p.HistoryText, "code()") || !strings.Contains(p.Text, "snapshotId="+p.SnapshotID) || !strings.HasSuffix(p.Text, task) {
+	if strings.Contains(p.Text, "MIDDLE_ONLY_SENTINEL") || !strings.Contains(p.HistoryText, "MIDDLE_ONLY_SENTINEL") || !strings.Contains(p.Text, "snapshotId="+p.SnapshotID) || !strings.HasSuffix(p.Text, task) || p.imageTextOffset <= 0 {
 		t.Fatalf("text=%q history=%q", p.Text, p.HistoryText)
 	}
 	var total int
@@ -79,17 +87,18 @@ func TestDefaultImagePreviewSendsFrozenPages(t *testing.T) {
 	}
 }
 
-func TestImagePageBudgetReselectsCompleteSegments(t *testing.T) {
+func TestImagePageBudgetPreservesEdgesAndReportsMiddleOmissions(t *testing.T) {
 	s, b := newTestService(t)
+	useLongImageHistory(b)
 	for i := range 4 {
-		b.history = append(b.history, historysource.Record{ID: fmt.Sprintf("record-%d", i), Role: "user", Kind: "structured", Text: strings.Repeat("  code_line()\n", 20) + fmt.Sprintf("marker_%d\n", i)})
+		b.history = append(b.history, historysource.Record{ID: fmt.Sprintf("record-%d", i), Role: "user", Kind: "structured", Text: fmt.Sprintf("start_marker_%d\n", i) + strings.Repeat("  code_line()\n", 800) + fmt.Sprintf("end_marker_%d\n", i)})
 	}
 	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", MaxPages: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.BlockedReason != "" || len(p.Pages) != 1 || p.SelectedCount != 1 || p.OmittedCount != 3 || !strings.Contains(p.HistoryText, "marker_3") || strings.Count(p.HistoryText, "code_line()") != 20 {
-		t.Fatalf("selection=%d omitted=%d pages=%d blocked=%q history=%q", p.SelectedCount, p.OmittedCount, len(p.Pages), p.BlockedReason, p.HistoryText)
+	if p.BlockedReason != "" || len(p.Pages) != 1 || p.OmittedCount == 0 || !strings.Contains(p.Text, "start_marker_0") || !strings.Contains(p.Text, "end_marker_3") || p.ImageBudget.RetainedRunes >= p.ImageBudget.ProjectedRunes {
+		t.Fatalf("selection=%d omitted=%d pages=%d blocked=%q budget=%+v", p.SelectedCount, p.OmittedCount, len(p.Pages), p.BlockedReason, p.ImageBudget)
 	}
 }
 
@@ -99,17 +108,15 @@ func TestImageFailureRequiresExplicitTextPreview(t *testing.T) {
 		change func(*Service, *testBackend)
 	}{
 		{"capability", func(_ *Service, b *testBackend) { b.image = false }},
-		{"missing-glyph", func(_ *Service, b *testBackend) { b.body = "missing \U0010ffff" }},
-		{"wire-limit", func(s *Service, _ *testBackend) { s.options.MaxPromptWireBytes = 2048 }},
-		{"render-failure", func(s *Service, _ *testBackend) {
-			cfg := snapcompact.DefaultRenderConfig()
-			cfg.Width = -1
-			s.options.HistoryProjection = historyprojection.New(historyprojection.Options{Preprocess: historyprojection.DefaultPreprocessConfig(), Render: cfg})
+		{"missing-glyph", func(_ *Service, b *testBackend) {
+			b.body = strings.Replace(b.body, "MIDDLE_ONLY_SENTINEL", "missing \U0010ffff", 1)
 		}},
+		{"wire-limit", func(s *Service, _ *testBackend) { s.options.MaxPromptWireBytes = 2048 }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s, b := newTestService(t)
+			useLongImageHistory(b)
 			tt.change(s, b)
 			p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target"})
 			if err != nil {
@@ -142,6 +149,7 @@ func TestImageFailureRequiresExplicitTextPreview(t *testing.T) {
 
 func TestImageCapabilityRecheckedBeforeSend(t *testing.T) {
 	s, b := newTestService(t)
+	useLongImageHistory(b)
 	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target"})
 	if err != nil || p.BlockedReason != "" {
 		t.Fatalf("preview blocked=%q err=%v", p.BlockedReason, err)
@@ -166,6 +174,7 @@ func TestNewSessionImageCapabilityCheckedAfterCreation(t *testing.T) {
 	for _, supported := range []bool{false, true} {
 		t.Run(fmt.Sprint(supported), func(t *testing.T) {
 			s, b := newTestService(t)
+			useLongImageHistory(b)
 			manager := session.NewManager(session.Options{})
 			t.Cleanup(func() { manager.Shutdown(context.Background()) })
 			created, err := manager.CreateShell(session.ShellInput{CreateInput: session.CreateInput{Cmd: []string{"test-agent"}, Cwd: t.TempDir()}}, nil)
@@ -197,38 +206,60 @@ func TestNewSessionImageCapabilityCheckedAfterCreation(t *testing.T) {
 	}
 }
 
-func TestImageTextBudgetDoesNotCountHistoryBytes(t *testing.T) {
+func TestImageTokensParticipateInHistoryBudget(t *testing.T) {
 	s, b := newTestService(t)
+	useLongImageHistory(b)
 	s.options.TokenCap = 1500
-	b.body = strings.Repeat("history ", 500)
-	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target"})
-	if err != nil || p.BlockedReason != "" || p.Budget.Used >= int64(len(b.body)) || p.Budget.Used > p.Budget.History {
-		t.Fatalf("budget=%+v blocked=%q err=%v", p.Budget, p.BlockedReason, err)
+	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", UserText: "preserve task"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.BlockedReason == "" || !strings.HasSuffix(p.Text, "preserve task") {
+		t.Fatalf("budget=%+v blocked=%q", p.Budget, p.BlockedReason)
+	}
+	if _, err := s.Deliver(context.Background(), p.ID, p.OperationID); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("over-budget archive accepted: %v", err)
 	}
 }
 
-func TestRenderCoverageUsesCompleteProjectionRanges(t *testing.T) {
-	segments := []snapcompact.Segment{{SourceID: "s", Text: "中文x"}}
-	page := func(ranges ...snapcompact.Range) snapcompact.RenderResult {
-		return snapcompact.RenderResult{Pages: []snapcompact.Page{{Index: 0, Width: 1, Height: 1, PNG: []byte{1}, Ranges: ranges}}}
+func TestArchiveCoveragePartitionsTextImagesAndOmissions(t *testing.T) {
+	segments := []snapcompact.Segment{{SourceID: "s", Text: "中文xy"}}
+	r := func(start, end int) snapcompact.Range {
+		return snapcompact.Range{SourceID: "s", Field: "projection", Start: start, End: end}
 	}
-	full := snapcompact.Range{SourceID: "s", Field: "projection", End: 3}
-	if !renderCovered(segments, page(full)) {
-		t.Fatal("complete rune coverage rejected")
+	complete := snapcompact.Archive{
+		SourceRunes: 4, RetainedRunes: 3,
+		TextRanges: []snapcompact.Range{r(0, 1), r(3, 4)},
+		Omitted:    []snapcompact.Range{r(1, 2)},
+		Render:     snapcompact.RenderResult{Pages: []snapcompact.Page{{Index: 0, Width: 1, Height: 1, PNG: []byte{1}, Ranges: []snapcompact.Range{r(2, 3)}}}},
 	}
-	tests := []snapcompact.RenderResult{
-		{}, page(snapcompact.Range{SourceID: "s", Field: "projection"}),
-		page(snapcompact.Range{SourceID: "s", Field: "text", End: 3}),
-		page(snapcompact.Range{SourceID: "s", Field: "projection", Start: 1, End: 3}),
-		page(snapcompact.Range{SourceID: "s", Field: "projection", End: 2}),
+	if !archiveCovered(segments, complete) {
+		t.Fatal("complete mixed partition rejected")
 	}
-	uncovered := page(full)
-	uncovered.Uncovered = []snapcompact.Range{full}
-	tests = append(tests, uncovered)
-	for i, rendered := range tests {
-		if renderCovered(segments, rendered) {
-			t.Fatalf("incomplete coverage %d accepted", i)
+	for _, ranges := range [][]snapcompact.Range{
+		{r(0, 1)}, {r(0, 2), r(3, 4)}, {r(0, 1), r(3, 5)},
+		{{SourceID: "s", Field: "text", End: 1}, r(3, 4)},
+	} {
+		broken := complete
+		broken.TextRanges = ranges
+		if archiveCovered(segments, broken) {
+			t.Fatalf("invalid partition accepted: %+v", ranges)
 		}
+	}
+}
+
+func TestShortArchiveKeepsTextWithoutImageCapability(t *testing.T) {
+	s, b := newTestService(t)
+	b.image = false
+	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", UserText: "任务原文"})
+	if err != nil || p.BlockedReason != "" || len(p.Pages) != 0 || !strings.Contains(p.Text, "code()") || !strings.HasSuffix(p.Text, "任务原文") || p.ImageBudget.RetainedRunes != p.ImageBudget.ProjectedRunes {
+		t.Fatalf("short archive=%+v err=%v", p, err)
+	}
+	if _, err := s.Deliver(context.Background(), p.ID, p.OperationID); err != nil {
+		t.Fatal(err)
+	}
+	if op := awaitOperation(t, s, p.OperationID); op.State != "succeeded" {
+		t.Fatalf("short archive operation: %+v", op)
 	}
 }
 

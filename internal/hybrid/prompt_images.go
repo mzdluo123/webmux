@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/rainchan/webmux/internal/acp"
 )
@@ -51,14 +52,23 @@ func ValidatePromptImages(text string, images []PromptImage) (int, error) {
 	return wire, nil
 }
 
-func imagePromptBlocks(text string, images []PromptImage) ([]acp.ContentBlock, error) {
+func imagePromptBlocks(text string, images []PromptImage, offset int) ([]acp.ContentBlock, error) {
 	if _, err := ValidatePromptImages(text, images); err != nil {
 		return nil, err
 	}
-	blocks := make([]acp.ContentBlock, 0, 1+len(images))
-	blocks = append(blocks, acp.TextBlock(text))
+	if offset < 0 || offset > len(text) || !utf8.ValidString(text[:offset]) {
+		return nil, fmt.Errorf("%w: 图片插入位置无效", ErrInvalid)
+	}
+	if offset == 0 {
+		offset = len(text)
+	}
+	blocks := make([]acp.ContentBlock, 0, 2+len(images))
+	blocks = append(blocks, acp.TextBlock(text[:offset]))
 	for _, image := range images {
 		blocks = append(blocks, acp.Base64ImageBlock(image.Data, image.MimeType, ""))
+	}
+	if offset < len(text) {
+		blocks = append(blocks, acp.TextBlock(text[offset:]))
 	}
 	return blocks, nil
 }
