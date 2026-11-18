@@ -125,11 +125,9 @@
     takeNow(id, "replace");
   }
   function focusAvailableNote() {
-    const next = Array.from(
-      noteList?.querySelectorAll<HTMLButtonElement>(
-        "[data-scratch-take]:enabled",
-      ) ?? [],
-    ).find((button) => button.dataset.scratchTake === focusNoteId);
+    const next = noteList?.querySelector<HTMLButtonElement>(
+      `[data-scratch-take="${CSS.escape(focusNoteId ?? "")}"]:enabled`,
+    );
     (next ?? newEditor)?.focus();
     focusNoteId = undefined;
   }
@@ -142,12 +140,10 @@
       if (!draft.scratchPersisted || !draft.persisted) {
         notice = m.s4_scratch_taken_unpersisted();
         noticeTone = "danger";
-        const available = (item: TerminalDraft["scratch"][number]) =>
-          !!item.text;
-        focusNoteId = (
-          draft.scratch.slice(index).find(available) ??
-          draft.scratch.slice(0, index).reverse().find(available)
-        )?.id;
+        focusNoteId = [
+          ...draft.scratch.slice(index),
+          ...draft.scratch.slice(0, index).reverse(),
+        ].find((item) => item.text)?.id;
         if (!fromConflict) void tick().then(focusAvailableNote);
       } else {
         notice = "";
@@ -178,7 +174,7 @@
 
 <Dialog.Root bind:open>
   <Dialog.Content
-    class="flex h-[min(48rem,calc(100dvh-1rem))] max-h-[calc(100dvh-1rem)] max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 sm:h-[min(48rem,calc(100dvh-4rem))] sm:max-w-2xl sm:[@media(max-height:480px)]:h-[calc(100dvh-1rem)]"
+    class="@container/scratch flex h-[min(48rem,calc(100dvh-1rem))] max-h-[calc(100dvh-1rem)] max-w-[calc(100%-1rem)] flex-col gap-0 overflow-clip p-0 sm:h-[min(48rem,calc(100dvh-4rem))] sm:max-w-2xl sm:[@media(max-height:480px)]:h-[calc(100dvh-1rem)]"
     showCloseButton={false}
     onOpenAutoFocus={(event) => {
       event.preventDefault();
@@ -193,7 +189,7 @@
     }}
   >
     <div
-      class="flex shrink-0 items-start gap-3 border-b px-4 py-4 sm:px-6 sm:py-5 sm:[@media(max-height:480px)]:py-2"
+      class="flex shrink-0 items-start gap-3 border-b px-4 py-4 @max-[12rem]/scratch:items-center @max-[12rem]/scratch:py-2 sm:px-6 sm:py-5 sm:[@media(max-height:480px)]:py-2"
     >
       <span
         class="hidden size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:flex"
@@ -201,7 +197,6 @@
       >
       <Dialog.Header class="min-w-0 flex-1 gap-1 pr-0 text-left">
         <Dialog.Title>{m.s4_scratch_title()}</Dialog.Title>
-        <Dialog.Description>{m.s4_scratch_description()}</Dialog.Description>
       </Dialog.Header>
       <Dialog.Close>
         {#snippet child({ props })}
@@ -220,10 +215,22 @@
     </div>
 
     <div
-      class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6"
+      class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6"
       data-testid="scratch-scroll"
     >
-      <div class="grid min-w-0 gap-3 [&>*]:min-w-0">
+      <div
+        class="grid min-w-0 gap-3 py-4 @max-[12rem]/scratch:py-2 [&>*]:min-w-0"
+      >
+        <Dialog.Description>{m.s4_scratch_description()}</Dialog.Description>
+        <p id="scratch-manual-send" class="text-xs text-muted-foreground">
+          {m.s4_scratch_manual_send_hint()}
+        </p>
+        <p class="text-xs text-muted-foreground" role="status">{saved}</p>
+        {#if notice}<InlineNotice
+            class="hidden @max-[12rem]/scratch:flex"
+            tone={noticeTone}
+            size="compact">{notice}</InlineNotice
+          >{/if}
         {#if stale}
           <InlineNotice tone="warning"
             >{m.s4_scratch_stale_notice()}</InlineNotice
@@ -273,6 +280,11 @@
             ><IconTrash aria-hidden="true" /></Button
           >
         </div>
+        {#if full}
+          <p id="scratch-full-state" class="text-xs text-warning" role="status">
+            {m.s4_scratch_limit_reached({ limit: String(scratchEntriesLimit) })}
+          </p>
+        {/if}
         {#if draft.scratch.length}
           <div
             bind:this={noteList}
@@ -421,25 +433,17 @@
         {/if}
       </div>
     </div>
-    {#if notice || full}
-      <div class="shrink-0 space-y-2 border-t px-4 py-2 sm:px-6">
-        {#if notice}
-          <InlineNotice tone={noticeTone} size="compact">{notice}</InlineNotice>
-        {/if}
-        {#if full}
-          <p class="text-xs text-warning" role="status">
-            {m.s4_scratch_limit_reached({
-              limit: String(scratchEntriesLimit),
-            })}
-          </p>
-        {/if}
+    {#if notice}
+      <div
+        class="shrink-0 border-t px-4 py-2 @max-[12rem]/scratch:hidden sm:px-6"
+      >
+        <InlineNotice tone={noticeTone} size="compact">{notice}</InlineNotice>
       </div>
     {/if}
 
     <ScratchNoteEditor
       bind:editor={newEditor}
       bind:text={newText}
-      {saved}
       {full}
       onadd={add}
     />
