@@ -155,6 +155,9 @@
     launchConfigs,
     start(entry) {
       shellUi.drawerOpen = false;
+      // Pick up configs and worktrees changed elsewhere since the page loaded.
+      if (launchConfigs) void launchConfigs.load();
+      if (repositories) void repositories.refresh();
       if (
         !entry &&
         route.name !== "quick-start" &&
@@ -183,9 +186,6 @@
             })
           : undefined,
       };
-      // Pick up configs and worktrees changed elsewhere since the page loaded.
-      if (launchConfigs) void launchConfigs.load();
-      if (repositories) void repositories.refresh();
     },
     rename(session) {
       shellUi.drawerOpen = false;
