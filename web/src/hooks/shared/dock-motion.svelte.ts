@@ -6,6 +6,7 @@ export function useDockMotion(
   element: () => HTMLElement | null,
   expanded: () => boolean,
   items: () => string = () => "",
+  shouldAnimate: () => boolean = () => true,
 ) {
   let last: string | undefined;
   let generation = 0;
@@ -23,6 +24,10 @@ export function useDockMotion(
     const changed = last !== undefined && last !== key;
     last = key;
     if (!changed) return;
+    if (!shouldAnimate()) {
+      settle();
+      return;
+    }
     const height = node.getBoundingClientRect().height;
     const positions = new WeakMap(
       Array.from(node.children, (child) => [

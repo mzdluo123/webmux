@@ -121,3 +121,30 @@ test("captured diff state restores selection, expansion, search and position", a
     )
     .toContain("修改后 · 1 / 2");
 });
+
+test("a narrower diff column clamps its scroll without moving the longer column", async () => {
+  const short = "short old line ".repeat(9);
+  const long = "much longer new line ".repeat(17);
+  const result = computeDiff(`${short}\n`, `${long}\n`);
+  if (result.kind !== "ready") throw new Error(result.reason);
+  const fileDiff = { ...result.fileDiff, name: "wide.txt" } as FileDiffMetadata;
+  const view = await render(Harness, { fileDiff, width: 900 });
+  const columns = () => [
+    ...(shadow()?.querySelectorAll<HTMLElement>("[data-code]") ?? []),
+  ];
+  const limit = (element: HTMLElement) =>
+    element.scrollWidth - element.clientWidth;
+  await expect.poll(() => columns().length).toBe(2);
+  await expect.poll(() => limit(columns()[1]!)).toBeGreaterThan(0);
+  const offset = limit(columns()[1]!);
+  columns()[1]!.scrollLeft = offset;
+  await expect.poll(() => columns()[0]?.scrollLeft).toBe(limit(columns()[0]!));
+  expect(columns()[1]!.scrollLeft).toBe(offset);
+
+  await view.rerender({ width: 650 });
+  await expect.poll(() => columns().length).toBe(1);
+  await expect.poll(() => columns()[0]?.scrollLeft).toBe(limit(columns()[0]!));
+  await view.rerender({ width: 900 });
+  await expect.poll(() => columns().length).toBe(2);
+  await expect.poll(() => columns()[1]?.scrollLeft).toBe(offset);
+});

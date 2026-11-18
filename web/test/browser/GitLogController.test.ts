@@ -311,7 +311,7 @@ describe("Git Log controller (async isolation, pagination, scope forwarding)", (
     vi.useRealTimers();
   });
 
-  it("discards stale async commit detail and compare responses (U13)", async () => {
+  it("discards stale commit and compare responses and keeps the renamed file on reversal (U13)", async () => {
     const { repo, wt } = makeRepo();
     const firstPage: GitHistoryPage = {
       status: "ready",
@@ -401,11 +401,16 @@ describe("Git Log controller (async isolation, pagination, scope forwarding)", (
     void ctrl.startCompare(OID_P1, OID_HEAD);
     ctrl.swapCompareDirection();
 
-    fastSwappedCompare.resolve(
-      makeCompareResponse(OID_HEAD, OID_P1, "swapped.ts"),
-    );
+    const swapped = makeCompareResponse(OID_HEAD, OID_P1, "swapped.ts");
+    const rename = makeCompareResponse(OID_HEAD, OID_P1, "renamed.ts");
+    swapped.changes.entries.push({
+      ...rename.changes.entries[0]!,
+      oldPath: "older.ts",
+      status: "R",
+    });
+    fastSwappedCompare.resolve(swapped);
     await vi.waitFor(() =>
-      expect(ctrl.view.compareMode?.files[0]?.newPath).toBe("swapped.ts"),
+      expect(ctrl.view.selectedCommitFilePath).toBe("renamed.ts"),
     );
 
     slowForwardCompare.resolve(
@@ -417,6 +422,7 @@ describe("Git Log controller (async isolation, pagination, scope forwarding)", (
     expect(ctrl.view.compareMode?.baseOid).toBe(OID_HEAD);
     expect(ctrl.view.compareMode?.targetOid).toBe(OID_P1);
     expect(ctrl.view.compareMode?.files[0]?.newPath).toBe("swapped.ts");
+    expect(ctrl.view.selectedCommitFilePath).toBe("renamed.ts");
 
     ctrl.dispose();
   });
