@@ -156,3 +156,57 @@ for (const theme of ["light", "dark"]) {
     ).toBe(24);
   });
 }
+
+test("advanced fields reverse from their visible height and release focus and layout", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/iframe.html?id=design-system--forms&viewMode=story");
+  const trigger = page.getByRole("button", { name: "高级选项" });
+  await trigger.focus();
+  const reversal = await trigger.evaluate(async (button: HTMLButtonElement) => {
+    const panel = button.nextElementSibling as HTMLElement;
+    const frame = () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    button.click();
+    await frame();
+    const opening = panel.getAnimations()[0]!;
+    opening.pause();
+    opening.currentTime = 60;
+    const from = panel.getBoundingClientRect().height;
+    const full = panel.scrollHeight;
+    button.click();
+    await frame();
+    const closing = panel.getAnimations()[0]!;
+    closing.pause();
+    closing.currentTime = 0;
+    return {
+      from,
+      full,
+      start: panel.getBoundingClientRect().height,
+      inert: panel.inert,
+    };
+  });
+  expect(reversal.from).toBeGreaterThan(0);
+  expect(reversal.from).toBeLessThan(reversal.full);
+  expect(reversal.start).toBeCloseTo(reversal.from, 0);
+  expect(reversal.inert).toBe(true);
+  await expect(trigger).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#example-note")).not.toBeFocused();
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(page.locator("#example-note")).toHaveCount(0);
+  await trigger.press("Space");
+  const note = page.getByLabel("备注", { exact: true });
+  await note.fill("长".repeat(81));
+  await expect(page.getByText("备注最多可填 80 个字符。")).toBeVisible();
+  const panel = trigger.locator("xpath=following-sibling::*[1]");
+  expect(await panel.evaluate((el) => el.getAnimations().length)).toBe(0);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await trigger.press("Space");
+  await page.setViewportSize({ width: 667, height: 375 });
+  await expect(note).toHaveCount(0);
+  expect(await panel.evaluate((el) => el.getBoundingClientRect().height)).toBe(
+    0,
+  );
+});
