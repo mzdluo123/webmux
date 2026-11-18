@@ -128,7 +128,7 @@ test("the sidebar's new-session action opens the shared dialog", async () => {
     .toBeVisible();
 });
 
-test("opening any session keeps the sidebar's mode", () => {
+test("opening any session keeps its return context", () => {
   for (const mode of ["workbench", "chat"] as const) {
     shellUi.setMode(mode);
     openSession(session({ id: "shellaaa" }));
@@ -195,8 +195,7 @@ test("session references use the active chat and visibly disable locked drafts",
 });
 
 test("renaming from the sidebar menu uses the shared dialog", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   respond(/^PATCH \/api\/sessions\/chataaaa$/, () =>
     Response.json(chat({ id: "chataaaa", title: "首页排序" })),
   );
@@ -240,8 +239,7 @@ test("renaming from the sidebar menu uses the shared dialog", async () => {
 });
 
 test("a rejected name stays in the dialog and the row keeps its title", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   respond(/^PATCH \/api\/sessions\/chataaaa$/, () =>
     Response.json({ error: "名称不能包含控制字符" }, { status: 400 }),
   );
@@ -261,8 +259,7 @@ test("a rejected name stays in the dialog and the row keeps its title", async ()
 });
 
 test("an archived chat resumes on its chat side, or says why it cannot", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   respond(/^POST \/api\/sessions\/archivea\/resume$/, () =>
     Response.json(
       { error: "工作目录 /repos/webmux 已不存在" },
@@ -281,7 +278,7 @@ test("an archived chat resumes on its chat side, or says why it cannot", async (
     .toMatchTextContent(
       /无法恢复“整理文档”：工作目录 \/repos\/webmux 已不存在/,
     );
-  expect(location.pathname).toBe("/s/otherabc");
+  expect(location.pathname).toBe("/new");
   expect(commands().at(-1)).toMatchObject({
     path: "/api/sessions/archivea/resume",
     body: { view: "chat" },
@@ -295,8 +292,7 @@ test("an archived chat resumes on its chat side, or says why it cannot", async (
 });
 
 test("the sidebar menu archives a live chat and deletes an archived record", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   respond(
     /^DELETE \/api\/sessions\/chataaaa$/,
     () => new Response(null, { status: 204 }),
@@ -402,8 +398,7 @@ async function openLinkedChatArchive() {
 }
 
 test("deleting an archived record leaves its linked worktree in place", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   serveLinkedWorktreeChat();
   await openLinkedChatArchive();
   await page.getByRole("menuitem", { name: "删除记录" }).click();
@@ -432,8 +427,7 @@ test("deleting an archived record leaves its linked worktree in place", async ()
 });
 
 test("deleting an archived record and its linked worktree removes both", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   serveLinkedWorktreeChat();
   await openLinkedChatArchive();
   await page.getByRole("menuitem", { name: "删除记录和工作树" }).click();
@@ -498,8 +492,7 @@ const releasedChat = record({
 });
 
 test("the sidebar releases an archived chat's worktree after a preview and marks the record", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   respond(/^GET \/api\/repositories$/, () =>
     Response.json([repository({ worktrees: [worktree(), branchTree] })]),
   );
@@ -580,8 +573,7 @@ test("the sidebar releases an archived chat's worktree after a preview and marks
 });
 
 test("a released archived chat rebuilds its worktree after confirmation before resuming", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   respond(/^GET \/api\/sessions$/, () => Response.json([releasedChat]));
   respond(/^POST \/api\/hybrid-sessions\/archivew\/rebuild-preview$/, () =>
     Response.json({
@@ -621,7 +613,7 @@ test("a released archived chat rebuilds its worktree after confirmation before r
   expect(released().map((c) => c.path)).toEqual([
     "/api/hybrid-sessions/archivew/rebuild-preview",
   ]);
-  expect(location.pathname).toBe("/s/otherabc");
+  expect(location.pathname).toBe("/new");
 
   await row.click();
   await dialog.getByRole("button", { name: "重建并恢复" }).click();
