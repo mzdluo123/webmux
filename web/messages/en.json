@@ -2172,6 +2172,7 @@
     }
   ],
   "s5_diff_unreadable_result": "Unable to read diff result, please retry",
+  "s5_diff_viewport": "Code diff",
   "s5_dir_unavailable": "Directory unavailable",
   "s5_dir_updated_or_check_failed": "Directory updated or check failed",
   "s5_dock_back_here": "Dock back here",

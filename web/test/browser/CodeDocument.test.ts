@@ -387,13 +387,28 @@ test("replacing or hiding a document cancels its Worker and ignores late results
     },
   });
   await expect.element(page.getByRole("status")).toHaveTextContent("计算受限");
+  expect(document.querySelector('[role="alert"]')).toBeNull();
   await expect
     .element(page.getByRole("button", { name: "完整文件", exact: true }))
     .toBeEnabled();
+  const diffViewport = document.querySelector<HTMLElement>(
+    "[data-code-diff-viewport]",
+  )!;
   await page.getByRole("button", { name: "重试差异计算" }).click();
+  expect(diffViewport.contains(document.activeElement)).toBe(true);
   await expect.poll(() => WorkerStub.instances.length).toBe(6);
-  WorkerStub.instances[5].reply("retried result");
+  WorkerStub.instances[5].onmessage?.({
+    data: { snapshotId: "mismatch" },
+  });
+  await expect
+    .element(page.getByRole("alert"))
+    .toHaveTextContent("差异结果与当前快照不匹配，请重试");
+  await page.getByRole("button", { name: "重试差异计算" }).click();
+  expect(diffViewport.contains(document.activeElement)).toBe(true);
+  await expect.poll(() => WorkerStub.instances.length).toBe(7);
+  WorkerStub.instances[6].reply("retried result");
   await expect.poll(code, { timeout: 10000 }).toContain("retried result");
+  expect(diffViewport.contains(document.activeElement)).toBe(true);
 });
 
 test("diff reader supports toolbar zoom panel, Ctrl+wheel and two-finger pinch zoom", async () => {
