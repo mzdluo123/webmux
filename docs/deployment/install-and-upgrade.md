@@ -73,7 +73,7 @@ curl -fsSL https://ghfast.top/https://github.com/mzdluo123/webmux/releases/downl
 脚本只安装二进制。完成后按提示运行 `webmux`（默认监听 `127.0.0.1:7681`）。
 
 - 需要后台服务时再执行 `webmux service install`，首次启动会自动生成配置与 Token。
-- 新生成配置启用`launch`、`workspace`、`code`、`files`、`chat`、`mcp`。要调整默认组合，请 [选择对应功能](configuration.md#内置功能选择) 并重启服务。
+- 新生成配置默认启用全部 13 项内置功能。要调整默认组合，请 [选择对应功能](configuration.md#内置功能选择) 并重启服务。
 - 重复执行脚本会升级二进制；正在运行的服务需手动重启，重启会结束现有会话。
 
 ### 手动下载

@@ -45,3 +45,14 @@
 - `make e2e-runtime` 构建通过。`WorkbenchTree.test.ts` 的 16 项浏览器用例通过；`page-stability.spec.ts`、`workspace-discovery.spec.ts` 和 `worktrees.spec.ts` 在桌面与 iPhone SE Chromium 上共 50 项通过。
 - 隔离生产页面核对了 7 个视口的明暗主题、相邻按钮尺寸、窄栏与键盘打开，以及登记弹窗边界。未验证物理触屏或真机。
 - PR 提供桌面、平板及手机的明暗前后截图，以及[手机打开与取消登记的录屏](../images/pr/sidebar-add-repository/interaction-phone.gif)。
+
+## 2026-11-18：新生成默认配置启用全部内置功能（US-K18）
+
+- 故事编号、总数（264）与覆盖索引保持不变，更新 US-K18：
+  - `deploy/config.example.toml` 将默认 `[features] enabled` 扩展为显式列出全部 13 项内置功能（`launch`、`workspace`、`code`、`files`、`chat`、`notifications`、`quick-commands`、`voice`、`forward`、`cloudflare`、`tailscale`、`p2p`、`mcp`）；
+  - 显式设置 `enabled = []` 仍只运行 PTY 核心，缺省 `[features]` 或 `enabled` 仍保留固定旧版集合；
+  - `cmd/webmux/{configcmd_test,configgen_test}.go` 验证 `config init` 与首次自动生成的配置文件均启用 `builtin.Catalog()` 全部 13 项功能，并释放可选设置存储锁；
+  - 同步更新 `openspec/specs/builtin-feature-lifecycle/spec.md`、`docs/deployment/{configuration,install-and-upgrade}.md`、`docs/{overview,architecture,persistence}.md` 及 `docs/user-stories/operations-and-tooling/operations.md`（US-K18）。
+- 已执行验证：
+  - `go test -race -count=1 ./cmd/webmux ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
+  - `make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过。
