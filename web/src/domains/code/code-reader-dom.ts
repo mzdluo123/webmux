@@ -82,6 +82,7 @@ export function scrollFileToColumn(
   viewer: () => CodeView | undefined,
   targetLine: number,
   column: number,
+  scrollTo: (left: number) => void,
 ) {
   let attempts = 0;
   // CodeView queues its render on a frame, so the target row usually only
@@ -104,7 +105,7 @@ export function scrollFileToColumn(
     const x =
       rect.left +
       (rect.width * Math.min(Math.max(column - 1, 0), length)) / length;
-    scroller.scrollLeft += x - box.left;
+    scrollTo(scroller.scrollLeft + x - box.left);
   };
   requestAnimationFrame(apply);
 }
