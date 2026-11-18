@@ -41,6 +41,7 @@
   let managedPath = $state("");
   let formatFields = $state<HTMLDivElement | null>(null);
   let targetFields = $state<HTMLDivElement | null>(null);
+  let generateButton = $state<HTMLButtonElement | null>(null);
   const existingTarget = $derived(e.targetSessionId !== "");
   useDockMotion(
     () => formatFields,
@@ -59,6 +60,21 @@
         : e.locationKind === "new-worktree"
           ? (worktreeFields?.isReady() ?? false)
           : !!e.location.repositoryId),
+  );
+  const generateDisabled = $derived(
+    e.loading ||
+      e.busy ||
+      e.active ||
+      (!existingTarget && !agent) ||
+      !locationReady,
+  );
+  const sendDisabled = $derived(
+    e.busy ||
+      e.active ||
+      e.sealed ||
+      !e.preview ||
+      !!e.preview.blockedReason ||
+      e.choiceChanged,
   );
   function kind(next: TargetKind) {
     e.locationKind = next;
@@ -83,7 +99,8 @@
 </script>
 
 <div class="min-w-0 space-y-4" data-handoff-form>
-  {#if e.error}<InlineNotice tone="danger">{e.error}</InlineNotice>{/if}
+  {#if !e.source && e.error}<InlineNotice tone="danger">{e.error}</InlineNotice
+    >{/if}
   <fieldset class="min-w-0" disabled={e.busy || e.active}>
     <div class="space-y-2 pb-3">
       <Label>{m.handoff_format()}</Label>
@@ -249,23 +266,23 @@
   <div class="flex flex-wrap gap-2">
     <Button
       variant="outline"
-      disabled={e.loading ||
-        e.busy ||
-        e.active ||
-        (!e.targetSessionId && !agent) ||
-        !locationReady}
-      onclick={() => void e.generate()}
-      >{m.s3_handoff_generate_preview()}</Button
+      bind:ref={generateButton}
+      aria-disabled={generateDisabled}
+      tabindex={generateDisabled ? -1 : undefined}
+      onclick={() => {
+        if (!generateDisabled) void e.generate();
+      }}>{m.s3_handoff_generate_preview()}</Button
     >
     <Button
-      disabled={e.busy ||
-        e.active ||
-        e.sealed ||
-        !e.preview ||
-        !!e.preview.blockedReason ||
-        e.choiceChanged}
-      onclick={() => void e.send()}>{m.s3_handoff_send()}</Button
+      aria-disabled={sendDisabled}
+      tabindex={sendDisabled ? -1 : undefined}
+      onclick={() => {
+        if (!sendDisabled) void e.send();
+      }}>{m.s3_handoff_send()}</Button
     >
   </div>
-  <HandoffPreviewCard editor={e} />
+  <HandoffPreviewCard
+    editor={e}
+    focusGenerate={() => generateButton?.focus({ preventScroll: true })}
+  />
 </div>
