@@ -369,8 +369,11 @@
     data-bottom-dock
     class={[
       "relative mx-auto w-full max-w-3xl space-y-2 px-3 pb-safe-2 sm:px-4",
+      !documentScroll && "[@media(height<480px)]:overflow-y-auto",
       !documentScroll &&
-        "[@media(height<480px)]:max-h-full [@media(height<480px)]:overflow-y-auto",
+        (error || chat?.connectorMissing || chat?.authRequired
+          ? "[@media(height<480px)]:max-h-[calc(100%-min(4rem,18dvh))]"
+          : "[@media(height<480px)]:max-h-full"),
     ]}
   >
     {#if !stick && documentScroll}
