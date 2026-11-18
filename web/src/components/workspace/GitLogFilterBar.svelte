@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
   import IconFilter from "~icons/tabler/filter";
   import IconGitBranch from "~icons/tabler/git-branch";
   import IconLayoutSidebar from "~icons/tabler/layout-sidebar";
@@ -60,6 +61,23 @@
     Boolean(authorFilter.trim() || sinceFilter.trim() || untilFilter.trim()),
   );
   const showAdvanced = $derived(manualAdvancedOpen || hasAdvancedFilter);
+  let advancedPanel = $state<HTMLDivElement | null>(null);
+  let manualChange = false;
+  useDockMotion(
+    () => advancedPanel,
+    () => showAdvanced,
+    undefined,
+    () => {
+      const animate = manualChange;
+      manualChange = false;
+      return animate;
+    },
+  );
+
+  function toggleAdvanced() {
+    manualChange = !hasAdvancedFilter;
+    manualAdvancedOpen = !showAdvanced;
+  }
   const hasAnyActiveFilter = $derived(
     scope !== "all" ||
       branchFilter !== null ||
@@ -127,7 +145,7 @@
         aria-pressed={showAdvanced}
         aria-label={m.s6_filter_author_date_label()}
         title={m.s6_filter_author_date_label()}
-        onclick={() => (manualAdvancedOpen = !showAdvanced)}
+        onclick={toggleAdvanced}
       >
         <IconFilter aria-hidden="true" />
       </Button>
@@ -171,51 +189,53 @@
     </div>
   </div>
 
-  <div class="grid min-w-0 grid-cols-1 gap-1.5 sm:grid-cols-2">
-    <Input
-      size="sm"
-      value={searchQuery}
-      placeholder={m.s6_filter_search_placeholder()}
-      aria-label={m.s6_filter_search_aria()}
-      oninput={(e) => onSearchChange(e.currentTarget.value)}
-    />
-    <Input
-      size="sm"
-      mono
-      value={pathFilter}
-      placeholder={m.s6_filter_path_placeholder()}
-      aria-label={m.s6_filter_path_aria()}
-      oninput={(e) => onPathFilterChange(e.currentTarget.value)}
-    />
-  </div>
-
-  {#if showAdvanced}
-    <div class="grid min-w-0 grid-cols-1 gap-1.5 sm:grid-cols-3">
+  <div>
+    <div class="grid min-w-0 grid-cols-1 gap-1.5 sm:grid-cols-2">
       <Input
         size="sm"
-        value={authorFilter}
-        placeholder={m.s6_filter_author_placeholder()}
-        aria-label={m.s6_filter_author_aria()}
-        oninput={(e) => onAuthorChange?.(e.currentTarget.value)}
+        value={searchQuery}
+        placeholder={m.s6_filter_search_placeholder()}
+        aria-label={m.s6_filter_search_aria()}
+        oninput={(e) => onSearchChange(e.currentTarget.value)}
       />
       <Input
         size="sm"
-        type="date"
-        value={sinceFilter}
-        aria-label={m.s6_filter_since_aria()}
-        title={m.s6_filter_since_tooltip()}
-        oninput={(e) => onSinceChange?.(e.currentTarget.value)}
-      />
-      <Input
-        size="sm"
-        type="date"
-        value={untilFilter}
-        aria-label={m.s6_filter_until_aria()}
-        title={m.s6_filter_until_tooltip()}
-        oninput={(e) => onUntilChange?.(e.currentTarget.value)}
+        mono
+        value={pathFilter}
+        placeholder={m.s6_filter_path_placeholder()}
+        aria-label={m.s6_filter_path_aria()}
+        oninput={(e) => onPathFilterChange(e.currentTarget.value)}
       />
     </div>
-  {/if}
+
+    <div bind:this={advancedPanel} hidden={!showAdvanced} inert={!showAdvanced}>
+      <div class="grid min-w-0 grid-cols-1 gap-1.5 pt-2 sm:grid-cols-3">
+        <Input
+          size="sm"
+          value={authorFilter}
+          placeholder={m.s6_filter_author_placeholder()}
+          aria-label={m.s6_filter_author_aria()}
+          oninput={(e) => onAuthorChange?.(e.currentTarget.value)}
+        />
+        <Input
+          size="sm"
+          type="date"
+          value={sinceFilter}
+          aria-label={m.s6_filter_since_aria()}
+          title={m.s6_filter_since_tooltip()}
+          oninput={(e) => onSinceChange?.(e.currentTarget.value)}
+        />
+        <Input
+          size="sm"
+          type="date"
+          value={untilFilter}
+          aria-label={m.s6_filter_until_aria()}
+          title={m.s6_filter_until_tooltip()}
+          oninput={(e) => onUntilChange?.(e.currentTarget.value)}
+        />
+      </div>
+    </div>
+  </div>
 
   {#if hasAnyActiveFilter && onClearFilters}
     <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">

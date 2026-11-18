@@ -91,19 +91,31 @@ test("filters out excluded sessions, searches by title or cwd, and selects with 
   expect(onclose).toHaveBeenCalledOnce();
 });
 
-test("surfaces API errors", async () => {
+test("retries API errors and keeps the search and direction", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn<typeof globalThis.fetch>(async () =>
-      Response.json({ error: "加载会话失败" }, { status: 500 }),
-    ),
+    vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ error: "加载会话失败" }, { status: 500 }),
+      )
+      .mockResolvedValueOnce(Response.json(sessions)),
   );
+  const onselect = vi.fn();
   render(SplitSessionDialog, {
     excluded: [],
     onclose: () => {},
-    onselect: () => {},
+    onselect,
   });
   await expect
     .element(page.getByRole("alert"))
     .toHaveTextContent("加载会话失败");
+  await page.getByRole("radio", { name: "上下分屏" }).click();
+  const search = page.getByRole("textbox", { name: "搜索已有会话" });
+  await search.fill("/repo/web");
+  await page.getByRole("button", { name: "重试加载会话" }).click();
+  await expect.element(search).toHaveFocus();
+  await expect.element(search).toHaveValue("/repo/web");
+  await page.getByRole("button", { name: /前端调试/ }).click();
+  expect(onselect).toHaveBeenCalledWith("sessb234", "vertical");
 });

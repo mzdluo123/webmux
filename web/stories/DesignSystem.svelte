@@ -60,6 +60,7 @@
   let wrapping = $state(true);
   let name = $state("检查构建");
   let repository = $state("webmux");
+  let note = $state("");
   let pickerOpen = $state(false);
   let model = $state("sonnet");
   let byBranch = $state(false);
@@ -563,7 +564,10 @@
         </PickerField>
         <AdvancedSection title="高级选项" summary="使用默认配置">
           <Label for="example-note">备注</Label>
-          <Input id="example-note" placeholder="可选备注" />
+          <Input id="example-note" bind:value={note} placeholder="可选备注" />
+          {#if note.length > 80}
+            <p class="text-sm text-destructive">备注最多可填 80 个字符。</p>
+          {/if}
         </AdvancedSection>
         <KeyValueSummary
           rows={[
