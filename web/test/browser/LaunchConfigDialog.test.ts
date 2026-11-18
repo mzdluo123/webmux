@@ -161,6 +161,16 @@ test("masks env values by default and validates variable names", async () => {
   expect(name.element().getAttribute("aria-describedby")).toBeTruthy();
   await name.fill("API_KEY");
   await expect.element(save()).toBeEnabled();
+  expect(name.element().getAttribute("aria-describedby")).toBeNull();
+  const validControlsRow = name.element().parentElement!;
+  const validOuterRow = validControlsRow.parentElement!;
+  expect(validOuterRow.offsetHeight).toBeLessThanOrEqual(
+    validControlsRow.offsetHeight + 2,
+  );
+  const envScrollViewport = validOuterRow.closest(
+    "[data-slot=scroll-area-viewport]",
+  ) as HTMLElement | null;
+  expect(envScrollViewport).not.toBeNull();
 
   await addVariable.click();
   await expect.element(page.getByLabelText("变量名 2")).toHaveFocus();

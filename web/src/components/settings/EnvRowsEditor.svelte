@@ -7,6 +7,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { EnvRow } from "../../domains/settings/launch-configs";
 
   // The environment variable rows of a form: a name and a value (masked until
@@ -72,82 +73,82 @@
     >
   </div>
   {#if rows.length}
-    <div class="grid max-h-64 min-w-0 gap-2 overflow-auto p-1">
-      {#each rows as envRow, index (envRow.key)}
-        {@const rowErrors = errors[envRow.key]}
-        {@const errorId = `${id}-error-${envRow.key}`}
-        {@const rowIndex = String(index + 1)}
-        <div class="grid min-w-0 gap-1">
-          <div class="flex min-w-0 flex-wrap items-center gap-2">
-            <Input
-              id={`${id}-name-${envRow.key}`}
-              mono
-              class="min-w-0 flex-1 basis-32"
-              aria-label={m.s2_env_name_aria({ index: rowIndex })}
-              bind:value={envRow.name}
-              placeholder="NAME"
-              autocomplete="off"
-              autocapitalize="off"
-              autocorrect="off"
-              spellcheck={false}
-              aria-invalid={!!rowErrors?.name}
-              aria-describedby={rowErrors?.name ? errorId : undefined}
-            />
-            <div class="flex min-w-0 flex-2 basis-48 items-center gap-1">
+    <ScrollArea class="max-h-64" viewportClasses="max-h-64">
+      <div class="grid min-w-0 gap-2 p-1">
+        {#each rows as envRow, index (envRow.key)}
+          {@const rowErrors = errors[envRow.key]}
+          {@const rowErrorText = [rowErrors?.name, rowErrors?.value]
+            .filter(Boolean)
+            .join(m.s2_env_error_sep())}
+          {@const errorId = `${id}-error-${envRow.key}`}
+          {@const rowIndex = String(index + 1)}
+          <div class="grid min-w-0 gap-1">
+            <div class="flex min-w-0 flex-wrap items-center gap-2">
               <Input
+                id={`${id}-name-${envRow.key}`}
                 mono
-                class="min-w-0 flex-1"
-                type={revealed[envRow.key] ? "text" : "password"}
-                aria-label={m.s2_env_value_aria({ index: rowIndex })}
-                bind:value={envRow.value}
-                placeholder={m.s2_env_value_placeholder()}
+                class="min-w-0 flex-1 basis-32"
+                aria-label={m.s2_env_name_aria({ index: rowIndex })}
+                bind:value={envRow.name}
+                placeholder="NAME"
                 autocomplete="off"
                 autocapitalize="off"
                 autocorrect="off"
                 spellcheck={false}
-                aria-invalid={!!rowErrors?.value}
-                aria-describedby={rowErrors?.value ? errorId : undefined}
+                aria-invalid={!!rowErrors?.name}
+                aria-describedby={rowErrors?.name ? errorId : undefined}
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={m.s2_env_reveal_aria({ index: rowIndex })}
-                aria-pressed={!!revealed[envRow.key]}
-                title={revealed[envRow.key]
-                  ? m.s2_env_hide_title()
-                  : m.s2_env_reveal_title()}
-                onclick={() => {
-                  revealed[envRow.key] = !revealed[envRow.key];
-                }}
-                >{#if revealed[envRow.key]}<IconEyeOff
-                    aria-hidden="true"
-                  />{:else}<IconEye aria-hidden="true" />{/if}</Button
-              >
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={m.s2_env_remove_aria({ index: rowIndex })}
-                title={m.s2_env_remove_title()}
-                onclick={() => removeRow(index, envRow.key)}
-                ><IconTrash aria-hidden="true" /></Button
-              >
+              <div class="flex min-w-0 flex-2 basis-48 items-center gap-1">
+                <Input
+                  mono
+                  class="min-w-0 flex-1"
+                  type={revealed[envRow.key] ? "text" : "password"}
+                  aria-label={m.s2_env_value_aria({ index: rowIndex })}
+                  bind:value={envRow.value}
+                  placeholder={m.s2_env_value_placeholder()}
+                  autocomplete="off"
+                  autocapitalize="off"
+                  autocorrect="off"
+                  spellcheck={false}
+                  aria-invalid={!!rowErrors?.value}
+                  aria-describedby={rowErrors?.value ? errorId : undefined}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={m.s2_env_reveal_aria({ index: rowIndex })}
+                  aria-pressed={!!revealed[envRow.key]}
+                  title={revealed[envRow.key]
+                    ? m.s2_env_hide_title()
+                    : m.s2_env_reveal_title()}
+                  onclick={() => {
+                    revealed[envRow.key] = !revealed[envRow.key];
+                  }}
+                  >{#if revealed[envRow.key]}<IconEyeOff
+                      aria-hidden="true"
+                    />{:else}<IconEye aria-hidden="true" />{/if}</Button
+                >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={m.s2_env_remove_aria({ index: rowIndex })}
+                  title={m.s2_env_remove_title()}
+                  onclick={() => removeRow(index, envRow.key)}
+                  ><IconTrash aria-hidden="true" /></Button
+                >
+              </div>
             </div>
-          </div>
-          <div
-            id={errorId}
-            class="min-h-10 text-xs text-destructive max-[360px]:min-h-12 sm:min-h-8"
-          >
-            {#if rowErrors}
-              {[rowErrors.name, rowErrors.value]
-                .filter(Boolean)
-                .join(m.s2_env_error_sep())}
+            {#if rowErrorText}
+              <p id={errorId} class="text-xs wrap-anywhere text-destructive">
+                {rowErrorText}
+              </p>
             {/if}
           </div>
-        </div>
-      {/each}
-    </div>
+        {/each}
+      </div>
+    </ScrollArea>
   {/if}
   {#if error}<p class="text-xs text-destructive">{error}</p>{/if}
   {#if help}
