@@ -30,3 +30,9 @@
 - `go test -race ./internal/handoff ./internal/historyprojection ./internal/archtest` 通过；默认预算保留量、首尾原文、短历史零页、冻结发送及图片请求限制均有回归覆盖。
 - `go test ./internal/api -run TestWireSnapshots -update` 通过，快照相同。`make docs-check` 通过。
 - `pnpm --dir web check:arch` 49 项通过。复用隔离 E2E 二进制运行 `pnpm --dir web exec playwright test test/e2e/handoff.spec.ts --workers=2`，桌面与手机共 10 项通过。
+
+## 2026-11-18：原版归档运行器（US-Q20、US-K04）
+
+- 在 `cmd/omp-snapcompact` 运行 `bun test`，短历史、长历史完整覆盖和长历史截断共 3 项通过，序列化块和图片字节与官方包直接调用相同。
+- 隔离的 WebMux Go 交接预览通过配置的 Bun 运行器生成工具与代码样本。64000 历史预算下 6 张 PNG 的 SHA-256 全部匹配原版，未执行目标模型调用。
+- Go 回归覆盖运行器接收可导出记录、图片页序、预览冻结、运行器缺失阻止发送及显式文本预览。

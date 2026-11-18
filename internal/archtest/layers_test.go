@@ -170,6 +170,7 @@ var webmux = manifest{
 		"internal/historyimport.hashValue":            "hashes frozen source and projection identities, never client JSON",
 		"internal/handoff.configFingerprint":          "hashes launch argv/env without retaining credentials or emitting client JSON",
 		"internal/historyprojection.archiveJSONBytes": "calculates encoded archive budget costs, never emits client JSON",
+		"internal/handoff.runOMPArchive":              "runs the administrator-configured local OMP SnapCompact process over JSON stdio",
 		"internal/handoff.jsonBytes":                  "calculates internal handoff budget costs, never client-visible wire values",
 		"internal/hybrid.ValidatePromptImages":        "calculates an internal ACP request size bound; encoded text is discarded, never emitted as client JSON",
 	},

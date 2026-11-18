@@ -170,6 +170,27 @@ enabled = [] # 生成配置的默认值：仅 PTY 核心
 预览保留五分钟，manifest、文本及图片表示共用 64 MiB；修改任务、目标、格式或页数后重新预览，目录计费估计与未知费率预留均不代表实际 usage。
 旧会话数据库升级说明见[持久化清单](../persistence.md#旧会话数据库与升级)，字段见[交接接口](../protocol/http-handoff.md)。
 
+#### OMP 原版归档
+
+在服务端准备 Bun 1.4.4 或更新版，并在 WebMux 源码目录安装锁定的 SnapCompact 依赖：
+
+```sh
+pnpm --dir cmd/omp-snapcompact install --frozen-lockfile
+```
+
+在 TOML 顶层配置 Bun 与脚本的绝对路径，再重启 WebMux：
+
+```toml
+handoff_omp_runner = [
+  "/usr/local/bin/bun",
+  "/srv/webmux/cmd/omp-snapcompact/main.mjs",
+]
+```
+
+配置后，「压缩归档」直接使用 OMP SnapCompact 18.22.2 的序列化、排版和 PNG 渲染。运行器通过标准输入和输出交换冻结历史和归档，执行压缩时无需认证或模型请求。
+运行器缺失、超时或归档超限时，预览会显示原因，用户可明确选择「文本交接」。省略配置时，使用 WebMux 内置归档。
+`webmux config show` 用布尔值显示运行器是否配置，命令参数保存在本机配置中。
+
 ### Agent 启动
 
 | 键               | 默认值 | 作用                                                                      |

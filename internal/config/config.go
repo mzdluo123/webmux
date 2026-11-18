@@ -22,6 +22,7 @@ type Config struct {
 	Listen           string            `toml:"listen"`
 	Token            string            `toml:"token"`
 	ScrollbackBytes  int               `toml:"scrollback_bytes"`
+	HandoffOMPRunner []string          `toml:"handoff_omp_runner"`
 	HandoffTokenCap  int               `toml:"handoff_token_cap"`
 	DefaultCwd       string            `toml:"default_cwd"`
 	StateDir         string            `toml:"state_dir"`
@@ -349,6 +350,9 @@ func (c *Config) Validate() error {
 		if err = validateOrigin(origin); err != nil {
 			return err
 		}
+	}
+	if len(c.HandoffOMPRunner) > 0 && strings.TrimSpace(c.HandoffOMPRunner[0]) == "" {
+		return errors.New("handoff_omp_runner must start with an executable")
 	}
 	if c.HandoffTokenCap < 1024 || c.HandoffTokenCap > 64000 {
 		return errors.New("handoff_token_cap must be between 1024 and 64000")

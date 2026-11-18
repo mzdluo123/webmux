@@ -6,15 +6,26 @@ import {
   frameTokens,
   getPreservedArchive,
   historyBlocks,
-  resolveShape,
+  normalize,
+  resolveShapeForText,
+  serializeConversation,
 } from "@oh-my-pi/snapcompact";
+import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const [manifestPath, outputDir, frameLimit] = process.argv.slice(2);
 const maxFrames = Number(frameLimit);
-if (!manifestPath || !outputDir || ![3, 8].includes(maxFrames)) {
-  throw new Error("usage: bun upstream.mjs MANIFEST OUTPUT_DIRECTORY 3|8");
+if (
+  !manifestPath ||
+  !outputDir ||
+  !Number.isInteger(maxFrames) ||
+  maxFrames < 1 ||
+  maxFrames > 8
+) {
+  throw new Error(
+    "usage: bun upstream.mjs MANIFEST OUTPUT_DIRECTORY MAX_FRAMES",
+  );
 }
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 if (!manifest.synthetic_only || manifest.model !== "openai-codex/gpt-6-astra") {
@@ -39,6 +50,10 @@ const messages = manifest.input.History.map((record) => {
   }
   return { role: record.Role, content, timestamp: 0 };
 });
+const serialized = serializeConversation(messages, { includeThinking: false });
+const shape = resolveShapeForText(serialized, model);
+const source = normalize(serialized, { shape });
+const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 const result = await compact(
   {
     messagesToSummarize: messages,
@@ -66,6 +81,7 @@ for (const block of historyBlocks(archive)) {
     file,
     ...size,
     bytes: png.length,
+    sha256: sha256(png),
     detail: block.detail,
     estimatedTokens: frameTokens(frameBilling(model), size),
   });
@@ -73,7 +89,12 @@ for (const block of historyBlocks(archive)) {
 const report = {
   scenario: manifest.scenario,
   maxFrames,
-  shape: resolveShape(model),
+  shape,
+  sourceSha256: sha256(source),
+  sourceChars: source.length,
+  retainedSha256: sha256(archive.text ?? ""),
+  textHeadSha256: sha256(archive.textHead ?? ""),
+  textTailSha256: sha256(archive.textTail ?? ""),
   retainedChars: archive.totalChars,
   omittedChars: archive.truncatedChars,
   textHeadChars: archive.textHead?.length ?? 0,

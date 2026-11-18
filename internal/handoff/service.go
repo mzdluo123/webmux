@@ -201,16 +201,12 @@ func (s *Service) Preview(ctx context.Context, source string, in Request) (Previ
 	if err != nil {
 		return empty, err
 	}
-	projection, err := s.options.HistoryProjection.ProjectDocument(ctx, doc, in.UserText, s.options.HistoryProjection.Config(), false)
-	if err != nil {
-		return empty, err
-	}
 	budget, err := s.targetBudget(ctx, in.TargetSessionID, in.UserText)
 	if err != nil {
 		return empty, err
 	}
 	header := fmt.Sprintf("Historical reference. Source agent=%q session=%q branch=%q cwd=%q. Frozen scope: %s. Source gaps: %d. Exact text: thread_read with view=activity snapshotId=%s.\n", doc.Source.Agent, doc.Source.NativeID, doc.Source.Branch, rec.Cwd, scope.ID, len(doc.Gaps), scope.ID)
-	p, err := s.preparePreview(ctx, in, projection.Projection, header, budget)
+	p, err := s.preparePreview(ctx, in, doc, header, budget)
 	if err != nil {
 		return empty, err
 	}

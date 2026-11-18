@@ -31,8 +31,8 @@ func TestDiagnosticFieldsCoverConfiguration(t *testing.T) {
 		}
 	}
 	visit(reflect.TypeFor[Config](), "")
-	c := Config{Token: "secret-login", Tunnel: TunnelConfig{Token: "secret-tunnel"}}
-	if Fields(c)["token"].Value != true || Fields(c)["tunnel.token"].Value != true {
+	c := Config{Token: "secret-login", HandoffOMPRunner: []string{"/private/runner"}, Tunnel: TunnelConfig{Token: "secret-tunnel"}}
+	if Fields(c)["token"].Value != true || Fields(c)["tunnel.token"].Value != true || Fields(c)["handoff_omp_runner"].Value != true {
 		t.Fatal("credentials must be booleans")
 	}
 }

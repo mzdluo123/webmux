@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	snapcompact "github.com/mzdluo123/snapcompact-go"
+	"github.com/rainchan/webmux/internal/historysource"
 	"github.com/rainchan/webmux/internal/hybrid"
 )
 
@@ -33,8 +34,19 @@ func (s *Service) imageCapability(ctx context.Context, target string) (string, e
 	return "unsupported", nil
 }
 
-func (s *Service) preparePreview(ctx context.Context, in Request, projection snapcompact.Projection, header string, budget Budget) (*Preview, error) {
+func (s *Service) preparePreview(ctx context.Context, in Request, doc historysource.Document, header string, budget Budget) (*Preview, error) {
 	p := &Preview{Format: in.Format, Capability: "pending", UserText: in.UserText, Budget: budget, Pages: []ImagePage{}, ImageBudget: ImageBudget{MaxPages: in.MaxPages, MaxBytes: int(hybrid.MaxPromptAttachmentBytes), MaxRequestBytes: int(min(s.options.MaxPromptWireBytes, hybrid.MaxPromptWireBytes))}}
+	if in.Format == "image" && len(s.options.OMPRunner) > 0 {
+		if err := s.prepareOMPArchive(ctx, in, doc, header, p); err != nil {
+			return nil, err
+		}
+		return s.validatePreview(p)
+	}
+	projected, err := s.options.HistoryProjection.ProjectDocument(ctx, doc, in.UserText, s.options.HistoryProjection.Config(), false)
+	if err != nil {
+		return nil, err
+	}
+	projection := projected.Projection
 	segments := projection.Segments
 	p.OmittedCount = len(projection.Omissions)
 	if in.Format == "text" {

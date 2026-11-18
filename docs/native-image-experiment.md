@@ -32,6 +32,15 @@ python3 cmd/native-image-experiment/run.py "$out" \
 - 生成物和原始 CLI 输出留在临时目录；报告权限为 `0600`，临时 cwd 在每次请求后清理。保留结果目录供复核，分享前检查原始输出。
 - 生成物与逐次输出留在临时目录；仓库保存[归档实测数据](../cmd/native-image-experiment/archive-measurements.json)与[历史数据](../cmd/native-image-experiment/measurements.json)。
 
+## OMP 原版运行器对照
+
+配置 [OMP 原版归档](deployment/configuration.md#omp-原版归档) 后，WebMux 通过本地运行器直接调用官方 18.22.2 包的 `compact` 和 `historyBlocks`。
+
+- 执行 `bun test`（工作目录 `cmd/omp-snapcompact`）比较运行器与同输入的直接原版调用。短历史、长历史完整覆盖、长历史截断三组均通过，文本块、顺序和 PNG 字节一致。
+- 使用下文的工具与代码样本和 64000 历史预算，走 WebMux 交接预览后，6 张 PNG 的 SHA-256 与原版逐一相同。原版统计保留 103395 字符，估计 15704 图片 token。
+- 上述对照采用锁定包 `@oh-my-pi/snapcompact@18.22.2`，Bun 1.4.4。WebMux 保留目标预算、冻结原文和提交确认。OMP 的会话自动压缩触发与最近轮次划分属于其会话运行时。
+- OMP 原版图片块可带 `detail: original`。ACP 图片块携带原始 PNG 字节，目标 Agent 决定向模型发送时的细节参数。
+
 ## 2026-11-18：上游原版对照
 
 对照 [WebMux #691](https://github.com/mzdluo123/webmux/pull/691) 与

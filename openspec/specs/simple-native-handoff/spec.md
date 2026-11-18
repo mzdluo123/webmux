@@ -72,6 +72,9 @@
 图片 SHALL 遵守每条最多 8 张、单张 10 MiB、总原始数据 20 MiB、编码请求 30 MiB 及更低服务配置上限。
 归档首尾文本与图片的 token 估计 SHALL 共同计入上下文预算。长历史 SHALL 优先保留更多正文，同覆盖时选用估计 token 较少的布局。图片编码字节独立校验，未知费率 SHALL 明确标注。
 
+配置 `handoff_omp_runner` 时，图片模式 SHALL 采用锁定版 OMP SnapCompact 的序列化、归档块和 PNG。
+冻结原文补查、当前任务、WebMux 上下文及传输限制 SHALL 适用于两种运行方式。原版运行器不可用或归档超限时 SHALL 阻止发送并允许显式文本预览。
+
 #### Scenario: 历史超过页数上限
 
 - **WHEN** 完整候选渲染超过 maxPages

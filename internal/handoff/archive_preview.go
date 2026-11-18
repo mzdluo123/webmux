@@ -97,6 +97,11 @@ func (s *Service) prepareArchive(ctx context.Context, in Request, projection sna
 	}
 	p.Text += "\n" + archive.TextTail + "\n当前用户任务：\n" + in.UserText
 	p.Budget.Used = historyprojection.ArchiveTextTokens(strings.TrimSuffix(p.Text, in.UserText)) + archive.ImageTokens
+	s.validateArchiveTransport(ctx, in, p)
+	return ctx.Err()
+}
+
+func (s *Service) validateArchiveTransport(ctx context.Context, in Request, p *Preview) {
 	if len(p.Pages) > 0 {
 		capability, capabilityErr := s.imageCapability(ctx, in.TargetSessionID)
 		p.Capability = capability
@@ -109,5 +114,4 @@ func (s *Service) prepareArchive(ctx context.Context, in Request, projection sna
 	if wire, wireErr := hybrid.ValidatePromptImages(p.Text, previewImages(p)); wireErr != nil || int64(wire) > s.options.MaxPromptWireBytes {
 		p.BlockedReason = "历史图片超过附件或编码请求限制，请选择文本模式重新预览"
 	}
-	return ctx.Err()
 }

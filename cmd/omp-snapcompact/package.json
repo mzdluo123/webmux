@@ -1,0 +1,15 @@
+{
+  "name": "webmux-omp-snapcompact",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  },
+  "engines": {
+    "bun": ">=1.4.4"
+  },
+  "dependencies": {
+    "@oh-my-pi/snapcompact": "18.22.2"
+  }
+}
