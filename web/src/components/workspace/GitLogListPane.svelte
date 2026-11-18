@@ -72,7 +72,24 @@
     } = $props();
 
   let listScrollEl = $state<HTMLElement | null>(null);
-  $effect(() => syncElementScrollTop(listScrollEl, listScrollTop));
+  let loadMoreButton = $state<HTMLButtonElement | null>(null);
+  const hasCommitRows = $derived(
+    historyState === "ready" && visibleCommits.length > 0,
+  );
+
+  $effect(() => {
+    if (hasCommitRows) syncElementScrollTop(listScrollEl, listScrollTop);
+  });
+
+  $effect.pre(() => {
+    if (
+      !nextCursor &&
+      loadMoreButton &&
+      document.activeElement === loadMoreButton
+    ) {
+      listScrollEl?.focus({ preventScroll: true });
+    }
+  });
 
   const graphLayouts = $derived(computeGitGraphLayout(visibleCommits));
 
@@ -116,6 +133,7 @@
   const listboxViewportProps = $derived({
     role: "listbox" as const,
     "aria-label": m.s6_log_list_listbox_aria(),
+    tabindex: -1,
     onkeydown: handleListKeydown,
   });
 
@@ -189,6 +207,7 @@
     class="min-h-8 flex-1"
     viewportProps={listboxViewportProps}
     onscroll={(e) => {
+      if (!hasCommitRows) return;
       const el = e.currentTarget;
       onListScrollChange?.(el.scrollTop);
       if (
@@ -256,10 +275,13 @@
         {m.s6_log_list_loaded_count({ count: String(visibleCommits.length) })}
       </span>
       <Button
+        bind:ref={loadMoreButton}
         size="sm"
         variant="outline"
-        disabled={historyLoadingMore}
-        onclick={onLoadMoreHistory}
+        aria-disabled={historyLoadingMore}
+        onclick={() => {
+          if (!historyLoadingMore) onLoadMoreHistory();
+        }}
       >
         {historyLoadingMore
           ? m.s6_log_list_loading_more()
