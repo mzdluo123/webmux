@@ -14,7 +14,7 @@
 </script>
 
 <script lang="ts">
-  import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
+  import { usePanelMotion } from "../../hooks/shared/dock-motion.svelte";
   import { onDestroy, tick, untrack } from "svelte";
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import { m } from "$lib/paraglide/messages.js";
@@ -117,9 +117,8 @@
   const available = $derived(repository.availability === "available");
   let tab = $state<RepositoryTab>(untrack(() => initialTab));
   let panels = $state<HTMLDivElement | null>(null);
-  useDockMotion(
+  const settleTabMotion = usePanelMotion(
     () => panels,
-    () => true,
     () => tab,
   );
   let busy = $state(false);
@@ -223,6 +222,7 @@
   // Opens a subview; leaving the tabs saves their scroll for "返回".
   async function push(view: Subview) {
     if (busy) return;
+    settleTabMotion();
     const outer = dialogScrollers();
     if (!views.length)
       saved = [
