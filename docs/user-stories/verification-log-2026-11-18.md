@@ -46,10 +46,6 @@
 - 隔离生产页面核对了 7 个视口的明暗主题、相邻按钮尺寸、窄栏与键盘打开，以及登记弹窗边界。未验证物理触屏或真机。
 - PR 提供桌面、平板及手机的明暗前后截图，以及[手机打开与取消登记的录屏](../images/pr/sidebar-add-repository/interaction-phone.gif)。
 
-## 加载 shell 启动文件（T089，US-B08）
-
-- `pnpm --dir web test:browser test/browser/LaunchConfigDialog.test.ts` 通过。切换 Bash 或 Zsh 包装时环境变量字段位置稳定，收起后 Tab 跳过选择框，按原样保存命令参数和环境变量。
-
 ## 按会话侧栏的分组显示（US-C17）
 
 - 会话缩进排列在项目标题下；无匹配会话的项目隐藏。侧栏顶部的「新建会话」仍可为这些项目创建首个会话。
