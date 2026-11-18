@@ -59,7 +59,6 @@
   import SidebarSessionName from "../shell/SidebarSessionName.svelte";
   import SidebarLiveSessionRow from "../shell/SidebarLiveSessionRow.svelte";
   import SidebarSessionMenu from "../shell/SidebarSessionMenu.svelte";
-  import { useManualDisclosureMotion } from "$lib/components/ui/collapsible/manual-motion.svelte";
 
   // The chat-mode sidebar: live chats flat in a stable order (newest created
   // first, as the workbench tree), with archived
@@ -125,7 +124,7 @@
   const archivedOpen = $derived(
     archivedOverride ?? (selectedArchiveIndex >= 0 || archivedExpanded),
   );
-  const motion = useManualDisclosureMotion(
+  const motion = Collapsible.useManualDisclosureMotion(
     () => archiveContent,
     () => archivedOpen,
   );
