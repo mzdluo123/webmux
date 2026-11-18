@@ -45,8 +45,8 @@
     class="min-w-0 max-w-full"
     {title}
   >
+    <IconChevronDown data-icon="inline-start" aria-hidden="true" />
     <span class="min-w-0 truncate">{title}</span>
-    <IconChevronDown data-icon="inline-end" aria-hidden="true" />
   </Button>
 {/snippet}
 

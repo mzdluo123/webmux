@@ -298,10 +298,24 @@ for (const [story, role, control] of stories) {
       await show(page, story, "light");
       await checkEachLayout(
         page,
-        async ({ name, textScale }) => {
-          const target = page.getByRole(role, { name: control });
+        async ({ name, textScale, viewport }) => {
+          const compactInput = role === "tab" && viewport.width < 640;
+          if (compactInput) {
+            await page
+              .getByRole("button", { name: /^(终端|会话)菜单$/ })
+              .click();
+          }
+          const target = compactInput
+            ? page
+                .getByRole("group", { name: "输入端", exact: true })
+                .getByRole("menuitemradio", { name: control })
+            : page.getByRole(role, { name: control });
           await target.scrollIntoViewIfNeeded();
           await expect.soft(target, name).toBeInViewport();
+          if (compactInput) {
+            await page.keyboard.press("Escape");
+            await expect(page.getByRole("menu")).toBeHidden();
+          }
           if (textScale > 1)
             // The terminal header does not fit 320px at 200% text even for an
             // ordinary session; this case checks the hybrid page's body.

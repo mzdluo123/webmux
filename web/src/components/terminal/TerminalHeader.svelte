@@ -161,9 +161,8 @@
   </Button>
   <SessionSwitcherTrigger size="icon-sm" class="max-sm:hidden" />
   <!-- The title and the session's state read as one unit; the actions keep
-       their places while the title truncates. Phones put the dot first and
-       move a connection problem to a second line, so it never pushes the
-       title out. -->
+       their places while the title truncates. On phones the connection
+       label sits below the centered title without resizing its row. -->
   <div class="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
     {#if t.info}<span
         class={`status-dot shrink-0 status-${t.info.status} sm:order-3`}
@@ -178,10 +177,10 @@
       <span class="shrink-0 sm:hidden" aria-hidden="true"
         ><span class="status-dot invisible"></span></span
       >{/if}
-    <div class="flex min-w-0 flex-col sm:order-1">
+    <div class="relative flex min-w-0 flex-col sm:order-1">
       <SessionTitle {title} {session} agent={chatAgent?.title} />
       {#if !t.info || t.connection !== "connected"}<span
-          class="max-w-full truncate text-xs leading-none text-muted-foreground sm:hidden"
+          class="pointer-events-none absolute inset-x-0 top-1/2 mt-2 truncate text-xs leading-none text-muted-foreground sm:hidden"
           role="status">{connectionText}</span
         >{/if}
     </div>
