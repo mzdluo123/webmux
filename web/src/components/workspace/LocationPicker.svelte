@@ -80,16 +80,23 @@
     repository && treesOf(repository).find((tree) => tree.id === worktreeId),
   );
 
+  async function closeSelection() {
+    setOpen(false);
+    await tick();
+    document.getElementById("session-location")?.focus({ preventScroll: true });
+  }
+
   function chooseTree(repo: Repository, tree: Worktree) {
     kind = "worktree";
     repositoryId = repo.id;
     worktreeId = tree.id;
-    setOpen(false);
+    void closeSelection();
   }
-  function chooseDirectory(dir: string) {
+  async function chooseDirectory(dir: string) {
     kind = "directory";
     cwd = dir;
-    setOpen(false);
+    await closeSelection();
+    cwdInput?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
   async function typeDirectory() {
     kind = "directory";
@@ -101,7 +108,7 @@
   function chooseNewWorktree(repo: Repository) {
     kind = "new-worktree";
     repositoryId = repo.id;
-    setOpen(false);
+    void closeSelection();
   }
 </script>
 
@@ -171,49 +178,54 @@
   >
   <PickerField id="session-location" bind:open={() => open, setOpen} {disabled}>
     {#snippet trigger()}
-      {#if kind === "directory"}
-        <IconFolder
-          class="size-4 shrink-0 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <ChoiceDetails
-          primary={m.s8_loc_direct_dir()}
-          secondary={projectScoped ? cwd : ""}
-        />
-      {:else if kind === "new-worktree"}
-        <IconCirclePlus
-          class="size-4 shrink-0 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <ChoiceDetails
-          primary={repository && !projectScoped
-            ? m.s8_loc_new_worktree_in_repo({ name: repository.name })
-            : m.s8_loc_new_worktree()}
-          secondary={newWorktreeSummary}
-        />
-      {:else}
-        <IconGitBranch
-          class="size-4 shrink-0 text-muted-foreground"
-          aria-hidden="true"
-        />
-        {#if worktree}
+      <span
+        class="flex min-h-10 min-w-0 flex-1 items-start gap-2 [&>svg]:self-center"
+      >
+        {#if kind === "directory"}
+          <IconFolder
+            class="size-4 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
           <ChoiceDetails
-            primary={`${projectScoped ? "" : (repository?.name ?? "") + " · "}${worktreeLabel(worktree)}`}
-            secondary={worktree.path}
+            primary={m.s8_loc_direct_dir()}
+            secondary={projectScoped ? cwd : ""}
+          />
+        {:else if kind === "new-worktree"}
+          <IconCirclePlus
+            class="size-4 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <ChoiceDetails
+            primary={repository && !projectScoped
+              ? m.s8_loc_new_worktree_in_repo({ name: repository.name })
+              : m.s8_loc_new_worktree()}
+            secondary={newWorktreeSummary}
           />
         {:else}
-          <span class="grid min-w-0 flex-1 gap-0.5">
-            <span class="text-sm text-muted-foreground"
-              >{m.s8_loc_select_worktree()}</span
-            >
-            {#if repository}<span class="truncate text-xs text-muted-foreground"
-                >{m.s8_loc_no_available_worktrees({
-                  name: repository.name,
-                })}</span
-              >{/if}
-          </span>
+          <IconGitBranch
+            class="size-4 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+          {#if worktree}
+            <ChoiceDetails
+              primary={`${projectScoped ? "" : (repository?.name ?? "") + " · "}${worktreeLabel(worktree)}`}
+              secondary={worktree.path}
+            />
+          {:else}
+            <span class="grid min-w-0 flex-1 gap-0.5">
+              <span class="text-sm text-muted-foreground"
+                >{m.s8_loc_select_worktree()}</span
+              >
+              {#if repository}<span
+                  class="truncate text-xs text-muted-foreground"
+                  >{m.s8_loc_no_available_worktrees({
+                    name: repository.name,
+                  })}</span
+                >{/if}
+            </span>
+          {/if}
         {/if}
-      {/if}
+      </span>
     {/snippet}
     <Command.Root label={m.s8_loc_location_label()} class="h-auto min-w-0">
       <Command.Input
