@@ -463,3 +463,79 @@ test("preserves body spacing on projects step and keeps command list untransform
     .toBeVisible();
   expect(commandRoot.style.transform).toBe("");
 });
+
+test("keeps stopTracking start-aligned, retains focus during registration retry, and restores input focus on stopTracking", async () => {
+  const registerGate = Promise.withResolvers<void>();
+  const fetchMock = vi.mocked(window.fetch);
+  const fetchProject = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (input, init) => {
+    const url = new URL(String(input), location.href);
+    if (url.pathname.endsWith("/register") && init?.method === "POST") {
+      await registerGate.promise;
+    }
+    return fetchProject(input, init);
+  });
+
+  localStorage.setItem(
+    "webmux.pendingProjectClone",
+    JSON.stringify({
+      requestId: "recover-focus",
+      url: "https://example.invalid/repo.git",
+      path: "/projects/cloned",
+      operationId: id,
+    }),
+  );
+  cloneState = "running";
+  await mount();
+
+  const stopBtn = page.getByRole("button", {
+    name: "暂不跟踪此克隆",
+    exact: true,
+  });
+  await expect.element(stopBtn).toBeVisible();
+  expect(
+    stopBtn.element().parentElement?.querySelector(".invisible"),
+  ).toBeNull();
+  const initialBox = stopBtn.element().getBoundingClientRect();
+
+  // Transition to registration_failed on next poll or re-mount: test retry focus retention and stopBtn coordinates.
+  await cleanup();
+  localStorage.setItem(
+    "webmux.pendingProjectClone",
+    JSON.stringify({
+      requestId: "recover-focus",
+      url: "https://example.invalid/repo.git",
+      path: "/projects/cloned",
+      operationId: id,
+    }),
+  );
+  cloneState = "registration_failed";
+  await mount();
+
+  const stopWithRetry = page.getByRole("button", {
+    name: "暂不跟踪此克隆",
+    exact: true,
+  });
+  const retryBtn = page.getByRole("button", {
+    name: "重试项目登记",
+    exact: true,
+  });
+  await expect.element(retryBtn).toBeVisible();
+  const retryRowBox = stopWithRetry.element().getBoundingClientRect();
+  expect(Math.round(retryRowBox.left)).toBe(Math.round(initialBox.left));
+
+  (retryBtn.element() as HTMLButtonElement).focus();
+  (retryBtn.element() as HTMLButtonElement).click();
+  await expect.element(retryBtn).toHaveAttribute("aria-disabled", "true");
+  await expect.element(retryBtn).toHaveFocus();
+
+  // Finish retry with registration_failed still set so we can also test stopTracking focus restoration.
+  registerGate.resolve();
+  await expect.element(retryBtn).toHaveAttribute("aria-disabled", "false");
+  await stopWithRetry.click();
+
+  await expect.element(stopWithRetry).not.toBeInTheDocument();
+  await expect
+    .element(page.getByRole("combobox", { name: "搜索项目", exact: true }))
+    .toHaveFocus();
+});

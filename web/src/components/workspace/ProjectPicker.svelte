@@ -111,6 +111,7 @@
 
   $effect(() => {
     if (cloneStatus && cloneDetails) cloneDetails.scrollTop = 0;
+    return () => {};
   });
   function retryClone() {
     if (retryUnavailable || !source.pending) return;
@@ -203,26 +204,24 @@
           </p>
         </div>
       </ScrollArea>
-      <div class="grid grid-cols-2 items-start justify-items-start gap-2">
-        <Button
-          variant="outline"
-          wrap
-          class={showRegistrationRetry || source.error
-            ? undefined
-            : "invisible"}
-          disabled={!showRegistrationRetry && !source.error}
-          aria-disabled={retryUnavailable}
-          onclick={retryClone}
-          >{showRegistrationRetry
-            ? m.s8_proj_retry_registration()
-            : m.s8_retry()}</Button
-        >
+      <div class="flex flex-wrap items-start gap-2">
         <Button
           variant="ghost"
           wrap
           disabled={source.busy}
           onclick={stopTracking}>{m.s8_proj_stop_tracking()}</Button
         >
+        {#if showRegistrationRetry || source.error}
+          <Button
+            variant="outline"
+            wrap
+            aria-disabled={retryUnavailable}
+            onclick={retryClone}
+            >{showRegistrationRetry
+              ? m.s8_proj_retry_registration()
+              : m.s8_retry()}</Button
+          >
+        {/if}
       </div>
       <p class="text-xs text-muted-foreground">
         {m.s8_proj_stop_tracking_hint()}
