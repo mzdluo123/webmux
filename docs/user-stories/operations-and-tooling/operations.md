@@ -142,13 +142,11 @@
   - deb/rpm 开发版安装包文件名为 `-dev.N`，包内版本为 `X.Y.Z~dev.N`，排在 `X.Y.Z` 之前；
   - 只升级不降级：从开发版切回正式版且当前开发版高于最新正式版时不安装，说明“当前开发版 X 高于最新正式版 Y，正式版超过它后自动更新”。
 
-- **US-K18 选择本次运行的内置功能**：作为部署者，我希望显式选择业务功能，以便只运行需要的终端工作环境。
+- **US-K18 选择本次运行的内置功能（已退役）**：作为部署者，我曾通过 TOML `[features]` 选择本次运行的业务模块；现配置文件侧功能开关已关闭并退役，生产运行固定启用全部 13 项内置功能。
   验收要点：
-  - `[features] enabled = []` 只运行核心；新生成配置显式启用全部 13 项内置功能。旧配置缺表或缺 `enabled` 时启用固定的旧功能集合，不随未来新增功能扩张；
-  - 启动时自动将旧 `[plugins]` 迁移为 `[features]`，保留原功能选择和其他配置值，原文以 0600 备份到配置路径加 `.pre-features.bak`；新旧两表并存时报错且原文件不变；再次启动不重写已迁移文件，`config show` / `validate` 保持只读；
-  - 可选 ID 为 `launch`、`workspace`、`code`、`files`、`chat`、`notifications`、`quick-commands`、`voice`、`forward`、`cloudflare`、`tailscale`、`p2p`、`mcp`；旧配置显式包含已移除的 `immersive` 时，启动前报告未知 ID，需从 `enabled` 删除；
-  - 未知、重复 ID 与缺少依赖在启动前拒绝，不自动补依赖；`chat` 要求显式选择 `launch`、`files`，Git 工作台要求同时选择 `workspace`、`code`；
-  - 功能选择变更须重启，网页设置不安装功能、不热切换选择，也不加载远程脚本。
+  - 新生成配置不写入 `[features]` 段，已有 `config.toml` 中遗留的 `[features]`（含空数组或旧 `immersive`）与 `[plugins]` 段在解析时直接忽略，原文件保持不变且不再生成 `.pre-features.bak`；
+  - `config show` 字段白名单不再输出 `features.enabled`；
+  - 13 项内置模块目录（`launch`、`workspace`、`code`、`files`、`chat`、`notifications`、`quick-commands`、`voice`、`forward`、`cloudflare`、`tailscale`、`p2p`、`mcp`）、硬依赖校验与程序化 `Config.Features` 隔离基建继续保留供内部功能测试使用。
 - **US-K19 不启用功能也能工作**：作为只需要终端的使用者，我希望核心模式仍能创建和接续 Shell，以便不依赖仓库或 agent 业务服务。
   验收要点：
   - 浏览器和 CLI 可用显式 argv、cwd、env 创建真实 PTY，保留输入、输出、控制、尺寸、回放、分屏和原生附着；

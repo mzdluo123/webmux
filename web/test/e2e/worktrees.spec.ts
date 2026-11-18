@@ -727,7 +727,12 @@ test("direct launch still offers explicit directory creation without registering
   workDir,
 }) => {
   const path = join(workDir, "new direct directory");
-  const isolated = await startE2EServer({ features: ["files", "launch"] });
+  const isolated = await startE2EServer({
+    stateFiles: {
+      "projects.json": "{corrupt",
+      "repositories.json": "{corrupt",
+    },
+  });
   try {
     await page.goto(isolated.baseURL);
     await page
@@ -760,7 +765,7 @@ test("direct launch still offers explicit directory creation without registering
     expect(sessions[0]).toMatchObject({ cwd: path, workspace: null });
     expect(
       (await request.get(isolated.apiURL + "/api/repositories")).status(),
-    ).toBe(404);
+    ).toBe(503);
   } finally {
     await isolated.close();
   }
