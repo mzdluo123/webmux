@@ -79,7 +79,7 @@
   }
 
   async function toggle(checked: boolean) {
-    const restore = checked && document.activeElement === pushSwitch;
+    const restore = document.activeElement === pushSwitch;
     target = checked;
     busy = true;
     notice = error = "";
@@ -179,14 +179,6 @@
       </div>
     {/if}
 
-    <!-- The test reaches every device, so this browser can trigger it for the
-         phones even when it has not turned push on itself. -->
-    {#if status && status.subscriptions > 0}
-      <Button variant="outline" disabled={busy} onclick={test}
-        >{m.s2_push_send_test({ count: String(status.subscriptions) })}</Button
-      >
-    {/if}
-
     {#if advice === "ready"}
       <div class="flex items-center justify-between gap-4">
         <Label for="push-enabled">{m.s2_push_enable_label()}</Label>
@@ -205,8 +197,17 @@
       >
     {/if}
 
+    <!-- The test reaches every device, so this browser can trigger it for the
+         phones even when it has not turned push on itself. -->
+    {#if status && status.subscriptions > 0}
+      <Button variant="outline" disabled={busy} onclick={test}
+        >{m.s2_push_send_test({ count: String(status.subscriptions) })}</Button
+      >
+    {/if}
+
     {#if awaitingPermission || (advice && advice !== "ready") || error || notice}
       <ScrollArea
+        class="max-h-[min(10rem,30dvh)]"
         viewportClasses="max-h-[min(10rem,30dvh)] overscroll-contain"
         viewportProps={{ tabindex: 0 }}
       >
