@@ -291,19 +291,44 @@ test("handoff form previews frozen images and clears process handles on refresh"
   await page
     .getByRole("textbox", { name: "用户指令", exact: true })
     .fill("new task\n  preserve indentation");
-  await page.getByRole("button", { name: "生成预览", exact: true }).click();
+  const generate = page.getByRole("button", {
+    name: "生成预览",
+    exact: true,
+  });
+  const send = page.getByRole("button", { name: "发送交接", exact: true });
+  await generate.scrollIntoViewIfNeeded();
+  const confirmBefore = await send.boundingBox();
+  await generate.press("Enter");
   await expect(
     page.getByRole("textbox", { name: "当前任务（原样文本）", exact: true }),
   ).toHaveValue(/new task/);
+  await expect(generate).toBeFocused();
+  const confirmAfter = await send.boundingBox();
+  expect(confirmAfter?.y).toBeCloseTo(confirmBefore!.y, 0);
   const image = page.getByRole("img", { name: "历史图片第 1 页", exact: true });
   await expect(image).toBeVisible();
   expect(
     await image.evaluate((node: HTMLImageElement) => node.naturalWidth),
   ).toBeGreaterThan(0);
-  await page.getByRole("button", { name: "放大第 1 页", exact: true }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+  const zoom = page.getByRole("button", { name: "放大第 1 页", exact: true });
+  await zoom.click();
+  const viewer = page.getByRole("dialog", { name: "历史图片第 1 页" });
+  await expect(viewer).toBeVisible();
+  const actualSize = viewer.getByRole("button", { name: "原始尺寸 1:1" });
+  await actualSize.click();
+  await expect(actualSize).toHaveAttribute("aria-pressed", "true");
+  expect(
+    await viewer
+      .locator("img")
+      .evaluate((node: HTMLImageElement) => node.width),
+  ).toBe(
+    await viewer
+      .locator("img")
+      .evaluate((node: HTMLImageElement) => node.naturalWidth),
+  );
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(viewer).toHaveCount(0);
+  await expect(zoom).toBeFocused();
   await page.getByRole("button", { name: "补查冻结原文", exact: true }).click();
   await expect(page.locator("pre")).toContainText("original source constraint");
   await page.getByRole("radio", { name: "文本交接", exact: true }).click();
@@ -322,7 +347,6 @@ test("handoff form previews frozen images and clears process handles on refresh"
   await page.route("**/api/handoff-previews/*", (route) =>
     route.request().method() === "GET" ? route.abort() : route.continue(),
   );
-  const send = page.getByRole("button", { name: "发送交接", exact: true });
   await expect(send).toBeEnabled();
   const sent = page.waitForResponse(
     (response) =>
