@@ -255,7 +255,9 @@
   drawerDescription={m.s6_commit_preview_drawer_desc()}
   truncateDrawerTitle
   busy={submitting}
-  class="sm:max-w-3xl"
+  pinDrawerHeader
+  drawerFullScreen
+  class="h-[min(90dvh,34rem)] sm:max-w-3xl"
   onclose={onClose}
 >
   <div class="space-y-3">
@@ -288,30 +290,6 @@
           {/if}
         </div>
       </InlineNotice>
-    {/if}
-
-    {#if model.stale}
-      <InlineNotice tone="warning">
-        <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <span class="min-w-0">
-            {model.dialogError || m.s6_commit_preview_stale_fallback()}
-          </span>
-          {#if onRefreshPreview}
-            <Button
-              size="sm"
-              variant="default"
-              wrap
-              disabled={submitting}
-              onclick={onRefreshPreview}
-            >
-              <IconRefresh aria-hidden="true" />
-              {m.s6_commit_preview_regenerate_btn()}
-            </Button>
-          {/if}
-        </div>
-      </InlineNotice>
-    {:else if model.dialogError}
-      <InlineNotice tone="danger">{model.dialogError}</InlineNotice>
     {/if}
 
     {#if model.followUpPush}
@@ -436,20 +414,51 @@
         </p>
       </ScrollArea>
     </div>
-
-    <GitDialogFooter
-      {submitting}
-      canConfirm={canExecute}
-      wrap
-      confirmLabel={model.followUpPush
-        ? m.s6_commit_preview_confirm_push()
-        : model.amend
-          ? m.s6_commit_preview_confirm_amend()
-          : m.s6_commit_preview_confirm_local()}
-      submittingLabel={m.s6_commit_preview_submitting()}
-      confirmTestId="git-commit-preview-confirm-btn"
-      {onConfirm}
-      {onClose}
-    />
   </div>
+  {#snippet footer()}
+    <div class="space-y-2">
+      {#if model.stale || model.dialogError}
+        <InlineNotice tone={model.stale ? "warning" : "danger"} size="compact">
+          <div class="flex min-w-0 flex-wrap items-center gap-2">
+            <ScrollArea
+              class="min-w-0 flex-1"
+              viewportClasses="max-h-[min(4rem,12dvh)] overscroll-contain"
+              viewportProps={{ tabindex: 0 }}
+            >
+              <p class="wrap-anywhere pr-2">
+                {model.dialogError || m.s6_commit_preview_stale_fallback()}
+              </p>
+            </ScrollArea>
+            {#if model.stale && onRefreshPreview}
+              <Button
+                size="sm"
+                variant="default"
+                wrap
+                disabled={submitting}
+                onclick={onRefreshPreview}
+              >
+                <IconRefresh aria-hidden="true" />
+                {m.s6_commit_preview_regenerate_btn()}
+              </Button>
+            {/if}
+          </div>
+        </InlineNotice>
+      {/if}
+
+      <GitDialogFooter
+        {submitting}
+        canConfirm={canExecute}
+        wrap
+        confirmLabel={model.followUpPush
+          ? m.s6_commit_preview_confirm_push()
+          : model.amend
+            ? m.s6_commit_preview_confirm_amend()
+            : m.s6_commit_preview_confirm_local()}
+        submittingLabel={m.s6_commit_preview_submitting()}
+        confirmTestId="git-commit-preview-confirm-btn"
+        {onConfirm}
+        {onClose}
+      />
+    </div>
+  {/snippet}
 </ResponsiveDialog>

@@ -34,7 +34,11 @@ export function createGitLogCompareController(
     deps.patchView({ compareBaseMarkOid: oid });
   }
 
-  async function startCompare(baseOid: string, targetOid: string) {
+  async function startCompare(
+    baseOid: string,
+    targetOid: string,
+    reversed = false,
+  ) {
     const repoId = deps.getRepoId();
     const worktreeId = deps.getEffectiveWorktreeId();
     if (!repoId || !baseOid || !targetOid) return;
@@ -78,6 +82,9 @@ export function createGitLogCompareController(
       const files = mapGitCompareChanges(res.changes.entries);
       const prevPath = deps.getView().selectedCommitFilePath;
       const chosen =
+        (reversed && prevPath
+          ? files.find((f) => f.status === "R" && f.oldPath === prevPath)
+          : undefined) ??
         (prevPath
           ? files.find((f) => (f.newPath || f.oldPath) === prevPath)
           : undefined) ??
@@ -185,7 +192,7 @@ export function createGitLogCompareController(
   function swapCompareDirection() {
     const cmp = deps.getView().compareMode;
     if (!cmp) return;
-    void startCompare(cmp.targetOid, cmp.baseOid);
+    void startCompare(cmp.targetOid, cmp.baseOid, true);
   }
 
   function exitCompare() {
