@@ -26,6 +26,10 @@
   - 本机免密与 Relay 浏览器顶层导航的非执行行为通过 HTTP 响应头契约（`application/octet-stream`、`attachment`、`nosniff` 与 `sandbox` CSP）回归验证，未连接公网 Relay 节点演练；
   - 浏览器与端到端用例仅在 Linux 无头 Chromium 中执行，未在 macOS / iOS / Android 真机浏览器上复测。
 
+## 智能检出恢复（T084，US-J28）
+
+- `pnpm --dir web test:browser test/browser/GitWorkbenchLineSmart.test.ts` 通过，覆盖活跃会话确认和冲突解决入口。隔离 Chromium 核对回滚保留贮藏与冲突结果，复制了 238 字符恢复命令。
+
 ## Codex 原生历史版本兼容（US-Q19、US-Q20）
 
 - 修复前，`go test -count=1 ./internal/agent/codex/history -run '^TestRuntimeDiscoveryCurrentCaptureAndFreeze$'` 在三个新增版本上均复现 byte 0 格式错误。
