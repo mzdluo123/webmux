@@ -446,11 +446,9 @@ test.describe("phone drawer", () => {
       document.documentElement.style.fontSize = "200%";
     });
     await expect(conversations).toHaveCSS("font-size", "26px");
-    await expect(conversations.locator("svg[data-grouping-icon]")).toBeHidden();
-    await expect(conversations).toHaveText("Session");
-    await expect(conversations).toHaveAttribute("title", "Session");
-    await expect(branches).toHaveText("Branch");
     for (const option of [conversations, branches]) {
+      await expect(option.locator("[data-grouping-label]")).toBeHidden();
+      await expect(option.locator("[data-grouping-icon]")).toBeVisible();
       const box = (await option.boundingBox())!;
       expect(box.width).toBeGreaterThanOrEqual(44);
       expect(box.height).toBeGreaterThanOrEqual(44);
@@ -458,24 +456,10 @@ test.describe("phone drawer", () => {
       await expect(option).toBeChecked();
     }
     const close = drawer.getByRole("button", { name: "Close sidebar" });
-    for (const option of [conversations, branches]) {
-      expect(
-        await option.evaluate((button) => {
-          const text = document.createRange();
-          text.selectNodeContents(button);
-          const label = text.getBoundingClientRect();
-          const control = button.getBoundingClientRect();
-          return label.left >= control.left && label.right <= control.right;
-        }),
-      ).toBe(true);
-    }
     const branchBox = (await branches.boundingBox())!;
     const closeBox = (await close.boundingBox())!;
-    expect(branchBox.y).toBeGreaterThanOrEqual(closeBox.y + closeBox.height);
-    expect(branchBox.x + branchBox.width).toBeCloseTo(
-      closeBox.x + closeBox.width,
-      0,
-    );
+    expect(branchBox.y).toBeLessThan(closeBox.y + closeBox.height);
+    expect(branchBox.x + branchBox.width).toBeLessThanOrEqual(closeBox.x);
     expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(320);
     await close.tap();
     await expect(drawer).toBeHidden();
@@ -560,22 +544,16 @@ test.describe("sidebar header never overlaps", () => {
           exact: true,
         })
         .boundingBox())!;
-      if (english) {
-        await expect(modes.getByRole("radio", { name: "Session" })).toHaveCSS(
-          "font-size",
-          "26px",
-        );
-        expect(group.y).toBeGreaterThanOrEqual(shortcut.y + shortcut.height);
-        expect(group.x + group.width).toBeCloseTo(
-          shortcut.x + shortcut.width,
-          0,
-        );
-      } else {
-        expect(group.x - (logo.x + logo.width)).toBeGreaterThanOrEqual(12);
-        expect(group.y).toBeLessThan(logo.y + logo.height);
-        expect(group.y + group.height).toBeGreaterThan(logo.y);
-        expect(shortcut.x - (group.x + group.width)).toBeCloseTo(8, 0);
+      for (const option of await modes.getByRole("radio").all()) {
+        await expect(option.locator("[data-grouping-icon]")).toBeVisible();
+        const label = option.locator("[data-grouping-label]");
+        if (fontSize === "100%") await expect(label).toBeVisible();
+        else await expect(label).toBeHidden();
       }
+      expect(group.x - (logo.x + logo.width)).toBeGreaterThanOrEqual(12);
+      expect(group.y).toBeLessThan(logo.y + logo.height);
+      expect(group.y + group.height).toBeGreaterThan(logo.y);
+      expect(shortcut.x - (group.x + group.width)).toBeCloseTo(8, 0);
       const refresh = (await nav
         .getByRole("button", {
           name: english ? "Refresh workspaces" : "刷新工作区",
