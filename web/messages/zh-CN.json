@@ -1909,6 +1909,7 @@
   "s5_diff_unable_to_start": "无法启动差异计算，请查看两侧完整文件",
   "s5_diff_unmodified_lines": "{count} 行未修改",
   "s5_diff_unreadable_result": "无法读取差异结果，请重试",
+  "s5_diff_viewport": "代码差异",
   "s5_dir_unavailable": "目录不可用",
   "s5_dir_updated_or_check_failed": "目录已更新或检测失败",
   "s5_dock_back_here": "收回到此处",
