@@ -110,6 +110,31 @@
     }
   }
 
+  /* Leave enough width for both labels and the adjacent actions before showing icons. */
+  @container sidebar-header (width < calc(144px + 5rem)) {
+    .sidebar-header:not(.drawer) :global([data-grouping-icon]) {
+      display: none;
+    }
+  }
+
+  @container sidebar-header (width < calc(110px + 5rem)) {
+    .drawer :global([data-grouping-icon]) {
+      display: none;
+    }
+  }
+
+  @container sidebar-header (width < calc(169px + 8rem)) {
+    .sidebar-header:lang(en):not(.drawer) :global([data-grouping-icon]) {
+      display: none;
+    }
+  }
+
+  @container sidebar-header (width < calc(116px + 8rem)) {
+    .drawer:lang(en) :global([data-grouping-icon]) {
+      display: none;
+    }
+  }
+
   .brand {
     min-inline-size: 28px;
     margin-inline-end: 12px;

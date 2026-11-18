@@ -1,4 +1,6 @@
 <script lang="ts">
+  import IconGitBranch from "~icons/tabler/git-branch";
+  import IconMessages from "~icons/tabler/messages";
   import {
     SegmentedControl,
     SegmentedControlItem,
@@ -28,6 +30,7 @@
     aria-label={m.s8_sidebar_by_conversation()}
     title={m.s8_sidebar_by_conversation()}
   >
+    <IconMessages class="size-3" data-grouping-icon aria-hidden="true" />
     {m.s8_sidebar_grouping_sessions()}
   </SegmentedControlItem>
   <SegmentedControlItem
@@ -35,6 +38,7 @@
     aria-label={m.s8_sidebar_by_branch()}
     title={m.s8_sidebar_by_branch()}
   >
+    <IconGitBranch class="size-3" data-grouping-icon aria-hidden="true" />
     {m.s8_sidebar_grouping_branch()}
   </SegmentedControlItem>
   <span

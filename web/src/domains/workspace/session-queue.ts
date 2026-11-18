@@ -54,10 +54,27 @@ export function queueLocation(
   const repository = repositories.find(
     (item) => item.id === session.workspace?.repositoryId,
   );
-  if (!repository) return session.cwd;
+  const location = queueWorkspaceLocation(session, repository).text;
+  return repository ? `${repository.name} / ${location}` : location;
+}
+
+export function queueWorkspaceLocation(
+  session: SessionInfo,
+  repository: Repository | undefined,
+): { text: string; branch: boolean } {
+  if (!repository) return { text: session.cwd, branch: false };
   const tree = repository.worktrees.find(
     (item) => item.id === session.workspace?.worktreeId,
   );
-  if (tree) return `${repository.name} / ${worktreeTitle(tree)}`;
-  return `${repository.name} / ${session.released?.branch ?? session.workspace?.worktreePath ?? session.cwd}`;
+  if (tree) return { text: worktreeTitle(tree), branch: Boolean(tree.branch) };
+  if (session.released?.branch) {
+    return { text: session.released.branch, branch: true };
+  }
+  return {
+    text:
+      session.released?.branch ??
+      session.workspace?.worktreePath ??
+      session.cwd,
+    branch: false,
+  };
 }

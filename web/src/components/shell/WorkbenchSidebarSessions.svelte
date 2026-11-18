@@ -12,7 +12,7 @@
   import type { Repository, SessionInfo } from "../../contracts/schemas";
   import {
     queueGroup,
-    queueLocation,
+    queueWorkspaceLocation,
     sessionsByPin,
   } from "../../domains/workspace/session-queue";
   import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
@@ -54,14 +54,20 @@
   );
   const groups = $derived.by(() => {
     const byRepository = new Map(
-      repositories.map(({ id, name }) => [
-        id,
-        { id, name, sessions: [] as SessionInfo[] },
+      repositories.map((repository) => [
+        repository.id,
+        {
+          id: repository.id,
+          name: repository.name,
+          repository,
+          sessions: [] as SessionInfo[],
+        },
       ]),
     );
     const direct = {
       id: "direct",
       name: m.s3_scope_direct_sessions(),
+      repository: undefined,
       sessions: [] as SessionInfo[],
     };
     for (const session of sessionsByPin(
@@ -173,10 +179,15 @@
         <Collapsible.Content>
           <ul class="mt-1 space-y-1" aria-label={group.name}>
             {#each group.sessions as session (session.id)}
+              {@const location = queueWorkspaceLocation(
+                session,
+                group.repository,
+              )}
               <SidebarLiveSessionRow
                 {session}
                 {current}
-                location={queueLocation(session, repositories)}
+                location={location.text}
+                locationIsBranch={location.branch}
                 icon={session.agent?.icon ??
                   configIcons.get(session.configId ?? "") ??
                   ""}

@@ -18,6 +18,7 @@
     icon,
     pinned = false,
     location,
+    locationIsBranch = false,
     compact = false,
     onopen,
     onrename,
@@ -28,6 +29,7 @@
     icon: string;
     pinned?: boolean;
     location?: string;
+    locationIsBranch?: boolean;
     compact?: boolean;
     onopen: (session: SessionInfo) => void;
     onrename: (session: SessionInfo) => void;
@@ -43,13 +45,18 @@
     aria-label={pinned
       ? m.s1_pinned_prefix({ label: sessionRowLabel(session) })
       : sessionRowLabel(session)}
-    title={sessionRowTitle(session)}
+    title={locationIsBranch ? undefined : sessionRowTitle(session)}
     aria-describedby={location ? locationId : undefined}
     data-allow-wrap={location ? true : undefined}
     onclick={() => onopen(session)}
   >
     <LaunchConfigIcon {icon} size={compact ? "xs" : "sm"} />
-    <SidebarSessionName title={session.title} {location} {locationId} />
+    <SidebarSessionName
+      title={session.title}
+      {location}
+      {locationId}
+      {locationIsBranch}
+    />
     <RowStatus status={rowStatus(session)} />
   </ListButton>
   <SidebarSessionMenu

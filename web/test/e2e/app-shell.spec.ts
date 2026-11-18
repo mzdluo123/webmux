@@ -365,6 +365,13 @@ test.describe("phone drawer", () => {
       await expect(grouping).not.toBeChecked();
       await grouping.click();
       await expect(grouping).toBeChecked();
+      const choices = drawer
+        .getByRole("radiogroup", { name: "会话分组" })
+        .getByRole("radio");
+      await expect(choices).toHaveCount(2);
+      for (const option of await choices.all()) {
+        await expect(option.locator("svg[data-grouping-icon]")).toBeVisible();
+      }
       await close.press("Enter");
       await expect(drawer).toBeHidden();
       await expect(
@@ -439,6 +446,7 @@ test.describe("phone drawer", () => {
       document.documentElement.style.fontSize = "200%";
     });
     await expect(conversations).toHaveCSS("font-size", "26px");
+    await expect(conversations.locator("svg[data-grouping-icon]")).toBeHidden();
     await expect(conversations).toHaveText("Session");
     await expect(conversations).toHaveAttribute("title", "Session");
     await expect(branches).toHaveText("Branch");

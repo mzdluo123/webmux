@@ -125,16 +125,40 @@ test("the Git and session views switch in both directions without losing the sel
       ).status(),
     ).toBe(201);
   }
+  expect(
+    (
+      await request.post("/api/sessions", {
+        data: {
+          name: "Direct shell",
+          cwd: workDir,
+          cmd: ["/bin/sh", "-c", "sleep 120"],
+        },
+      })
+    ).status(),
+  ).toBe(201);
   await page.goto("/");
   await revealSidebar(page);
   const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
   const project = sidebar.getByRole("list", { name: repo.name, exact: true });
+  for (const [name, branch] of [
+    [/^Review branch output/, "feat/route"],
+    [/^Watch the main branch/, "main"],
+  ] as const) {
+    const session = project.getByRole("button", { name });
+    const location = session.locator('[data-slot="sidebar-session-location"]');
+    await expect(location).toHaveText(branch);
+    await expect(location.locator('svg[aria-hidden="true"]')).toBeVisible();
+    await expect(session).toHaveAccessibleDescription(branch);
+    expect(await session.getAttribute("title")).toBeNull();
+    await expect(location.locator("[title]")).toHaveCount(0);
+  }
+  const direct = sidebar
+    .getByRole("list", { name: "直接会话", exact: true })
+    .getByRole("button", { name: /^Direct shell/ });
+  await expect(direct).toHaveAccessibleDescription(workDir);
   await expect(
-    project.getByRole("button", { name: /^Review branch output/ }),
-  ).toHaveAccessibleDescription(`${repo.name} / feat/route`);
-  await expect(
-    project.getByRole("button", { name: /^Watch the main branch/ }),
-  ).toHaveAccessibleDescription(`${repo.name} / main`);
+    direct.locator('[data-slot="sidebar-session-location"] svg'),
+  ).toHaveCount(0);
   await expect(
     sidebar.getByRole("button", { name: "仓库与工作树" }),
   ).toHaveCount(0);
