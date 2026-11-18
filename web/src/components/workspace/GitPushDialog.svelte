@@ -184,7 +184,6 @@
   onclose={handleClose}
 >
   <GitReviewBody
-    fullScreen
     testId="git-push-dialog"
     resetScrollOn={rejection || push?.loadError}
   >
@@ -400,18 +399,18 @@
         />
       </div>
     </div>
-
-    {#snippet footer()}
-      <GitDialogFooter
-        submitting={push?.running ?? false}
-        {canConfirm}
-        confirmLabel={publishMode
-          ? m.s6_push_confirm_publish()
-          : m.s6_push_confirm_push()}
-        submittingLabel={m.s6_push_submitting()}
-        onConfirm={handleConfirm}
-        onClose={handleClose}
-      />
-    {/snippet}
   </GitReviewBody>
+
+  {#snippet footer()}
+    <GitDialogFooter
+      submitting={push?.running ?? false}
+      {canConfirm}
+      confirmLabel={publishMode
+        ? m.s6_push_confirm_publish()
+        : m.s6_push_confirm_push()}
+      submittingLabel={m.s6_push_submitting()}
+      onConfirm={handleConfirm}
+      onClose={handleClose}
+    />
+  {/snippet}
 </ResponsiveDialog>

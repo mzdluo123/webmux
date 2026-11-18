@@ -77,7 +77,6 @@
   onclose={onClose}
 >
   <GitReviewBody
-    fullScreen
     testId="git-divergence-preview-dialog"
     resetScrollOn={dialogError}
   >
@@ -197,28 +196,28 @@
         {onAcknowledgeSessionsChange}
       />
     {/if}
-
-    {#snippet footer()}
-      <div
-        class="grid grid-cols-[auto_minmax(0,15rem)] items-end justify-end gap-2 pt-1"
-      >
-        <Button variant="outline" disabled={submitting} onclick={onClose}>
-          {m.s6_cancel()}
-        </Button>
-        <Button
-          variant="default"
-          wrap
-          disabled={!canConfirm}
-          onclick={onConfirm}
-          data-testid="git-divergence-confirm-btn"
-        >
-          {#if submitting}
-            {m.s6_executing_ellipsis()}
-          {:else}
-            {gitDivergenceConfirmLabel(effectiveKind, preview?.fastForward)}
-          {/if}
-        </Button>
-      </div>
-    {/snippet}
   </GitReviewBody>
+
+  {#snippet footer()}
+    <div
+      class="grid grid-cols-[auto_minmax(0,15rem)] items-end justify-end gap-2 pt-1"
+    >
+      <Button variant="outline" disabled={submitting} onclick={onClose}>
+        {m.s6_cancel()}
+      </Button>
+      <Button
+        variant="default"
+        wrap
+        disabled={!canConfirm}
+        onclick={onConfirm}
+        data-testid="git-divergence-confirm-btn"
+      >
+        {#if submitting}
+          {m.s6_executing_ellipsis()}
+        {:else}
+          {gitDivergenceConfirmLabel(effectiveKind, preview?.fastForward)}
+        {/if}
+      </Button>
+    </div>
+  {/snippet}
 </ResponsiveDialog>

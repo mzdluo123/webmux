@@ -64,43 +64,41 @@
 >
   <GitReviewBody
     testId="git-stash-apply-dialog"
-    resetScrollOn={dialogError || mode}
+    resetScrollOn={`${mode}:${dialogError}`}
   >
-    {#snippet controls()}
-      <SegmentedControl
-        wrap
-        disabled={submitting}
-        value={mode}
-        onValueChange={(val) => {
-          if (val === "apply" || val === "pop") onModeChange(val);
-        }}
-        aria-label={m.s6_stash_apply_mode_aria()}
-      >
-        <SegmentedControlItem value="pop">
-          {m.s6_stash_mode_pop()}
-        </SegmentedControlItem>
-        <SegmentedControlItem value="apply">
-          {m.s6_stash_mode_apply()}
-        </SegmentedControlItem>
-      </SegmentedControl>
+    <SegmentedControl
+      wrap
+      disabled={submitting}
+      value={mode}
+      onValueChange={(val) => {
+        if (val === "apply" || val === "pop") onModeChange(val);
+      }}
+      aria-label={m.s6_stash_apply_mode_aria()}
+    >
+      <SegmentedControlItem value="pop">
+        {m.s6_stash_mode_pop()}
+      </SegmentedControlItem>
+      <SegmentedControlItem value="apply">
+        {m.s6_stash_mode_apply()}
+      </SegmentedControlItem>
+    </SegmentedControl>
 
-      <div class="rounded-lg border bg-background p-3">
-        <Label class="items-start">
-          <Checkbox
-            checked={reinstateIndex}
-            disabled={submitting}
-            onCheckedChange={(val) => onReinstateIndexChange(Boolean(val))}
-            class="mt-0.5"
-            data-testid="git-stash-reinstate-index-checkbox"
-          />
-          <span class="text-xs leading-snug">
-            {m.s6_stash_reinstate_index_before()}<span class="font-mono"
-              >--index</span
-            >)
-          </span>
-        </Label>
-      </div>
-    {/snippet}
+    <div class="rounded-lg border bg-background p-3">
+      <Label class="items-start">
+        <Checkbox
+          checked={reinstateIndex}
+          disabled={submitting}
+          onCheckedChange={(val) => onReinstateIndexChange(Boolean(val))}
+          class="mt-0.5"
+          data-testid="git-stash-reinstate-index-checkbox"
+        />
+        <span class="text-xs leading-snug">
+          {m.s6_stash_reinstate_index_before()}<span class="font-mono"
+            >--index</span
+          >)
+        </span>
+      </Label>
+    </div>
 
     {#if dialogError}
       <InlineNotice tone="danger">{dialogError}</InlineNotice>
@@ -152,21 +150,21 @@
         {onAcknowledgeSessionsChange}
       />
     {/if}
-
-    {#snippet footer()}
-      <GitDialogFooter
-        {submitting}
-        {canConfirm}
-        confirmLabel={mode === "pop"
-          ? m.s6_stash_confirm_pop()
-          : m.s6_stash_confirm_apply()}
-        submittingLabel={mode === "pop"
-          ? m.s6_stash_submitting_pop()
-          : m.s6_stash_submitting_apply()}
-        confirmTestId="git-stash-apply-confirm-btn"
-        {onConfirm}
-        {onClose}
-      />
-    {/snippet}
   </GitReviewBody>
+
+  {#snippet footer()}
+    <GitDialogFooter
+      {submitting}
+      {canConfirm}
+      confirmLabel={mode === "pop"
+        ? m.s6_stash_confirm_pop()
+        : m.s6_stash_confirm_apply()}
+      submittingLabel={mode === "pop"
+        ? m.s6_stash_submitting_pop()
+        : m.s6_stash_submitting_apply()}
+      confirmTestId="git-stash-apply-confirm-btn"
+      {onConfirm}
+      {onClose}
+    />
+  {/snippet}
 </ResponsiveDialog>

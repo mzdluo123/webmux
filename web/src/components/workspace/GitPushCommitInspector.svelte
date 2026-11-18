@@ -113,7 +113,7 @@
       {/if}
     </div>
 
-    <div class="h-32 min-w-0">
+    <div class="min-w-0">
       {#if detailLoading}
         <p class="px-2 py-2 text-xs text-muted-foreground">
           {m.s6_push_inspector_loading_files()}
@@ -128,7 +128,10 @@
         </p>
       {:else}
         {#key fileListKey}
-          <ScrollArea class="h-full" viewportClasses="overscroll-contain">
+          <ScrollArea
+            class="max-h-32"
+            viewportClasses="max-h-32 overscroll-contain"
+          >
             <div class="space-y-0.5">
               {#each resolved.files as file (file.newPath || file.oldPath)}
                 {@const fPath = file.newPath || file.oldPath}
