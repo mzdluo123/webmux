@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import * as NativeSelect from "$lib/components/ui/native-select";
@@ -33,6 +34,30 @@
     onTargetKindChange: (kind: "worktree" | "rev") => void;
     onTargetOidChange: (oid: string) => void;
   } = $props();
+
+  let resultRegionEl = $state<HTMLDivElement | null>(null);
+  let resultHadFocus = false;
+
+  $effect(() => {
+    const phase = diffReader?.state.phase;
+    const cacheKey = diffReader?.state.fileDiff?.cacheKey;
+    void phase;
+    void cacheKey;
+    const host = resultRegionEl;
+    if (!host || !resultHadFocus) return;
+    let cancelled = false;
+    void tick().then(() => {
+      if (cancelled || !resultHadFocus || !host.isConnected) return;
+      if (host.contains(document.activeElement)) return;
+      const focusable = host.querySelector<HTMLElement>(
+        "button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex='-1'])",
+      );
+      (focusable ?? host).focus({ preventScroll: true });
+    });
+    return () => {
+      cancelled = true;
+    };
+  });
 </script>
 
 <div
@@ -45,7 +70,9 @@
     <div class="space-y-1.5">
       <Label for="git-rev-compare-select">{m.s6_rev_compare_base_label()}</Label
       >
-      <div class="flex min-w-0 items-center gap-1.5">
+      <div
+        class="flex min-h-(--control-touch-compact) min-w-0 items-center gap-1.5 sm:min-h-(--control-sm)"
+      >
         {#if refs.length > 0}
           <NativeSelect.Root
             id="git-rev-compare-select"
@@ -84,9 +111,12 @@
 
     <div class="space-y-1.5">
       <Label>{m.s6_rev_compare_target_label()}</Label>
-      <div class="space-y-1.5">
+      <div
+        class="flex min-h-(--control-touch-compact) min-w-0 items-center gap-1.5 sm:min-h-(--control-sm)"
+      >
         {#if hasWorktree}
           <SegmentedControl
+            class="shrink-0"
             value={targetKind}
             onValueChange={(val) => {
               if (val === "worktree" || val === "rev") onTargetKindChange(val);
@@ -101,31 +131,37 @@
             </SegmentedControlItem>
           </SegmentedControl>
         {/if}
-        <div class="min-h-(--control-sm)">
-          {#if !hasWorktree || targetKind === "rev"}
-            <div use:paneEnter={hasWorktree}>
-              <Input
-                size="sm"
-                mono
-                value={targetOid}
-                placeholder={m.s6_rev_compare_target_placeholder()}
-                aria-label={m.s6_rev_compare_target_aria()}
-                oninput={(e) => onTargetOidChange(e.currentTarget.value)}
-                data-testid="git-rev-compare-target-input"
-              />
-            </div>
-          {/if}
-        </div>
+        {#if !hasWorktree || targetKind === "rev"}
+          <div class="min-w-0 flex-1" use:paneEnter={hasWorktree}>
+            <Input
+              size="sm"
+              mono
+              value={targetOid}
+              placeholder={m.s6_rev_compare_target_placeholder()}
+              aria-label={m.s6_rev_compare_target_aria()}
+              oninput={(e) => onTargetOidChange(e.currentTarget.value)}
+              data-testid="git-rev-compare-target-input"
+            />
+          </div>
+        {/if}
       </div>
     </div>
   </div>
 
-  <!-- svelte-ignore a11y_no_noninteractive_tabindex (The result stays keyboard reachable while the diff loads.) -->
   <div
-    class="min-h-0 min-w-0 flex-1 focus-visible:outline focus-visible:-outline-offset-1 focus-visible:outline-ring"
-    role="group"
-    aria-label={m.s6_log_diff_section_aria()}
-    tabindex="0"
+    bind:this={resultRegionEl}
+    class="min-h-0 min-w-0 flex-1 outline-none"
+    tabindex="-1"
+    data-testid="git-rev-compare-result"
+    onfocusin={() => {
+      resultHadFocus = true;
+    }}
+    onfocusout={(e) => {
+      const next = e.relatedTarget;
+      if (next instanceof Node && !resultRegionEl?.contains(next)) {
+        resultHadFocus = false;
+      }
+    }}
   >
     <GitLogDiffPanel logDiff={diffReader} presentation="docked" />
   </div>
