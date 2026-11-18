@@ -145,22 +145,40 @@ func TestCapturedWriterConsumerPages(t *testing.T) {
 	}
 }
 
-func TestUnsupportedWriterAndContent(t *testing.T) {
-	for _, version := range []string{"1.1.80", "1.1.82", "1.1.85", "2.0.0", ""} {
-		t.Run("version-"+version, func(t *testing.T) {
+func TestWriterVersions(t *testing.T) {
+	for _, version := range []struct {
+		value     string
+		supported bool
+	}{{"1.1.80", false}, {"bad", false}, {"", false}, {"1.1.82", true}, {"1.1.85", true}, {"2.0.10", true}} {
+		t.Run(version.value, func(t *testing.T) {
 			source := fixture(t, "session-1.1.81.jsonl", liveFixtureID)
+			req := historysource.Request{Source: source}
+			baseline, err := Read(context.Background(), req)
+			if err != nil {
+				t.Fatal(err)
+			}
 			data, err := os.ReadFile(source.Path)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(source.Path, []byte(strings.ReplaceAll(string(data), `"version":"1.1.81"`, `"version":"`+version+`"`)), 0600); err != nil {
+			if err := os.WriteFile(source.Path, []byte(strings.ReplaceAll(string(data), `"version":"1.1.81"`, `"version":"`+version.value+`"`)), 0600); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := Read(context.Background(), historysource.Request{Source: source}); !errors.Is(err, historysource.ErrFormat) {
-				t.Fatalf("unsupported writer accepted: %v", err)
+			doc, err := Read(context.Background(), req)
+			if !version.supported {
+				if !errors.Is(err, historysource.ErrFormat) {
+					t.Fatalf("unsupported writer accepted: %v", err)
+				}
+				return
+			}
+			if err != nil || !reflect.DeepEqual(doc.Records, baseline.Records) {
+				t.Fatalf("writer version changed transcript: %v", err)
 			}
 		})
 	}
+}
+
+func TestUnsupportedContent(t *testing.T) {
 	for name, content := range map[string]string{
 		"missing-block-type":  `[{"text":"missing type"}]`,
 		"empty-block-type":    `[{"type":"","text":"empty type"}]`,

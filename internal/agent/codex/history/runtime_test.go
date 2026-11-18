@@ -20,7 +20,7 @@ func TestRuntimeDiscoveryCurrentCaptureAndFreeze(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, version := range []string{"0.160.1", "0.167.2", "0.169.0", "0.169.1"} {
+	for _, version := range []string{"0.169.0", "0.169.1", "0.170.0", "9.99.0"} {
 		t.Run(version, func(t *testing.T) {
 			// Reuse the capture body with synthetic headers to exercise version admission.
 			data := []byte(strings.Replace(string(capture), "0.169.0", version, 1))
@@ -47,7 +47,7 @@ func testRuntimeDiscoveryAndFreeze(t *testing.T, data []byte, version string) {
 	put(target, data)
 	header, _, _ := strings.Cut(string(data), "\n")
 	id := "00000003-0000-4000-8000-000000000003"
-	unknownHeader := strings.Replace(header, version, "0.170.0", 1)
+	unknownHeader := strings.Replace(header, version, "0.76.0", 1)
 	neighbor := strings.ReplaceAll(unknownHeader, id, "neighbor") + "\ninvalid unrelated body\n"
 	put(filepath.Join(dir, "neighbor.jsonl"), []byte(neighbor))
 	// A filename containing the runtime ID cannot authenticate a malformed header.

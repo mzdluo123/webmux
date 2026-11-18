@@ -2,7 +2,6 @@ package history
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -103,15 +102,16 @@ func TestProvisionalChineseEditionFixture(t *testing.T) {
 	}
 }
 
-func TestProvisionalReaderRejectsUnobservedWriter(t *testing.T) {
+func TestProvisionalReaderAcceptsNewerWriter(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "unsupported.jsonl")
-	data := `{"type":"user","uuid":"user","sessionId":"fixture","version":"1.1.82","message":{"role":"user","content":"unsupported"}}` + "\n" +
+	data := `{"type":"user","uuid":"user","sessionId":"fixture","version":"1.1.82","message":{"role":"user","content":"newer writer"}}` + "\n" +
 		`{"type":"active-leaf","sessionId":"fixture","leafUuid":"user"}` + "\n"
 	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
 		t.Fatal(err)
 	}
 	source := historysource.Source{Agent: "qoder", Path: path, NativeID: "fixture"}
-	if _, err := Read(context.Background(), historysource.Request{Source: source}); !errors.Is(err, historysource.ErrFormat) {
-		t.Fatalf("unobserved writer accepted: %v", err)
+	doc, err := Read(context.Background(), historysource.Request{Source: source})
+	if err != nil || len(doc.Records) != 1 || doc.Records[0].Text != "newer writer" {
+		t.Fatalf("newer writer lost transcript: %+v, %v", doc.Records, err)
 	}
 }

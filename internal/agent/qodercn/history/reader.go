@@ -10,16 +10,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/historysource"
 )
 
 const ParserVersion = "qodercn-jsonl/2"
-
-// Writer releases are evidence for this unversioned record format. Only the
-// captured releases are accepted; intermediate or future releases need evidence.
-func supportedWriter(version string) bool {
-	return version == "1.1.81" || version == "1.1.84"
-}
 
 type envelope struct {
 	Type      string `json:"type"`
@@ -79,7 +74,7 @@ func ReadAs(ctx context.Context, req historysource.Request, agent string) (histo
 			identity = true
 		}
 		if e.Version != "" {
-			if !supportedWriter(e.Version) {
+			if order, valid := agentprofile.CompareVersions(e.Version, "1.1.81"); !valid || order < 0 {
 				return historysource.ErrFormat
 			}
 			version = e.Version

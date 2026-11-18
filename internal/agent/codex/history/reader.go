@@ -64,7 +64,7 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 		switch {
 		case errors.Is(err, codexrollout.ErrLimit):
 			return out, errors.Join(historysource.ErrLimit, err)
-		case errors.Is(err, codexrollout.ErrVersion), errors.Is(err, codexrollout.ErrFormat):
+		case errors.Is(err, codexrollout.ErrVersion), errors.Is(err, codexrollout.ErrLineage), errors.Is(err, codexrollout.ErrFormat):
 			return out, errors.Join(historysource.ErrFormat, err)
 		default:
 			return out, err

@@ -85,11 +85,12 @@ func TestInspectRetainsVerifiedIdentityForUnsupportedFormats(t *testing.T) {
 	header := string(bytes.SplitN(fixture(t), []byte{'\n'}, 2)[0])
 	tests := []struct {
 		name, header string
+		want         error
 	}{
-		{"future-version", strings.Replace(header, "0.77.0", "0.170.0", 1)},
-		{"history-base", strings.Replace(header, `"cli_version":`, `"history_base":{"session_id":"parent"},"cli_version":`, 1)},
-		{"fork-reference", strings.Replace(header, `"cli_version":`, `"forked_from_id":"parent","cli_version":`, 1)},
-		{"subagent-reference", strings.Replace(header, `"cli_version":`, `"subagent_history_start_ordinal":0,"cli_version":`, 1)},
+		{"old-writer", strings.Replace(header, "0.77.0", "0.76.0", 1), ErrVersion},
+		{"history-base", strings.Replace(header, `"cli_version":`, `"history_base":{"session_id":"parent"},"cli_version":`, 1), ErrLineage},
+		{"fork-reference", strings.Replace(header, `"cli_version":`, `"forked_from_id":"parent","cli_version":`, 1), ErrLineage},
+		{"subagent-reference", strings.Replace(header, `"cli_version":`, `"subagent_history_start_ordinal":0,"cli_version":`, 1), ErrLineage},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -103,7 +104,7 @@ func TestInspectRetainsVerifiedIdentityForUnsupportedFormats(t *testing.T) {
 				t.Fatal(err)
 			}
 			metadata, err := Inspect(context.Background(), path)
-			if !errors.Is(err, ErrVersion) || metadata.ID != "00000000-0000-4000-8000-000000000001" {
+			if !errors.Is(err, tt.want) || metadata.ID != "00000000-0000-4000-8000-000000000001" {
 				t.Fatalf("inspect lost verified identity: %+v %v", metadata, err)
 			}
 			found, err := Discover(context.Background(), root)

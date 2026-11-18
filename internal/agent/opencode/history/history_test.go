@@ -85,6 +85,35 @@ func TestNativeGenerationsFreeze(t *testing.T) {
 		})
 	}
 }
+func TestMixedGenerationsUseTargetSchema(t *testing.T) {
+	path, db := fixture(t, "legacy")
+	raw, err := os.ReadFile(filepath.Join("../../testdata/native-history/opencode", "v2.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Both schema fixtures define the shared project table.
+	v2 := strings.Replace(string(raw), "CREATE TABLE `project`", "CREATE TABLE IF NOT EXISTS `project`", 1)
+	v2 = strings.Replace(v2, "INSERT INTO `project`", "INSERT OR IGNORE INTO `project`", 1)
+	if _, err := db.Exec(v2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`UPDATE session SET version='9.99.0'; UPDATE session_v2 SET version='9.99.0'`); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	sources, err := Discover(ctx, filepath.Dir(path))
+	if err != nil || len(sources) != 2 {
+		t.Fatalf("mixed schema discovery: %+v, %v", sources, err)
+	}
+	for _, source := range sources {
+		doc, err := Read(ctx, historysource.Request{Source: source})
+		generation := strings.TrimPrefix(source.NativeID, "ses_fixture_")
+		if err != nil || doc.FormatVersion != "opencode-sqlite-"+generation || len(doc.Records) != 4 {
+			t.Fatalf("wrong reader for %s: %s, %v", source.NativeID, doc.FormatVersion, err)
+		}
+	}
+}
+
 func TestIdentityCancellationAndParts(t *testing.T) {
 	path, db := fixture(t, "legacy")
 	req := historysource.Request{Source: historysource.Source{Agent: "opencode", Path: path, NativeID: "wrong"}}

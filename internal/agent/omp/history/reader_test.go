@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -55,12 +56,45 @@ func TestNativeFixtures(t *testing.T) {
 			if tc.name == "compaction" && counts["compaction"] != 1 {
 				t.Fatal("lost compaction")
 			}
-			if doc.FormatVersion != FormatVersion || doc.ParserVersion != ParserVersion || doc.Cursor == "" || doc.Fingerprint == "" {
+			if doc.FormatVersion != "omp-session-3" || doc.ParserVersion != ParserVersion || doc.Cursor == "" || doc.Fingerprint == "" {
 				t.Fatal("missing version/boundary")
 			}
 			replay, err := Read(context.Background(), hs.Request{Source: doc.Source, Cursor: doc.Cursor})
 			if err != nil || replay.Fingerprint != doc.Fingerprint {
 				t.Fatalf("frozen replay: %v", err)
+			}
+		})
+	}
+}
+
+func TestSessionFormatVersions(t *testing.T) {
+	path := fixture("session")
+	id := "00000001-0000-4000-8000-000000000001"
+	ctx := context.Background()
+	baseline, err := Read(ctx, hs.Request{Source: source(path, id)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, version := range []string{"2", "4"} {
+		t.Run(version, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "session.jsonl")
+			body := strings.Replace(string(data), `"version":3`, `"version":`+version, 1)
+			if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+				t.Fatal(err)
+			}
+			doc, err := Read(ctx, hs.Request{Source: source(path, id)})
+			if version == "2" {
+				if !errors.Is(err, hs.ErrFormat) {
+					t.Fatalf("accepted old session schema: %v", err)
+				}
+				return
+			}
+			if err != nil || doc.FormatVersion != "omp-session-4" || !reflect.DeepEqual(doc.Records, baseline.Records) {
+				t.Fatalf("new session schema changed transcript: %v", err)
 			}
 		})
 	}
