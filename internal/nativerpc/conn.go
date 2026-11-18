@@ -135,15 +135,3 @@ func (c *Conn) Call(ctx context.Context, method string, params, result any) erro
 	}
 	return nil
 }
-
-func (c *Conn) Notify(ctx context.Context, method string) error {
-	stop := context.AfterFunc(ctx, c.closePipes)
-	defer stop()
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if c.write(map[string]any{"method": method}) != nil {
-		return ErrDisconnected
-	}
-	return nil
-}

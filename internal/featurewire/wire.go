@@ -112,15 +112,6 @@ func ArchivedSession(r hybrid.Record, a Archived) contract.SessionInfo {
 	return out
 }
 
-// OptionalWorktree converts a worktree that may not exist; nil stays nil.
-func OptionalWorktree(w *workspace.Worktree) *contract.Worktree {
-	if w == nil {
-		return nil
-	}
-	out := Worktree(*w)
-	return &out
-}
-
 func Capability(c workspace.Capability) contract.WorkspaceCapability {
 	return contract.WorkspaceCapability(c)
 }
