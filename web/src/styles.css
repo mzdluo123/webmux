@@ -427,10 +427,57 @@
   }
 }
 .terminal-area {
+  container: terminal-viewport / size;
   position: relative;
   flex: 1;
   min-height: 0;
   background: var(--terminal-background);
+}
+.terminal-selection .terminal-control-icon {
+  display: none;
+}
+
+@container terminal-viewport (height < 8rem) {
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection) {
+    inset: 0.5rem 0.5rem auto;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-jump,
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-selection {
+    position: static;
+    translate: none;
+  }
+
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-selection {
+    margin-inline-start: auto;
+  }
+
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-control-label {
+    display: none;
+  }
+
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-jump
+    button,
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-selection
+    button {
+    aspect-ratio: 1;
+    padding-inline: 0;
+  }
+
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-selection
+    .terminal-control-icon {
+    display: inline-block;
+  }
 }
 .terminal-host {
   position: absolute;

@@ -187,6 +187,69 @@ test("restoration keeps its blocking overlay labels", async () => {
   expect(document.querySelector(".restore-overlay")).toBeNull();
 });
 
+test("selection and jump controls share a short viewport after replay", async () => {
+  const props = {
+    selection: "retained text",
+    atBottom: false,
+    width: 320,
+    height: 125,
+  };
+  const view = await render(Harness, { ...props, restoring: true });
+  const host = document.querySelector(".terminal-host")!;
+  const jump = page.getByRole("button", { name: "回到最新" });
+  const toolbar = page.getByRole("toolbar", { name: "终端文字选择" });
+  const copyButton = page.getByRole("button", { name: "复制选中" });
+  const clearButton = page.getByRole("button", { name: "取消选择" });
+  const grid = host.getBoundingClientRect();
+  await expect.element(jump).not.toBeInTheDocument();
+
+  // Selection-only in a < 8rem pane keeps normal text labels visible.
+  await view.rerender({
+    ...props,
+    atBottom: true,
+    restoring: false,
+    connection: "connected",
+  });
+  await expect.element(jump).not.toBeInTheDocument();
+  await expect.element(toolbar).toBeVisible();
+  const soloLabels = [
+    ...toolbar
+      .element()
+      .querySelectorAll<HTMLElement>("button .terminal-control-label"),
+  ];
+  expect(soloLabels).toHaveLength(2);
+  for (const label of soloLabels) {
+    expect(getComputedStyle(label).display).not.toBe("none");
+    expect(label.getBoundingClientRect().width).toBeGreaterThan(0);
+  }
+  for (const icon of toolbar
+    .element()
+    .querySelectorAll<SVGElement>(".terminal-control-icon")) {
+    expect(getComputedStyle(icon).display).toBe("none");
+  }
+
+  // Both jump and selection in < 8rem separate horizontally as named icon buttons.
+  await view.rerender({ ...props, restoring: false, connection: "connected" });
+  await expect.element(jump).toBeVisible();
+  await expect.element(copyButton).toBeVisible();
+  await expect.element(clearButton).toBeVisible();
+  await expect.element(toolbar).toBeVisible();
+  for (const label of document.querySelectorAll<HTMLElement>(
+    ".terminal-controls .terminal-control-label",
+  )) {
+    expect(getComputedStyle(label).display).toBe("none");
+  }
+  for (const icon of toolbar
+    .element()
+    .querySelectorAll<SVGElement>(".terminal-control-icon")) {
+    expect(getComputedStyle(icon).display).not.toBe("none");
+  }
+  const jumpBox = jump.element().getBoundingClientRect();
+  const selectionBox = toolbar.element().getBoundingClientRect();
+  expect(jumpBox.right).toBeLessThan(selectionBox.left);
+  expect(host.getBoundingClientRect()).toEqual(grid);
+});
+
 test("floating jump-to-latest button centers near the bottom across desktop and narrow viewports without stealing focus", async () => {
   const scrollToBottom = vi.fn();
   try {
