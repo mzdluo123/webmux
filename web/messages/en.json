@@ -1992,6 +1992,7 @@
   "s4_send_unavail_exited": "Session exited; you can edit or copy the draft",
   "s4_send_unavail_missing": "Session not found, cannot send",
   "s4_send_unavail_not_ready": "Terminal not ready; draft will not send automatically",
+  "s4_retry_sessions": "Retry loading sessions",
   "s4_session_exited_suffix": " (exited)",
   "s4_session_menu": "Session menu",
   "s4_session_missing_strip": "Session does not exist or has been removed.",
