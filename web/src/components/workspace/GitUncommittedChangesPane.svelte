@@ -294,14 +294,8 @@
       <GitDiscardBatchBar
         selectedItems={selectedBatchItems}
         busy={stagingBusy}
-        onStageSelected={(items) => {
-          for (const item of items) onStageChange(item.id);
-        }}
-        onDiscardSelected={(items) =>
-          onDiscardChanges(
-            items.map((i) => i.id),
-            items.map((i) => i.path),
-          )}
+        {onStageChange}
+        {onDiscardChanges}
         onClearSelection={() => (batchSelectedIds = [])}
       />
     {/if}
