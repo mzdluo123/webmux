@@ -163,7 +163,6 @@ export function createGitWorkbenchController(
       const effId = bundle.effectiveWorktreeId;
       effectiveWorktreeId = effId;
       defaultBranchName = bundle.defaultBranch;
-      sub.rework.loadTarget(repoId, effId ?? wtId);
       sub.logDiff.seedContextId(repoId, effId, bundle.gitContextId);
       sub.staging.seedContextId(repoId, effId, bundle.gitContextId);
       sub.taskReview.seedContextId(repoId, effId, bundle.gitContextId);
@@ -236,7 +235,7 @@ export function createGitWorkbenchController(
       defaultBranchName = null;
       lastAppliedSearch = params.search;
       lastLoadedKey = desiredLoadKey;
-      sub.resetAllTargets(params.repositoryId, params.worktreeId);
+      sub.resetAllTargets();
       error = "";
 
       const init = buildTargetInitialState({
@@ -326,7 +325,6 @@ export function createGitWorkbenchController(
     commitDraft: sub.commitDraft,
     commitOptions: sub.commitOptions,
     reviews: sub.reviews,
-    rework: sub.rework,
     operations: sub.operations,
     staging: sub.staging,
     taskReview: sub.taskReview,

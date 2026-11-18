@@ -141,3 +141,16 @@ export function createTerminalKeyRepeat(send: (input: string) => void) {
     },
   };
 }
+
+// SGR / SGR-Pixel no-button pointer motion (`CSI < Cb ; Cx ; Cy M` with
+// motion bit 32, button 3, and optional Shift/Alt/Ctrl bits 4/8/16).
+export function isPointerHoverReport(data: string): boolean {
+  if (!data.startsWith("\x1b[<") || !data.endsWith("M")) return false;
+  const parts = data.slice(3, -1).split(";");
+  if (parts.length !== 3) return false;
+  for (const part of parts) {
+    if (!part || !/^\d+$/.test(part)) return false;
+  }
+  const code = Number(parts[0]);
+  return Number.isSafeInteger(code) && (code & ~28) === 35;
+}

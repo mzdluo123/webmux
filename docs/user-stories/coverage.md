@@ -129,7 +129,7 @@ Relay 页内配对、宿主权威流程、导航恢复与操作核对：US-A10�
 | Git 工作台提交暂存闭环、三态核对预览、顶栏/`Log`/`Branches` 三处共享分支动作与占用保护、~900px 宽幅双栏推送确认框及两步独立失败恢复                                          | US-J22；US-J16；US-J18–US-J20；US-I05–US-I07                  |
 | 持久 Git 操作账本（`git-operations.json`）、`clientRequestId` 幂等合并与重放、服务重启真实 reflog/引用对账、底部 24–28px 状态栏与 `uncertain` 安全门禁                       | US-J23；US-J16–US-J19；US-J22；US-L05；US-L10                 |
 | 工作树固定任务审阅基线（`git-task-baselines.json` 与 `refs/webmux/baselines/*`）、单份净变更审阅（含干净工作区）、`Log` 当前任务范围与交付收尾摘要                           | US-J24；US-J08；US-J18–US-J22；US-L05；US-L10                 |
-| Git 工作台跨设备审阅进度同步与自动失效、“下一处未审阅”、`baseRevision` 乐观锁提交草稿与 409 并排恢复、Diff 摘录返工意见草稿箱及指定会话无回车草稿交回                        | US-J25；US-J07；US-J19–US-J24；US-F01；US-Q07；US-L05；US-L10 |
+| Git 工作台跨设备审阅进度同步与自动失效、“下一处未审阅”、`baseRevision` 乐观锁提交草稿与 409 并排恢复                                                                         | US-J25；US-J19–US-J24；US-L05；US-L10                         |
 | Git 工作台 Merge/Rebase/Cherry-pick/Revert 两阶段方向预览、推送被拒分叉恢复、无状态重进恢复横幅、诚实 Abort 预览与内置三方冲突解决器（四步递进与二进制/删改裁决卡）          | US-J26；US-J16–US-J23；US-L05；US-L10                         |
 | Git 工作台独立 Stash 视图与安全两步 Pop、高级提交（Amend/作者/Sign-off 与已推送保护）、分支重命名/上游/标签/远程维护及单文件 `--follow` 历史与逐行 Blame 溯源                | US-J27；US-I01；US-J15；US-J19–US-J23；US-J26；US-L05；US-L10 |
 | Git 工作台任意逐行（Sub-hunk）暂存/取消暂存、带 SHA-256 新鲜度门禁与恢复快照的丢弃更改，以及基于可追踪受控 Stash 的三阶段 Smart Checkout                                     | US-J28；US-J16；US-J19；US-J22–US-J23；US-J26–US-J27；US-L05  |
