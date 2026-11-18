@@ -70,3 +70,8 @@
 - 隔离 Chromium 复现首条急件下推桌面导航 40px、手机导航 51px，空收件箱关闭后焦点落在页面主体。保留入口与筛选器的计数位后，背景事件进出时三个视口的导航起点、阅读行和滚动值保持一致。
 - 聚焦的末项解除后回到「待处理」。按方向键可继续选择「全部」。收件箱清空时按 Esc 回到可见入口。
 - 使用隔离后端运行 `pnpm --dir web exec playwright test test/e2e/attention.spec.ts test/e2e/workbench-session-queue.spec.ts` 覆盖即时状态、末项焦点、侧栏菜单与 PTY 输入。已在 Linux Chromium 验证。
+
+## 异步会话切换结果（US-C18）
+
+- 三端 Chromium 复现空结果与聊天命中之间的输入框位移，桌面差值 168px。修复后桌面结果区保持 400px，手机保持 422px，键盘选中项仍可滚动进入视口。Esc 恢复原输入、焦点和文字选区。
+- `pnpm --dir web exec vp test run --config vitest.browser.config.ts test/browser/SessionSwitcher.test.ts` 通过。隔离后端执行 `pnpm --dir web exec playwright test test/e2e/session-switcher.spec.ts` 通过，涵盖终端焦点和输入。
