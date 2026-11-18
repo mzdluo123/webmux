@@ -388,3 +388,7 @@
 ## 2026-11-18：混合压缩归档与手机预算编辑（US-Q19、US-Q20、US-K04）
 
 实际验证、截图与手机交互见[混合压缩归档核对记录](verification-log-2026-11-18-handoff-archive.md)。
+
+## 2026-11-18：`install.sh` 镜像回退签名校验与非 GitHub 信任根收敛（US-K11、US-L13）
+
+实际验证记录与局限见 [`install.sh` 签名校验核对记录](verification-log-2026-11-18-install-signature.md)。

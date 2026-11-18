@@ -24,7 +24,7 @@
 ## 安装与部署
 
 - [部署指南](deployment.md)：总索引。
-  - [安装与升级](deployment/install-and-upgrade.md)：一键脚本、deb / rpm、手动下载与升级。
+  - [安装与升级](deployment/install-and-upgrade.md)：一键脚本、deb / rpm、手动下载与升级（验证记录见 [`install.sh` 签名校验核对记录](user-stories/verification-log-2026-11-18-install-signature.md)）。
   - [自动更新](deployment/updates.md)：后台定时检查新版本、设置页一键更新与回退策略。
   - [配置](deployment/configuration.md)：命令行参数、配置项与状态目录。
   - [服务管理与平台差异](deployment/services.md)：systemd / launchd、agent 的 PATH。

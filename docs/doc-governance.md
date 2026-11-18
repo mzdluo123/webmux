@@ -116,6 +116,6 @@ CI 的格式/构建 job 会单独运行 `make docs-check`，让失败点直接�
 
 ## 维护约定
 
-- 新增或调整阈值、例外与提示文本时，同时更新 `internal/docguard`、本文件与 `docs/user-stories/operations-and-tooling.md` 的 US-L08（规模与树状结构）或 US-L12（导航与 README）。
+- 新增或调整阈值、例外与提示文本时，同时更新 `internal/docguard`、本文件与 `docs/user-stories/operations-and-tooling/tooling.md` 的 US-L08（规模与树状结构）或 US-L12（导航与 README）。
 - 校验问题通过内容整理解决；阈值确需调整时，在 PR 中说明原因并同步更新测试。
 - 文档按主题分层，不按版本或临时任务分层；归档的 OpenSpec 记录保持不变。

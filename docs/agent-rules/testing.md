@@ -13,6 +13,7 @@ make test-e2e                     # Playwright: desktop + iPhone SE (320×568, t
 make cover                        # Go race + Vitest unit/browser coverage reports
 make cover-go                     # Go race coverage (.cache/coverage/go.html)
 make cover-web                    # Merged Vitest unit + browser coverage
+make test-install                 # install.sh signature, checksum, mirror and error-path suite (needs minisign or Ed25519 OpenSSL)
 make test-browsers-install        # Chromium (+ Linux libraries; may require sudo)
 ```
 
