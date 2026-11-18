@@ -258,7 +258,7 @@
     draft.scratchUpdatedWhileHidden = false;
     scratchOpen = true;
   }
-  const uploads = files?.useUpload(
+  const fileUpload = files?.useUpload(
     () => container!,
     sessionId,
     t,
@@ -266,6 +266,9 @@
     uploadHandlers.draftBridge,
     () => !!availableFeatures.files,
   );
+  const uploads =
+    fileUpload &&
+    Object.assign(fileUpload, { progressInViewport: terminalVisible });
   const fullscreen = useFullscreen((message) => (error = message));
   $effect(() => {
     const record = hybrid.recoverable;

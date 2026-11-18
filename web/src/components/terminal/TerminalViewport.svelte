@@ -7,6 +7,7 @@
     type ButtonVariant,
   } from "$lib/components/ui/button";
   import JumpToLatestButton from "../shared/JumpToLatestButton.svelte";
+  import FileUploadProgress from "../shared/FileUploadProgress.svelte";
   import SoftKeys from "./SoftKeys.svelte";
   import { m } from "$lib/paraglide/messages.js";
   import type { Modifiers } from "../../domains/terminal/terminal-keys";
@@ -30,6 +31,7 @@
   interface ViewportUploads {
     readonly dragging: boolean;
     readonly progress: UploadProgress | null;
+    cancel?: () => void;
   }
 
   // The xterm host with its overlays, above the soft-key toolbar.
@@ -105,7 +107,13 @@
   </Button>
 {/snippet}
 
-<div class="terminal-column">
+<div
+  class={[
+    "terminal-column",
+    uploads?.cancel &&
+      "h-[calc(100%-var(--spacing)*9)]! any-pointer-coarse:h-[calc(100%-var(--spacing)*12)]!",
+  ]}
+>
   <div class="terminal-area">
     <div
       class="terminal-host"
@@ -180,3 +188,14 @@
     {/snippet}
   </SoftKeys>
 </div>
+{#if uploads?.cancel}
+  <div class="h-9 bg-(--terminal-background) any-pointer-coarse:h-12">
+    {#if uploads.progress}
+      <FileUploadProgress
+        variant="terminal"
+        progress={uploads.progress}
+        cancel={uploads.cancel}
+      />
+    {/if}
+  </div>
+{/if}

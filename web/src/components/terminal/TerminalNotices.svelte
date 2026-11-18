@@ -22,6 +22,7 @@
   interface NoticeUploads {
     readonly progress: UploadProgress | null;
     cancel(): void;
+    progressInViewport?: () => boolean;
   }
 
   // Status strips between the header and the terminal, in display order.
@@ -104,7 +105,7 @@
     {/snippet}
   </StripNotice>
 {/if}
-{#if features.files && uploads?.progress}<features.files.Progress
+{#if features.files && uploads?.progress && !uploads.progressInViewport?.()}<features.files.Progress
     progress={uploads.progress}
     cancel={() => uploads?.cancel()}
   />{/if}

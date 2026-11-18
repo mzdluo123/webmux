@@ -18,6 +18,7 @@ test("file chooser shows progress, survives foreground replay, and pastes a shel
     ? await holdTerminalReattach(page)
     : undefined;
   const id = await createShell(page, "File upload", workDir);
+  const grid = page.locator(".xterm-screen");
   const contents = Buffer.from("UPLOADED_FILE_CONTENT\n");
   const uploadGate = Promise.withResolvers<void>();
   let requests = 0;
@@ -29,6 +30,7 @@ test("file chooser shows progress, survives foreground replay, and pastes a shel
   try {
     await page.locator(".xterm-helper-textarea").focus();
     await page.keyboard.type("cat ");
+    const initialGrid = await grid.boundingBox();
     const response = page.waitForResponse((response) =>
       response.url().endsWith(`/api/sessions/${id}/upload`),
     );
@@ -57,6 +59,7 @@ test("file chooser shows progress, survives foreground replay, and pastes a shel
     await expect(
       page.getByRole("progressbar", { name: "文件上传进度" }),
     ).toBeVisible();
+    expect(await grid.boundingBox()).toEqual(initialGrid);
     // Narrow screens reach upload from the terminal menu, disabled alike.
     await expect(await headerAction(page, "上传文件")).toBeDisabled();
     if (info.project.use.isMobile) await page.keyboard.press("Escape");
@@ -81,6 +84,7 @@ test("file chooser shows progress, survives foreground replay, and pastes a shel
     await expect(
       page.getByRole("progressbar", { name: "文件上传进度" }),
     ).toBeHidden();
+    expect(await grid.boundingBox()).toEqual(initialGrid);
     await expect(page.locator(".xterm-rows")).not.toContainText(
       "UPLOADED_FILE_CONTENT",
     );

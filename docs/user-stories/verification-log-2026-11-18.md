@@ -64,3 +64,8 @@
   - `go test -race -count=1 ./cmd/... ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过；
   - Playwright E2E `agent-tools.spec.ts`、`relay-settings.spec.ts` 与 `worktrees.spec.ts`（直接目录创建降级）共 10 项通过。
+
+### T048 终端上传进度（US-E06）
+
+- 隔离 Chromium 实测上传首帧、完成与取消前后网格几何相同，首行和末行光标可见。
+- `upload.spec.ts` 的桌面与 iPhone SE Chromium 用例覆盖原始文件、回放、拖放、进度、错误和取消。上传首帧及完成时的字符网格尺寸作为回归断言。

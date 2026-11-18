@@ -11,17 +11,25 @@
   }: {
     progress: UploadProgress;
     cancel: () => void;
-    variant?: "strip" | "card";
+    variant?: "strip" | "card" | "terminal";
   } = $props();
 </script>
 
 <div
-  class={variant === "card"
-    ? "space-y-1 border-t px-2 py-1.5"
-    : "shrink-0 space-y-1 border-b bg-muted px-3 py-2"}
+  class={[
+    variant === "card" && "space-y-1 border-t px-2 py-1.5",
+    variant === "strip" && "shrink-0 space-y-1 border-b bg-muted px-3 py-2",
+    variant === "terminal" && "relative h-full bg-muted px-3 pb-1",
+  ]}
   aria-label={m.s1_file_upload_status()}
 >
-  <div class="flex items-center gap-3 text-xs" role="status">
+  <div
+    class={[
+      "flex items-center gap-3 text-xs",
+      variant === "terminal" && "h-full",
+    ]}
+    role="status"
+  >
     <span class="min-w-0 flex-1 truncate"
       >{progress.waiting
         ? progress.total > 1
@@ -46,6 +54,9 @@
     aria-label={m.s1_file_upload_progress()}
     max={100}
     value={progress.percent}
-    class="block h-1 w-full accent-primary"
+    class={[
+      "block h-1 w-full accent-primary",
+      variant === "terminal" && "absolute inset-x-0 bottom-0",
+    ]}
   ></progress>
 </div>
