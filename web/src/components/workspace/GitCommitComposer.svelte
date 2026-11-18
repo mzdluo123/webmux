@@ -18,6 +18,7 @@
 </script>
 
 <script lang="ts">
+  import { tick } from "svelte";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconCheck from "~icons/tabler/check";
   import IconGitBranch from "~icons/tabler/git-branch";
@@ -152,6 +153,37 @@
     return "";
   });
 
+  let bodyEditor = $state<HTMLTextAreaElement | null>(null);
+
+  async function resolveDraft(action: () => void, merge = false) {
+    const editor = bodyEditor;
+    const reading = editor && {
+      body: editor.value,
+      start: editor.selectionStart,
+      end: editor.selectionEnd,
+      direction: editor.selectionDirection,
+      top: editor.scrollTop,
+    };
+    action();
+    await tick();
+    if (!editor?.isConnected || editor.disabled || !reading) return;
+
+    // A merged body can introduce a heading before the original text.
+    const prefixLength =
+      merge && reading.body ? editor.value.indexOf(reading.body) : 0;
+    const offset = Math.max(0, prefixLength);
+    const precedingLines = editor.value.slice(0, offset).split("\n").length - 1;
+    const lineHeight = Number.parseFloat(getComputedStyle(editor).lineHeight);
+    editor.focus({ preventScroll: true });
+    editor.setSelectionRange(
+      reading.start + offset,
+      reading.end + offset,
+      reading.direction,
+    );
+    editor.scrollTop = reading.top + precedingLines * lineHeight;
+    editor.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
@@ -216,9 +248,9 @@
     <GitCommitDraftConflictCard
       conflict={draftConflict}
       saving={draftSaving}
-      onKeepLocal={onResolveDraftKeepLocal}
-      onAdoptRemote={onResolveDraftAdoptRemote}
-      onMergeBoth={onResolveDraftMergeBoth}
+      onKeepLocal={() => void resolveDraft(onResolveDraftKeepLocal)}
+      onAdoptRemote={() => void resolveDraft(onResolveDraftAdoptRemote)}
+      onMergeBoth={() => void resolveDraft(onResolveDraftMergeBoth, true)}
     />
   {/if}
 
@@ -250,6 +282,8 @@
   />
 
   <Textarea
+    bind:ref={bodyEditor}
+    class="max-h-40"
     rows={2}
     value={parsed.body}
     placeholder={m.s6_commit_body_placeholder()}
