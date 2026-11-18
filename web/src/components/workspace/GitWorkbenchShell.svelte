@@ -8,10 +8,9 @@
     GitWorkbenchMode,
     GitWorkbenchViewState,
   } from "../../contracts/git-workbench-schemas";
-  import type { GitReworkItem, SessionInfo } from "../../contracts/schemas";
+  import type { SessionInfo } from "../../contracts/schemas";
   import type { GitSharedBranchActionKind } from "../../domains/workspace/git-branches-model";
   import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
-  import { createReworkDraftItem } from "../../domains/workspace/git-rework-model";
   import {
     applyShellAbortPreviewBanner,
     applyShellCheckoutBanner,
@@ -40,7 +39,6 @@
     selectLogBranchFilter,
     toggleReviewedChange,
   } from "../../domains/workspace/git-workbench-state";
-  import type { GitSessionHandoffMode } from "../../hooks/workspace/git-rework-controller.svelte";
   import { stashFileKey } from "../../hooks/workspace/git-stash-controller.svelte";
   import GitBranchesPane from "./GitBranchesPane.svelte";
   import GitCommitOutcomeBanner from "./GitCommitOutcomeBanner.svelte";
@@ -59,34 +57,22 @@
     simulatedCommitOutcome = null,
     defaultPushPreview = null,
     initialDraftConflict = null,
-    initialReworkItems = [],
     simulatedActiveSessions = [],
-    initialReworkOpen = false,
     onOpenWorktree,
   }: {
     view: GitWorkbenchViewState;
     simulatedCommitOutcome?: GitCommitOutcome | null;
     defaultPushPreview?: GitPushPreviewModel | null;
     initialDraftConflict?: GitCommitDraftConflictState | null;
-    initialReworkItems?: readonly GitReworkItem[];
     simulatedActiveSessions?: readonly SessionInfo[];
-    initialReworkOpen?: boolean;
     onOpenWorktree?: (worktreeId: string, path: string) => void;
   } = $props();
 
   let draftConflict = $derived(initialDraftConflict);
   let draftRevision = $derived(initialDraftConflict?.remoteDraft.revision ?? 0);
-  let reworkItems = $derived([...initialReworkItems]);
-  let reworkOpen = $derived(initialReworkOpen);
-  let handoffMode = $state<GitSessionHandoffMode>("rework");
   let acknowledgeSessions = $state(false);
   let selectedStashFileKey = $state<string | null>(null);
   let pendingDiscard = $state<PendingShellDiscard | null>(null);
-  let selectedSessionId = $derived(
-    simulatedActiveSessions.length === 1
-      ? (simulatedActiveSessions[0]?.id ?? "")
-      : "",
-  );
   const readonlyMode = $derived(
     view.context.headState === "readonly" || !view.context.worktreePath,
   );
@@ -170,16 +156,6 @@
       ),
     };
   }
-  function handleAddReworkItem(
-    input: Parameters<typeof createReworkDraftItem>[0],
-    options?: { openSheet?: boolean },
-  ) {
-    reworkItems = [...reworkItems, createReworkDraftItem(input)];
-    if (options?.openSheet ?? true) {
-      handoffMode = "rework";
-      reworkOpen = true;
-    }
-  }
 </script>
 
 <div
@@ -205,13 +181,8 @@
     branchFilter={view.branchFilter}
     compareBaseOid={view.context.headOid ?? view.commits[0]?.oid ?? null}
     {readonlyMode}
-    reworkCount={reworkItems.length}
     onSelectAllBranches={() => handleBranchFilter(null)}
     onBranchAction={handleBranchAction}
-    onOpenRework={() => {
-      handoffMode = "rework";
-      reworkOpen = true;
-    }}
     onOpenPush={() => openPushDialog()}
   />
 
@@ -262,7 +233,6 @@
           onBranchAction={handleBranchAction}
           onSetTaskBaseline={(oid) =>
             (view = applyShellSetTaskBaseline(view, oid))}
-          onAddReworkItem={handleAddReworkItem}
           onRequestCheckout={handleRequestCheckout}
           onOpenOccupiedWorktree={handleOpenOccupiedWorktree}
         />
@@ -304,7 +274,6 @@
               ...view,
               reviewedPaths: toggleReviewedChange(view.reviewedPaths, c),
             })}
-          onAddReworkItem={!readonlyMode ? handleAddReworkItem : undefined}
           onStageChange={(id) =>
             (view = {
               ...view,
@@ -357,12 +326,6 @@
           onResolveDraftKeepLocal={() => resolveDraft("keep-local")}
           onResolveDraftAdoptRemote={() => resolveDraft("adopt-remote")}
           onResolveDraftMergeBoth={() => resolveDraft("merge-both")}
-          onRequestCommitAssist={simulatedActiveSessions.length > 0
-            ? () => {
-                handoffMode = "commit-assist";
-                reworkOpen = true;
-              }
-            : undefined}
           onOpenCommitPreview={openCommitPreview}
           onOpenPush={() => openPushDialog()}
           onToggleCommitAmend={(checked) =>
@@ -447,13 +410,8 @@
 
   <GitWorkbenchShellDialogs
     bind:view
-    bind:reworkOpen
-    bind:reworkItems
     bind:pendingDiscard
-    {handoffMode}
-    activeSessions={simulatedActiveSessions}
     {simulatedCommitOutcome}
-    bind:selectedSessionId
     bind:acknowledgeSessions
     onOpenFollowUpPush={(branch, preceding) =>
       openPushDialog(branch, preceding)}

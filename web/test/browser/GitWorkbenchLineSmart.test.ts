@@ -422,3 +422,73 @@ test("scroll file list to keep bottom row visible when batch action bar mounts",
   expect(checkboxRect.bottom).toBeLessThanOrEqual(listboxRect.bottom + 0.5);
   expect(checkboxRect.top).toBeGreaterThanOrEqual(listboxRect.top - 0.5);
 });
+
+test("GitDiffSelectionBar maps hunk-fallback reader lines to real file line numbers and stages, unstages, or discards selected lines", async () => {
+  await page.viewport(1280, 900);
+  render(Harness, {
+    initialState: buildGitWorkbenchFixture("commit-staging"),
+  });
+
+  await page
+    .getByTestId("git-change-row-unstaged:staging.go")
+    .getByRole("option")
+    .click();
+
+  const gutterCell = (side: "deletions" | "additions", lineNumber: number) =>
+    document
+      .querySelector('[data-testid="git-staging-diff-panel"] diffs-container')
+      ?.shadowRoot?.querySelector<HTMLElement>(
+        `[data-${side}] [data-column-number="${lineNumber}"]`,
+      );
+
+  await expect
+    .poll(() => gutterCell("deletions", 2), { timeout: 10000 })
+    .toBeTruthy();
+
+  // Reader compact deletion line 2 corresponds to hunk #2 `oldLine: 48`.
+  await page.elementLocator(gutterCell("deletions", 2)!).click();
+
+  const bar = page.getByTestId("git-diff-selection-bar");
+  await expect.element(bar).toBeVisible();
+  await expect
+    .element(bar)
+    .toMatchTextContent(/internal\/workspace\/staging\.go/);
+  await expect.element(bar).toMatchTextContent(/L48/);
+  await expect.element(bar).toMatchTextContent(/含 1 行可操作改动/);
+
+  // Stage that single line directly from GitDiffSelectionBar.
+  await page.getByTestId("git-selection-stage-lines").click();
+  await expect.element(bar).not.toBeInTheDocument();
+
+  const stagedSplitRow = page.getByTestId(
+    "git-change-row-staged:internal/workspace/staging.go",
+  );
+  await expect.element(stagedSplitRow).toBeVisible();
+
+  // Select the staged row and unstage via GitDiffSelectionBar.
+  await stagedSplitRow.getByRole("option").click();
+  await expect
+    .poll(() => gutterCell("deletions", 1), { timeout: 10000 })
+    .toBeTruthy();
+  await page.elementLocator(gutterCell("deletions", 1)!).click();
+  await expect.element(bar).toBeVisible();
+  await expect.element(bar).toMatchTextContent(/L48/);
+  await page.getByTestId("git-selection-unstage-lines").click();
+  expect(stagedSplitRow.elements()).toEqual([]);
+
+  // Select unstaged addition line in hunk #2 (`newLine: 49`) and open discard preview.
+  await page
+    .getByTestId("git-change-row-unstaged:staging.go")
+    .getByRole("option")
+    .click();
+  await expect
+    .poll(() => gutterCell("additions", 3), { timeout: 10000 })
+    .toBeTruthy();
+  await page.elementLocator(gutterCell("additions", 3)!).click();
+  await expect.element(bar).toBeVisible();
+  await expect.element(bar).toMatchTextContent(/L49/);
+  await page.getByTestId("git-selection-discard-lines").click();
+  await expect
+    .element(page.getByRole("dialog", { name: /确认丢弃未暂存更改/ }))
+    .toBeVisible();
+});
