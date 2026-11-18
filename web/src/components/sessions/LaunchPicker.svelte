@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount, tick } from "svelte";
+  import { slide } from "svelte/transition";
   import IconTerminal2 from "~icons/tabler/terminal-2";
   import { joinArgs } from "../../platform/api";
   import {
@@ -42,6 +44,24 @@
     onchoose: () => void;
   } = $props();
   let open = $state(false);
+  let animateCommand = $state(false);
+  let commandPanel = $state<HTMLDivElement>();
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  onMount(() => {
+    function finishMotion() {
+      for (const animation of commandPanel?.getAnimations() ?? [])
+        animation.finish();
+    }
+    function updatePreference() {
+      if (reducedMotion.matches) finishMotion();
+    }
+    reducedMotion.addEventListener("change", updatePreference);
+    window.addEventListener("resize", finishMotion);
+    return () => {
+      reducedMotion.removeEventListener("change", updatePreference);
+      window.removeEventListener("resize", finishMotion);
+    };
+  });
   const providers = getFeatureContributions().creation;
   const chatEnabled = $derived(
     featureAvailable("chat.acp") && !!providers.LaunchStartSideFields,
@@ -61,11 +81,14 @@
       : undefined,
   );
 
-  function choose(next: LaunchSource, id = configId) {
+  async function choose(next: LaunchSource, id = configId) {
+    animateCommand = (source === "custom") !== (next === "custom");
     source = next;
     configId = id;
     setOpen(false);
     onchoose();
+    await tick();
+    document.getElementById("session-launch")?.focus({ preventScroll: true });
   }
 </script>
 
@@ -179,7 +202,14 @@
     </p>
   {/if}
   {#if source === "custom"}
-    <CustomCommandField bind:command {disabled} />
+    <div
+      bind:this={commandPanel}
+      transition:slide={{
+        duration: animateCommand && !reducedMotion.matches ? 180 : 0,
+      }}
+    >
+      <CustomCommandField bind:command {disabled} />
+    </div>
   {:else if chosen?.chat && chatEnabled && providers.LaunchStartSideFields}
     <providers.LaunchStartSideFields
       bind:startSide
