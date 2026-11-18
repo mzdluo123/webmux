@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { MediaQuery } from "svelte/reactivity";
   import { cn } from "$lib/utils";
   import * as Dialog from "$lib/components/ui/dialog";
   import * as Drawer from "$lib/components/ui/drawer";
@@ -50,7 +49,9 @@
      */
     actions?: Snippet;
   } = $props();
-  const desktop = new MediaQuery("(min-width: 640px)");
+  // Choose the focus scope once per opening so resizing preserves its subtree.
+  const desktop =
+    typeof window !== "undefined" && matchMedia("(min-width: 640px)").matches;
   let open = $state(true);
   function changed(value: boolean) {
     if (!value && !busy) onclose();
@@ -91,7 +92,7 @@
   {/if}
 {/snippet}
 
-{#if desktop.current}
+{#if desktop}
   <Dialog.Root bind:open onOpenChange={changed}>
     <Dialog.Content
       class={cn(
