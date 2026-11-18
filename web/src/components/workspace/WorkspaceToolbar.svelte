@@ -14,7 +14,6 @@
     visibleCount,
     sessionCount,
     repositoryCount,
-    showRepositoryCount,
     refreshing,
     onstart,
     startDisabled = false,
@@ -23,14 +22,13 @@
   }: {
     title?: string;
     mainWorktree?: boolean;
-    /** Icon controls; phones show them in the top bar instead. */
+    /** Routes and controls for the current scope. */
     actions: Snippet;
     loading: boolean;
     filtering: boolean;
     visibleCount: number;
     sessionCount: number;
     repositoryCount: number;
-    showRepositoryCount: boolean;
     refreshing: boolean;
     // Opens the new-session dialog; the old header's primary action.
     onstart: () => void;
@@ -49,7 +47,7 @@
   );
 </script>
 
-<div class="mb-6 space-y-4 border-b pb-4 sm:mb-8 sm:space-y-6">
+<div class="mb-6 space-y-3 border-b pb-4 sm:mb-8 sm:space-y-4">
   <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
     <p role="status" class="sr-only">
       {#if loading}{m.s8_toolbar_loading()}
@@ -60,7 +58,7 @@
       {:else}{scopeCounts}{/if}{#if refreshing}
         {m.s8_toolbar_refreshing_git()}{/if}
     </p>
-    <div class="min-w-0 flex-1 sm:mr-3">
+    <div class="min-w-[min(100%,10rem)] flex-1 sm:mr-3">
       <div class="flex min-w-0 items-center gap-1.5">
         <h1
           class="text-lg leading-tight font-semibold tracking-tight wrap-anywhere sm:text-3xl"
@@ -69,20 +67,7 @@
         </h1>
         {#if mainWorktree}<MainWorktreeMark srLabel size="md" />{/if}
       </div>
-      <p
-        aria-hidden="true"
-        class="mt-1 hidden text-sm text-muted-foreground sm:block"
-      >
-        {showRepositoryCount
-          ? scopeCounts
-          : m.s8_details_total_sessions({ count: String(sessionCount) })}
-      </p>
       {#if meta}<div class="empty:hidden sm:mt-2">{@render meta()}</div>{/if}
-    </div>
-    <div
-      class="ml-auto hidden max-w-full flex-wrap items-center justify-end gap-1 sm:flex"
-    >
-      {@render actions()}
     </div>
     <Button
       class="shrink-0"
@@ -91,6 +76,18 @@
       onclick={() => onstart()}
       ><IconPlus aria-hidden="true" />{m.s8_new_session()}</Button
     >
+  </div>
+  <div class="flex min-w-0 flex-wrap items-center gap-1 border-b">
+    <span
+      aria-current="page"
+      class="flex min-h-9 items-center gap-2 border-b-2 border-foreground px-2 text-sm font-medium"
+    >
+      {m.s1_sessions()}
+      <span class="font-mono text-xs text-muted-foreground tabular-nums">
+        {sessionCount}
+      </span>
+    </span>
+    {@render actions()}
   </div>
   {@render children()}
 </div>

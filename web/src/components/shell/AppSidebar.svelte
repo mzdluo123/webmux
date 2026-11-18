@@ -32,6 +32,7 @@
   import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
   import ModeSwitch from "./ModeSwitch.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
+  import SessionSwitcherTrigger from "./SessionSwitcherTrigger.svelte";
   import { featureContributions } from "../../features/registry.svelte";
   import { featureAvailable } from "../../platform/feature-host.svelte";
   import LazyDialog from "../shared/LazyDialog.svelte";
@@ -246,6 +247,9 @@
     <span class="brand mr-auto min-w-0 overflow-hidden px-1 whitespace-nowrap"
       ><Brand /></span
     >
+    {#if collapsible && route.name === "sessions" && workspace}
+      <SessionSwitcherTrigger size="icon-sm" />
+    {/if}
     {#if onclose}
       <Button
         class="shrink-0"
@@ -394,6 +398,12 @@
                 (r) => r.id === repositoryId,
               );
               if (repo) shell.repositoryDetails(repo, "worktrees");
+            }}
+            onrepositorysettings={(repositoryId) => {
+              const repo = shell.repositories?.list.find(
+                (r) => r.id === repositoryId,
+              );
+              if (repo) shell.openRepositorySettings(repo);
             }}
             onrepositorydetails={(repositoryId) => {
               const repo = shell.repositories?.list.find(

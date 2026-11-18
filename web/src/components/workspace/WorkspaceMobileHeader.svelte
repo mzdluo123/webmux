@@ -1,15 +1,9 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import SidebarButton from "../shell/SidebarButton.svelte";
+  import SessionSwitcherTrigger from "../shell/SessionSwitcherTrigger.svelte";
 
-  let {
-    reconnecting,
-    actions,
-  }: {
-    reconnecting: boolean;
-    actions: Snippet;
-  } = $props();
+  let { reconnecting }: { reconnecting: boolean } = $props();
 </script>
 
 <!-- Phones reach the sidebar here; wider screens already show the sidebar. -->
@@ -22,7 +16,5 @@
       >{m.s8_reconnecting_banner()}</span
     >
   {/if}
-  <div class="ml-auto flex max-w-full flex-wrap items-center justify-end">
-    {@render actions()}
-  </div>
+  <SessionSwitcherTrigger size="icon-touch" />
 </header>

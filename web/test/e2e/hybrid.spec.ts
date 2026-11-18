@@ -1801,7 +1801,8 @@ test.describe("hybrid sessions with the fake agent", () => {
     expect(archived.status(), await archived.text()).toBe(204);
 
     await page.goto("/");
-    await page.getByRole("radio", { name: "会话队列" }).click();
+    await page.getByRole("combobox", { name: "工作台布局" }).click();
+    await page.getByRole("option", { name: "会话队列", exact: true }).click();
     const archivedList = "**/api/sessions?state=archived";
     await page.route(archivedList, async (route) => {
       const response = await route.fetch();
@@ -1832,7 +1833,8 @@ test.describe("hybrid sessions with the fake agent", () => {
     git("rev-parse", "--verify", "refs/heads/feature-x");
 
     // The record stays archived, now under the unavailable workspaces.
-    await page.getByRole("radio", { name: "按工作区" }).click();
+    await page.getByRole("combobox", { name: "工作台布局" }).click();
+    await page.getByRole("option", { name: "按工作区", exact: true }).click();
     const gone = page.getByRole("region", {
       name: "已不可用工作区 的已归档会话",
     });

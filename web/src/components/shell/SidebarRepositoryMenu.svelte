@@ -12,6 +12,7 @@
     onhome,
     onmanage,
     ondetails,
+    onsettings,
     ongit,
   }: {
     label: string;
@@ -21,6 +22,7 @@
     onhome: () => void;
     onmanage: () => void;
     ondetails: () => void;
+    onsettings?: () => void;
     ongit?: () => void;
   } = $props();
 </script>
@@ -32,6 +34,7 @@
     {onhome}
     {onmanage}
     {ondetails}
+    {onsettings}
     {ongit}
   />
 </SidebarRowMenu>

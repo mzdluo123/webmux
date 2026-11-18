@@ -183,7 +183,7 @@ export interface Shell {
    */
   readonly settingsRepository: Repository | undefined;
   /** Opens the settings of `settingsRepository`. */
-  openRepositorySettings(): void;
+  openRepositorySettings(repository: Repository): void;
 }
 
 const key = Symbol("shell");

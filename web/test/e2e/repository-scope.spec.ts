@@ -156,20 +156,14 @@ test("repository scope limits the home list, composes with filters and survives 
   await expect(page.locator('[aria-label="终端输出预览"]:visible')).toHaveCount(
     1,
   );
-  const views = page.getByRole("radiogroup", { name: "会话显示方式" });
-  await expect(views.getByRole("radio", { name: "输出预览" })).toHaveAttribute(
-    "aria-checked",
-    "true",
-  );
-  await views.getByRole("radio", { name: "紧凑列表" }).click();
+  const previews = page.getByRole("switch", { name: "显示输出预览" });
+  await expect(previews).toBeChecked();
+  await previews.click();
   await expect(page.locator('[aria-label="终端输出预览"]:visible')).toHaveCount(
     0,
   );
   await page.reload();
-  await expect(views.getByRole("radio", { name: "紧凑列表" })).toHaveAttribute(
-    "aria-checked",
-    "true",
-  );
+  await expect(previews).not.toBeChecked();
   await expect(page.locator('[aria-label="终端输出预览"]:visible')).toHaveCount(
     0,
   );

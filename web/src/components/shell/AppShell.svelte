@@ -42,6 +42,7 @@
   import RelayReconnectIndicator from "./RelayReconnectIndicator.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
   import SidebarRailSessions from "./SidebarRailSessions.svelte";
+  import SessionSwitcherTrigger from "./SessionSwitcherTrigger.svelte";
   import { m } from "$lib/paraglide/messages.js";
 
   // The layout around the home page, quick start and session pages: the
@@ -230,9 +231,9 @@
     get settingsRepository() {
       return settingsRepository;
     },
-    openRepositorySettings() {
+    openRepositorySettings(repository) {
       shellUi.drawerOpen = false;
-      configuring = settingsRepository ?? null;
+      configuring = repository;
     },
   };
   setShell(shell);
@@ -382,6 +383,9 @@
           aria-hidden="true"
         />{:else}<IconPlus aria-hidden="true" />{/if}</Button
     >
+    {#if route.name === "sessions" && workspace}
+      <SessionSwitcherTrigger size="icon-touch" />
+    {/if}
     <SidebarRailSessions
       sessions={sessions.sessions.filter(
         (item) => item.state === "active" && item.status !== "exited",

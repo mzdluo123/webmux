@@ -258,26 +258,12 @@
 </script>
 
 {#snippet actions()}
-  <WorkspaceHeaderActions
-    {refreshing}
-    {selectedWorktree}
-    {selectedPinned}
-    onworktreedetails={() => {
-      if (queue && selectedWorktree) shell.worktreeDetails(selectedWorktree);
-      else worktreeDetailsOpen = true;
-    }}
-    ontogglepin={(repo) => {
-      if (selectedWorktree)
-        pin(repo.id, [selectedWorktree.id], !selectedPinned);
-    }}
-    onremove={(tree) => (removing = tree)}
-  />
+  <WorkspaceHeaderActions {refreshing} {selectedWorktree} />
 {/snippet}
 
 <div class="workspace-page safe-area-page min-h-dvh">
   <WorkspaceMobileHeader
     reconnecting={shell.sessions.connection === "reconnecting"}
-    {actions}
   />
   <HomeUpdateNotice update={setup.pendingUpdate} inset />
   {#if loading || initializing}
@@ -309,7 +295,6 @@
             : selectedRepository === "direct"
               ? 0
               : 1}
-          showRepositoryCount={selectedRepository === "all"}
           {refreshing}
           {actions}
           onstart={() =>

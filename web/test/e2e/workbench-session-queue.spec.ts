@@ -125,7 +125,9 @@ test("the default queue prioritizes explicit attention and keeps a focused sessi
   await search.focus();
   await expect(issue).toHaveCount(0);
   await expect(main.getByText("当前没有需要你处理的会话。")).toBeVisible();
-  await main.getByRole("radio", { name: "按工作区" }).click();
+  const layout = main.getByRole("combobox", { name: "工作台布局" });
+  await layout.click();
+  await page.getByRole("option", { name: "按工作区", exact: true }).click();
   await page.reload();
-  await expect(main.getByRole("radio", { name: "按工作区" })).toBeChecked();
+  await expect(layout).toHaveText("按工作区");
 });
