@@ -91,6 +91,7 @@
 - **US-J28 Git 工作台任意逐行（Sub-hunk）暂存、受控丢弃更改与基于可追踪 Stash 的三阶段 Smart Checkout**：
   作为在同一文件中混杂多处修改或需带未提交改动原地切换分支的使用者，我希望按任意单行或行范围操作真实 Git `index`、在防陈旧覆盖与快照保护下丢弃局部更改，并通过可追踪受控 Stash 安全执行三阶段 `Smart Checkout`。
   验收要点：
+  - 首次勾选或清空批量选择时，操作栏在文件列表下方出现或收起，列表上方的行保持原位；勾选视口底部条目时自动滚动使该行保持可见。
   - 任意逐行（Sub-hunk）暂存与取消暂存（`UI-04`、`G02`、`A03`）：
     - `POST .../git/stage` 与 `POST .../git/unstage` 支持 `lineSelections: [{hunkId, lineIndices}]`（与 `hunkIds` 互斥），对二进制、符号链接、重命名、含 `.gitattributes` 过滤器或冲突文件拒绝逐行操作（`409`）；
     - 逐行暂存（`index -> worktree`）仅将选中的 `-` 行从 `index` 删除、选中的 `+` 行写入 `index`（未选中的 `-` 行保留在 `index`、未选中的 `+` 行不进入 `index`）；逐行取消暂存（`HEAD -> index`）仅把 `index` 中选中的变更行还原回 `HEAD`（含 `unborn HEAD`），**全程不改写工作区文件任何字节**；
