@@ -12,6 +12,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import * as Item from "$lib/components/ui/item";
+  import MainWorktreeMark from "./MainWorktreeMark.svelte";
   import WorktreeBadges from "./WorktreeBadges.svelte";
   import WorktreeControls from "./WorktreeControls.svelte";
   import SessionRow from "../sessions/SessionRow.svelte";
@@ -105,7 +106,7 @@
 
 <section
   class={separated
-    ? "mt-8 min-w-0 space-y-3 border-t border-border pt-8"
+    ? "mt-6 min-w-0 space-y-3 border-t border-border pt-6"
     : "min-w-0 space-y-3"}
   data-worktree-id={worktree?.id}
   {hidden}
@@ -127,7 +128,8 @@
             aria-hidden="true"
           />
         {/if}
-        <h3 class="min-w-0 break-all text-sm font-semibold">{title}</h3>
+        <h3 class="min-w-0 text-sm font-semibold wrap-anywhere">{title}</h3>
+        {#if worktree?.kind === "main"}<MainWorktreeMark srLabel />{/if}
         {#if visible.length > 1}<span
             class="shrink-0 text-xs text-muted-foreground"
             >{visible.length}</span
@@ -173,7 +175,7 @@
   {#if sessions.length}
     <Item.Group
       variant={compact ? "panel" : "default"}
-      class={compact ? undefined : "gap-3"}
+      class={compact ? undefined : "grid session-preview-columns gap-3"}
       aria-label={m.s8_group_sessions_aria({ title })}
     >
       {#each sessions as session (session.id)}

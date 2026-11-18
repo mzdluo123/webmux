@@ -4,7 +4,6 @@
   import { m } from "$lib/paraglide/messages.js";
   import WorkspaceHeaderActions from "../components/workspace/WorkspaceHeaderActions.svelte";
   import WorkspaceToolbar from "../components/workspace/WorkspaceToolbar.svelte";
-  import { store, stored } from "../platform/api";
   import type { ArchivedSession, Worktree } from "../contracts/schemas";
   import { errorMessage } from "../platform/error";
   import HomeUpdateNotice from "../components/shared/HomeUpdateNotice.svelte";
@@ -46,7 +45,7 @@
     setBrowserChrome,
   } from "../platform/browser-chrome";
   import { getShell, openGitWorkbench } from "../hooks/shared/shell.svelte";
-  import { z } from "zod";
+  import { homeSessionView } from "../domains/sessions/home-session-view.svelte";
   import {
     featureEnabled,
     featureAvailable,
@@ -79,11 +78,8 @@
   let statusFilter = $state<StatusFilter>("all");
   let filterExpanded = $state<Record<string, boolean>>({});
   const repositoryChoice = $derived(shell.repositories?.choice ?? null);
-  // Output previews are the default; only an explicit choice keeps rows compact.
-  let compact = $state(
-    z.enum(["compact", "preview"]).safeParse(stored("homeSessionView")).data ===
-      "compact",
-  );
+  const compact = $derived(homeSessionView.compact);
+  let searchInput = $state<HTMLInputElement | null>(null);
   const list = $derived(
     sessions.filter((session) => session.state === "active"),
   );
@@ -127,10 +123,6 @@
       select: (id) => shell.repositories?.select(id),
     });
   });
-  function setCompact(value: boolean) {
-    compact = value;
-    store("homeSessionView", value ? "compact" : "preview");
-  }
   const search = $derived(query.trim().toLocaleLowerCase());
   const filtering = $derived(Boolean(search) || statusFilter !== "all");
   const visible = $derived(
@@ -193,6 +185,7 @@
   function clearFilters() {
     query = "";
     statusFilter = "all";
+    searchInput?.focus();
   }
   const expanded = $derived(
     deriveRepositoryExpanded(
@@ -262,7 +255,7 @@
     repo={shell.settingsRepository}
     {selectedWorktree}
     {selectedPinned}
-    oncompactchange={setCompact}
+    oncompactchange={(value) => (homeSessionView.compact = value)}
     onrefresh={() => void shell.repositories?.refresh(true)}
     ongit={featureAvailable("workspace.git-workbench")
       ? () =>
@@ -296,23 +289,25 @@
 
 <div class="workspace-page safe-area-page min-h-dvh">
   <WorkspaceMobileHeader
-    title={selectedRepository === "all" ? m.s1_all_repositories() : scopeLabel}
     reconnecting={shell.sessions.connection === "reconnecting"}
     {actions}
   />
   <HomeUpdateNotice update={setup.pendingUpdate} inset />
   {#if loading || initializing}
     <div
-      class="mx-auto max-w-7xl space-y-4 px-4 py-5 sm:px-8 sm:py-6"
+      class="mx-auto max-w-6xl space-y-4 px-4 py-5 sm:px-6 lg:px-8"
       aria-label={m.s1_loading_sessions_aria()}
     >
       {#each [0, 1, 2] as item (item)}<Skeleton class="h-40 w-full" />{/each}
     </div>
   {:else}
-    <div class="mx-auto max-w-6xl px-4 py-5 sm:px-8 sm:py-6">
+    <div class="mx-auto max-w-6xl px-4 pt-4 pb-8 sm:px-6 sm:pt-8 lg:px-8">
       <main class="min-w-0">
         <WorkspaceToolbar
-          title={scopeLabel}
+          title={selectedRepository === "all"
+            ? m.s1_all_repositories()
+            : scopeLabel}
+          mainWorktree={selectedWorktree?.kind === "main"}
           {loading}
           {filtering}
           visibleCount={visible.length}
@@ -322,6 +317,7 @@
             : selectedRepository === "direct"
               ? 0
               : 1}
+          showRepositoryCount={selectedRepository === "all"}
           {refreshing}
           {actions}
           onstart={() =>
@@ -347,6 +343,7 @@
             sessions={scopedSessions}
             archivedCount={scopedArchiveCount}
             bind:query
+            bind:searchInput
             bind:statusFilter
             filtered={filtering && (visible.length > 0 || archivedMatches > 0)}
             shortcutDisabled={Boolean(removing)}
@@ -449,9 +446,13 @@
             />{/if}
           {#if isSessionListEmpty( { filtering, visibleCount: visible.length, archivedMatches, repositoriesCount: repositories.length, listCount: list.length, recoverableCount: recoverable.length, selectedRepository, directCount: direct.length, directArchiveCount: placement.direct.length } )}<SessionListEmpty
               filtered={filtering && !visible.length && !archivedMatches}
-              canStart
               onclear={clearFilters}
-              onstart={() => shell.start()}
+              onexpand={selectedRepository === "all"
+                ? undefined
+                : () => {
+                    shell.repositories?.select("all");
+                    searchInput?.focus();
+                  }}
             />{/if}
         </div>
       </main>

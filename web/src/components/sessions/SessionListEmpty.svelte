@@ -7,46 +7,48 @@
 
   let {
     filtered,
-    canStart,
+    description,
     onclear,
-    onstart,
+    onexpand,
   }: {
     // Filters hide every session, as opposed to there being none at all.
     filtered: boolean;
-    canStart: boolean;
+    description?: string;
     onclear: () => void;
-    onstart: () => void;
+    onexpand?: () => void;
   } = $props();
 </script>
 
-{#if filtered}
-  <Empty.Root variant="card" class="min-h-72">
-    <Empty.Header>
-      <Empty.Media variant="icon"><IconSearch aria-hidden="true" /></Empty.Media
-      >
-      <Empty.Title>{m.s3_empty_filtered_title()}</Empty.Title>
-      <Empty.Description>{m.s3_empty_filtered_desc()}</Empty.Description>
-    </Empty.Header>
-    <Empty.Content>
-      <Button variant="outline" onclick={onclear}>{m.s3_clear_filters()}</Button
-      >
-    </Empty.Content>
-  </Empty.Root>
-{:else}
-  <Empty.Root variant="card" class="min-h-72">
-    <Empty.Header>
-      <Empty.Media variant="icon"
-        ><IconTerminal2 aria-hidden="true" /></Empty.Media
-      >
-      <Empty.Title>{m.s3_empty_no_sessions_title()}</Empty.Title>
+<Empty.Root variant="outline" class="min-h-72">
+  <Empty.Header>
+    <Empty.Media variant="icon">
+      {#if filtered}<IconSearch aria-hidden="true" />
+      {:else}<IconTerminal2 aria-hidden="true" />{/if}
+    </Empty.Media>
+    <Empty.Title>
+      {filtered ? m.s3_empty_filtered_title() : m.s3_empty_no_sessions_title()}
+    </Empty.Title>
+    {#if description !== ""}
       <Empty.Description>
-        {m.s3_empty_no_sessions_desc()}
+        {description ??
+          (filtered
+            ? m.s3_empty_filtered_desc()
+            : m.s3_empty_no_sessions_desc())}
       </Empty.Description>
-    </Empty.Header>
+    {/if}
+  </Empty.Header>
+  {#if filtered}
     <Empty.Content>
-      <Button disabled={!canStart} onclick={() => onstart()}
-        >{m.s3_plus_new_session()}</Button
-      >
+      <div class="flex flex-wrap justify-center gap-2">
+        <Button variant="outline" onclick={onclear}
+          >{m.s3_clear_filters()}</Button
+        >
+        {#if onexpand}
+          <Button variant="outline" onclick={onexpand}
+            >{m.s8_search_all_repositories()}</Button
+          >
+        {/if}
+      </div>
     </Empty.Content>
-  </Empty.Root>
-{/if}
+  {/if}
+</Empty.Root>

@@ -338,3 +338,49 @@
 - 真实应用检查桌面 1280×900、平板 768×800、手机 390×844、375×667、320×568 与横屏 667×375 的明暗主题；所有确认浮层留在视口内，页面无横向溢出，键盘可操作。
 - 截图和创建/确认/取消 GIF 保存于 `.github/pr-assets/worktree-upstream/`。未验证真实设备与真实粗指针行为；无头浏览器的悬停未触发行尾控件显隐，本轮使用键盘打开菜单。
 - 首轮 PR CI 的前端、四组 E2E、Storybook、性能与打包通过；Go gate 暴露 Git 历史隔离夹具未处理上游确认，迁移为显式保留本地并校验精确 HEAD 后，`TestGitReadAPIHistoryCommitDetailAndIsolation` 的 race 复测通过。
+
+## OMP 扩展消息交接兼容（US-Q20）
+
+### 行为与边界
+
+- OMP 扩展消息支持 developer/custom 文本、Bash/Python 命令与输出、执行状态；排除上下文的执行只保留图节点和省略说明，文件提及只保留引用。
+- 复用主分支的标题/session 头发现机制；其他会话的未知角色、损坏正文和重复消息节点不影响当前来源。
+- 重复会话身份仍返回身份冲突；选中的未知格式仍返回格式错误，原生分支与冻结游标校验保留。
+- 解析版本提升为 `omp-jsonl-4`，私有思考、归属元数据和附加执行状态保持排除。
+
+### 已执行验证
+
+- 回归覆盖扩展角色、安全省略、冻结重读、来源发现隔离，以及从运行时身份冻结到实际文本投影的链路。
+- 基于最新主分支执行 `go test -race ./internal/agent/omp/history ./internal/historyimport ./internal/historyprojection ./internal/handoff`，全部通过。
+- `go test -count=1 ./internal/docguard ./internal/archtest` 通过。
+- 验证使用隔离的合成原生文件；本轮未启动真实 Agent、发送模型请求或操作生产会话。
+- 首轮 CI 的 Go race、构建检查及打包通过，桌面与手机交接 E2E 在格式切换处失败；现场快照没有格式控件，根因是表单引用了组件库未导出的 `Root/Item`，改用既有命名导出。
+- 修复后桌面与手机 `handoff.spec.ts` 共 8 项通过；临时真实页面捕获覆盖两套设备项目、点击与方向键切换，捕获脚本已删除。
+- `pnpm --dir web check`、`lint`、`check:arch` 及改动组件格式检查通过；类型检查 0 errors、0 warnings，架构回归 49 项通过。
+- 桌面 1280×900、平板 768×800、手机 390×844 提供浅色前后截图与修复后的深色截图；另检查 375×667、320×568、667×375、1280×720，页面无横向溢出。
+- 截图与 GIF 使用隔离合成会话；未验证真机触摸、系统键盘及真实悬停，未向真实模型发送交接。
+
+## 2026-11-18：常驻工作区视图增加主工作区线性图标标记（US-C17、US-J02）
+
+### 范围
+
+- 故事编号与总数（264）保持不变，更新 US-C17、US-J02 及 `workbench-navigation` 规格：
+  - 新增共享组件 `MainWorktreeMark.svelte`，在首页工作树分组标题及桌面/窄屏单工作树页头标题右侧为主工作区（`kind === "main"`）常驻渲染无框线性 `tabler:home` 图标（悬停提示“主工作区”，提供屏幕阅读器名称）；路径、提交与已跟踪文件干净状态继续收在“工作树详情”弹窗中；
+  - 工作台侧栏树（`WorkbenchTree`）为主工作区行在分支名右侧显示同一线性 `home` 图标（`title="主工作区"`，无障碍名称附加 `，主工作区`），并在无活动会话时保留行尾占位槽以避免悬停“⋯”按钮遮挡该图标；
+  - 同步对齐 `HandoffForm.svelte` 对 `SegmentedControl` / `SegmentedControlItem` 的具名导入，消除主线合入偏差导致的 `svelte-check` 报错。
+
+### 已执行验证
+
+- 静态与治理门禁：
+  - `pnpm --dir web check`、`check:test`、`check:storybook`：0 errors、0 warnings；
+  - `pnpm --dir web lint` 与 `pnpm --dir web check:arch`（ESLint、dependency-cruiser、jscpd 0 克隆、knip、架构与依赖策略 49 项测试）通过；
+  - `go test -count=1 ./internal/docguard ./internal/archtest`、`openspec validate --specs`（128/128）、`go vet` 与 `make go-lint`（0 issues）通过。
+- 组件、Storybook 与端到端回归：
+  - 单元测试 `test/i18n.test.ts` 5 项通过（校验中英词条键集、占位符对等与源码零硬编码中文）；
+  - 浏览器组件套件 `WorkbenchTree`、`WorkspaceGroup`、`RepositoryGroup`、`TvNavigation`、`AppShell` 共 60 项通过（含长分支名无会话主工作区行悬停“⋯”零遮挡几何断言）；
+  - Storybook `design-system.spec.ts`、`overflow.spec.ts`、`contracts.spec.ts` 62 项通过；
+  - Playwright 端到端 `repository-scope.spec.ts` 与 `app-shell.spec.ts` 桌面及 iPhone SE（320×568，含 200% 字号）共 21 项通过、5 项按设备跳过、0 失败。
+- 界面证据与局限：
+  - 隔离演示服务在 1280×900、1280×720、768×800、390×844、375×667、320×568、667×375 及 320×700（200% 字号）明暗主题下检查 `scrollWidth <= innerWidth`，无页面级横向溢出；
+  - 重新采集桌面 1280×900（全览与单工作树聚焦）、平板 768×800（主页与抽屉展开）、手机 390×844（主页与抽屉展开）明暗主题前后对比截图共 24 张并更新 PR 证据，公开链接均经 HTTP 200 校验；
+  - 仅在 Linux 无头 Chromium 下验证，`hover` 与 `any-pointer: coarse` 均为 `false`，物理鼠标悬停与触屏常驻状态未验证，未进行手机或平板真机验证。

@@ -13,7 +13,7 @@ import (
 
 func TestLocalExecutionRoleAndToolArguments(t *testing.T) {
 	const data = `{"type":"session","version":3,"id":"native"}
-{"type":"message","id":"local","message":{"role":"bashExecution","command":"PRIVATE_COMMAND","output":"PRIVATE_OUTPUT","content":"PRIVATE_BODY"}}
+{"type":"message","id":"local","message":{"role":"bashExecution","command":"PRIVATE_COMMAND","output":"PRIVATE_OUTPUT","content":"PRIVATE_BODY","excludeFromContext":true}}
 {"type":"message","id":"call","parentId":"local","message":{"role":"assistant","content":[{"type":"toolCall","id":"call-1","name":"bash","arguments":{"command":"printf synthetic-fact"}}]}}
 {"type":"message","id":"result","parentId":"call","message":{"role":"toolResult","toolCallId":"call-1","toolName":"bash","content":[{"type":"text","text":"synthetic-fact"}]}}
 `
@@ -40,7 +40,7 @@ func TestLocalExecutionRoleAndToolArguments(t *testing.T) {
 	if call.Text != `{"command":"printf synthetic-fact"}` || result.Text != "synthetic-fact" || call.CallID != result.CallID || result.ParentID != "call" {
 		t.Fatalf("tool content/association: %+v %+v", call, result)
 	}
-	if len(doc.Gaps) != 1 || doc.Gaps[0].Category != "local_execution_omitted" || doc.Gaps[0].RecordID != "local" {
+	if len(doc.Gaps) != 1 || doc.Gaps[0].Category != "excluded_from_context" || doc.Gaps[0].RecordID != "local" {
 		t.Fatalf("local execution gap: %+v", doc.Gaps)
 	}
 	if err := os.WriteFile(path, []byte(strings.Replace(data, "bashExecution", "futureRole", 1)), 0600); err != nil {
