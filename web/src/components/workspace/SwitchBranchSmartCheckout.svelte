@@ -44,13 +44,14 @@
     (smart.preview?.warnings ?? []).filter((w) => w.code !== "sessions"),
   );
   const id = $props.id();
+  let errorPanel = $state<HTMLElement | null>(null);
   let resultPanel = $state<HTMLElement | null>(null);
   let resolver = $state<HTMLButtonElement | null>(null);
   let copyButton = $state<HTMLButtonElement | null>(null);
 
   async function execute(event: MouseEvent) {
     const trigger = event.currentTarget;
-    if (!smart.canExecute || !(trigger instanceof HTMLElement)) return;
+    if (busy || !smart.canExecute || !(trigger instanceof HTMLElement)) return;
     let followResult = true;
     const trackFocus = (focus: FocusEvent) => {
       if (trigger.isConnected) followResult = focus.target === trigger;
@@ -59,7 +60,15 @@
     try {
       await smart.execute();
       await tick();
-      if (followResult) (resolver ?? copyButton ?? resultPanel)?.focus();
+      if (followResult) {
+        const nextFocus =
+          resolver ??
+          copyButton ??
+          (smart.execError || smart.conflictMessage ? errorPanel : null) ??
+          resultPanel ??
+          errorPanel;
+        nextFocus?.focus();
+      }
     } finally {
       document.removeEventListener("focusin", trackFocus);
     }
@@ -67,7 +76,7 @@
 </script>
 
 {#if smart.execError || smart.conflictMessage}
-  <div bind:this={resultPanel} tabindex="-1">
+  <div bind:this={errorPanel} tabindex="-1">
     <InlineNotice tone={smart.execError ? "danger" : "warning"} size="compact">
       <ScrollArea viewportClasses="max-h-24 overscroll-contain">
         {smart.execError ||
@@ -279,7 +288,11 @@
               wrap
               disabled={!smart.canExecute && !busy}
               aria-disabled={busy || undefined}
-              onclick={(event) => void execute(event)}
+              tabindex={busy ? -1 : undefined}
+              onclick={(event) => {
+                if (busy || !smart.canExecute) return;
+                void execute(event);
+              }}
               data-testid="smart-checkout-submit-btn"
             >
               <IconSwitchHorizontal aria-hidden="true" />
