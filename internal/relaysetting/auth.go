@@ -176,11 +176,6 @@ func authCookie(name, value string, now, expires time.Time) AuthCookie {
 	return AuthCookie{Name: name, Value: value, Expires: expires, MaxAge: int(expires.Sub(now) / time.Second)}
 }
 
-// ClearAuthCookie also serves the transaction cookie by passing its name.
-func ClearAuthCookie(name string) AuthCookie {
-	return AuthCookie{Name: name, MaxAge: -1, Expires: time.Unix(1, 0)}
-}
-
 var authAppRoute = regexp.MustCompile(`^(/|/app|/(s|code|handoff)/[a-z2-7]{8}|/git(/[A-Za-z0-9_-]{1,64}(/worktrees/[A-Za-z0-9_-]{1,64})?)?|/new|/settings(/(relay|tailscale|tunnel))?)$`)
 
 // authReturnTo accepts only application routes, never credentials or endpoints.
