@@ -3,7 +3,6 @@
   import IconPlus from "~icons/tabler/plus";
   import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
-  import { Switch } from "$lib/components/ui/switch";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { errorMessage } from "../../platform/error";
   import { sessionPins } from "../../domains/sessions/session-pins.svelte";
@@ -29,6 +28,7 @@
   import Brand from "./Brand.svelte";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import SidebarWorkspaceTree from "./SidebarWorkspaceTree.svelte";
+  import WorkbenchGroupingSwitch from "./WorkbenchGroupingSwitch.svelte";
   import WorkbenchSidebarSessions from "./WorkbenchSidebarSessions.svelte";
   import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
@@ -292,25 +292,14 @@
     {/if}
   </div>
   {#if workspace}
-    <div
-      class="grid min-h-10 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 px-4 py-1 text-center text-xs"
-    >
-      <span class={queue ? "font-medium" : "text-muted-foreground"}>
-        {m.s8_sidebar_by_conversation()}
-      </span>
-      <Switch
-        checked={!queue}
-        onCheckedChange={(checked) => {
-          workbenchLayout.value = checked ? "workspaces" : "queue";
-          if (chatHome) openPage("/");
-        }}
-        aria-label={m.s8_sidebar_by_branch()}
-        aria-controls={navigationId}
-      />
-      <span class={queue ? "text-muted-foreground" : "font-medium"}>
-        {m.s8_sidebar_by_branch()}
-      </span>
-    </div>
+    <WorkbenchGroupingSwitch
+      byBranch={!queue}
+      controls={navigationId}
+      onchange={(checked) => {
+        workbenchLayout.value = checked ? "workspaces" : "queue";
+        if (chatHome) openPage("/");
+      }}
+    />
   {/if}
   <div class="px-2 pt-1">
     <Button
