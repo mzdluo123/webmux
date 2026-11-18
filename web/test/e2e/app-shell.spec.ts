@@ -342,16 +342,121 @@ test.describe("phone drawer", () => {
       await open.click();
       const drawer = page.getByRole("dialog", { name: "导航" });
       await expect(drawer).toBeVisible();
-      await expect(drawer.locator(":focus")).toHaveCount(1);
-      await page.keyboard.press("Escape");
+      const close = drawer.getByRole("button", { name: "关闭侧栏" });
+      await expect(close).toBeFocused();
+      await close.click();
       await expect(drawer).toBeHidden();
       await expect(open).toBeFocused();
       // "全部仓库" in the drawer returns to the workbench home.
       await open.click();
       await drawer.locator('[data-tree-key="all"]').click();
       await expect(drawer).toBeHidden();
+      const openHome = page.getByRole("button", {
+        name: "打开侧栏",
+        exact: true,
+      });
+      await openHome.click();
+      await drawer
+        .getByRole("button", { name: "聊天模式", exact: true })
+        .click();
+      await expect(page).toHaveURL(/\/new$/);
+      await drawer
+        .getByRole("button", { name: "工作台模式", exact: true })
+        .click();
+      await close.press("Enter");
+      await expect(drawer).toBeHidden();
+      await expect(
+        page.getByRole("searchbox", { name: "搜索会话" }),
+      ).toBeVisible();
+      await expect(openHome).toBeFocused();
       await expect(page).toHaveURL(/\/$/);
     });
+
+  test("tablet drawer restores rail focus after switching home modes", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 768, height: 800 });
+    await page.goto("/");
+    const open = page.getByRole("button", { name: "展开侧栏", exact: true });
+    const drawer = page.getByRole("dialog", { name: "导航" });
+    await open.press("Enter");
+    await drawer
+      .getByRole("button", { name: "聊天模式", exact: true })
+      .press("Enter");
+    await expect(page).toHaveURL(/\/new$/);
+    await drawer
+      .getByRole("button", { name: "工作台模式", exact: true })
+      .press("Enter");
+    await drawer
+      .getByRole("button", { name: "关闭侧栏", exact: true })
+      .press("Enter");
+    await expect(drawer).toBeHidden();
+    await expect(
+      page.getByRole("searchbox", { name: "搜索会话" }),
+    ).toBeVisible();
+    await expect(open).toBeFocused();
+  });
+
+  test("mode selection line follows the active button with or without motion", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "打开侧栏" }).click();
+    const drawer = page.getByRole("dialog", { name: "导航" });
+    const indicator = drawer.locator("[data-sidebar-mode-indicator]");
+    await expect(indicator).toBeVisible();
+    for (const [preference, mode] of [
+      ["no-preference", "聊天模式"],
+      ["reduce", "工作台模式"],
+    ] as const) {
+      await page.emulateMedia({ reducedMotion: preference });
+      const button = drawer.getByRole("button", { name: mode, exact: true });
+      await button.press("Enter");
+      await expect(button).toHaveAttribute("aria-pressed", "true");
+      await expect(button).toBeFocused();
+      if (preference === "reduce") {
+        const seconds = await indicator.evaluate((element) =>
+          Number.parseFloat(getComputedStyle(element).transitionDuration),
+        );
+        expect(seconds).toBeLessThan(0.001);
+      } else {
+        await expect(indicator).toHaveCSS("transition-duration", "0.2s");
+      }
+      await expect
+        .poll(async () => {
+          const marker = (await indicator.boundingBox())!;
+          const active = (await button.boundingBox())!;
+          return (
+            Math.abs(marker.x - active.x) +
+            Math.abs(marker.width - active.width)
+          );
+        })
+        .toBeLessThan(1);
+    }
+  });
+
+  test("drawer mode labels fit with enlarged text", async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("webmux.locale", "en"));
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "Open sidebar", exact: true })
+      .click();
+    const drawer = page.getByRole("dialog", { name: "Navigation" });
+    const workbench = drawer.getByRole("button", { name: "Workbench mode" });
+    await expect(workbench).toBeVisible();
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "200%";
+    });
+    const fits = await workbench.evaluate((button) => {
+      const contents = document.createRange();
+      contents.selectNodeContents(button);
+      const text = contents.getBoundingClientRect();
+      const box = button.getBoundingClientRect();
+      return text.left >= box.left && text.right <= box.right;
+    });
+    expect(fits).toBe(true);
+  });
 });
 
 // Required guard: at every width, on the home page, with either stored
@@ -385,8 +490,7 @@ test.describe("sidebar is always reachable", () => {
     });
 });
 
-// Required guard: the sidebar's top row (collapse button, brand, mode
-// switch) never overlaps, even at the narrowest sidebar and a larger font.
+// The brand row and labeled mode buttons must fit at minimum width and larger text.
 test.describe("sidebar header never overlaps", () => {
   for (const fontSize of ["100%", "150%"])
     test(`collapse button, brand and mode switch stay apart at the narrowest width (font ${fontSize})`, async ({
@@ -404,23 +508,23 @@ test.describe("sidebar header never overlaps", () => {
       const sidebar = page.getByRole("complementary", { name: "侧栏" });
       const nav = sidebar.getByRole("navigation", { name: "导航" });
       await expect(nav).toBeVisible();
-      const boxes = [];
-      for (const part of [
-        nav.getByRole("button", { name: "收起侧栏" }),
-        nav.locator(".brand"),
-        nav.getByRole("group", { name: "模式" }),
-      ]) {
+      const collapse = nav.getByRole("button", { name: "收起侧栏" });
+      const brand = nav.locator(".brand");
+      const modes = nav.getByRole("group", { name: "模式" });
+      await expect(modes.getByText("聊天", { exact: true })).toBeVisible();
+      await expect(modes.getByText("工作台", { exact: true })).toBeVisible();
+      for (const part of [collapse, brand, modes])
         await expect(part).toBeVisible();
-        boxes.push((await part.boundingBox())!);
-      }
-      for (let i = 0; i < boxes.length - 1; i++)
-        expect(
-          boxes[i].x + boxes[i].width,
-          `part ${i} overlaps part ${i + 1}`,
-        ).toBeLessThanOrEqual(boxes[i + 1].x + 0.5);
+      const toggle = (await collapse.boundingBox())!;
+      const logo = (await brand.boundingBox())!;
+      const group = (await modes.boundingBox())!;
       const side = (await sidebar.boundingBox())!;
-      const last = boxes[2];
-      expect(last.x + last.width).toBeLessThanOrEqual(side.x + side.width);
+      expect(toggle.x + toggle.width).toBeLessThanOrEqual(logo.x + 0.5);
+      expect(
+        Math.max(toggle.y + toggle.height, logo.y + logo.height),
+      ).toBeLessThanOrEqual(group.y + 0.5);
+      expect(group.x).toBeGreaterThanOrEqual(side.x);
+      expect(group.x + group.width).toBeLessThanOrEqual(side.x + side.width);
     });
 });
 
@@ -472,6 +576,12 @@ test("session pins and their order sync to another browser", async ({
   await pin("Pinned demo");
   await pin("Second demo");
   await order(page, ["Second demo", "Pinned demo"]);
+  const viewport = page.locator('[data-slot="scroll-area-viewport"]').filter({
+    has: region(page),
+  });
+  await expect(
+    viewport.getByRole("tree", { name: "仓库与会话" }),
+  ).toBeVisible();
   const other = await browser.newContext({
     viewport: page.viewportSize() ?? undefined,
     isMobile: mobile,

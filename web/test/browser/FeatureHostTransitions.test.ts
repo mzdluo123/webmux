@@ -235,7 +235,7 @@ test("same-origin reconnect replaces captured shell projections only when select
   enabled = [];
   const reconnecting = await reconnect(first, 1);
   await expect
-    .element(page.getByRole("textbox", { name: "搜索会话", exact: true }))
+    .element(page.getByRole("searchbox", { name: "搜索会话", exact: true }))
     .toBeVisible();
   expect(reconnecting.readyState).toBe(FakeSocket.CLOSED);
   await expect
@@ -244,13 +244,13 @@ test("same-origin reconnect replaces captured shell projections only when select
   const core = await socketAt("/ws/sessions", 2);
   core.frame({ type: "snapshot", sessions: [], forwards: [] } as never);
   await page
-    .getByRole("textbox", { name: "搜索会话", exact: true })
+    .getByRole("searchbox", { name: "搜索会话", exact: true })
     .fill("keep filter");
   const before = discoveryReads;
   await reconnect(core, 3);
   await expect.poll(() => discoveryReads).toBeGreaterThan(before);
   await expect
-    .element(page.getByRole("textbox", { name: "搜索会话", exact: true }))
+    .element(page.getByRole("searchbox", { name: "搜索会话", exact: true }))
     .toHaveValue("keep filter");
   await requestFeatureHostRefresh();
   enabled = ["workspace"];
@@ -428,7 +428,7 @@ test("host switching releases old P2P resources and disabled selection never res
   expect(signal.aborted).toBe(true);
   pending.reject(new DOMException("aborted", "AbortError"));
   await expect
-    .element(page.getByRole("textbox", { name: "搜索会话", exact: true }))
+    .element(page.getByRole("searchbox", { name: "搜索会话", exact: true }))
     .toBeVisible();
   await requestFeatureHostRefresh();
   const count = direct.negotiate.mock.calls.length;

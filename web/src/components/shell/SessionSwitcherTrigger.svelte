@@ -1,5 +1,5 @@
 <script lang="ts">
-  import IconSearch from "~icons/tabler/search";
+  import IconArrowsExchange from "~icons/tabler/arrows-exchange";
   import { Button, type ButtonSize } from "$lib/components/ui/button";
   import { m } from "$lib/paraglide/messages.js";
   import {
@@ -24,6 +24,6 @@
     })}
     onclick={(event) => open(event.currentTarget)}
   >
-    <IconSearch aria-hidden="true" />
+    <IconArrowsExchange aria-hidden="true" />
   </Button>
 {/if}

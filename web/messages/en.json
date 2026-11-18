@@ -44,6 +44,7 @@
   "s1_code_popout_load_failed": "Failed to load code window. Close it and reopen.",
   "s1_code_popout_requires_session": "The pop-out code window must be opened from a session page.",
   "s1_collapse_node": "Collapse {label}",
+  "s1_close_sidebar": "Close sidebar",
   "s1_collapse_sidebar": "Collapse sidebar",
   "s1_confirm": "Confirm",
   "s1_confirm_action": "Confirm action",
@@ -494,6 +495,7 @@
       }
     }
   ],
+  "s1_workbench": "Workbench",
   "s1_workbench_mode": "Workbench mode",
   "s1_workbench_mode_title": "Workbench mode: repositories, worktrees, and all sessions",
   "s1_working_directory": "Working directory",
@@ -4680,6 +4682,7 @@
   "s8_save": "Save",
   "s8_saved_start_commit": "Saved start commit",
   "s8_saving": "Saving…",
+  "s8_search_all_repositories": "Search all repositories",
   "s8_search_branches_label": "Search branches",
   "s8_search_branches_placeholder": "Search branches…",
   "s8_search_local_branches_label": "Search local branches",
