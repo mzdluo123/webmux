@@ -2993,6 +2993,7 @@
   "s7_delivery_push_detached_title": "游离或未诞生 HEAD 请先创建分支后再推送",
   "s7_delivery_ready_hint": "Agent 或命令行提交已准备就绪；推送不会自动移除工作树，可按需返回会话、推送分支或手动安全清理。",
   "s7_delivery_remove_worktree": "移除工作树…",
+  "s7_switch_to_sessions": "切换到会话列表",
   "s7_delivery_return_session": "返回会话",
   "s7_delivery_review_task_btn": "审阅相对任务起点的变化 ({count})",
   "s7_delivery_task_commits": "任务提交 {count} 笔",

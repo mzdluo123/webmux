@@ -93,6 +93,31 @@ async function selectGitMode(
     .click();
 }
 
+test("the Git and session views switch in both directions without losing the selected worktree", async ({
+  page,
+  request,
+  workDir,
+}) => {
+  const { repo, featWt } = await setupRepoWithLinkedWorktree(request, workDir);
+  await page.goto("/");
+  await revealSidebar(page);
+  await unfoldRepository(page, repo.name);
+  await page.getByRole("treeitem", { name: /^feat\/route/ }).click();
+  const heading = page.getByRole("heading", { level: 1, name: /feat\/route/ });
+  await expect(heading).toBeVisible();
+  await page.getByRole("button", { name: "Git 工作台", exact: true }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/git/${repo.id}/worktrees/${featWt.id}`),
+  );
+  await page.getByRole("button", { name: "切换到会话列表" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(heading).toBeVisible();
+  await page.getByRole("button", { name: "Git 工作台", exact: true }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/git/${repo.id}/worktrees/${featWt.id}`),
+  );
+});
+
 test("standalone /git works with zero sessions, never spawns PTY, and survives last-session deletion", async ({
   page,
   request,

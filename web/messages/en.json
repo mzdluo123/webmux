@@ -3496,6 +3496,7 @@
   "s7_delivery_push_detached_title": "Create a branch from detached or unborn HEAD before pushing",
   "s7_delivery_ready_hint": "Agent or CLI commits are ready; pushing never removes the worktree automatically—return to session, push branch, or clean up manually as needed.",
   "s7_delivery_remove_worktree": "Remove Worktree…",
+  "s7_switch_to_sessions": "Switch to session list",
   "s7_delivery_return_session": "Return to Session",
   "s7_delivery_review_task_btn": "Review changes since task baseline ({count})",
   "s7_delivery_task_commits": [

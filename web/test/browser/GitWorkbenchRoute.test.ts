@@ -211,6 +211,7 @@ test("GitWorkbenchTopBar keeps fixed checked-out target distinct from history br
       onUpdate: vi.fn(),
       onPush: vi.fn(),
       onReturnSession,
+      onReturnWorkbench: vi.fn(),
     },
   });
 
@@ -253,6 +254,7 @@ test("GitWorkbenchTopBar keeps fixed checked-out target distinct from history br
       onUpdate: vi.fn(),
       onPush: vi.fn(),
       onReturnSession: vi.fn(),
+      onReturnWorkbench: vi.fn(),
     },
   });
 
