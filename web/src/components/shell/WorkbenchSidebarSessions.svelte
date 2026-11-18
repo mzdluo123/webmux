@@ -1,4 +1,6 @@
 <script lang="ts">
+  import IconBook2 from "~icons/tabler/book-2";
+  import IconFolder from "~icons/tabler/folder";
   import IconLayoutList from "~icons/tabler/layout-list";
   import { Button } from "$lib/components/ui/button";
   import { m } from "$lib/paraglide/messages.js";
@@ -92,7 +94,16 @@
       <h2
         class="flex min-w-0 items-center gap-2 px-2 pb-1 text-xs font-medium text-muted-foreground"
       >
-        <span class="min-w-0 truncate" title={group.name}>{group.name}</span>
+        {#if group.id === "direct"}<IconFolder
+            class="size-3.5 shrink-0"
+            aria-hidden="true"
+          />{:else}<IconBook2
+            class="size-3.5 shrink-0"
+            aria-hidden="true"
+          />{/if}
+        <span class="min-w-0 flex-1 truncate" title={group.name}
+          >{group.name}</span
+        >
         <span class="font-mono font-normal tabular-nums"
           >{group.sessions.length}</span
         >
