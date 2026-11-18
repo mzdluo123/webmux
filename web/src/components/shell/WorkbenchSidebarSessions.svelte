@@ -2,6 +2,7 @@
   import IconChevronRight from "~icons/tabler/chevron-right";
   import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
+  import MotionRoot from "$lib/components/ui/collapsible/motion-root.svelte";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { ListButton } from "$lib/components/ui/list-button";
   import {
@@ -137,75 +138,75 @@
       ? m.s8_sidebar_create_session({ project: group.name })
       : m.s8_sidebar_create_direct_session()}
     <section aria-label={group.name} data-sidebar-project-id={group.id}>
-      <Collapsible.Root
+      <MotionRoot
         {open}
         onOpenChange={(next) => workbenchLayout.setProjectOpen(group.id, next)}
       >
-        <div
-          class="flex items-center gap-1"
-          data-layout-row={repositoryId ? `r:${repositoryId}` : "direct"}
-        >
-          <h2 class="min-w-0 flex-1">
-            <Collapsible.Trigger>
-              {#snippet child({ props })}
-                <ListButton {...props} variant="section-header">
-                  <SidebarProjectAvatar name={group.name} {repositoryId} />
-                  <span class="min-w-0 flex-1 truncate" title={group.name}
-                    >{group.name}</span
-                  >
-                  <span class="font-mono font-normal tabular-nums"
-                    >{group.sessions.length}</span
-                  >
-                  <IconChevronRight
-                    class={[
-                      "size-3.5 shrink-0 motion-safe:transition-transform",
-                      open && "rotate-90",
-                    ]}
-                    aria-hidden="true"
-                  />
-                </ListButton>
-              {/snippet}
-            </Collapsible.Trigger>
-          </h2>
-          <Button
-            variant="quiet"
-            size="icon-touch-sm"
-            aria-label={createLabel}
-            title={createLabel}
-            onclick={() => oncreate(repositoryId)}
+        {#snippet header()}
+          <div
+            class="flex items-center gap-1"
+            data-layout-row={repositoryId ? `r:${repositoryId}` : "direct"}
           >
-            <IconPlus aria-hidden="true" />
-          </Button>
-        </div>
-        <Collapsible.Content>
-          <ul class="ms-3 mt-1 space-y-1" aria-label={group.name}>
-            {#each group.sessions as session (session.id)}
-              {@const location = queueWorkspaceLocation(
-                session,
-                group.repository,
-              )}
-              <SidebarLiveSessionRow
-                {session}
-                {current}
-                location={location.text}
-                locationIsBranch={location.branch}
-                icon={session.agent?.icon ??
-                  configIcons.get(session.configId ?? "") ??
-                  ""}
-                pinned={pinnedIds.has(session.id)}
-                compact
-                {onopen}
-                {onrename}
-                {onclose}
-                onmenuopen={(open) => {
-                  if (open) menuSessionId = session.id;
-                  else if (menuSessionId === session.id) menuSessionId = null;
-                }}
-              />
-            {/each}
-          </ul>
-        </Collapsible.Content>
-      </Collapsible.Root>
+            <h2 class="min-w-0 flex-1">
+              <Collapsible.Trigger>
+                {#snippet child({ props })}
+                  <ListButton {...props} variant="section-header">
+                    <SidebarProjectAvatar name={group.name} {repositoryId} />
+                    <span class="min-w-0 flex-1 truncate" title={group.name}
+                      >{group.name}</span
+                    >
+                    <span class="font-mono font-normal tabular-nums"
+                      >{group.sessions.length}</span
+                    >
+                    <IconChevronRight
+                      class={[
+                        "size-3.5 shrink-0 motion-safe:transition-transform",
+                        open && "rotate-90",
+                      ]}
+                      aria-hidden="true"
+                    />
+                  </ListButton>
+                {/snippet}
+              </Collapsible.Trigger>
+            </h2>
+            <Button
+              variant="quiet"
+              size="icon-touch-sm"
+              aria-label={createLabel}
+              title={createLabel}
+              onclick={() => oncreate(repositoryId)}
+            >
+              <IconPlus aria-hidden="true" />
+            </Button>
+          </div>
+        {/snippet}
+        <ul class="ms-3 mt-1 space-y-1" aria-label={group.name}>
+          {#each group.sessions as session (session.id)}
+            {@const location = queueWorkspaceLocation(
+              session,
+              group.repository,
+            )}
+            <SidebarLiveSessionRow
+              {session}
+              {current}
+              location={location.text}
+              locationIsBranch={location.branch}
+              icon={session.agent?.icon ??
+                configIcons.get(session.configId ?? "") ??
+                ""}
+              pinned={pinnedIds.has(session.id)}
+              compact
+              {onopen}
+              {onrename}
+              {onclose}
+              onmenuopen={(open) => {
+                if (open) menuSessionId = session.id;
+                else if (menuSessionId === session.id) menuSessionId = null;
+              }}
+            />
+          {/each}
+        </ul>
+      </MotionRoot>
     </section>
   {/each}
 </div>

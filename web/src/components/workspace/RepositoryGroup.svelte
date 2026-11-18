@@ -1,6 +1,7 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
   import IconChevronDown from "~icons/tabler/chevron-down";
+  import { useManualDisclosureMotion } from "$lib/components/ui/collapsible/manual-motion.svelte";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
   import type {
@@ -81,6 +82,12 @@
     ongit?: (worktree: Worktree, view?: "commit") => void;
   } = $props();
 
+  let panel: HTMLDivElement | null = null;
+  const motion = useManualDisclosureMotion(
+    () => panel,
+    () => open,
+  );
+  const showContent = $derived(open || motion.moving);
   let contentReady = $state(false);
   $effect(() => {
     if (open) contentReady = true;
@@ -116,13 +123,13 @@
 </script>
 
 <Collapsible.Root
-  class="min-w-0 space-y-4"
+  class="min-w-0"
   data-repository-id={repo.id}
   hidden={hidden || (filtering && !visible.length && !archivedVisible)}
   role="region"
   aria-label={m.s8_repo_group_aria({ name: repo.name })}
   {open}
-  onOpenChange={onopenchange}
+  onOpenChange={(value) => motion.toggle(value, onopenchange)}
 >
   <!-- The focused repository is the page itself, so its name is not repeated. -->
   {#if !focused || repo.error}
@@ -135,7 +142,7 @@
             class="group flex min-w-0 max-w-full items-center gap-2 text-left font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <IconChevronDown
-              class="size-4 shrink-0 -rotate-90 transition-transform group-data-[state=open]:rotate-0"
+              class="size-4 shrink-0 -rotate-90 motion-safe:transition-transform group-data-[state=open]:rotate-0"
               aria-hidden="true"
             />
             <span class="min-w-0 break-all">{repo.name}</span>
@@ -150,78 +157,84 @@
         </p>{/if}
     </div>
   {/if}
-  {#if contentReady}<Collapsible.Content
-      forceMount
-      hidden={!open}
-      class="space-y-0"
-    >
-      {#each renderLayout.shown as { tree, pinned }, index (tree.id)}
-        {@const treeArchive = shownArchive(archived.worktrees.get(tree.id))}
-        <WorkspaceGroup
-          title={worktreeTitle(tree)}
-          path={tree.path}
-          worktree={tree}
-          lastFetchedAt={repo.lastFetchedAt}
-          sessions={sessions.filter((s) => s.workspace?.worktreeId === tree.id)}
-          {visibleIds}
-          {compact}
-          separated={index > 0 && !worktree}
-          focused={!!worktree && worktree === tree.id}
-          detailsOpen={worktree === tree.id ? detailsOpen : undefined}
-          ondetailschange={worktree === tree.id ? ondetailschange : undefined}
-          hidden={hidden ||
-            !open ||
-            (!!worktree && worktree !== tree.id) ||
-            (filtering &&
-              !treeArchive.length &&
-              !visible.some(
-                (session) => session.workspace?.worktreeId === tree.id,
-              ))}
-          {now}
-          {pinned}
-          ontogglepin={() => ontogglepin(tree.id, !pinned)}
-          {onclose}
-          onstart={() => onstart(tree.id)}
-          onremove={tree.kind === "linked" ? () => onremove(tree) : undefined}
-          onswitch={switchableWorktree(tree) ? () => onswitch(tree) : undefined}
-          archived={treeArchive}
-          {archive}
-          {onoperation}
-          ongit={ongit ? () => ongit(tree) : undefined}
-          oncommit={ongit ? () => ongit(tree, "commit") : undefined}
-        />
-      {/each}
-      {@const missingArchive = shownArchive(archived.missing)}
-      {#if missing.length || archived.missing.length}<WorkspaceGroup
-          title={m.s8_unavailable_workspaces()}
-          sessions={missing}
-          {visibleIds}
-          {compact}
-          separated={renderLayout.shown.length > 0}
-          hidden={hidden ||
-            !open ||
-            !!worktree ||
-            Boolean(
-              visibleIds &&
-              !missingArchive.length &&
-              !missing.some((session) => visibleIds.has(session.id)),
+  <div bind:this={panel} inert={!open} class:overflow-clip={motion.moving}>
+    {#if contentReady}<Collapsible.Content
+        forceMount
+        hidden={!showContent}
+        class={["space-y-0", (!focused || repo.error) && "pt-4"]}
+      >
+        {#each renderLayout.shown as { tree, pinned }, index (tree.id)}
+          {@const treeArchive = shownArchive(archived.worktrees.get(tree.id))}
+          <WorkspaceGroup
+            title={worktreeTitle(tree)}
+            path={tree.path}
+            worktree={tree}
+            lastFetchedAt={repo.lastFetchedAt}
+            sessions={sessions.filter(
+              (s) => s.workspace?.worktreeId === tree.id,
             )}
-          {now}
-          {onclose}
-          archived={missingArchive}
-          {archive}
-        />{/if}
-      {#if !layout.shown.length && layout.unpinned.length}<p
-          class="text-sm text-muted-foreground"
-        >
-          {m.s8_repo_group_no_pinned_hint()}
-        </p>{/if}
-      {#if !repo.worktrees.length && !missing.length && !archived.missing.length}<p
-          class="text-sm text-muted-foreground"
-        >
-          {repo.error
-            ? m.s8_repo_group_load_wt_error()
-            : m.s8_repo_group_no_worktrees()}
-        </p>{/if}
-    </Collapsible.Content>{/if}
+            {visibleIds}
+            {compact}
+            separated={index > 0 && !worktree}
+            focused={!!worktree && worktree === tree.id}
+            detailsOpen={worktree === tree.id ? detailsOpen : undefined}
+            ondetailschange={worktree === tree.id ? ondetailschange : undefined}
+            hidden={hidden ||
+              !showContent ||
+              (!!worktree && worktree !== tree.id) ||
+              (filtering &&
+                !treeArchive.length &&
+                !visible.some(
+                  (session) => session.workspace?.worktreeId === tree.id,
+                ))}
+            {now}
+            {pinned}
+            ontogglepin={() => ontogglepin(tree.id, !pinned)}
+            {onclose}
+            onstart={() => onstart(tree.id)}
+            onremove={tree.kind === "linked" ? () => onremove(tree) : undefined}
+            onswitch={switchableWorktree(tree)
+              ? () => onswitch(tree)
+              : undefined}
+            archived={treeArchive}
+            {archive}
+            {onoperation}
+            ongit={ongit ? () => ongit(tree) : undefined}
+            oncommit={ongit ? () => ongit(tree, "commit") : undefined}
+          />
+        {/each}
+        {@const missingArchive = shownArchive(archived.missing)}
+        {#if missing.length || archived.missing.length}<WorkspaceGroup
+            title={m.s8_unavailable_workspaces()}
+            sessions={missing}
+            {visibleIds}
+            {compact}
+            separated={renderLayout.shown.length > 0}
+            hidden={hidden ||
+              !showContent ||
+              !!worktree ||
+              Boolean(
+                visibleIds &&
+                !missingArchive.length &&
+                !missing.some((session) => visibleIds.has(session.id)),
+              )}
+            {now}
+            {onclose}
+            archived={missingArchive}
+            {archive}
+          />{/if}
+        {#if !layout.shown.length && layout.unpinned.length}<p
+            class="text-sm text-muted-foreground"
+          >
+            {m.s8_repo_group_no_pinned_hint()}
+          </p>{/if}
+        {#if !repo.worktrees.length && !missing.length && !archived.missing.length}<p
+            class="text-sm text-muted-foreground"
+          >
+            {repo.error
+              ? m.s8_repo_group_load_wt_error()
+              : m.s8_repo_group_no_worktrees()}
+          </p>{/if}
+      </Collapsible.Content>{/if}
+  </div>
 </Collapsible.Root>
