@@ -97,3 +97,33 @@ test("desktop dialog sets initial focus and traps Tab in both directions", async
   await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
   await expect.element(close).toHaveFocus();
 });
+
+test("places safe-area bottom padding on the footer instead of duplicating it on the body", async () => {
+  const desktopView = await render(Harness, {
+    withFooter: true,
+    onclose: () => {},
+  });
+  await expect.element(body()).toBeVisible();
+  const footerButton = page.getByRole("button", { name: "底部确认" });
+  await expect.element(footerButton).toBeVisible();
+  expect(body().element().parentElement?.className).not.toContain(
+    "max-sm:pb-safe-4",
+  );
+  expect(footerButton.element().parentElement?.className).toContain(
+    "max-sm:pb-safe-4",
+  );
+  await desktopView.unmount();
+
+  await page.viewport(390, 844);
+  await render(Harness, {
+    pinDrawerHeader: true,
+    withFooter: true,
+    onclose: () => {},
+  });
+  await expect.element(body()).toBeVisible();
+  expect(body().element().parentElement?.className).not.toContain("pb-safe-4");
+  expect(
+    page.getByRole("button", { name: "底部确认" }).element().parentElement
+      ?.className,
+  ).toContain("pb-safe-4");
+});
