@@ -103,7 +103,8 @@ test("the default queue prioritizes explicit attention and keeps a focused sessi
   await search.fill("");
   await expect(exited).toHaveAttribute("aria-expanded", "false");
 
-  await main.getByRole("searchbox").fill("stale filter");
+  expect((await raise()).ok()).toBeTruthy();
+  await search.fill("stale filter");
   if (info.project.use.isMobile)
     await page.getByRole("button", { name: "打开侧栏" }).click();
   const tree = page.getByRole("tree", { name: "仓库与会话" });
@@ -111,7 +112,18 @@ test("the default queue prioritizes explicit attention and keeps a focused sessi
     tree.getByRole("treeitem", { name: /Watch backend/ }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: /^待处理会话/ }).click();
-  await expect(main.getByRole("searchbox")).toHaveValue("");
+  await expect(search).toHaveValue("");
+  await expect(issue).toHaveAttribute("data-queue-group", "attention");
+  await expect(monitor).toHaveCount(0);
+  await actions.click();
+  await expect(menu).toBeVisible();
+  expect((await clear()).status()).toBe(204);
+  await expect(issue.getByText("Build needs a retry")).toHaveCount(0);
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(actions).toBeFocused();
+  await search.focus();
+  await expect(issue).toHaveCount(0);
   await expect(main.getByText("当前没有需要你处理的会话。")).toBeVisible();
   await main.getByRole("radio", { name: "按工作区" }).click();
   await page.reload();

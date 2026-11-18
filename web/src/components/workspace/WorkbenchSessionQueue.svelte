@@ -9,7 +9,10 @@
     Repository,
     SessionInfo,
   } from "../../contracts/schemas";
-  import { type ArchiveActions } from "../../domains/sessions/archived";
+  import {
+    releasableRecordWorktree,
+    type ArchiveActions,
+  } from "../../domains/sessions/archived";
   import { sessionPins } from "../../domains/sessions/session-pins.svelte";
   import {
     sessionQueue,
@@ -18,6 +21,7 @@
     type QueueGroup,
   } from "../../domains/workspace/session-queue";
   import ArchivedSessions from "../sessions/ArchivedSessions.svelte";
+  import SessionListEmpty from "../sessions/SessionListEmpty.svelte";
   import WorkbenchQueueRow from "./WorkbenchQueueRow.svelte";
   import WorkbenchQueuePreview from "./WorkbenchQueuePreview.svelte";
 
@@ -27,8 +31,10 @@
     repositories,
     records,
     archive,
+    attentionOnly,
     filtering,
     now,
+    onclear,
     onrename,
     onclose,
   }: {
@@ -37,8 +43,10 @@
     repositories: readonly Repository[];
     records: ArchivedSession[];
     archive: ArchiveActions;
+    attentionOnly: boolean;
     filtering: boolean;
     now: number;
+    onclear: () => void;
     onrename: (session: SessionInfo) => void;
     onclose: (session: SessionInfo) => void;
   } = $props();
@@ -46,12 +54,21 @@
   let focused = $state<FocusedQueueRow | null>(null);
   let menuRow = $state<FocusedQueueRow | null>(null);
   let previewRow = $state<FocusedQueueRow | null>(null);
+  const held = $derived([menuRow, previewRow, focused]);
+  const candidates = $derived(
+    attentionOnly && held.some(Boolean)
+      ? [
+          ...sessions,
+          ...available.filter(
+            (session) =>
+              held.some((row) => row?.id === session.id) &&
+              !sessions.includes(session),
+          ),
+        ]
+      : sessions,
+  );
   const groups = $derived(
-    sessionQueue(sessions, sessionPins.ordered(sessions), [
-      menuRow,
-      previewRow,
-      focused,
-    ]),
+    sessionQueue(candidates, sessionPins.ordered(candidates), held),
   );
   const titles = $derived({
     attention: m.s8_queue_attention(),
@@ -59,7 +76,9 @@
     idle: m.s8_queue_idle(),
     exited: m.s8_queue_exited(),
   });
-  const primaryGroups = ["attention", "running"] as const;
+  const primaryGroups = $derived<QueueGroup[]>(
+    attentionOnly ? ["attention"] : ["attention", "running"],
+  );
   const foldableGroups = ["idle", "exited"] as const;
   type FoldableGroup = "idle" | "exited";
   let expanded = $state<Record<FoldableGroup, boolean>>({
@@ -81,15 +100,6 @@
   $effect(() => {
     if (previewOpen && !preview) previewOpen = false;
   });
-
-  function archiveWorktree(record: ArchivedSession) {
-    const tree = repositories
-      .find((repo) => repo.id === record.workspace?.repositoryId)
-      ?.worktrees.find((item) => item.id === record.workspace?.worktreeId);
-    return tree?.kind === "linked" && tree.available && !tree.prunable
-      ? tree
-      : undefined;
-  }
 </script>
 
 {#snippet rows(group: QueueGroup)}
@@ -110,7 +120,8 @@
           opener = trigger;
           previewId = session.id;
           previewOpen = true;
-          if (!docked.current) previewRow = { id: session.id, group };
+          if (attentionOnly || !docked.current)
+            previewRow = { id: session.id, group };
         }}
         onmenuopen={(open) => {
           if (open) menuRow = { id: session.id, group };
@@ -145,7 +156,7 @@
         </section>
       {/if}
     {/each}
-    {#each foldableGroups as key (key)}
+    {#each attentionOnly ? [] : foldableGroups as key (key)}
       {@const open = filtering
         ? (filteredExpanded[key] ?? true)
         : expanded[key]}
@@ -175,12 +186,21 @@
         </Collapsible.Root>
       {/if}
     {/each}
-    {#if records.length}
+    {#if attentionOnly && !groups.attention.length}
+      {#if filtering}
+        <SessionListEmpty filtered {onclear} />
+      {:else}
+        <p role="status" class="py-6 text-sm text-muted-foreground">
+          {m.s8_queue_empty_attention()}
+        </p>
+      {/if}
+    {:else if records.length}
       <ArchivedSessions
         title={m.s8_queue_timeline()}
         {records}
         {archive}
-        resolveWorktree={archiveWorktree}
+        resolveWorktree={(record) =>
+          releasableRecordWorktree(record, repositories)}
         timeline
       />
     {/if}

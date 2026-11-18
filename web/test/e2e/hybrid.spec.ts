@@ -1801,13 +1801,26 @@ test.describe("hybrid sessions with the fake agent", () => {
     expect(archived.status(), await archived.text()).toBe(204);
 
     await page.goto("/");
+    await page.getByRole("radio", { name: "会话队列" }).click();
+    const archivedList = "**/api/sessions?state=archived";
+    await page.route(archivedList, async (route) => {
+      const response = await route.fetch();
+      const records: { id: string; workspace?: unknown }[] =
+        await response.json();
+      for (const record of records) {
+        if (record.id === id) record.workspace = null;
+      }
+      await route.fulfill({ response, json: records });
+    });
+    await page.reload();
     const feature = page.getByRole("region", {
-      name: "feature-x 的已归档会话",
+      name: "会话历史 的已归档会话",
     });
     await feature.getByRole("button", { name: /已归档/ }).click();
     await feature
       .getByRole("button", { name: "更多操作 E2E release", exact: true })
       .click();
+    await page.unroute(archivedList);
     await page.getByRole("menuitem", { name: "释放空间", exact: true }).click();
     const release = page.getByRole("dialog", { name: "释放空间" });
     await expect(release).toContainText("重建工作树也无法找回");
@@ -1819,6 +1832,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     git("rev-parse", "--verify", "refs/heads/feature-x");
 
     // The record stays archived, now under the unavailable workspaces.
+    await page.getByRole("radio", { name: "按工作区" }).click();
     const gone = page.getByRole("region", {
       name: "已不可用工作区 的已归档会话",
     });

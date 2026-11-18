@@ -55,8 +55,7 @@
     featureAvailable,
   } from "../platform/feature-host.svelte";
 
-  // The workbench home: every live session grouped by repository and
-  // worktree, beside the shell's tree. The shell owns the shared data.
+  // The shell owns the live session, repository and archive state.
   const shell = getShell();
   const { drafts } = shell;
   const sessions = $derived(shell.sessions.sessions);
@@ -133,14 +132,7 @@
   const search = $derived(query.trim().toLocaleLowerCase());
   const filtering = $derived(Boolean(search) || statusFilter !== "all");
   const visible = $derived(
-    filterVisibleSessions(
-      scopedSessions,
-      repositories,
-      statusFilter,
-      search,
-    ).filter(
-      (session) => !attentionOnly || queueGroup(session) === "attention",
-    ),
+    filterVisibleSessions(scopedSessions, repositories, statusFilter, search),
   );
   const visibleIds = $derived(
     filtering || selectedRepository !== "all"
@@ -307,7 +299,10 @@
           mainWorktree={selectedWorktree?.kind === "main"}
           {loading}
           {filtering}
-          visibleCount={visible.length}
+          visibleCount={attentionOnly
+            ? visible.filter((session) => queueGroup(session) === "attention")
+                .length
+            : visible.length}
           sessionCount={scopedSessions.length}
           repositoryCount={selectedRepository === "all"
             ? repositories.length
@@ -375,8 +370,10 @@
                       !visibleArchiveIds || visibleArchiveIds.has(record.id),
                   )}
               {archive}
+              {attentionOnly}
               {filtering}
               {now}
+              onclear={clearFilters}
               onrename={shell.rename}
               onclose={shell.close}
             />
@@ -461,11 +458,7 @@
                 {archive}
               />{/if}
           {/if}
-          {#if attentionOnly && !filtering && !visible.length}
-            <p role="status" class="py-6 text-sm text-muted-foreground">
-              {m.s8_queue_empty_attention()}
-            </p>
-          {:else if queue ? !visible.length && !(filtering ? archivedMatches : scopedArchiveCount) : isSessionListEmpty( { filtering, visibleCount: visible.length, archivedMatches, repositoriesCount: repositories.length, listCount: list.length, recoverableCount: recoverable.length, selectedRepository, directCount: direct.length, directArchiveCount: placement.direct.length } )}<SessionListEmpty
+          {#if !attentionOnly && (queue ? !visible.length && !(filtering ? archivedMatches : scopedArchiveCount) : isSessionListEmpty( { filtering, visibleCount: visible.length, archivedMatches, repositoriesCount: repositories.length, listCount: list.length, recoverableCount: recoverable.length, selectedRepository, directCount: direct.length, directArchiveCount: placement.direct.length } ))}<SessionListEmpty
               filtered={filtering && !visible.length && !archivedMatches}
               onclear={clearFilters}
               onexpand={selectedRepository === "all"
