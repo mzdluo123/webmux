@@ -4,15 +4,8 @@
 The app commits the generated woff2 files and web/src/fonts.css. Re-run this
 only when upgrading Inter or Maple Mono.
 
-Tools are intentionally outside the frontend lockfile (cn-font-split ships a
-native library, and the web package allows only the esbuild install script):
-
-  python3 -m pip install --user fonttools brotli
-  # the script npm-installs cn-font-split into a temp directory
-
-HarmonyOS Sans is not fetched: its license forbids modifying the files, so
-unicode-range subsetting is not allowed. UI CJK text uses system sans-serif
-fonts; terminal and code CJK text uses Maple Mono NF CN slices.
+Install fonttools and brotli to regenerate the committed subsets.
+Terminal and code CJK text uses system fonts.
 """
 
 from __future__ import annotations
@@ -32,7 +25,6 @@ CSS_OUT = ROOT / "web" / "src" / "fonts.css"
 TERMINAL_CSS = ROOT / "web" / "src" / "fonts-terminal.css"
 INDEX = ROOT / "web" / "index.html"
 CACHE = Path(os.environ.get("WEBMUX_FONT_CACHE", "/tmp/webmux-fonts"))
-SPLITTER = CACHE / "cn-font-split"
 MAPLE_TAG = "v7.9"
 INTER_VERSION = "5.2.8"
 
@@ -139,111 +131,6 @@ def subset(src: Path, unicodes: str, dest: Path) -> None:
     )
 
 
-def subset_remainder(
-    src: Path, excluded: list[tuple[int, int]], shared_icons: set[int], dest: Path
-) -> None:
-    from fontTools.ttLib import TTFont
-
-    font = TTFont(src)
-    keep = []
-    for cp in font.getBestCmap() or []:
-        if cp in shared_icons or any(start <= cp <= end for start, end in excluded):
-            continue
-        keep.append(cp)
-    font.close()
-    listing = dest.with_suffix(".unicodes.txt")
-    listing.write_text(",".join(f"U+{cp:04X}" for cp in keep))
-    subprocess.check_call(
-        [
-            sys.executable,
-            "-m",
-            "fontTools.subset",
-            str(src),
-            f"--unicodes-file={listing}",
-            "--layout-features-=liga,dlig,calt",
-            f"--output-file={dest}",
-        ]
-    )
-
-
-def ensure_splitter() -> None:
-    if (SPLITTER / "node_modules" / "cn-font-split").exists():
-        return
-    SPLITTER.mkdir(parents=True, exist_ok=True)
-    subprocess.check_call(["npm", "init", "-y"], cwd=SPLITTER)
-    subprocess.check_call(["npm", "install", "cn-font-split@7.4.3"], cwd=SPLITTER)
-
-
-def split_cjk(src: Path, out_dir: Path, family: str, weight: str) -> None:
-    if out_dir.exists():
-        shutil.rmtree(out_dir)
-    out_dir.mkdir(parents=True)
-    script = SPLITTER / "split-one.mjs"
-    script.write_text(
-        """
-import { fontSplit } from "cn-font-split";
-import fs from "fs";
-const input = new Uint8Array(fs.readFileSync(process.argv[2]));
-await fontSplit({
-  input,
-  outDir: process.argv[3],
-  chunkSize: 64 * 1024,
-  fontFeature: false,
-  languageAreas: true,
-  reduceMins: true,
-  testHtml: false,
-  reporter: false,
-  renameOutputFont: "[hash:8].[ext]",
-  silent: true,
-  css: {
-    fontFamily: process.argv[4],
-    fontWeight: process.argv[5],
-    fontStyle: "normal",
-    fontDisplay: "block",
-    localFamily: [],
-    commentBase: false,
-    commentNameTable: false,
-    commentUnicodes: false,
-    compress: false,
-  },
-});
-process.exit(0);
-""".lstrip()
-    )
-    env = os.environ.copy()
-    env["NODE_PATH"] = str(SPLITTER / "node_modules")
-    subprocess.check_call(
-        ["node", str(script), str(src), str(out_dir), family, weight],
-        cwd=SPLITTER,
-        env=env,
-    )
-
-
-def faces_from_split(css_path: Path, prefix: str) -> list[str]:
-    css = css_path.read_text()
-    faces = []
-    for block in re.findall(r"@font-face\s*\{(.*?)\}", css, flags=re.S):
-        src = re.search(r'url\("\./([^"]+\.woff2)"\)', block)
-        urange = re.search(r"unicode-range:\s*([^;]+);", block)
-        weight = re.search(r"font-weight:\s*([^;]+);", block)
-        family = re.search(r'font-family:\s*"([^"]+)"', block)
-        if not (src and urange and weight and family):
-            raise SystemExit(f"unparsed face in {css_path}")
-        data = (css_path.parent / src.group(1)).read_bytes()
-        filename = write_font(data, prefix)
-        faces.append(
-            emit_face(
-                family.group(1),
-                weight.group(1).strip(),
-                filename,
-                urange.group(1).strip(),
-            )
-        )
-    if not faces:
-        raise SystemExit(f"no faces in {css_path}")
-    return faces
-
-
 def fetch_sources() -> None:
     download(
         f"https://github.com/subframe7536/maple-font/releases/download/{MAPLE_TAG}/MapleMono-NF-CN.zip",
@@ -333,7 +220,6 @@ def shared_icon_codepoints(regular: Path, bold: Path) -> set[int]:
 
 
 def build_maple() -> tuple[list[str], list[str], list[str], list[str]]:
-    ensure_splitter()
     preloads: list[str] = []
     static_faces: list[str] = []
     symbol_faces: list[str] = []
@@ -359,10 +245,6 @@ def build_maple() -> tuple[list[str], list[str], list[str], list[str]]:
             emit_face("WebMux UI Icons", weight, filename, icon_range)
         )
     print("shared icons", len(shared_icons))
-    excluded: list[tuple[int, int]] = []
-    for _name, unicodes, _preload in MAPLE_SLICES:
-        start, end = unicodes.removeprefix("U+").split("-")
-        excluded.append((int(start, 16), int(end, 16)))
     for src_name, weight, prefix in (
         ("MapleMono-NF-CN-Regular.ttf", "100 500", "maple-400"),
         ("MapleMono-NF-CN-Bold.ttf", "600 900", "maple-700"),
@@ -383,11 +265,6 @@ def build_maple() -> tuple[list[str], list[str], list[str], list[str]]:
             )
             if preload:
                 preloads.append(filename)
-        rest = CACHE / "built" / f"{prefix}-rest.ttf"
-        subset_remainder(src, excluded, shared_icons, rest)
-        split_dir = CACHE / "built" / f"{prefix}-split"
-        split_cjk(rest, split_dir, "Maple Mono NF CN", weight)
-        symbol_faces.extend(faces_from_split(split_dir / "result.css", prefix))
     return static_faces, symbol_faces, ui_symbol_faces, preloads
 
 
@@ -396,19 +273,6 @@ def write_licenses() -> None:
     licenses.mkdir(parents=True)
     shutil.copy(CACHE / "OFL-Inter.txt", licenses / "OFL-Inter.txt")
     shutil.copy(CACHE / "maple" / "LICENSE.txt", licenses / "OFL-MapleMono.txt")
-    (licenses / "NOTICE.txt").write_text(
-        """WebMux self-hosted fonts
-
-Inter (Latin UI) — SIL Open Font License 1.1. See OFL-Inter.txt.
-Maple Mono NF CN v7.9 (terminal, code, Nerd Font icons and Simplified Chinese) —
-SIL Open Font License 1.1. See OFL-MapleMono.txt. Ligature features are removed
-so xterm cell widths stay stable; UI CJK text uses system sans-serif fonts.
-
-HarmonyOS Sans SC is not included. Its license forbids modifications, which
-rules out the unicode-range slices this app serves, and it does not allow
-redistributing the font files on their own.
-"""
-    )
 
 
 def write_preloads(filenames: list[str]) -> None:
@@ -439,15 +303,15 @@ def write_preloads(filenames: list[str]) -> None:
 
 def main() -> None:
     fetch_sources()
-    if PUBLIC.exists():
-        shutil.rmtree(PUBLIC)
-    PUBLIC.mkdir(parents=True)
+    for old_font in PUBLIC.glob("*.woff2"):
+        old_font.unlink()
+    PUBLIC.mkdir(parents=True, exist_ok=True)
     inter, inter_preload = build_inter()
     maple_static, maple_symbols, ui_symbols, maple_preloads = build_maple()
     write_licenses()
     header = (
         "/* Generated by web/scripts/build-fonts.py. Latin slices are preloaded;\n"
-        "   CJK and Nerd Font slices load through unicode-range; UI CJK uses system fonts. */\n"
+        "   Nerd Font slices load through unicode-range; CJK uses system fonts. */\n"
     )
     CSS_OUT.write_text(header + "\n".join(inter + maple_static + ui_symbols))
     TERMINAL_CSS.write_text(header + "\n".join(maple_symbols))
