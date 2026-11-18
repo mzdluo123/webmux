@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/rainchan/webmux/internal/session"
 )
@@ -213,6 +214,22 @@ func smartCheckoutBlockers(
 	stashableCount := stagedCount + unstagedCount
 	if includeUntracked {
 		stashableCount += untrackedCount
+		var nestedRepos []string
+		for _, e := range overview.Unstaged {
+			if e.Identity.TargetMode == "160000" && e.Identity.BaseMode != "160000" {
+				nestedRepos = append(nestedRepos, e.Path)
+			}
+		}
+		if len(nestedRepos) > 0 {
+			slices.Sort(nestedRepos)
+			out = append(out, Issue{
+				Code: "untracked_nested_repo",
+				Message: fmt.Sprintf(
+					"存在未跟踪嵌套 Git 仓库（%s），git stash --include-untracked 会跳过嵌套仓库；请先关闭携带未跟踪文件、添加为子模块或移除嵌套 .git 目录",
+					strings.Join(nestedRepos, ", "),
+				),
+			})
+		}
 	}
 	if stashableCount == 0 {
 		out = append(out, Issue{Code: "clean", Message: "当前没有需要打包携带的未提交修改，可直接执行普通分支切换"})

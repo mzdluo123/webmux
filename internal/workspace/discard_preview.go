@@ -197,9 +197,27 @@ func (s *Service) populateFileDiscardPreview(
 			return problemf(ErrStale, "文件 %s 当前与索引一致，无需丢弃修改", cleanPath)
 		}
 		if id.BaseMode == "160000" || id.TargetMode == "160000" {
+			msg := fmt.Sprintf("路径 %s 为子模块或嵌套 Git 仓库，不支持通过丢弃修改处理", cleanPath)
+			if id.BaseMode != "160000" && id.TargetMode == "160000" {
+				msg = fmt.Sprintf("路径 %s 为未跟踪嵌套 Git 仓库，请添加为子模块或移除嵌套 .git 目录", cleanPath)
+			}
 			state.blockers = append(state.blockers, Issue{
 				Code:    "unsupported_submodule",
-				Message: fmt.Sprintf("路径 %s 为子模块或嵌套 Git 仓库，不支持通过丢弃修改处理", cleanPath),
+				Message: msg,
+			})
+			continue
+		}
+		if diff.replacedByDir {
+			state.blockers = append(state.blockers, Issue{
+				Code:    "directory_collision",
+				Message: fmt.Sprintf("路径 %s 在工作区已被同名目录占据，请先移走或处理目录内文件", cleanPath),
+			})
+			continue
+		}
+		if diff.worktreeSize > maxWorkspaceGitOutput {
+			state.blockers = append(state.blockers, Issue{
+				Code:    "file_too_large",
+				Message: fmt.Sprintf("文件 %s 超过 32 MiB 恢复快照上限，请在终端执行 git restore 或手动清理", cleanPath),
 			})
 			continue
 		}

@@ -56,7 +56,7 @@ func reviewSlotKey(area, path string) string {
 
 func (s *Service) collectUncommittedReviewFiles(ctx context.Context, loc WorktreeLocation) ([]ReviewFileState, error) {
 	headOID, _ := s.resolveCommitReadOnly(ctx, loc.Path, "HEAD")
-	data, err := ReadGit(ctx, loc.Path, maxWorkspaceGitOutput, "status", "--porcelain=v2", "-z", "--untracked-files=normal")
+	data, err := ReadGit(ctx, loc.Path, maxWorkspaceGitOutput, "status", "--porcelain=v2", "-z", "--untracked-files=all")
 	if err != nil {
 		return nil, err
 	}
@@ -76,16 +76,19 @@ func (s *Service) collectUncommittedReviewFiles(ctx context.Context, loc Worktre
 			if len(fields) < 11 {
 				continue
 			}
-			relPath := fields[10]
-			wtMode, wtSum, _, _ := s.readWorktreeFile(ctx, loc.Path, relPath, "")
+			relPath := strings.TrimSuffix(fields[10], "/")
+			if relPath == "" {
+				continue
+			}
+			wtScan, _ := s.scanWorktreeFile(ctx, loc.Path, relPath, "conflict")
 			files = append(files, ReviewFileState{
 				Scope:          ReviewScopeUncommitted,
 				Area:           ReviewAreaUnstaged,
 				Path:           relPath,
 				Status:         "U",
 				BaseIdentity:   "conflicted",
-				TargetMode:     normalizeGitMode(wtMode),
-				TargetIdentity: wtSum,
+				TargetMode:     normalizeGitMode(wtScan.mode),
+				TargetIdentity: wtScan.sum,
 			})
 		case '1', '2':
 			limit := 9
@@ -97,11 +100,14 @@ func (s *Service) collectUncommittedReviewFiles(ctx context.Context, loc Worktre
 				continue
 			}
 			xy := fields[1]
-			relPath := fields[limit-1]
+			relPath := strings.TrimSuffix(fields[limit-1], "/")
 			oldPath := ""
 			if rec[0] == '2' && i+1 < len(records) {
 				i++
-				oldPath = string(records[i])
+				oldPath = strings.TrimSuffix(string(records[i]), "/")
+			}
+			if relPath == "" {
+				continue
 			}
 			idxEntry, idxErr := s.readIndexEntry(ctx, loc.Path, relPath)
 			if idxErr != nil {
@@ -129,7 +135,7 @@ func (s *Service) collectUncommittedReviewFiles(ctx context.Context, loc Worktre
 				})
 			}
 			if len(xy) == 2 && xy[1] != '.' {
-				wtMode, wtSum, _, wtErr := s.readWorktreeFile(ctx, loc.Path, relPath, idxEntry.mode)
+				wtScan, wtErr := s.scanWorktreeFile(ctx, loc.Path, relPath, idxEntry.mode)
 				if wtErr != nil {
 					return nil, wtErr
 				}
@@ -140,13 +146,16 @@ func (s *Service) collectUncommittedReviewFiles(ctx context.Context, loc Worktre
 					Status:         string(xy[1]),
 					BaseMode:       normalizeGitMode(idxEntry.mode),
 					BaseIdentity:   normalizeGitOID(idxEntry.oid),
-					TargetMode:     normalizeGitMode(wtMode),
-					TargetIdentity: wtSum,
+					TargetMode:     normalizeGitMode(wtScan.mode),
+					TargetIdentity: wtScan.sum,
 				})
 			}
 		case '?':
-			relPath := rec[2:]
-			wtMode, wtSum, _, wtErr := s.readWorktreeFile(ctx, loc.Path, relPath, "")
+			relPath := strings.TrimSuffix(rec[2:], "/")
+			if relPath == "" {
+				continue
+			}
+			wtScan, wtErr := s.scanWorktreeFile(ctx, loc.Path, relPath, "")
 			if wtErr != nil {
 				return nil, wtErr
 			}
@@ -155,8 +164,8 @@ func (s *Service) collectUncommittedReviewFiles(ctx context.Context, loc Worktre
 				Area:           ReviewAreaUnstaged,
 				Path:           relPath,
 				Status:         "?",
-				TargetMode:     normalizeGitMode(wtMode),
-				TargetIdentity: wtSum,
+				TargetMode:     normalizeGitMode(wtScan.mode),
+				TargetIdentity: wtScan.sum,
 			})
 		}
 	}
@@ -181,12 +190,13 @@ func (s *Service) collectTaskReviewFiles(ctx context.Context, repositoryID, work
 	}
 
 	type rawTaskItem struct {
-		oldPath string
-		newPath string
-		oldMode string
-		newMode string
-		oldOID  string
-		status  string
+		oldPath   string
+		newPath   string
+		oldMode   string
+		newMode   string
+		oldOID    string
+		status    string
+		untracked bool
 	}
 	var raw []rawTaskItem
 	deletedIdxByPath := make(map[string]int)
@@ -208,10 +218,11 @@ func (s *Service) collectTaskReviewFiles(ctx context.Context, repositoryID, work
 			}
 			phase = 1
 		case 1:
-			if record == "" {
+			cleanRec := strings.TrimSuffix(record, "/")
+			if cleanRec == "" {
 				return problemf(ErrInternal, "无效 Git 任务差异路径")
 			}
-			cur.oldPath, cur.newPath = record, record
+			cur.oldPath, cur.newPath = cleanRec, cleanRec
 			if strings.HasPrefix(cur.status, "R") || strings.HasPrefix(cur.status, "C") {
 				phase = 2
 			} else {
@@ -222,10 +233,11 @@ func (s *Service) collectTaskReviewFiles(ctx context.Context, repositoryID, work
 				raw = append(raw, cur)
 			}
 		case 2:
-			if record == "" {
+			cleanRec := strings.TrimSuffix(record, "/")
+			if cleanRec == "" {
 				return problemf(ErrInternal, "无效 Git 任务重命名路径")
 			}
-			cur.newPath = record
+			cur.newPath = cleanRec
 			phase = 0
 			raw = append(raw, cur)
 		}
@@ -237,42 +249,47 @@ func (s *Service) collectTaskReviewFiles(ctx context.Context, repositoryID, work
 
 	dropIndices := make(map[int]bool)
 	err = ReadGitRecords(ctx, loc.Path, func(untrackedPath string) error {
+		untrackedPath = strings.TrimSuffix(untrackedPath, "/")
 		if untrackedPath == "" {
 			return nil
 		}
 		if idx, wasDeleted := deletedIdxByPath[untrackedPath]; wasDeleted {
 			prev := raw[idx]
-			wtMode, _, wtRaw, wtErr := s.readWorktreeFile(ctx, loc.Path, untrackedPath, prev.oldMode)
+			wtScan, wtErr := s.scanWorktreeFile(ctx, loc.Path, untrackedPath, prev.oldMode)
 			if wtErr != nil {
 				return wtErr
 			}
-			if isRegularGitMode(wtMode) && prev.oldMode == wtMode {
-				out, _, hErr := s.gitInputOutput(ctx, loc.Path, bytes.NewReader(wtRaw), []string{"GIT_OPTIONAL_LOCKS=0"}, "hash-object", "--no-filters", "--stdin")
-				if hErr == nil && outputLine(out) == prev.oldOID {
+			if wtScan.mode == "" {
+				return nil
+			}
+			if isRegularGitMode(wtScan.mode) && prev.oldMode == wtScan.mode {
+				blobOID, hErr := s.hashWorktreeRegularReadOnly(ctx, loc.Path, untrackedPath, wtScan)
+				if hErr == nil && blobOID == prev.oldOID {
 					dropIndices[idx] = true
 					return nil
 				}
 			}
 			status := "M"
-			if (prev.oldMode == "120000") != (wtMode == "120000") {
+			if isRegularGitMode(prev.oldMode) != isRegularGitMode(wtScan.mode) || (!isRegularGitMode(prev.oldMode) && prev.oldMode != wtScan.mode) {
 				status = "T"
 			}
 			raw[idx] = rawTaskItem{
 				oldPath: prev.oldPath,
 				newPath: untrackedPath,
 				oldMode: prev.oldMode,
-				newMode: wtMode,
+				newMode: wtScan.mode,
 				oldOID:  prev.oldOID,
 				status:  status,
 			}
 			return nil
 		}
 		raw = append(raw, rawTaskItem{
-			oldPath: untrackedPath,
-			newPath: untrackedPath,
-			oldMode: "000000",
-			newMode: "100644",
-			status:  "A",
+			oldPath:   untrackedPath,
+			newPath:   untrackedPath,
+			oldMode:   "000000",
+			newMode:   "100644",
+			status:    "A",
+			untracked: true,
 		})
 		return nil
 	}, "ls-files", "--others", "--exclude-standard", "-z")
@@ -299,12 +316,30 @@ func (s *Service) collectTaskReviewFiles(ctx context.Context, repositoryID, work
 		if item.oldPath != item.newPath {
 			oldPath = item.oldPath
 		}
-		var wtMode, wtSum string
-		if item.newMode != "000000" {
-			var wtErr error
-			wtMode, wtSum, _, wtErr = s.readWorktreeFile(ctx, loc.Path, item.newPath, item.newMode)
-			if wtErr != nil {
-				return nil, "", "", wtErr
+		indexMode := item.newMode
+		if item.untracked {
+			indexMode = ""
+		} else if item.newMode == "000000" {
+			indexMode = item.oldMode
+		}
+		wtScan, wtErr := s.scanWorktreeFile(ctx, loc.Path, item.newPath, indexMode)
+		if wtErr != nil {
+			return nil, "", "", wtErr
+		}
+		status := item.status
+		if item.newMode == "000000" {
+			if wtScan.untrackedRepo {
+				ignored, igErr := isGitPathIgnored(ctx, loc.Path, item.newPath)
+				if igErr != nil {
+					return nil, "", "", igErr
+				}
+				if !ignored {
+					status = "T"
+				} else {
+					wtScan = worktreeFileScan{}
+				}
+			} else {
+				wtScan = worktreeFileScan{}
 			}
 		}
 		files = append(files, ReviewFileState{
@@ -312,12 +347,21 @@ func (s *Service) collectTaskReviewFiles(ctx context.Context, repositoryID, work
 			Area:           ReviewAreaTask,
 			Path:           item.newPath,
 			OldPath:        oldPath,
-			Status:         item.status,
+			Status:         status,
 			BaseMode:       normalizeGitMode(item.oldMode),
 			BaseIdentity:   normalizeGitOID(item.oldOID),
-			TargetMode:     normalizeGitMode(wtMode),
-			TargetIdentity: wtSum,
+			TargetMode:     normalizeGitMode(wtScan.mode),
+			TargetIdentity: wtScan.sum,
 		})
 	}
 	return files, TaskScopeReady, "", nil
+}
+
+func isGitPathIgnored(ctx context.Context, rootPath, relPath string) (bool, error) {
+	ignored := false
+	err := ReadGitRecordsInput(ctx, rootPath, strings.NewReader(relPath+"\x00"), func(string) error {
+		ignored = true
+		return nil
+	}, "check-ignore", "-z", "--stdin")
+	return ignored, err
 }

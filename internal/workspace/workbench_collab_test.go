@@ -282,3 +282,65 @@ func TestReviewsContentInvalidationAndStaleRejection(t *testing.T) {
 		t.Fatalf("stale mark should be rejected without marking modified file: %+v", staleAttempt)
 	}
 }
+
+func TestTaskReviewsCachedRemoveWithGitignoredWorktreeFile(t *testing.T) {
+	root, svc, repoID, wtID := initCollabRepo(t)
+	ctx := context.Background()
+
+	for _, name := range []string{"ignored-repo", "unignored-repo"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(name+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, args := range [][]string{{"add", "."}, {"commit", "-m", "add repo replacement targets"}} {
+		if out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+
+	if _, err := svc.PutTaskBaseline(ctx, repoID, wtID, PutTaskBaselineRequest{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Untrack b.txt and both replacement paths while keeping b.txt on disk as an ignored artifact.
+	if out, err := exec.Command("git", "-C", root, "rm", "--cached", "b.txt", "ignored-repo", "unignored-repo").CombinedOutput(); err != nil {
+		t.Fatalf("git rm --cached: %v %s", err, out)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("b.txt\nignored-repo/\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Replace both untracked paths on disk with empty nested Git repositories.
+	for _, name := range []string{"ignored-repo", "unignored-repo"} {
+		target := filepath.Join(root, name)
+		if err := os.Remove(target); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(target, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if out, err := exec.Command("git", "-C", target, "init", "-b", "main").CombinedOutput(); err != nil {
+			t.Fatalf("nested git init %s: %v %s", name, err, out)
+		}
+	}
+
+	taskRev, err := svc.GetReviews(ctx, repoID, wtID, ReviewScopeTask)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bRev := findReviewFile(taskRev.Files, "b.txt")
+	if bRev == nil || bRev.Status != "D" || bRev.TargetMode != "" || bRev.TargetIdentity != "" {
+		t.Fatalf("gitignored b.txt after git rm --cached = %+v, want Status=D with empty target", bRev)
+	}
+
+	ignoredRepoRev := findReviewFile(taskRev.Files, "ignored-repo")
+	if ignoredRepoRev == nil || ignoredRepoRev.Status != "D" || ignoredRepoRev.TargetMode != "" || ignoredRepoRev.TargetIdentity != "" {
+		t.Fatalf("gitignored nested repo after git rm --cached = %+v, want Status=D with empty target", ignoredRepoRev)
+	}
+
+	unignoredRepoRev := findReviewFile(taskRev.Files, "unignored-repo")
+	if unignoredRepoRev == nil || unignoredRepoRev.Status != "T" || unignoredRepoRev.TargetMode != "160000" || unignoredRepoRev.TargetIdentity == "" {
+		t.Fatalf("unignored nested repo after git rm --cached = %+v, want Status=T with 160000 target", unignoredRepoRev)
+	}
+}

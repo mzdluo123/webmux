@@ -64,8 +64,13 @@ type StagingFileDiff struct {
 	DegradeReason      string            `json:"degradeReason,omitempty"`
 	Hunks              []StagingHunk     `json:"hunks"`
 	baseBytes          []byte
+	baseBytesLoaded    bool
 	targetBytes        []byte
 	worktreeRaw        []byte
+	worktreeRawLoaded  bool
+	worktreeSize       int64
+	untrackedRepo      bool
+	replacedByDir      bool
 }
 
 // StageRequest requests whole-file (empty HunkIDs and LineSelections),
@@ -136,6 +141,9 @@ func (s *Service) gitInputOutput(ctx context.Context, cwd string, stdin io.Reade
 		}
 		if isGitLockBusy(run.stderr) {
 			return nil, run.stderr, problemf(ErrLocked, "仓库正被其他 Git 进程占用，请稍后重试")
+		}
+		if strings.Contains(run.stderr, "appears as both a file and as a directory") {
+			return nil, run.stderr, problemf(ErrConflict, "Git 索引中存在同名文件与目录路径冲突，请先取消暂存或暂存关联路径")
 		}
 		return nil, run.stderr, problemf(ErrInternal, "Git %s 失败: %s (%v)", args[0], strings.TrimSpace(run.stderr), err)
 	}
@@ -233,7 +241,7 @@ func (s *Service) inspectStagingLocked(ctx context.Context, loc WorktreeLocation
 		Unstaged:   []StagingEntry{},
 		Conflicted: []StagingEntry{},
 	}
-	data, err := ReadGit(ctx, loc.Path, maxWorkspaceGitOutput, "status", "--porcelain=v2", "-z", "--untracked-files=normal")
+	data, err := ReadGit(ctx, loc.Path, maxWorkspaceGitOutput, "status", "--porcelain=v2", "-z", "--untracked-files=all")
 	if err != nil {
 		return StagingOverview{}, err
 	}
@@ -252,7 +260,10 @@ func (s *Service) inspectStagingLocked(ctx context.Context, loc WorktreeLocation
 			if len(fields) < 11 {
 				continue
 			}
-			relPath := fields[10]
+			relPath := strings.TrimSuffix(fields[10], "/")
+			if relPath == "" {
+				continue
+			}
 			out.Conflicted = append(out.Conflicted, StagingEntry{
 				Path:               relPath,
 				Area:               StageAreaConflicted,
@@ -271,52 +282,61 @@ func (s *Service) inspectStagingLocked(ctx context.Context, loc WorktreeLocation
 				continue
 			}
 			xy := fields[1]
-			relPath := fields[limit-1]
+			relPath := strings.TrimSuffix(fields[limit-1], "/")
 			oldPath := ""
 			if rec[0] == '2' && i+1 < len(records) {
 				i++
-				oldPath = string(records[i])
+				oldPath = strings.TrimSuffix(string(records[i]), "/")
+			}
+			if relPath == "" {
+				continue
 			}
 			if len(xy) == 2 && xy[0] != '.' {
 				diff, dErr := s.inspectFileLocked(ctx, loc, headOID, StageAreaStaged, relPath, oldPath, string(xy[0]))
-				if dErr == nil {
-					out.Staged = append(out.Staged, StagingEntry{
-						Path:               relPath,
-						OldPath:            oldPath,
-						Area:               StageAreaStaged,
-						Status:             string(xy[0]),
-						HunkStageAvailable: diff.HunkStageAvailable,
-						DegradeReason:      diff.DegradeReason,
-						Identity:           diff.Identity,
-					})
+				if dErr != nil {
+					return StagingOverview{}, dErr
 				}
-			}
-			if len(xy) == 2 && xy[1] != '.' {
-				diff, dErr := s.inspectFileLocked(ctx, loc, headOID, StageAreaUnstaged, relPath, "", string(xy[1]))
-				if dErr == nil {
-					out.Unstaged = append(out.Unstaged, StagingEntry{
-						Path:               relPath,
-						Area:               StageAreaUnstaged,
-						Status:             string(xy[1]),
-						HunkStageAvailable: diff.HunkStageAvailable,
-						DegradeReason:      diff.DegradeReason,
-						Identity:           diff.Identity,
-					})
-				}
-			}
-		case '?':
-			relPath := rec[2:]
-			diff, dErr := s.inspectFileLocked(ctx, loc, headOID, StageAreaUnstaged, relPath, "", "?")
-			if dErr == nil {
-				out.Unstaged = append(out.Unstaged, StagingEntry{
+				out.Staged = append(out.Staged, StagingEntry{
 					Path:               relPath,
-					Area:               StageAreaUnstaged,
-					Status:             "?",
+					OldPath:            oldPath,
+					Area:               StageAreaStaged,
+					Status:             string(xy[0]),
 					HunkStageAvailable: diff.HunkStageAvailable,
 					DegradeReason:      diff.DegradeReason,
 					Identity:           diff.Identity,
 				})
 			}
+			if len(xy) == 2 && xy[1] != '.' {
+				diff, dErr := s.inspectFileLocked(ctx, loc, headOID, StageAreaUnstaged, relPath, "", string(xy[1]))
+				if dErr != nil {
+					return StagingOverview{}, dErr
+				}
+				out.Unstaged = append(out.Unstaged, StagingEntry{
+					Path:               relPath,
+					Area:               StageAreaUnstaged,
+					Status:             string(xy[1]),
+					HunkStageAvailable: diff.HunkStageAvailable,
+					DegradeReason:      diff.DegradeReason,
+					Identity:           diff.Identity,
+				})
+			}
+		case '?':
+			relPath := strings.TrimSuffix(rec[2:], "/")
+			if relPath == "" {
+				continue
+			}
+			diff, dErr := s.inspectFileLocked(ctx, loc, headOID, StageAreaUnstaged, relPath, "", "?")
+			if dErr != nil {
+				return StagingOverview{}, dErr
+			}
+			out.Unstaged = append(out.Unstaged, StagingEntry{
+				Path:               relPath,
+				Area:               StageAreaUnstaged,
+				Status:             "?",
+				HunkStageAvailable: diff.HunkStageAvailable,
+				DegradeReason:      diff.DegradeReason,
+				Identity:           diff.Identity,
+			})
 		}
 	}
 	return out, nil

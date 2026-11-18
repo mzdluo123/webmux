@@ -108,6 +108,9 @@ func (s *Service) stageWholeFileLocked(ctx context.Context, cwd, cleanPath strin
 		_, _, err := s.gitInputOutput(ctx, cwd, nil, nil, "update-index", "--force-remove", "--", cleanPath)
 		return err
 	case "160000":
+		if current.Identity.BaseMode != "160000" {
+			return problemf(ErrConflict, "路径 %s 为未跟踪嵌套 Git 仓库，请添加为子模块或移除嵌套 .git 目录", cleanPath)
+		}
 		if !isObjectID(current.Identity.TargetSHA256) {
 			return problemf(ErrConflict, "子模块 %s 当前 HEAD 无效，无法暂存", cleanPath)
 		}
@@ -122,7 +125,15 @@ func (s *Service) stageWholeFileLocked(ctx context.Context, cwd, cleanPath strin
 		_, _, err = s.gitInputOutput(ctx, cwd, nil, nil, "update-index", "--add", "--cacheinfo", "120000,"+blobOID+","+cleanPath)
 		return err
 	default:
-		blobOID, err := s.writeBlobWithPathFilter(ctx, cwd, cleanPath, current.worktreeRaw)
+		var (
+			blobOID string
+			err     error
+		)
+		if current.worktreeRawLoaded {
+			blobOID, err = s.writeBlobWithPathFilter(ctx, cwd, cleanPath, current.worktreeRaw)
+		} else {
+			blobOID, err = s.streamWorktreeBlobWrite(ctx, cwd, cleanPath, current.Identity.TargetSHA256, true)
+		}
 		if err != nil {
 			return err
 		}

@@ -59,10 +59,11 @@ func (s *Service) inspectConflictFileLocked(ctx context.Context, repositoryID, w
 		matched = &stages
 	}
 
-	wtMode, wtSum, wtRaw, wtErr := s.readWorktreeFile(ctx, loc.Path, cleanPath, matched.Stage2Mode)
+	wtScan, wtErr := s.scanWorktreeFile(ctx, loc.Path, cleanPath, matched.Stage2Mode)
 	if wtErr != nil {
 		return ConflictFileDetail{}, wtErr
 	}
+	wtMode, wtSum, wtRaw := wtScan.mode, wtScan.sum, wtScan.raw
 
 	leftStage, rightStage := 2, 3
 	if inProg.Kind == "rebase" {
