@@ -28,6 +28,7 @@ export type LaunchEntry =
       worktreeId: string;
       prompt?: string;
     }
+  | { kind: "repository"; repositoryId: string }
   | { kind: "new-worktree"; repositoryId: string; preset?: WorktreePreset }
   | { kind: "directory"; cwd: string; workspace: SessionInfo["workspace"] };
 
@@ -68,7 +69,7 @@ export function resolveLaunchScope(input: {
   const { entry } = input;
   if (entry?.kind === "worktree")
     return { repositoryId: entry.repositoryId, worktreeId: entry.worktreeId };
-  if (entry?.kind === "new-worktree")
+  if (entry?.kind === "new-worktree" || entry?.kind === "repository")
     return { repositoryId: entry.repositoryId };
   if (entry || !input.home) return undefined;
   const repository = input.repositories.find((r) => r.id === input.choice);
@@ -121,15 +122,17 @@ export function resolveInitialTarget(input: {
       repositoryId: entry.workspace?.repositoryId ?? "",
       worktreeId: "",
     };
-  if (entry)
+  if (entry && entry.kind !== "repository")
     return {
       kind: entry.kind,
       cwd: fallbackCwd,
       repositoryId: entry.repositoryId,
       worktreeId: entry.kind === "worktree" ? entry.worktreeId : "",
     };
+  const repositoryId =
+    entry?.repositoryId ?? scope?.repositoryId ?? input.selectedRepositoryId;
   const repository = input.repositories.find(
-    (repo) => repo.id === input.selectedRepositoryId,
+    (repo) => repo.id === repositoryId,
   );
   if (!repository)
     return {

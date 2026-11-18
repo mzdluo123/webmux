@@ -377,6 +377,12 @@
               scope("all");
               workbenchLayout.attentionOnly = true;
             }}
+            oncreate={(repositoryId) =>
+              shell.start(
+                repositoryId
+                  ? { kind: "repository", repositoryId }
+                  : { kind: "directory", cwd: "", workspace: null },
+              )}
             onopen={openSession}
             onrename={shell.rename}
             onclose={shell.close}

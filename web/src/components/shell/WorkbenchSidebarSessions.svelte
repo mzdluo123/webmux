@@ -1,6 +1,7 @@
 <script lang="ts">
   import IconChevronRight from "~icons/tabler/chevron-right";
   import IconLayoutList from "~icons/tabler/layout-list";
+  import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { ListButton } from "$lib/components/ui/list-button";
@@ -25,6 +26,7 @@
     attentionCurrent,
     onall,
     onattention,
+    oncreate,
     onopen,
     onrename,
     onclose,
@@ -38,6 +40,7 @@
     attentionCurrent: boolean;
     onall: () => void;
     onattention: () => void;
+    oncreate: (repositoryId?: string) => void;
     onopen: (session: SessionInfo) => void;
     onrename: (session: SessionInfo) => void;
     onclose: (session: SessionInfo) => void;
@@ -64,9 +67,9 @@
         byRepository.get(session.workspace?.repositoryId ?? "") ?? direct;
       group.sessions.push(session);
     }
-    return [...byRepository.values(), direct].filter(
-      (group) => group.sessions.length,
-    );
+    return direct.sessions.length
+      ? [...byRepository.values(), direct]
+      : [...byRepository.values()];
   });
 </script>
 
@@ -93,37 +96,51 @@
     </Button>
   {/if}
   {#each groups as group (group.id)}
-    {@const open = workbenchLayout.isProjectOpen(group.id)}
+    {@const hasSessions = group.sessions.length > 0}
+    {@const open = hasSessions && workbenchLayout.isProjectOpen(group.id)}
+    {@const repositoryId = group.id === "direct" ? undefined : group.id}
+    {@const createLabel = repositoryId
+      ? m.s8_sidebar_create_session({ project: group.name })
+      : m.s8_sidebar_create_direct_session()}
     <section aria-label={group.name}>
       <Collapsible.Root
         {open}
         onOpenChange={(next) => workbenchLayout.setProjectOpen(group.id, next)}
       >
-        <h2>
-          <Collapsible.Trigger>
-            {#snippet child({ props })}
-              <ListButton {...props} variant="section-header">
-                <SidebarProjectAvatar
-                  name={group.name}
-                  repositoryId={group.id === "direct" ? undefined : group.id}
-                />
-                <span class="min-w-0 flex-1 truncate" title={group.name}
-                  >{group.name}</span
-                >
-                <span class="font-mono font-normal tabular-nums"
-                  >{group.sessions.length}</span
-                >
-                <IconChevronRight
-                  class={[
-                    "size-3.5 shrink-0 motion-safe:transition-transform",
-                    open && "rotate-90",
-                  ]}
-                  aria-hidden="true"
-                />
-              </ListButton>
-            {/snippet}
-          </Collapsible.Trigger>
-        </h2>
+        <div class="flex items-center gap-1">
+          <h2 class="min-w-0 flex-1">
+            <Collapsible.Trigger disabled={!hasSessions}>
+              {#snippet child({ props })}
+                <ListButton {...props} variant="section-header">
+                  <SidebarProjectAvatar name={group.name} {repositoryId} />
+                  <span class="min-w-0 flex-1 truncate" title={group.name}
+                    >{group.name}</span
+                  >
+                  <span class="font-mono font-normal tabular-nums"
+                    >{group.sessions.length}</span
+                  >
+                  <IconChevronRight
+                    class={[
+                      "size-3.5 shrink-0 motion-safe:transition-transform",
+                      open && "rotate-90",
+                      !hasSessions && "invisible",
+                    ]}
+                    aria-hidden="true"
+                  />
+                </ListButton>
+              {/snippet}
+            </Collapsible.Trigger>
+          </h2>
+          <Button
+            variant="quiet"
+            size="icon-touch-sm"
+            aria-label={createLabel}
+            title={createLabel}
+            onclick={() => oncreate(repositoryId)}
+          >
+            <IconPlus aria-hidden="true" />
+          </Button>
+        </div>
         <Collapsible.Content>
           <ul class="mt-1 space-y-1" aria-label={group.name}>
             {#each group.sessions as session (session.id)}
