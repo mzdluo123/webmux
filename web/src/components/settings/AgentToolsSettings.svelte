@@ -99,8 +99,9 @@
 
   async function loadReport(refresh = false) {
     const previous = report;
+    if (refresh && busy) return;
     if (refresh && previous) {
-      if (busy) return;
+      fetched = { ...active };
       rescanning = true;
     } else if (checking || rescanning) {
       return;
@@ -129,6 +130,7 @@
   async function checkUpdates() {
     if (busy) return;
     const previous = report;
+    fetched = { ...active };
     checking = true;
     overridden = true;
     checkError = "";
@@ -180,7 +182,7 @@
       ></Card.Description
     >
   </Card.Header>
-  <Card.Content class="space-y-4">
+  <Card.Content class="h-[min(25rem,60dvh)] space-y-4 overflow-y-auto">
     {#if viewState === "loading"}
       <div
         role="status"
@@ -236,19 +238,20 @@
           <Button
             variant="outline"
             size="icon-touch"
-            disabled={busy}
+            aria-disabled={busy}
             aria-label={m.agent_tools_rescan_aria()}
             title={m.agent_tools_rescan_aria()}
             onclick={() => void loadReport(true)}
           >
             <IconRefresh
-              class={rescanning ? "animate-spin" : ""}
+              class={rescanning ? "motion-safe:animate-spin" : ""}
               aria-hidden="true"
             />
           </Button>
           <Button
             variant="default"
-            disabled={busy || installedTools.length === 0}
+            disabled={installedTools.length === 0}
+            aria-disabled={busy || installedTools.length === 0}
             onclick={() => void checkUpdates()}
           >
             {checking

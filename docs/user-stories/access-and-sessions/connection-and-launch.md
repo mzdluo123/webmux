@@ -286,6 +286,7 @@
   - 单个上游失败只将该条标记为 `check_failed` 并保留其余结果；无公开稳定包源的自更新二进制（如 Antigravity CLI、Cursor CLI、Devin）明确返回 `source_unavailable`（“由工具自管理更新”），不猜测版本；
   - 已安装的混合模式 agent 或连接器版本号低于档案 `verifiedVersion` 时标记 `belowVerified` 兼容性提示；外部 ACP 连接器（`claude-agent-acp`、`codex-acp`）随主工具以内嵌子卡片或 CLI 缩进子行展示独立路径、版本、更新状态与安装/升级命令；
   - 设置页 `#agent-tools` 紧接在 `#launch-configs` 下方，默认展开已安装项，未安装工具默认收起在可展开折叠区；仅提供可复制的安装/升级命令与官方文档链接，绝不在服务端后台自动执行安装或升级；
+  - 首次扫描与报告共用可滚动区域；重扫或检查更新期间保留上次报告，加载和替换报告时，下方设置保持位置；
   - `webmux agents [--check] [--refresh] [--all] [--json]` 默认列出已安装工具与连接器（`--all` 包含未安装项），`--json` 输出带 `"v": 1` 的 `AgentToolsV1` 对象。
 
 依据：
