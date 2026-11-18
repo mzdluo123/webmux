@@ -548,7 +548,7 @@
   "s2_launch_cmd_placeholder": "claude --resume 或 bash -lc 'npm run dev'",
   "s2_launch_delete_desc": "将删除“{name}”，此操作不能撤销；已运行的会话不受影响。",
   "s2_launch_delete_title": "删除启动配置？",
-  "s2_launch_desc": "新建会话时选用的命令与环境变量。",
+  "s2_launch_desc": "管理启动命令、环境变量，以及本机 Agent 工具版本与更新。",
   "s2_launch_dialog_desc": "保存在服务端，所有设备的新建会话页都能选用。",
   "s2_launch_edit_title": "编辑启动配置",
   "s2_launch_empty_desc": "把常用命令、参数和环境变量存起来，在新建会话时一键选用。",
@@ -574,7 +574,7 @@
   "s2_launch_err_name_max": "名称最多 {max} 个字符",
   "s2_launch_err_preview_lines": "显示行数须为 {min}–{max} 的整数",
   "s2_launch_err_preview_skip": "跳过末尾行数须为 {min}–{max} 的整数",
-  "s2_launch_hint": "保存“名称 + 完整命令 + 环境变量”，在新建会话时选用；自定义启动配置保存在服务端，所有设备共享。也可以在新建会话时输入不保存的临时命令。",
+  "s2_launch_hint": "启动配置保存在服务端，所有设备共享。打开此页通过登录启动 Shell 扫描本机 PATH；点击“检查更新”向公开包源查询新版本。未安装的 Agent 在新建会话、新建聊天与交接中自动隐藏。",
   "s2_launch_icon": "图标",
   "s2_launch_icon_help": "自动匹配启动程序，也可指定图标。品牌图标来自 LobeHub。",
   "s2_launch_limit_hint": "最多 {limit} 条，请先删除一条",
@@ -4268,5 +4268,10 @@
   "worktree_upstream_latest": "使用上游最新",
   "worktree_upstream_keep": "保留本地",
   "worktree_upstream_preview": "上游预览 · {branch}。创建时再确认基线。",
-  "worktree_upstream_waiting": "等待选择工作树基线"
+  "worktree_upstream_waiting": "等待选择工作树基线",
+  "s2_launch_hidden_uninstalled": "未安装 · 已隐藏",
+  "s3_all_launch_configs_uninstalled": "已保存的 Agent 启动配置在本机尚未安装。",
+  "s3_go_settings_manage_launch": "前往设置查看安装命令或管理启动配置",
+  "s3_qs_all_hybrid_uninstalled": "已保存的混合模式 Agent 在本机尚未安装，安装后可从聊天启动。",
+  "s3_qs_view_launch_configs": "查看启动配置"
 }
