@@ -213,10 +213,13 @@
           class="grid min-w-0 grid-cols-1 wrap-anywhere"
           class:text-success={p2pState.mode === "p2p"}
         >
-          <!-- Reserve the space for the longest transport description at this width. -->
-          <span class="invisible col-start-1 row-start-1" aria-hidden="true"
-            >{relayTransport}</span
-          >
+          {#if relayAuth.authenticated}
+            <!-- Reserve space across optimized stream count updates on Relay sessions. -->
+            <span
+              class="invisible col-start-1 row-start-1 tabular-nums"
+              aria-hidden="true">{m.relay_mixed_streams({ count: "99" })}</span
+            >
+          {/if}
           <span class="col-start-1 row-start-1">
             {relayAuth.authenticated
               ? relayTransport

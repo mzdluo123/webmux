@@ -411,7 +411,7 @@ test("deferring an inbox alert lets it return without stopping the session", asy
   ).not.toBe("exited");
 });
 
-test("inbox keeps a stable entry and every landscape action reachable", async ({
+test("inbox has one conditional entry and keeps every landscape action reachable", async ({
   page,
   request,
   workDir,
@@ -429,11 +429,11 @@ test("inbox keeps a stable entry and every landscape action reachable", async ({
   await page.goto(`/s/${quietId}`);
   await expectConnected(page);
   await page.getByRole("button", { name: "展开侧栏", exact: true }).click();
+  const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
   const trigger = page.getByRole("button", { name: /^会话通知/ });
   const scope = page.getByRole("radiogroup", { name: "会话范围" });
-  await expect(trigger).toBeVisible();
+  await expect(trigger).toHaveCount(0);
   await expect(scope).toBeVisible();
-  const scopeTop = (await scope.boundingBox())!.y;
   const ids: string[] = [];
   for (let index = 0; index < 8; index++) {
     const created = await request.post("/api/sessions", {
@@ -451,8 +451,8 @@ test("inbox keeps a stable entry and every landscape action reachable", async ({
     });
     expect(raised.status()).toBe(200);
   }
+  await expect(trigger).toHaveCount(1);
   await expect(trigger).toHaveText(/8/);
-  expect((await scope.boundingBox())!.y).toBeCloseTo(scopeTop);
   await trigger.click();
   const inbox = page.getByRole("dialog", { name: "待我处理", exact: true });
   const lastAction = inbox.getByRole("button", {
@@ -475,11 +475,12 @@ test("inbox keeps a stable entry and every landscape action reachable", async ({
     const cleared = await request.delete(`/api/sessions/${id}/attention`);
     expect(cleared.status()).toBe(204);
   }
+  // Keep the open empty state usable, then remove the entry and hand focus to the sidebar.
   await expect(inbox.getByText("当前没有等待处理的会话。")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(inbox).toBeHidden();
-  await expect(trigger).toHaveText("会话通知");
-  await expect(trigger).toBeFocused();
+  await expect(trigger).toHaveCount(0);
+  await expect(sidebar.locator(":focus")).toHaveCount(1);
 });
 
 test("the pending sidebar keeps an open session menu during an attention update", async ({

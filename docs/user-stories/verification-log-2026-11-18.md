@@ -87,9 +87,10 @@
 
 ## 侧栏会话通知与待处理筛选（US-C06、US-C17）
 
-- 隔离 Chromium 复现首条急件下推桌面导航 40px、手机导航 51px，空收件箱关闭后焦点落在页面主体。保留入口与筛选器的计数位后，背景事件进出时三个视口的导航起点、阅读行和滚动值保持一致。
-- 聚焦的末项解除后回到「待处理」。按方向键可继续选择「全部」。收件箱清空时按 Esc 回到可见入口。
-- 使用隔离后端运行 `pnpm --dir web exec playwright test test/e2e/attention.spec.ts test/e2e/workbench-session-queue.spec.ts` 覆盖即时状态、末项焦点、侧栏菜单与 PTY 输入。已在 Linux Chromium 验证。
+- 侧栏「会话通知」仅在存在待处理、已暂缓事项或收件箱已打开时挂载；处理完最后一项后按 Esc 关闭空收件箱，焦点移回侧栏导航。「全部」与「待处理」保持 1:1 等宽排布，无待处理项时省略空计数占位并居中显示标签，有匹配时以等宽数字显示数量。
+- 聚焦的末项解除后回到「待处理」，按方向键可继续选择「全部」。
+- 运行 `pnpm --dir web exec vp test run --config vitest.browser.config.ts test/browser/AppShell.test.ts` 验证条件入口、空收件箱焦点移交、筛选栏等宽排布与主机状态单行传输路径。
+- 隔离后端运行 `pnpm --dir web exec playwright test test/e2e/attention.spec.ts test/e2e/workbench-session-queue.spec.ts` 覆盖末项焦点与侧栏菜单。已在 Linux Chromium 验证。
 
 ## 异步会话切换结果（US-C18）
 
@@ -98,7 +99,7 @@
 
 ## 侧栏主机状态（US-A04）
 
-- 隔离 Chromium 以本地夹具切换长短主机名，并控制健康探针、P2P RTT 和 Relay 路径。桌面中转说明曾令详情增加 32px。修复后详情高度 199.5px，测量中、9→2999ms、Relay 和重连时延时行位置保持一致。
+- 隔离 Chromium 以本地夹具切换长短主机名，并控制健康探针、P2P RTT 和 Relay 路径。常规连接仅渲染单行传输路径，Relay 已认证会话预留混合传输行高，测量中、9→2999ms 和重连时延时行位置保持一致。
 - 320px 视口在 200% 字号下可打开并滚动详情，重连状态即时更新。P2P 和 Relay 数据由夹具注入了客户端状态。
 - 连接播报使用简短状态文本。修正重复重连文案后，隔离后端的 `workspace-discovery.spec.ts -g 'a disconnected session list reconnects'` 在桌面与手机 Chromium 均通过。
 - `workspace-ui.spec.ts` 在主机状态按钮中核对长短主机名和首个操作的几何，并单独核对状态区域。与 `workspace-discovery.spec.ts` 合计 16 通过，2 个桌面专属用例在手机项目跳过。
