@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/rainchan/webmux/internal/builtin"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 )
@@ -58,13 +59,22 @@ func TestLoadConfigCreatesDefaultConfig(t *testing.T) {
 	if err := loaded.Validate(); err != nil {
 		t.Fatalf("generated config does not validate: %v", err)
 	}
+	catalog := builtin.Catalog()
+	if len(loaded.Features.Enabled) != len(catalog) {
+		t.Fatalf("generated features.enabled = %v, want all %d built-in features", loaded.Features.Enabled, len(catalog))
+	}
+	for _, def := range catalog {
+		if !loaded.Features.Has(def.ID) {
+			t.Fatalf("generated config did not enable built-in feature %q: %v", def.ID, loaded.Features.Enabled)
+		}
+	}
 
-	c.TunnelSettings.Close()
+	c.closeSettings()
 	again, err := loadConfig(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(again.TunnelSettings.Close)
+	t.Cleanup(again.closeSettings)
 	second, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +94,7 @@ func TestDefaultConfigWithFlagsKeepsOverridesPerProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(c.TunnelSettings.Close)
+	t.Cleanup(c.closeSettings)
 	if !c.ConfigCreated || c.Listen != "127.0.0.1:9000" || c.Token != "flag-token" || c.TokenGenerated {
 		t.Fatalf("flags were not applied: listen=%q token=%q created=%v", c.Listen, c.Token, c.ConfigCreated)
 	}
@@ -130,7 +140,7 @@ func TestExplicitConfigLeavesDefaultMissing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(c.TunnelSettings.Close)
+	t.Cleanup(c.closeSettings)
 	if c.ConfigCreated || !c.ConfigFound || c.ConfigPath != custom || c.Token != "custom-token" {
 		t.Fatalf("explicit config: created=%v found=%v path=%q token=%q", c.ConfigCreated, c.ConfigFound, c.ConfigPath, c.Token)
 	}
@@ -160,7 +170,7 @@ func TestExistingDefaultConfigIsNotRewritten(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(c.TunnelSettings.Close)
+	t.Cleanup(c.closeSettings)
 	if c.ConfigCreated || !c.ConfigFound || c.Listen != "127.0.0.1:9100" || c.Token != "stable-token" {
 		t.Fatalf("existing config: created=%v listen=%q token=%q", c.ConfigCreated, c.Listen, c.Token)
 	}

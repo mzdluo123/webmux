@@ -26,7 +26,7 @@
 ### Requirement: 既有安装与新配置默认规则
 
 未声明启用集的既有配置 SHALL 保持拆分前的内置功能组合，各功能的原有业务开关与安全前置条件 SHALL 继续生效。
-新生成的配置 SHALL 显式启用`launch`、`workspace`、`code`、`files`、`chat`、`mcp`，并说明如何选择功能及依赖。
+新生成的配置 SHALL 显式启用全部 13 项内置功能，并说明如何选择功能及依赖。
 功能总开关 SHALL 优先于其 TOML、CLI 和网页业务设置，网页设置 SHALL 不得绕过被禁用的模块。
 
 #### Scenario: 升级既有安装
