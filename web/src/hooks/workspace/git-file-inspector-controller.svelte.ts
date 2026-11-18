@@ -367,6 +367,7 @@ export function createGitFileInspectorController(deps: GitFileInspectorDeps) {
       get state() {
         return historyReader.state;
       },
+      readSnapshotSide: historyReader.readSnapshotSide,
       downloadSnapshotSide: historyReader.downloadSnapshotSide,
       retryActiveDiff: () => {
         if (selectedHistoryRow) void loadHistoryRowDiff(selectedHistoryRow);
@@ -404,6 +405,7 @@ export function createGitFileInspectorController(deps: GitFileInspectorDeps) {
       get state() {
         return compareReader.state;
       },
+      readSnapshotSide: compareReader.readSnapshotSide,
       downloadSnapshotSide: compareReader.downloadSnapshotSide,
       retryActiveDiff: () => void loadRevisionCompare(),
     },
