@@ -56,3 +56,10 @@
 - 已执行验证：
   - `go test -race -count=1 ./cmd/webmux ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过。
+
+## 按会话侧栏的分组显示（US-C17）
+
+- 会话缩进排列在项目标题下；无匹配会话的项目隐藏。侧栏顶部的「新建会话」仍可为这些项目创建首个会话。
+- `make e2e-runtime` 成功；`session-creation.spec.ts` 与 `workbench-session-queue.spec.ts` 的相关桌面和 iPhone SE Chromium 用例共 6 项通过。
+- 隔离 Chromium 中核对了 6 个视口的明暗主题、长标题和页面横向溢出，以及桌面键盘焦点与悬停提示。未验证实体触屏或真机。
+- [手机上为隐藏的项目创建首个会话](../images/pr/sidebar-session-groups/interaction-phone.gif)。
