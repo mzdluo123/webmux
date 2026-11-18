@@ -64,3 +64,8 @@
   - `go test -race -count=1 ./cmd/... ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过；
   - Playwright E2E `agent-tools.spec.ts`、`relay-settings.spec.ts` 与 `worktrees.spec.ts`（直接目录创建降级）共 10 项通过。
+
+### T049 终端端口提示（US-R04）
+
+- `TerminalNotices.test.ts` 通过，验证晚发现的较小端口保留现有按钮位置与焦点，并可点击「查看全部」。
+- `port-forwarding.spec.ts` 的桌面与 iPhone SE Chromium 两项通过。隔离 Chromium 中交错发现三个端口并输入 abc，字符按顺序交付 xterm。
