@@ -6,8 +6,6 @@ import type {
 } from "../../src/contracts/relay-schemas";
 import type { Page } from "@playwright/test";
 
-test.use({ features: [] });
-
 const publicUrl = "https://fixture.hosts.example.test";
 const idle = (): RelayPairing => ({
   phase: "idle",

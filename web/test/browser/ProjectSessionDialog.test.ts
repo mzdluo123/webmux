@@ -206,6 +206,69 @@ test("project changes retain common draft and Escape returns to selection", asyn
     .toHaveValue("draft name");
 });
 
+test("a short drawer restores each step's scroll and the focused draft field", async () => {
+  await page.viewport(320, 568);
+  const original = vi.mocked(fetch).getMockImplementation()!;
+  vi.mocked(fetch).mockImplementation((input, init) => {
+    if (String(input).endsWith("/api/projects"))
+      return Promise.resolve(
+        Response.json([
+          plain,
+          ...Array.from({ length: 24 }, (_, index) => ({
+            ...plain,
+            id: `directory:notes-${index}`,
+            name: `Notes ${index}`,
+            path: `/projects/notes-${index}`,
+          })),
+        ]),
+      );
+    return original(input, init);
+  });
+  try {
+    open();
+    const search = page.getByRole("combobox", { name: "搜索项目" });
+    const project = page.getByRole("option", { name: /^Notes 11/ });
+    await search.fill("Notes");
+    await expect.element(project).toBeVisible();
+    const list = document.querySelector<HTMLElement>(
+      '[role="dialog"] [data-slot="command-list"]',
+    )!;
+    const viewport = document.querySelector<HTMLElement>(
+      '[role="dialog"] [data-slot="scroll-area-viewport"]',
+    )!;
+    list.scrollTop = 360;
+    const projectListScroll = list.scrollTop;
+    expect(projectListScroll).toBeGreaterThan(0);
+    (project.element() as HTMLElement).click();
+    const command = page.getByRole("textbox", { name: "自定义启动命令" });
+    await expect.element(command).toHaveFocus();
+    await command.fill("/bin/sh -i");
+    await page.getByRole("button", { name: "高级：会话名称" }).click();
+    const name = page.getByRole("textbox", { name: /会话名称/ });
+    await expect.element(name).toBeVisible();
+    await expect
+      .poll(() => viewport.getAnimations({ subtree: true }).length)
+      .toBe(0);
+    await name.fill("drawer draft");
+    (name.element() as HTMLElement).scrollIntoView({ block: "center" });
+    const settingsScroll = viewport.scrollTop;
+    expect(settingsScroll).toBeGreaterThan(0);
+    await userEvent.keyboard("{Escape}");
+    await expect.element(search).toHaveFocus();
+    await expect.element(search).toHaveValue("Notes");
+    await expect.poll(() => viewport.scrollTop).toBe(0);
+    expect(list.scrollTop).toBe(projectListScroll);
+    (project.element() as HTMLElement).click();
+    await expect.poll(() => viewport.scrollTop).toBe(settingsScroll);
+    expect(document.activeElement).toBe(name.element());
+    await expect.element(name).toHaveValue("drawer draft");
+    await expect.element(command).toHaveValue("/bin/sh -i");
+  } finally {
+    await cleanup();
+    await page.viewport(1024, 900);
+  }
+});
+
 test("explicit worktree context bypasses project fetching and keeps its scope", async () => {
   open({
     repositories: [repo, other],

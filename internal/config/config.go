@@ -39,7 +39,9 @@ type Config struct {
 	P2P              P2PConfig         `toml:"p2p"`
 	Relay            RelayConfig       `toml:"relay"`
 	MCP              MCPConfig         `toml:"mcp"`
-	Features         FeatureConfig     `toml:"features"`
+	// Features is programmatic-only: configuration files always enable all
+	// built-in features, while tests retain isolated feature selection.
+	Features FeatureConfig `toml:"-" json:"-"`
 }
 
 // MCPConfig controls the opt-in, owner-authenticated TCP MCP endpoint.
@@ -325,9 +327,6 @@ func Load(path string, required bool) (Config, error) {
 	}
 	if metadata.IsDefined("voice", "provider") {
 		return c, errors.New("voice.provider was removed: WebMux ships no recognizer; set voice.cmd to your own program")
-	}
-	if metadata.IsDefined("plugins") {
-		return c, errors.New("[plugins] was renamed to [features]: move plugins.enabled to features.enabled")
 	}
 	for _, key := range metadata.Keys() {
 		c.SetSource(key.String(), "toml")

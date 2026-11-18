@@ -52,6 +52,9 @@ func TestLoadConfigCreatesDefaultConfig(t *testing.T) {
 	if !bytes.Contains(first, []byte(`listen = "127.0.0.1:7681"`)) {
 		t.Fatalf("generated config lost the default listen:\n%s", first)
 	}
+	if bytes.Contains(first, []byte("[features]")) {
+		t.Fatalf("generated config wrote [features]:\n%s", first)
+	}
 	loaded, err := config.Load(path, true)
 	if err != nil {
 		t.Fatal(err)
@@ -59,13 +62,12 @@ func TestLoadConfigCreatesDefaultConfig(t *testing.T) {
 	if err := loaded.Validate(); err != nil {
 		t.Fatalf("generated config does not validate: %v", err)
 	}
-	catalog := builtin.Catalog()
-	if len(loaded.Features.Enabled) != len(catalog) {
-		t.Fatalf("generated features.enabled = %v, want all %d built-in features", loaded.Features.Enabled, len(catalog))
+	if loaded.Features.Enabled != nil {
+		t.Fatalf("generated features.enabled = %v, want nil (all built-in features)", loaded.Features.Enabled)
 	}
-	for _, def := range catalog {
+	for _, def := range builtin.Catalog() {
 		if !loaded.Features.Has(def.ID) {
-			t.Fatalf("generated config did not enable built-in feature %q: %v", def.ID, loaded.Features.Enabled)
+			t.Fatalf("generated config did not enable built-in feature %q", def.ID)
 		}
 	}
 
@@ -335,5 +337,45 @@ func TestPrintConfigNotice(t *testing.T) {
 	printConfigNotice(&out, serverRun{})
 	if out.Len() != 0 {
 		t.Fatalf("embedder without a config path printed: %q", out.String())
+	}
+}
+
+func TestLoadConfigIgnoresLegacyFeaturesAndPluginsSections(t *testing.T) {
+	for _, row := range []struct {
+		name string
+		body string
+	}{
+		{"empty features", "listen = '127.0.0.1:9100'\ntoken = 'stable-token'\n[features]\nenabled = []\n"},
+		{"legacy plugins", "listen = '127.0.0.1:9100'\ntoken = 'stable-token'\n[plugins]\nenabled = []\n"},
+	} {
+		t.Run(row.name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("XDG_STATE_HOME", "")
+			path := defaultConfigPath(home)
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(row.body), 0600); err != nil {
+				t.Fatal(err)
+			}
+			c, err := loadConfig(nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(c.closeSettings)
+			for _, def := range builtin.Catalog() {
+				if !c.Features.Has(def.ID) {
+					t.Fatalf("legacy config disabled feature %q", def.ID)
+				}
+			}
+			after, err := os.ReadFile(path)
+			if err != nil || string(after) != row.body {
+				t.Fatalf("config file changed: %v\n%s", err, after)
+			}
+			if _, err := os.Stat(path + ".pre-features.bak"); !os.IsNotExist(err) {
+				t.Fatalf("unexpected migration backup created: %v", err)
+			}
+		})
 	}
 }
