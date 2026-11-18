@@ -8,6 +8,7 @@ require (
 	fyne.io/systray v1.12.2
 	github.com/0magnet/xterm-go v0.0.0
 	github.com/BurntSushi/toml v1.6.0
+	github.com/andybalholm/brotli v1.3.0
 	github.com/coder/websocket v1.8.15
 	github.com/creack/pty v1.1.24
 	github.com/mzdluo123/snapcompact-go v0.1.1-0.20261118090152-568ce53ff15a

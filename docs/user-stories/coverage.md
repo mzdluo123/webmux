@@ -95,7 +95,7 @@ Relay 页内配对、宿主权威流程、导航恢复与操作核对：US-A10�
 | 可插拔 `STDIN/STDOUT` 语音识别（`[voice]`、`/ws/voice`）、聊天与终端双模式录音、实时音量与无回车插入                                                                         | US-G07；US-K03                                                |
 | 软键（含回车与软键盘摇杆模式）、主动键盘、键盘弹出时保持尺寸、触摸/笔、选词、滚动、双指防误触、视口、主屏幕与裁切图标、窄屏紧凑顶栏                                          | US-H01–US-H08                                                 |
 | 安装应用入口、安装状态、提示失败备用说明、非安全上下文提示与 Web App Manifest                                                                                                | US-H09；US-K10                                                |
-| 实时连接 permessage-deflate 按设备开关（手机默认开启）、静态资源构建期 brotli/gzip 预压缩与编码协商                                                                          | US-H10；US-H11                                                |
+| 实时连接 permessage-deflate 按设备开关（手机默认开启）、静态资源 Brotli 预压缩、按需 gzip 与编码协商                                                                         | US-H10；US-H11                                                |
 | 机会性 WebRTC DataChannel P2P 直连升级、UPnP/NAT-PMP/PCP 端口映射、全通道切换、设置页网络诊断与双路径回显测速                                                                | US-H12；US-A04；US-K03；US-M08；US-L10                        |
 | 头显 2D 模式、主动系统键盘与视口稳定                                                                                                                                         | US-H13                                                        |
 | TV 浏览器大目标、Dpad 导航与输入捕获；Back 优先关闭模态/抽屉和阅读面板，聚焦 Git 日志在手机分步视图依次退出 Diff/详情并返回列表，再退路由                                    | US-H14                                                        |
