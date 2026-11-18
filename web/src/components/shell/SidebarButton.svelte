@@ -16,6 +16,7 @@
   aria-label={m.s1_open_sidebar()}
   title={m.s1_open_sidebar()}
   aria-haspopup="dialog"
+  data-sidebar-opener
   aria-expanded={shellUi.drawerOpen}
   onclick={() => (shellUi.drawerOpen = true)}
   ><IconMenu2 aria-hidden="true" /></Button

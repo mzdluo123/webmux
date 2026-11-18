@@ -103,7 +103,11 @@
           : "info"}
     >
       <div class="min-w-0 space-y-1">
-        <p>{m.handoff_operation_state({ state: e.operation.state })}</p>
+        <p>
+          {e.operation.state === "awaiting_upstream"
+            ? m.worktree_upstream_waiting()
+            : m.handoff_operation_state({ state: e.operation.state })}
+        </p>
         {#if e.operation.error}<p class="break-words">
             {e.operation.error}
           </p>{/if}

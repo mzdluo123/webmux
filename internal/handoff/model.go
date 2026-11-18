@@ -75,6 +75,7 @@ type ImageBudget struct {
 type Operation struct {
 	ID, PreviewID, InstanceID, State, TargetSessionID, Error string
 	Location                                                 *sessioncreate.Location
+	WorktreeUpstream                                         *sessioncreate.WorktreeUpstream
 	StartedAt                                                time.Time
 	FinishedAt                                               *time.Time
 }

@@ -269,8 +269,8 @@ func TestSnapshotReportsUpstreamCommitsAndChanges(t *testing.T) {
 	topic := linkedTest(t, s, r, "topic")
 	detached := filepath.Join(t.TempDir(), "detached")
 	gitTest(t, root, "worktree", "add", "--detach", detached, "HEAD~1")
-	gitTest(t, root, "update-ref", "refs/remotes/origin/vanished", "HEAD")
 	gone := linkedTest(t, s, r, "gone")
+	gitTest(t, root, "update-ref", "refs/remotes/origin/vanished", "HEAD")
 	gitTest(t, gone.Path, "branch", "--set-upstream-to", "origin/vanished")
 	gitTest(t, root, "update-ref", "-d", "refs/remotes/origin/vanished")
 
@@ -464,10 +464,18 @@ func TestLastFetchedAtReadsLinkedWorktreeFetchHead(t *testing.T) {
 		t.Fatalf("never fetched: %v", got)
 	}
 	linked := linkedTest(t, s, r, "fetcher")
+	// Worktree creation now fetches its selected source. Age that FETCH_HEAD
+	// so this assertion still proves that a linked-worktree fetch is found,
+	// and does not rewrite the common worktree's FETCH_HEAD.
+	commonFetchHead := filepath.Join(root, ".git", "FETCH_HEAD")
+	oldFetch := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(commonFetchHead, oldFetch, oldFetch); err != nil {
+		t.Fatal(err)
+	}
 	before := time.Now().Add(-time.Second)
 	gitTest(t, linked.Path, "fetch", "origin")
-	if _, err := os.Stat(filepath.Join(root, ".git", "FETCH_HEAD")); !os.IsNotExist(err) {
-		t.Fatalf("linked fetch wrote the common FETCH_HEAD: %v", err)
+	if info, err := os.Stat(commonFetchHead); err != nil || !info.ModTime().Equal(oldFetch) {
+		t.Fatalf("linked fetch rewrote the common FETCH_HEAD: %v", err)
 	}
 	got := snapshotOf(t, s, r.ID).LastFetchedAt
 	if got == nil || got.Before(before) || got.Location() != time.UTC {

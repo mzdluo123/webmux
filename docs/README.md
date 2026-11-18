@@ -17,6 +17,7 @@
 - [2026-11-17 起的核对记录](user-stories/verification-log-2026-11-17.md)：会话界面修复的增量验证。
 - [2026-11-15 起的核对记录](user-stories/verification-log-2026-11-15.md)：项目来源与会话创建的增量验证。
 - [2026-11-17 起的核对记录](user-stories/verification-log-2026-11-17.md)：Relay 页内配对、宿主授权生命周期与响应式验收。
+- [混合压缩归档核对记录](user-stories/verification-log-2026-11-18-handoff-archive.md)：交接预算、模型实验与手机编辑验收。
 - [2026-11-12 起的核对记录](user-stories/verification-log-2026-11-12.md)：本机客户端响应处理与测试环境隔离的验证证据。
 - [常见问题与获取帮助](faq.md)：常见疑问、排障入口与反馈渠道。
 

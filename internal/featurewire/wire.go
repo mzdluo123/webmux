@@ -224,8 +224,21 @@ func RebuildWorktree(r contract.RebuildRequest) workspace.RebuildRequest {
 	return workspace.RebuildRequest(r)
 }
 
+func WorktreeUpstream(value workspace.WorktreeUpstream) *contract.WorktreeUpstream {
+	return &contract.WorktreeUpstream{
+		ConfirmationID: value.ConfirmationID, Branch: value.Branch,
+		LocalHead: value.LocalHead, Upstream: value.Upstream,
+		UpstreamHead: value.UpstreamHead, Warning: value.Warning,
+		CanUseUpstream: value.CanUseUpstream,
+	}
+}
+
 func CreateWorktree(r contract.CreateWorktreeRequest) workspace.CreateRequest {
-	return workspace.CreateRequest(r)
+	out := workspace.CreateRequest{Path: r.Path, Mode: r.Mode, Branch: r.Branch, Base: r.Base}
+	if r.UpstreamChoice != nil {
+		out.UpstreamChoice = &workspace.UpstreamChoice{ConfirmationID: r.UpstreamChoice.ConfirmationID, UseUpstream: r.UpstreamChoice.UseUpstream}
+	}
+	return out
 }
 
 func RemoveWorktree(r contract.RemoveWorktreeRequest) workspace.RemoveRequest {

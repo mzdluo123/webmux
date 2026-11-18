@@ -73,17 +73,19 @@ type HandoffPreview struct {
 	Budget          HandoffBudget         `json:"budget"`
 }
 type HandoffSendRequest struct {
-	OperationID string `json:"operationId"`
+	OperationID    string          `json:"operationId"`
+	UpstreamChoice *UpstreamChoice `json:"upstreamChoice,omitempty"`
 }
 type HandoffOperation struct {
-	ID              string     `json:"id"`
-	PreviewID       string     `json:"previewId"`
-	InstanceID      string     `json:"instanceId"`
-	State           string     `json:"state"`
-	TargetSessionID string     `json:"targetSessionId"`
-	Error           string     `json:"error"`
-	WorktreeID      string     `json:"worktreeId"`
-	WorktreePath    string     `json:"worktreePath"`
-	StartedAt       time.Time  `json:"startedAt"`
-	FinishedAt      *time.Time `json:"finishedAt"`
+	ID               string            `json:"id"`
+	PreviewID        string            `json:"previewId"`
+	InstanceID       string            `json:"instanceId"`
+	State            string            `json:"state"`
+	TargetSessionID  string            `json:"targetSessionId"`
+	Error            string            `json:"error"`
+	WorktreeID       string            `json:"worktreeId"`
+	WorktreePath     string            `json:"worktreePath"`
+	StartedAt        time.Time         `json:"startedAt"`
+	FinishedAt       *time.Time        `json:"finishedAt"`
+	WorktreeUpstream *WorktreeUpstream `json:"worktreeUpstream,omitempty"`
 }

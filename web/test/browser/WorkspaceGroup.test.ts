@@ -81,7 +81,7 @@ const healthy: Worktree = {
   error: "",
 };
 
-test("healthy worktrees keep paths, normal badges and status totals in the details dialog", async () => {
+test("healthy worktrees mark main with a home icon and keep paths, normal badges and status totals in the details dialog", async () => {
   render(WorkspaceGroup, {
     title: "main",
     path: healthy.path,
@@ -95,7 +95,14 @@ test("healthy worktrees keep paths, normal badges and status totals in the detai
   await expect
     .element(page.getByRole("link", { name: "Build agent" }))
     .toBeVisible();
+  const mark = document.querySelector<HTMLElement>("[data-main-worktree]");
+  expect(mark).not.toBeNull();
+  expect(mark!.getAttribute("title")).toBe("主工作区");
+  expect(mark!.querySelector("svg")).not.toBeNull();
   expect(page.getByText(healthy.path, { exact: true }).elements()).toEqual([]);
+  expect(page.getByText("已跟踪文件干净", { exact: true }).elements()).toEqual(
+    [],
+  );
   await page.getByRole("button", { name: "工作树详情 main" }).click();
   const dialog = page.getByRole("dialog");
   await expect
@@ -115,6 +122,24 @@ test("healthy worktrees keep paths, normal badges and status totals in the detai
   await expect
     .element(page.getByRole("link", { name: "Build agent" }))
     .toBeVisible();
+
+  cleanup();
+  render(WorkspaceGroup, {
+    title: "wt/feature",
+    path: "/projects/webmux.worktrees/feature",
+    worktree: {
+      ...healthy,
+      id: "linked",
+      kind: "linked",
+      branch: "wt/feature",
+    },
+    sessions: [{ ...session, title: "Linked agent" }],
+    now,
+    compact: true,
+    onclose: () => {},
+    onstart: () => {},
+  });
+  expect(document.querySelector("[data-main-worktree]")).toBeNull();
 });
 
 test("dirty, untracked and locked warnings stay visible without opening details", async () => {

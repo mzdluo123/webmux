@@ -14,6 +14,7 @@ import (
 	"github.com/rainchan/webmux/internal/launch"
 	"github.com/rainchan/webmux/internal/push"
 	"github.com/rainchan/webmux/internal/session"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 	"github.com/rainchan/webmux/internal/tailscalesettings"
 	"github.com/rainchan/webmux/internal/tunnelsettings"
 	"github.com/rainchan/webmux/internal/voice"
@@ -77,6 +78,8 @@ func uploadReadStatus(err error) int {
 // anything else a server error.
 func workspaceStatus(err error) int {
 	switch {
+	case errors.Is(err, sessioncreate.ErrUpstreamConfirmation):
+		return http.StatusConflict
 	case errors.Is(err, workspace.ErrInvalid):
 		return http.StatusBadRequest
 	case errors.Is(err, workspace.ErrNotFound):
@@ -309,6 +312,14 @@ func artifactsFailure(w http.ResponseWriter, err error) {
 }
 
 func workspaceFailure(w http.ResponseWriter, err error) {
+	var confirmation *workspace.UpstreamConfirmationError
+	if errors.As(err, &confirmation) {
+		reply(w, http.StatusConflict, contract.WorktreeUpstreamFailure{
+			Error: err.Error(), Reason: "worktree_upstream_confirmation",
+			WorktreeUpstream: wire.WorktreeUpstream(confirmation.WorktreeUpstream),
+		})
+		return
+	}
 	if errors.Is(err, workspace.ErrIdempotency) || errors.Is(err, workspace.ErrUncertain) {
 		reply(w, http.StatusConflict, contract.GitConflict{Error: err.Error(), Reason: gitReason(err)})
 		return

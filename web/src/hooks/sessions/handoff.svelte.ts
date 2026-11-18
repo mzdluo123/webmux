@@ -3,6 +3,7 @@ import { APIError } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import { threadAPI } from "../../platform/thread-api";
 import { handoffMaxPages } from "../../contracts/handoff-schemas";
+import { confirmWorktreeUpstream } from "../../platform/worktree-upstream";
 import type {
   HandoffLocation,
   HandoffPreview,
@@ -64,7 +65,9 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
   );
   const sealed = $derived(operation !== null || uncertainOperationId !== "");
   const active = $derived(
-    operation?.state === "preparing" || operation?.state === "sending",
+    operation?.state === "preparing" ||
+      operation?.state === "sending" ||
+      operation?.state === "awaiting_upstream",
   );
   $effect(() => {
     void threadAPI
@@ -109,6 +112,20 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       busy = false;
     }
   }
+  async function resolveUpstream(next: HandoffOperation) {
+    operation = next;
+    while (next.state === "awaiting_upstream" && next.worktreeUpstream) {
+      const choice = await confirmWorktreeUpstream(
+        next.worktreeUpstream,
+        lifetime.signal,
+      );
+      if (disposed) return;
+      next = choice
+        ? await threadAPI.send(next.previewId, next.id, lifetime.signal, choice)
+        : await threadAPI.cancel(next.id, lifetime.signal);
+      operation = next;
+    }
+  }
   async function refresh() {
     const id = operation?.id || uncertainOperationId;
     if (!id || busy) return;
@@ -127,6 +144,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
         uncertainOperationId = "";
         uncertainInstanceId = "";
         error = "";
+        await resolveUpstream(next);
       }
     } catch (e) {
       if (!disposed) {
@@ -150,10 +168,12 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     error = "";
     // One request starts the operation. Reconnection only observes its handle.
     try {
-      operation = await threadAPI.send(
-        reviewed.id,
-        reviewed.operationId,
-        lifetime.signal,
+      await resolveUpstream(
+        await threadAPI.send(
+          reviewed.id,
+          reviewed.operationId,
+          lifetime.signal,
+        ),
       );
     } catch (e) {
       if (!disposed) {

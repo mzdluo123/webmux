@@ -101,6 +101,7 @@ webmux launch-config options CONFIG_NAME          # 在已登记仓库中发现�
 - 失败时按步骤报告，已创建的 worktree 与会话保留。
 - `--new-worktree` 是开关，分支名用 `--branch` 给出，省略时由服务端生成 `wt/<日期>-<时间>`；新 worktree 像 Web 端一样加入主页显示。
   - 没有 `--` 时出现的位置参数是用法错误，因此旧写法 `--new-worktree BRANCH` 不会被当作命令执行。
+  - 创建前检查上游；发现更新或获取失败时，终端交互选择上游最新、保留本地或取消；脚本用 `--upstream=latest|local` 明确选择，未选择时返回确认信息并停止创建。
 - 聊天视图没有终端可附着，以聊天视图启动时总是后台运行；`--reply` 跟踪首条提示的回合并输出 agent 的最终回复。
 - 仓库有初始化指令时，`--init` 需要显式给出。
 - `--cols N --rows M` 给终端设定初始尺寸，程序第一次输出就按它排版。
@@ -217,6 +218,7 @@ webmux forward add 5173 --session self --label web
 ```
 
 - `REPO` 是仓库 ID、仓库内路径或 `.`；worktree 用 ID、分支名或路径。找不到时以 2 结束并列出候选。
+- `worktree create` 与 `run --new-worktree` 共享上游检查及 `--upstream=latest|local` 选择；已有分支仅安全快进，分叉时只能保留本地或取消。详细边界见[选择起点](worktrees.md#选择起点)。
 - 主页显示的规则与 Web 端相同：从未设置的仓库只显示主工作区，有会话或已归档会话的 worktree 总会显示。
   - 写入只改该仓库的 `homeWorktrees` 条目，与其他设备冲突（409）时重新读取并重放，最多 3 次。
 - `worktree rm`、`repo rm`、`launch-config rm` 与 `rm --forget` 一样：终端上先确认，非交互时需要 `--yes`。`repo rm` 不删除文件，并清理该仓库的主页显示设置。

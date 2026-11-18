@@ -95,11 +95,12 @@ type Service struct {
 	stateDir           string
 	// worktreeGate bounds concurrent worktree status reads across every
 	// repository in a list, not just within one repository.
-	worktreeGate chan struct{}
-	writeGatesMu sync.Mutex
-	writeGates   map[string]chan struct{}
-	mu           sync.Mutex
-	associations map[string]Association
+	worktreeGate          chan struct{}
+	writeGatesMu          sync.Mutex
+	writeGates            map[string]chan struct{}
+	mu                    sync.Mutex
+	associations          map[string]Association
+	upstreamConfirmations map[string]upstreamConfirmation
 	// associationMu orders cache commits through their source publication.
 	// Capture reads only associationCacheMu, never registry or process state.
 	associationMu      sync.Mutex

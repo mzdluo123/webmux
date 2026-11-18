@@ -38,6 +38,7 @@ import {
 import { RelayAuthReasonSchema } from "../contracts/relay-schemas";
 import { store, stored } from "./storage";
 import { currentTransport, TransportUploadError } from "./transport";
+import { resolveWorktreeUpstream } from "./worktree-upstream";
 
 export { store, stored };
 
@@ -137,16 +138,26 @@ export async function api<T extends z.ZodType>(
   body?: unknown,
   signal?: AbortSignal,
   bodySchema?: z.ZodType,
+  retryNetwork = false,
 ): Promise<z.output<T>> {
-  const response = await request(
-    path,
-    method,
-    bodySchema ? bodySchema.parse(body) : body,
-    signal,
-  );
-  return schema.parse(
-    response.status === 204 ? undefined : await response.json(),
-  );
+  let payload = bodySchema ? bodySchema.parse(body) : body;
+  for (;;) {
+    try {
+      const response = await request(path, method, payload, signal);
+      return schema.parse(
+        response.status === 204 ? undefined : await response.json(),
+      );
+    } catch (error) {
+      if (retryNetwork && error instanceof TypeError) {
+        retryNetwork = false;
+        continue;
+      }
+      if (!(error instanceof APIError) || error.status !== 409) throw error;
+      const next = await resolveWorktreeUpstream(error.body, payload, signal);
+      if (next === undefined) throw error;
+      payload = bodySchema ? bodySchema.parse(next) : next;
+    }
+  }
 }
 // Raw bytes share the JSON transport's Bearer header, APIError and 401 event.
 // received, when given, sees the running byte count of a streamed body.

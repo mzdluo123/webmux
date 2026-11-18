@@ -189,7 +189,10 @@ func TestRefreshBranchBaseFailureAndTimeoutKeepLocalBase(t *testing.T) {
 func TestRefreshBranchBaseDoesNotBlockWorktreeCreation(t *testing.T) {
 	t.Parallel()
 	isolateGit(t)
-	s, r, _, _ := upstreamFixture(t)
+	s, r, root, _ := upstreamFixture(t)
+	historical := gitTest(t, root, "rev-parse", "HEAD")
+	gitTest(t, root, "commit", "--allow-empty", "-m", "later tip")
+	gitTest(t, root, "push", "origin", "main")
 	realGit := s.gitPath
 	dir := t.TempDir()
 	wrapper := filepath.Join(dir, "git")
@@ -229,7 +232,7 @@ func TestRefreshBranchBaseDoesNotBlockWorktreeCreation(t *testing.T) {
 	created := make(chan createResult, 1)
 	createPath := filepath.Join(t.TempDir(), "during-fetch")
 	go func() {
-		tree, err := s.CreateWorktree(context.Background(), r.ID, CreateRequest{Path: createPath, Mode: "new", Branch: "during-fetch", Base: "HEAD"})
+		tree, err := s.CreateWorktree(context.Background(), r.ID, CreateRequest{Path: createPath, Mode: "new", Branch: "during-fetch", Base: historical})
 		created <- createResult{tree: tree, err: err}
 	}()
 	select {

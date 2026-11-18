@@ -313,27 +313,78 @@
 - 本轮覆盖文本来源读取、预览、真实工具链与跨 Agent 恢复；图片 UI、图片投影与发送管线保持原样。
 - CLI 的已有认证由 Agent 自身使用；未读取 Token、执行登录或处理 Claude 的 `auth_required`。
 
+## 工作树创建前上游确认（US-J04、US-J05、US-S07、US-S16、US-Q18、US-Q20）
+
+### 范围
+
+- 独立创建、新建会话、快速开始、项目来源、交接、CLI 与控制 MCP 共用创建前上游检查；上游更新或获取失败时明确选择。
+- 新分支选择上游保持源分支不变；已有分支仅安全快进，分叉保留独有提交。
+- 无上游、空仓、孤立分支、显式历史提交与已释放工作树重建保持各自语义。
+- 交接等待上游确认时保留原操作与冻结页集，取消、过期及重复确认保持资源与发送边界。
+- 用户故事编号与数量保持不变。
+
+### 已执行验证
+
+- `pnpm --dir web install --frozen-lockfile` 成功，完成依赖安装与本地化编译。
+- `go test -race ./internal/handoff` 通过，覆盖本地/上游选择、引用变化重问、并发重复确认、取消与过期。
+- `go test -race` 覆盖 workspace、sessioncreate、featurewire、featureapi、wire、clicmd、mcpcontrol、localclient 与 agentguide；迁移自动 fetch 后的旧夹具，workspace 最后一项失效上游夹具调整后单独复测通过。
+- API 针对性 race 验证通过：工作树/会话上游确认、原生交接、workspace 与 wire snapshots。
+- 前端 `check`、`check:test`、`lint`、`check:arch` 与源码格式检查通过；97 项相关浏览器组件测试、22 项工作树 E2E 通过。
+- 前端生产构建与隔离 Go 二进制构建成功；修复检查发现的交接分段控件导入与空基线类型，应用浮层拆为独立组件以满足文件行数守卫。
+- 本地化生成与架构检查并发时曾遇到生成文件暂缺；按先生成、后架构检查的依赖顺序执行后通过。
+- `go test -count=1 ./internal/docguard` 通过；用户故事编号、数量与文档链接保持一致。
+- 隔离浏览器真实创建分别验证：选择上游得到 `518a0d5`，保留本地得到 `3a2fee3`，源分支保持不变，取消没有新增工作树。
+- 实际 CLI 非交互调用返回完整确认 JSON 并以 1 退出；显式 `--upstream=latest|local` 创建的分支分别指向上游和本地提交。
+- 真实应用检查桌面 1280×900、平板 768×800、手机 390×844、375×667、320×568 与横屏 667×375 的明暗主题；所有确认浮层留在视口内，页面无横向溢出，键盘可操作。
+- 截图和创建/确认/取消 GIF 保存于 `.github/pr-assets/worktree-upstream/`。未验证真实设备与真实粗指针行为；无头浏览器的悬停未触发行尾控件显隐，本轮使用键盘打开菜单。
+- 首轮 PR CI 的前端、四组 E2E、Storybook、性能与打包通过；Go gate 暴露 Git 历史隔离夹具未处理上游确认，迁移为显式保留本地并校验精确 HEAD 后，`TestGitReadAPIHistoryCommitDetailAndIsolation` 的 race 复测通过。
+
+## OMP 扩展消息交接兼容（US-Q20）
+
+### 行为与边界
+
+- OMP 扩展消息支持 developer/custom 文本、Bash/Python 命令与输出、执行状态；排除上下文的执行只保留图节点和省略说明，文件提及只保留引用。
+- 复用主分支的标题/session 头发现机制；其他会话的未知角色、损坏正文和重复消息节点不影响当前来源。
+- 重复会话身份仍返回身份冲突；选中的未知格式仍返回格式错误，原生分支与冻结游标校验保留。
+- 解析版本提升为 `omp-jsonl-4`，私有思考、归属元数据和附加执行状态保持排除。
+
+### 已执行验证
+
+- 回归覆盖扩展角色、安全省略、冻结重读、来源发现隔离，以及从运行时身份冻结到实际文本投影的链路。
+- 基于最新主分支执行 `go test -race ./internal/agent/omp/history ./internal/historyimport ./internal/historyprojection ./internal/handoff`，全部通过。
+- `go test -count=1 ./internal/docguard ./internal/archtest` 通过。
+- 验证使用隔离的合成原生文件；本轮未启动真实 Agent、发送模型请求或操作生产会话。
+- 首轮 CI 的 Go race、构建检查及打包通过，桌面与手机交接 E2E 在格式切换处失败；现场快照没有格式控件，根因是表单引用了组件库未导出的 `Root/Item`，改用既有命名导出。
+- 修复后桌面与手机 `handoff.spec.ts` 共 8 项通过；临时真实页面捕获覆盖两套设备项目、点击与方向键切换，捕获脚本已删除。
+- `pnpm --dir web check`、`lint`、`check:arch` 及改动组件格式检查通过；类型检查 0 errors、0 warnings，架构回归 49 项通过。
+- 桌面 1280×900、平板 768×800、手机 390×844 提供浅色前后截图与修复后的深色截图；另检查 375×667、320×568、667×375、1280×720，页面无横向溢出。
+- 截图与 GIF 使用隔离合成会话；未验证真机触摸、系统键盘及真实悬停，未向真实模型发送交接。
+
+## 2026-11-18：常驻工作区视图增加主工作区线性图标标记（US-C17、US-J02）
+
+### 范围
+
+- 故事编号与总数（264）保持不变，更新 US-C17、US-J02 及 `workbench-navigation` 规格：
+  - 新增共享组件 `MainWorktreeMark.svelte`，在首页工作树分组标题及桌面/窄屏单工作树页头标题右侧为主工作区（`kind === "main"`）常驻渲染无框线性 `tabler:home` 图标（悬停提示“主工作区”，提供屏幕阅读器名称）；路径、提交与已跟踪文件干净状态继续收在“工作树详情”弹窗中；
+  - 工作台侧栏树（`WorkbenchTree`）为主工作区行在分支名右侧显示同一线性 `home` 图标（`title="主工作区"`，无障碍名称附加 `，主工作区`），并在无活动会话时保留行尾占位槽以避免悬停“⋯”按钮遮挡该图标；
+  - 同步对齐 `HandoffForm.svelte` 对 `SegmentedControl` / `SegmentedControlItem` 的具名导入，消除主线合入偏差导致的 `svelte-check` 报错。
+
+### 已执行验证
+
+- 静态与治理门禁：
+  - `pnpm --dir web check`、`check:test`、`check:storybook`：0 errors、0 warnings；
+  - `pnpm --dir web lint` 与 `pnpm --dir web check:arch`（ESLint、dependency-cruiser、jscpd 0 克隆、knip、架构与依赖策略 49 项测试）通过；
+  - `go test -count=1 ./internal/docguard ./internal/archtest`、`openspec validate --specs`（128/128）、`go vet` 与 `make go-lint`（0 issues）通过。
+- 组件、Storybook 与端到端回归：
+  - 单元测试 `test/i18n.test.ts` 5 项通过（校验中英词条键集、占位符对等与源码零硬编码中文）；
+  - 浏览器组件套件 `WorkbenchTree`、`WorkspaceGroup`、`RepositoryGroup`、`TvNavigation`、`AppShell` 共 60 项通过（含长分支名无会话主工作区行悬停“⋯”零遮挡几何断言）；
+  - Storybook `design-system.spec.ts`、`overflow.spec.ts`、`contracts.spec.ts` 62 项通过；
+  - Playwright 端到端 `repository-scope.spec.ts` 与 `app-shell.spec.ts` 桌面及 iPhone SE（320×568，含 200% 字号）共 21 项通过、5 项按设备跳过、0 失败。
+- 界面证据与局限：
+  - 隔离演示服务在 1280×900、1280×720、768×800、390×844、375×667、320×568、667×375 及 320×700（200% 字号）明暗主题下检查 `scrollWidth <= innerWidth`，无页面级横向溢出；
+  - 重新采集桌面 1280×900（全览与单工作树聚焦）、平板 768×800（主页与抽屉展开）、手机 390×844（主页与抽屉展开）明暗主题前后对比截图共 24 张并更新 PR 证据，公开链接均经 HTTP 200 校验；
+  - 仅在 Linux 无头 Chromium 下验证，`hover` 与 `any-pointer: coarse` 均为 `false`，物理鼠标悬停与触屏常驻状态未验证，未进行手机或平板真机验证。
+
 ## 2026-11-18：混合压缩归档与手机预算编辑（US-Q19、US-Q20、US-K04）
 
-- 依赖固定为 Snapcompact `969040513d9e`：按模型选择点阵布局，保留首尾文本，中段分级密度；文本、图片与省略范围精确划分投影正文。
-- 预览冻结文本与图片，ACP 按首部、图片、尾部与任务发送；图片估计计入上下文，附件字节独立限制。无法容纳任何图片时阻止发送截断归档。
-- 手机页数保留字符串草稿；清空、逐字输入、失焦校验及无效/变更草稿阻止旧预览发送均已覆盖。
-- 独立模块：race、CGO-disabled 测试、vet、Darwin arm64/Windows amd64 cross-build 通过；依赖 PR 的 Go CI 通过。
-- WebMux：`go test -race ./internal/handoff ./internal/historyprojection ./internal/hybrid` 对应包通过；`TestWireSnapshots -update` 完成。
-- `golangci-lint run ./internal/handoff ./internal/historyprojection ./internal/hybrid ./internal/contract` 为 0 issues；`make docs-check` 通过。
-- 前端 build、test 类型检查、lint、`check:arch` 通过；架构测试 49 项。
-- handoff E2E 首轮 6 项通过，4 项因合成长记录超出默认 4000 字节原文页而未看到助手记录失败；夹具显式请求 16000 字节后，桌面/手机对应 4 项全部通过。
-- [真实模型实验](../native-image-experiment.md#2026-11-18上游式混合归档)：约 10 万投影字符，工具/代码输入节省 40.6%，长段落节省 15.4%；各表示 13/13 字段正确，无预算省略或补查。
-- 隔离嵌入应用实际操作：手机页数 `8 → 空 → 3` 可生成预览；`12` 失焦显示范围错误，改为 `3` 恢复。截图均为合成数据。
-- 视觉覆盖 1280×900、768×1024、390×844 的浅深色；未做 iOS/Android 真机键盘、真实粗指针或悬停验证。
-
-| 视口与主题 | 修改前                                                   | 修改后                                                  |
-| ---------- | -------------------------------------------------------- | ------------------------------------------------------- |
-| 桌面浅色   | [前](../images/handoff/archive-before-desktop-light.png) | [后](../images/handoff/archive-after-desktop-light.png) |
-| 桌面深色   | [前](../images/handoff/archive-before-desktop-dark.png)  | [后](../images/handoff/archive-after-desktop-dark.png)  |
-| 平板浅色   | [前](../images/handoff/archive-before-tablet-light.png)  | [后](../images/handoff/archive-after-tablet-light.png)  |
-| 平板深色   | [前](../images/handoff/archive-before-tablet-dark.png)   | [后](../images/handoff/archive-after-tablet-dark.png)   |
-| 手机浅色   | [前](../images/handoff/archive-before-phone-light.png)   | [后](../images/handoff/archive-after-phone-light.png)   |
-| 手机深色   | [前](../images/handoff/archive-before-phone-dark.png)    | [后](../images/handoff/archive-after-phone-dark.png)    |
-
-![390×844 深色手机：清空预算、校验无效值并重新输入](../images/handoff/archive-mobile-budget.gif)
+实际验证、截图与手机交互见[混合压缩归档核对记录](verification-log-2026-11-18-handoff-archive.md)。

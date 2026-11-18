@@ -12,6 +12,7 @@ import (
 func (s *Service) send(ctx context.Context, e *operationEntry) {
 	s.mu.Lock()
 	p := e.preview
+	choice := e.upstreamChoice
 	s.mu.Unlock()
 	if p == nil {
 		return
@@ -70,7 +71,7 @@ func (s *Service) send(ctx context.Context, e *operationEntry) {
 		in := sessioncreate.Input{ClientRequestID: rand.Text(), ConfigID: &p.Request.ConfigID, Side: string(hybrid.SideACP), Cwd: p.Request.Location.Cwd, AgentConfig: p.Request.AgentConfig}
 		location := p.Request.Location
 		if location.NewWorktreeBranch != "" {
-			in.NewWorktree = &sessioncreate.NewWorktree{RepositoryID: location.RepositoryID, Mode: "new", Branch: location.NewWorktreeBranch, Base: location.NewWorktreeBase}
+			in.NewWorktree = &sessioncreate.NewWorktree{RepositoryID: location.RepositoryID, Mode: "new", Branch: location.NewWorktreeBranch, Base: location.NewWorktreeBase, UpstreamChoice: choice}
 		} else if location.RepositoryID != "" {
 			in.Workspace = &sessioncreate.Reference{RepositoryID: location.RepositoryID, WorktreeID: location.WorktreeID}
 		}
@@ -83,6 +84,17 @@ func (s *Service) send(ctx context.Context, e *operationEntry) {
 		}
 		s.mu.Unlock()
 		if err != nil {
+			var confirmation *sessioncreate.UpstreamConfirmationError
+			if errors.As(err, &confirmation) && ctx.Err() == nil {
+				s.mu.Lock()
+				if e.operation.FinishedAt == nil {
+					check := confirmation.WorktreeUpstream
+					e.operation.State = "awaiting_upstream"
+					e.operation.WorktreeUpstream = &check
+				}
+				s.mu.Unlock()
+				return
+			}
 			var step *sessioncreate.Error
 			if errors.As(err, &step) {
 				s.mu.Lock()

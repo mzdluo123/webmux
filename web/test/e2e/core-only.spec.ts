@@ -112,6 +112,29 @@ test("core-only ignores stale feature preferences and creates, types into, and r
   await expectTerminalLine(page, "CORE_AFTER_REATTACH");
   expect(terminalSockets.length).toBeGreaterThanOrEqual(2);
 
+  await page.goto("/");
+  const search = page.getByRole("searchbox");
+  const sessionLink = page.getByRole("main").getByRole("link", {
+    name: "Core isolated PTY",
+  });
+  await expect(sessionLink).toBeVisible();
+  await page.keyboard.press("/");
+  await expect(search).toBeFocused();
+  await search.fill("different session title");
+  await expect(sessionLink).toHaveCount(0);
+  await page.getByRole("button", { name: "清除筛选", exact: true }).click();
+  await expect(search).toHaveValue("");
+  await expect(search).toBeFocused();
+  await expect(sessionLink).toBeVisible();
+
+  const compact = page.getByRole("radio", { name: "紧凑列表" });
+  await compact.click();
+  await expect(page.getByLabel("终端输出预览")).toHaveCount(0);
+  await page.reload();
+  await expect(compact).toBeChecked();
+  await page.getByRole("radio", { name: "输出预览" }).click();
+  await expect(page.getByLabel("终端输出预览")).toBeVisible();
+
   // Settings is a separate core consumer and must not initialize disabled
   // feature providers merely because old browser preferences still exist.
   await page.goto("/settings");
