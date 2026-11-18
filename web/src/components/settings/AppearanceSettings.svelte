@@ -15,9 +15,12 @@
   import { Label } from "$lib/components/ui/label";
   import { Switch } from "$lib/components/ui/switch";
   import * as Card from "$lib/components/ui/card";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import LocaleChoice from "../shared/LocaleChoice.svelte";
   import { tvMode } from "../../hooks/shared/tv-mode.svelte";
   import { headsetMode } from "../../hooks/shared/headset-mode.svelte";
@@ -43,7 +46,7 @@
     </div>
     <div class="space-y-2">
       <p class="text-sm font-medium">{m.s2_theme()}</p>
-      <SegmentedControl.Root
+      <SegmentedControl
         value={themePreference.value}
         onValueChange={(value) => {
           if (value === "system" || value === "light" || value === "dark") {
@@ -53,16 +56,16 @@
         aria-label={m.s2_theme()}
         wrap
       >
-        <SegmentedControl.Item value="system"
-          >{m.s2_theme_system()}</SegmentedControl.Item
+        <SegmentedControlItem value="system"
+          >{m.s2_theme_system()}</SegmentedControlItem
         >
-        <SegmentedControl.Item value="light"
-          >{m.s2_theme_light()}</SegmentedControl.Item
+        <SegmentedControlItem value="light"
+          >{m.s2_theme_light()}</SegmentedControlItem
         >
-        <SegmentedControl.Item value="dark"
-          >{m.s2_theme_dark()}</SegmentedControl.Item
+        <SegmentedControlItem value="dark"
+          >{m.s2_theme_dark()}</SegmentedControlItem
         >
-      </SegmentedControl.Root>
+      </SegmentedControl>
     </div>
     <div class="space-y-2">
       <Label for="settings-font">{m.s2_terminal_font_size()}</Label>

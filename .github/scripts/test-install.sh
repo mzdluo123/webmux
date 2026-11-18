@@ -30,6 +30,47 @@ digest() {
 sh -n "$repo/install.sh" || fail "install.sh has a syntax error"
 sh -n "$0" || fail "test-install.sh has a syntax error"
 
+require_verifier() {
+	p_dir=$work/verifier-probe
+	mkdir -p "$p_dir"
+	printf 'ok\n' > "$p_dir/msg"
+	printf '%s\n' \
+		'untrusted comment: signature from webmux release key 441638DF91637E22' \
+		'RWQifmOR3zgWRJ/V1bYyhXiOKOlgtnUDgFGLOb9WqB9Q50qG+/XcxCLqJ+c6iji1nu9E0RqmWI8LedV5lWYAGfPEIFpcC+Um7gg=' \
+		'trusted comment: webmux 0.0.0' \
+		'kJDJbOHUuTWivgwZO8ZgSAQVkIGc9jiQRYjSZRE4MQwT8tm8LvrRdOTmkTwSJr4t1XD84yGdvaUj2L4Lm5iiCg==' \
+		> "$p_dir/msg.minisig"
+	p_pub=RWQifmOR3zgWRK8o81UerqVzwz4euISaPbJdRKiGufA+p2vU7/WSVaFB
+	if command -v minisign >/dev/null 2>&1 &&
+		minisign -V -m "$p_dir/msg" -x "$p_dir/msg.minisig" -P "$p_pub" >/dev/null 2>&1; then
+		rm -rf "$p_dir"
+		return 0
+	fi
+	if command -v openssl >/dev/null 2>&1 &&
+		command -v dd >/dev/null 2>&1 &&
+		command -v cat >/dev/null 2>&1 &&
+		printf '%s' "$p_pub" | openssl base64 -d -A > "$p_dir/pub.raw" 2>/dev/null &&
+		{
+			printf '\060\052\060\005\006\003\053\145\160\003\041\000'
+			dd if="$p_dir/pub.raw" bs=1 skip=10 count=32 2>/dev/null
+		} | openssl base64 -A > "$p_dir/spki.b64" &&
+		{
+			printf '%s\n' '-----BEGIN PUBLIC KEY-----'
+			cat "$p_dir/spki.b64"
+			printf '\n%s\n' '-----END PUBLIC KEY-----'
+		} > "$p_dir/pub.pem" &&
+		printf '%s' 'RWQifmOR3zgWRJ/V1bYyhXiOKOlgtnUDgFGLOb9WqB9Q50qG+/XcxCLqJ+c6iji1nu9E0RqmWI8LedV5lWYAGfPEIFpcC+Um7gg=' |
+			openssl base64 -d -A > "$p_dir/sig.raw" 2>/dev/null &&
+		dd if="$p_dir/sig.raw" bs=1 skip=10 count=64 of="$p_dir/sig.bin" 2>/dev/null &&
+		openssl pkeyutl -verify -pubin -inkey "$p_dir/pub.pem" -rawin \
+			-in "$p_dir/msg" -sigfile "$p_dir/sig.bin" >/dev/null 2>&1; then
+		rm -rf "$p_dir"
+		return 0
+	fi
+	fail "install minisign or an OpenSSL with Ed25519 support (for example: brew install minisign)"
+}
+require_verifier
+
 # Build releasesign once so fixtures carry real minisign Ed25519 signatures.
 signer=$work/releasesign
 (cd "$repo" && go build -o "$signer" ./cmd/internal/releasesign) || fail "cannot build releasesign"
@@ -185,8 +226,13 @@ grep -qF '(v0.2.0)' "$work/linux.log" || fail "Linux amd64 did not report the ve
 if command -v shasum >/dev/null 2>&1; then
 	shasum_only=$work/shasum-only
 	mkdir -p "$shasum_only"
-	for tool in sh curl mktemp awk tr mkdir mv chmod rm openssl dd wc cat; do
+	for tool in sh curl mktemp awk tr mkdir mv chmod rm dd wc cat; do
 		ln -s "$(command -v "$tool")" "$shasum_only/$tool"
+	done
+	for opt_tool in minisign openssl; do
+		if command -v "$opt_tool" >/dev/null 2>&1; then
+			ln -s "$(command -v "$opt_tool")" "$shasum_only/$opt_tool"
+		fi
 	done
 	ln -s "$(command -v shasum)" "$shasum_only/shasum"
 	fake_uname "$shasum_only" Linux x86_64
@@ -402,6 +448,15 @@ mirrors=
 expect_failure "$work/version-replay.log" 'SHA256SUMS.minisig is for v0.2.0, expected v0.3.0' \
 	"$work/uname-linux-amd64" WEBMUX_VERSION=0.3.0
 
+# Pinning a pre-v0.11.0 release without SHA256SUMS.minisig must explain the WEBMUX_SHA256 workaround.
+unsigned_tag_dir="$www/unsigned-tag/releases/download/v0.10.2"
+mkdir -p "$unsigned_tag_dir"
+cp "$www/releases/download/v0.2.0/webmux-linux-amd64" "$www/releases/download/v0.2.0/SHA256SUMS" "$unsigned_tag_dir/"
+base=$server/unsigned-tag
+mirrors=
+expect_failure "$work/unsigned-tag.log" 'releases older than v0.11.0 are unsigned; set WEBMUX_SHA256 to pin them' \
+	"$work/uname-linux-amd64" WEBMUX_VERSION=0.10.2
+
 # A poisoned first mirror must be skipped in favour of a validly signed second mirror.
 base=$server/missing
 mirrors="$server/forged-sig $server/mirror"
@@ -416,7 +471,7 @@ grep -q 'webmux-linux-amd64 latest' "$work/out/webmux" || fail "failover install
 # non-GitHub / mirror sources must be refused unless WEBMUX_SHA256 is set.
 no_verifier=$work/no-verifier
 mkdir -p "$no_verifier"
-for tool in sh curl mktemp awk tr mkdir mv chmod rm; do
+for tool in sh curl mktemp awk tr mkdir mv chmod rm dirname; do
 	ln -s "$(command -v "$tool")" "$no_verifier/$tool"
 done
 if command -v sha256sum >/dev/null 2>&1; then
@@ -438,6 +493,14 @@ grep -qF 'refusing unverified SHA256SUMS from non-GitHub source' "$work/no-verif
 	fail "unexpected no-verifier error: $(cat "$work/no-verifier-mirror.log")"
 }
 [ "$(cat "$work/out/webmux")" = "old binary" ] || fail "no-verifier failure replaced binary"
+
+# test-install.sh itself must report an actionable prerequisite error when no verifier is on PATH.
+if env PATH="$no_verifier" sh "$0" >"$work/preflight-missing-verifier.log" 2>&1; then
+	fail "test-install.sh unexpectedly passed without minisign or Ed25519 OpenSSL"
+fi
+grep -qF 'install minisign or an OpenSSL with Ed25519 support' "$work/preflight-missing-verifier.log" || {
+	fail "unexpected preflight error: $(cat "$work/preflight-missing-verifier.log")"
+}
 
 # With WEBMUX_SHA256 set, mirror fallback without a local signature verifier is safe and allowed.
 reset_out

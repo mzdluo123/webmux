@@ -32,6 +32,7 @@
   import IconLayoutDashboard from "~icons/tabler/layout-dashboard";
   import IconLoader2 from "~icons/tabler/loader-2";
   import { Button } from "$lib/components/ui/button";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { ListButton } from "$lib/components/ui/list-button";
   import { store, stored } from "../../platform/api";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
@@ -39,6 +40,7 @@
   import RowStatus from "../shared/RowStatus.svelte";
   import { underRowAction } from "../../hooks/shared/sidebar-row";
   import { switchableWorktree } from "../../domains/workspace/worktree-sync";
+  import MainWorktreeMark from "../workspace/MainWorktreeMark.svelte";
   import UpstreamStatus from "../workspace/UpstreamStatus.svelte";
   import SidebarRepositoryMenu from "./SidebarRepositoryMenu.svelte";
   import SidebarRowMenu from "./SidebarRowMenu.svelte";
@@ -80,6 +82,7 @@
     onswitchbranch,
     onbranchoperation,
     onopengit,
+    onaddrepository,
     onrename,
     onclose,
     onresume,
@@ -125,6 +128,8 @@
       worktreeId?: string,
       view?: "commit",
     ) => void;
+    /** Opens the add-repository dialog from the "全部仓库" row's menu. */
+    onaddrepository?: () => void;
     onrename: (session: SessionInfo) => void;
     onclose: (session: SessionInfo) => void;
     /** Resumes an archived record, rebuilding a released worktree first. */
@@ -312,6 +317,7 @@
   {@const stateText = treeNodeStateText(node, resuming, status)}
   {@const open = isOpen(node)}
   {@const upstream = notableUpstream(node)}
+  {@const mainWorktree = node.worktree?.kind === "main"}
   <li
     role="none"
     class={`flex items-center ${node.level === 3 ? "pl-8" : node.level === 2 ? "pl-4" : ""}`}
@@ -353,10 +359,13 @@
               : ""}
             size="xs"
           />{/if}
-        <span
-          class={`min-w-0 flex-1 truncate ${node.kind === "repository" ? "font-medium" : ""} ${node.reason || status === "ended" ? "text-muted-foreground" : ""}`}
-          >{node.label}</span
-        >
+        <span class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+          <span
+            class={`min-w-0 truncate ${node.kind === "repository" ? "font-medium" : ""} ${node.reason || status === "ended" ? "text-muted-foreground" : ""}`}
+            >{node.label}</span
+          >
+          {#if mainWorktree}<MainWorktreeMark />{/if}
+        </span>
         {#if upstream}<span class="flex shrink-0 items-center gap-1"
             ><UpstreamStatus state={upstream} indicator /></span
           >{/if}
@@ -378,12 +387,24 @@
         {:else if status}<RowStatus {status} />
         {:else}{@render counts(
             node,
-            (node.kind === "repository" && !node.reason && canCreate) ||
+            (node.kind === "all" && !!onaddrepository) ||
+              (node.kind === "repository" && !node.reason && canCreate) ||
               node.kind === "worktree",
-            !!upstream,
+            !!upstream || mainWorktree,
           )}{/if}
       </ListButton>
-      {#if node.kind === "repository" && canCreate}
+      {#if node.kind === "all" && onaddrepository}
+        <SidebarRowMenu
+          ariaLabel={m.s1_repository_actions({
+            label: m.s1_all_repositories(),
+          })}
+          tabindex={tabStop === node.key ? 0 : -1}
+        >
+          <DropdownMenu.Item disabled={!canCreate} onSelect={onaddrepository}
+            >{m.s8_menu_add_repository()}</DropdownMenu.Item
+          >
+        </SidebarRowMenu>
+      {:else if node.kind === "repository" && canCreate}
         <SidebarRepositoryMenu
           unavailable={!!node.reason}
           label={node.label}

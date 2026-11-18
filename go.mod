@@ -10,8 +10,8 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/coder/websocket v1.8.15
 	github.com/creack/pty v1.1.24
-	github.com/mzdluo123/snapcompact-go v0.1.0
-	github.com/mzdluo123/webmux/protocol/relay v0.0.0-20261116163447-ae748f547aed
+	github.com/mzdluo123/snapcompact-go v0.1.1-0.20261117185841-969040513d9e
+	github.com/mzdluo123/webmux/protocol/relay v0.0.0-20261117092120-425ce201f739
 	github.com/pion/ice/v4 v4.4.8
 	github.com/pion/sdp/v3 v3.0.20
 	github.com/pion/turn/v5 v5.1.3

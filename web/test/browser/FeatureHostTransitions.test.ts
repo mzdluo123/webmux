@@ -1,9 +1,16 @@
 import "../../src/styles.css";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import App from "../../src/App.svelte";
-import { navigate } from "../../src/platform/api";
+import { api, navigate } from "../../src/platform/api";
+import {
+  applyRelayAuth,
+  relayAuthRevision,
+  relayAuthStatus,
+  resetRelayAuth,
+} from "../../src/platform/relay-auth";
+import { NoContentSchema } from "../../src/contracts/schemas";
 import { setActiveHostId } from "../../src/platform/storage";
 import { requestFeatureHostRefresh } from "../../src/platform/feature-host.svelte";
 import { p2pState } from "../../src/platform/p2p-state.svelte";
@@ -20,6 +27,7 @@ import type { NegotiatedSession } from "../../src/platform/p2p-session";
 import type * as P2PFraming from "../../src/platform/p2p-framing";
 import {
   FakeSocket,
+  commands,
   installChatFixture,
   respond,
   socketAt,
@@ -78,6 +86,7 @@ const peerStatus: P2PStatus = {
 };
 
 beforeEach(() => {
+  resetRelayAuth();
   enabled = [];
   unavailable = [];
   voiceReady = false;
@@ -85,6 +94,7 @@ beforeEach(() => {
   discoveryReads = 0;
   history.replaceState(null, "", "/");
   shellUi.setMode("workbench");
+  shellUi.setCollapsed(false);
   clearHomeCache();
   root = document.createElement("div");
   root.id = "app";
@@ -186,6 +196,7 @@ beforeEach(() => {
 afterEach(async () => {
   vi.useRealTimers();
   await cleanup();
+  resetRelayAuth();
   root.remove();
   setActiveHostId(null);
   history.replaceState(null, "", "/");
@@ -224,7 +235,7 @@ test("same-origin reconnect replaces captured shell projections only when select
   enabled = [];
   const reconnecting = await reconnect(first, 1);
   await expect
-    .element(page.getByRole("textbox", { name: "搜索会话", exact: true }))
+    .element(page.getByRole("searchbox", { name: "搜索会话", exact: true }))
     .toBeVisible();
   expect(reconnecting.readyState).toBe(FakeSocket.CLOSED);
   await expect
@@ -233,13 +244,13 @@ test("same-origin reconnect replaces captured shell projections only when select
   const core = await socketAt("/ws/sessions", 2);
   core.frame({ type: "snapshot", sessions: [], forwards: [] } as never);
   await page
-    .getByRole("textbox", { name: "搜索会话", exact: true })
+    .getByRole("searchbox", { name: "搜索会话", exact: true })
     .fill("keep filter");
   const before = discoveryReads;
   await reconnect(core, 3);
   await expect.poll(() => discoveryReads).toBeGreaterThan(before);
   await expect
-    .element(page.getByRole("textbox", { name: "搜索会话", exact: true }))
+    .element(page.getByRole("searchbox", { name: "搜索会话", exact: true }))
     .toHaveValue("keep filter");
   await requestFeatureHostRefresh();
   enabled = ["workspace"];
@@ -417,7 +428,7 @@ test("host switching releases old P2P resources and disabled selection never res
   expect(signal.aborted).toBe(true);
   pending.reject(new DOMException("aborted", "AbortError"));
   await expect
-    .element(page.getByRole("textbox", { name: "搜索会话", exact: true }))
+    .element(page.getByRole("searchbox", { name: "搜索会话", exact: true }))
     .toBeVisible();
   await requestFeatureHostRefresh();
   const count = direct.negotiate.mock.calls.length;
@@ -429,3 +440,114 @@ test("host switching releases old P2P resources and disabled selection never res
   expect(direct.negotiate).toHaveBeenCalledTimes(count);
   expect(p2pState.mode).toBe("ws");
 });
+
+test("relay recovery keeps the terminal, route and unsent draft without replaying actions", async () => {
+  await page.viewport(1280, 900);
+  const authenticated = {
+    authenticated: true,
+    relay: true,
+    csrfToken: "owner",
+    expiresAt: Math.floor(Date.now() / 1000) + 3600,
+  };
+  const info = session({ id: "aaaaaaaa" });
+  respond(/^GET \/api\/sessions\/aaaaaaaa$/, () => Response.json(info));
+  await mount();
+  applyRelayAuth(authenticated, relayAuthRevision());
+  navigate("/s/aaaaaaaa?message=retained");
+  const terminal = await socketAt("/ws/s/aaaaaaaa");
+  terminal.binary(2, info);
+  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
+  const draft = page.getByRole("textbox", { name: "草稿内容", exact: true });
+  await draft.fill("keep my unsent relay draft");
+  const owner = document.querySelector(".session-owner");
+  const emulator = document.querySelector(".xterm");
+  const commandCount = commands().length;
+  const pending = Promise.withResolvers<Response>();
+  respond(/^GET \/api\/relay\/auth\/session$/, () => pending.promise);
+  const feed = await socketAt("/ws/sessions");
+  feed.drop(1006);
+  terminal.drop(1006);
+  const indicator = page.getByRole("button", {
+    name: "重连状态：连接已断开，重连中…",
+  });
+  // The expanded sidebar's footer is the lower-left reconnect surface:
+  // it announces the drop and its details popover carries retry and the
+  // official login, so the floating pill stays hidden beside it.
+  expect(indicator.elements()).toEqual([]);
+  const hostStatus = page.getByRole("button", {
+    name: "查看主机状态：连接已断开，重连中…",
+  });
+  await expect.element(hostStatus).toBeVisible();
+  await hostStatus.click();
+  await expect
+    .element(page.getByRole("button", { name: "再次检查连接" }))
+    .toBeVisible();
+  await expect
+    .element(page.getByRole("link", { name: "通过 WebMux 控制台登录" }))
+    .toHaveAttribute("href", "/auth/relay/start?returnTo=%2Fs%2Faaaaaaaa");
+  await userEvent.keyboard("{Escape}");
+  // Collapsed to the rail there is no visible footer label, so the pill
+  // returns, always starting past the sidebar that is actually rendered.
+  shellUi.setCollapsed(true);
+  await expect.element(indicator).toBeVisible();
+  const indicatorBox = (await indicator.element()).getBoundingClientRect();
+  const sidebarBox = [...document.querySelectorAll(".app-sidebar")]
+    .map((element) => element.getBoundingClientRect())
+    .find((rect) => rect.width > 0)!;
+  expect(indicatorBox.left).toBeGreaterThanOrEqual(sidebarBox.right);
+  expect(
+    page.getByRole("heading", { name: "通过官方中继连接" }).elements(),
+  ).toEqual([]);
+  expect(document.querySelector('input[type="password"]')).toBeNull();
+  expect(relayAuthStatus()).toMatchObject({
+    relay: true,
+    authenticated: false,
+    reason: "reconnecting",
+  });
+  expect(document.querySelector(".session-owner")).toBe(owner);
+  expect(document.querySelector(".xterm")).toBe(emulator);
+  pending.resolve(Response.json(authenticated));
+  const resumed = await socketAt("/ws/s/aaaaaaaa", 1);
+  resumed.binary(2, info);
+  await expect.element(draft).toHaveValue("keep my unsent relay draft");
+  expect(location.pathname + location.search).toBe(
+    "/s/aaaaaaaa?message=retained",
+  );
+  expect(document.querySelector(".session-owner")).toBe(owner);
+  expect(document.querySelector(".xterm")).toBe(emulator);
+  expect(commands()).toHaveLength(commandCount);
+});
+
+test.each(["expired", "revoked", "unauthenticated"] as const)(
+  "a relay %s response retains console login instead of reporting a bad Token",
+  async (reason) => {
+    const authenticated = {
+      authenticated: true,
+      relay: true,
+      csrfToken: "owner",
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+    };
+    await mount();
+    applyRelayAuth(authenticated, relayAuthRevision());
+    navigate("/settings/relay");
+    respond(/^POST \/api\/relay-auth-regression$/, () =>
+      Response.json(
+        { error: "access ended", relay: true, reason },
+        { status: 401 },
+      ),
+    );
+    await expect(
+      api("/relay-auth-regression", NoContentSchema, "POST"),
+    ).rejects.toMatchObject({ status: 401 });
+    const login = page.getByRole("link", { name: "通过 WebMux 控制台登录" });
+    await expect.element(login).toBeVisible();
+    await expect
+      .element(login)
+      .toHaveAttribute(
+        "href",
+        "/auth/relay/start?returnTo=%2Fsettings%2Frelay",
+      );
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+    expect(relayAuthStatus()).toMatchObject({ relay: true, reason });
+  },
+);

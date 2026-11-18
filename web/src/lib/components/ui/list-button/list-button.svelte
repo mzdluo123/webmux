@@ -11,7 +11,7 @@
     "relative flex min-h-11 w-full min-w-0 items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring aria-pressed:bg-primary/10 aria-pressed:text-primary aria-pressed:before:absolute aria-pressed:before:inset-y-3 aria-pressed:before:left-0 aria-pressed:before:w-0.5 aria-pressed:before:rounded-full aria-pressed:before:bg-primary aria-[current=page]:bg-primary/10 aria-[current=page]:text-primary aria-[current=page]:before:absolute aria-[current=page]:before:inset-y-3 aria-[current=page]:before:left-0 aria-[current=page]:before:w-0.5 aria-[current=page]:before:rounded-full aria-[current=page]:before:bg-primary";
   const compactRow =
     "relative flex min-h-7 w-full min-w-0 touch-manipulation items-center gap-1.5 rounded-sm py-1 pr-2 pl-2 text-left text-xs outline-none select-none hover:bg-muted/70 focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring aria-selected:bg-primary/10 aria-selected:text-foreground aria-selected:before:absolute aria-selected:before:inset-y-1 aria-selected:before:left-0 aria-selected:before:w-0.5 aria-selected:before:rounded-full aria-selected:before:bg-primary aria-[current=true]:bg-primary/10 aria-[current=true]:text-foreground aria-[current=true]:before:absolute aria-[current=true]:before:inset-y-1 aria-[current=true]:before:left-0 aria-[current=true]:before:w-0.5 aria-[current=true]:before:rounded-full aria-[current=true]:before:bg-primary data-[has-action=true]:pr-7 max-sm:min-h-(--control-touch-compact) max-sm:text-sm max-sm:data-[has-action=true]:pr-(--control-touch-compact) any-pointer-coarse:min-h-(--control-touch-compact) any-pointer-coarse:data-[has-action=true]:pr-(--control-touch-compact) [-webkit-touch-callout:none]";
-  export const listButtonVariants = tv({
+  const listButtonVariants = tv({
     base: "",
     variants: {
       variant: {
@@ -87,9 +87,7 @@
     },
   });
 
-  export type ListButtonVariant = VariantProps<
-    typeof listButtonVariants
-  >["variant"];
+  type ListButtonVariant = VariantProps<typeof listButtonVariants>["variant"];
 </script>
 
 <script lang="ts">

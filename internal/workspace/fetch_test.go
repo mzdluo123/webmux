@@ -327,6 +327,11 @@ func TestFetchRemotesSharesOneFlight(t *testing.T) {
 	t.Parallel()
 	isolateGit(t)
 	s, r, root, remote := upstreamFixture(t)
+	// An explicit historical commit has no source branch to refresh. Creating
+	// from a branch tip now legitimately performs its own upstream fetch.
+	historical := gitTest(t, root, "rev-parse", "HEAD")
+	gitTest(t, root, "commit", "--allow-empty", "-m", "new source tip")
+	gitTest(t, root, "push", "origin", "main")
 	remoteHead := advanceUpstream(t, root, remote, "remote latest")
 	calls, release := gatedFetch(t, s)
 	type outcome struct {
@@ -347,7 +352,7 @@ func TestFetchRemotesSharesOneFlight(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	tree, err := s.CreateWorktree(ctx, r.ID, CreateRequest{Path: filepath.Join(t.TempDir(), "during fetch"), Mode: "new", Branch: "during", Base: "HEAD"})
+	tree, err := s.CreateWorktree(ctx, r.ID, CreateRequest{Path: filepath.Join(t.TempDir(), "during fetch"), Mode: "new", Branch: "during", Base: historical})
 	if err != nil || tree.Branch == nil || *tree.Branch != "during" {
 		t.Fatalf("create during fetch: %+v %v", tree, err)
 	}

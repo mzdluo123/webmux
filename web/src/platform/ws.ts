@@ -1,12 +1,21 @@
 import { m } from "$lib/paraglide/messages.js";
-import { store, stored } from "./storage";
-import { authenticationToken, relayOwnerAuthenticated } from "./relay-auth";
+import { wsCompression } from "./ws-compression";
+import {
+  liveSockets,
+  nextManagedStreamID,
+  publishStreams,
+  streamStatuses,
+} from "./ws-registry";
+import {
+  authenticationToken,
+  relayOwnerAuthenticated,
+  relayAuthStatus,
+} from "./relay-auth";
 import { InputHandoffFence, stageHandoff } from "./ws-handoff";
 import type {
   Connection,
   ConnectOptions,
   HandoffOptions,
-  ManagedStreamStatus,
   SocketConnection,
 } from "./ws-contracts";
 import {
@@ -21,44 +30,7 @@ import {
 export { protocols };
 
 const maxBufferedAmount = 1024 * 1024;
-const compressionKey = "wsCompression";
-// Every live connection, so a compression change can reattach them at once.
-const live = new Set<() => void>();
 const handoffs = new Set<(options: HandoffOptions) => void>();
-
-let streamCounter = 0;
-const streamStatuses = new Map<number, ManagedStreamStatus>();
-const streamObservers = new Set<(streams: ManagedStreamStatus[]) => void>();
-function publishStreams() {
-  for (const observer of streamObservers)
-    observer([...streamStatuses.values()]);
-}
-export function observeManagedStreams(
-  observer: (streams: ManagedStreamStatus[]) => void,
-) {
-  streamObservers.add(observer);
-  observer([...streamStatuses.values()]);
-  return () => {
-    streamObservers.delete(observer);
-  };
-}
-
-// Per-device permessage-deflate preference. Browsers always offer the
-// extension, so the server negotiates it only when the URL asks. Until the
-// user chooses, devices whose primary pointer is coarse (phones, tablets)
-// default to on: they are the ones on metered, slow links.
-export function wsCompression(): boolean {
-  const choice = stored(compressionKey);
-  if (choice === "on") return true;
-  if (choice === "off") return false;
-  return (
-    typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches
-  );
-}
-export function setWsCompression(enabled: boolean) {
-  store(compressionKey, enabled ? "on" : "off");
-  for (const reopen of live) reopen();
-}
 
 /**
  * Seamlessly hands off all active managed connections onto `currentTransport()`
@@ -100,9 +72,10 @@ export function connect(
     disposed = false,
     finished: "exited" | "missing" | "moved" | undefined;
   const controls = new Map<number, Uint8Array>();
-  const id = ++streamCounter;
+  const id = nextManagedStreamID();
   let targetPath = typeof path === "string" ? path : path();
-  const ownerStream = relayOwnerAuthenticated();
+  const ownerStream = relayOwnerAuthenticated() || relayAuthStatus().relay;
+  let suspended = relayAuthStatus().relay && !relayOwnerAuthenticated();
   let inputUncertain = false;
   let sentInput = false;
   let candidateTimer: number | undefined;
@@ -235,6 +208,10 @@ export function connect(
         return;
       }
       state("reconnecting");
+      if (ownerStream && relayAuthStatus().relay) {
+        window.dispatchEvent(new Event("webmux:relay-check"));
+        if (suspended || disposed) return;
+      }
       const ceiling = Math.min(8000, 500 * 2 ** Math.min(attempt++, 4));
       const delay = ceiling * (0.5 + Math.random() * 0.5);
       timer = window.setTimeout(open, delay);
@@ -242,7 +219,7 @@ export function connect(
     next.onerror = () => next.close();
   }
   function open() {
-    if (disposed || finished) return;
+    if (disposed || finished || suspended) return;
     clearTimeout(timer);
     clearTimeout(stableTimer);
     clearTimeout(resumeTimer);
@@ -313,7 +290,7 @@ export function connect(
       disposed = true;
       streamStatuses.delete(id);
       publishStreams();
-      live.delete(reopen);
+      liveSockets.delete(reopen);
       handoffs.delete(handoff);
       clearTimeout(timer);
       clearTimeout(stableTimer);
@@ -328,6 +305,7 @@ export function connect(
       window.removeEventListener("online", online);
       window.removeEventListener("pageshow", restored);
       window.removeEventListener("webmux:relay-revoked", revoked);
+      window.removeEventListener("webmux:relay-restored", restoredAuth);
     },
     reconnect() {
       if (disposed || finished === "missing") return;
@@ -483,10 +461,32 @@ export function connect(
     );
   };
   const revoked = () => {
-    if (ownerStream) api.close();
+    if (!ownerStream) return;
+    if (relayAuthStatus().reason !== "reconnecting") {
+      api.close();
+      return;
+    }
+    suspended = true;
+    clearTimeout(timer);
+    clearTimeout(stableTimer);
+    clearTimeout(resumeTimer);
+    resumeTimer = undefined;
+    clearControls();
+    clearCandidate();
+    markUncertain();
+    const previous = socket;
+    socket = undefined;
+    previous?.close();
+    if (!finished) state("reconnecting");
+  };
+  const restoredAuth = () => {
+    if (!suspended || disposed) return;
+    suspended = false;
+    open();
   };
   window.addEventListener("webmux:relay-revoked", revoked);
-  live.add(reopen);
+  window.addEventListener("webmux:relay-restored", restoredAuth);
+  liveSockets.add(reopen);
   handoffs.add(handoff);
   open();
   return api;

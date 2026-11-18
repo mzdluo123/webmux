@@ -22,7 +22,35 @@ var ErrUnavailable = errors.New("requested creation capability is disabled or un
 var ErrLocationConflict = errors.New("creation location conflict")
 
 type Reference struct{ RepositoryID, WorktreeID string }
-type NewWorktree struct{ RepositoryID, Mode, Branch, Base, Path string }
+type UpstreamChoice struct {
+	ConfirmationID string `json:"confirmationId"`
+	UseUpstream    bool   `json:"useUpstream"`
+}
+
+// ErrUpstreamConfirmation marks a preflight challenge, not a completed request.
+var ErrUpstreamConfirmation = errors.New("worktree upstream confirmation required")
+
+type WorktreeUpstream struct {
+	ConfirmationID string `json:"confirmationId"`
+	Branch         string `json:"branch"`
+	LocalHead      string `json:"localHead"`
+	Upstream       string `json:"upstream"`
+	UpstreamHead   string `json:"upstreamHead"`
+	Warning        string `json:"warning"`
+	CanUseUpstream bool   `json:"canUseUpstream"`
+}
+
+type UpstreamConfirmationError struct {
+	WorktreeUpstream WorktreeUpstream
+}
+
+func (e *UpstreamConfirmationError) Error() string { return e.WorktreeUpstream.Warning }
+func (e *UpstreamConfirmationError) Unwrap() error { return ErrUpstreamConfirmation }
+
+type NewWorktree struct {
+	RepositoryID, Mode, Branch, Base, Path string
+	UpstreamChoice                         *UpstreamChoice
+}
 type Input struct {
 	ClientRequestID, Cwd             string
 	Workspace                        *Reference

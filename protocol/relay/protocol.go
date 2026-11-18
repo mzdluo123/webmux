@@ -354,6 +354,7 @@ func uniqueValue(d *json.Decoder, depth int) error {
 	return err
 }
 
-func validUntil(now time.Time, expires int64, max time.Duration) bool {
-	return expires > now.Unix() && expires <= now.Add(max).Unix()
+// Lifetime limits are enforced when issuing; receivers check absolute expiry.
+func validUntil(now time.Time, expires int64) bool {
+	return expires > now.Unix()
 }

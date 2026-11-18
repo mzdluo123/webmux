@@ -104,7 +104,7 @@ func (m NodeMessage) Validate(node NodeID, controlAudience string, controlEpoch,
 	if m.NodeEpoch != nodeEpoch || m.Sequence == 0 {
 		return Error{Code: StaleGeneration}
 	}
-	if !validUntil(now, m.ExpiresAt, ControlLease) {
+	if !validUntil(now, m.ExpiresAt) {
 		return Error{Code: Expired}
 	}
 	if m.Type == NodeHelloType {

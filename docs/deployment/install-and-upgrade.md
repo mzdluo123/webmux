@@ -31,18 +31,18 @@ curl -fsSL https://ghfast.top/https://github.com/mzdluo123/webmux/releases/lates
 curl -fsSL https://cdn.jsdelivr.net/gh/mzdluo123/webmux@main/install.sh | sh
 ```
 
-| 变量                 | 默认值                                    | 说明                                                                                              |
-| -------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `WEBMUX_VERSION`     | 最新 Release                              | 指定 `x.y.z`（可带 `v` 前缀），从 `releases/download/v...` 下载；也可指定当前开发版 `x.y.z-dev.N` |
-| `WEBMUX_CHANNEL`     | `stable`                                  | `dev` 安装 `dev` Release 中的当前开发版；只影响本次安装，不写配置                                 |
-| `WEBMUX_INSTALL_DIR` | `~/.local/bin`                            | 目标目录；不可写时明确报错，不自动 sudo                                                           |
-| `WEBMUX_MIRRORS`     | `https://ghfast.top https://gh-proxy.com` | 空格分隔的 gh-proxy 前缀；空值表示只用 GitHub                                                     |
-| `WEBMUX_SHA256`      | 空                                        | 固定二进制 SHA-256，跳过 `SHA256SUMS` 与签名验证                                                  |
-| `WEBMUX_BASE_URL`    | `https://github.com/mzdluo123/webmux`     | GitHub 仓库地址，主要用于测试和自建镜像                                                           |
+| 变量                 | 默认值                                    | 说明                                                                                                                                                  |
+| -------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WEBMUX_VERSION`     | 最新 Release                              | 指定 `x.y.z`（可带 `v` 前缀，从 `releases/download/v...` 下载；`v0.11.0` 之前的旧版无签名，固定安装需搭配 `WEBMUX_SHA256`）或当前开发版 `x.y.z-dev.N` |
+| `WEBMUX_CHANNEL`     | `stable`                                  | `dev` 安装 `dev` Release 中的当前开发版；只影响本次安装，不写配置                                                                                     |
+| `WEBMUX_INSTALL_DIR` | `~/.local/bin`                            | 目标目录；不可写时明确报错，不自动 sudo                                                                                                               |
+| `WEBMUX_MIRRORS`     | `https://ghfast.top https://gh-proxy.com` | 空格分隔的 gh-proxy 前缀；空值表示只用 GitHub                                                                                                         |
+| `WEBMUX_SHA256`      | 空                                        | 固定二进制 SHA-256，跳过 `SHA256SUMS` 与签名验证（也用于固定安装 `v0.11.0` 之前未附带 `SHA256SUMS.minisig` 的旧版）                                   |
+| `WEBMUX_BASE_URL`    | `https://github.com/mzdluo123/webmux`     | GitHub 仓库地址，主要用于测试和自建镜像                                                                                                               |
 
 ```sh
 curl -fsSL https://github.com/mzdluo123/webmux/releases/latest/download/install.sh \
-  | WEBMUX_VERSION=0.2.0 WEBMUX_INSTALL_DIR="$HOME/bin" sh
+  | WEBMUX_VERSION=0.16.0 WEBMUX_INSTALL_DIR="$HOME/bin" sh
 ```
 
 ### 安装开发版
@@ -64,6 +64,8 @@ curl -fsSL https://ghfast.top/https://github.com/mzdluo123/webmux/releases/downl
 下载顺序为 GitHub 直连，然后依次尝试镜像（地址为 `<前缀>/https://github.com/...`），每个来源都有连接、低速和总时限。
 
 - 未设置 `WEBMUX_SHA256` 且本机具备 `minisign` 或支持 Ed25519 的 `openssl` 时，每个来源都须返回有效的 `SHA256SUMS.minisig`（匹配内置正式版或开发版公钥及可信注释版本），验证通过后才按清单校验二进制；失败时保留原有二进制、清理临时文件，并汇总各来源的错误。
+  - 未设置 `WEBMUX_VERSION` 且 GitHub 不可达时，安装首个通过签名校验的镜像所提供的已签名版本（`v<签名版本>`）；需要限定精确版本时请显式设置 `WEBMUX_VERSION`。
+  - `v0.11.0` 之前的早期版本未发布 `SHA256SUMS.minisig`，固定安装这些版本时脚本提示设置 `WEBMUX_SHA256` 校验二进制摘要。
 - 本机既无 `minisign` 也无支持 Ed25519 的 `openssl`（如 macOS 默认自带的 LibreSSL）且未设置 `WEBMUX_SHA256` 时，脚本只接受直接从 `https://github.com/mzdluo123/webmux` 下载的 `SHA256SUMS`。
   - 若 GitHub 已返回清单而二进制下载失败，镜像可仅提供匹配该摘要的二进制；若 GitHub 清单也不可达，脚本拒绝来自非 GitHub 来源的未验证清单，安装 `minisign`、支持 Ed25519 的 OpenSSL 或设置 `WEBMUX_SHA256` 后方可经镜像安装。
 - 镜像是第三方服务，能看到请求者 IP；直接经镜像 URL 拉取 `install.sh` 执行（`curl https://ghfast.top/.../install.sh | sh`）会信任该镜像返回的脚本内容，高保证场景请从 GitHub 获取脚本或先核对脚本摘要再运行。

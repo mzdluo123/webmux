@@ -3,6 +3,7 @@
 ## Purpose
 
 WebMux 宿主通过独立中继密钥与官方 Relay 配对，以固定 HTTPS 地址提供低配置公网访问，并在连接断开时立即撤销入口授权、自动恢复连接，同时保持现有 Cloudflare、Tailscale、Web Push 和 P2P 能力的独立行为。
+设备配对、机器身份与页内设置操作遵循 [official-relay-pairing](../official-relay-pairing/spec.md)。
 
 ## Requirements
 
@@ -21,42 +22,6 @@ WebMux 宿主通过独立中继密钥与官方 Relay 配对，以固定 HTTPS �
 
 - **WHEN** 已配对主机当前登录 Token 少于 43 字符
 - **THEN** 启用被拒绝并给出修复方式，本机服务继续运行
-
-### Requirement: 仅全新主机配对
-
-WebMux SHALL 在本机生成并保存独立的 Ed25519 中继密钥对。配对 SHALL 使用 v2 接口、有效机器 ID 和新公钥，返回官方验证地址、一次性用户码和有效期供用户完成 GitHub 授权；WebMux 登录 Token MUST NOT 出现在请求中。
-私钥、轮询句柄和 GitHub 凭据 MUST NOT 出现在状态响应、诊断、日志或浏览器持久化中。配对失败或过期 SHALL 允许重试，不得改写 WebMux 登录 Token。
-已有绑定 SHALL 要求先通过已授权删除，再进行全新配对；客户端 MUST NOT 提供保留域名恢复、rebind 或同机自动换钥。明确拒绝 SHALL 清理待配对密钥及 pending 状态；不确定网络、上游或限流失败 SHALL 保留有效句柄、密钥和取消入口。
-
-#### Scenario: 从设置页完成配对
-
-- **WHEN** 用户打开 Relay 设置、开始配对并在官方页面完成 GitHub 授权
-- **THEN** 显示已配对和固定公共地址，本机不保存 GitHub 访问凭据
-
-#### Scenario: 配对接口不包含登录 Token
-
-- **WHEN** 创建或轮询配对请求
-- **THEN** 只包含机器 ID、公钥或配对材料，不包含 WebMux 登录 Token
-
-#### Scenario: 账号已有绑定
-
-- **WHEN** 同账号仍存在绑定，即使机器 ID 相同
-- **THEN** 普通配对冲突，提示先删除旧绑定，不提供恢复按钮
-
-#### Scenario: 轮询明确拒绝后重试
-
-- **WHEN** 配对轮询返回当前尝试已失败的明确错误
-- **THEN** 清理当前句柄和待配对密钥，允许用户重新发起全新配对
-
-#### Scenario: 轮询遇到不确定网络失败
-
-- **WHEN** 轮询遇到网络、上游或限流失败
-- **THEN** 保留句柄、密钥和取消入口，不自动换钥
-
-#### Scenario: 取消返回已终止
-
-- **WHEN** 取消当前配对返回句柄已终止的明确错误
-- **THEN** 清理当前尝试并刷新状态，允许重新配对；不因不确定取消失败丢弃句柄
 
 ### Requirement: 新版绑定持久化与安全降级
 
@@ -133,24 +98,6 @@ Relay 就绪后，固定公共地址 SHALL 出现在现有访问 URL 汇总、�
 - **WHEN** 手机通过就绪的 Relay HTTPS 地址打开 WebMux 并开启通知
 - **THEN** 订阅关联该固定来源，重启 WebMux 并重连 Relay 后通知仍指向同一地址
 
-### Requirement: 设置操作与删除绑定
-
-WebMux SHALL 在公网访问设置中提供开始配对、启停、刷新状态和删除绑定操作，并显示期望开关、运行状态、地址及失败原因；MUST NOT 提供恢复或重新绑定入口。
-
-删除绑定 SHALL 停止自己的连接与派生访问；官方 Relay 确认记录已删除后，SHALL 清除本地绑定、私钥和待配对密钥，即使旧访问关闭未确认。无法确认删除时 SHALL 保留本地身份以便重试。界面 SHALL 区分记录删除和旧 P2P 访问关闭，不伪造关闭证明，并明确告知新配对取得新地址。
-
-设置操作 SHALL 保留现有 API 认证和 Origin 校验；界面在桌面与手机布局可用，并在当前操作会断开正在使用的公网页面时给出确认提示。
-
-#### Scenario: 成功删除绑定
-
-- **WHEN** 用户确认删除且官方 Relay 确认记录已删除
-- **THEN** 自己的连接停止、公共来源撤权、本地私钥与绑定被清除；旧访问未确认关闭时明确警告
-
-#### Scenario: 删除时官方服务不可达
-
-- **WHEN** 用户删除绑定但 Relay 控制面无法确认记录已删除
-- **THEN** 本地连接保持关闭，绑定信息保留用于重试，不声称删除或旧访问关闭
-
 ### Requirement: GitHub 跳转与宿主浏览器会话
 
 宿主 SHALL 显式信任已配对控制面的所有者认证，并保存所有者 GitHub 数字 ID 与绑定代际。
@@ -160,6 +107,12 @@ WebMux SHALL 在公网访问设置中提供开始配对、启停、刷新状态�
 宿主 SHALL 为后台跳转创建绑定浏览器的单次 state 和 PKCE S256 事务，有效期不超过 5 分钟；回调必须校验事务，并通过宿主密钥认证的控制通道携 verifier 兑换 code。账号、host ID、受众或绑定代际不符 SHALL 拒绝登录，MUST NOT 仅相信浏览器携带的身份声明。
 
 成功后宿主 SHALL 创建绝对有效期不超过 12 小时的内存会话，使用 host-only、Secure、HttpOnly、SameSite=Lax、Path=/ 的 `__Host-` Cookie；MUST NOT 写入 localStorage、sessionStorage 或 URL。回调 SHALL 禁缓存、禁止 Referer 泄露并跳至无凭据 URL。长期 WebMux Token MUST NOT 参与跳转或自动下发。
+
+认证呈现 SHALL 区分中转暂时重连、登录过期、授权撤销与直连 Token 无效：
+
+- 暂时重连 SHALL 保留已挂载页面并以角落状态指示呈现，提供再次检查与官方登录入口；
+- 登录过期、授权撤销与未登录 SHALL 以门禁页呈现；
+- 中转登录入口 SHALL 保留经过校验的同源应用路径，完成 state、PKCE 和一次性 code 校验后返回原页面；外部地址、认证端点和携带凭据的路径 SHALL 被拒绝。
 
 #### Scenario: 新设备免 Token 打开面板
 
@@ -175,7 +128,21 @@ WebMux SHALL 在公网访问设置中提供开始配对、启停、刷新状态�
 
 Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端 SHALL 通过现有 API/WS 封装识别登录态。Cookie 写请求 MUST 校验同源 Origin 与 CSRF token，转发上游前 MUST 剥离宿主认证 Cookie 和 CSRF 材料。
 
-宿主注销、会话过期、对应后台会话撤销、绑定撤销、换钥、移出邀请名单、Relay 关闭或断线 SHALL 撤销相关宿主会话。宿主重启 SHALL 清空会话。撤销 SHALL 拒绝后续请求并关闭该会话建立的 WebSocket、P2P 和转发连接，但 MUST NOT 终止持久 PTY。
+宿主注销、会话过期、对应后台会话撤销、绑定撤销、换钥、移出邀请名单或 Relay 关闭 SHALL 撤销相关宿主会话。宿主重启 SHALL 清空会话。撤销 SHALL 拒绝后续请求并关闭该会话建立的 WebSocket、P2P 和转发连接，但 MUST NOT 终止持久 PTY。
+
+临时 control 断线 SHALL 立即暂停登录会话的业务访问并关闭派生连接，保留有界的内存恢复记录至原绝对到期时间。恢复记录 MUST NOT 单独授权业务访问。新连接就绪后，宿主 SHALL 经认证控制通道重新校验原 grant、后台会话、所有者、邀请及绑定，取得精确绑定新 Scope 的授权后才恢复原 Cookie 对应的访问。
+
+恢复 SHALL 保持原 grant ID、所有者、Origin 和绝对期限，不延长 12 小时上限。明确撤销与恢复并发时 SHALL 以撤销为准；旧访问上下文与旧 Scope SHALL 保持失效。前端暂时恢复期间 SHALL 保留原路由并有界退避查询，恢复成功后按原终端续接协议重连，不自动重放业务写请求。
+
+#### Scenario: 短暂断线后恢复登录
+
+- **WHEN** control 连接短暂中断后以新连接代际恢复，原后台会话、邀请、绑定及 grant 仍有效
+- **THEN** 断线期间业务访问被拒绝，旧派生连接关闭；控制面重新授权后原 Cookie 可继续访问，绝对到期时间不变
+
+#### Scenario: 断线期间撤销授权
+
+- **WHEN** 登录处于暂停状态时，后台注销、取消邀请、解绑或 grant 撤销
+- **THEN** 控制面拒绝恢复，旧 Cookie 不能访问业务；页面说明登录状态并提供重新登录入口，不显示直连 Token 错误
 
 #### Scenario: 关闭 Relay 后旧会话不能复用
 
@@ -225,6 +192,7 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 发现结果 SHALL 来自管理员经控制服务校验并登记的用途化端点，不接受任意浏览器输入、节点自报或未认证下载扩展信任。
 宿主 SHALL 校验分配的主机/绑定代际、受众、版本及端点与服务身份的一致性，拒绝错误归属、重放或过期分配。
+各类材料的有效期上限 SHALL 在签发端限制；接收端 SHALL 检查绝对到期时间，不根据本机时钟重新推算签发寿命上限。签名、单次 nonce、归属、受众、代际及本地操作超时 SHALL 保持独立校验。
 只有具备 `wss` 能力且就绪的节点可作为连接器目标；`turn`-only 节点只提供 TURN，不暴露 WebMux HTTPS/WSS 入口，MUST NOT 被当作连接器目标。
 
 已配对控制面的数据面端点调整 SHALL 经认证、版本化分配完成，重新校验 TLS 与 pin 后切换，并使旧代际事件不能恢复旧入口授权；不得自动学习未知公钥或把数据面分配当作控制面信任变更。
@@ -363,17 +331,3 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 - **WHEN** 验收混合数据面的生产实现
 - **THEN** SHALL 在真实手机及桌面浏览器完成同 GitHub 账户免 Token 打开、Vim/CLI agent、重输出、Ctrl-C、切换续接、权限撤销和长时稳定性验证，记录失败及未覆盖边界，不引用旧实验充当 TURN 验证
-
-### Requirement: 独立持久机器身份
-
-宿主 SHALL 首次配对前生成具有至少 128 位随机熵的机器 ID，并独立于 Relay 绑定与私钥持久化。解绑或重新生成中继密钥 SHALL 保留机器 ID。机器 ID SHALL 仅用于同账号判重，MUST NOT 来自硬件指纹或替代 GitHub 授权。损坏或不可写的机器身份 SHALL 阻止新配对并保留原文件。
-
-#### Scenario: 丢失绑定后同机恢复
-
-- **WHEN** Relay 设置丢失而独立机器身份文件仍完整，用户重新完成同账号授权
-- **THEN** 新请求复用原机器 ID，恢复原 host ID 和固定域名，原密钥与派生授权失效
-
-#### Scenario: 机器身份损坏
-
-- **WHEN** 独立机器身份文件格式非法、被锁定或写入失败
-- **THEN** 配对明确失败，不静默生成替代 ID，不影响现有本地 PTY

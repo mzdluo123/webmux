@@ -3,7 +3,10 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { Textarea } from "$lib/components/ui/textarea";
   import { m } from "$lib/paraglide/messages.js";
   import type { GitConflictFileDetail } from "../../contracts/schemas";
@@ -52,7 +55,7 @@
   <div class="space-y-3 p-2.5 text-xs">
     <!-- 1. Single-source read-only switcher (Left / Right / Common Ancestor Base) -->
     <div class="space-y-2 rounded-lg border bg-background p-2.5">
-      <SegmentedControl.Root
+      <SegmentedControl
         wrap
         value={sourceSide}
         onValueChange={(val) => {
@@ -62,16 +65,16 @@
         }}
         aria-label={m.s6_conflict_source_switch_aria()}
       >
-        <SegmentedControl.Item value="left">
+        <SegmentedControlItem value="left">
           {m.s6_conflict_left_source()}
-        </SegmentedControl.Item>
-        <SegmentedControl.Item value="right">
+        </SegmentedControlItem>
+        <SegmentedControlItem value="right">
           {m.s6_conflict_right_source()}
-        </SegmentedControl.Item>
-        <SegmentedControl.Item value="base">
+        </SegmentedControlItem>
+        <SegmentedControlItem value="base">
           {m.s6_conflict_base_source()}
-        </SegmentedControl.Item>
-      </SegmentedControl.Root>
+        </SegmentedControlItem>
+      </SegmentedControl>
 
       <div class="space-y-1">
         <p class="font-semibold wrap-anywhere text-foreground">

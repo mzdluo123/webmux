@@ -23,7 +23,7 @@
     WorktreeUsage,
   } from "../../contracts/schemas";
   import { countSessions } from "../../domains/sessions/session-status";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import WorktreeSyncSummary from "./WorktreeSyncSummary.svelte";
 
   // What a group of the home page stands for: its path, the worktree's Git

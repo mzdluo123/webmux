@@ -9,7 +9,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import type { GitBlameCommit, GitBlameResult } from "../../contracts/schemas";
   import type { GitBlameCrumb } from "../../hooks/workspace/git-blame-controller.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   let {
     data,

@@ -216,7 +216,7 @@ test("lists recent commits of the start branch and selects one by title", async 
   serve();
   await show();
   await expect.element(baseInput()).toMatchTextContent(/最新提交/);
-  await expect.element(reference()).toHaveTextContent(head);
+  await expect.element(reference()).toHaveTextContent("refs/heads/main");
 
   await openBase();
   await expect.element(options()).toHaveLength(2);
@@ -236,9 +236,9 @@ test("switching the start branch lists that branch's history", async () => {
     branches: [...branches.branches, branch("release", other)],
   });
   await show();
-  await expect.element(reference()).toHaveTextContent(head);
+  await expect.element(reference()).toHaveTextContent("refs/heads/main");
   await chooseStartBranch("release");
-  await expect.element(reference()).toHaveTextContent(other);
+  await expect.element(reference()).toHaveTextContent("refs/heads/release");
   await openBase();
   await expect.element(options().first()).toMatchTextContent(/bbbbbbb/);
   await closeBase();
@@ -297,12 +297,12 @@ test("start branch picker searches and selects remote-tracking branches", async 
   await expect
     .element(startBranchInput())
     .toMatchTextContent(/origin\/feature\/remote-task/);
-  await expect.element(reference()).toHaveTextContent(refreshedRemoteHead);
+  await expect
+    .element(reference())
+    .toHaveTextContent("refs/remotes/origin/feature/remote-task");
   await expect
     .element(page.getByRole("status", { name: "上游刷新状态" }))
-    .toMatchTextContent(
-      /远程最新 · origin\/feature\/remote-task · 远程最新功能提交/,
-    );
+    .toMatchTextContent(/上游预览 · origin\/feature\/remote-task/);
 });
 
 test("a detached default lists history from the main worktree commit", async () => {
@@ -336,7 +336,7 @@ test("a failed history read keeps the default base selectable", async () => {
   await openBase();
   await expect.element(options()).toHaveLength(1);
   await closeBase();
-  await expect.element(reference()).toHaveTextContent(head);
+  await expect.element(reference()).toHaveTextContent("refs/heads/main");
   await expect.element(ready()).toHaveTextContent("ready");
 });
 
@@ -361,7 +361,7 @@ test("refresh lists a diverged upstream tip without making it the default", asyn
     .element(options().nth(1))
     .toHaveAccessibleName(/aaaaaaa · 本地最新/);
   await closeBase();
-  await expect.element(reference()).toHaveTextContent(head);
+  await expect.element(reference()).toHaveTextContent("refs/heads/main");
 });
 
 test("prefills an editable suggestion and does not refill after a manual clear", async () => {
@@ -535,7 +535,9 @@ test("a preset remote start branch fills its short name as the new branch", asyn
     .toHaveAttribute("aria-checked", "true");
   await expect.element(startBranchInput()).toHaveTextContent("origin/fix/b");
   await expect.element(branchInput()).toHaveValue("fix/b");
-  await expect.element(reference()).toHaveTextContent(remoteHead);
+  await expect
+    .element(reference())
+    .toHaveTextContent("refs/remotes/origin/fix/b");
   await page.getByRole("button", { name: /^高级：/ }).click();
   await expect.element(pathInput()).toHaveValue("/repos/project.worktrees/b");
   await expect.element(ready()).toHaveTextContent("ready");
@@ -567,7 +569,7 @@ test("reopening the branch picker starts unfiltered and mode switches close it",
   await expect.element(picker()).toHaveAttribute("aria-expanded", "false");
 });
 
-test("upstream refresh stays nonblocking and manual refresh updates the default", async () => {
+test("upstream refresh previews history without silently changing the branch baseline", async () => {
   const first = deferred<Response>();
   const remoteHead = "b".repeat(40);
   const manualHead = "c".repeat(40);
@@ -583,16 +585,21 @@ test("upstream refresh stays nonblocking and manual refresh updates the default"
   await expect
     .element(page.getByRole("status", { name: "上游刷新状态" }))
     .toMatchTextContent(/正在获取 main/);
-  await expect.element(reference()).toHaveTextContent(head);
+  await expect.element(reference()).toHaveTextContent("refs/heads/main");
   await expect.element(ready()).toHaveTextContent("ready");
   first.resolve(Response.json(remoteRefresh("main", remoteHead)));
-  await expect.element(reference()).toHaveTextContent(remoteHead);
+  await expect.element(reference()).toHaveTextContent("refs/heads/main");
   await expect
     .element(page.getByRole("status", { name: "上游刷新状态" }))
-    .toMatchTextContent(/远程最新 · origin\/main/);
+    .toMatchTextContent(/上游预览 · origin\/main/);
 
   await page.getByRole("button", { name: "刷新上游", exact: true }).click();
-  await expect.element(reference()).toHaveTextContent(manualHead);
+  await expect.element(reference()).toHaveTextContent("refs/heads/main");
+  await openBase();
+  await expect
+    .element(options().first())
+    .toHaveAccessibleName(/ccccccc · 远程最新/);
+  await closeBase();
   expect(calls).toBe(2);
 });
 
@@ -613,14 +620,18 @@ test("a late response cannot replace a newer branch selection", async () => {
     .toMatchTextContent(/正在获取 main/);
 
   await chooseStartBranch("wt/taken-branch");
-  await expect.element(reference()).toHaveTextContent(selectedHead);
+  await expect
+    .element(reference())
+    .toHaveTextContent("refs/heads/wt/taken-branch");
   expect(mainSignal?.aborted).toBe(true);
   const lateResponse = Response.json(remoteRefresh("main", "c".repeat(40)));
   const lateRead = vi.spyOn(lateResponse, "json");
   main.resolve(lateResponse);
   await vi.waitFor(() => expect(lateRead).toHaveBeenCalled());
   await Promise.resolve();
-  await expect.element(reference()).toHaveTextContent(selectedHead);
+  await expect
+    .element(reference())
+    .toHaveTextContent("refs/heads/wt/taken-branch");
   await expect
     .element(startBranchInput())
     .toMatchTextContent(/wt\/taken-branch/);
@@ -656,7 +667,7 @@ test("a failed manual refresh clears the previous remote-latest label", async ()
   await show();
   await expect
     .element(page.getByRole("status", { name: "上游刷新状态" }))
-    .toMatchTextContent(/远程最新/);
+    .toMatchTextContent(/上游预览/);
   await page.getByRole("button", { name: "刷新上游", exact: true }).click();
   await expect
     .element(page.getByRole("status", { name: "上游刷新警告" }))
@@ -664,7 +675,7 @@ test("a failed manual refresh clears the previous remote-latest label", async ()
   await expect
     .element(page.getByRole("status", { name: "上游刷新状态" }))
     .not.toBeInTheDocument();
-  await expect.element(reference()).toHaveTextContent(remoteHead);
+  await expect.element(reference()).toHaveTextContent("refs/heads/main");
 });
 
 test("failed refreshes keep the local base and form availability", async () => {
@@ -675,7 +686,7 @@ test("failed refreshes keep the local base and form availability", async () => {
   await expect
     .element(page.getByRole("status", { name: "上游刷新警告" }))
     .toMatchTextContent(/保留当前基线/);
-  await expect.element(reference()).toHaveTextContent(head);
+  await expect.element(reference()).toHaveTextContent("refs/heads/main");
   await expect.element(ready()).toHaveTextContent("ready");
 });
 
@@ -719,7 +730,7 @@ test("leaving the form aborts the branch list reload after an upstream refresh",
   );
   await show();
   const signal = await started.promise;
-  await expect.element(reference()).toHaveTextContent("b".repeat(40));
+  await expect.element(reference()).toHaveTextContent("refs/heads/main");
 
   await cleanup();
   expect(signal?.aborted).toBe(true);

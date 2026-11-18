@@ -1,7 +1,7 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
-  import InlineNotice from "../components/shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import type { FeatureID } from "../contracts/feature-schemas";
 
   let { errors }: { errors: Partial<Record<FeatureID, string>> } = $props();

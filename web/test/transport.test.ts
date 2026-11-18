@@ -33,7 +33,8 @@ import {
   type UploadRequest,
   type UploadResult,
 } from "../src/platform/transport";
-import { connect, openSocket, setWsCompression } from "../src/platform/ws";
+import { connect, openSocket } from "../src/platform/ws";
+import { setWsCompression } from "../src/platform/ws-compression";
 
 class FakeStream implements TransportSocket {
   readyState = SOCKET_CONNECTING;

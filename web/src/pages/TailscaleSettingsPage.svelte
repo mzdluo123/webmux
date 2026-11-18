@@ -6,7 +6,7 @@
   import ConfirmDialog from "../components/shared/ConfirmDialog.svelte";
   import { Button } from "$lib/components/ui/button";
   import * as Card from "$lib/components/ui/card";
-  import InlineNotice from "../components/shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import SettingsPageHeader from "../components/settings/SettingsPageHeader.svelte";
   import TailscaleConfiguration from "../components/settings/TailscaleConfiguration.svelte";
   import TunnelStateBadge from "../components/settings/TunnelStateBadge.svelte";

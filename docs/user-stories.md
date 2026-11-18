@@ -6,6 +6,11 @@
 
 固定多 TCP 与服务端单点准入变更覆盖 US-A09、US-A10，详见[连接与启动](user-stories/access-and-sessions/connection-and-launch.md)。
 机器身份独立持久化、仅全新配对、破坏性旧绑定清理及所有者直接删除覆盖 US-A08–US-A10；删除记录与旧访问关闭分别报告，不改变故事数量或既有编号。
+Relay 页内配对与宿主授权生命周期覆盖 US-A10：刷新恢复、暂时失败继续查询、未知结果核对及删除/关闭证据分别呈现，编号和总数保持不变。
+Relay 有效期上限由签发端限制、接收端仅检查绝对到期时间的调整覆盖 US-A10；编号与总数保持不变。
+中转浏览器会话断线暂停、控制面重新授权、原路径重新登录与 12 小时绝对期限覆盖 US-A08、US-A10；编号与总数保持不变。
+原生历史混合压缩归档、显式文本、冻结页集、手机页数编辑与失败阻止覆盖 US-Q20；正文/工具提取覆盖 US-Q19，统一上下文预算说明覆盖 US-K04。故事编号与总数不变，实际验证见最新核对记录。
+工作树创建前的上游检查与显式选择覆盖 US-J04、US-J05、US-S07、US-S16、US-Q18、US-Q20；独立创建、会话与交接共享确认，故事编号与数量保持不变。
 
 本次局部核对（2026-11-03）：
 
@@ -28,32 +33,32 @@
 - 可选功能的验收以对应内置功能已选择且能力可用为前提，未选择不等于故障；配置与核心终端见 US-K18–US-K21。
 - `launch` 对应保存的启动配置；`workspace` 对应仓库与工作树；`code` 对应代码浏览。Git 工作台要求同时选择 `workspace` 与 `code`，仅选 `workspace` 仍能管理仓库及工作树。
 - E 组上传依赖 `files`；Q 组依赖 `chat`（同时显式选择 `launch`、`files`）；G 组快捷指令/语音分别依赖 `quick-commands`/`voice`。
-- C 组后台推送依赖 `notifications`；N/P/R 组分别依赖 `cloudflare`/`tailscale`/`forward`；P2P、MCP、沉浸式分别依赖 `p2p`、`mcp`、`immersive`。核心 PTY、普通会话与原生附着不依赖这些功能。
+- C 组后台推送依赖 `notifications`；N/P/R 组分别依赖 `cloudflare`/`tailscale`/`forward`；P2P 与 MCP 分别依赖 `p2p`、`mcp`。核心 PTY、普通会话与原生附着不依赖这些功能。
 - 故事编号保持稳定。新增功能应补充故事；改变行为时同步修改验收要点与相关测试，不因排序调整而重新编号。
 
 ## 功能索引
 
-| 分组 | 功能范围                                   | 故事编号      |
-| ---- | ------------------------------------------ | ------------- |
-| A    | 连接、认证、品牌标识与访问边界             | US-A01–US-A10 |
-| B    | 创建会话与选择启动位置                     | US-B01–US-B13 |
-| C    | 会话总览、搜索与提醒                       | US-C01–US-C18 |
-| D    | 终端操作、分屏、续接、多设备与生命周期     | US-D01–US-D15 |
-| E    | 剪贴板与文件上传                           | US-E01–US-E07 |
-| F    | 草稿编写、保存与发送确认                   | US-F01–US-F09 |
-| G    | 快捷指令与语音输入                         | US-G01–US-G07 |
-| H    | 移动端、头显、TV、多会话沉浸视图与慢速网络 | US-H01–US-H15 |
-| I    | 代码工作区、Diff、引用与文件操作           | US-I01–US-I19 |
-| J    | 仓库登记与 worktree 管理                   | US-J01–US-J28 |
-| K    | 配置、升级迁移、功能选择与服务管理         | US-K01–US-K21 |
-| L    | 开发、验证与发布支持                       | US-L01–US-L15 |
-| M    | 原生终端、CLI 与本机控制面                 | US-M01–US-M08 |
-| N    | Cloudflare 公网隧道                        | US-N01–US-N08 |
-| O    | Windows/WSL 托盘管理                       | US-O01–US-O14 |
-| P    | Tailscale Serve / Funnel                   | US-P01–US-P08 |
-| Q    | 混合会话、归档恢复与永久删除               | US-Q01–US-Q20 |
-| R    | 端口转发预览                               | US-R01–US-R04 |
-| S    | 脚本与 agent 控制                          | US-S01–US-S25 |
+| 分组 | 功能范围                               | 故事编号      |
+| ---- | -------------------------------------- | ------------- |
+| A    | 连接、认证、品牌标识与访问边界         | US-A01–US-A10 |
+| B    | 创建会话与选择启动位置                 | US-B01–US-B13 |
+| C    | 会话总览、搜索与提醒                   | US-C01–US-C18 |
+| D    | 终端操作、分屏、续接、多设备与生命周期 | US-D01–US-D15 |
+| E    | 剪贴板与文件上传                       | US-E01–US-E07 |
+| F    | 草稿编写、保存与发送确认               | US-F01–US-F09 |
+| G    | 快捷指令与语音输入                     | US-G01–US-G07 |
+| H    | 移动端、头显、TV 与慢速网络            | US-H01–US-H15 |
+| I    | 代码工作区、Diff、引用与文件操作       | US-I01–US-I19 |
+| J    | 仓库登记与 worktree 管理               | US-J01–US-J28 |
+| K    | 配置、升级迁移、功能选择与服务管理     | US-K01–US-K21 |
+| L    | 开发、验证与发布支持                   | US-L01–US-L15 |
+| M    | 原生终端、CLI 与本机控制面             | US-M01–US-M08 |
+| N    | Cloudflare 公网隧道                    | US-N01–US-N08 |
+| O    | Windows/WSL 托盘管理                   | US-O01–US-O14 |
+| P    | Tailscale Serve / Funnel               | US-P01–US-P08 |
+| Q    | 混合会话、归档恢复与永久删除           | US-Q01–US-Q20 |
+| R    | 端口转发预览                           | US-R01–US-R04 |
+| S    | 脚本与 agent 控制                      | US-S01–US-S25 |
 
 目录共 264 条故事；A 组为 10 条，K 组为 21 条，S 组为 25 条。编号范围包含已保留的历史/退役条目，不表示本次重新验收全部能力。
 
@@ -73,7 +78,7 @@
 | [原生客户端、隧道与托盘](user-stories/clients-network-tray.md)                    | M–P                |
 | [终端分屏用户故事](user-stories/terminal-splits.md)                               | D13–D14            |
 | [网络压缩与 P2P 直连用户故事](user-stories/terminal-network.md)                   | H10–H12            |
-| [头显、TV 与沉浸式工作区](user-stories/terminal-xr-tv.md)                         | H13–H15            |
+| [头显与 TV 工作区](user-stories/terminal-headset-tv.md)                           | H13–H15            |
 | [语音输入用户故事](user-stories/terminal-voice.md)                                | G07                |
 | [混合会话](user-stories/hybrid-sessions.md)                                       | Q                  |
 | [端口转发预览](user-stories/port-forwarding.md)                                   | R                  |
@@ -95,5 +100,5 @@
 | [verification-log-2026-11-archived-history](user-stories/verification-log-2026-11-archived-history.md) | 2026-11-06 起                     |
 | [verification-log-2026-11-12](user-stories/verification-log-2026-11-12.md)                             | 2026-11-12 起                     |
 | [verification-log-2026-11-git-workbench](user-stories/verification-log-2026-11-git-workbench.md)       | 2026-11-12 起的 Git 工作台核对    |
-| [verification-log-2026-11-15](user-stories/verification-log-2026-11-15.md)                             | 2026-11-15 至 2026-11-16          |
+| [verification-log-2026-11-15](user-stories/verification-log-2026-11-15.md)                             | 2026-11-15 起                     |
 | [verification-log-2026-11-17](user-stories/verification-log-2026-11-17.md)                             | 2026-11-17 起                     |

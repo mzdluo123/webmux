@@ -10,7 +10,7 @@
   import { copyText } from "../../platform/clipboard";
   import type { Remote } from "../../contracts/schemas";
   import type { GitRemotesController } from "../../hooks/workspace/git-remotes-controller.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   let {
     remotes,

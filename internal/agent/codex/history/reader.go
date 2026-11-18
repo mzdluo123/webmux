@@ -59,13 +59,13 @@ func Read(ctx context.Context, req historysource.Request) (historysource.Documen
 			if errors.Is(err, codexrollout.ErrLimit) {
 				cause = historysource.ErrLimit
 			}
-			return out, &historysource.ParseError{Offset: parseError.Offset, Cause: cause}
+			return out, &historysource.ParseError{Offset: parseError.Offset, Cause: errors.Join(cause, parseError.Cause)}
 		}
 		switch {
 		case errors.Is(err, codexrollout.ErrLimit):
-			return out, historysource.ErrLimit
+			return out, errors.Join(historysource.ErrLimit, err)
 		case errors.Is(err, codexrollout.ErrVersion), errors.Is(err, codexrollout.ErrFormat):
-			return out, historysource.ErrFormat
+			return out, errors.Join(historysource.ErrFormat, err)
 		default:
 			return out, err
 		}
@@ -86,7 +86,7 @@ func Discover(ctx context.Context, root string) ([]historysource.Source, error) 
 	}
 	out := make([]historysource.Source, 0, len(found.Files))
 	for _, file := range found.Files {
-		if file.Metadata.ID != "" && file.Problem == "" {
+		if file.Metadata.ID != "" {
 			out = append(out, historysource.Source{Agent: "codex", Path: file.Path, NativeID: file.Metadata.ID, Branch: file.Metadata.ID})
 		}
 	}

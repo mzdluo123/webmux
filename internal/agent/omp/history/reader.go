@@ -1,13 +1,15 @@
 // Package history reads omp's native session JSONL without runtime capabilities.
-// Format evidence: #653 fixtures, session schema 3, runtime 18.12.2;
-// the runtime profile's CLI baseline (18.13.1) is not a parser version.
+// Format evidence: #653 fixtures and the local 18.22.0 capture, session schema 3.
+// CLI release numbers are evidence; session schema selects parser compatibility.
 package history
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -16,7 +18,7 @@ import (
 	hs "github.com/rainchan/webmux/internal/historysource"
 )
 
-const ParserVersion = "omp-jsonl-2"
+const ParserVersion = "omp-jsonl-4"
 const FormatVersion = "omp-session-3"
 
 type entry struct {
@@ -32,19 +34,30 @@ type entry struct {
 	offset, end   int64
 }
 type message struct {
-	Role    string          `json:"role"`
-	Content json.RawMessage `json:"content"`
-	CallID  string          `json:"toolCallId"`
-	Tool    string          `json:"toolName"`
-	Error   bool            `json:"isError"`
-	Stop    string          `json:"stopReason"`
+	Role               string          `json:"role"`
+	Content            json.RawMessage `json:"content"`
+	CallID             string          `json:"toolCallId"`
+	Tool               string          `json:"toolName"`
+	Error              bool            `json:"isError"`
+	Stop               string          `json:"stopReason"`
+	Command            string          `json:"command"`
+	Code               string          `json:"code"`
+	Output             string          `json:"output"`
+	ExitCode           *int            `json:"exitCode"`
+	Cancelled          bool            `json:"cancelled"`
+	Truncated          bool            `json:"truncated"`
+	ExcludeFromContext bool            `json:"excludeFromContext"`
+	Files              []struct {
+		Path string `json:"path"`
+	} `json:"files"`
 }
 type block struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Mime string `json:"mimeType"`
+	Type      string          `json:"type"`
+	Text      string          `json:"text"`
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Mime      string          `json:"mimeType"`
+	Arguments json.RawMessage `json:"arguments"`
 }
 type boundary struct{ Cursor, Fingerprint, Branch, NativeID string }
 
@@ -173,7 +186,40 @@ func Read(ctx context.Context, req hs.Request) (hs.Document, error) {
 			r.Kind = "message"
 			r.Role = e.Message.Role
 			r.Status = e.Message.Stop
-			if r.Role != "user" && r.Role != "assistant" && r.Role != "toolResult" {
+			switch r.Role {
+			case "user", "assistant", "toolResult", "developer":
+			case "custom":
+				r.Role = "system"
+			case "bashExecution", "pythonExecution":
+				if e.Message.ExcludeFromContext {
+					r.Kind, r.Role, r.Status = "metadata", "", ""
+					gaps = append(gaps, hs.Gap{RecordID: e.ID, Category: "excluded_from_context", Offset: e.offset})
+					break
+				}
+				r.Kind, r.Role = "tool_result", "tool"
+				r.ToolName, r.Text = "bash", e.Message.Command
+				if e.Message.Role == "pythonExecution" {
+					r.ToolName, r.Text = "python", e.Message.Code
+				}
+				r.Text += "\n" + e.Message.Output
+				r.Status = "completed"
+				if e.Message.Cancelled {
+					r.Status = "cancelled"
+				} else if e.Message.ExitCode == nil {
+					r.Status = "unknown"
+				} else if *e.Message.ExitCode != 0 {
+					r.Status = "error"
+				}
+				if e.Message.Truncated {
+					gaps = append(gaps, hs.Gap{RecordID: e.ID, Category: "truncated_output", Offset: e.offset})
+				}
+			case "fileMention":
+				r.Role = "user"
+				for _, file := range e.Message.Files {
+					r.Attachments = append(r.Attachments, hs.Attachment{Name: file.Path})
+				}
+				gaps = append(gaps, hs.Gap{RecordID: e.ID, Category: "attachment_body_omitted", Offset: e.offset})
+			default:
 				return hs.Document{}, hs.ErrFormat
 			}
 			if r.Role == "toolResult" {
@@ -185,6 +231,10 @@ func Read(ctx context.Context, req hs.Request) (hs.Document, error) {
 				if e.Message.Error {
 					r.Status = "error"
 				}
+			}
+			// Execution and file-mention payloads have dedicated safe projections.
+			if e.Message.Role == "bashExecution" || e.Message.Role == "pythonExecution" || e.Message.Role == "fileMention" {
+				break
 			}
 			var text string
 			if json.Unmarshal(e.Message.Content, &text) == nil {
@@ -205,7 +255,7 @@ func Read(ctx context.Context, req hs.Request) (hs.Document, error) {
 						}
 						r.Text += b.Text
 					case "toolCall":
-						records = append(records, hs.Record{ID: blockRecordID(e.ID, position, index), NativeID: e.ID, ParentID: e.Parent, Kind: "tool_call", Role: "assistant", CallID: b.ID, ToolName: b.Name, Status: "requested", Offset: e.offset, End: e.end})
+						records = append(records, hs.Record{ID: blockRecordID(e.ID, position, index), NativeID: e.ID, ParentID: e.Parent, Kind: "tool_call", Role: "assistant", Text: string(b.Arguments), CallID: b.ID, ToolName: b.Name, Status: "requested", Offset: e.offset, End: e.end})
 					case "image", "file":
 						r.Attachments = append(r.Attachments, hs.Attachment{MimeType: b.Mime})
 						gaps = append(gaps, hs.Gap{RecordID: e.ID, Category: "attachment_body_omitted", Offset: e.offset})
@@ -265,34 +315,14 @@ func Discover(ctx context.Context, root string) ([]hs.Source, error) {
 		if d.Type()&fs.ModeSymlink != 0 || d.IsDir() || filepath.Ext(path) != ".jsonl" {
 			return nil
 		}
-		id := ""
-		_, e = hs.ReadJSONL(ctx, hs.Request{Source: hs.Source{Path: path}}, func(line []byte, _, _ int64) error {
-			var h struct {
-				Type, ID string
-				Version  int
-			}
-			if json.Unmarshal(line, &h) != nil {
-				return hs.ErrFormat
-			}
-			if h.Type == "session" {
-				if id != "" || h.Version != 3 {
-					return hs.ErrFormat
-				}
-				id = h.ID
-			}
-			return nil
-		})
+		id, e := discoverIdentity(ctx, path)
 		if e != nil {
 			return e
 		}
 		if id == "" {
 			return nil
 		}
-		doc, e := Read(ctx, hs.Request{Source: hs.Source{Agent: "omp", Path: path, NativeID: id}})
-		if e != nil {
-			return e
-		}
-		out = append(out, doc.Source)
+		out = append(out, hs.Source{Agent: "omp", Path: path, NativeID: id})
 		if len(out) > 1000 {
 			return hs.ErrLimit
 		}
@@ -302,6 +332,50 @@ func Discover(ctx context.Context, root string) ([]hs.Source, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// Discovery reads the bounded title/header prefix only. Read validates the
+// selected session's schema and body after runtime identity is unique.
+func discoverIdentity(ctx context.Context, path string) (string, error) {
+	before, err := os.Lstat(path)
+	if err != nil || !before.Mode().IsRegular() {
+		return "", nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return "", nil
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil || !os.SameFile(before, info) {
+		return "", hs.ErrChanged
+	}
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 1024), 64<<10)
+	for range 4 {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		if !scanner.Scan() {
+			return "", nil
+		}
+		var header struct {
+			Type string `json:"type"`
+			ID   string `json:"id"`
+		}
+		if json.Unmarshal(scanner.Bytes(), &header) != nil {
+			return "", nil
+		}
+		switch header.Type {
+		case "title":
+			continue
+		case "session":
+			return header.ID, nil
+		default:
+			return "", nil
+		}
+	}
+	return "", nil
 }
 
 // Keep the native message node for parent edges; projected blocks get an

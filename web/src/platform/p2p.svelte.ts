@@ -21,7 +21,8 @@ import { P2PStatusSchema, type P2PStatus } from "../contracts/schemas";
 import { onActiveHostChange } from "./storage";
 import { relayOwnerAuthenticated } from "./relay-auth";
 import { defaultBrowserTransport, setClientTransport } from "./transport";
-import { handoffLiveSockets, observeManagedStreams } from "./ws";
+import { handoffLiveSockets } from "./ws";
+import { observeManagedStreams } from "./ws-registry";
 
 const BACKOFF_STEPS_MS = [5_000, 15_000, 60_000];
 

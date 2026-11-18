@@ -2,7 +2,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
   import type { SessionInfo, Worktree } from "../../contracts/schemas";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import WorktreeDetails from "./WorktreeDetails.svelte";
 
   // The dialog holding a worktree's (or directory's) details outside the

@@ -3,7 +3,7 @@
   import IconHandStop from "~icons/tabler/hand-stop";
   import { m } from "$lib/paraglide/messages.js";
   import CodeMarkdownPreview from "../code/CodeMarkdownPreview.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import type { DisplayEntry } from "../../domains/chat/chat-model";
   import type { ChatCodeLinkHandler } from "../../domains/code/markdown-link";
   import type { StopReason } from "../../contracts/schemas";

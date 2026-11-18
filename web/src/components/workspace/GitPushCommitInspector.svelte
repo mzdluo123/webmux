@@ -12,7 +12,7 @@
   import { createOfflineHunkDiffState } from "../../hooks/workspace/git-offline-diff.svelte";
   import type { GitPushFileDiffState } from "../../hooks/workspace/git-push-controller.svelte";
   import CodeDiffReader from "../code/CodeDiffReader.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   let {
     detail,

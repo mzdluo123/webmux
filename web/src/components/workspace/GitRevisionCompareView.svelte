@@ -2,7 +2,10 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import * as NativeSelect from "$lib/components/ui/native-select";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import type { GitBranchItem } from "../../contracts/git-workbench-schemas";
   import type { GitDiffPanelReader } from "../../hooks/workspace/git-log-diff.svelte";
@@ -82,20 +85,20 @@
       <Label>{m.s6_rev_compare_target_label()}</Label>
       <div class="flex min-w-0 flex-wrap items-center gap-1.5">
         {#if hasWorktree}
-          <SegmentedControl.Root
+          <SegmentedControl
             value={targetKind}
             onValueChange={(val) => {
               if (val === "worktree" || val === "rev") onTargetKindChange(val);
             }}
             aria-label={m.s6_rev_compare_target_type_aria()}
           >
-            <SegmentedControl.Item value="worktree">
+            <SegmentedControlItem value="worktree">
               {m.s6_rev_compare_target_worktree()}
-            </SegmentedControl.Item>
-            <SegmentedControl.Item value="rev">
+            </SegmentedControlItem>
+            <SegmentedControlItem value="rev">
               {m.s6_rev_compare_target_rev()}
-            </SegmentedControl.Item>
-          </SegmentedControl.Root>
+            </SegmentedControlItem>
+          </SegmentedControl>
         {/if}
         {#if !hasWorktree || targetKind === "rev"}
           <Input

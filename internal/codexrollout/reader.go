@@ -15,7 +15,7 @@ import (
 	"unicode/utf8"
 )
 
-const Version = "codex-rollout/v2"
+const Version = "codex-rollout/v3"
 const MaxRecord = 4 << 20
 const MaxInput = 64 << 20
 const MaxRecords = 100000
@@ -147,27 +147,12 @@ func decode(e envelope, out *Result, rec *Record) error {
 	diag := rec.diagnose
 	switch e.Type {
 	case "session_meta":
-		var fields map[string]json.RawMessage
-		if json.Unmarshal(e.Payload, &fields) != nil {
-			return ErrFormat
+		m, err := parseMetadata(e.Payload)
+		if err != nil {
+			return err
 		}
-		// Newer reference-based histories must not masquerade as materialized forks.
-		for _, k := range []string{"history_base", "forked_from_id", "subagent_history_start_ordinal"} {
-			if v, ok := fields[k]; ok && string(v) != "null" {
-				return ErrVersion
-			}
-		}
-		var m Metadata
-		if json.Unmarshal(e.Payload, &m) != nil || m.ID == "" || m.Cwd == "" {
-			return ErrFormat
-		}
-		if len(m.ID) > 128 || len(m.Cwd) > 8192 || len(m.Timestamp) > 128 || len(m.ModelProvider) > 256 {
-			return ErrLimit
-		}
-		switch m.CLIVersion {
-		case "0.77.0", "0.157.1", "0.162.1":
-		default:
-			return ErrVersion
+		if err := validateMetadata(e.Payload, m); err != nil {
+			return err
 		}
 		if out.Metadata.ID == "" {
 			out.Metadata = m
@@ -205,6 +190,9 @@ func decode(e envelope, out *Result, rec *Record) error {
 	case "event_msg":
 		var v struct {
 			Type string `json:"type"`
+			Item struct {
+				Type string `json:"type"`
+			} `json:"item"`
 		}
 		if json.Unmarshal(e.Payload, &v) != nil {
 			return ErrFormat
@@ -213,9 +201,18 @@ func decode(e envelope, out *Result, rec *Record) error {
 		switch v.Type {
 		case "user_message", "agent_message":
 			diag("mirror_pairing_unverified")
+		case "item_completed":
+			switch v.Item.Type {
+			case "UserMessage", "AgentMessage":
+				diag("mirror_pairing_unverified")
+			case "Reasoning":
+				diag("nonexportable_reasoning")
+			default:
+				diag("unknown_event")
+			}
 		case "agent_reasoning", "agent_reasoning_raw_content":
 			diag("nonexportable_reasoning")
-		case "token_count", "context_compacted":
+		case "token_count", "context_compacted", "task_started", "task_complete", "thread_settings_applied":
 		case "turn_aborted":
 			rec.Items = append(rec.Items, Item{Kind: "interrupt", Status: "cancelled"})
 		case "entered_review_mode", "exited_review_mode", "undo_completed":
@@ -225,10 +222,45 @@ func decode(e envelope, out *Result, rec *Record) error {
 		}
 	case "response_item":
 		return response(e.Payload, rec)
+	case "world_state":
+		diag("nonexportable_provider_state")
+	case "token_usage_record":
 	default:
 		diag("unknown_record")
 	}
 	return nil
+}
+
+// Parse identity independently of supported body versions so discovery can retain
+// a target whose reader must subsequently report an unsupported format.
+func parseMetadata(raw json.RawMessage) (Metadata, error) {
+	var m Metadata
+	if json.Unmarshal(raw, &m) != nil || m.ID == "" || m.Cwd == "" {
+		return Metadata{}, ErrFormat
+	}
+	if len(m.ID) > 128 || len(m.Cwd) > 8192 || len(m.Timestamp) > 128 || len(m.ModelProvider) > 256 || len(m.CLIVersion) > 128 {
+		return Metadata{}, ErrLimit
+	}
+	return m, nil
+}
+
+func validateMetadata(raw json.RawMessage, m Metadata) error {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil {
+		return ErrFormat
+	}
+	// Reference-based histories cannot be read as materialized forks.
+	for _, key := range []string{"history_base", "forked_from_id", "subagent_history_start_ordinal"} {
+		if value, ok := fields[key]; ok && string(value) != "null" {
+			return ErrVersion
+		}
+	}
+	switch m.CLIVersion {
+	case "0.77.0", "0.157.1", "0.162.1", "0.169.0":
+		return nil
+	default:
+		return ErrVersion
+	}
 }
 
 func response(raw json.RawMessage, rec *Record) error {
@@ -244,6 +276,9 @@ func response(raw json.RawMessage, rec *Record) error {
 		Output    json.RawMessage `json:"output"`
 		Content   []contentPart   `json:"content"`
 		Action    json.RawMessage `json:"action"`
+		Metadata  struct {
+			ContentItemKinds []string `json:"content_item_kinds"`
+		} `json:"internal_chat_message_metadata_passthrough"`
 	}
 	if json.Unmarshal(raw, &v) != nil {
 		return ErrFormat
@@ -261,6 +296,21 @@ func response(raw json.RawMessage, rec *Record) error {
 		if v.Role != "user" && v.Role != "assistant" {
 			diag("nonexportable_message")
 			return nil
+		}
+		// Current rollouts also encode generated environment context as a user
+		// message. Only explicit provenance makes it safe to exclude that body.
+		if len(v.Metadata.ContentItemKinds) > 0 {
+			environmentOnly := true
+			for _, kind := range v.Metadata.ContentItemKinds {
+				if kind != "environments.environment_context" {
+					environmentOnly = false
+					break
+				}
+			}
+			if environmentOnly {
+				diag("nonexportable_environment")
+				return nil
+			}
 		}
 		item.Kind = "message"
 		item.Role = v.Role
@@ -294,6 +344,9 @@ func response(raw json.RawMessage, rec *Record) error {
 		}
 	case "reasoning", "compaction":
 		diag("nonexportable_reasoning")
+		return nil
+	case "additional_tools":
+		diag("nonexportable_tool_definitions")
 		return nil
 	default:
 		diag("unknown_response_item")

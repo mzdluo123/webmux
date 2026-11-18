@@ -891,7 +891,7 @@ test("a new worktree created before a failed start is reused on retry", async ()
       repositoryId: "repo-1",
       mode: "new",
       branch: "feature/fresh",
-      base: "a".repeat(40),
+      base: "refs/heads/main",
       path: "/repos/project.worktrees/fresh",
     },
   ]);
@@ -942,7 +942,7 @@ test("new worktree fields survive switching location away and back", async () =>
       repositoryId: "repo-1",
       mode: "new",
       branch: "feature/kept",
-      base: "a".repeat(40),
+      base: "refs/heads/main",
       path: "/elsewhere/kept",
     },
   ]);

@@ -6,7 +6,6 @@ export { default as Recovery } from "../components/sessions/HybridRecovery.svelt
 export { default as ConnectorHint } from "../components/sessions/ConnectorInstallHint.svelte";
 export { default as CandidatePicker } from "../components/sessions/HybridCandidatePicker.svelte";
 export { default as SwitchChoice } from "../components/chat/SwitchChoiceDialog.svelte";
-export { xrChatPanel } from "../hooks/terminal/xr-chat-content";
 export { default as ViewTabs } from "../components/terminal/SessionViewTabs.svelte";
 export {
   default as LaunchIcon,

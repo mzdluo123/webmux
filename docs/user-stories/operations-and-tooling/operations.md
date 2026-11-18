@@ -33,8 +33,8 @@
   - 支持 `default_cwd`、`scrollback_bytes`、`idle_after_seconds`、`prompt_patterns`、`agent_protocol`、`bell_attention`、`program_status`、`agent_pretrust`，校验正则；
   - `agent_protocol`、`bell_attention`、`program_status` 属于核心 PTY 状态识别，不依赖通知或聊天功能；`agent_pretrust` 与 agent 专属提交延迟由 `launch` 启动集成提供，未选择时不装配；
   - 启动命令由显式 argv（核心）或 `launch` 保存配置提供，原 `shell`/`presets` 不提供内置命令；仅首次启用 `launch` 且文件缺失时写入常见 agent 预设；
-  - 选择 `chat` 后，通过 Agent 原生身份读取历史；`handoff_token_cap` 设置交接历史预算上限。
-  - 选择 `chat` 后，`handoff_token_cap` 默认 16000，校验范围 1024–64000，限制交接历史保守预算；实际预算仍受上下文窗口和 prompt 上限约束；
+  - 选择 `chat` 后，通过 Agent 原生身份读取历史，默认首尾文本与中段图片的压缩归档、显式文本；图片最多 8 页，短历史完整保持文本；
+  - `handoff_token_cap` 默认 16000、范围 1024–64000，约束文本保守上界与图片 token 估计之和，并受窗口和 prompt 上限限制；图片字节另受附件与编码请求限制，未知费率明确标注；
   - 提醒集成方式见 [使用指南](../../usage/attention.md)。
 - **US-K05 安装后台用户服务**：作为部署者，我希望以当前用户安装并启动后台服务，以便不需要一直开着前台终端。
   验收要点：
@@ -88,7 +88,7 @@
   - 默认最新 Release，`WEBMUX_VERSION` 可固定版本，`WEBMUX_INSTALL_DIR` 覆盖目录且不自动 sudo；
   - `WEBMUX_CHANNEL=dev` 从 `dev` Release 当前清单安装匹配的开发版，`WEBMUX_VERSION` 只接受当前开发版，通道与版本矛盾时报错，`dev` Release 自带同一份 `install.sh`；
   - 先 GitHub 直连，再按 `WEBMUX_MIRRORS`（默认 `ghfast.top`、`gh-proxy.com`，空值只用 GitHub）回退，每源有连接、低速与总时限；
-  - 未设置 `WEBMUX_SHA256` 且本机有 `minisign` 或支持 Ed25519 的 `openssl` 时，先以对应通道的内置公钥验证同源 `SHA256SUMS.minisig`（覆盖文件内容、可信注释版本及正式版/开发版密钥组隔离）再校验二进制摘要；
+  - 未设置 `WEBMUX_SHA256` 且本机有 `minisign` 或支持 Ed25519 的 `openssl` 时，先以对应通道的内置公钥验证同源 `SHA256SUMS.minisig`（覆盖文件内容、可信注释版本及正式版/开发版密钥组隔离）再校验二进制摘要；固定安装 `v0.11.0` 之前的无签名旧版时提示设置 `WEBMUX_SHA256`；
   - 缺少本地验签工具且未设置 `WEBMUX_SHA256` 时，只接受直接从官方 `https://github.com/mzdluo123/webmux` 下载的 `SHA256SUMS`（GitHub 已返回清单而二进制下载中断时允许镜像提供匹配摘要的二进制），拒绝非 GitHub 来源的未验证清单；失败保留旧文件并汇总来源错误，`WEBMUX_SHA256` 可固定摘要；
   - 安装入口使用 Release 资产、jsDelivr 或 gh-proxy 镜像，不依赖 `raw.githubusercontent.com`，并说明镜像可看到 IP 及经镜像拉取脚本本身的信任边界；
   - 脚本只装二进制，不改配置、服务或 shell。
@@ -146,7 +146,7 @@
   验收要点：
   - `[features] enabled = []` 只运行核心；新生成的默认配置显式使用空数组。旧配置缺表或缺 `enabled` 时启用固定的旧功能集合，不随未来新增功能扩张；
   - 启动时自动将旧 `[plugins]` 迁移为 `[features]`，保留原功能选择和其他配置值，原文以 0600 备份到配置路径加 `.pre-features.bak`；新旧两表并存时报错且原文件不变；再次启动不重写已迁移文件，`config show` / `validate` 保持只读；
-  - 可选 ID 为 `launch`、`workspace`、`code`、`files`、`chat`、`notifications`、`quick-commands`、`voice`、`forward`、`cloudflare`、`tailscale`、`p2p`、`mcp`、`immersive`；
+  - 可选 ID 为 `launch`、`workspace`、`code`、`files`、`chat`、`notifications`、`quick-commands`、`voice`、`forward`、`cloudflare`、`tailscale`、`p2p`、`mcp`；旧配置显式包含已移除的 `immersive` 时，启动前报告未知 ID，需从 `enabled` 删除；
   - 未知、重复 ID 与缺少依赖在启动前拒绝，不自动补依赖；`chat` 要求显式选择 `launch`、`files`，Git 工作台要求同时选择 `workspace`、`code`；
   - 功能选择变更须重启，网页设置不安装功能、不热切换选择，也不加载远程脚本。
 - **US-K19 不启用功能也能工作**：作为只需要终端的使用者，我希望核心模式仍能创建和接续 Shell，以便不依赖仓库或 agent 业务服务。

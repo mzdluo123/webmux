@@ -198,9 +198,25 @@ Relay MUST NOT 接受任意回调或开放重定向，MUST NOT 为非所有者�
 - **WHEN** 已登录账号以已知 host ID 请求另一个账号的跳转授权
 - **THEN** Relay 拒绝签发，不泄露目标账号或主机详情
 
+### Requirement: 连接恢复时重新授权浏览器会话
+
+控制面 SHALL 接受已认证宿主在当前 Scope 发出的 `login.resume`，以服务端 grant ID 查询原授权，事务性复核后台会话、所有者、邀请、主机绑定、撤销记录和绝对期限。仅全部校验通过时 SHALL 将 grant 绑定到当前连接 Scope，返回 `login.grant`。
+
+恢复 SHALL 保留 grant ID 和原到期时间，以支持响应丢失后的同 Scope 重试；旧 Scope SHALL 不能继续使用该授权。grant ID 仅为控制通道引用，MUST NOT 作为浏览器凭据或替代当前宿主身份。显式连接代际撤销 SHALL 保持不可恢复。
+
+#### Scenario: 恢复响应丢失
+
+- **WHEN** 有效授权已迁移到新 Scope，但宿主未收到恢复响应后在同 Scope 重试
+- **THEN** 返回同一有效授权及原到期时间，不创建额外授权或延长会话
+
+#### Scenario: 后台会话已失效
+
+- **WHEN** 宿主为已注销、过期、控制面重启失效或失去邀请的后台会话申请恢复
+- **THEN** 拒绝恢复，不因宿主设备密钥仍有效而签发浏览器权限
+
 ### Requirement: 后台注销与授权撤销传播
 
-后台注销 SHALL 撤销当前后台会话、未消费 code 和派生宿主会话；换钥、解绑或移出邀请名单 SHALL 撤销相关全部授权。Relay SHALL 通过已认证控制通道传播撤销，事件送达前 MUST NOT 声称在线宿主已完成全局撤销；通道断开 SHALL 触发宿主本地会话失效。
+后台注销 SHALL 撤销当前后台会话、未消费 code 和派生宿主会话；换钥、解绑或移出邀请名单 SHALL 撤销相关全部授权。Relay SHALL 通过已认证控制通道传播撤销，事件送达前 MUST NOT 声称在线宿主已完成全局撤销；通道断开 SHALL 立即暂停宿主派生访问，恢复须重新验证控制面权威状态。
 
 控制面重启 SHALL 使重启前的后台会话及跳转 code 失效，保留账号和主机绑定；数据面重启 SHALL 清空活动连接。GitHub 网站注销 SHALL 不被描述为自动注销 WebMux。
 

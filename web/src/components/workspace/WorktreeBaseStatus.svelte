@@ -6,7 +6,6 @@
     refreshing,
     baseSource,
     upstream,
-    baseSubject,
     lastRefreshedAt,
     startBranch,
     refreshWarning,
@@ -14,7 +13,6 @@
     refreshing: boolean;
     baseSource: "local" | "remote" | "";
     upstream: string;
-    baseSubject: string;
     lastRefreshedAt: Date | null;
     startBranch: string;
     refreshWarning: string;
@@ -29,17 +27,16 @@
   >
     {m.s8_fetching_upstream_commits_status({ branch: startBranch })}
   </p>
-{:else if baseSource === "remote" && upstream}
+{:else if upstream && lastRefreshedAt}
   <p
     role="status"
     aria-label={m.s8_upstream_refresh_status_aria()}
     class="break-all text-xs text-muted-foreground"
   >
-    {m.s8_tip_remote_latest()} · {upstream} · {baseSubject ||
-      m.s8_untitled_commit()}{#if lastRefreshedAt}
-      · {m.s8_last_refreshed_at({
-        time: lastRefreshedAt.toLocaleTimeString(locale.current),
-      })}{/if}
+    {m.worktree_upstream_preview({ branch: upstream })}
+    · {m.s8_last_refreshed_at({
+      time: lastRefreshedAt.toLocaleTimeString(locale.current),
+    })}
   </p>
 {:else if baseSource === "local" && startBranch}
   <p

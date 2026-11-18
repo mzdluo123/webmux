@@ -121,7 +121,10 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
   await expect(
     page.getByRole("button", { name: "新建会话…", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "关闭侧栏面板", exact: true }).click();
+  await page
+    .getByRole("region", { name: "侧栏面板", exact: true })
+    .getByRole("button", { name: "关闭侧栏面板", exact: true })
+    .click();
   await header(page)
     .getByRole("button", { name: "终端菜单", exact: true })
     .click();

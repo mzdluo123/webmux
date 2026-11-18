@@ -40,15 +40,12 @@ func TestTaskBaselineAutoCaptureGCProtectionRestartAndCleanup(t *testing.T) {
 	s, mgr := testService(t, stateDir, workDir)
 	repo := registerTest(t, s, workDir)
 
-	wt, err := s.CreateWorktree(ctx, repo.ID, CreateRequest{
+	wt := createKeepingLocalTest(t, s, repo, CreateRequest{
 		Mode:   "new",
 		Branch: "feat/task-auto",
 		Base:   "main",
 		Path:   filepath.Join(t.TempDir(), "wt-task-auto"),
 	})
-	if err != nil {
-		t.Fatalf("CreateWorktree: %v", err)
-	}
 
 	// Verify 0600 permissions on git-task-baselines.json and .lock.
 	for _, name := range []string{"git-task-baselines.json", "git-task-baselines.json.lock"} {

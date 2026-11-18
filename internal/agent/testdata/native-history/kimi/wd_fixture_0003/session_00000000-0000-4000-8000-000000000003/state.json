@@ -1,0 +1,17 @@
+{
+  "id": "session_00000000-0000-4000-8000-000000000003",
+  "version": 2,
+  "cwd": "/fixture/workspace",
+  "archived": false,
+  "agents": {
+    "main": {
+      "homedir": "/fixture/home/.kimi-code/sessions/wd_fixture_0003/session_00000000-0000-4000-8000-000000000003/agents/main",
+      "type": "main"
+    }
+  },
+  "custom": {},
+  "createdAt": 1700000000000,
+  "updatedAt": 1700000005265,
+  "lastTurnReason": "[redacted]",
+  "isCustomTitle": false
+}

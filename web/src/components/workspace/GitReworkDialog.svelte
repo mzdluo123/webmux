@@ -14,8 +14,8 @@
   import type { GitReworkItem, SessionInfo } from "../../contracts/schemas";
   import { formatLineRangeLabel } from "../../domains/workspace/git-rework-model";
   import type { GitSessionHandoffMode } from "../../hooks/workspace/git-rework-controller.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   let {
     mode = "rework",

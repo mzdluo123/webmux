@@ -3,7 +3,7 @@
   import { featureContributions } from "../../features/registry.svelte";
   import { relayAuth } from "../../platform/relay-auth.svelte";
   import { relayDiagnostic } from "../../domains/settings/relay-diagnostics";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   const optimizer = $derived(featureContributions.entries.p2p?.p2pState);
   const labels = $derived({
@@ -21,7 +21,7 @@
 </script>
 
 <section class="space-y-3" aria-label={m.relay_paths_aria()}>
-  <h2 class="text-base font-semibold">{m.relay_paths_title()}</h2>
+  <h3 class="text-base font-semibold">{m.relay_paths_title()}</h3>
   <p class="text-sm text-muted-foreground">
     {m.relay_paths_description()}
   </p>

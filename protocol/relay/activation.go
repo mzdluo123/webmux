@@ -9,7 +9,7 @@ func (e Enrollment) Validate(now time.Time) error {
 	if err := e.Handle.Validate(); err != nil {
 		return err
 	}
-	if len(e.UserCode) < 1 || len(e.UserCode) > 64 || e.PollIntervalSeconds < 1 || e.PollIntervalSeconds > 60 || !validUntil(now, e.ExpiresAt, 15*time.Minute) {
+	if len(e.UserCode) < 1 || len(e.UserCode) > 64 || e.PollIntervalSeconds < 1 || e.PollIntervalSeconds > 60 || !validUntil(now, e.ExpiresAt) {
 		return Error{Code: Invalid}
 	}
 	for _, c := range e.UserCode {

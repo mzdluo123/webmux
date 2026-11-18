@@ -12,6 +12,7 @@ import (
 func (s *Service) send(ctx context.Context, e *operationEntry) {
 	s.mu.Lock()
 	p := e.preview
+	choice := e.upstreamChoice
 	s.mu.Unlock()
 	if p == nil {
 		return
@@ -70,7 +71,7 @@ func (s *Service) send(ctx context.Context, e *operationEntry) {
 		in := sessioncreate.Input{ClientRequestID: rand.Text(), ConfigID: &p.Request.ConfigID, Side: string(hybrid.SideACP), Cwd: p.Request.Location.Cwd, AgentConfig: p.Request.AgentConfig}
 		location := p.Request.Location
 		if location.NewWorktreeBranch != "" {
-			in.NewWorktree = &sessioncreate.NewWorktree{RepositoryID: location.RepositoryID, Mode: "new", Branch: location.NewWorktreeBranch, Base: location.NewWorktreeBase}
+			in.NewWorktree = &sessioncreate.NewWorktree{RepositoryID: location.RepositoryID, Mode: "new", Branch: location.NewWorktreeBranch, Base: location.NewWorktreeBase, UpstreamChoice: choice}
 		} else if location.RepositoryID != "" {
 			in.Workspace = &sessioncreate.Reference{RepositoryID: location.RepositoryID, WorktreeID: location.WorktreeID}
 		}
@@ -83,6 +84,17 @@ func (s *Service) send(ctx context.Context, e *operationEntry) {
 		}
 		s.mu.Unlock()
 		if err != nil {
+			var confirmation *sessioncreate.UpstreamConfirmationError
+			if errors.As(err, &confirmation) && ctx.Err() == nil {
+				s.mu.Lock()
+				if e.operation.FinishedAt == nil {
+					check := confirmation.WorktreeUpstream
+					e.operation.State = "awaiting_upstream"
+					e.operation.WorktreeUpstream = &check
+				}
+				s.mu.Unlock()
+				return
+			}
 			var step *sessioncreate.Error
 			if errors.As(err, &step) {
 				s.mu.Lock()
@@ -111,6 +123,13 @@ func (s *Service) send(ctx context.Context, e *operationEntry) {
 		s.finish(e, "failed", recordErr)
 		return
 	}
+	if len(p.Pages) > 0 {
+		capability, err := s.imageCapability(ctx, target)
+		if err != nil || capability != "supported" {
+			s.finish(e, "failed", errors.New("目标 agent 未确认支持图片，消息未发送；请选择文本模式重新预览"))
+			return
+		}
+	}
 	s.mu.Lock()
 	s.history[target+"_"+p.SnapshotID] = historyBinding{scopeID: p.SnapshotID, identity: runtimeIdentity(targetRecord)}
 	s.mu.Unlock()
@@ -122,9 +141,13 @@ func (s *Service) send(ctx context.Context, e *operationEntry) {
 	if p.Request.TargetSessionID != "" {
 		expectedIdentity = p.targetIdentity
 	}
-	_, err = s.options.Hybrid.Prompt(ctx, target, hybrid.PromptInput{ClientRequestID: rand.Text(), Text: p.Text, TitleSource: p.UserText, Mode: hybrid.ModeRefuse, ExpectedIdentity: expectedIdentity, AwaitAcknowledgement: true, ExpectedUsage: expectedUsage})
+	input := hybrid.PromptInput{ClientRequestID: rand.Text(), Text: p.Text, TitleSource: p.UserText, Mode: hybrid.ModeRefuse, ExpectedIdentity: expectedIdentity, AwaitAcknowledgement: true, ExpectedUsage: expectedUsage, ImageTextOffset: p.imageTextOffset}
+	if p.Format == "image" {
+		input.Images = previewImages(p)
+	}
+	_, err = s.options.Hybrid.Prompt(ctx, target, input)
 	if err != nil {
-		if errors.Is(err, hybrid.ErrBusy) || errors.Is(err, hybrid.ErrWrongSide) || errors.Is(err, hybrid.ErrSwitching) || errors.Is(err, hybrid.ErrInvalid) || errors.Is(err, hybrid.ErrConflict) {
+		if errors.Is(err, hybrid.ErrBusy) || errors.Is(err, hybrid.ErrWrongSide) || errors.Is(err, hybrid.ErrSwitching) || errors.Is(err, hybrid.ErrInvalid) || errors.Is(err, hybrid.ErrConflict) || errors.Is(err, hybrid.ErrTooLarge) {
 			s.finish(e, "failed", err)
 		} else {
 			s.finish(e, "unknown", errors.New("可能已发送，请检查目标会话"))

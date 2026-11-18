@@ -15,7 +15,7 @@
     getFeatureContributions,
     type CreationLocationProps,
   } from "../../features/context";
-  import PickerField from "../shared/PickerField.svelte";
+  import { PickerField } from "$lib/components/ui/picker-field";
   import {
     directoryName,
     selectableWorktree,

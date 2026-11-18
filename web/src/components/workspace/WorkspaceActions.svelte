@@ -4,7 +4,7 @@
   import IconRefresh from "~icons/tabler/refresh";
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
-  import SessionViewControls from "../terminal/SessionViewControls.svelte";
+  import SessionViewControls from "../sessions/SessionViewControls.svelte";
   import GitWorkbenchButton from "./GitWorkbenchButton.svelte";
 
   // The icon controls of the home page: list density, a Git refresh, the Git

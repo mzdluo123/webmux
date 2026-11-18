@@ -11,7 +11,7 @@
   import { Textarea } from "$lib/components/ui/textarea";
   import * as Dialog from "$lib/components/ui/dialog";
   import * as Select from "$lib/components/ui/select";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import LaunchConfigIcon from "./LaunchConfigIcon.svelte";
   import { api, APIError } from "../../platform/api";
   import { featureEnabled } from "../../platform/feature-host.svelte";

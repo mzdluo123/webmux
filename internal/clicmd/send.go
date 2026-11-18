@@ -33,18 +33,30 @@ var sendCommand = &Command{
 	Description: "The server sends the input to the session's current view. On the terminal view TEXT is one acknowledged " +
 		"submission (with Enter when --enter is given) and each --key follows; the command exits 0 once the server reports " +
 		"everything written. Typing takes control of the terminal; the control indicator names this client \"script\" and, " +
-		"inside a session, that session. On the chat view TEXT is a prompt, sent at once or queued while a turn runs; " +
-		"--attach-file uploads files into the session and sends them with it, and --mode chooses how: auto (default) sends " +
-		"now or queues, steer injects into the running turn, refuse fails instead of queueing, and now cancels the running " +
-		"turn and sends next. A queued prompt reports its item and position on standard error. Options of the other view " +
-		"are refused (wrong_view) and nothing is sent.\n\n" +
+		"inside a session, that session. On the chat view TEXT is a prompt; --attach-file uploads files into the session " +
+		"and sends them with it. Options of the other view are refused (wrong_view) and nothing is sent.\n\n" +
+		"Choose --mode for the task: auto (default) submits an independent next task. It starts a turn only when no turn " +
+		"is running, the queue is empty and unpaused, and the agent is connected; otherwise it queues after readiness " +
+		"and input checks. refuse uses the same start conditions and fails with busy instead of queueing, for automation " +
+		"that cannot queue. now explicitly replaces the current task: it cancels the running turn and puts this prompt " +
+		"at the queue head to send next; with no running turn and a connected agent, it sends directly. With neither a " +
+		"running turn nor a connection, now fails with busy. Cancellation can interrupt work.\n\n" +
+		"steer supplements the current task without cancelling its turn. It requires a connected agent, a running turn, " +
+		"an adapter with steering support, and the session's steering capability enabled. After connection and view checks, " +
+		"missing support or no running turn returns steering_unavailable. Delivery does not guarantee immediate processing, " +
+		"understanding or completion. If the turn ends during delivery, only an adapter reporting promptRequired queues " +
+		"the input at the head; startedNewTurn produces a notice that the agent's new turn is not tracked by WebMux.\n\n" +
+		"A queued prompt reports its item and position on standard error. Before changing it to steer, check its current " +
+		"status and remove only your own item confirmed still queued, then decide whether to steer the running task. " +
+		"Sending again creates another input and can duplicate work.\n\n" +
 		"--wait STATE returns on the first change into STATE after the input (see webmux wait). --reply, for the chat view " +
-		"only, follows the turn this input starts and prints the agent's final reply; a stop for a permission request or " +
-		"question exits 1 unless --auto-wait-requests.",
+		"only, follows the turn this input starts (or the running turn for steer) and prints the agent's final reply; " +
+		"a stop for a permission request or question exits 1 unless --auto-wait-requests.",
 	Arguments: []Item{sessionArgument, {Name: "TEXT", Text: "The text to send; - reads standard input."}},
 	Env:       []Item{sessionIDEnv},
-	Output: "Nothing; with --json, the SessionInputResult (view, queued, itemId, position, turnId, promptId). With --wait --json, the " +
-		"SessionInfo that matched. With --reply, the reply text, or with --json {stopReason, error, reply, events, request, unfinished}. " +
+	Output: "Nothing; with --json, the SessionInputResult (view, queued, itemId, position, turnId, promptId). A successful steer " +
+		"usually has no turnId or promptId. With --wait --json, the SessionInfo that matched. With --reply, the reply text, " +
+		"or with --json {stopReason, error, reply, events, request, unfinished}. " +
 		"Unfinished background work also produces a stderr warning; end_turn still exits 0.",
 	Exit: exitsCommon(
 		ExitItem{Code: 1, Text: "No such session, it is not active or is changing views, an option belongs to the other view, " +
@@ -55,8 +67,10 @@ var sendCommand = &Command{
 	Examples: []Example{
 		{Command: "webmux send abcd2345 'make test' --enter --wait waiting,idle --timeout 10m", Text: "Run a command in a shell session and wait until its prompt is back (an idle shell prompt reads as waiting)."},
 		{Command: `webmux send abcd2345 "fix the lint errors and summarize the change" --reply --timeout 20m`, Text: "Hand a task to an agent on its chat view and print its answer."},
-		{Command: "webmux send abcd2345 'run the tests' --mode refuse", Text: "Fail with exit 1 instead of queueing when another turn is running."},
-		{Command: "webmux send abcd2345 'stop and do this' --mode now", Text: "Cancel the running turn and send this prompt next."},
+		{Command: "webmux send abcd2345 'also check the error path in this fix' --mode steer", Text: "Supplement the running task when the agent supports steering; processing may happen later."},
+		{Command: "webmux send abcd2345 'review the next module' --mode auto", Text: "Submit an independent next task, queueing if the start conditions are not met."},
+		{Command: "webmux send abcd2345 'run the tests' --mode refuse", Text: "For automation that cannot queue: fail with exit 1 unless the prompt can start directly."},
+		{Command: "webmux send abcd2345 'stop and do this' --mode now", Text: "Explicitly replace the current task: cancel its turn and send this prompt next."},
 		{Command: "webmux send abcd2345 'what does this show?' --attach-file screenshot.png", Text: "Send a prompt with an image."},
 	},
 	SeeAlso: []string{"webmux interrupt", "webmux wait", "webmux screen", "webmux view", "webmux guide sessions"},
@@ -71,9 +85,9 @@ var sendCommand = &Command{
 		fs.BoolVar(&o.enter, "enter", false, "terminal view: press Enter after the text, in the same submission (the input API's `submit` field)")
 		fs.Var(&o.keys, "key", "terminal view: send the named `KEY` after the text: "+keyNames())
 		fs.Var(&o.attachments, "attach-file", "chat view: upload the file at `PATH` and send it with the prompt")
-		fs.StringVar(&o.mode, "mode", "", "chat view: `MODE` auto (send now or queue, the default), steer (inject into the running turn), refuse (fail instead of queueing) or now (cancel the turn and send next)")
+		fs.StringVar(&o.mode, "mode", "", "chat view: `MODE` auto (default: start only with no running turn, an empty unpaused queue and a connection; otherwise queue), steer (supplement a supported running turn without cancelling; processing may happen later), refuse (same start conditions as auto; otherwise busy), now (cancel the running turn and send next with priority; send directly if no turn is running and connected)")
 		fs.StringVar(&o.wait, "wait", "", "wait for the first change into `STATE` after sending (see webmux wait)")
-		fs.BoolVar(&o.reply, "reply", false, "chat view: follow the turn this input starts and print the agent's final reply")
+		fs.BoolVar(&o.reply, "reply", false, "chat view: follow the turn this input starts (the running turn for steer) and print the agent's final reply")
 		fs.BoolVar(&o.autoWaitRequests, "auto-wait-requests", false, "with --reply, keep waiting while a permission request or question is open")
 		fs.DurationVar(&o.timeout, "timeout", 0, "give up --wait or --reply after this `DURATION` (exit 124); 0 waits forever")
 		fs.BoolVar(&o.asJSON, "json", false, "print the result as JSON")
@@ -81,8 +95,8 @@ var sendCommand = &Command{
 	},
 }
 
-// queuedNotice explains where a queued prompt sits and how to send it
-// sooner; it goes to standard error so standard output stays script-safe.
+// queuedNotice identifies the queued prompt and explains how to avoid
+// duplicate input; standard error keeps standard output script-safe.
 func queuedNotice(r contract.SessionInputResult, mode string) string {
 	item := ""
 	if r.ItemID != "" {
@@ -95,7 +109,7 @@ func queuedNotice(r contract.SessionInputResult, mode string) string {
 	if mode == "now" {
 		return fmt.Sprintf("webmux: queued%s%s; cancelling the running turn before sending it\n", item, position)
 	}
-	return fmt.Sprintf("webmux: queued%s%s; the chat is busy. Use --mode steer to inject it now, or --mode now to cancel the turn\n", item, position)
+	return fmt.Sprintf("webmux: queued%s%s; waiting for the queue to send it. Before switching to --mode steer, check the item's status and remove only your own item confirmed still queued; sending again can duplicate work\n", item, position)
 }
 
 func (e Env) send(ctx context.Context, o sendOptions, args []string) int {

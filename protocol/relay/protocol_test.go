@@ -125,6 +125,30 @@ func TestHostPurposeDomainSeparation(t *testing.T) {
 	requireCode(t, VerifyHost(pub, c, p, vectorNow), InvalidSignature)
 }
 
+func TestChallengeClockSkew(t *testing.T) {
+	key, pub := vectorKey(t)
+	receiverNow := vectorNow.Add(-3 * time.Second)
+	connector := vectorChallenge()
+	proof, err := SignConnector(key, connector, receiverNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyConnector(pub, connector, proof, vectorNow); err != nil {
+		t.Fatal(err)
+	}
+	host := HostChallenge{Version: V1, Audience: "control-test", HostID: vectorHost, BindingGeneration: 7, Purpose: PurposeAssignment, Nonce: vectorToken, ExpiresAt: vectorNow.Add(NonceTTL).Unix(), ControlEpoch: vectorToken}
+	hostProof, err := SignHost(key, host, receiverNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyHost(pub, host, hostProof, vectorNow); err != nil {
+		t.Fatal(err)
+	}
+	expires := time.Unix(host.ExpiresAt, 0)
+	requireCode(t, VerifyHost(pub, host, hostProof, expires), Expired)
+	requireCode(t, VerifyConnector(pub, connector, proof, expires), Expired)
+}
+
 func TestStrictJSONAndCounter(t *testing.T) {
 	tests := []string{
 		`{"version":1,"version":2,"handle":"` + string(vectorToken) + `"}`,
@@ -266,6 +290,38 @@ func TestControlUnionAndBrowserAuthority(t *testing.T) {
 	}
 }
 
+func TestControlResumeUnionAndScope(t *testing.T) {
+	scope := Scope{HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, ControlEpoch: vectorToken, NodeEpoch: vectorToken}
+	m := ControlMessage{Version: V1, Type: ControlResume, RequestID: vectorToken, Scope: scope, ExpiresAt: vectorNow.Add(time.Minute).Unix(), Resume: &LoginResume{GrantID: vectorToken}}
+	if err := m.Validate(scope, vectorNow); err != nil {
+		t.Fatal(err)
+	}
+	var decoded ControlMessage
+	var wire bytes.Buffer
+	if err := WriteFrame(&wire, m, MaxControlBytes); err != nil {
+		t.Fatal(err)
+	}
+	if err := ReadFrame(&wire, &decoded, MaxControlBytes); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Type != ControlResume || decoded.Resume == nil || *decoded.Resume != *m.Resume {
+		t.Fatal("resume wire round trip lost payload")
+	}
+	m.Resume.GrantID = ""
+	requireCode(t, m.Validate(scope, vectorNow), Invalid)
+	m.Resume.GrantID = vectorToken
+	m.Exchange = &LoginExchange{}
+	requireCode(t, m.Validate(scope, vectorNow), Invalid)
+	m.Exchange = nil
+	m.Type = ControlICERequest
+	requireCode(t, m.Validate(scope, vectorNow), Invalid)
+	m.Type = ControlResume
+	other := scope
+	other.ConnectorGeneration++
+	requireCode(t, m.Validate(other, vectorNow), StaleGeneration)
+	requireCode(t, m.Validate(scope, vectorNow.Add(time.Minute)), Expired)
+}
+
 func TestControlMessageExpiry(t *testing.T) {
 	scope := Scope{HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, ControlEpoch: vectorToken, NodeEpoch: vectorToken}
 	for _, kind := range []ControlType{ControlPing, ControlPong} {
@@ -276,14 +332,12 @@ func TestControlMessageExpiry(t *testing.T) {
 			}
 		}
 		requireCode(t, m.Validate(scope, vectorNow.Add(time.Minute)), Expired)
-		for _, lead := range []time.Duration{1370 * time.Millisecond, 5 * time.Second} {
+		for _, lead := range []time.Duration{1370 * time.Millisecond, 5 * time.Second, time.Hour} {
 			m.ExpiresAt = vectorNow.Add(ControlMessageTTL + lead).Unix()
 			if err := m.Validate(scope, vectorNow); err != nil {
 				t.Fatalf("%s sender clock ahead by %s: %v", kind, lead, err)
 			}
 		}
-		m.ExpiresAt = vectorNow.Add(ControlMessageTTL + 6*time.Second).Unix()
-		requireCode(t, m.Validate(scope, vectorNow), Expired)
 		m.ExpiresAt = vectorNow.Unix()
 		requireCode(t, m.Validate(scope, vectorNow), Expired)
 	}

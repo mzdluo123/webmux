@@ -129,7 +129,7 @@ func (c ConnectorChallenge) Validate(now time.Time) error {
 	if err := c.NodeEpoch.Validate(); err != nil {
 		return err
 	}
-	if !validUntil(now, c.ExpiresAt, NonceTTL) {
+	if !validUntil(now, c.ExpiresAt) {
 		return Error{Code: Expired}
 	}
 	return nil
@@ -244,7 +244,7 @@ func (c HostChallenge) Validate(now time.Time) error {
 	if err := c.ControlEpoch.Validate(); err != nil {
 		return err
 	}
-	if !validUntil(now, c.ExpiresAt, NonceTTL) {
+	if !validUntil(now, c.ExpiresAt) {
 		return Error{Code: Expired}
 	}
 	return nil

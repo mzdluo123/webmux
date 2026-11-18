@@ -160,12 +160,10 @@ type actor struct {
 }
 
 type turn struct {
-	acknowledgement     chan error
-	acknowledgementOnce sync.Once
-	consumed            bool
-	id                  string
-	cancel              context.CancelFunc
-	backgroundRefresh   bool
+	acknowledgement   *promptAcknowledgement
+	id                string
+	cancel            context.CancelFunc
+	backgroundRefresh bool
 	// done closes once the session/prompt call has returned and its result
 	// was posted.
 	done chan struct{}

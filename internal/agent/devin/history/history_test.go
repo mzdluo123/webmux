@@ -38,7 +38,7 @@ func TestCommittedNativeChain(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(doc.Records) != 5 {
+	if len(doc.Records) != 7 {
 		t.Fatalf("records: %#v", doc.Records)
 	}
 	for _, r := range doc.Records {
@@ -57,7 +57,7 @@ func TestCommittedNativeChain(t *testing.T) {
 		t.Fatal(e)
 	}
 	frozen, e := Read(context.Background(), req)
-	if e != nil || len(frozen.Records) != 5 || frozen.Fingerprint != doc.Fingerprint {
+	if e != nil || len(frozen.Records) != 7 || frozen.Fingerprint != doc.Fingerprint {
 		t.Fatalf("freeze: %v %#v", e, frozen)
 	}
 	req.Cursor = ""

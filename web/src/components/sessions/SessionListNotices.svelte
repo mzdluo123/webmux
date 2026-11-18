@@ -1,5 +1,5 @@
 <script lang="ts">
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { Button } from "$lib/components/ui/button";
   import { m } from "$lib/paraglide/messages.js";
 

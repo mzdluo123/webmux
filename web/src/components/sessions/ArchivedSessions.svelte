@@ -14,7 +14,7 @@
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import HybridRecordHints from "./HybridRecordHints.svelte";
   import HybridResumeActions from "./HybridResumeActions.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import LaunchConfigIcon, {
     hasLaunchIcon,
   } from "../settings/LaunchConfigIcon.svelte";

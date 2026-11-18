@@ -3,7 +3,7 @@
 #
 # Usage:
 #   curl -fsSL <install.sh URL> | sh
-#   curl -fsSL <install.sh URL> | WEBMUX_VERSION=0.2.0 sh
+#   curl -fsSL <install.sh URL> | WEBMUX_VERSION=0.16.0 sh
 #   curl -fsSL <install.sh URL> | WEBMUX_CHANNEL=dev sh
 #
 # Environment:
@@ -12,7 +12,8 @@
 #                       Release. Applies to this install only; nothing is saved.
 #   WEBMUX_VERSION      X.Y.Z, or X.Y.Z-dev.N for the current development
 #                       build (implies WEBMUX_CHANNEL=dev); a leading "v" is
-#                       ignored (default: the latest of the channel)
+#                       ignored (default: the latest of the channel). Releases
+#                       older than v0.11.0 are unsigned and require WEBMUX_SHA256.
 #   WEBMUX_INSTALL_DIR  Directory for the webmux binary (default: ~/.local/bin)
 #   WEBMUX_MIRRORS      Space-separated gh-proxy prefixes; empty disables fallback
 #   WEBMUX_SHA256       Pin the binary digest instead of reading SHA256SUMS
@@ -435,8 +436,13 @@ for source in "$@"; do
 			continue
 		fi
 		if ! download_manifest "$source/SHA256SUMS.minisig" "$sig_path"; then
-			failures="$failures
+			if [ "$channel" = stable ] && [ -n "$version" ]; then
+				failures="$failures
+  $source: SHA256SUMS.minisig download failed (releases older than v0.11.0 are unsigned; set WEBMUX_SHA256 to pin them)"
+			else
+				failures="$failures
   $source: SHA256SUMS.minisig download failed"
+			fi
 			continue
 		fi
 		if ! verify_manifest "$sums_path" "$sig_path"; then

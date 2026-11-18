@@ -25,7 +25,7 @@
   } from "../../contracts/git-workbench-schemas";
   import type { GitDiffPanelReader } from "../../hooks/workspace/git-log-diff.svelte";
   import { stashFileKey } from "../../hooks/workspace/git-stash-controller.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitLogDiffPanel from "./GitLogDiffPanel.svelte";
   import GitPanelToolbar from "./GitPanelToolbar.svelte";
 

@@ -188,15 +188,19 @@ func (c *Client) request(ctx context.Context, method, path string, input, output
 		return res.StatusCode, protocol.Error{Code: protocol.Invalid}
 	}
 	if !slices.Contains(statuses, res.StatusCode) {
+		retryAfter := relayRetryAfter(res.Header.Get("Retry-After"), time.Now())
 		var remote protocol.Error
 		if protocol.Decode(data, &remote, protocol.MaxAuthBytes) == nil && remote.Code.Valid() && protocol.HTTPStatus(remote.Code) == res.StatusCode {
 			// Correlation identifiers are deliberately not surfaced to diagnostics.
-			return res.StatusCode, protocol.Error{Code: remote.Code, RetryAfterSeconds: remote.RetryAfterSeconds}
+			if remote.RetryAfterSeconds > retryAfter {
+				retryAfter = remote.RetryAfterSeconds
+			}
+			return res.StatusCode, protocol.Error{Code: remote.Code, RetryAfterSeconds: retryAfter}
 		}
 		if res.StatusCode >= 300 && res.StatusCode < 400 {
 			return res.StatusCode, protocol.Error{Code: protocol.Forbidden}
 		}
-		return res.StatusCode, protocol.Error{Code: protocol.Unavailable}
+		return res.StatusCode, protocol.Error{Code: protocol.Unavailable, RetryAfterSeconds: retryAfter}
 	}
 	if output == nil {
 		if len(data) != 0 {
@@ -208,6 +212,17 @@ func (c *Client) request(ctx context.Context, method, path string, input, output
 		return res.StatusCode, err
 	}
 	return res.StatusCode, nil
+}
+
+func relayRetryAfter(value string, now time.Time) uint32 {
+	if seconds, err := strconv.Atoi(value); err == nil {
+		return uint32(max(0, min(seconds, 24*60*60)))
+	}
+	if deadline, err := http.ParseTime(value); err == nil {
+		seconds := int((deadline.Sub(now) + time.Second - 1) / time.Second)
+		return uint32(max(0, min(seconds, 24*60*60)))
+	}
+	return 0
 }
 
 func transportError(ctx context.Context, err error) error {
@@ -237,7 +252,7 @@ func (c *Client) Enroll(ctx context.Context, key ed25519.PrivateKey, machineID p
 	}
 	u, err := url.Parse(out.VerificationURL)
 	now := time.Now()
-	if out.Version != protocol.BindingAPIVersion || out.Handle.Validate() != nil || out.UserCode == "" || len(out.UserCode) > 256 || strings.ContainsAny(out.UserCode, "\r\n\x00") || err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" || len(out.VerificationURL) > protocol.MaxURLBytes || out.ExpiresAt <= now.Unix() || out.ExpiresAt > now.Add(15*time.Minute).Unix() || out.PollIntervalSeconds < 1 || out.PollIntervalSeconds > 60 {
+	if out.Version != protocol.BindingAPIVersion || out.Handle.Validate() != nil || out.UserCode == "" || len(out.UserCode) > 256 || strings.ContainsAny(out.UserCode, "\r\n\x00") || err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" || len(out.VerificationURL) > protocol.MaxURLBytes || out.ExpiresAt <= now.Unix() || out.PollIntervalSeconds < 1 || out.PollIntervalSeconds > 60 {
 		return protocol.Enrollment{}, protocol.Error{Code: protocol.Invalid}
 	}
 	return out, nil

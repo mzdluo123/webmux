@@ -6,7 +6,7 @@
   import { Label } from "$lib/components/ui/label";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import * as Card from "$lib/components/ui/card";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import TunnelStateBadge from "./TunnelStateBadge.svelte";
   import TunnelConfiguration from "./TunnelConfiguration.svelte";
   import { useCopied } from "../../hooks/shared/copied.svelte";

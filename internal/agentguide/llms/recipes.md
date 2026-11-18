@@ -51,7 +51,7 @@ webmux rm <ID> --forget --yes
 ## 为并行任务准备 worktree 并共享开发服务器
 
 ```sh
-dir=$(webmux worktree create . --branch exp/a --refresh-base)
+dir=$(webmux worktree create . --branch exp/a --upstream=latest)
 id=$(webmux run --detach --cwd "$dir" --label task=exp-a -- bash -lc 'npm ci && npm run dev')
 webmux forward add 5173 --session "$id" --label exp-a
 ```

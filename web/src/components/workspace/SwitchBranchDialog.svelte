@@ -3,7 +3,7 @@
   import { worktreeTitle } from "../../domains/workspace/home-worktrees";
   import type { WorktreePreset } from "../../domains/sessions/worktree-preset";
   import type { Repository, Worktree } from "../../contracts/schemas";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import SwitchBranch, { type SwitchSource } from "./SwitchBranch.svelte";
 
   // The switch of a worktree's branch outside the repository panel (home

@@ -10,6 +10,7 @@ snapshotId 来自交接文本中的 Frozen scope；首次位置为字符串 0。
 返回原生 records、nextPosition、nextTextOffset、more、done 和来源信息。
 长项使用同一 snapshotId 与返回的 UTF-8 字节偏移续读。
 原文范围包括预算省略的可导出记录，范围边界与预览一致。
+图片与文本交接共用同一原文范围；`thread_read` 返回文本记录，不返回预览 PNG，也不重新渲染图片。
 
 ## 配置与生命周期
 
@@ -27,3 +28,9 @@ webmux mcp-serve --socket /path/webmux.sock --session <runtime-id>
 传输使用现有 MCP stdio registry、帧大小限制和调用期限。
 实现位于 `internal/threadread`；认证与来源校验由 `internal/featureapi` 承接。
 网络控制 MCP 的 session_read 使用同一[原生历史分页](http-conversation.md)，后续页携带 snapshotId。
+
+## 入口边界
+
+`mcp-serve` 的工具表仅包含 `thread_read`，没有创建预览或发送交接的工具。
+控制 MCP 的 `session_read` 也不是交接入口；图片 `format`、`maxPages` 和发送操作属于[HTTP 交接接口](http-handoff.md)。
+CLI 当前没有专用 handoff preview/send 子命令。独立图片实验命令仅生成或传输实验样本，不能代替生产交接接口。
