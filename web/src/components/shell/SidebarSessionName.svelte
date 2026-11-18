@@ -19,6 +19,7 @@
     >
     <span
       class="block truncate text-xs font-normal text-muted-foreground"
+      data-slot="sidebar-session-location"
       id={locationId}
       title={location}>{location}</span
     >

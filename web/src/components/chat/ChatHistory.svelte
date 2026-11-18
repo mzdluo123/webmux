@@ -179,7 +179,7 @@
       <Collapsible.Content forceMount hidden={!archivedOpen} class="mt-0.5">
         {#if archivedOpen}
           <ul
-            class="space-y-0.5"
+            class={archiveOnly ? "space-y-1" : "space-y-0.5"}
             aria-label={m.s3_history_archived_list_label()}
           >
             {#each archivedShown as record (record.id)}

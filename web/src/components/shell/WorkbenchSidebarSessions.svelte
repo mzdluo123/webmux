@@ -97,7 +97,7 @@
           >{group.sessions.length}</span
         >
       </h2>
-      <ul aria-label={group.name}>
+      <ul class="space-y-1" aria-label={group.name}>
         {#each group.sessions as session (session.id)}
           <SidebarLiveSessionRow
             {session}

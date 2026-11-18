@@ -27,7 +27,7 @@
         // always-shown button, and rows without one use it too so their
         // ends line up.
         "navigation-action": `${navigation} any-pointer-coarse:pr-(--control-touch)`,
-        "navigation-compact-action": `${navigation} min-h-9 gap-1.5 px-2 py-1 leading-tight any-pointer-coarse:min-h-11 any-pointer-coarse:pr-(--control-touch)`,
+        "navigation-compact-action": `${navigation} min-h-9 gap-2 px-2.5 py-1.5 leading-tight any-pointer-coarse:min-h-11 any-pointer-coarse:pr-(--control-touch) [&_[data-slot=sidebar-session-location]]:mt-0.5`,
         // Conversation ticks keep their height; the rail groups overflow.
         // AI reply counts use bounded lengths; labels carry the exact count.
         turn: "flex h-3 min-h-3 w-9 shrink-0 cursor-pointer items-center rounded-sm pl-1 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&_span]:h-0.5 [&_span]:max-h-full [&_span]:w-3 [&_span]:origin-left [&_span]:rounded-full [&_span]:bg-muted-foreground [&_span]:opacity-40 [&_span]:transition-[transform,opacity,background-color] [&_span]:duration-150 [&_span]:ease-out hover:[&_span]:scale-x-110 hover:[&_span]:opacity-80 aria-[current=location]:[&_span]:opacity-100 data-[turn-role=user]:[&_span]:bg-foreground data-[turn-role=agent]:[&_span]:bg-info data-[turn-volume=few]:[&_span]:w-4 data-[turn-volume=several]:[&_span]:w-5 data-[turn-volume=many]:[&_span]:w-6 motion-reduce:[&_span]:transition-none",
