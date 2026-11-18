@@ -70,6 +70,7 @@
     groupWorkingChanges,
     isChangeReviewed,
   } from "../../domains/workspace/git-workbench-state";
+  import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitCommitComposer from "./GitCommitComposer.svelte";
   import GitConflictTerminalNotice from "./GitConflictTerminalNotice.svelte";
@@ -176,13 +177,20 @@
     return out;
   });
 
-  function toggleGroup(key: string) {
-    collapsed = { ...collapsed, [key]: !collapsed[key] };
+  const animatedGroups = new Set<GitChangeGroup>(["staged", "unstaged"]);
+  for (const key of animatedGroups) {
+    useDockMotion(
+      () =>
+        listScrollEl?.querySelector<HTMLElement>(
+          `[data-change-rows="${key}"]`,
+        ) ?? null,
+      () => !collapsed[key],
+    );
   }
 
   function focusChangeRow(index: number) {
     const rows = listScrollEl?.querySelectorAll<HTMLButtonElement>(
-      "[data-working-change-row]",
+      "[data-working-change-row]:not([inert] *)",
     );
     rows?.[index]?.focus();
   }
@@ -344,7 +352,10 @@
               <ListButton
                 variant="section-header"
                 aria-expanded={isOpen}
-                onclick={() => toggleGroup(sec.key)}
+                onclick={(event) => {
+                  collapsed = { ...collapsed, [sec.key]: isOpen };
+                  event.currentTarget.scrollIntoView({ block: "nearest" });
+                }}
               >
                 {#if isOpen}
                   <IconChevronDown
@@ -404,13 +415,22 @@
             {/if}
           </div>
 
-          {#if isOpen}
+          {#if isOpen || animatedGroups.has(sec.key)}
             {#if list.length === 0}
-              <p class="px-6 py-1 text-xs text-muted-foreground">
+              <p
+                class="px-6 py-1 text-xs text-muted-foreground"
+                data-change-rows={sec.key}
+                hidden={!isOpen}
+              >
                 {m.s7_uncommitted_empty_section()}
               </p>
             {:else}
-              <div class="space-y-0.5">
+              <div
+                class="space-y-0.5"
+                data-change-rows={sec.key}
+                hidden={!isOpen}
+                inert={!isOpen}
+              >
                 {#each list as entry (entry.id)}
                   <GitWorkingChangeRow
                     item={entry}
