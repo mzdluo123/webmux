@@ -37,6 +37,7 @@
   - 快捷范围与组合筛选：支持快捷范围（含受控 `#547`“当前任务”说明弹层）、关键字、作者、起止日期、字面路径组合筛选、选中提交消失提示及一键“定位当前 HEAD”，同步扩展 URL 查询参数 `author`、`since`、`until`、`path`；
   - `%P` 拓扑分页与提交详情：对接 `/git/history` 游标流式追加、`indirect` 虚线边与 `refsChanged` 提示；右上变更文件列表（键盘导航、路径二次过滤、重命名与二进制标记）与右下提交详情（合并提交多父节点切换、独立提交者、OID 复制、父提交跳转）联动；
   - Pierre `CodeDiffReader` 与两版本比较：复用 `CodeDiffReader` 提供底部可折叠/拖拽高度差异栏、放大态、手机端单列三步 Unified 阅读及快照全文/下载；支持任意两提交只读比较、交换方向与 `LatestRequest` + `AbortController` 竞态隔离。
+  - 2026-11-19（T063）：隔离 Chromium 中，桌面详情在普通、比较和交换方向三态保持 206.52 px 阅读视口。比较从顶部开始，退出恢复 310 px 阅读位置，交换方向后焦点留在方向按钮。
 - 依据：
   - Go 单元与竞态测试：`go test -race ./internal/workspace ./internal/codeview ./internal/wire ./internal/api ./internal/clicmd ./internal/archtest ./internal/docguard` 通过（含 `TestBranchesTagsAndHistoryTagFiltering` 及 wire 快照校验）；
   - 前端架构与单测门禁：`make check`、`test/git-log-controller.test.ts`、`test/route.test.ts` 与 `test/git-workbench.test.ts` 通过；
