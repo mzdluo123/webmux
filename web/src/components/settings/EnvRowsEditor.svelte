@@ -137,7 +137,7 @@
           </div>
           <div
             id={errorId}
-            class="min-h-10 text-xs text-destructive sm:min-h-8"
+            class="min-h-10 text-xs text-destructive max-[360px]:min-h-12 sm:min-h-8"
           >
             {#if rowErrors}
               {[rowErrors.name, rowErrors.value]
