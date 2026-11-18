@@ -209,7 +209,7 @@
   - 前端单测 `test/git-workbench.test.ts` 与 `test/git-log-controller.test.ts`（8 项）通过；
   - 浏览器套件 `test/browser/GitWorkbench.test.ts` 与 `test/browser/GitLogController.test.ts`（8 项，含 `1280×900` 与 `390×844` 相邻提交行 SVG 零间隙与正圆节点几何断言）及 Storybook `test/storybook/git-workbench.spec.ts`（27 项）通过；
   - 隔离实例 Playwright E2E `test/e2e/git-workbench-log.spec.ts`（桌面与 `320×568` 手机视口共 2 项）通过，并在隔离演示仓库下采集桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色共 12 张修复前后对比截图。
-- 2026-11-19（T062）：隔离 Chromium 用 108 条提交验证游标追加及无任务基线提示。手机列表从 100 条追加到 108 条及从提示返回后，首个可见 OID、行内偏移 −28 px 与选中提交一致。
+- 2026-11-19（T062）：隔离 Chromium 用 108 条提交验证游标追加及无任务基线提示。手机列表从 100 条追加到 108 条及从提示返回后，首个可见 OID、行内偏移 −28 px 与选中提交一致；浏览器套件 `test/browser/GitWorkbench.test.ts` 验证分页阅读位置保持、状态提示往返恢复及 `aria-disabled` 加载保护。
 - 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核验；未重新核对 `US-J21` 以外的其余故事。
 
 ## 2026-11-14：Git 工作台顶栏按钮与目标切换器统一重构（US-J20、US-J23）

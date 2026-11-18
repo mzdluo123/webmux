@@ -278,9 +278,11 @@
         bind:ref={loadMoreButton}
         size="sm"
         variant="outline"
-        aria-disabled={historyLoadingMore}
+        aria-disabled={historyLoadingMore || undefined}
+        tabindex={historyLoadingMore ? -1 : undefined}
         onclick={() => {
-          if (!historyLoadingMore) onLoadMoreHistory();
+          if (historyLoadingMore) return;
+          onLoadMoreHistory();
         }}
       >
         {historyLoadingMore
