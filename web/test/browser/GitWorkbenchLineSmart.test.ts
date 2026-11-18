@@ -335,3 +335,27 @@ test("Smart Checkout enforces active CLI agent session disclosure + acknowledgem
   );
   expect(onclose).toHaveBeenCalledOnce();
 });
+
+test("preserve next checkbox pointer position when batch selection appears", async () => {
+  await page.viewport(1280, 900);
+  render(Harness, { initialState: buildGitWorkbenchFixture("commit-staging") });
+  const first = page.getByRole("checkbox", {
+    name: "选择未暂存条目 internal/workspace/staging.go",
+  });
+  const second = page.getByRole("checkbox", {
+    name: "选择未暂存条目 docs/git-workbench-notes.md",
+  });
+  await expect.element(second).toBeVisible();
+  await document.fonts.ready;
+  const initial = second.element().getBoundingClientRect().top;
+  await first.click();
+  await expect.element(page.getByTestId("git-discard-batch-bar")).toBeVisible();
+  const selected = second.element().getBoundingClientRect().top;
+  await first.click();
+  await expect
+    .element(page.getByTestId("git-discard-batch-bar"))
+    .not.toBeInTheDocument();
+  const cleared = second.element().getBoundingClientRect().top;
+  expect(selected).toBeCloseTo(initial, 0);
+  expect(cleared).toBeCloseTo(initial, 0);
+});
