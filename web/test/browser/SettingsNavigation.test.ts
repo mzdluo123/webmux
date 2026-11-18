@@ -117,6 +117,45 @@ for (const width of [1280, 393]) {
   });
 }
 
+test.each(["access", "preview"])(
+  "keeps the %s section visible across the settings navigation breakpoint",
+  async (section) => {
+    await page.viewport(1024, 800);
+    await openSettings();
+    const nav = page.getByRole("navigation", { name: "设置分区" });
+    await expect.element(nav).toBeVisible();
+    const link = nav
+      .element()
+      .querySelector<HTMLAnchorElement>(`a[href="#${section}"]`)!;
+    const target = document.getElementById(section)!;
+    const input = page.getByRole("spinbutton", {
+      name: "显示行数",
+      exact: true,
+    });
+    await input.fill("");
+    link.click();
+    await expect.poll(() => document.activeElement?.id).toBe(section);
+    const current = () =>
+      nav.element().querySelector("a[data-active]")?.getAttribute("href");
+    await expect.poll(current).toBe(`#${section}`);
+
+    for (const width of [1023, 1024, 390, 1280, 1023]) {
+      await page.viewport(width, 800);
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+      await expect.poll(current).toBe(`#${section}`);
+      expect(document.activeElement).toBe(target);
+      await expect.element(input).toHaveValue(null);
+      if (width < 1024) {
+        expect(target.getBoundingClientRect().top + 1).toBeGreaterThanOrEqual(
+          nav.element().getBoundingClientRect().bottom,
+        );
+      }
+    }
+  },
+);
+
 test("standalone navigation follows the measured header height", async () => {
   await page.viewport(393, 851);
   const nativeMatchMedia = window.matchMedia.bind(window);

@@ -27,26 +27,54 @@
     });
     const desktop = matchMedia("(min-width: 1024px)");
     let frame = 0;
+    let reading:
+      | { section: HTMLElement; offset: number; atEnd: boolean }
+      | undefined;
 
     function update() {
       frame = 0;
-      vertical = desktop.matches;
+      const nextVertical = desktop.matches;
       const first = targets[0];
       if (!first) return;
       const threshold =
         Math.max(
           parseFloat(getComputedStyle(first).scrollMarginTop),
-          desktop.matches
+          nextVertical
             ? parseFloat(getComputedStyle(navigation).top)
             : navigation.getBoundingClientRect().bottom,
         ) + 1;
+      // The navigation changes which part of the page stays visible.
+      // Keep the current section at the same offset from that boundary.
+      if (reading?.section.isConnected && vertical !== nextVertical) {
+        const followEnd =
+          reading.atEnd && document.activeElement !== reading.section;
+        const offset = reading.atEnd
+          ? Math.min(reading.offset, 0)
+          : reading.offset;
+        const delta = followEnd
+          ? document.documentElement.scrollHeight
+          : reading.section.getBoundingClientRect().top - threshold - offset;
+        if (Math.abs(delta) > 1)
+          window.scrollBy({ top: delta, behavior: "instant" });
+      }
+      vertical = nextVertical;
       let index = 0;
       for (const [i, target] of targets.entries()) {
         if (target.getBoundingClientRect().top <= threshold) index = i;
       }
       const bottom = document.documentElement.scrollHeight - innerHeight;
-      if (bottom > 0 && scrollY >= bottom - 2) index = targets.length - 1;
-      active = targets[index]!.id;
+      const atEnd = bottom > 0 && scrollY >= bottom - 2;
+      if (atEnd) index = targets.length - 1;
+      const current = targets[index]!;
+      active = current.id;
+      reading =
+        scrollY > 0
+          ? {
+              section: current,
+              offset: current.getBoundingClientRect().top - threshold,
+              atEnd,
+            }
+          : undefined;
       // Scroll only the horizontal strip; scrollIntoView would move the page.
       const link = links.querySelector<HTMLAnchorElement>(
         `a[href="#${active}"]`,
