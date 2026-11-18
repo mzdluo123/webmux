@@ -275,7 +275,7 @@ test("image page budget preserves typing and blocks invalid or stale previews", 
   await expect(send).toBeDisabled();
 });
 
-test("handoff form previews frozen images and clears process handles on refresh", async ({
+test("handoff form retains preview position and focus across results", async ({
   page,
   request,
   server,
@@ -388,6 +388,16 @@ test("handoff form previews frozen images and clears process handles on refresh"
   expect(response.status(), await response.text()).toBe(202);
   const operation = (await response.json()) as HandoffOperation;
   expect((await complete(request, operation.id)).state).toBe("succeeded");
+  await page.route(`**/handoff-operations/${operation.id}`, (route) =>
+    route.fulfill({ status: 410, json: { error: "预览已失效，请重新生成。" } }),
+  );
+  await page
+    .getByRole("button", { name: "查看发送结果", exact: true })
+    .press("Enter");
+  await expect(page.getByRole("alert")).toHaveText("预览已失效，请重新生成。");
+  await expect(
+    page.getByRole("region", { name: "预览", exact: true }),
+  ).toBeFocused();
   await page.reload();
   await expect(
     page.getByRole("textbox", { name: "用户指令", exact: true }),

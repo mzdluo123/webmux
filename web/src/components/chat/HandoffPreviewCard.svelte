@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from "svelte";
+  import { tick, untrack } from "svelte";
   import { Button } from "$lib/components/ui/button";
   import { Textarea } from "$lib/components/ui/textarea";
   import { m } from "$lib/paraglide/messages.js";
@@ -8,48 +8,44 @@
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import HandoffHistoryReader from "./HandoffHistoryReader.svelte";
   import HandoffImages from "./HandoffImages.svelte";
-  let {
-    editor: e,
-    focusGenerate,
-  }: { editor: HandoffEditor; focusGenerate: () => void } = $props();
+  let { editor: e }: { editor: HandoffEditor } = $props();
   let refreshButton = $state<HTMLButtonElement | null>(null);
+  let cancelButton = $state<HTMLButtonElement | null>(null);
   let previewViewport = $state<HTMLDivElement>();
 
   $effect.pre(() => {
     const preview = e.preview;
-    const viewport = previewViewport;
+    const operation = e.operation;
+    const uncertain = e.uncertain;
     const active = document.activeElement;
-    if (!viewport?.contains(active)) return;
+    const target = untrack(() => {
+      if (active && active === cancelButton) return refreshButton;
+      if (
+        active &&
+        (active === refreshButton || previewViewport?.contains(active))
+      )
+        return previewViewport;
+    });
+    if (!target) return;
+
+    // Keep focus near the result if the focused page or operation disappears.
     let current = true;
     void tick().then(() => {
       if (
         current &&
         preview === e.preview &&
-        viewport.isConnected &&
+        operation === e.operation &&
+        uncertain === e.uncertain &&
+        target.isConnected &&
         !active?.isConnected
       ) {
-        viewport.focus({ preventScroll: true });
+        target.focus({ preventScroll: true });
       }
     });
     return () => {
       current = false;
     };
   });
-  async function observe(
-    trigger: HTMLElement,
-    action: () => Promise<void>,
-    restore: () => void,
-  ) {
-    const focused = document.activeElement === trigger;
-    await action();
-    await tick();
-    if (
-      focused &&
-      !trigger.isConnected &&
-      document.activeElement === document.body
-    )
-      restore();
-  }
 </script>
 
 <div
@@ -100,17 +96,14 @@
             variant="outline"
             bind:ref={refreshButton}
             aria-disabled={e.busy}
-            onclick={(event) =>
-              void observe(event.currentTarget, e.refresh, focusGenerate)}
+            onclick={() => void e.refresh()}
             >{m.handoff_refresh_result()}</Button
           >
           {#if e.active}<Button
               variant="outline"
+              bind:ref={cancelButton}
               aria-disabled={e.busy}
-              onclick={(event) =>
-                void observe(event.currentTarget, e.cancel, () =>
-                  refreshButton?.focus({ preventScroll: true }),
-                )}>{m.handoff_cancel()}</Button
+              onclick={() => void e.cancel()}>{m.handoff_cancel()}</Button
             >{/if}
           {#if e.operation?.targetSessionId}<Button
               variant="outline"

@@ -41,7 +41,6 @@
   let managedPath = $state("");
   let formatFields = $state<HTMLDivElement | null>(null);
   let targetFields = $state<HTMLDivElement | null>(null);
-  let generateButton = $state<HTMLButtonElement | null>(null);
   const existingTarget = $derived(e.targetSessionId !== "");
   useDockMotion(
     () => formatFields,
@@ -266,7 +265,6 @@
   <div class="flex flex-wrap gap-2">
     <Button
       variant="outline"
-      bind:ref={generateButton}
       aria-disabled={generateDisabled}
       tabindex={generateDisabled ? -1 : undefined}
       onclick={() => {
@@ -281,8 +279,5 @@
       }}>{m.s3_handoff_send()}</Button
     >
   </div>
-  <HandoffPreviewCard
-    editor={e}
-    focusGenerate={() => generateButton?.focus({ preventScroll: true })}
-  />
+  <HandoffPreviewCard editor={e} />
 </div>
