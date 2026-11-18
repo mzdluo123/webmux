@@ -192,11 +192,12 @@ type CreateSessionRequest struct {
 // the path) or existing (check out the existing Branch). An empty Path
 // derives the directory from the branch.
 type NewWorktree struct {
-	RepositoryID string `json:"repositoryId"`
-	Mode         string `json:"mode"`
-	Branch       string `json:"branch,omitempty"`
-	Base         string `json:"base,omitempty"`
-	Path         string `json:"path,omitempty"`
+	RepositoryID   string          `json:"repositoryId"`
+	Mode           string          `json:"mode"`
+	Branch         string          `json:"branch,omitempty"`
+	Base           string          `json:"base,omitempty"`
+	Path           string          `json:"path,omitempty"`
+	UpstreamChoice *UpstreamChoice `json:"upstreamChoice,omitempty"`
 }
 
 // CreateSessionResult is the 201 body of POST /api/sessions. Worktree is
@@ -225,13 +226,14 @@ const (
 // is conflict for a branch or path that already exists. Worktree and
 // SessionID name what had been created; nothing is rolled back.
 type CreateSessionFailure struct {
-	Error       string          `json:"error"`
-	Step        string          `json:"step"`
-	Reason      string          `json:"reason,omitempty"`
-	Eligibility string          `json:"eligibility,omitempty"`
-	Connector   *AgentConnector `json:"connector,omitempty"`
-	Worktree    *Worktree       `json:"worktree,omitempty"`
-	SessionID   string          `json:"sessionId,omitempty"`
+	Error            string            `json:"error"`
+	Step             string            `json:"step"`
+	Reason           string            `json:"reason,omitempty"`
+	Eligibility      string            `json:"eligibility,omitempty"`
+	Connector        *AgentConnector   `json:"connector,omitempty"`
+	Worktree         *Worktree         `json:"worktree,omitempty"`
+	SessionID        string            `json:"sessionId,omitempty"`
+	WorktreeUpstream *WorktreeUpstream `json:"worktreeUpstream,omitempty"`
 }
 
 // InputKeys are the named keys of SessionInputRequest.Keys and the bytes

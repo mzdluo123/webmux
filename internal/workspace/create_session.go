@@ -29,6 +29,14 @@ func (s *Service) planWorktree(ctx context.Context, r *repositoryState, nw *sess
 		return problemf(ErrInvalid, "newWorktree.mode 只能是 new 或 existing")
 	}
 	plan.branch, plan.base, plan.path = nw.Branch, nw.Base, nw.Path
+	if plan.branch == "" && nw.UpstreamChoice != nil {
+		s.mu.Lock()
+		confirmation := s.upstreamConfirmations[nw.UpstreamChoice.ConfirmationID]
+		s.mu.Unlock()
+		if confirmation.repositoryID == r.entry.ID && confirmation.mode == nw.Mode {
+			plan.branch = confirmation.branch
+		}
+	}
 	if nw.Mode == "existing" && plan.branch == "" {
 		return problemf(ErrInvalid, "请选择已有本地分支")
 	}
@@ -44,7 +52,12 @@ func (s *Service) planWorktree(ctx context.Context, r *repositoryState, nw *sess
 		}
 		if plan.base == "" {
 			if branches.DefaultBase != nil {
-				plan.base = *branches.DefaultBase
+				// Keep the selected branch identity, not just its current OID.
+				if branches.DefaultBranch != nil {
+					plan.base = "refs/heads/" + *branches.DefaultBranch
+				} else {
+					plan.base = *branches.DefaultBase
+				}
 			} else if len(branches.Branches) != 0 || len(branches.Bases) != 0 {
 				plan.base = "HEAD"
 			}

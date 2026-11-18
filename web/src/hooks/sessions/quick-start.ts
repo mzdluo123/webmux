@@ -280,8 +280,15 @@ export function resolveQuickStartBranches(
       : branchData.defaultBase
         ? (branchData.defaultBranch ?? "HEAD")
         : "";
-  const base =
-    baseBranches.find((branch) => branch.name === baseName)?.head ?? "";
+  const base = !baseName
+    ? ""
+    : baseName === "HEAD"
+      ? "HEAD"
+      : branchData.branches.some((branch) => branch.name === baseName)
+        ? `refs/heads/${baseName}`
+        : remoteBranches.some((branch) => branch.name === baseName)
+          ? `refs/remotes/${baseName}`
+          : (branchData.defaultBase ?? "");
   return { localBranches, remoteBranches, baseName, base };
 }
 

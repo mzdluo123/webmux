@@ -9,7 +9,6 @@
     paneIndex,
     full,
     multiple,
-    immersive,
     onactivate,
     ...session
   }: ComponentProps<typeof SessionTerminal> & {
@@ -17,11 +16,9 @@
     paneIndex: number;
     full: boolean;
     multiple: boolean;
-    immersive: boolean;
     onactivate: () => void;
   } = $props();
   let terminal = $state<SessionTerminal>();
-  const offscreen = $derived(!pane || (immersive && !session.visible));
 
   export function focus() {
     terminal?.focus();
@@ -38,22 +35,17 @@
   class="session-owner"
   class:split-terminal={!!pane}
   class:active={!!pane && multiple && session.active}
-  aria-label={pane
-    ? m.s4_terminal_pane_index({ index: String(paneIndex + 1) })
-    : m.s4_vr_observed_session({ id: session.id })}
+  aria-label={m.s4_terminal_pane_index({ index: String(paneIndex + 1) })}
   data-session-id={session.id}
   data-active={!!pane && session.active}
   data-visible={session.visible}
-  data-offscreen={offscreen}
   style:--pane-left={`${full ? 0 : (pane?.x ?? 0)}px`}
   style:--pane-top={`${full ? 0 : (pane?.y ?? 0)}px`}
   style:--pane-width={full ? "100%" : `${pane?.width ?? 0}px`}
   style:--pane-height={full ? "100%" : `${pane?.height ?? 0}px`}
-  onpointerdowncapture={() => {
-    if (pane && !immersive) onactivate();
-  }}
+  onpointerdowncapture={onactivate}
   onfocusin={() => {
-    if (pane && !immersive && !session.active) onactivate();
+    if (!session.active) onactivate();
   }}
 >
   <SessionTerminal bind:this={terminal} {...session} />
@@ -70,20 +62,11 @@
     min-block-size: 0;
     container: terminal-pane / inline-size;
   }
-  .session-owner[data-visible="false"][data-offscreen="false"] {
+  .session-owner[data-visible="false"] {
     display: none;
   }
   .session-owner.active {
     outline: 1px solid var(--ring);
     outline-offset: -1px;
-  }
-  /* Keep original editors focusable without giving observation a 2D pane. */
-  .session-owner[data-offscreen="true"] {
-    position: fixed;
-    left: -10000px;
-    top: 0;
-    width: 1024px;
-    height: 768px;
-    overflow: hidden;
   }
 </style>

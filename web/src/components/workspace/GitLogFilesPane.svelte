@@ -15,7 +15,7 @@
     GitCompareViewState,
   } from "../../contracts/git-workbench-schemas";
   import type { GitFileInspectorTab } from "../../hooks/workspace/git-file-inspector-controller.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   let {
     files,

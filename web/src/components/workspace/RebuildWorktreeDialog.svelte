@@ -8,9 +8,9 @@
   } from "../../domains/sessions/recoverable";
   import type { HybridRelease, RebuildPreview } from "../../contracts/schemas";
   import BlockerList from "../shared/BlockerList.svelte";
-  import KeyValueSummary from "../shared/KeyValueSummary.svelte";
+  import { KeyValueSummary } from "$lib/components/ui/key-value-summary";
   import PreviewForm from "./PreviewForm.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
   // The second confirmation before a released record resumes: its worktree
   // comes back at the original path, on its branch when that still points at

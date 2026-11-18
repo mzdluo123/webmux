@@ -4,7 +4,7 @@
   import { untrack } from "svelte";
   import { createHandoffEditor } from "../../hooks/sessions/handoff.svelte";
   import HandoffForm from "./HandoffForm.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   let { sourceId, onclose }: { sourceId: string; onclose: () => void } =
     $props();
   const editor = createHandoffEditor(

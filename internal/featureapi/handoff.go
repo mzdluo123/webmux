@@ -4,6 +4,7 @@ import (
 	"github.com/rainchan/webmux/internal/contract"
 	wire "github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/handoff"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 	"github.com/rainchan/webmux/internal/transport"
 	"net/http"
 )
@@ -51,7 +52,14 @@ func (s *Server) handoffRoutes(mux transport.Registrar) {
 		if !decodeStrict(w, r, &in, 4096, handoff.ErrInvalid) {
 			return
 		}
-		o, err := s.Handoffs.Deliver(r.Context(), r.PathValue("id"), in.OperationID)
+		var o handoff.Operation
+		var err error
+		if in.UpstreamChoice != nil {
+			choice := sessioncreate.UpstreamChoice(*in.UpstreamChoice)
+			o, err = s.Handoffs.ConfirmUpstream(r.Context(), r.PathValue("id"), in.OperationID, choice)
+		} else {
+			o, err = s.Handoffs.Deliver(r.Context(), r.PathValue("id"), in.OperationID)
+		}
 		if err != nil {
 			historyFailure(w, err)
 			return

@@ -71,6 +71,9 @@ func TestRelayDisableRevokesWhenPersistenceFails(t *testing.T) {
 	if state.Enabled || state.ControlReady || state.PublicURL != "" || public.SourceOrigin("relay") != "" {
 		t.Fatalf("failed save retained public access: %+v", state)
 	}
+	if receipt := state.Operation; receipt.Kind != "disable" || receipt.Phase != "failed" || receipt.Error != "storage-unavailable" {
+		t.Fatalf("failed durable disable receipt=%+v", receipt)
+	}
 	if public.SourceOrigin("cloudflare") != "https://other.example.com" {
 		t.Fatal("disabling relay revoked independent origin")
 	}
@@ -85,6 +88,33 @@ func TestRelayDisableRevokesWhenPersistenceFails(t *testing.T) {
 	}
 	if !stored.Config.Enabled || stored.Binding == nil || stored.Binding.PublicURL != origin {
 		t.Fatal("failed save destroyed recoverable identity or misreported durable disable")
+	}
+}
+
+func TestRelayReadinessRequiresInteractivePool(t *testing.T) {
+	rc := &relayController{generation: 1, status: contract.RelayStatus{ControlReady: true}, settings: relaysetting.Settings{Binding: &protocol.Binding{}}}
+	rc.poolsReady(1, false, true)
+	if rc.status.State != "failed" || !rc.status.ControlReady || !rc.status.BulkReady || rc.status.ReadyConnections != 1 {
+		t.Fatalf("bulk-only transport reported healthy: %+v", rc.status)
+	}
+	rc.poolsReady(1, true, true)
+	if rc.status.State != "ready" || !rc.status.ControlReady || rc.status.ReadyConnections != 2 {
+		t.Fatalf("recovered interactive pool not ready: %+v", rc.status)
+	}
+	rc.poolsReady(0, false, false)
+	if rc.status.State != "ready" {
+		t.Fatal("old generation changed readiness")
+	}
+	rc.poolsReady(1, false, true)
+	if rc.status.State != "failed" || !rc.status.ControlReady || rc.status.ReadyConnections != 1 {
+		t.Fatalf("interactive loss retained ready state: %+v", rc.status)
+	}
+	if _, ok := rc.authSnapshot(); !ok {
+		t.Fatal("interactive loss invalidated browser authorization")
+	}
+	rc.poolsReady(1, true, false)
+	if rc.status.State != "degraded" || rc.status.Error != "" || rc.status.ReadinessError != "" {
+		t.Fatalf("bulk-only degradation retained interactive failure: %+v", rc.status)
 	}
 }
 
@@ -117,8 +147,8 @@ func TestRelayConnectedClearsFailureOnlyForActiveGeneration(t *testing.T) {
 			settings := relaysetting.Settings{Binding: &protocol.Binding{PublicURL: origin}}
 			rc.connected(ctx, tt.gen, settings, protocol.Scope{})
 			if tt.wantReady {
-				if !rc.status.ControlReady || rc.status.ReadyConnections != 1 ||
-					rc.status.State != "degraded" || rc.status.PublicURL != origin ||
+				if !rc.status.ControlReady || rc.status.ReadyConnections != 0 ||
+					rc.status.State != "connecting" || rc.status.PublicURL != origin ||
 					rc.status.Error != "" || rc.status.ReadinessError != "" ||
 					rc.status.ReconnectReason != "" || public.SourceOrigin("relay") != origin {
 					t.Fatalf("recovery retained failure or did not authorize origin: %+v", rc.status)
@@ -128,5 +158,18 @@ func TestRelayConnectedClearsFailureOnlyForActiveGeneration(t *testing.T) {
 				t.Fatalf("inactive worker changed failure status or authorization: %+v", rc.status)
 			}
 		})
+	}
+}
+
+func TestRelayAuthSnapshotRetainsBindingWithoutReadiness(t *testing.T) {
+	binding := protocol.Binding{HostID: "0123456789abcdef0123456789abcdef", OwnerID: "123", BindingGeneration: 1, PublicURL: "https://h-0123456789abcdef0123456789abcdef.example.com"}
+	rc := &relayController{settings: relaysetting.Settings{Binding: &binding}}
+	got, ready := rc.authSnapshot()
+	if ready || got.Binding != binding {
+		t.Fatalf("offline snapshot lost binding identity or authorized access: %+v ready=%v", got, ready)
+	}
+	rc.settings.Binding = nil
+	if got, ready := rc.authSnapshot(); ready || got.Binding.HostID != "" {
+		t.Fatal("unbound snapshot retained identity")
 	}
 }

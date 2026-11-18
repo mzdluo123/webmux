@@ -10,9 +10,9 @@
   import * as Empty from "$lib/components/ui/empty";
   import * as Item from "$lib/components/ui/item";
   import { Skeleton } from "$lib/components/ui/skeleton";
-  import AdvancedSection from "../shared/AdvancedSection.svelte";
-  import InfoHint from "../shared/InfoHint.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { AdvancedSection } from "$lib/components/ui/advanced-section";
+  import { InfoHint } from "$lib/components/ui/info-hint";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import AgentToolRow from "./AgentToolRow.svelte";
   import { api } from "../../platform/api";
   import { errorMessage } from "../../platform/error";

@@ -70,7 +70,7 @@
     groupWorkingChanges,
     isChangeReviewed,
   } from "../../domains/workspace/git-workbench-state";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitCommitComposer from "./GitCommitComposer.svelte";
   import GitConflictTerminalNotice from "./GitConflictTerminalNotice.svelte";
   import GitDiscardBatchBar from "./GitDiscardBatchBar.svelte";

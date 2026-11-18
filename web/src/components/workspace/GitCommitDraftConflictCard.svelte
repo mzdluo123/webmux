@@ -4,7 +4,7 @@
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { m } from "$lib/paraglide/messages.js";
   import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   let {
     conflict,

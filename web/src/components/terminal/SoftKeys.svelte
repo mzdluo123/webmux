@@ -82,6 +82,7 @@
 <aside
   class="soft-keys shrink-0 border-t bg-card"
   aria-label={m.s4_soft_keys_aria()}
+  data-bottom-dock
 >
   {#if gamepad}<TouchGamepad {send} />{/if}
   <div class="soft-keys-main">

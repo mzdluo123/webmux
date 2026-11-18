@@ -16,9 +16,9 @@
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
   import BlockerList from "../shared/BlockerList.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import PreviewForm from "./PreviewForm.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import PushCheckNotice from "../settings/PushCheckNotice.svelte";
   import WorktreeSessionList from "./WorktreeSessionList.svelte";
   let {

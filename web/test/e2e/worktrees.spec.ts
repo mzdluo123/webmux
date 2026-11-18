@@ -14,7 +14,12 @@ import {
   useDirectory,
   backToList,
 } from "./fixtures";
-import { expectHomeWorktrees, repositoryMenu } from "./repository-menu";
+import {
+  allRepositoriesMenu,
+  expectHomeWorktrees,
+  openAllRepositoriesMenu,
+  repositoryMenu,
+} from "./repository-menu";
 import { startE2EServer } from "./server.mjs";
 
 const exec = promisify(execFile);
@@ -41,7 +46,7 @@ async function repository(root: string, name = "project with spaces") {
   return path;
 }
 async function register(page: Page, path: string) {
-  await page.getByRole("button", { name: "添加仓库", exact: true }).click();
+  await allRepositoriesMenu(page, "添加仓库…");
   const dialog = page.getByRole("dialog", { name: "添加仓库" });
   await dialog.getByLabel("仓库目录").fill(path);
   await dialog.getByRole("button", { name: "添加仓库", exact: true }).click();
@@ -317,9 +322,12 @@ test("without Git an isolated real service still starts and runs a direct shell"
   const isolated = await startE2EServer({ noGit: true });
   try {
     await page.goto(isolated.baseURL);
+    const closedDrawer = await openAllRepositoriesMenu(page);
     await expect(
-      page.getByRole("button", { name: "添加仓库", exact: true }),
+      page.getByRole("menuitem", { name: "添加仓库…", exact: true }),
     ).toBeDisabled();
+    await page.keyboard.press("Escape");
+    if (closedDrawer) await page.keyboard.press("Escape");
     const config = await (await fetch(isolated.apiURL + "/api/config")).json();
     expect(config.workspace.gitAvailable).toBe(false);
     expect(config).not.toHaveProperty("token");
@@ -429,7 +437,7 @@ test("multiple repositories keep every session visible through local failure, co
       .getByRole("region", { name: "直接会话", exact: true })
       .getByRole("link", { name: "Second shell", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "添加仓库", exact: true }).click();
+  await allRepositoriesMenu(page, "添加仓库…");
   const addDialog = page.getByRole("dialog", { name: "添加仓库" });
   await addDialog.getByLabel("仓库目录").fill(workDir);
   await addDialog
@@ -440,7 +448,7 @@ test("multiple repositories keep every session visible through local failure, co
   await addDialog.getByRole("button", { name: "取消", exact: true }).click();
 });
 
-test("upstream refresh selects remote commits and falls back to a creatable local base", async ({
+test("upstream refresh previews commits and creation requires an explicit baseline choice", async ({
   page,
   request,
   workDir,
@@ -469,24 +477,23 @@ test("upstream refresh selects remote commits and falls back to a creatable loca
     await git(other, "push", "origin", "main");
     return git(other, "rev-parse", "HEAD");
   };
-  const remoteOne = await advance("remote one");
+  await advance("remote one");
   await page.goto("/");
   await register(page, root);
   await openWorktreeCreation(page, false);
   const base = page.getByRole("combobox", { name: "起始提交", exact: true });
   const short = (oid: string) => oid.slice(0, 7);
-  await expect(base).toContainText(short(remoteOne));
-  await expect(base).toContainText("remote one");
+  await expect(base).toContainText(short(localHead));
   await expect(
     page.getByRole("status", { name: "上游刷新状态" }),
-  ).toContainText("远程最新 · origin/main · remote one");
+  ).toContainText("上游预览 · origin/main");
 
   const remoteTwo = await advance("remote two");
   await page.getByRole("button", { name: "刷新上游", exact: true }).click();
-  await expect(base).toContainText(short(remoteTwo));
+  await expect(base).toContainText(short(localHead));
   await expect(
     page.getByRole("status", { name: "上游刷新状态" }),
-  ).toContainText("remote two");
+  ).toContainText("上游预览 · origin/main");
   // The fetched tip leads the list, followed by the older history.
   await base.click();
   const choices = page.getByRole("listbox").getByRole("option");
@@ -510,6 +517,15 @@ test("upstream refresh selects remote commits and falls back to a creatable loca
     .getByLabel("新工作树完整路径", { exact: true })
     .inputValue();
   await page.getByRole("button", { name: "创建工作树", exact: true }).click();
+  const confirmation = page.getByRole("dialog", {
+    name: "选择工作树基线",
+    exact: true,
+  });
+  await expect(confirmation).toContainText(localHead);
+  await expect(confirmation).toContainText(remoteTwo);
+  await confirmation
+    .getByRole("button", { name: "保留本地", exact: true })
+    .click();
   await expect(page.getByRole("dialog")).toBeHidden();
   const repo = (await (await request.get("/api/repositories")).json())[0];
   const created = repo.worktrees.find(

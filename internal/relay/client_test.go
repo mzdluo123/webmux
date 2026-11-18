@@ -61,6 +61,7 @@ func TestSignedAssignmentAndDeletion(t *testing.T) {
 	key := testKey(t)
 	pub := protocol.PublicKey{Algorithm: protocol.HostAlgorithm, Key: base64.RawURLEncoding.EncodeToString(key.Public().(ed25519.PublicKey))}
 	assignment := testAssignment(t, id)
+	assignment.ExpiresAt = time.Now().Add(protocol.ControlLease + 3*time.Second).Unix()
 	var challenge protocol.HostChallenge
 	var issued atomic.Int32
 	var checked atomic.Int32
@@ -73,7 +74,7 @@ func TestSignedAssignmentAndDeletion(t *testing.T) {
 				w.WriteHeader(400)
 				return
 			}
-			challenge = protocol.HostChallenge{Version: protocol.V1, Audience: "control.example", HostID: req.HostID, BindingGeneration: 1, Purpose: req.Purpose, Nonce: testToken(t), ExpiresAt: time.Now().Add(20 * time.Second).Unix(), ControlEpoch: assignment.ControlEpoch}
+			challenge = protocol.HostChallenge{Version: protocol.V1, Audience: "control.example", HostID: req.HostID, BindingGeneration: 1, Purpose: req.Purpose, Nonce: testToken(t), ExpiresAt: time.Now().Add(protocol.NonceTTL + 3*time.Second).Unix(), ControlEpoch: assignment.ControlEpoch}
 			issued.Add(1)
 			mustJSON(t, w, http.StatusOK, challenge)
 			return
@@ -201,7 +202,7 @@ func TestEnrollmentPendingCancelAndBounds(t *testing.T) {
 }
 
 func testCallbacks() Callbacks {
-	return Callbacks{Ready: func(protocol.Scope) {}, BulkReady: func(bool) {}, Disconnected: func() {}, Revoke: func(context.Context, protocol.Revocation) error { return nil }}
+	return Callbacks{Ready: func(protocol.Scope) {}, PoolsReady: func(bool, bool) {}, Disconnected: func() {}, Revoke: func(context.Context, protocol.Revocation) error { return nil }}
 }
 
 func TestEnrollmentCarriesMachineIdentityAcrossKeyRotation(t *testing.T) {
@@ -247,6 +248,38 @@ func TestEnrollmentCarriesMachineIdentityAcrossKeyRotation(t *testing.T) {
 	}
 	if requests.Load() != 2 {
 		t.Fatal("enrollment was skipped or replayed")
+	}
+}
+
+func TestEnrollmentExpiryAcrossClocks(t *testing.T) {
+	tests := []struct {
+		name string
+		ttl  time.Duration
+		want protocol.Code
+	}{
+		{name: "future", ttl: time.Hour},
+		{name: "expired", ttl: -time.Minute, want: protocol.Invalid},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id := newTestIdentity(t)
+			expiry := time.Now().Add(tt.ttl).Unix()
+			srv := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mustJSON(t, w, http.StatusCreated, protocol.Enrollment{Version: protocol.BindingAPIVersion, Handle: testToken(t), UserCode: "ABCD", VerificationURL: "https://github.com/login/device", ExpiresAt: expiry, PollIntervalSeconds: 1})
+			}), false)
+			c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+			got, err := c.Enroll(t.Context(), testKey(t), protocol.MachineID(testToken(t)))
+			if tt.want != "" {
+				var failure protocol.Error
+				if !errors.As(err, &failure) || failure.Code != tt.want {
+					t.Fatalf("enrollment expiry error = %v, want %s", err, tt.want)
+				}
+				return
+			}
+			if err != nil || got.ExpiresAt != expiry {
+				t.Fatalf("enrollment expiry = %d, %v; want %d", got.ExpiresAt, err, expiry)
+			}
+		})
 	}
 }
 
@@ -336,5 +369,57 @@ func TestEnrollmentRejectsRetiredResponseVersions(t *testing.T) {
 	}
 	if _, err := c.Poll(t.Context(), handle); err == nil {
 		t.Fatal("retired poll response accepted")
+	}
+}
+
+func TestRelayRetryAfter(t *testing.T) {
+	now := time.Date(2026, time.November, 17, 12, 0, 0, 500000000, time.UTC)
+	for _, tt := range []struct {
+		name string
+		give string
+		want uint32
+	}{
+		{"seconds", "7", 7},
+		{"date", now.Add(8 * time.Second).Format(http.TimeFormat), 8},
+		{"past", now.Add(-time.Minute).Format(http.TimeFormat), 0},
+		{"negative", "-1", 0},
+		{"invalid", "later", 0},
+		{"bounded", "999999", 24 * 60 * 60},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := relayRetryAfter(tt.give, now); got != tt.want {
+				t.Fatalf("Retry-After %q=%d want %d", tt.give, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEnrollmentPollRetainsHTTPRetryAfterWithoutReplay(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		body string
+		want uint32
+		code protocol.Code
+	}{
+		{"header", `{"code":"rate_limited","retryAfterSeconds":3}`, 7, protocol.RateLimited},
+		{"body", `{"code":"rate_limited","retryAfterSeconds":9}`, 9, protocol.RateLimited},
+		{"unstructured", `upstream busy`, 7, protocol.Unavailable},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			id := newTestIdentity(t)
+			var requests atomic.Int32
+			srv := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				w.Header().Set("Retry-After", "7")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_, _ = io.WriteString(w, tt.body)
+			}), false)
+			client := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+			_, err := client.Poll(t.Context(), testToken(t))
+			var remote protocol.Error
+			if !errors.As(err, &remote) || remote.Code != tt.code || remote.RetryAfterSeconds != tt.want || requests.Load() != 1 {
+				t.Fatalf("poll error=%v Retry-After=%d requests=%d", err, remote.RetryAfterSeconds, requests.Load())
+			}
+		})
 	}
 }

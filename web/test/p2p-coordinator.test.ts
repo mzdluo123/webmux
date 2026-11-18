@@ -73,6 +73,8 @@ vi.mock("../src/platform/transport", () => ({
 }));
 vi.mock("../src/platform/ws", () => ({
   handoffLiveSockets: mocks.handoff,
+}));
+vi.mock("../src/platform/ws-registry", () => ({
   observeManagedStreams: () => () => {},
 }));
 

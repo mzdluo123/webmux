@@ -27,6 +27,11 @@
   height: calc(var(--preview-lines) * 1lh + 1rem);
 }
 
+/* Session cards follow the available content width after the sidebar. */
+@utility session-preview-columns {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19.5rem), 1fr));
+}
+
 /* Microphone volume bar height driven by --voice-bar in [0, 1]. */
 @utility h-voice-bar {
   height: calc(3px + var(--voice-bar, 0) * 11px);

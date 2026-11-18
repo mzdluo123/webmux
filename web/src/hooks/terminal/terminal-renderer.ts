@@ -46,7 +46,6 @@ export interface TerminalRenderer {
   readonly term: Terminal;
   // Fits the grid to the host's current box.
   fit(): void;
-  setImmersive(active: boolean): void;
   // Releases observers now and the terminal after its pending frames.
   dispose(): void;
 }
@@ -60,7 +59,6 @@ export function createTerminalRenderer(
   events: TerminalRendererEvents,
 ): TerminalRenderer {
   let disposed = false;
-  let immersive = false;
   const term = new Terminal({
     fontSize,
     fontFamily: terminalFontFamilyCss,
@@ -114,7 +112,7 @@ export function createTerminalRenderer(
   });
   let timer: number | undefined;
   const observer = new ResizeObserver(([entry]) => {
-    if (disposed || immersive) return;
+    if (disposed) return;
     if (webgl) {
       const pixels = entry?.devicePixelContentBoxSize?.[0];
       const css = entry?.contentRect;
@@ -149,7 +147,7 @@ export function createTerminalRenderer(
   const stopDpr = observeDevicePixelRatio(() => {
     // Re-observe physical dimensions rather than comparing with stale pixels.
     observer.unobserve(parent);
-    if (!immersive) observeSize();
+    observeSize();
   });
   observeSize();
   let remeasureFrame = 0;
@@ -179,17 +177,7 @@ export function createTerminalRenderer(
   return {
     term,
     fit() {
-      if (!immersive && !disposed) fitAddon.fit();
-    },
-    setImmersive(active) {
-      if (immersive === active || disposed) return;
-      immersive = active;
-      clearTimeout(timer);
-      if (active) observer.disconnect();
-      else {
-        observeSize();
-        term.refresh(0, term.rows - 1);
-      }
+      if (!disposed) fitAddon.fit();
     },
     dispose() {
       disposed = true;

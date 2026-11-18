@@ -10,7 +10,7 @@
     type ChatCodeLinkHandler,
   } from "../../domains/code/markdown-link";
   import DiffCount from "./DiffCount.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   // What a tool call produced: output text, diffs, resource links and the
   // locations it touched. Diffs open in the code panel.

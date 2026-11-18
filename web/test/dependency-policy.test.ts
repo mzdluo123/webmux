@@ -22,7 +22,12 @@ const config = resolve(root, ".dependency-cruiser.cjs");
 function violations(
   from: string,
   to: string,
-  options: { typeOnly?: boolean; cycle?: boolean; missing?: boolean } = {},
+  options: {
+    typeOnly?: boolean;
+    cycle?: boolean;
+    missing?: boolean;
+    orphan?: boolean;
+  } = {},
 ): string[] {
   const directory = mkdtempSync(join(tmpdir(), "webmux-dependencies-"));
   function put(file: string, source: string) {
@@ -47,9 +52,11 @@ function violations(
     );
     // A Svelte-only fixture still needs one compiler-recognized input.
     put("src/app.d.ts", "export {};");
-    const statement = options.typeOnly
-      ? `import type { Marker } from ${JSON.stringify(specifier(from, to))};\nexport type Copy = Marker;`
-      : `import ${JSON.stringify(specifier(from, to))};`;
+    const statement = options.orphan
+      ? "export {};"
+      : options.typeOnly
+        ? `import type { Marker } from ${JSON.stringify(specifier(from, to))};\nexport type Copy = Marker;`
+        : `import ${JSON.stringify(specifier(from, to))};`;
     put(
       from,
       from.endsWith(".svelte")
@@ -218,11 +225,31 @@ describe("dependency boundary policy", () => {
     ).toContain("no-circular");
   });
 
+  test("unregistered UI keeps cycle checks while generated barrels are exempt", () => {
+    expect(
+      violations(
+        "src/lib/components/ui/new-widget/index.ts",
+        "src/lib/components/ui/info-hint/index.ts",
+        { cycle: true },
+      ),
+    ).toContain("no-circular");
+  });
+
   test("rejects stale imports after a move", () => {
     expect(
       violations("src/domains/sessions/model.ts", "src/session-schemas.ts", {
         missing: true,
       }),
     ).toContain("no-unresolved");
+  });
+
+  test("unused unregistered UI is rejected while generated UI can be unused", () => {
+    expect(
+      violations(
+        "src/lib/components/ui/new-widget/index.ts",
+        "src/lib/components/ui/button/index.ts",
+        { orphan: true },
+      ),
+    ).toEqual(["no-orphans"]);
   });
 });

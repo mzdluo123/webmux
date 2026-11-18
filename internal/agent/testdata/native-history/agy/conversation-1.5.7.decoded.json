@@ -1,0 +1,516 @@
+{
+  "trajectory_meta": {
+    "trajectory_id": "00000004-0000-4000-8000-000000000001",
+    "cascade_id": "00000004-0000-4000-8000-000000000002",
+    "trajectory_type": 4,
+    "source": 17
+  },
+  "steps": [
+    {
+      "idx": 0,
+      "step_type": 14,
+      "status": 3,
+      "has_subtrajectory": 0,
+      "metadata": {
+        "created_at": {
+          "seconds": 1700000000,
+          "nanos": 0
+        },
+        "source": 4,
+        "execution_id": "00000004-0000-4000-8000-000000000003",
+        "source_trajectory_step_info": {
+          "trajectory_id": "00000004-0000-4000-8000-000000000001",
+          "cascade_id": "00000004-0000-4000-8000-000000000002"
+        },
+        "internal_metadata": {
+          "status_transitions": [
+            {
+              "updated_status": 3,
+              "timestamp": {
+                "seconds": 1700000000,
+                "nanos": 0
+              }
+            }
+          ]
+        },
+        "model_api_content_id": "[redacted]"
+      },
+      "step_payload": {
+        "type": 14,
+        "status": 3,
+        "metadata": {
+          "created_at": {
+            "seconds": 1700000000,
+            "nanos": 0
+          },
+          "source": 4,
+          "execution_id": "00000004-0000-4000-8000-000000000003",
+          "source_trajectory_step_info": {
+            "trajectory_id": "00000004-0000-4000-8000-000000000001",
+            "cascade_id": "00000004-0000-4000-8000-000000000002"
+          },
+          "internal_metadata": {
+            "status_transitions": [
+              {
+                "updated_status": 3,
+                "timestamp": {
+                  "seconds": 1700000000,
+                  "nanos": 0
+                }
+              }
+            ]
+          },
+          "model_api_content_id": "[redacted]"
+        },
+        "user_input": {
+          "user_response": "这是隔离的会话交接测试。请记住合成校验码 WMX-agy-capture，合成项目名称是蓝鹭，端口为48273。只回复一行 ACK 加校验码。不调用工具，不读写文件，不做其他操作。",
+          "items": [
+            {
+              "text": "这是隔离的会话交接测试。请记住合成校验码 WMX-agy-capture，合成项目名称是蓝鹭，端口为48273。只回复一行 ACK 加校验码。不调用工具，不读写文件，不做其他操作。"
+            }
+          ],
+          "active_user_state": {},
+          "user_config": {
+            "planner_config": {
+              "plan_model": 1437,
+              "tool_config": {
+                "run_command": {
+                  "auto_command_config": {
+                    "auto_execution_policy": 3
+                  },
+                  "enable_terminal_sandbox": 0
+                },
+                "antigravity_browser": {
+                  "enable_browser_subagent_webview": 0
+                },
+                "permission_config": {
+                  "enterprise_config": {
+                    "enforce_workspace_validation": 0
+                  },
+                  "effective_grants": {
+                    "allow": [
+                      "[redacted]",
+                      "[redacted]",
+                      "[redacted]",
+                      "[redacted]",
+                      "[redacted]"
+                    ]
+                  }
+                }
+              },
+              "retry_config": {
+                "api_retry": {
+                  "max_sleep_duration_ms": 0
+                }
+              },
+              "customization_discovery_config": {
+                "skills": {
+                  "inherit_user": 1,
+                  "skills_paths": [
+                    {
+                      "absolute": "[redacted]"
+                    },
+                    {
+                      "absolute": "[redacted]"
+                    }
+                  ],
+                  "builtin_skill_names": [
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]"
+                  ]
+                },
+                "agents": {
+                  "builtin_agent_names": [
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]",
+                    "[redacted]"
+                  ]
+                }
+              },
+              "declarative_mixin_config": {
+                "prompt_sections": [
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  },
+                  {
+                    "builtin_name": "[redacted]"
+                  }
+                ],
+                "tools": [
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  }
+                ],
+                "pre_invocation_hooks": [
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  }
+                ],
+                "post_invocation_hooks": [
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  }
+                ],
+                "pre_tool_hooks": [
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  }
+                ],
+                "post_tool_hooks": [
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  }
+                ],
+                "stop_hooks": [
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  }
+                ],
+                "force_disable_fundamental_components": 1,
+                "tool_decorators": [
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  },
+                  {
+                    "name": "[redacted]",
+                    "builtin": 1
+                  }
+                ]
+              }
+            },
+            "executor_config": {
+              "use_core_direct": 1
+            },
+            "dynamic_workspace_uris": [
+              "[redacted]"
+            ]
+          },
+          "user_agent_spec": {
+            "builtin_agent": {
+              "default_agent": {
+                "is_google": 0,
+                "is_interactive": 1,
+                "surface": 2
+              }
+            }
+          }
+        }
+      },
+      "step_format": 0
+    },
+    {
+      "idx": 1,
+      "step_type": 15,
+      "status": 3,
+      "has_subtrajectory": 0,
+      "metadata": {
+        "created_at": {
+          "seconds": 1700000000,
+          "nanos": 0
+        },
+        "source": 2,
+        "viewable_at": {
+          "seconds": 1700000000,
+          "nanos": 0
+        },
+        "finished_generating_at": {
+          "seconds": 1700000000,
+          "nanos": 0
+        },
+        "completed_at": {
+          "seconds": 1700000000,
+          "nanos": 0
+        },
+        "model_usage": {
+          "model": 1437,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "api_provider": 24,
+          "message_id": "[redacted]",
+          "response_header": [
+            {
+              "key": "[redacted]",
+              "value": "[redacted]"
+            }
+          ],
+          "response_output_tokens": 0,
+          "response_id": "[redacted]"
+        },
+        "generator_model": 1437,
+        "execution_id": "00000004-0000-4000-8000-000000000003",
+        "source_trajectory_step_info": {
+          "trajectory_id": "00000004-0000-4000-8000-000000000001",
+          "step_index": 0,
+          "cascade_id": "00000004-0000-4000-8000-000000000002"
+        },
+        "internal_metadata": {
+          "status_transitions": [
+            {
+              "updated_status": 8,
+              "timestamp": {
+                "seconds": 1700000000,
+                "nanos": 0
+              }
+            },
+            {
+              "updated_status": 3,
+              "timestamp": {
+                "seconds": 1700000000,
+                "nanos": 0
+              }
+            }
+          ]
+        },
+        "started_at": {
+          "seconds": 1700000000,
+          "nanos": 0
+        },
+        "model_api_content_id": "[redacted]"
+      },
+      "step_payload": {
+        "type": 15,
+        "status": 3,
+        "metadata": {
+          "created_at": {
+            "seconds": 1700000000,
+            "nanos": 0
+          },
+          "source": 2,
+          "viewable_at": {
+            "seconds": 1700000000,
+            "nanos": 0
+          },
+          "finished_generating_at": {
+            "seconds": 1700000000,
+            "nanos": 0
+          },
+          "completed_at": {
+            "seconds": 1700000000,
+            "nanos": 0
+          },
+          "model_usage": {
+            "model": 1437,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "api_provider": 24,
+            "message_id": "[redacted]",
+            "response_header": [
+              {
+                "key": "[redacted]",
+                "value": "[redacted]"
+              }
+            ],
+            "response_output_tokens": 0,
+            "response_id": "[redacted]"
+          },
+          "generator_model": 1437,
+          "execution_id": "00000004-0000-4000-8000-000000000003",
+          "source_trajectory_step_info": {
+            "trajectory_id": "00000004-0000-4000-8000-000000000001",
+            "step_index": 0,
+            "cascade_id": "00000004-0000-4000-8000-000000000002"
+          },
+          "internal_metadata": {
+            "status_transitions": [
+              {
+                "updated_status": 8,
+                "timestamp": {
+                  "seconds": 1700000000,
+                  "nanos": 0
+                }
+              },
+              {
+                "updated_status": 3,
+                "timestamp": {
+                  "seconds": 1700000000,
+                  "nanos": 0
+                }
+              }
+            ]
+          },
+          "started_at": {
+            "seconds": 1700000000,
+            "nanos": 0
+          },
+          "model_api_content_id": "[redacted]"
+        },
+        "planner_response": {
+          "response": "ACK WMX-agy-capture",
+          "message_id": "[redacted]",
+          "modified_response": "ACK WMX-agy-capture",
+          "stop_reason": 2
+        }
+      },
+      "step_format": 0
+    }
+  ]
+}

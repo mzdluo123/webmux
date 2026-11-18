@@ -45,7 +45,7 @@
   import NewSessionRecoveryDialogs from "./NewSessionRecoveryDialogs.svelte";
   import NewSessionForm from "./NewSessionForm.svelte";
   import ProjectSessionSteps from "./ProjectSessionSteps.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import type { SplitDirection } from "../../domains/terminal/terminal-layout";
 
   interface Props {

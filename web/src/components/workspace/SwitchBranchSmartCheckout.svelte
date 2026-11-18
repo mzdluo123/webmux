@@ -12,7 +12,7 @@
   import type { Worktree } from "../../contracts/schemas";
   import type { createSmartCheckoutController } from "../../hooks/workspace/git-smart-checkout.svelte";
   import BlockerList from "../shared/BlockerList.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitRecoveryCommandBox from "./GitRecoveryCommandBox.svelte";
 
   type SmartController = ReturnType<typeof createSmartCheckoutController>;

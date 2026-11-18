@@ -5,7 +5,10 @@
   import { Separator } from "$lib/components/ui/separator";
   import { Switch } from "$lib/components/ui/switch";
   import { getFeatureContributions } from "../../features/context";
-  import { setWsCompression, wsCompression } from "../../platform/ws";
+  import {
+    setWsCompression,
+    wsCompression,
+  } from "../../platform/ws-compression";
 
   let compression = $state(wsCompression());
   const providers = getFeatureContributions().network;

@@ -508,11 +508,24 @@ func TestGitReadAPIHistoryCommitDetailAndIsolation(t *testing.T) {
 
 	// Cross-worktree contextId & snapshotId -> 409 context_mismatch.
 	var linkedWT contract.Worktree
-	linkedRaw := env.doJSON("POST", "/api/repositories/"+env.repo.ID+"/worktrees", contract.CreateWorktreeRequest{
+	createPath := "/api/repositories/" + env.repo.ID + "/worktrees"
+	createRequest := contract.CreateWorktreeRequest{
 		Path: filepath.Join(t.TempDir(), "linked-wt"), Mode: "new", Branch: "linked-wt", Base: "HEAD",
-	}, 201)
+	}
+	var confirmation contract.WorktreeUpstreamFailure
+	if err := json.Unmarshal(env.doJSON("POST", createPath, createRequest, 409), &confirmation); err != nil {
+		t.Fatal(err)
+	}
+	if confirmation.Reason != "worktree_upstream_confirmation" || confirmation.WorktreeUpstream == nil {
+		t.Fatalf("linked fixture confirmation: %+v", confirmation)
+	}
+	createRequest.UpstreamChoice = &contract.UpstreamChoice{ConfirmationID: confirmation.WorktreeUpstream.ConfirmationID}
+	linkedRaw := env.doJSON("POST", createPath, createRequest, 201)
 	if err := json.Unmarshal(linkedRaw, &linkedWT); err != nil {
 		t.Fatal(err)
+	}
+	if linkedWT.Head == nil || *linkedWT.Head != localTipOID {
+		t.Fatalf("linked fixture baseline: %+v", linkedWT)
 	}
 	var ctxMismatch contract.GitConflict
 	if err := json.Unmarshal(env.doJSON("GET", base+"/tree?worktreeId="+linkedWT.ID+"&contextId="+mainCtx.ID, nil, 409), &ctxMismatch); err != nil || ctxMismatch.Reason != "context_mismatch" {

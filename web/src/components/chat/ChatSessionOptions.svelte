@@ -16,7 +16,7 @@
     permissionChoices,
   } from "../../domains/chat/chat-permission";
   import type { ChatConfig, ChatPermissionMode } from "../../contracts/schemas";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import ChatChoiceCommandList from "./ChatChoiceCommandList.svelte";
 
   // Low-frequency options share one entry inside the mobile composer. The

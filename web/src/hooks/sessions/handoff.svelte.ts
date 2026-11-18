@@ -2,6 +2,8 @@ import { m } from "$lib/paraglide/messages.js";
 import { APIError } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import { threadAPI } from "../../platform/thread-api";
+import { handoffMaxPages } from "../../contracts/handoff-schemas";
+import { confirmWorktreeUpstream } from "../../platform/worktree-upstream";
 import type {
   HandoffLocation,
   HandoffPreview,
@@ -22,6 +24,18 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
   let targetSessionId = $state("");
   let model = $state("");
   let task = $state("");
+  let format = $state<"image" | "text">("image");
+  let maxPages = $state<number>(handoffMaxPages);
+  let maxPagesDraft = $state(String(handoffMaxPages));
+  let maxPagesChecked = $state(false);
+  const parsedMaxPages = $derived(
+    /^\d+$/.test(maxPagesDraft) ? Number(maxPagesDraft) : Number.NaN,
+  );
+  const maxPagesValid = $derived(
+    Number.isInteger(parsedMaxPages) &&
+      parsedMaxPages >= 1 &&
+      parsedMaxPages <= handoffMaxPages,
+  );
   let location = $state<HandoffLocation>(emptyHandoffLocation());
   let locationKind = $state<TargetKind>("directory");
   let preview = $state<HandoffPreview | null>(null);
@@ -35,6 +49,8 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
   let disposed = false;
   const lifetime = new AbortController();
   const request = $derived({
+    format,
+    maxPages,
     configId: targetSessionId ? "" : configId,
     targetSessionId,
     agentConfig: (model ? { model } : {}) as Record<string, string>,
@@ -42,11 +58,16 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     location: targetSessionId ? emptyHandoffLocation() : location,
   });
   const choiceChanged = $derived(
-    preview !== null && reviewedRequestKey !== JSON.stringify(request),
+    preview !== null &&
+      ((format === "image" &&
+        (!maxPagesValid || parsedMaxPages !== maxPages)) ||
+        reviewedRequestKey !== JSON.stringify(request)),
   );
   const sealed = $derived(operation !== null || uncertainOperationId !== "");
   const active = $derived(
-    operation?.state === "preparing" || operation?.state === "sending",
+    operation?.state === "preparing" ||
+      operation?.state === "sending" ||
+      operation?.state === "awaiting_upstream",
   );
   $effect(() => {
     void threadAPI
@@ -67,8 +88,15 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       lifetime.abort();
     };
   });
+  function commitMaxPages() {
+    maxPagesChecked = true;
+    if (!maxPagesValid) return false;
+    maxPages = parsedMaxPages;
+    return true;
+  }
   async function generate() {
     if (busy || active) return;
+    if (format === "image" && !commitMaxPages()) return;
     busy = true;
     error = "";
     try {
@@ -82,6 +110,20 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       if (!disposed) error = errorMessage(e);
     } finally {
       busy = false;
+    }
+  }
+  async function resolveUpstream(next: HandoffOperation) {
+    operation = next;
+    while (next.state === "awaiting_upstream" && next.worktreeUpstream) {
+      const choice = await confirmWorktreeUpstream(
+        next.worktreeUpstream,
+        lifetime.signal,
+      );
+      if (disposed) return;
+      next = choice
+        ? await threadAPI.send(next.previewId, next.id, lifetime.signal, choice)
+        : await threadAPI.cancel(next.id, lifetime.signal);
+      operation = next;
     }
   }
   async function refresh() {
@@ -102,6 +144,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
         uncertainOperationId = "";
         uncertainInstanceId = "";
         error = "";
+        await resolveUpstream(next);
       }
     } catch (e) {
       if (!disposed) {
@@ -118,26 +161,28 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     }
   }
   async function send() {
-    if (!preview || busy || sealed || choiceChanged) return;
+    if (!preview || preview.blockedReason || busy || sealed || choiceChanged)
+      return;
     const reviewed = preview;
-    let attempted = false;
     busy = true;
     error = "";
     // One request starts the operation. Reconnection only observes its handle.
     try {
-      await threadAPI.get(reviewed.id, lifetime.signal);
-      attempted = true;
-      operation = await threadAPI.send(
-        reviewed.id,
-        reviewed.operationId,
-        lifetime.signal,
+      await resolveUpstream(
+        await threadAPI.send(
+          reviewed.id,
+          reviewed.operationId,
+          lifetime.signal,
+        ),
       );
     } catch (e) {
       if (!disposed) {
-        error = attempted
-          ? m.handoff_unknown_result() + " " + errorMessage(e)
-          : errorMessage(e);
-        if (attempted) {
+        const rejected =
+          e instanceof APIError && [400, 409, 410].includes(e.status);
+        error = rejected
+          ? errorMessage(e)
+          : m.handoff_unknown_result() + " " + errorMessage(e);
+        if (!rejected) {
           uncertainOperationId = reviewed.operationId;
           uncertainInstanceId = reviewed.instanceId;
         }
@@ -159,6 +204,24 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     }
   }
   return {
+    get format() {
+      return format;
+    },
+    set format(v: "image" | "text") {
+      format = v;
+    },
+    get maxPagesDraft() {
+      return maxPagesDraft;
+    },
+    set maxPagesDraft(v: string) {
+      maxPagesDraft = v;
+      maxPagesChecked = false;
+    },
+    get maxPagesError() {
+      return maxPagesChecked && !maxPagesValid
+        ? m.handoff_max_pages_invalid({ max: handoffMaxPages })
+        : "";
+    },
     get source() {
       return source;
     },
@@ -227,6 +290,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       return sealed;
     },
     fork,
+    commitMaxPages,
     generate,
     send,
     refresh,

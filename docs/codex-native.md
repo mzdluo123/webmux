@@ -1,6 +1,6 @@
 # 原生历史直读与快照
 
-通过已登记会话的 runtime ID 读取 Agent 原生历史，取得短期冻结范围并生成机械文本投影。
+通过已登记会话的 runtime ID 读取 Agent 原生历史，取得短期冻结范围；交接默认生成首尾文本与中段图片的压缩归档，也可选择机械文本投影。
 浏览器交接操作见[原生历史交接](hybrid-sessions/handoff.md)。
 
 ## 最短读取路径
@@ -24,7 +24,7 @@ OpenCode、agy 与 Devin 的 SQLite 由只读读取器访问。
 
 快照固定来源路径、Agent、原生 ID、分支、解析版本、记录 hash 与边界。
 范围之后的追加属于后续历史；范围内修改和来源丢失产生明确错误。
-快照在当前进程有效五分钟，最多 32 项，与预览文本共用 64 MiB 预算。
+快照在当前进程有效五分钟，最多 32 项，与预览文本及图片表示共用 64 MiB 预算。
 
 ## 运行身份与目录
 
@@ -32,11 +32,14 @@ OpenCode、agy 与 Devin 的 SQLite 由只读读取器访问。
 创建与恢复进程时记录实际历史根目录；旧记录缺失目录时返回来源不可用。
 服务启动保留旧会话数据库原件，升级操作见[持久化说明](persistence.md#旧会话数据库与升级)。
 
-## 投影与显式图片实验
+## 投影与图片交接
 
-Snapcompact 负责工具输出截断、空白规范化与文本预算，当前用户任务保持原样。
-图片实验通过 action=render 显式执行，结果包含页面、缺失字形和未覆盖范围。
-实验说明见[图片实验](native-image-experiment.md)与[ACP 图片传输记录](native-image-transport.md)。
+Snapcompact 对可导出用户/助手正文及可见工具调用/结果做机械投影，保留角色、来源顺序和工具关联。
+结构 JSON、记录标题、私有推理和不可导出 provider 状态不替代正文；当前用户任务独立保持原样。
+生产归档按模型选择高密度排版，首尾保持文本、短历史全为文本；容量不足时分级渲染中段并显式报告省略范围。
+图片冻结后按相同字节发送；图片估计与文本共同计入上下文预算，字节限制单独校验。缺字、覆盖不全或能力错误阻止需要图片的发送。
+`action=render` 的显式开发入口仍可查看页面、缺失字形和未覆盖范围。
+历史独立实验见[图片实验](native-image-experiment.md)与[ACP 图片传输记录](native-image-transport.md)，其结果不代表新生产路径已验收。
 完整字段见[原生历史 HTTP](protocol/http-conversation.md)和[交接 API](protocol/http-handoff.md)。
 
 ## 读取器与版本证据
@@ -46,19 +49,24 @@ Snapcompact 负责工具输出截断、空白规范化与文本预算，当前�
 
 | Agent       | 原生存储证据                                                 | 版本边界                                |
 | ----------- | ------------------------------------------------------------ | --------------------------------------- |
-| Codex       | rollout JSONL、消息及工具闭环、compacted replacement history | 0.77.0、0.157.1、0.162.1                |
+| Codex       | rollout JSONL、消息及工具闭环、compacted replacement history | 0.77.0、0.157.1、0.162.1、0.169.0       |
 | Claude Code | projects JSONL、parent 图及 compact_boundary                 | 真实样本 2.1.316                        |
-| omp         | session JSONL、父链与 compaction 保留范围                    | 文件格式 3；一份 runtime 18.12.2        |
+| omp         | session JSONL、父链与 compaction 保留范围                    | 文件格式 3；runtime 18.12.2、18.22.0    |
 | OpenCode    | 两代 SQLite 原生表、消息及 part                              | 会话版本 1.18.3 / 2.1.4                 |
-| Kimi        | state.json 与 wire.jsonl                                     | wire 1.4；应用版本未知                  |
-| agy         | SQLite BLOB、已恢复 descriptor 的 protobuf 字段              | 应用版本未知，仅六步实录证据            |
+| Kimi        | state.json 与 wire.jsonl，正文与工具参数/结果                | wire 1.4/1.5；1.5 实录 CLI 2.5.3        |
+| agy         | SQLite BLOB、已恢复 descriptor 的 protobuf 字段              | 旧六步实录版本未知；新增 1.5.7 两步实录 |
 | Devin       | SQLite committed 主链，排除 inference siblings               | SQLite 写入版本未知；不与独立 ATIF 混合 |
-| QoderCN     | projects JSONL，按活动祖先链恢复                             | 实录 1.1.84；样本无工具调用             |
+| QoderCN     | projects JSONL，按活动祖先链恢复正文与工具参数/结果          | 实录 1.1.81、1.1.84                     |
 | Qoder       | 暂复用 QoderCN 读取器和 fixtureSource                        | 国际版路径/格式尚未经实录确认           |
 
 原生格式、CLI、连接器和历史注入协议是独立版本维度，不能互相替代。
 未知格式、引用式 lineage、无法证明的分支或原生身份返回明确错误，不猜测会话归属。
 SQLite 读取在只读事务内完成；agy 生产读取 BLOB，不把 decoded JSON 研究文件冒充原生来源。
+
+2026-11-17 当前部署的合成历史现场测试另发现来源兼容性问题：
+omp 的根目录发现被无关旧格式阻断，Kimi wire 1.5 和 QoderCN 1.1.81 被版本限制拒绝，Codex 0.169.0 的版本失败被表现为身份冲突，agy 的 cascade/trajectory 身份不一致。
+这些问题按独立修复处理，本轮图片投影变更不声明修复；连接器缺失与模型额度限制也不等于图片能力结论。
+现场结果与当前图片路径的验证边界见[2026-11-17 核对记录](user-stories/verification-log-2026-11-17.md#默认图片交接与现场边界us-q19us-q20us-k04)。
 
 ## 资源、隐私与 Codex 格式细节
 
@@ -75,12 +83,18 @@ Codex 0.77 基线固定上游 `112f40e91c12af0f7146d7e03f20283516a8af0b`：
 [持久化策略](https://github.com/openai/codex/blob/112f40e91c12af0f7146d7e03f20283516a8af0b/codex-rs/core/src/rollout/policy.rs)、
 [resume/fork](https://github.com/openai/codex/blob/112f40e91c12af0f7146d7e03f20283516a8af0b/codex-rs/core/src/codex.rs)。
 `response_item` 是正文来源，`event_msg` 镜像不重复计入；配对证据不足保留 `mirror_pairing_unverified`。
+0.169.0 capture（ACP 2.6.0 环境）保留 `response_item` 正文；`item_completed` 镜像、reasoning、工具定义与 provider 状态不重复导入。
+`content_item_kinds` 明确标记的纯环境上下文不作为用户正文；未知或混合 provenance 的用户消息仍保留。
+本次合成 capture 未调用工具；工具关联回归使用旧实录 envelope 补充，不视为当前版本工具实测证据。
 `replacement_history` 改变模型上下文，不删除 rollout 中仍存在的旧原文；重复的原生 ID 按来源版本处理，不按文本合并执行。
 独立物化 fork 可读取；较新的 `history_base` 等引用 lineage 尚不冒充旧版独立文件支持。
 Codex 发现保留原有独立预算：元信息 64 KiB、累计 16 MiB、最多 20000 次遍历 / 10000 个结果，达到列表上限返回 `truncated=true`。
+发现仅用 `session_meta` 内容确认身份，保留未知版本与引用 lineage 候选；唯一目标读取时返回格式错误并保留原生版本原因。
+文件名不证明身份；同 ID 多候选仍返回身份错误，即使其中一份的正文版本尚不支持。
 
 <a id="投影图片与当前迁移边界"></a>
 
 ## 投影与图片
 
-文本投影使用独立 Snapcompact 核心。显式图片实验及其测量记录见[图片实验](native-image-experiment.md)与[ACP 图片传输](native-image-transport.md)。
+生产默认图片及显式文本共用独立 Snapcompact 核心；格式和预算见[交接 API](protocol/http-handoff.md)。
+保留的[图片实验](native-image-experiment.md)与[ACP 图片传输](native-image-transport.md)只证明各自注明的模型、版本和样本，不代表全部 reader 或跨 Agent 配对已验收。

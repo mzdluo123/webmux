@@ -225,10 +225,11 @@ type Reference struct {
 	WorktreeID   string
 }
 type CreateRequest struct {
-	Path   string
-	Mode   string
-	Branch string
-	Base   string
+	Path           string
+	Mode           string
+	Branch         string
+	Base           string
+	UpstreamChoice *UpstreamChoice
 }
 type RemoveRequest struct {
 	ConfirmationID string

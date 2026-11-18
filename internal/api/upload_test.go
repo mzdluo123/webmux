@@ -21,7 +21,6 @@ import (
 
 	"github.com/rainchan/webmux/internal/artifacts"
 	"github.com/rainchan/webmux/internal/config"
-	"github.com/rainchan/webmux/internal/relaysetting"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/transport"
 )
@@ -432,8 +431,10 @@ func TestReadUploadTopLevelNavigationBlocksScriptExecutionAcrossAuthModes(t *tes
 	})
 
 	t.Run("relay owner browser top-level GET", func(t *testing.T) {
-		public := &transport.PublicOrigins{}
-		if err := public.Set("relay", "https://h.example.com"); err != nil {
+		rf := newRelayBrowserFixture(t)
+		cookie := rf.login(t, "/")
+		principal, err := rf.auth.Authenticate(cookie.Value, rf.origin)
+		if err != nil {
 			t.Fatal(err)
 		}
 		deps := testDeps(t, testServices{
@@ -442,7 +443,8 @@ func TestReadUploadTopLevelNavigationBlocksScriptExecutionAcrossAuthModes(t *tes
 			Workspace: testWorkspace(t, m, cwd),
 			Artifacts: folders,
 		})
-		deps.Public = public
+		deps.Public = rf.server.Public
+		deps.Relay = rf.server.Relay
 		relayHandler := New(deps)
 		for _, tt := range []struct {
 			giveName string
@@ -452,14 +454,26 @@ func TestReadUploadTopLevelNavigationBlocksScriptExecutionAcrossAuthModes(t *tes
 			{giveName: "report.html", givePath: htmlPath, giveData: htmlPayload},
 			{giveName: "diagram.svg", givePath: xmlPath, giveData: xmlSVGPayload},
 		} {
-			r := httptest.NewRequest(http.MethodGet, "https://h.example.com/api/sessions/"+item.Info().ID+"/upload?path="+url.QueryEscape(tt.givePath), nil)
-			r = r.WithContext(RelayOwnerContext(r.Context(), relaysetting.AuthPrincipal{}))
-			rec := httptest.NewRecorder()
-			relayHandler.ServeHTTP(rec, r)
-			if rec.Code != http.StatusOK {
-				t.Fatalf("%s status %d: %s", tt.giveName, rec.Code, rec.Body.String())
+			targetPath := "/api/sessions/" + item.Info().ID + "/upload?path=" + url.QueryEscape(tt.givePath)
+
+			cookieReq := httptest.NewRequest(http.MethodGet, rf.origin+targetPath, nil)
+			cookieReq.AddCookie(cookie)
+			cookieReq = cookieReq.WithContext(transport.TrustedRelayContext(cookieReq.Context()))
+			cookieRec := httptest.NewRecorder()
+			relayHandler.ServeHTTP(cookieRec, cookieReq)
+			if cookieRec.Code != http.StatusOK {
+				t.Fatalf("%s cookie status %d: %s", tt.giveName, cookieRec.Code, cookieRec.Body.String())
 			}
-			requireUploadReadHeaders(t, rec.Header(), "application/octet-stream", "attachment", tt.giveName, len(tt.giveData))
+			requireUploadReadHeaders(t, cookieRec.Header(), "application/octet-stream", "attachment", tt.giveName, len(tt.giveData))
+
+			ownerReq := httptest.NewRequest(http.MethodGet, rf.origin+targetPath, nil)
+			ownerReq = ownerReq.WithContext(RelayOwnerContext(ownerReq.Context(), principal))
+			ownerRec := httptest.NewRecorder()
+			relayHandler.ServeHTTP(ownerRec, ownerReq)
+			if ownerRec.Code != http.StatusOK {
+				t.Fatalf("%s owner status %d: %s", tt.giveName, ownerRec.Code, ownerRec.Body.String())
+			}
+			requireUploadReadHeaders(t, ownerRec.Header(), "application/octet-stream", "attachment", tt.giveName, len(tt.giveData))
 		}
 	})
 }

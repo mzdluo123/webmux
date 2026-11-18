@@ -349,6 +349,30 @@ func (c *Client) Exchange(ctx context.Context, exchange protocol.LoginExchange) 
 	return *response.Grant, nil
 }
 
+func (c *Client) Resume(ctx context.Context, resume protocol.LoginResume) (protocol.BrowserGrant, error) {
+	if err := resume.Validate(); err != nil {
+		return protocol.BrowserGrant{}, err
+	}
+	rpc, err := c.activeRPC()
+	if err != nil {
+		return protocol.BrowserGrant{}, err
+	}
+	id, err := newToken()
+	if err != nil {
+		return protocol.BrowserGrant{}, err
+	}
+	message := rpc.message(protocol.ControlResume, id)
+	message.Resume = &resume
+	response, err := rpc.call(ctx, message, protocol.ControlGrant, nil)
+	if err != nil {
+		return protocol.BrowserGrant{}, err
+	}
+	if response.Grant.ID != resume.GrantID {
+		return protocol.BrowserGrant{}, protocol.Error{Code: protocol.Forbidden}
+	}
+	return *response.Grant, nil
+}
+
 func (c *Client) ICE(ctx context.Context, request protocol.ICERequest) (protocol.ICEConfig, error) {
 	if err := request.GrantID.Validate(); err != nil {
 		return protocol.ICEConfig{}, err

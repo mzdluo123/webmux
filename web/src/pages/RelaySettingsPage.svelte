@@ -8,8 +8,7 @@
   import { clearRelayAuth } from "../platform/relay-auth";
   import { relayAuth } from "../platform/relay-auth.svelte";
   import { Button } from "$lib/components/ui/button";
-  import InlineNotice from "../components/shared/InlineNotice.svelte";
-  import RelayPathStatus from "../components/settings/RelayPathStatus.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   let logoutFailed = $state(false);
   let loggingOut = $state(false);
@@ -40,12 +39,8 @@
       <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">
         {m.relay_title()}
       </h1>
-      <p class="mt-2 text-sm text-muted-foreground">
-        {m.relay_page_description()}
-      </p>
     </div>
     <RelayManager />
-    <RelayPathStatus />
     {#if relayAuth.authenticated}
       <section class="space-y-3" aria-label={m.relay_login_aria()}>
         <h2 class="text-base font-semibold">{m.relay_login_title()}</h2>

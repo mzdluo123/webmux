@@ -37,3 +37,4 @@ Q 组以选择 `chat` 及其 `launch`、`files` 依赖为前提。工作树操�
 - [持久历史接口](../protocol/http-conversation.md)、[历史路由](../../internal/featureapi/native.go)、[portable projection](../../internal/historyprojection/service.go)。
 
 - [交接预览](../protocol/http-handoff.md)、[预算与选择](../../internal/handoff/)、[预览接口](../../internal/featureapi/handoff.go)。
+- [图片选择与覆盖](../../internal/handoff/preview.go)、[冻结图片发送](../../internal/handoff/delivery.go)、[图片交接用例](../../internal/handoff/image_test.go)。

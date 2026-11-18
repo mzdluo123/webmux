@@ -1,7 +1,4 @@
 <script lang="ts">
-  import IconFolderPlus from "~icons/tabler/folder-plus";
-  import { m } from "$lib/paraglide/messages.js";
-  import { Button } from "$lib/components/ui/button";
   import type { Repository, Worktree } from "../../contracts/schemas";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
   import SessionSwitcherTrigger from "../shell/SessionSwitcherTrigger.svelte";
@@ -9,13 +6,11 @@
   import WorkspaceActions from "./WorkspaceActions.svelte";
 
   let {
-    canAddRepository,
     compact,
     refreshing,
     repo,
     selectedWorktree,
     selectedPinned,
-    onaddrepository,
     oncompactchange,
     onrefresh,
     ongit,
@@ -31,13 +26,11 @@
     onremove,
     onoperation,
   }: {
-    canAddRepository: boolean;
     compact: boolean;
     refreshing: boolean;
     repo: Repository | undefined;
     selectedWorktree: Worktree | undefined;
     selectedPinned: boolean;
-    onaddrepository: () => void;
     oncompactchange: (compact: boolean) => void;
     onrefresh: () => void;
     ongit?: () => void;
@@ -82,18 +75,6 @@
   {/if}
 {/snippet}
 
-<Button
-  variant="outline"
-  size="sm"
-  class="max-sm:size-(--control-default)"
-  aria-label={m.s1_add_repository()}
-  title={m.s1_add_repository()}
-  disabled={!canAddRepository}
-  onclick={onaddrepository}
-  ><IconFolderPlus aria-hidden="true" /><span class="hidden sm:inline"
-    >{m.s1_add_repository()}</span
-  ></Button
->
 <SessionSwitcherTrigger size="icon-sm" />
 <WorkspaceActions
   {compact}

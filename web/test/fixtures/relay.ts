@@ -1,6 +1,24 @@
 import type { RelayStatus } from "../../src/contracts/relay-schemas";
+import type { RelayPairing } from "../../src/contracts/relay-schemas";
+
+export const relayPairing: RelayPairing = {
+  phase: "idle",
+  userCode: "",
+  verificationUrl: "",
+  expiresAt: 0,
+  pollIntervalSeconds: 0,
+  retryAt: 0,
+  error: "",
+};
 
 export const relayStatus: RelayStatus = {
+  operation: {
+    kind: "idle",
+    phase: "idle",
+    error: "",
+    deleted: false,
+    accessClosed: false,
+  },
   enabled: false,
   paired: false,
   pairing: false,

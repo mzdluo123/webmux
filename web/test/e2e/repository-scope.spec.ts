@@ -121,7 +121,14 @@ test("repository scope limits the home list, composes with filters and survives 
     page.getByRole("status").filter({ hasText: "个仓库" }),
   ).toHaveText("1 个仓库 · 1 个会话");
   const repo = page.locator("[data-repository-id]:visible");
-  await expect(repo.getByText("主工作区", { exact: true })).toBeHidden();
+  await expect(repo.locator("[data-main-worktree]")).toBeVisible();
+  await expect(repo.locator("[data-main-worktree]")).toHaveAttribute(
+    "title",
+    "主工作区",
+  );
+  await expect(
+    repo.locator('[data-slot="badge"]', { hasText: "主工作区" }),
+  ).toHaveCount(0);
   await expect(repo.getByText("已跟踪文件干净", { exact: true })).toBeHidden();
   await repositoryMenu(page, "仓库详情…");
   // A closed phone drawer stays in the DOM; only the open dialog counts.
@@ -176,7 +183,13 @@ test("repository scope limits the home list, composes with filters and survives 
   const search = page.getByRole("searchbox", { name: "搜索会话" });
   await search.fill("Mobile layout");
   await expect(page.getByText("没有匹配的会话", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "搜索全部仓库", exact: true }).click();
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue("Mobile layout");
+  await expect(page.getByRole("link", { name: "Mobile layout" })).toBeVisible();
   await page.getByRole("button", { name: "清除筛选", exact: true }).click();
+  await expect(search).toBeFocused();
+  await selectRepository(page, /^api-server/);
   const filters = page.getByRole("radiogroup", { name: "按会话状态筛选" });
   await filters.getByRole("radio", { name: /已退出/ }).click();
   await expect(page.locator("[data-session-id]:visible")).toHaveCount(0);

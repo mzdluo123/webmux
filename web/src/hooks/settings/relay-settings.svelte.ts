@@ -1,31 +1,34 @@
 import { m } from "$lib/paraglide/messages.js";
 import { onMount } from "svelte";
 import { api, APIError } from "../../platform/api";
-import { NoContentSchema } from "../../contracts/schemas";
 import {
   RelayStatusSchema,
-  RelayEnrollmentSchema,
+  RelayPairingSchema,
   RelayEnrollmentRequestSchema,
-  RelayPollRequestSchema,
-  RelayPollResultSchema,
   RelayUpdateSchema,
   type RelayStatus,
-  type RelayEnrollment,
+  type RelayPairing,
 } from "../../contracts/relay-schemas";
-import { clearRelayAuth } from "../../platform/relay-auth";
+import { clearRelayAuth, relayAuthStatus } from "../../platform/relay-auth";
 import { LatestRequest } from "../shared/remote-request.svelte";
 
 export interface RelaySettingsView {
   status: RelayStatus | undefined;
-  enrollment: RelayEnrollment | undefined;
+  pairing: RelayPairing | undefined;
   loading: boolean;
   busy: boolean;
+  phase:
+    | "idle"
+    | "loading"
+    | "submitting"
+    | "verifying"
+    | "failed"
+    | "completed";
   error: string;
   notice: string;
 }
 
 function failureMessage(cause: unknown) {
-  if (cause === "expired") return m.relay_error_expired();
   if (cause === "auth") return m.relay_error_auth();
   if (!(cause instanceof APIError)) return m.relay_error_host();
   if (cause.notPersisted) return m.relay_error_persist();
@@ -47,256 +50,230 @@ function failureMessage(cause: unknown) {
   }
 }
 
-function definitivePairingFailure(cause: unknown) {
-  return (
-    cause instanceof APIError &&
-    [400, 401, 403, 404, 409, 410, 426].includes(cause.status)
-  );
-}
-
 export function useRelaySettings() {
   let failure = $state<unknown>();
-  let notice = $state<"paired" | "cancelled" | "completed" | "pending">();
   const ui = $state<RelaySettingsView>({
     status: undefined,
-    enrollment: undefined,
+    pairing: undefined,
     loading: true,
-    busy: false,
+    phase: "loading",
+    get busy() {
+      return this.phase === "submitting" || this.phase === "verifying";
+    },
     get error() {
       return failure === undefined ? "" : failureMessage(failure);
     },
     get notice() {
-      switch (notice) {
-        case "paired":
-          return m.relay_notice_paired();
-        case "cancelled":
-          return m.relay_notice_cancelled();
-        case "completed":
+      if (this.phase === "submitting") return "";
+      if (this.status?.operation.phase === "completed") {
+        if (this.status.operation.kind !== "delete")
           return m.relay_notice_completed();
-        case "pending":
-          return m.relay_notice_pending();
-        default:
-          return "";
+        if (!this.status.paired)
+          return this.status.operation.accessClosed
+            ? m.relay_deleted_closed()
+            : m.relay_deleted_unclosed();
       }
+      if (this.pairing?.phase === "paired") return m.relay_notice_paired();
+      if (this.pairing?.phase === "cancelled")
+        return m.relay_notice_cancelled();
+      return "";
     },
   });
   const requests = new LatestRequest();
   let timer: ReturnType<typeof setTimeout> | undefined;
-  let pairingTimer: ReturnType<typeof setTimeout> | undefined;
-  let pairingRevision = 0;
   let mounted = false;
+  let reading = false;
+  let failures = 0;
+  let authInvalid = false;
+  let rejected = false;
 
   function accept(status: RelayStatus) {
     const previous = ui.status;
     ui.status = status;
-    if (
-      previous &&
-      (!status.paired ||
-        !status.enabled ||
-        (previous.controlReady && !status.controlReady))
-    )
-      clearRelayAuth();
+    if (previous && (!status.paired || !status.enabled)) clearRelayAuth();
+    else if (previous?.controlReady && !status.controlReady) {
+      clearRelayAuth("reconnecting");
+      if (relayAuthStatus().relay)
+        window.dispatchEvent(new Event("webmux:relay-check"));
+    }
+  }
+
+  function schedule() {
+    clearTimeout(timer);
+    if (mounted && !authInvalid)
+      timer = setTimeout(
+        () => void refresh(),
+        Math.min(15_000, 2000 * 2 ** failures),
+      );
   }
 
   async function refresh() {
-    if (ui.busy || requests.disposed) return;
+    if (ui.phase === "submitting" || reading || requests.disposed) return;
+    clearTimeout(timer);
+    reading = true;
     const ticket = requests.begin();
+    const signal = AbortSignal.any([
+      ticket.signal,
+      AbortSignal.timeout(10_000),
+    ]);
     try {
-      const status = await api(
-        "/relay",
-        RelayStatusSchema,
-        "GET",
-        undefined,
-        ticket.signal,
-      );
-      if (ticket.current()) accept(status);
-    } catch (cause) {
-      if (ticket.reportable()) failure = cause;
-    } finally {
-      if (ticket.current()) ui.loading = false;
-    }
-  }
-
-  function clearPairing() {
-    pairingRevision++;
-    clearTimeout(pairingTimer);
-    ui.enrollment = undefined;
-  }
-
-  async function pollEnrollment(enrollment: RelayEnrollment, revision: number) {
-    if (!mounted || revision !== pairingRevision) return;
-    if (Date.now() >= enrollment.expiresAt * 1000) {
-      clearPairing();
-      failure = "expired";
-      return;
-    }
-    const ticket = requests.begin();
-    try {
-      const result = await api(
-        "/relay/enrollments/poll",
-        RelayPollResultSchema,
-        "POST",
-        { handle: enrollment.handle },
-        ticket.signal,
-        RelayPollRequestSchema,
-      );
-      if (!ticket.current() || revision !== pairingRevision) return;
-      if ("enabled" in result) {
-        clearPairing();
-        accept(result);
-        notice = "paired";
-        return;
-      }
-      pairingTimer = setTimeout(
-        () => void pollEnrollment(enrollment, revision),
-        enrollment.pollIntervalSeconds * 1000,
-      );
-    } catch (cause) {
-      if (!ticket.reportable() || revision !== pairingRevision) return;
-      failure = cause;
-      if (definitivePairingFailure(cause)) {
-        clearPairing();
-        void refresh();
-      }
-    }
-  }
-
-  async function pair() {
-    if (ui.busy || ui.enrollment || requests.disposed) return;
-    ui.busy = true;
-    failure = undefined;
-    notice = undefined;
-    const revision = ++pairingRevision;
-    const ticket = requests.begin();
-    try {
-      const enrollment = await api(
-        "/relay/enrollments",
-        RelayEnrollmentSchema,
-        "POST",
-        { confirmPublic: true },
-        ticket.signal,
-        RelayEnrollmentRequestSchema,
-      );
-      if (!ticket.current() || revision !== pairingRevision) return;
-      ui.enrollment = enrollment;
-      pairingTimer = setTimeout(
-        () => void pollEnrollment(enrollment, revision),
-        enrollment.pollIntervalSeconds * 1000,
-      );
-    } catch (cause) {
-      if (ticket.reportable()) failure = cause;
-    } finally {
-      if (ticket.current()) ui.busy = false;
-    }
-  }
-
-  async function cancelPairing() {
-    const enrollment = ui.enrollment;
-    pairingRevision++;
-    clearTimeout(pairingTimer);
-    requests.cancel();
-    if (!enrollment || requests.disposed) return;
-    ui.busy = true;
-    failure = undefined;
-    const ticket = requests.begin();
-    try {
-      await api(
-        "/relay/enrollments",
-        NoContentSchema,
-        "DELETE",
-        { handle: enrollment.handle },
-        ticket.signal,
-        RelayPollRequestSchema,
-      );
-      if (ticket.current()) {
-        clearPairing();
-        notice = "cancelled";
-      }
+      const [status, pairing] = await Promise.all([
+        api("/relay", RelayStatusSchema, "GET", undefined, signal),
+        api("/relay/enrollments", RelayPairingSchema, "GET", undefined, signal),
+      ]);
+      if (!ticket.current()) return;
+      const completed =
+        status.operation.phase === "completed" &&
+        (ui.status?.operation.phase !== "completed" ||
+          ui.status.operation.kind !== status.operation.kind ||
+          ui.status.operation.deleted !== status.operation.deleted ||
+          ui.status.operation.accessClosed !== status.operation.accessClosed ||
+          ui.status.enabled !== status.enabled);
+      if (
+        (status.paired && !ui.status?.paired) ||
+        (["paired", "cancelled"].includes(pairing.phase) &&
+          pairing.phase !== ui.pairing?.phase) ||
+        completed
+      )
+        rejected = false;
+      accept(status);
+      ui.pairing = pairing;
+      if (!rejected) failure = undefined;
+      failures = 0;
+      authInvalid = false;
+      ui.phase = rejected
+        ? "failed"
+        : (pairing.phase === "paired" && !status.paired) ||
+            status.operation.phase === "submitting"
+          ? "verifying"
+          : status.operation.phase === "failed" ||
+              status.operation.phase === "uncertain"
+            ? "failed"
+            : status.operation.phase === "completed"
+              ? "completed"
+              : "idle";
     } catch (cause) {
       if (ticket.reportable()) {
         failure = cause;
-        if (definitivePairingFailure(cause)) clearPairing();
+        failures = Math.min(failures + 1, 3);
+        ui.phase = ui.phase === "verifying" ? "verifying" : "failed";
       }
     } finally {
       if (ticket.current()) {
-        ui.busy = false;
-        if (!ui.enrollment) void refresh();
+        reading = false;
+        ui.loading = false;
+        schedule();
       }
     }
   }
 
-  async function mutate(path: string, method: string, body: unknown) {
-    if (ui.busy || requests.disposed) return;
-    clearPairing();
-    ui.busy = true;
+  async function submit<T>(
+    request: (signal: AbortSignal) => Promise<T>,
+    apply: (value: T) => void,
+  ) {
+    clearTimeout(timer);
+    reading = false;
+    ui.phase = "submitting";
     failure = undefined;
-    notice = undefined;
-    window.dispatchEvent(new Event("webmux:relay-revoked"));
+    rejected = false;
     const ticket = requests.begin();
     try {
-      const result = await api(
-        path,
-        method === "DELETE" ? RelayStatusSchema : RelayPollResultSchema,
-        method,
-        body,
-        ticket.signal,
+      const result = await request(
+        AbortSignal.any([ticket.signal, AbortSignal.timeout(10_000)]),
       );
-      if (!ticket.current()) return;
-      if ("enabled" in result) {
-        accept(result);
-        notice = "completed";
-      } else {
-        notice = "pending";
-      }
+      if (ticket.current()) apply(result);
     } catch (cause) {
-      if (ticket.reportable()) failure = cause;
+      if (ticket.reportable()) {
+        failure = cause;
+        rejected =
+          cause instanceof APIError &&
+          cause.status < 500 &&
+          cause.status !== 429;
+      }
     } finally {
       if (ticket.current()) {
-        ui.busy = false;
+        ui.phase = "verifying";
         await refresh();
       }
     }
   }
 
+  async function pairingMutation(method: "POST" | "DELETE") {
+    if (ui.phase === "submitting" || ui.loading || requests.disposed) return;
+    const active =
+      ui.pairing &&
+      ["preparing", "waiting", "retrying", "uncertain", "cancelling"].includes(
+        ui.pairing.phase,
+      );
+    if (
+      method === "POST" &&
+      (ui.busy || active || !ui.pairing || ui.status?.paired)
+    )
+      return;
+    await submit(
+      (signal) =>
+        api(
+          "/relay/enrollments",
+          RelayPairingSchema,
+          method,
+          method === "POST"
+            ? RelayEnrollmentRequestSchema.parse({ confirmPublic: true })
+            : {},
+          signal,
+        ),
+      (pairing) => {
+        ui.pairing = pairing;
+      },
+    );
+  }
+
+  async function mutate(path: string, method: string, body: unknown) {
+    if (ui.busy || ui.loading || requests.disposed) return;
+    window.dispatchEvent(new Event("webmux:relay-revoked"));
+    await submit(
+      (signal) => api(path, RelayStatusSchema, method, body, signal),
+      accept,
+    );
+  }
+
   onMount(() => {
     mounted = true;
     const invalidate = () => {
-      clearPairing();
+      authInvalid = true;
       requests.cancel();
-      ui.busy = false;
+      reading = false;
+      clearTimeout(timer);
       ui.status = undefined;
+      ui.pairing = undefined;
+      ui.phase = "failed";
+      ui.loading = false;
       failure = "auth";
     };
+    const restored = () => {
+      if (authInvalid) void refresh();
+    };
+    const visible = () => {
+      if (!document.hidden) void refresh();
+    };
     window.addEventListener("webmux:auth", invalidate);
-    async function poll() {
-      if (!ui.enrollment && !document.hidden) await refresh();
-      if (mounted) timer = setTimeout(() => void poll(), 2000);
-    }
-    void poll();
+    window.addEventListener("webmux:relay-restored", restored);
+    document.addEventListener("visibilitychange", visible);
+    void refresh();
     return () => {
       mounted = false;
       window.removeEventListener("webmux:auth", invalidate);
-      const enrollment = ui.enrollment;
-      clearPairing();
+      window.removeEventListener("webmux:relay-restored", restored);
+      document.removeEventListener("visibilitychange", visible);
       clearTimeout(timer);
       requests.dispose();
-      if (enrollment)
-        void api(
-          "/relay/enrollments",
-          NoContentSchema,
-          "DELETE",
-          { handle: enrollment.handle },
-          undefined,
-          RelayPollRequestSchema,
-        ).catch(() => undefined);
     };
   });
 
   return {
     ui,
     refresh,
-    pair,
-    cancelPairing,
+    pair: () => pairingMutation("POST"),
+    cancelPairing: () => pairingMutation("DELETE"),
     setEnabled: (enabled: boolean) =>
       mutate(
         "/relay",

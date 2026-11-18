@@ -13,6 +13,7 @@
     shown,
     codeAvailable = true,
     close,
+    onpicker,
     paneActions,
     children,
   }: {
@@ -20,6 +21,8 @@
     shown: boolean;
     codeAvailable?: boolean;
     close: () => void;
+    /** Back to the picker: its page on desktop, its sheet on phones. */
+    onpicker: () => void;
     paneActions?: Snippet<[() => void]>;
     children: Snippet;
   } = $props();
@@ -79,7 +82,7 @@
           size="icon-sm"
           aria-label={m.s4_back_to_panel_picker()}
           title={m.s4_back_to_panel_picker()}
-          onclick={openPicker}><IconArrowLeft aria-hidden="true" /></Button
+          onclick={onpicker}><IconArrowLeft aria-hidden="true" /></Button
         >
         <h2 class="min-w-0 flex-1 text-sm font-medium">{m.s4_split_pane()}</h2>
       {:else}<span class="flex-1"></span>{/if}

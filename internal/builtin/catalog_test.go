@@ -10,7 +10,7 @@ func TestResolveSelectionBoundaries(t *testing.T) {
 	legacy := []string{
 		"launch", "workspace", "code", "files", "chat", "notifications",
 		"quick-commands", "voice", "forward", "cloudflare", "tailscale",
-		"p2p", "mcp", "immersive",
+		"p2p", "mcp",
 	}
 	tests := []struct {
 		name string

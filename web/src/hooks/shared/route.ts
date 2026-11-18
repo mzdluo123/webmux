@@ -60,6 +60,19 @@ export type Route =
   | { name: "quick-start" }
   | { name: "sessions" };
 
+export function shellRouteFor(route: Route) {
+  switch (route.name) {
+    case "sessions":
+    case "quick-start":
+    case "handoff":
+    case "terminal":
+    case "git":
+      return route;
+    default:
+      return null;
+  }
+}
+
 const sessionIdPattern = /^[a-z2-7]{8}$/;
 const gitIdPattern = /^[A-Za-z0-9_-]{1,64}$/;
 const gitCommitPattern = /^[0-9a-f]{4,64}$/i;

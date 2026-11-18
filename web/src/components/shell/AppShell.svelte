@@ -34,10 +34,12 @@
   } from "../../hooks/shared/shell.svelte";
   import { dragWidth, keyWidth } from "../../hooks/shared/splitter";
   import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
+  import type { RelayReconnection } from "../../platform/relay-auth.svelte";
   import CoreShellDialogs from "./CoreShellDialogs.svelte";
   import { featureContributions } from "../../features/registry.svelte";
   import { createShellSessionResources } from "../../features/shell-resources";
   import AppSidebar from "./AppSidebar.svelte";
+  import RelayReconnectIndicator from "./RelayReconnectIndicator.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
   import SidebarRailSessions from "./SidebarRailSessions.svelte";
   import { m } from "$lib/paraglide/messages.js";
@@ -51,6 +53,8 @@
   let {
     route,
     drafts,
+    requestRouteFocus,
+    reconnection,
     children,
   }: {
     route: Extract<
@@ -58,6 +62,8 @@
       { name: "sessions" | "quick-start" | "terminal" | "handoff" | "git" }
     >;
     drafts: TerminalDrafts;
+    requestRouteFocus?: (target: "sidebar-opener") => void;
+    reconnection?: RelayReconnection;
     children: Snippet;
   } = $props();
 
@@ -265,11 +271,15 @@
     untrack(() => void repositories.refresh(true));
   });
 
+  let drawerOpener: HTMLElement | null = null;
+  let modeChangedInDrawer = false;
+
   // The drawer takes focus when it opens and gives it back to the button
   // that opened it when it closes in place.
   $effect(() => {
     if (!shellUi.drawerOpen) return;
-    const opener =
+    modeChangedInDrawer = false;
+    drawerOpener =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
@@ -278,11 +288,23 @@
         .querySelector<HTMLElement>('[data-slot="drawer-content"] button')
         ?.focus(),
     );
-    return () => {
-      clearTimeout(timer);
-      if (!shellUi.drawerOpen && opener?.isConnected) opener.focus();
-    };
+    return () => clearTimeout(timer);
   });
+
+  function restoreDrawerFocus(event: Event) {
+    if (shellUi.drawerOpen) return;
+    if (drawerOpener?.isConnected) {
+      event.preventDefault();
+      drawerOpener.focus();
+    } else if (
+      modeChangedInDrawer &&
+      (route.name === "sessions" || route.name === "quick-start")
+    ) {
+      // The replacement home header can mount after the drawer closes.
+      event.preventDefault();
+      requestRouteFocus?.("sidebar-opener");
+    }
+  }
 
   // A home page decides the mode; a session page keeps the remembered one.
   $effect(() => {
@@ -301,6 +323,7 @@
     if (next === shellUi.mode) return;
     shellUi.setMode(next);
     if (route.name !== "terminal" && route.name !== "git") {
+      modeChangedInDrawer = shellUi.drawerOpen;
       navigate(
         next === "chat"
           ? (contributions.chat?.navigation[0]?.href ?? shellUi.home)
@@ -329,7 +352,7 @@
 </script>
 
 <div
-  class="app-shell"
+  class="app-shell group/shell"
   data-collapsed={shellUi.collapsed}
   data-mode={shellUi.mode}
   style:--app-sidebar-full-width={`${shellUi.width}px`}
@@ -372,12 +395,19 @@
         connection={sessions.connection}
         hostname={setup.value.hostname}
         setupSettled={setup.settled}
+        {reconnection}
         onforward={shell.forward}
       />
     </div>
   </nav>
   <aside class="app-sidebar app-sidebar-full" aria-label={m.s1_sidebar()}>
-    <AppSidebar {route} collapsible onmode={changeMode} onprimary={primary} />
+    <AppSidebar
+      {route}
+      {reconnection}
+      collapsible
+      onmode={changeMode}
+      onprimary={primary}
+    />
     <!-- A focusable separator with aria-valuenow is an interactive widget (WAI-ARIA window splitter). -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
     <div
@@ -397,14 +427,35 @@
   <div class="app-shell-main">
     {@render children()}
   </div>
+  {#if reconnection}
+    <!-- The content area's lower left, always past the sidebar and its own
+         status footer; --app-sidebar-width lives on .app-shell. Where the
+         expanded sidebar already shows the reconnecting label, its footer
+         carries the details instead of a second indicator. -->
+    <RelayReconnectIndicator
+      checking={reconnection.checking}
+      returnTo={reconnection.returnTo}
+      onretry={reconnection.onretry}
+      class="left-[calc(var(--app-sidebar-width)+0.5rem)] lg:group-data-[collapsed=false]/shell:hidden"
+    />
+  {/if}
 </div>
 {#if contributions.notifications}<contributions.notifications.Toasts />{/if}
 
 <!-- noBodyStyles: the page under it keeps its scroll position and layout. -->
 <Drawer.Root direction="left" noBodyStyles bind:open={shellUi.drawerOpen}>
-  <Drawer.Content class="w-80 max-w-[85vw] lg:hidden">
+  <Drawer.Content
+    class="w-80 max-w-[85vw] lg:hidden"
+    onCloseAutoFocus={restoreDrawerFocus}
+  >
     <Drawer.Title class="sr-only">{m.s1_navigation()}</Drawer.Title>
-    <AppSidebar {route} onmode={changeMode} onprimary={primary} />
+    <AppSidebar
+      {route}
+      {reconnection}
+      onclose={() => (shellUi.drawerOpen = false)}
+      onmode={changeMode}
+      onprimary={primary}
+    />
   </Drawer.Content>
 </Drawer.Root>
 

@@ -5,7 +5,7 @@
   import { Label } from "$lib/components/ui/label";
   import type { SwitchPreview, Worktree } from "../../contracts/schemas";
   import BlockerList from "../shared/BlockerList.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import WorktreeSessionList from "./WorktreeSessionList.svelte";
 
   let {

@@ -1,0 +1,20 @@
+{
+  "id": "session_00000000-0000-4000-8000-000000000002",
+  "version": 2,
+  "cwd": "/fixture/workspace",
+  "archived": false,
+  "agents": {
+    "main": {
+      "homedir": "/fixture/home/.kimi-code/sessions/wd_fixture_0002/session_00000000-0000-4000-8000-000000000002/agents/main",
+      "type": "main"
+    }
+  },
+  "custom": {},
+  "title": "记住合成校验码 FIXTURE-KIMI-15，项目蓝鹭，端口48273。只回复 ACK 加校验码。",
+  "titleKind": "replaceable",
+  "createdAt": 1700000000000,
+  "updatedAt": 1700000013723,
+  "lastPrompt": "记住合成校验码 FIXTURE-KIMI-15，项目蓝鹭，端口48273。只回复 ACK 加校验码。",
+  "lastTurnReason": "[redacted]",
+  "isCustomTitle": false
+}

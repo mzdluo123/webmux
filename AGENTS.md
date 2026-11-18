@@ -37,7 +37,7 @@ Run from the repository root; the full list is in [conventions](docs/agent-rules
 - Go: follow [docs/go-style.md](docs/go-style.md); add no lint warnings (`make go-lint`). Return contextual errors. Services report sentinel errors; core `api` and optional `featureapi` controllers map them to HTTP status.
 - Concurrency: protect state with existing locks; release locks before blocking network or PTY operations. Shared output chunks stay immutable. Exit publication follows PTY drain and process cleanup. Preserve cancellation/deadlines for PTY writes and join spawned connection goroutines.
 - Execute argv directly. Creation selects exactly one source: saved `configId` (requires `launch`) or full `cmd`/`env`.
-  Generated config selects core only (`features.enabled=[]`); omission retains the fixed legacy 14 builtins. Selection changes need restart. Only enabled `launch` seeds presets; `.bashrc` needs explicit `/usr/bin/env bash -ic`.
+  Generated config selects core only (`features.enabled=[]`); omission retains the fixed legacy 13 builtins. Selection changes need restart. Only enabled `launch` seeds presets; `.bashrc` needs explicit `/usr/bin/env bash -ic`.
 - Security: preserve authentication and Origin checks on API/WebSocket paths. Logs contain operational metadata only; configuration responses expose public fields only.
 - Frontend: Svelte 5 runes per [docs/frontend-style.md](docs/frontend-style.md) (`$state` only for rendered state, `$derived` for computed values, `$effect` only for side effects with cleanup, typed `$props()`, `onclick` not `on:`). TypeScript is strict. Oxfmt: 80 columns, two spaces, semicolons, trailing commas.
 - Validate HTTP responses, WebSocket JSON, and local settings with Zod before updating state; derive types with `z.infer`. Use the request and reconnect conventions in `api.ts` and `ws.ts`. PTY data stays binary. Failures use `APIError`; HTTP 401 triggers `webmux:auth`.
@@ -65,8 +65,9 @@ Run from the repository root; the full list is in [conventions](docs/agent-rules
 
 ## Writing
 
-- 禁止说教式对立和臆想禁令，如“不是 X，而是 Y”“X，不是 Y”“不要 X”“不得 X”。用户要求的规则须写明。
-- 直接写事实、行为、操作及技术约束的触发条件与结果；替代做法仅记录已探索失败的原因，验证仅记录已执行结果。
+- 所有语言的文本与指令输出统一遵循本节：对话、计划、提示词、代码注释、UI/CLI 文案、文档、提交与 PR 说明。
+- 直接写事实、动作、条件与结果；避免说教式对立与臆想禁令（如“不是 X，而是 Y”“不要 X”“不得 X”）。用户要求的规则、安全与技术约束写清依据。
+- 替代做法记录已探索失败的原因；验证记录已执行步骤与结果。
 
 ## Documentation and User Stories
 

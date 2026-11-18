@@ -5,16 +5,21 @@
   import { Label } from "$lib/components/ui/label";
   import { Textarea } from "$lib/components/ui/textarea";
   import * as Select from "$lib/components/ui/select";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import {
     emptyHandoffLocation,
     type HandoffEditor,
   } from "../../hooks/sessions/handoff.svelte";
   import type { TargetKind } from "../../domains/sessions/new-session-defaults";
+  import { handoffMaxPages } from "../../contracts/handoff-schemas";
   import { getShell } from "../../hooks/shared/shell.svelte";
   import { getFeatureContributions } from "../../features/context";
   import { featureAvailable } from "../../platform/feature-host.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import HandoffPreviewCard from "./HandoffPreviewCard.svelte";
   let { editor: e, fork }: { editor: HandoffEditor; fork: boolean } = $props();
   const shell = getShell();
@@ -66,6 +71,55 @@
 <div class="min-w-0 space-y-4" data-handoff-form>
   {#if e.error}<InlineNotice tone="danger">{e.error}</InlineNotice>{/if}
   <fieldset class="min-w-0 space-y-3" disabled={e.busy || e.active}>
+    <div class="space-y-2">
+      <Label>{m.handoff_format()}</Label>
+      <SegmentedControl
+        value={e.format}
+        onValueChange={(value) => {
+          if (value === "image" || value === "text") e.format = value;
+        }}
+        aria-label={m.handoff_format()}
+        size="form"
+        wrap
+      >
+        <SegmentedControlItem value="image"
+          >{m.handoff_format_image()}</SegmentedControlItem
+        >
+        <SegmentedControlItem value="text"
+          >{m.handoff_format_text()}</SegmentedControlItem
+        >
+      </SegmentedControl>
+    </div>
+    {#if e.format === "image"}
+      <div class="space-y-2">
+        <Label for="handoff-pages"
+          >{m.handoff_max_pages({ max: handoffMaxPages })}</Label
+        >
+        <Input
+          id="handoff-pages"
+          inputmode="numeric"
+          autocomplete="off"
+          bind:value={e.maxPagesDraft}
+          onblur={() => e.commitMaxPages()}
+          aria-invalid={!!e.maxPagesError}
+          aria-describedby={e.maxPagesError
+            ? "handoff-pages-help handoff-pages-error"
+            : "handoff-pages-help"}
+        />
+        {#if e.maxPagesError}
+          <p
+            id="handoff-pages-error"
+            class="text-xs text-destructive"
+            role="alert"
+          >
+            {e.maxPagesError}
+          </p>
+        {/if}
+        <p id="handoff-pages-help" class="text-xs text-muted-foreground">
+          {m.handoff_image_reselect()}
+        </p>
+      </div>
+    {/if}
     {#if !fork}<div class="space-y-2">
         <Label for="handoff-target">{m.handoff_existing_target()}</Label><Input
           id="handoff-target"
@@ -185,7 +239,12 @@
       >{m.s3_handoff_generate_preview()}</Button
     >
     <Button
-      disabled={e.busy || e.active || e.sealed || !e.preview || e.choiceChanged}
+      disabled={e.busy ||
+        e.active ||
+        e.sealed ||
+        !e.preview ||
+        !!e.preview.blockedReason ||
+        e.choiceChanged}
       onclick={() => void e.send()}>{m.s3_handoff_send()}</Button
     >
   </div>

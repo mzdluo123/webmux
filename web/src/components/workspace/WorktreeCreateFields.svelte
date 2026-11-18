@@ -28,7 +28,10 @@
   } from "../../contracts/schemas";
   import WorktreeAdvancedFields from "./WorktreeAdvancedFields.svelte";
   import WorktreeBranchFields from "./WorktreeBranchFields.svelte";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { untrack } from "svelte";
   import type { z } from "zod";
   let {
@@ -72,6 +75,8 @@
   let upstream = $state("");
   let baseSource = $state<"local" | "remote" | "">("");
   let baseSubject = $state("");
+  let branchHead = $state("");
+  const selectedBase = $derived(base.startsWith("refs/") ? branchHead : base);
   let lastRefreshedAt = $state<Date | null>(null);
   const refreshRequests = new LatestRequest();
   let baseEditVersion = 0;
@@ -92,10 +97,14 @@
       : [],
   );
   const commitRows = $derived(
-    commitChoices(commits, { tips: commitTips, base, baseSubject }),
+    commitChoices(commits, {
+      tips: commitTips,
+      base: selectedBase,
+      baseSubject,
+    }),
   );
   const selectedCommit = $derived(
-    commitRows.find((item) => item.value === base),
+    commitRows.find((item) => item.value === selectedBase),
   );
 
   function clearCommits() {
@@ -166,9 +175,11 @@
         lastRefreshedAt = value.baseSource === "remote" ? new Date() : null;
         const localHead = resolveRefreshedLocalHead(value, data, branchName);
         if (editVersion === baseEditVersion) {
-          base = value.base;
-          baseSource = value.baseSource;
-          baseSubject = value.baseSubject;
+          // Fetch is a history preview, never an implicit upstream choice.
+          branchHead = base.startsWith("refs/remotes/")
+            ? value.upstreamHead || localHead
+            : localHead;
+          if (base.startsWith("refs/remotes/")) baseSubject = value.baseSubject;
         }
         loadCommits(branchTips(localHead, value.upstreamHead));
         if (!value.fetchWarning)
@@ -200,6 +211,7 @@
       remoteBranches,
     );
     base = resolved.base;
+    branchHead = resolved.tips[0]?.hash ?? resolved.base;
     baseSubject = resolved.baseSubject;
     if (resolved.kind === "remote") {
       baseSource = "remote";
@@ -257,7 +269,11 @@
           initial,
           preferredStartBranch,
         );
-        if (mode === "new" && initial?.base) {
+        if (mode === "new" && initial?.base?.startsWith("refs/")) {
+          chooseStartBranch(
+            initial.base.replace(/^refs\/(?:heads|remotes)\//, ""),
+          );
+        } else if (mode === "new" && initial?.base) {
           base = initial.base;
           baseSubject = m.s8_saved_start_commit();
           loadCommits([{ hash: base, tag: m.s8_saved_start_commit() }]);
@@ -314,18 +330,18 @@
 
 <div class="space-y-3 rounded-lg border p-3">
   {#if !deferred}
-    <SegmentedControl.Root
+    <SegmentedControl
       value={mode}
       onValueChange={handleModeChange}
       aria-label={m.s8_worktree_branch_aria()}
     >
-      <SegmentedControl.Item value="new"
-        >{m.s8_create_new_branch()}</SegmentedControl.Item
+      <SegmentedControlItem value="new"
+        >{m.s8_create_new_branch()}</SegmentedControlItem
       >
-      <SegmentedControl.Item value="existing"
-        >{m.s8_use_existing_branch()}</SegmentedControl.Item
+      <SegmentedControlItem value="existing"
+        >{m.s8_use_existing_branch()}</SegmentedControlItem
       >
-    </SegmentedControl.Root>
+    </SegmentedControl>
   {/if}
   {#if loading}<p role="status" class="text-sm">
       {m.s8_reading_local_branches()}
@@ -344,7 +360,6 @@
     {refreshing}
     {baseSource}
     {upstream}
-    {baseSubject}
     {lastRefreshedAt}
     {refreshWarning}
     localBranches={mappedLocalBranches}
@@ -359,7 +374,7 @@
     {mode}
     {deferred}
     bind:path
-    bind:base
+    bind:base={() => selectedBase, (value) => (base = value)}
     {disabled}
     {loading}
     hasData={!!data}

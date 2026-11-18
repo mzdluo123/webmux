@@ -3,12 +3,11 @@ package contract
 import protocol "github.com/mzdluo123/webmux/protocol/relay"
 
 // Relay protocol types retain their versioned cross-service wire shape.
-type RelayEnrollment = protocol.Enrollment
-type RelayEnrollmentResult = protocol.EnrollmentResult
 type RelayICEEndpoint = protocol.ICEEndpoint
 type RelayBrowserICERequest = protocol.BrowserICERequest
 
 type RelayStatus struct {
+	Operation               RelayOperation           `json:"operation"`
 	Enabled                 bool                     `json:"enabled"`
 	Paired                  bool                     `json:"paired"`
 	Pairing                 bool                     `json:"pairing"`
@@ -61,11 +60,35 @@ type RelayEnrollmentRequest struct {
 	ConfirmPublic bool `json:"confirmPublic"`
 }
 
-type RelayEnrollmentPoll struct {
-	Handle protocol.Token `json:"handle"`
+type RelayEnrollmentCancel struct{}
+
+type RelayPairing struct {
+	Phase               string `json:"phase"`
+	UserCode            string `json:"userCode"`
+	VerificationURL     string `json:"verificationUrl"`
+	ExpiresAt           int64  `json:"expiresAt"`
+	PollIntervalSeconds uint32 `json:"pollIntervalSeconds"`
+	RetryAt             int64  `json:"retryAt"`
+	Error               string `json:"error"`
+}
+
+type RelayOperation struct {
+	Kind         string `json:"kind"`
+	Phase        string `json:"phase"`
+	Error        string `json:"error"`
+	Deleted      bool   `json:"deleted"`
+	AccessClosed bool   `json:"accessClosed"`
 }
 type RelayAuthSession struct {
 	Authenticated bool   `json:"authenticated"`
 	CSRFToken     string `json:"csrfToken"`
 	ExpiresAt     int64  `json:"expiresAt"`
+	Relay         bool   `json:"relay,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+}
+
+type RelayAuthFailure struct {
+	Error  string `json:"error"`
+	Relay  bool   `json:"relay"`
+	Reason string `json:"reason"`
 }

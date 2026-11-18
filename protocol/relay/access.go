@@ -124,7 +124,7 @@ func (a Assignment) Validate(now time.Time) error {
 	if err := a.ControlEpoch.Validate(); err != nil {
 		return err
 	}
-	if !validUntil(now, a.ExpiresAt, ControlLease) {
+	if !validUntil(now, a.ExpiresAt) {
 		return Error{Code: Expired}
 	}
 	if err := a.Binding.Validate(); err != nil {
@@ -204,9 +204,20 @@ func (r LoginExchange) Validate() error {
 	return nil
 }
 
+// LoginResume revalidates a server-only grant on the authenticated current
+// connector. It never changes identity, origin or the original absolute expiry.
+type LoginResume struct {
+	GrantID Token `json:"grantId"`
+}
+
+func (r LoginResume) Validate() error {
+	return r.GrantID.Validate()
+}
+
 // BrowserGrant is a control-only reference, NEVER a browser Cookie or bearer
-// session. Only a successful LoginExchange can mint it. All ICE refreshes must
-// revalidate its server-side console session, invitation and current connector.
+// session. Only a successful LoginExchange can mint it; LoginResume may move
+// it to a new connector scope without extending expiry. Both resume and ICE
+// refresh revalidate its server-side console session, invitation and binding.
 type BrowserGrant struct {
 	ID                  Token   `json:"id"`
 	ConsoleSessionID    Token   `json:"consoleSessionId"`
@@ -232,7 +243,7 @@ func (g BrowserGrant) Validate(now time.Time) error {
 	if !decimalID(g.OwnerID) || g.BindingGeneration == 0 || g.ConnectorGeneration == 0 {
 		return Error{Code: Invalid}
 	}
-	if !validUntil(now, g.ExpiresAt, BrowserSessionTTL) {
+	if !validUntil(now, g.ExpiresAt) {
 		return Error{Code: Expired}
 	}
 	u, err := secureURL(g.Origin, "https", true)
@@ -288,7 +299,7 @@ func (c ICEConfig) Validate(now time.Time) error {
 	if err := c.PeerConnectionID.Validate(); err != nil {
 		return err
 	}
-	if !validUntil(now, c.ExpiresAt, MaxICETTL) {
+	if !validUntil(now, c.ExpiresAt) {
 		return Error{Code: Expired}
 	}
 	if c.Browser.Role != "browser" || c.Host.Role != "host" {
@@ -298,7 +309,7 @@ func (c ICEConfig) Validate(now time.Time) error {
 		if len(e.Servers) != 1 {
 			return Error{Code: Invalid}
 		}
-		if !validUntil(now, e.ExpiresAt, MaxICETTL) {
+		if !validUntil(now, e.ExpiresAt) {
 			return Error{Code: Expired}
 		}
 		for _, s := range e.Servers {

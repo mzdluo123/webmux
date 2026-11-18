@@ -8,7 +8,10 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import { resolveCommitParentFiles } from "../../domains/workspace/git-workbench-state";
   import type {
@@ -185,7 +188,7 @@
             <span class="font-medium text-foreground"
               >{m.s6_log_detail_merge_parent_label()}</span
             >
-            <SegmentedControl.Root
+            <SegmentedControl
               wrap
               value={resolvedParent.selectedParent}
               onValueChange={(val) => {
@@ -194,14 +197,14 @@
               aria-label={m.s6_log_detail_merge_parent_aria()}
             >
               {#each detail.parents as parent, pIdx (parent.oid)}
-                <SegmentedControl.Item value={parent.oid}>
+                <SegmentedControlItem value={parent.oid}>
                   {m.s6_log_detail_parent_item({
                     index: String(pIdx + 1),
                     shortOid: parent.shortOid,
                   })}
-                </SegmentedControl.Item>
+                </SegmentedControlItem>
               {/each}
-            </SegmentedControl.Root>
+            </SegmentedControl>
           </div>
         {:else if detail.parents.length === 0}
           <div>

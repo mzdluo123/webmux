@@ -30,7 +30,7 @@
   } from "../hooks/shared/shell.svelte";
   import { dispatchGitPageBranchAction } from "../hooks/workspace/git-branch-action-dispatch";
   import { createGitWorkbenchController } from "../hooks/workspace/git-workbench-controller.svelte";
-  import InlineNotice from "../components/shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitCommitOutcomeBanner from "../components/workspace/GitCommitOutcomeBanner.svelte";
   import GitWorkbenchPageDialogs from "../components/workspace/GitWorkbenchPageDialogs.svelte";
   import GitOperationsPopover from "../components/workspace/GitOperationsPopover.svelte";

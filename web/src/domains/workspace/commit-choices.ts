@@ -202,7 +202,7 @@ export function resolveSelectedStartBranchState(
       "";
     return {
       kind: "local",
-      base: selected.head,
+      base: `refs/heads/${name}`,
       baseSubject,
       tips: branchTips(selected.head, ""),
     };
@@ -211,7 +211,7 @@ export function resolveSelectedStartBranchState(
   if (remote) {
     return {
       kind: "remote",
-      base: remote.head,
+      base: `refs/remotes/${remote.name}`,
       upstream: remote.name,
       baseSubject: remote.subject,
       tips: branchTips("", remote.head),

@@ -28,7 +28,7 @@ func fixture(t *testing.T) (historysource.Request, *sql.DB) {
 	if _, err = db.Exec(string(data)); err != nil {
 		t.Fatal(err)
 	}
-	return historysource.Request{Source: historysource.Source{Agent: "agy", Path: path, NativeID: "00000000-0000-4000-8000-000000000001"}}, db
+	return historysource.Request{Source: historysource.Source{Agent: "agy", Path: path, NativeID: "00000000-0000-4000-8000-000000000002"}}, db
 }
 
 func TestNativeFixtureToolChain(t *testing.T) {
@@ -46,6 +46,15 @@ func TestNativeFixtureToolChain(t *testing.T) {
 	}
 	if result.Kind != "tool_result" || result.CallID != call.CallID || system.CallID != call.CallID {
 		t.Fatal("tool chain lost")
+	}
+	if call.Text != `{"CommandLine":"[redacted]","WaitMsBeforeAsync":0,"toolSummary":"[redacted]"}` || result.Text != "[redacted]" {
+		t.Fatal("tool arguments or result lost")
+	}
+	if call.ParentID != doc.Records[1].ID || result.ParentID != doc.Records[1].ID {
+		t.Fatal("tool ancestry lost")
+	}
+	if !strings.Contains(call.ID, req.Source.NativeID+"/trajectory/00000000-0000-4000-8000-000000000001/") {
+		t.Fatal("record identity does not bind cascade and trajectory")
 	}
 	if doc.Records[0].Role != "user" || doc.Records[6].Role != "assistant" || doc.Records[6].Text != "[redacted]" {
 		t.Fatal("messages lost")
@@ -196,4 +205,115 @@ func TestWireBounds(t *testing.T) {
 			t.Fatalf("%x: %v", b, err)
 		}
 	}
+}
+
+func TestIdentityValidationAndDiscoveryCandidates(t *testing.T) {
+	tests := []struct {
+		name       string
+		give       string
+		candidates int
+	}{
+		{"missing-row", "DELETE FROM trajectory_meta", 0},
+		{"empty-cascade", "UPDATE trajectory_meta SET cascade_id=''", 0},
+		{"blank-cascade", "UPDATE trajectory_meta SET cascade_id='  '", 0},
+		{"null-cascade", "UPDATE trajectory_meta SET cascade_id=NULL", 0},
+		{"binary-cascade", "UPDATE trajectory_meta SET cascade_id=x'6162'", 0},
+		{"long-cascade", "UPDATE trajectory_meta SET cascade_id=printf('%1025s','x')", 0},
+		{"empty-trajectory", "UPDATE trajectory_meta SET trajectory_id=''", 1},
+		{"blank-trajectory", "UPDATE trajectory_meta SET trajectory_id='  '", 1},
+		{"null-trajectory", "UPDATE trajectory_meta SET trajectory_id=NULL", 1},
+		{"binary-trajectory", "UPDATE trajectory_meta SET trajectory_id=x'6162'", 1},
+		{"long-trajectory", "UPDATE trajectory_meta SET trajectory_id=printf('%1025s','x')", 1},
+		{"multiple-rows", "INSERT INTO trajectory_meta VALUES('another-trajectory','another-cascade',4,17)", 2},
+		{"duplicate-cascade", "INSERT INTO trajectory_meta VALUES('another-trajectory','00000000-0000-4000-8000-000000000002',4,17)", 2},
+		{"missing-trajectory-column", "ALTER TABLE trajectory_meta RENAME COLUMN trajectory_id TO future_id", 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, db := fixture(t)
+			if _, err := db.Exec(tt.give); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Read(context.Background(), req); !errors.Is(err, historysource.ErrFormat) {
+				t.Fatalf("invalid mapping: %v", err)
+			}
+			sources, err := Discover(context.Background(), filepath.Dir(req.Source.Path))
+			if err != nil || len(sources) != tt.candidates {
+				t.Fatalf("candidates=%+v err=%v", sources, err)
+			}
+		})
+	}
+}
+
+func TestFrozenIdentityBinding(t *testing.T) {
+	for _, column := range []string{"cascade_id", "trajectory_id"} {
+		t.Run(column, func(t *testing.T) {
+			req, db := fixture(t)
+			first, err := Read(context.Background(), req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.Exec("UPDATE trajectory_meta SET " + column + "='rebound'"); err != nil {
+				t.Fatal(err)
+			}
+			req.Cursor = first.Cursor
+			want := historysource.ErrChanged
+			if column == "cascade_id" {
+				want = historysource.ErrIdentity
+			}
+			if _, err := Read(context.Background(), req); !errors.Is(err, want) {
+				t.Fatalf("frozen mapping mutation: %v", err)
+			}
+			if column == "cascade_id" {
+				req.Source.NativeID = "rebound"
+				if _, err := Read(context.Background(), req); !errors.Is(err, historysource.ErrChanged) {
+					t.Fatalf("rebound source reused cursor: %v", err)
+				}
+			}
+			req.Cursor = ""
+			latest, err := Read(context.Background(), req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if latest.Fingerprint == first.Fingerprint || latest.Records[0].ID == first.Records[0].ID {
+				t.Fatal("identity rebinding reused record IDs or digest")
+			}
+		})
+	}
+}
+
+func TestTrajectoryCannotIdentifyRuntime(t *testing.T) {
+	req, _ := fixture(t)
+	req.Source.NativeID = "00000000-0000-4000-8000-000000000001"
+	if _, err := Read(context.Background(), req); !errors.Is(err, historysource.ErrIdentity) {
+		t.Fatalf("trajectory accepted as runtime identity: %v", err)
+	}
+}
+
+func TestDiscoveryPreservesDirectoryAndLimitErrors(t *testing.T) {
+	if _, err := Discover(context.Background(), filepath.Join(t.TempDir(), "absent")); !errors.Is(err, historysource.ErrUnavailable) {
+		t.Fatalf("directory failure: %v", err)
+	}
+	t.Run("database-size", func(t *testing.T) {
+		req, db := fixture(t)
+		if err := db.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Truncate(req.Source.Path, historysource.MaxBytes+1); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Discover(context.Background(), filepath.Dir(req.Source.Path)); !errors.Is(err, historysource.ErrLimit) {
+			t.Fatalf("database limit: %v", err)
+		}
+	})
+	t.Run("identity-count", func(t *testing.T) {
+		req, db := fixture(t)
+		if _, err := db.Exec(`WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<1000)
+			INSERT INTO trajectory_meta SELECT printf('trajectory-%d',x),printf('cascade-%d',x),4,17 FROM n`); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Discover(context.Background(), filepath.Dir(req.Source.Path)); !errors.Is(err, historysource.ErrLimit) {
+			t.Fatalf("identity limit: %v", err)
+		}
+	})
 }
