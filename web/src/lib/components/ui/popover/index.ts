@@ -1,4 +1,3 @@
-import Close from "./popover-close.svelte";
 import Content from "./popover-content.svelte";
 import Description from "./popover-description.svelte";
 import Header from "./popover-header.svelte";
@@ -14,7 +13,6 @@ export {
   Header,
   Title,
   Trigger,
-  Close,
   Portal,
   //
   Root as Popover,
@@ -23,6 +21,5 @@ export {
   Header as PopoverHeader,
   Title as PopoverTitle,
   Trigger as PopoverTrigger,
-  Close as PopoverClose,
   Portal as PopoverPortal,
 };
