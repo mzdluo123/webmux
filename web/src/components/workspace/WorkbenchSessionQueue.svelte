@@ -98,7 +98,10 @@
   );
   const showingPreview = $derived(Boolean(previewOpen && preview));
   $effect(() => {
-    if (previewOpen && !preview) previewOpen = false;
+    if (previewOpen && !preview) {
+      previewOpen = false;
+      previewRow = null;
+    }
   });
 </script>
 
@@ -120,8 +123,7 @@
           opener = trigger;
           previewId = session.id;
           previewOpen = true;
-          if (attentionOnly || !docked.current)
-            previewRow = { id: session.id, group };
+          previewRow = { id: session.id, group };
         }}
         onmenuopen={(open) => {
           if (open) menuRow = { id: session.id, group };

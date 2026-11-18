@@ -140,3 +140,47 @@ test("the default queue prioritizes explicit attention and keeps a focused sessi
   await page.reload();
   await expect(layout).toHaveText("按工作区");
 });
+
+test("closing the docked preview returns focus after a running session exits", async ({
+  page,
+  request,
+  workDir,
+}, info) => {
+  test.skip(
+    !!info.project.use.isMobile,
+    "the dock is only used on wide screens",
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const response = await request.post("/api/sessions", {
+    data: {
+      name: "Wait for deployment",
+      cwd: workDir,
+      cmd: ["/bin/sh", "-c", "printf 'ready\\n'; sleep 120"],
+    },
+  });
+  expect(response.status()).toBe(201);
+  const { session } = await response.json();
+  await page.goto("/");
+  const main = page.getByRole("main");
+  const row = main.locator(`[data-session-id="${session.id}"]`);
+  await expect(row).toHaveAttribute("data-queue-group", "running");
+  const trigger = row.getByRole("button", { name: "预览 Wait for deployment" });
+  await trigger.click();
+  const close = main
+    .getByRole("complementary", { name: "预览 Wait for deployment" })
+    .getByRole("button", { name: "关闭预览" });
+  await expect(close).toBeFocused();
+  expect((await request.delete(`/api/sessions/${session.id}`)).status()).toBe(
+    204,
+  );
+  await expect(row).toHaveAttribute("data-status", "exited");
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  await main.getByRole("searchbox").focus();
+  await expect(main.getByRole("button", { name: "已退出 1" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  await expect(row).toBeHidden();
+});
