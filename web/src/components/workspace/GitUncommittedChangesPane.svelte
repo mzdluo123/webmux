@@ -289,6 +289,24 @@
     />
   {/if}
 
+  {#snippet batchActions()}
+    {#if !readonlyMode && onDiscardChanges}
+      <GitDiscardBatchBar
+        selectedItems={selectedBatchItems}
+        busy={stagingBusy}
+        onStageSelected={(items) => {
+          for (const item of items) onStageChange(item.id);
+        }}
+        onDiscardSelected={(items) =>
+          onDiscardChanges(
+            items.map((i) => i.id),
+            items.map((i) => i.path),
+          )}
+        onClearSelection={() => (batchSelectedIds = [])}
+      />
+    {/if}
+  {/snippet}
+
   <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child option buttons. -->
   <ScrollArea
     bind:viewportRef={listScrollEl}
@@ -299,6 +317,7 @@
       onkeydown: handleListKeydown,
     }}
     onscroll={(e) => onListScrollChange?.(e.currentTarget.scrollTop)}
+    footer={batchActions}
   >
     <div class="space-y-2 p-2">
       {#if changes.length === 0 && !readonlyMode && taskReview?.status === "ready" && (taskReview.commitCount > 0 || context.ahead > 0)}
@@ -428,22 +447,6 @@
       {/each}
     </div>
   </ScrollArea>
-
-  {#if !readonlyMode && onDiscardChanges}
-    <GitDiscardBatchBar
-      selectedItems={selectedBatchItems}
-      busy={stagingBusy}
-      onStageSelected={(items) => {
-        for (const item of items) onStageChange(item.id);
-      }}
-      onDiscardSelected={(items) =>
-        onDiscardChanges(
-          items.map((i) => i.id),
-          items.map((i) => i.path),
-        )}
-      onClearSelection={() => (batchSelectedIds = [])}
-    />
-  {/if}
 
   <GitCommitComposer
     {context}
