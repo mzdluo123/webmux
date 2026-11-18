@@ -149,5 +149,5 @@
   - Kimi 首次从 `--model`、`--auto`、`--yolo` 与 `--plan` 播种 model/mode，plan 优先；`--skills-dir` 与 `--add-dir` 列入不生效参数，冷恢复只重应用 mode；冷恢复或手动选择已生效模式时的 `Already in <mode> mode` 按幂等成功处理；
   - Devin 首次从 `--model` 与 `--permission-mode` 播种（`dangerous` 映射 `bypass`），其余参数列入不生效参数；Devin 不提供 `session/resume`，跨进程恢复走 `session/load` 与按进程会话锁（`session_locked` + `cognition.ai/force` 强制关闭）；
   - 冷 `session/load` 与 `session/resume` 后重应用记录的 model/effort，mode 以 transcript 恢复值为准，不回写过期 argv，回退显示实际值与通知；
-  - 输入 `/` 打开随输入过滤的命令菜单。
+  - 输入 `/` 打开随输入即时过滤的命令菜单。长列表在菜单内滚动，方向键让高亮候选进入视野并保留消息框焦点及光标。
   - 消息框为空且没有附件时，用 ↑ 找回本会话已发送的提示词文字。光标在文字开头时按 ↑ 查看更早的提示词，在末尾按 ↓ 查看更新的提示词，越过最新一条时清空。浏览时收起斜杠命令菜单，编辑后按正常草稿处理，保留光标方向键与输入法行为。
