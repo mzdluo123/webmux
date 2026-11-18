@@ -1,10 +1,10 @@
-import { test, expect } from "./fixtures";
+import { test, expect, revealSidebar } from "./fixtures";
 
 test("the default queue prioritizes explicit attention and keeps a focused session in place", async ({
   page,
   request,
   workDir,
-}, info) => {
+}) => {
   const create = async (name: string) => {
     const response = await request.post("/api/sessions", {
       data: {
@@ -105,8 +105,7 @@ test("the default queue prioritizes explicit attention and keeps a focused sessi
 
   expect((await raise()).ok()).toBeTruthy();
   await search.fill("stale filter");
-  if (info.project.use.isMobile)
-    await page.getByRole("button", { name: "打开侧栏" }).click();
+  const drawer = await revealSidebar(page);
   const tree = page.getByRole("tree", { name: "仓库与会话" });
   await expect(tree).toHaveCount(0);
   const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
@@ -120,7 +119,29 @@ test("the default queue prioritizes explicit attention and keeps a focused sessi
   await expect(
     directRows.getByRole("button", { name: /^Review build/ }),
   ).toHaveCount(1);
-  await page.getByRole("button", { name: /^待处理会话/ }).click();
+  const scope = sidebar.getByRole("radiogroup", { name: "会话范围" });
+  const all = scope.getByRole("radio", { name: "全部", exact: true });
+  const pending = scope.getByRole("radio", { name: "待处理 1", exact: true });
+  const directGroup = sidebar.getByRole("region", {
+    name: "直接会话",
+    exact: true,
+  });
+  const toggle = directGroup.getByRole("heading").getByRole("button");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  if (drawer) await pending.click();
+  else {
+    await all.focus();
+    await all.press("ArrowRight");
+    await expect(pending).toBeFocused();
+  }
+  await expect(pending).toHaveAttribute("aria-checked", "true");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(
+    directRows.getByRole("button", { name: /^Review build/ }),
+  ).toBeVisible();
+  await expect(conversation).toHaveCount(0);
+  if (drawer) await page.keyboard.press("Escape");
   await expect(search).toHaveValue("");
   await expect(issue).toHaveAttribute("data-queue-group", "attention");
   await expect(monitor).toHaveCount(0);
@@ -134,6 +155,24 @@ test("the default queue prioritizes explicit attention and keeps a focused sessi
   await search.focus();
   await expect(issue).toHaveCount(0);
   await expect(main.getByText("当前没有需要你处理的会话。")).toBeVisible();
+  const reopened = await revealSidebar(page);
+  const zero = scope.getByRole("radio", { name: "待处理", exact: true });
+  await expect(zero).toHaveAttribute("aria-checked", "true");
+  await expect(
+    sidebar.getByText("当前没有需要你处理的会话。", { exact: true }),
+  ).toContainText("当前没有需要你处理的会话。");
+  expect((await raise()).ok()).toBeTruthy();
+  const sidebarIssue = directRows.getByRole("button", {
+    name: /^Review build/,
+  });
+  await sidebarIssue.focus();
+  await expect(sidebarIssue).toBeFocused();
+  expect((await clear()).status()).toBe(204);
+  await expect(zero).toBeFocused();
+  await all.click();
+  await expect(all).toHaveAttribute("aria-checked", "true");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  if (reopened) await page.keyboard.press("Escape");
   const layout = main.getByRole("combobox", { name: "工作台布局" });
   await layout.click();
   await page.getByRole("option", { name: "按工作区", exact: true }).click();
@@ -183,4 +222,27 @@ test("closing the docked preview returns focus after a running session exits", a
     "false",
   );
   await expect(row).toBeHidden();
+});
+
+test("both sidebar filters fit at double text size on a narrow screen", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.goto("/");
+  await page.evaluate(() => localStorage.setItem("webmux.locale", "en"));
+  await page.reload();
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "200%";
+  });
+  await page.getByRole("button", { name: "Open sidebar", exact: true }).click();
+  const filters = page.getByRole("radiogroup", { name: "Session scope" });
+  const all = filters.getByRole("radio", { name: "All", exact: true });
+  const pending = filters.getByRole("radio", {
+    name: "Needs attention",
+    exact: true,
+  });
+  await expect(all).toBeInViewport({ ratio: 1 });
+  await expect(pending).toBeInViewport({ ratio: 1 });
+  await pending.click();
+  await expect(pending).toHaveAttribute("aria-checked", "true");
 });

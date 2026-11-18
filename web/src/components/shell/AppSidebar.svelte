@@ -212,6 +212,11 @@
       destroy: animation.destroy,
     };
   }
+  function filterQueue(attention: boolean) {
+    shell.repositories?.select("all");
+    workbenchLayout.attentionOnly = attention;
+    if (route.name !== "sessions") openPage("/");
+  }
   function scope(next: string, worktreeId?: string) {
     workbenchLayout.attentionOnly = false;
     shellUi.setMode("workbench");
@@ -372,11 +377,7 @@
                 shell.repositories.choice === "all")}
             attentionCurrent={route.name === "sessions" &&
               workbenchLayout.attentionOnly}
-            onall={() => scope("all")}
-            onattention={() => {
-              scope("all");
-              workbenchLayout.attentionOnly = true;
-            }}
+            onfilter={filterQueue}
             oncreate={(repositoryId) =>
               shell.start(
                 repositoryId

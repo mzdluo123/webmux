@@ -36,7 +36,7 @@
   const locationId = $props.id();
 </script>
 
-<li class="group/row relative">
+<li class="group/row relative" data-sidebar-session-id={session.id}>
   <ListButton
     variant={compact ? "navigation-compact-action" : "navigation-action"}
     aria-current={session.id === current ? "page" : undefined}

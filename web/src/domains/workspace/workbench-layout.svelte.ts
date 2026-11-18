@@ -8,6 +8,13 @@ let layout = $state(
   layoutSchema.safeParse(stored("workbenchLayout")).data ?? "queue",
 );
 let attentionOnly = $state(false);
+const collapsedAttentionProjects = new SvelteSet<string>();
+
+function filterAttention(value: boolean) {
+  if (value === attentionOnly) return;
+  attentionOnly = value;
+  collapsedAttentionProjects.clear();
+}
 
 const projectStorageKey = "workbenchCollapsedProjects";
 const collapsedProjectsSchema = z.array(z.string());
@@ -27,6 +34,7 @@ function readCollapsedProjects() {
 let collapsedProjects = $state(readCollapsedProjects());
 onActiveHostChange(() => {
   collapsedProjects = readCollapsedProjects();
+  filterAttention(false);
 });
 
 export const workbenchLayout = {
@@ -35,21 +43,26 @@ export const workbenchLayout = {
   },
   set value(next: WorkbenchLayout) {
     layout = next;
-    attentionOnly = false;
+    filterAttention(false);
     store("workbenchLayout", next);
   },
   isProjectOpen(id: string) {
-    return !collapsedProjects.has(id);
+    return !(
+      attentionOnly ? collapsedAttentionProjects : collapsedProjects
+    ).has(id);
   },
   setProjectOpen(id: string, open: boolean) {
-    if (open) collapsedProjects.delete(id);
-    else collapsedProjects.add(id);
-    store(projectStorageKey, JSON.stringify([...collapsedProjects]));
+    const projects = attentionOnly
+      ? collapsedAttentionProjects
+      : collapsedProjects;
+    if (open) projects.delete(id);
+    else projects.add(id);
+    if (!attentionOnly) store(projectStorageKey, JSON.stringify([...projects]));
   },
   get attentionOnly() {
     return attentionOnly;
   },
   set attentionOnly(value: boolean) {
-    attentionOnly = value;
+    filterAttention(value);
   },
 };

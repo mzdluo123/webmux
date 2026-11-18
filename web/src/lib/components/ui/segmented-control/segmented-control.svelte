@@ -9,6 +9,8 @@
       size: {
         default: "h-8",
         form: "h-[calc(var(--control-default)+6px)]",
+        navigation:
+          "min-h-8 w-full items-stretch max-sm:min-h-[calc(var(--control-touch)+8px)] any-pointer-coarse:min-h-[calc(var(--control-touch)+8px)]",
       },
       // Segments flow onto more rows on narrow screens; each row keeps room
       // for the underline below it.

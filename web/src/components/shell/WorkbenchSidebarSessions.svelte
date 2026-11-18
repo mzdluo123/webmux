@@ -1,10 +1,13 @@
 <script lang="ts">
   import IconChevronRight from "~icons/tabler/chevron-right";
-  import IconLayoutList from "~icons/tabler/layout-list";
   import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { ListButton } from "$lib/components/ui/list-button";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import type { Repository, SessionInfo } from "../../contracts/schemas";
   import {
@@ -24,8 +27,7 @@
     current,
     allCurrent,
     attentionCurrent,
-    onall,
-    onattention,
+    onfilter,
     oncreate,
     onopen,
     onrename,
@@ -38,8 +40,7 @@
     current: string;
     allCurrent: boolean;
     attentionCurrent: boolean;
-    onall: () => void;
-    onattention: () => void;
+    onfilter: (attentionOnly: boolean) => void;
     oncreate: (repositoryId?: string) => void;
     onopen: (session: SessionInfo) => void;
     onrename: (session: SessionInfo) => void;
@@ -47,8 +48,9 @@
   } = $props();
 
   const pinnedIds = $derived(new Set(pinned.map((session) => session.id)));
-  const attentionCount = $derived(
-    sessions.filter((session) => queueGroup(session) === "attention").length,
+  const attentionOnly = $derived(workbenchLayout.attentionOnly);
+  const pending = $derived(
+    sessions.filter((session) => queueGroup(session) === "attention"),
   );
   const groups = $derived.by(() => {
     const byRepository = new Map(
@@ -62,38 +64,62 @@
       name: m.s3_scope_direct_sessions(),
       sessions: [] as SessionInfo[],
     };
-    for (const session of sessionsByPin(sessions, pinned)) {
+    for (const session of sessionsByPin(
+      attentionOnly ? pending : sessions,
+      pinned,
+    )) {
       const group =
         byRepository.get(session.workspace?.repositoryId ?? "") ?? direct;
       group.sessions.push(session);
     }
-    return direct.sessions.length
-      ? [...byRepository.values(), direct]
-      : [...byRepository.values()];
+    return [...byRepository.values(), direct].filter(
+      (group) => group.sessions.length || (!attentionOnly && group !== direct),
+    );
+  });
+
+  let navigation = $state<HTMLDivElement | null>(null);
+  let attentionFilter = $state<HTMLElement | null>(null);
+  $effect.pre(() => {
+    if (!attentionOnly) return;
+    const matchingSessions = pending;
+    const matchingProjects = groups;
+    const focused = document.activeElement;
+    if (!focused || !navigation?.contains(focused)) return;
+    const sessionId = focused
+      .closest("[data-sidebar-session-id]")
+      ?.getAttribute("data-sidebar-session-id");
+    const projectId = focused
+      .closest("[data-sidebar-project-id]")
+      ?.getAttribute("data-sidebar-project-id");
+    if (
+      (sessionId &&
+        !matchingSessions.some((session) => session.id === sessionId)) ||
+      (projectId && !matchingProjects.some((group) => group.id === projectId))
+    ) {
+      attentionFilter?.focus();
+    }
   });
 </script>
 
-<div class="space-y-3">
-  <Button
-    variant="ghost"
-    size="sm-touch"
-    class="w-full justify-start"
-    aria-current={allCurrent ? "page" : undefined}
-    onclick={onall}
+<div class="space-y-3" bind:this={navigation}>
+  <SegmentedControl
+    size="navigation"
+    aria-label={m.s8_sidebar_session_filter()}
+    value={attentionCurrent ? "attention" : allCurrent ? "all" : ""}
+    onValueChange={(value) => onfilter(value === "attention")}
   >
-    <IconLayoutList aria-hidden="true" />{m.s8_sidebar_all_sessions()}
-  </Button>
-  {#if attentionCount || attentionCurrent}
-    <Button
-      variant="ghost"
-      size="sm-touch"
-      class="w-full justify-between"
-      aria-current={attentionCurrent ? "page" : undefined}
-      onclick={onattention}
-    >
-      {m.s8_queue_attention_view()}
-      <span class="font-mono tabular-nums">{attentionCount}</span>
-    </Button>
+    <SegmentedControlItem value="all">{m.s3_filter_all()}</SegmentedControlItem>
+    <SegmentedControlItem value="attention" bind:ref={attentionFilter}>
+      <span class="min-w-0 wrap-anywhere">{m.s8_sidebar_attention()}</span>
+      {#if pending.length}
+        <span class="shrink-0 font-mono tabular-nums">{pending.length}</span>
+      {/if}
+    </SegmentedControlItem>
+  </SegmentedControl>
+  {#if attentionOnly && !groups.length}
+    <p class="px-2 py-2 text-xs text-muted-foreground" role="status">
+      {m.s8_queue_empty_attention()}
+    </p>
   {/if}
   {#each groups as group (group.id)}
     {@const hasSessions = group.sessions.length > 0}
@@ -102,7 +128,7 @@
     {@const createLabel = repositoryId
       ? m.s8_sidebar_create_session({ project: group.name })
       : m.s8_sidebar_create_direct_session()}
-    <section aria-label={group.name}>
+    <section aria-label={group.name} data-sidebar-project-id={group.id}>
       <Collapsible.Root
         {open}
         onOpenChange={(next) => workbenchLayout.setProjectOpen(group.id, next)}

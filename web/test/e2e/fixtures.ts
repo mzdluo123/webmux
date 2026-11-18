@@ -296,7 +296,8 @@ export async function backToList(page: Page) {
   if (await back.isVisible()) return back.click();
   await open.click();
   await page
-    .getByRole("button", { name: "全部会话", exact: true })
+    .getByRole("radiogroup", { name: "会话范围", exact: true })
+    .getByRole("radio", { name: "全部", exact: true })
     .or(
       page
         .getByRole("tree", { name: "仓库与会话" })
