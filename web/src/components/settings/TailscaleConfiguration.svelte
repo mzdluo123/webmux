@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
+  import { usePanelMotion } from "../../hooks/shared/dock-motion.svelte";
   import { untrack } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
@@ -24,9 +24,8 @@
   } = $props();
   let mode = $state(untrack(() => current.mode));
   let panels = $state<HTMLDivElement | null>(null);
-  useDockMotion(
+  usePanelMotion(
     () => panels,
-    () => true,
     () => mode,
   );
   let provider = $state(untrack(() => current.configuredProvider));
