@@ -23,6 +23,7 @@
     onopen,
     onrename,
     onclose,
+    onmenuopen,
   }: {
     session: SessionInfo;
     current: string;
@@ -34,6 +35,7 @@
     onopen: (session: SessionInfo) => void;
     onrename: (session: SessionInfo) => void;
     onclose: (session: SessionInfo) => void;
+    onmenuopen?: (open: boolean) => void;
   } = $props();
   const locationId = $props.id();
   let showFullLabel = $state(false);
@@ -81,5 +83,6 @@
       ? m.s1_pinned_prefix({ label: session.title })
       : session.title}
     target={{ kind: "live", session, onrename, onclose }}
+    {onmenuopen}
   />
 </li>

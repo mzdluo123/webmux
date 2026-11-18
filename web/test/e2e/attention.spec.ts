@@ -1,6 +1,12 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, expectConnected, test, workspaceLayoutTest } from "./fixtures";
+import {
+  expect,
+  expectConnected,
+  revealSidebar,
+  test,
+  workspaceLayoutTest,
+} from "./fixtures";
 
 // A stand-in agent: it reports a question over the Warp cli-agent protocol,
 // then keeps redrawing a spinner exactly like omp does while it waits.
@@ -469,4 +475,51 @@ test("inbox has one conditional entry and keeps every landscape action reachable
   await expect(inbox.getByText("当前没有等待处理的会话。")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(trigger).toHaveCount(0);
+});
+
+test("the pending sidebar keeps an open session menu during an attention update", async ({
+  page,
+  request,
+  workDir,
+}) => {
+  const created = await request.post("/api/sessions", {
+    data: {
+      name: "Review menu focus",
+      cwd: workDir,
+      cmd: ["/bin/sh", "-c", "sleep 120"],
+    },
+  });
+  expect(created.status()).toBe(201);
+  const { id } = (await created.json()).session;
+  const url = `/api/sessions/${id}/attention`;
+  expect(
+    (await request.post(url, { data: { kind: "question" } })).status(),
+  ).toBe(200);
+
+  await page.goto("/");
+  await revealSidebar(page);
+  const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
+  const pending = sidebar.getByRole("radio", { name: /^待处理/ });
+  await pending.click();
+  const row = page
+    .locator(`[data-sidebar-session-id="${id}"]`)
+    .filter({ visible: true });
+  await row
+    .getByRole("button", { name: "会话操作：Review menu focus" })
+    .press("Enter");
+  const menu = page
+    .getByRole("menu")
+    .filter({ has: page.getByRole("menuitem", { name: "修改标题" }) });
+  await expect(menu).toBeVisible();
+
+  await expect(row.locator('[data-status="waiting"]')).toHaveCount(1);
+  expect((await request.delete(url)).status()).toBe(204);
+  await expect(row.locator('[data-status="waiting"]')).toHaveCount(0);
+  await expect(menu).toBeVisible();
+  await expect(row).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(row).toBeHidden();
+  await expect(pending).toBeFocused();
 });
