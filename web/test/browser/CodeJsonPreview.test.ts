@@ -16,6 +16,9 @@ test("captured expansion and paging restore in a new preview", async () => {
   });
   const first = await render(CodeJsonPreview, { text, onsource: () => {} });
   await page.getByRole("button", { name: "再显示 200 项" }).click();
+  await expect
+    .element(page.getByText("200:", { exact: true }).element().parentElement!)
+    .toHaveFocus();
   await expect.element(page.getByText("399:", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /^deep/ }).click();
   await expect.element(page.getByText('"hidden"')).toBeVisible();
@@ -32,4 +35,22 @@ test("captured expansion and paging restore in a new preview", async () => {
     .element(page.getByText("400:", { exact: true }))
     .not.toBeInTheDocument();
   await expect.element(page.getByText('"hidden"')).toBeVisible();
+});
+
+test("paging focuses the next collection, including on the last batch", async () => {
+  const values = Array.from({ length: 202 }, (_, index) =>
+    index === 200 ? { flag: true } : index,
+  );
+  await render(CodeJsonPreview, {
+    text: JSON.stringify({ values }),
+    onsource: () => {},
+  });
+  const more = page.getByRole("button", { name: "再显示 200 项" });
+  more.element().focus();
+  await userEvent.keyboard("{Enter}");
+  const next = page.getByRole("button", { name: /^200/ });
+  await expect.element(next).toHaveFocus();
+  await expect.element(more).not.toBeInTheDocument();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(page.getByText("flag:", { exact: true })).toBeVisible();
 });

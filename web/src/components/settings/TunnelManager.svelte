@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import IconExternalLink from "~icons/tabler/external-link";
   import { Button } from "$lib/components/ui/button";
@@ -18,7 +19,9 @@
   let action = $state<"enable" | "disable" | "reset" | "save">();
   let pending = $state<TunnelSettingsUpdate>();
   const link = useCopied();
-  let copyFallback = $state("");
+  let copyResultUrl = $state("");
+  let copyField = $state<HTMLInputElement | null>(null);
+  let copying = false;
   const publicPage = $derived(
     !!tunnel.view &&
       (tunnel.view.publicUrl === location.origin ||
@@ -66,10 +69,29 @@
     else if (selected === "reset") await tunnel.reset();
     else if (selected) await tunnel.setEnabled(selected === "enable");
   }
-  async function copyLink() {
+  async function copyLink(event: MouseEvent) {
     const url = tunnel.view?.publicUrl;
-    if (!url) return;
-    copyFallback = (await link.copy(url)) ? "" : url;
+    if (!url || copying) return;
+    const trigger = event.currentTarget;
+    const focusBeforeCopy = document.activeElement;
+    copying = true;
+    try {
+      const success = await link.copy(url);
+      if (tunnel.view?.publicUrl !== url) return;
+      copyResultUrl = url;
+      if (!success) {
+        await tick();
+        if (
+          tunnel.view?.publicUrl === url &&
+          (document.activeElement === trigger ||
+            document.activeElement === focusBeforeCopy)
+        ) {
+          copyField?.focus({ preventScroll: true });
+        }
+      }
+    } finally {
+      copying = false;
+    }
   }
 </script>
 
@@ -110,23 +132,36 @@
             {m.s2_tunnel_hostname_prefix()}<code>{current.hostname}</code>
           </p>{/if}
         {#if current.publicUrl}
-          <p class="text-sm wrap-anywhere">
-            {m.s2_tunnel_public_url_prefix()}<code>{current.publicUrl}</code>
-          </p>
-          <Button variant="outline" onclick={copyLink}
-            >{link.copied ? m.s2_copied() : m.s2_tunnel_copy_link()}</Button
-          >
-          {#if copyFallback}
-            <div class="grid gap-2">
+          {@const manualCopy =
+            link.failed && copyResultUrl === current.publicUrl}
+          <div class="grid min-w-0 items-center">
+            <p
+              class="[grid-area:1/1] text-sm wrap-anywhere transition-none"
+              class:invisible={manualCopy}
+              aria-hidden={manualCopy}
+            >
+              {m.s2_tunnel_public_url_prefix()}<code>{current.publicUrl}</code>
+            </p>
+            <div
+              class="grid min-w-0 gap-2 [grid-area:1/1] transition-none"
+              class:invisible={!manualCopy}
+              inert={!manualCopy}
+            >
               <Label for="tunnel-copy">{m.s2_tunnel_copy_fallback()}</Label>
               <Input
+                bind:ref={copyField}
                 id="tunnel-copy"
                 readonly
-                value={copyFallback}
+                value={current.publicUrl}
                 onfocus={(event) => event.currentTarget.select()}
               />
             </div>
-          {/if}
+          </div>
+          <Button variant="outline" onclick={copyLink}
+            >{link.copied && copyResultUrl === current.publicUrl
+              ? m.s2_copied()
+              : m.s2_tunnel_copy_link()}</Button
+          >
         {/if}
         {#if current.error}<InlineNotice tone="danger"
             >{current.error}</InlineNotice
