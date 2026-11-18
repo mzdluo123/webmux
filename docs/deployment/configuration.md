@@ -17,7 +17,7 @@
 | `state_dir`          | `$XDG_STATE_HOME/webmux` | 服务端状态目录，见 [状态目录](#状态目录)             |
 
 - 配置只在启动时读取；修改后需重启服务。
-- 新生成配置显式只启用 PTY 核心；需要的扩展先在 [内置功能选择](#内置功能选择) 中开启。
+- 新生成配置默认启用`launch`、`workspace`、`code`、`files`、`chat`、`mcp`。其他功能可在 [内置功能选择](#内置功能选择) 中开启。
 - `webmux status` 的 `drift` 会列出已修改但尚未通过重启生效的 `listen`、`token`。
 
 ## 生成与加载配置
@@ -86,7 +86,7 @@ JSON 输出契约见 [控制面 JSON 契约](../protocol/control-json.md#控制�
 
 ```toml
 [features]
-enabled = [] # 生成配置的默认值：仅 PTY 核心
+enabled = ["launch", "workspace", "code", "files", "chat", "mcp"] # 新生成配置的默认值
 # 保存启动配置与 ACP 聊天；依赖必须显式列出
 # enabled = ["launch", "files", "chat"]
 # 仓库/worktree 管理与 Git 工作台

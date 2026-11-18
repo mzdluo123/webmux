@@ -1,7 +1,7 @@
 # CLI agent 接入
 
 选择 `launch` 后，首次创建缺失的 `launch-configs.json` 时，WebMux 写入以下十二款 CLI、Shell 和 omp 的普通配置，共 14 项，可编辑或删除，不会自动安装或认证 CLI。
-新生成配置只有 PTY 核心，不自动创建启动配置；可直接填写临时命令，或先 [选择功能](deployment/configuration.md#内置功能选择) 并重启。混合聊天需 `chat` + `launch` + `files`，目录/worktree 管理另需 `workspace`。
+新生成配置默认启用启动预设、混合聊天和工作区管理。自定义 [功能选择](deployment/configuration.md#内置功能选择) 时，混合聊天需要同时启用 `chat`、`launch`、`files`，仓库管理需要 `workspace`。
 
 旧版安装的 `launch-configs.json` 仍可能保留 Gemini CLI（`gemini --yolo`），但自 2026-06-18 起已停止为免费个人账号及 Google AI Pro/Ultra 处理请求，个人 Google 登录不可用。
 新安装默认预置已替换为 Antigravity CLI（`agy --dangerously-skip-permissions`，混合模式）。

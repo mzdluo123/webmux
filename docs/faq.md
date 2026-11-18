@@ -5,9 +5,9 @@
 ## 常见问题
 
 <details>
-<summary><b>新安装为什么只有终端，没有聊天、启动配置或仓库入口？</b></summary>
+<summary><b>为什么只有终端，没有聊天、启动配置或仓库入口？</b></summary>
 
-新生成配置显式 `features.enabled=[]`，只启用 PTY 核心。按 [内置功能选择](deployment/configuration.md#内置功能选择) 加上所需 ID 并重启。
+先检查配置中的 `features.enabled`。显式空数组会只启用 PTY 核心。按 [内置功能选择](deployment/configuration.md#内置功能选择) 加上所需 ID 并重启。
 聊天须同时选择 `chat`、`launch`、`files`；仓库需要 `workspace`，Git 工作台另需 `code`。缺省选择的旧配置保留固定 13 项旧版功能。
 禁用不是删除数据，也不是网页实时开关。实例健康不代表每项能力可用；查 [能力发现](protocol.md#能力发现)，再检查外部命令、连接器和业务设置。
 
