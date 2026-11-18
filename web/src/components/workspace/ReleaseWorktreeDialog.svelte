@@ -11,6 +11,7 @@
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { KeyValueSummary } from "$lib/components/ui/key-value-summary";
   import PreviewForm from "./PreviewForm.svelte";
+  import PreviewFormActions from "./PreviewFormActions.svelte";
   import PushCheckNotice from "../settings/PushCheckNotice.svelte";
   import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
 
@@ -29,6 +30,7 @@
     /** The worktree or its records may have changed. */
     onchange: () => void;
   } = $props();
+  const formId = $props.id();
   let preview = $state<ReleasePreview | null>(null);
   let busy = $state(false);
   let error = $state("");
@@ -79,19 +81,16 @@
   drawerDescription={m.s8_release_drawer_desc()}
   {onclose}
   {busy}
+  pinDrawerHeader
+  drawerFullScreen
+  class="h-[min(90dvh,34rem)]"
 >
   <PreviewForm
+    {formId}
     {busy}
     {error}
     onsubmit={() => void release()}
     {onclose}
-    confirm={{
-      ready: preview !== null,
-      disabled: (preview?.blockers.length ?? 0) > 0,
-      label: m.s8_release_title(),
-      variant: "destructive",
-      onreload: load,
-    }}
   >
     {#snippet summary()}
       <KeyValueSummary
@@ -140,4 +139,18 @@
       </p>
     {/if}
   </PreviewForm>
+  {#snippet footer()}
+    <PreviewFormActions
+      {formId}
+      {busy}
+      {onclose}
+      confirm={{
+        ready: preview !== null,
+        disabled: (preview?.blockers.length ?? 0) > 0,
+        label: m.s8_release_title(),
+        variant: "destructive",
+        onreload: load,
+      }}
+    />
+  {/snippet}
 </ResponsiveDialog>

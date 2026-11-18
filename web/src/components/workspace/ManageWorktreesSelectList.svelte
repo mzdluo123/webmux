@@ -125,6 +125,7 @@
         >
           <Label class="w-full items-start">
             <Checkbox
+              data-worktree-checkbox={entry.tree.id}
               checked={isChecked}
               disabled={isProtected ||
                 busy ||

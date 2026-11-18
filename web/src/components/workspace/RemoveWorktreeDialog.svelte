@@ -18,6 +18,7 @@
   import BlockerList from "../shared/BlockerList.svelte";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import PreviewForm from "./PreviewForm.svelte";
+  import PreviewFormActions from "./PreviewFormActions.svelte";
   import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import PushCheckNotice from "../settings/PushCheckNotice.svelte";
   import WorktreeSessionList from "./WorktreeSessionList.svelte";
@@ -42,6 +43,7 @@
      */
     onhide?: () => void;
   } = $props();
+  const formId = $props.id();
   let preview = $state<RemovalPreview | null>(null);
   let busy = $state(false);
   let error = $state("");
@@ -158,8 +160,11 @@
   description={dialogDescription}
   {onclose}
   {busy}
+  pinDrawerHeader
+  drawerFullScreen
+  class="h-[min(90dvh,34rem)]"
 >
-  <PreviewForm {busy} {error} onsubmit={() => void remove()} {onclose}>
+  <PreviewForm {formId} {busy} {error} onsubmit={() => void remove()} {onclose}>
     {#snippet summary()}
       <div class="rounded-lg border bg-muted/40 p-3 text-sm">
         <p class="font-medium">
@@ -237,49 +242,55 @@
         </Label>
       {/if}
     {/if}
-    {#snippet actions()}
-      {#if !preview}<Button type="button" disabled={busy} onclick={load}
-          >{m.s8_reload_preview_btn()}</Button
-        >
-      {:else if force}
-        <Button
-          type="button"
-          variant="outline"
-          disabled={busy}
-          onclick={() => {
-            force = false;
-            closeSessions = false;
-          }}>{m.s8_rm_wt_back_safe_btn()}</Button
-        >
-        <Button
-          type="submit"
-          variant="destructive"
-          disabled={busy || !closeSessions}
-          >{m.s8_rm_wt_confirm_force_btn()}</Button
-        >
-      {:else if !preview.blockers.length}
-        <Button type="submit" disabled={busy}
-          >{m.s8_rm_wt_confirm_safe_btn()}</Button
-        >
-      {:else if preview.forceAllowed}
-        <Button
-          type="button"
-          variant="destructive"
-          disabled={busy}
-          onclick={() => {
-            force = true;
-          }}>{m.s8_rm_wt_enter_force_btn()}</Button
-        >
-      {/if}
-      {#if canHide}
-        <Button
-          type="button"
-          variant="success"
-          disabled={busy}
-          title={m.s8_rm_wt_hide_only_title()}
-          onclick={hide}>{m.s8_rm_wt_hide_only_btn()}</Button
-        >
-      {/if}
-    {/snippet}
   </PreviewForm>
+  {#snippet footer()}
+    <PreviewFormActions {formId} {busy} {onclose}>
+      {#snippet actions()}
+        {#if !preview}<Button type="button" disabled={busy} onclick={load}
+            >{m.s8_reload_preview_btn()}</Button
+          >
+        {:else if force}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onclick={() => {
+              force = false;
+              closeSessions = false;
+            }}>{m.s8_rm_wt_back_safe_btn()}</Button
+          >
+          <Button
+            type="submit"
+            form={formId}
+            wrap
+            variant="destructive"
+            disabled={busy || !closeSessions}
+            >{m.s8_rm_wt_confirm_force_btn()}</Button
+          >
+        {:else if !preview.blockers.length}
+          <Button type="submit" form={formId} wrap disabled={busy}
+            >{m.s8_rm_wt_confirm_safe_btn()}</Button
+          >
+        {:else if preview.forceAllowed}
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={busy}
+            onclick={() => {
+              force = true;
+            }}>{m.s8_rm_wt_enter_force_btn()}</Button
+          >
+        {/if}
+        {#if canHide}
+          <Button
+            type="button"
+            variant="success"
+            disabled={busy}
+            title={m.s8_rm_wt_hide_only_title()}
+            onclick={hide}>{m.s8_rm_wt_hide_only_btn()}</Button
+          >
+        {/if}
+      {/snippet}
+    </PreviewFormActions>
+  {/snippet}
 </ResponsiveDialog>

@@ -9,6 +9,7 @@ import {
   GitWorkingChangeSchema,
   GitWorktreeContextSchema,
 } from "../../src/contracts/git-workbench-schemas";
+import GitLogListPane from "../../src/components/workspace/GitLogListPane.svelte";
 import Harness from "./GitWorkbenchHarness.svelte";
 
 afterEach(async () => {
@@ -530,7 +531,11 @@ test("Commit pane separates reading/reviewed/staged states, stages single hunk, 
   // Confirm step 1 (commit matched) -> transitions into Push preview dialog!
   await page.getByRole("button", { name: "确认提交并继续预览推送" }).click();
   await expect
-    .element(page.getByText(/推送确认 · main → origin\/main/))
+    .element(
+      page
+        .getByRole("dialog", { name: "推送确认" })
+        .getByText("origin/main", { exact: true }),
+    )
     .toBeVisible();
 });
 
@@ -623,4 +628,149 @@ test("commit graph SVGs touch edge-to-edge without vertical gaps across wrapped 
 
     await cleanup();
   }
+});
+
+test("GitLogListPane retains reading scroll position across cursor append and status notices and guards aria-disabled pagination", async () => {
+  await page.viewport(390, 844);
+  const makeRow = (index: number) => {
+    const hex = (index + 1).toString(16).padStart(40, "0");
+    const parentHex = (index + 2).toString(16).padStart(40, "0");
+    return GitHistoryRowSchema.parse({
+      oid: hex,
+      shortOid: hex.slice(0, 7),
+      parents: [parentHex],
+      lane: 0,
+      activeLanes: [0],
+      edges: [
+        {
+          fromLane: 0,
+          toLane: 0,
+          targetOid: parentHex,
+          kind: "direct",
+        },
+      ],
+      directParentsMissing: false,
+      subject: `commit row ${index + 1}`,
+      authorName: "Alice",
+      authorEmail: "alice@example.com",
+      authorAt: "2026-04-12T08:00:00Z",
+      committerName: "Alice",
+      committerEmail: "alice@example.com",
+      committerAt: "2026-04-12T08:00:00Z",
+      refs: [],
+      changedPaths: [],
+      branches: ["main"],
+    });
+  };
+
+  const firstPage = Array.from({ length: 20 }, (_, i) => makeRow(i));
+  const secondPage = Array.from({ length: 30 }, (_, i) => makeRow(i));
+  let savedScrollTop = 0;
+  const onListScrollChange = vi.fn((top: number) => {
+    savedScrollTop = top;
+  });
+  const onLoadMoreHistory = vi.fn();
+
+  const baseProps = {
+    desktop: false,
+    historyState: "ready" as const,
+    nextCursor: "cur-2",
+    historyLoadingMore: false,
+    visibleCommits: firstPage,
+    selectedCommitOid: firstPage[0]!.oid,
+    listScrollTop: 0,
+    scope: "all" as const,
+    branchFilter: null,
+    searchQuery: "",
+    authorFilter: "",
+    sinceFilter: "",
+    untilFilter: "",
+    pathFilter: "",
+    refsChanged: false,
+    selectionNotice: null,
+    compareBaseMarkOid: null,
+    onListScrollChange,
+    onLoadMoreHistory,
+    onSelectCommit: () => {},
+    onScopeChange: () => {},
+    onSearchChange: () => {},
+    onPathFilterChange: () => {},
+  };
+
+  const view = await render(GitLogListPane, baseProps);
+  view.container.style.height = "320px";
+  view.container.style.width = "390px";
+
+  const listbox = page.getByRole("listbox", { name: "提交记录" });
+  await expect.element(listbox).toBeVisible();
+  const listboxEl = listbox.element() as HTMLElement;
+  await expect
+    .poll(() => listboxEl.scrollHeight > listboxEl.clientHeight)
+    .toBe(true);
+
+  listboxEl.scrollTop = 180;
+  listboxEl.dispatchEvent(new Event("scroll"));
+  expect(savedScrollTop).toBe(180);
+
+  const loadMoreBtn = page.getByRole("button", { name: /加载更多/ });
+  const loadMoreEl = loadMoreBtn.element() as HTMLButtonElement;
+  loadMoreEl.focus({ preventScroll: true });
+  expect(document.activeElement).toBe(loadMoreEl);
+  expect(loadMoreEl.getAttribute("tabindex")).toBeNull();
+
+  loadMoreEl.click();
+  expect(onLoadMoreHistory).toHaveBeenCalledTimes(1);
+
+  await view.rerender({
+    ...baseProps,
+    historyLoadingMore: true,
+    listScrollTop: savedScrollTop,
+  });
+
+  const loadingBtn = page.getByRole("button", { name: /正在加载/ });
+  const loadingEl = loadingBtn.element() as HTMLButtonElement;
+  expect(document.activeElement).toBe(loadingEl);
+  await expect.element(loadingBtn).toHaveAttribute("aria-disabled", "true");
+  await expect.element(loadingBtn).toHaveAttribute("tabindex", "-1");
+
+  // Guard blocks duplicate click and keyboard activation while loading.
+  loadingEl.click();
+  await userEvent.keyboard("{Enter}");
+  expect(onLoadMoreHistory).toHaveBeenCalledTimes(1);
+
+  // Appending cursor page preserves reading position and transfers focus when exhausted.
+  await view.rerender({
+    ...baseProps,
+    visibleCommits: secondPage,
+    nextCursor: "",
+    historyLoadingMore: false,
+    listScrollTop: savedScrollTop,
+  });
+
+  await expect.poll(() => Math.round(listboxEl.scrollTop)).toBe(180);
+  expect(document.activeElement).toBe(listboxEl);
+
+  // Status notice preserves saved scroll position and restores it on return.
+  onListScrollChange.mockClear();
+  await view.rerender({
+    ...baseProps,
+    historyState: "no_task_baseline",
+    scope: "task",
+    visibleCommits: [],
+    nextCursor: "",
+    listScrollTop: savedScrollTop,
+  });
+  listboxEl.scrollTop = 0;
+  listboxEl.dispatchEvent(new Event("scroll"));
+  expect(onListScrollChange).not.toHaveBeenCalled();
+
+  await view.rerender({
+    ...baseProps,
+    historyState: "ready",
+    scope: "all",
+    visibleCommits: secondPage,
+    nextCursor: "",
+    listScrollTop: savedScrollTop,
+  });
+  await expect.poll(() => Math.round(listboxEl.scrollTop)).toBe(180);
 });

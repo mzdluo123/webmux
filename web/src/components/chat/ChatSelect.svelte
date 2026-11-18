@@ -22,6 +22,7 @@
     title,
     labeled = false,
     searchable = false,
+    preventScroll,
     labelClass,
     icon: props_icon,
     choiceIcon,
@@ -39,6 +40,7 @@
     title?: string;
     labeled?: boolean;
     searchable?: boolean;
+    preventScroll?: boolean;
     labelClass?: string;
     icon?: Snippet;
     /** A per-choice icon, shown in the menu and, when labeled, the button. */
@@ -106,6 +108,7 @@
     </DropdownMenu.Trigger>
     <DropdownMenu.Content
       align="start"
+      {preventScroll}
       class="max-h-[min(20rem,var(--bits-dropdown-menu-content-available-height))] min-w-52"
     >
       <DropdownMenu.Label>{name}</DropdownMenu.Label>

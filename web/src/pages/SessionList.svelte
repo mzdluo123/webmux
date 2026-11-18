@@ -97,21 +97,7 @@
     {#if shell.sessions.error}<InlineNotice tone="danger"
         >{shell.sessions.error}</InlineNotice
       >{/if}
-    {#if shell.sessions.loading}
-      <p role="status" class="text-sm text-muted-foreground">
-        {m.s1_loading_sessions_list()}
-      </p>
-    {:else if !sessions.length}
-      {#if !shell.sessions.error && !dormant.length}
-        <SessionListEmpty
-          filtered={false}
-          description={m.s1_empty_sessions_core()}
-          onclear={clearSearch}
-        />
-      {/if}
-    {:else if !visible.length && !dormant.length}
-      <SessionListEmpty filtered description="" onclear={clearSearch} />
-    {:else}
+    {#if visible.length}
       <Item.Group
         aria-label={m.s1_session_list_aria()}
         variant={compact ? "panel" : "default"}
@@ -123,5 +109,20 @@
       </Item.Group>
     {/if}
     <DormantSessionLinks records={dormant} />
+    {#if shell.sessions.loading}
+      <p role="status" class="text-sm text-muted-foreground">
+        {m.s1_loading_sessions_list()}
+      </p>
+    {:else if !visible.length && !dormant.length && (sessions.length || !shell.sessions.error)}
+      {#if query.trim()}
+        <SessionListEmpty filtered description="" onclear={clearSearch} />
+      {:else}
+        <SessionListEmpty
+          filtered={false}
+          description={m.s1_empty_sessions_core()}
+          onclear={clearSearch}
+        />
+      {/if}
+    {/if}
   </main>
 </div>

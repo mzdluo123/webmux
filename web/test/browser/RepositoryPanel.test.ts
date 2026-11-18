@@ -439,12 +439,21 @@ test("lists all worktrees including unpinned ones, filters, selects safe items, 
   await dialog()
     .getByRole("button", { name: "选中全部可安全清理（2）" })
     .click();
-  await dialog().getByRole("checkbox", { name: "wt/wip-agent" }).click();
-  await dialog().getByRole("button", { name: "下一步：预览删除 (3)" }).click();
+  const wip = dialog().getByRole("checkbox", { name: "wt/wip-agent" });
+  const next = dialog().getByRole("button", { name: "下一步：预览删除 (3)" });
+  await wip.click();
+  const y = wip.element().getBoundingClientRect().top;
+  await next.click();
 
-  await expect
-    .element(dialog().getByRole("heading", { name: "确认批量清理" }))
-    .toBeVisible();
+  const heading = dialog().getByRole("heading", { name: "确认批量清理" });
+  await expect.element(heading).toHaveFocus();
+  await dialog().getByRole("button", { name: "返回重选" }).click();
+  await expect.element(wip).toBeChecked();
+  await expect.element(wip).toHaveFocus();
+  expect(wip.element().getBoundingClientRect().top).toBeCloseTo(y, 0);
+
+  await next.click();
+  await expect.element(heading).toHaveFocus();
   await expect
     .element(dialog())
     .toMatchTextContent(/可安全清理 2 个.*有阻塞 1 个/);
@@ -1389,4 +1398,24 @@ test("a worktree's details offer its branch actions inside the panel", async () 
   // 返回 leads back to the details it was started from.
   await flow.getByRole("button", { name: "返回" }).click();
   await expect.element(details).toBeVisible();
+});
+
+test("switching tabs keeps tab panels untransformed and entering a subview settles tab motion", async () => {
+  renderPanel({ initialTab: "overview" });
+  await dialog().getByRole("tab", { name: "工作树" }).click();
+  const worktreesPanel = dialog()
+    .getByRole("tabpanel", { name: "工作树" })
+    .element() as HTMLElement;
+  expect(worktreesPanel.style.transform).toBe("");
+  const panels = worktreesPanel.parentElement as HTMLElement;
+  await dialog()
+    .getByRole("button", { name: /^wt\/clean-feature/ })
+    .click();
+  await expect
+    .element(
+      dialog().getByRole("region", { name: "工作树详情：wt/clean-feature" }),
+    )
+    .toBeVisible();
+  expect(panels.style.height).toBe("");
+  expect(panels.style.overflow).toBe("");
 });

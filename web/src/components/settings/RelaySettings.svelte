@@ -1,13 +1,16 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Label } from "$lib/components/ui/label";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { Switch } from "$lib/components/ui/switch";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import * as Card from "$lib/components/ui/card";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
+  import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
   import RelayDiagnostics from "./RelayDiagnostics.svelte";
   import type { RelaySettingsView } from "../../hooks/settings/relay-settings.svelte";
   import {
@@ -38,6 +41,15 @@
     "enable" | "disconnect" | "reconnect" | "delete" | null
   >(null);
   let now = $state(Date.now());
+  let authorization = $state<HTMLElement | null>(null);
+  let pairingPanel = $state<HTMLDivElement | null>(null);
+  let primaryPairingAction = $state<HTMLButtonElement | null>(null);
+  let pairingIntent = $state(0);
+  useDockMotion(
+    () => pairingPanel,
+    () => true,
+    () => String(pairingIntent),
+  );
   let copied = $state<"code" | "address" | "failed" | null>(null);
   let copiedValue = $state("");
   const status = $derived(view.status);
@@ -113,6 +125,24 @@
                 ? relayDiagnostic(status.error || status.readinessError)
                 : ""),
   );
+  const isPreparingOnly = $derived(
+    active &&
+      !codeVisible &&
+      (!pairing || pairing.phase === "preparing") &&
+      pairingMessage === m.relay_pairing_preparing(),
+  );
+  const activeErrorMessage = $derived(isPreparingOnly ? "" : pairingMessage);
+  const hasActiveFeedback = $derived(
+    Boolean(
+      activeErrorMessage ||
+      view.phase === "verifying" ||
+      stepError ||
+      pairing?.phase === "uncertain" ||
+      status?.operation.phase === "uncertain" ||
+      view.notice ||
+      copied === "failed",
+    ),
+  );
   const confirmTitle = $derived(
     confirmation === "enable"
       ? m.relay_confirm_enable()
@@ -130,6 +160,31 @@
     }, 1000);
     return () => clearInterval(timer);
   });
+
+  $effect.pre(() => {
+    void active;
+    void codeVisible;
+    const panel = pairingPanel;
+    const focused = document.activeElement;
+    if (!panel || !panel.contains(focused)) return;
+    void tick().then(() => {
+      if (
+        !authorization?.isConnected ||
+        focused?.isConnected ||
+        document.activeElement !== document.body
+      )
+        return;
+      const target = primaryPairingAction;
+      (target && !target.disabled ? target : authorization)?.focus({
+        preventScroll: true,
+      });
+    });
+  });
+
+  function startPairing() {
+    pairingIntent++;
+    onpair();
+  }
 
   async function copy(value: string, kind: "code" | "address") {
     try {
@@ -151,6 +206,36 @@
   }
 </script>
 
+{#snippet feedback()}
+  {#if view.phase === "submitting" && !active}
+    <p role="status" class="text-sm">{m.relay_operation_submitting()}</p>
+  {:else if view.phase === "verifying"}
+    <InlineNotice tone="warning">{m.relay_operation_verifying()}</InlineNotice>
+  {/if}
+  {#if stepError}
+    <InlineNotice tone="danger">{stepError}</InlineNotice>
+  {/if}
+  {#if stepError || view.phase === "verifying" || pairing?.phase === "uncertain" || status?.operation.phase === "uncertain"}
+    <Button
+      variant="outline"
+      onclick={onrefresh}
+      disabled={view.phase === "submitting"}>{m.relay_refresh()}</Button
+    >
+  {/if}
+  {#if view.notice}
+    <InlineNotice
+      tone={status?.operation.kind === "delete" &&
+      status.operation.deleted &&
+      !status.operation.accessClosed
+        ? "warning"
+        : "info"}>{view.notice}</InlineNotice
+    >
+  {/if}
+  {#if copied === "failed"}<InlineNotice tone="warning"
+      >{m.relay_copy_failed()}</InlineNotice
+    >{/if}
+{/snippet}
+
 <Card.Root flat>
   <Card.Header>
     <Card.Title>{m.relay_settings_title()}</Card.Title>
@@ -159,6 +244,8 @@
   <Card.Content class="space-y-5">
     <section
       class="min-w-0 space-y-4"
+      bind:this={authorization}
+      tabindex="-1"
       aria-label={m.relay_device_authorization()}
       aria-busy={view.loading || view.phase === "submitting"}
     >
@@ -174,68 +261,96 @@
           >{m.relay_status_unavailable()}</InlineNotice
         >
       {:else if !status.paired}
-        {#if active}
-          {#if codeVisible && pairing}
-            <p class="text-sm">{m.relay_enter_code()}</p>
-            <p
-              class="font-mono text-3xl wrap-anywhere"
-              aria-label={m.relay_pairing_code()}
-            >
-              {pairing.userCode}
-            </p>
-            <Button
-              variant="outline"
-              onclick={() => void copy(pairing.userCode, "code")}
-              >{copied === "code" && copiedValue === pairing.userCode
-                ? m.relay_copied()
-                : m.relay_copy_code()}</Button
-            >
-            <p class="text-sm text-muted-foreground">
-              {remaining > 0
-                ? m.relay_pairing_expiry({
-                    time: `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`,
-                  })
-                : m.relay_pairing_expiry_check()}
-            </p>
-            <p class="text-sm">{m.relay_pairing_waiting()}</p>
-          {/if}
-          {#if pairingMessage}
-            <InlineNotice tone="warning">{pairingMessage}</InlineNotice>
-          {/if}
-          <div class="flex flex-wrap gap-3">
-            {#if codeVisible && pairing}
+        <div bind:this={pairingPanel}>
+          {#if active}
+            <div class="space-y-3">
+              {#if codeVisible && pairing}
+                <div class="space-y-2">
+                  <p class="text-sm">{m.relay_enter_code()}</p>
+                  <div class="flex min-w-0 flex-wrap items-center gap-3">
+                    <p
+                      class="min-w-0 font-mono text-3xl wrap-anywhere"
+                      aria-label={m.relay_pairing_code()}
+                    >
+                      {pairing.userCode}
+                    </p>
+                    <Button
+                      variant="outline"
+                      onclick={() => void copy(pairing.userCode, "code")}
+                      >{copied === "code" && copiedValue === pairing.userCode
+                        ? m.relay_copied()
+                        : m.relay_copy_code()}</Button
+                    >
+                  </div>
+                  <p class="text-sm text-muted-foreground">
+                    {remaining > 0
+                      ? m.relay_pairing_expiry({
+                          time: `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`,
+                        })
+                      : m.relay_pairing_expiry_check()}
+                  </p>
+                  <p class="text-sm">{m.relay_pairing_waiting()}</p>
+                </div>
+              {:else if isPreparingOnly}
+                <p role="status" class="text-sm text-muted-foreground">
+                  {pairingMessage}
+                </p>
+              {/if}
+              <div class="flex flex-wrap gap-3">
+                <Button
+                  bind:ref={primaryPairingAction}
+                  variant="outline"
+                  onclick={oncancel}
+                  disabled={view.phase === "submitting" ||
+                    pairing?.phase === "cancelling"}
+                  >{m.relay_cancel_pairing()}</Button
+                >
+                {#if codeVisible && pairing}
+                  <Button
+                    href={pairing.verificationUrl}
+                    target="_blank"
+                    rel="noopener noreferrer">{m.relay_verify_github()}</Button
+                  >
+                {/if}
+              </div>
+              {#if hasActiveFeedback}
+                <ScrollArea class="max-h-24">
+                  <div class="space-y-2">
+                    {#if activeErrorMessage}
+                      <InlineNotice tone="warning" size="compact"
+                        >{activeErrorMessage}</InlineNotice
+                      >
+                    {/if}
+                    {@render feedback()}
+                  </div>
+                </ScrollArea>
+              {/if}
+            </div>
+          {:else}
+            <div class="space-y-4">
+              <p class="text-sm">{m.relay_pairing_value()}</p>
+              <p class="text-sm text-muted-foreground">
+                {m.relay_pairing_trust()}
+              </p>
+              {#if pairingMessage}
+                <InlineNotice
+                  tone={pairing?.phase === "denied" ||
+                  pairing?.phase === "failed"
+                    ? "danger"
+                    : "warning"}>{pairingMessage}</InlineNotice
+                >
+              {/if}
               <Button
-                href={pairing.verificationUrl}
-                target="_blank"
-                rel="noopener noreferrer">{m.relay_verify_github()}</Button
+                bind:ref={primaryPairingAction}
+                disabled={blocked ||
+                  !pairing ||
+                  !status.storageAvailable ||
+                  !status.controlEndpoint}
+                onclick={startPairing}>{m.relay_start_pairing()}</Button
               >
-            {/if}
-            <Button
-              variant="outline"
-              onclick={oncancel}
-              disabled={view.phase === "submitting" ||
-                pairing?.phase === "cancelling"}
-              >{m.relay_cancel_pairing()}</Button
-            >
-          </div>
-        {:else}
-          <p class="text-sm">{m.relay_pairing_value()}</p>
-          <p class="text-sm text-muted-foreground">{m.relay_pairing_trust()}</p>
-          {#if pairingMessage}
-            <InlineNotice
-              tone={pairing?.phase === "denied" || pairing?.phase === "failed"
-                ? "danger"
-                : "warning"}>{pairingMessage}</InlineNotice
-            >
+            </div>
           {/if}
-          <Button
-            disabled={blocked ||
-              !pairing ||
-              !status.storageAvailable ||
-              !status.controlEndpoint}
-            onclick={onpair}>{m.relay_start_pairing()}</Button
-          >
-        {/if}
+        </div>
       {:else}
         <p class="text-sm wrap-anywhere">
           {m.relay_owner_login({
@@ -298,36 +413,8 @@
       {#if status && !status.storageAvailable}<InlineNotice tone="danger"
           >{m.relay_storage_warning()}</InlineNotice
         >{/if}
-      {#if !view.loading}
-        {#if view.phase === "submitting" && !active}
-          <p role="status" class="text-sm">{m.relay_operation_submitting()}</p>
-        {:else if view.phase === "verifying"}
-          <InlineNotice tone="warning"
-            >{m.relay_operation_verifying()}</InlineNotice
-          >
-        {/if}
-        {#if stepError}
-          <InlineNotice tone="danger">{stepError}</InlineNotice>
-        {/if}
-        {#if stepError || view.phase === "verifying" || pairing?.phase === "uncertain" || status?.operation.phase === "uncertain"}
-          <Button
-            variant="outline"
-            onclick={onrefresh}
-            disabled={view.phase === "submitting"}>{m.relay_refresh()}</Button
-          >
-        {/if}
-        {#if view.notice}
-          <InlineNotice
-            tone={status?.operation.kind === "delete" &&
-            status.operation.deleted &&
-            !status.operation.accessClosed
-              ? "warning"
-              : "info"}>{view.notice}</InlineNotice
-          >
-        {/if}
-        {#if copied === "failed"}<InlineNotice tone="warning"
-            >{m.relay_copy_failed()}</InlineNotice
-          >{/if}
+      {#if !view.loading && !active}
+        {@render feedback()}
       {/if}
     </section>
     {#if status && !view.loading}

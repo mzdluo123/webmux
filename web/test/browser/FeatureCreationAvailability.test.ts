@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import NewSessionDialog from "../../src/components/sessions/NewSessionDialog.svelte";
 import RepositorySettingsDialog from "../../src/components/workspace/RepositorySettingsDialog.svelte";
@@ -158,6 +158,43 @@ test("disabled quick commands keep saved references editable without exposing co
   await expect
     .element(page.getByRole("status"))
     .toHaveTextContent("找不到快捷指令：{{私有指令}}，发送时会被服务端拒绝。");
+});
+
+test("instruction preview keeps long reference notes reachable on a short phone", async () => {
+  await page.viewport(320, 568);
+  try {
+    const view = await render(QuickStartInitInstructionBar, {
+      repository: repository({ initInstruction: "{{user}}" }),
+      sending: false,
+      useInstruction: true,
+      onchange: vi.fn(),
+    });
+    const trigger = page.getByRole("button", { name: "预览", exact: true });
+    await trigger.click();
+    await view.rerender({
+      repository: repository({
+        initInstruction:
+          "核对演示。\n".repeat(40) + "{{missing-command}} {{dir}} {{webmux}}",
+      }),
+    });
+    const popover = document.querySelector<HTMLElement>(
+      '[data-slot="popover-content"]',
+    )!;
+    const warning = popover.querySelector<HTMLElement>('[role="status"]')!;
+    expect(warning.textContent).toContain("{{missing-command}}");
+    await expect
+      .poll(() => popover.getBoundingClientRect().right)
+      .toBeLessThanOrEqual(320);
+    await expect
+      .poll(() => popover.getBoundingClientRect().bottom)
+      .toBeLessThanOrEqual(568);
+    expect(popover.scrollHeight).toBeGreaterThan(popover.clientHeight);
+    await userEvent.keyboard("{Escape}");
+    await expect.element(trigger).toHaveFocus();
+  } finally {
+    await cleanup();
+    await page.viewport(1024, 900);
+  }
 });
 
 test("selected but unavailable workspace falls back to creating chat in an ordinary directory", async () => {

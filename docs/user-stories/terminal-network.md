@@ -25,6 +25,7 @@
     - `[p2p]` 默认开启（`enabled = true`、`port_mapping = true`）；
     - 默认 STUN 列表包含 `stun:stun.miwifi.com:3478`、`stun:stun.chat.bilibili.com:3478`、`stun:stun.cloudflare.com:3478` 与 `stun:stun.l.google.com:19302`；
     - 设置页“网络”分区可在线开关直连升级、路由器自动端口映射（UPnP IGD / NAT-PMP / PCP）并编辑 `stun:`/`stuns:` 列表（拒绝 `turn:`/`turns:`）；
+    - 等待端口映射查询与保存期间保留未提交的 STUN 输入；校验、读写反馈在操作按钮下方就位，手机窄屏下仍可查看长错误；
     - 网页覆盖保存在 `<state_dir>/p2p-settings.json`（目录 0700、文件 0600、独占锁）并立即生效，支持“恢复配置文件默认”；
   - 浏览器访问主机为本机回环、RFC1918/CGNAT/链路本地内网、`.ts.net` 或连续 3 次基线探测 RTT 中位数 `< 15 ms` 时自动跳过协商（`?p2p=force` 仅当前标签页强制探测）；
   - 普通 Token 连接的信令复用现有 Bearer Token + Host + Origin 校验下的 HTTP 接口（`/api/p2p`、`/api/p2p/settings`、`/api/p2p/ping`、`/api/p2p/sessions`），不依赖外部信令服务器；日志不输出终端内容、Token 或完整 SDP 正文；

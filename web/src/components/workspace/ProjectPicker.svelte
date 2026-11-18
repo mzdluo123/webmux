@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { usePanelMotion } from "../../hooks/shared/dock-motion.svelte";
   import { untrack, tick, onMount } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
@@ -40,6 +41,11 @@
   const source = untrack(() => controller ?? createProjectSources(onselect));
   type Step = "projects" | "sources" | "new" | "local" | "git" | "github";
   let step = $state<Step>(untrack(() => initialStep));
+  let body = $state<HTMLDivElement | null>(null);
+  usePanelMotion(
+    () => body,
+    () => step,
+  );
   let projectQuery = $state("");
   let sourceQuery = $state("");
   let root = $state<HTMLDivElement | null>(null);
@@ -223,155 +229,157 @@
       </p>
     </div>
   {/if}
-  {#if step === "projects" || step === "sources"}
-    <Command.Root variant="outline">
-      <Command.Input
-        bind:value={
-          () => (step === "projects" ? projectQuery : sourceQuery),
+  <div bind:this={body} class="space-y-4">
+    {#if step === "projects" || step === "sources"}
+      <Command.Root variant="outline">
+        <Command.Input
+          bind:value={
+            () => (step === "projects" ? projectQuery : sourceQuery),
+            (next) => {
+              if (step === "projects") projectQuery = next;
+              else sourceQuery = next;
+            }
+          }
+          bind:ref={searchInput}
+          placeholder={step === "projects"
+            ? m.s8_proj_search_placeholder()
+            : m.s8_proj_source_placeholder()}
+          aria-label={step === "projects"
+            ? m.s8_proj_search_aria()
+            : m.s8_proj_source_aria()}
+        />
+        <Command.List>
+          <Command.Empty>{m.s8_proj_empty()}</Command.Empty>
+          {#if step === "projects"}
+            {#if source.loading}<p
+                role="status"
+                class="p-3 text-sm text-muted-foreground"
+              >
+                {m.s8_proj_loading()}
+              </p>{/if}
+            <Command.Group heading={m.s8_proj_group_projects()}>
+              {#each source.projects as project (project.id)}
+                <Command.Item
+                  value={project.id}
+                  keywords={[project.name, project.path]}
+                  disabled={source.busy || project.availability !== "available"}
+                  onSelect={() => source.select(project)}
+                >
+                  <IconFolder aria-hidden="true" />
+                  <div class="min-w-0 flex-1">
+                    <ChoiceDetails
+                      primary={project.name}
+                      secondary={project.path}
+                    />
+                    {#if project.error}<p
+                        class="break-words text-xs text-destructive"
+                      >
+                        {project.error}
+                      </p>{/if}
+                  </div>
+                </Command.Item>
+              {/each}
+            </Command.Group>
+            {#if recentCandidates.length}<Command.Group
+                heading={m.s8_proj_group_recent_folders()}
+              >
+                {#each recentCandidates as dir (dir)}<Command.Item
+                    value={dir}
+                    keywords={[dir]}
+                    disabled={source.busy}
+                    onSelect={() => {
+                      path = dir;
+                      void go("local");
+                    }}
+                    ><IconFolder aria-hidden="true" /><ChoiceDetails
+                      primary={dir.split("/").pop() || dir}
+                      secondary={dir}
+                    /></Command.Item
+                  >{/each}
+              </Command.Group>{/if}
+          {/if}
+          {#if step === "sources" || (!source.loading && source.projects.length === 0)}
+            <Command.Group heading={m.s8_proj_group_sources()}>
+              <Command.Item
+                value="new"
+                keywords={[m.s8_proj_source_new_keywords()]}
+                onSelect={() => go("new")}
+                ><IconFolderPlus aria-hidden="true" /><ChoiceDetails
+                  primary={m.s8_proj_step_new()}
+                  secondary={m.s8_proj_source_new_desc()}
+                /></Command.Item
+              >
+              <Command.Item
+                value="local"
+                keywords={[m.s8_proj_source_local_keywords()]}
+                onSelect={() => go("local")}
+                ><IconFolder aria-hidden="true" /><ChoiceDetails
+                  primary={m.s8_proj_step_local()}
+                  secondary={m.s8_proj_source_local_desc()}
+                /></Command.Item
+              >
+              <Command.Item
+                value="git"
+                keywords={[m.s8_proj_source_git_keywords()]}
+                disabled={!featureAvailable("workspace.clone")}
+                onSelect={() => go("git")}
+                ><IconGitBranch aria-hidden="true" /><ChoiceDetails
+                  primary="Git URL"
+                  secondary={featureAvailable("workspace.clone")
+                    ? m.s8_proj_source_git_desc()
+                    : m.s8_proj_source_git_unavailable()}
+                /></Command.Item
+              >
+              <Command.Item
+                value="github"
+                keywords={[m.s8_proj_source_github_keywords()]}
+                disabled={source.busy}
+                onSelect={() => go("github")}
+                ><IconBrandGithub aria-hidden="true" /><ChoiceDetails
+                  primary={m.s8_proj_step_github()}
+                  secondary={featureAvailable("workspace.github")
+                    ? m.s8_proj_source_github_desc()
+                    : m.s8_proj_source_github_unavailable()}
+                /></Command.Item
+              >
+            </Command.Group>
+          {/if}
+        </Command.List>
+      </Command.Root>
+      {#if step === "projects" && source.projects.length}
+        <Button
+          variant="outline"
+          disabled={source.busy}
+          onclick={() => {
+            void go("sources");
+          }}><IconPlus aria-hidden="true" />{m.s8_proj_add_btn()}</Button
+        >
+      {/if}
+    {:else if step === "github"}
+      <GitHubProjectSource
+        controller={source}
+        parent={defaultCwd}
+        bind:query={githubQuery}
+        bind:url={githubURL}
+        bind:path={githubPath}
+      />
+    {:else}
+      <ProjectSourceForm
+        cloneParent={defaultCwd}
+        source={step}
+        controller={source}
+        bind:parent
+        bind:name
+        bind:path={
+          () => (step === "git" ? clonePath : path),
           (next) => {
-            if (step === "projects") projectQuery = next;
-            else sourceQuery = next;
+            if (step === "git") clonePath = next;
+            else path = next;
           }
         }
-        bind:ref={searchInput}
-        placeholder={step === "projects"
-          ? m.s8_proj_search_placeholder()
-          : m.s8_proj_source_placeholder()}
-        aria-label={step === "projects"
-          ? m.s8_proj_search_aria()
-          : m.s8_proj_source_aria()}
+        bind:url
+        bind:initializeGit
       />
-      <Command.List>
-        <Command.Empty>{m.s8_proj_empty()}</Command.Empty>
-        {#if step === "projects"}
-          {#if source.loading}<p
-              role="status"
-              class="p-3 text-sm text-muted-foreground"
-            >
-              {m.s8_proj_loading()}
-            </p>{/if}
-          <Command.Group heading={m.s8_proj_group_projects()}>
-            {#each source.projects as project (project.id)}
-              <Command.Item
-                value={project.id}
-                keywords={[project.name, project.path]}
-                disabled={source.busy || project.availability !== "available"}
-                onSelect={() => source.select(project)}
-              >
-                <IconFolder aria-hidden="true" />
-                <div class="min-w-0 flex-1">
-                  <ChoiceDetails
-                    primary={project.name}
-                    secondary={project.path}
-                  />
-                  {#if project.error}<p
-                      class="break-words text-xs text-destructive"
-                    >
-                      {project.error}
-                    </p>{/if}
-                </div>
-              </Command.Item>
-            {/each}
-          </Command.Group>
-          {#if recentCandidates.length}<Command.Group
-              heading={m.s8_proj_group_recent_folders()}
-            >
-              {#each recentCandidates as dir (dir)}<Command.Item
-                  value={dir}
-                  keywords={[dir]}
-                  disabled={source.busy}
-                  onSelect={() => {
-                    path = dir;
-                    void go("local");
-                  }}
-                  ><IconFolder aria-hidden="true" /><ChoiceDetails
-                    primary={dir.split("/").pop() || dir}
-                    secondary={dir}
-                  /></Command.Item
-                >{/each}
-            </Command.Group>{/if}
-        {/if}
-        {#if step === "sources" || (!source.loading && source.projects.length === 0)}
-          <Command.Group heading={m.s8_proj_group_sources()}>
-            <Command.Item
-              value="new"
-              keywords={[m.s8_proj_source_new_keywords()]}
-              onSelect={() => go("new")}
-              ><IconFolderPlus aria-hidden="true" /><ChoiceDetails
-                primary={m.s8_proj_step_new()}
-                secondary={m.s8_proj_source_new_desc()}
-              /></Command.Item
-            >
-            <Command.Item
-              value="local"
-              keywords={[m.s8_proj_source_local_keywords()]}
-              onSelect={() => go("local")}
-              ><IconFolder aria-hidden="true" /><ChoiceDetails
-                primary={m.s8_proj_step_local()}
-                secondary={m.s8_proj_source_local_desc()}
-              /></Command.Item
-            >
-            <Command.Item
-              value="git"
-              keywords={[m.s8_proj_source_git_keywords()]}
-              disabled={!featureAvailable("workspace.clone")}
-              onSelect={() => go("git")}
-              ><IconGitBranch aria-hidden="true" /><ChoiceDetails
-                primary="Git URL"
-                secondary={featureAvailable("workspace.clone")
-                  ? m.s8_proj_source_git_desc()
-                  : m.s8_proj_source_git_unavailable()}
-              /></Command.Item
-            >
-            <Command.Item
-              value="github"
-              keywords={[m.s8_proj_source_github_keywords()]}
-              disabled={source.busy}
-              onSelect={() => go("github")}
-              ><IconBrandGithub aria-hidden="true" /><ChoiceDetails
-                primary={m.s8_proj_step_github()}
-                secondary={featureAvailable("workspace.github")
-                  ? m.s8_proj_source_github_desc()
-                  : m.s8_proj_source_github_unavailable()}
-              /></Command.Item
-            >
-          </Command.Group>
-        {/if}
-      </Command.List>
-    </Command.Root>
-    {#if step === "projects" && source.projects.length}
-      <Button
-        variant="outline"
-        disabled={source.busy}
-        onclick={() => {
-          void go("sources");
-        }}><IconPlus aria-hidden="true" />{m.s8_proj_add_btn()}</Button
-      >
     {/if}
-  {:else if step === "github"}
-    <GitHubProjectSource
-      controller={source}
-      parent={defaultCwd}
-      bind:query={githubQuery}
-      bind:url={githubURL}
-      bind:path={githubPath}
-    />
-  {:else}
-    <ProjectSourceForm
-      cloneParent={defaultCwd}
-      source={step}
-      controller={source}
-      bind:parent
-      bind:name
-      bind:path={
-        () => (step === "git" ? clonePath : path),
-        (next) => {
-          if (step === "git") clonePath = next;
-          else path = next;
-        }
-      }
-      bind:url
-      bind:initializeGit
-    />
-  {/if}
+  </div>
 </div>
