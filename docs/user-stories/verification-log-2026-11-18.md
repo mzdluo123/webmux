@@ -38,3 +38,10 @@
 
 - `go test -race -count=1 ./internal/codexrollout ./internal/agent/{codex,kimi,omp,qoder,qodercn,opencode,agy,claudecode,devin}/history ./internal/{historyimport,historysource,historyprojection,handoff}` 的 14 个包通过。
 - 派生样本覆盖 Codex 0.170.0 和 9.99.0、Kimi Wire 1.10 和 2.0 与状态 v3、omp session v4、Qoder/QoderCN 较高版本，并核对正文和工具关联。OpenCode 在同一数据库内读取两种 SQLite 表结构。
+
+## 侧栏添加仓库入口（US-C16）
+
+- 「添加仓库」从「全部仓库」行菜单移到侧栏底部；按会话、按分支、窄栏及移动端抽屉共用登记弹窗和可用性条件。
+- `make e2e-runtime` 构建通过。`WorkbenchTree.test.ts` 的 16 项浏览器用例通过；`page-stability.spec.ts`、`workspace-discovery.spec.ts` 和 `worktrees.spec.ts` 在桌面与 iPhone SE Chromium 上共 50 项通过。
+- 隔离生产页面核对了 7 个视口的明暗主题、相邻按钮尺寸、窄栏与键盘打开，以及登记弹窗边界。未验证物理触屏或真机。
+- PR 提供桌面、平板及手机的明暗前后截图，以及[手机打开与取消登记的录屏](../images/pr/sidebar-add-repository/interaction-phone.gif)。

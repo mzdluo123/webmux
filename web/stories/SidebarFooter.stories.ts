@@ -22,3 +22,12 @@ type Story = StoryObj<typeof meta>;
 /** On the expanded sidebar the footer's status entry is the lower-left
     reconnect surface; its popover carries retry and the official login. */
 export const RelayReconnecting: Story = {};
+
+export const WorkspaceConnected: Story = {
+  args: {
+    connection: "connected",
+    reconnection: undefined,
+    onaddrepository: () => {},
+    canAddRepository: true,
+  },
+};
