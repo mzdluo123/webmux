@@ -150,6 +150,11 @@
   - `web/test/architecture.test.ts` 的 `file naming` 拒绝 camelCase 的 TypeScript 文件、非 PascalCase 的 Svelte 组件，以及 500 行及以上的生产 `.ts`/`.svelte` 文件（排除生成的 `src/lib/components/ui/`、测试与 stories），超限时提示按领域模块、子组件或架构分层拆分；
   - 规则页登记在 [Agent 规则](../../agent-rules.md)，`AGENTS.md` 只保留一行指针。
 
+- **US-L16 仓库内的 Agent 任务交接**：作为接手任务的 coding agent，我希望从分支和文件路径恢复工作，知道前一位 agent 验证了什么以及下一步要做什么。
+  验收要点：
+  - 从 [Agent 任务交接](../../../.agents/handoffs/README.md) 找到模板，按任务创建或更新记录；
+  - 接手者能列出待接记录、核对提交与验证结果，接手后更新负责人，完成后标明结果。
+
 依据：
 
 - [前端代码质量基线](../../frontend-style.md)、[AGENTS.md](../../../AGENTS.md)、[CONTRIBUTING.md](../../../CONTRIBUTING.md)

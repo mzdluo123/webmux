@@ -2,7 +2,7 @@
 
 WebMux is a single-user Linux/macOS web terminal for persistent PTY sessions, including shells and CLI agents; supported agents also run as hybrid TUI/ACP-chat sessions. Browser disconnection does not end a session; server restart does. The Go binary embeds the browser app. Commands run as the service user. Deploy on loopback or a trusted VPN.
 
-**This file has a hard 10 KiB budget**, enforced by `internal/archtest` (`TestAgentsGuideSize`). Keep only rules needed on almost every change here; put the rest in `docs/agent-rules/` and link it. Index: [docs/agent-rules.md](docs/agent-rules.md).
+**10 KiB limit** (`TestAgentsGuideSize`). Link occasional rules from [docs/agent-rules.md](docs/agent-rules.md).
 
 ## Architecture
 
@@ -57,6 +57,8 @@ Run from the repository root; the full list is in [conventions](docs/agent-rules
 - Test runtime, CI layout and diagnostics: [testing](docs/agent-rules/testing.md).
 
 ## Collaboration and Pull Requests
+
+- When handing off or resuming a task, use the [branch handoff files](.agents/handoffs/README.md).
 
 - Deliver changes via a Pull Request from a dedicated branch off `origin/main` (use an isolated `git worktree` when the current checkout is on `main` or shared). Direct commits or pushes to `main` require an explicit user request. Follow Conventional Commits (`feat(web): ...`, `fix: ...`).
 - Follow every PR until all CI checks pass; fix CI failures on the branch until all checks are green.

@@ -56,3 +56,8 @@
 - 已执行验证：
   - `go test -race -count=1 ./cmd/webmux ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过。
+
+## Agent 工作分支交接（US-L16）
+
+- 从模板复制独立任务文件，标记为 `ready` 后用指南中的命令找到该文件，改为 `done` 后查询结果为空。
+- `make docs-check` 与 `go test ./internal/archtest -run TestAgents` 通过。

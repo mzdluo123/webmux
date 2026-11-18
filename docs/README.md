@@ -93,6 +93,7 @@
 ## 文档与 Agent 规则
 
 - [文档治理](doc-governance.md)：文档规模、链接可达性与 README 预算。
+- [Agent 任务交接](../.agents/handoffs/README.md)：创建交接文件、核对工作分支并接续验证。
 - [Agent 规则](agent-rules.md)：从 `AGENTS.md` 迁出的仓库地图、约定、测试与 User Stories 维护规则。
 
 ## 待评审设计
