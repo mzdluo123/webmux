@@ -58,6 +58,7 @@
     value={agent.id}
     choices={agents.map((item) => ({ value: item.id, name: item.name }))}
     disabled={locked}
+    preventScroll={false}
     onchange={onagentchange}
   >
     {#snippet choiceIcon(id)}<LaunchConfigIcon
@@ -78,6 +79,7 @@
       { value: "terminal", name: m.s3_view_terminal() },
     ]}
     disabled={sending}
+    preventScroll={false}
     onchange={(value) => {
       if (value === "chat" || value === "terminal") onsidechange(value);
     }}
@@ -111,31 +113,35 @@
     role="toolbar"
     aria-label={m.s3_qs_launch_options_label()}
   >
-    <div class="ms-auto flex shrink-0 items-center gap-0.5">
+    <div
+      class="ms-auto flex min-h-(--control-xs) shrink-0 items-center gap-0.5"
+    >
+      {#if chat && probing}
+        <span
+          class="flex shrink-0 items-center gap-1.5 px-2 text-xs text-muted-foreground"
+          role="status"
+          ><IconLoader2
+            class="size-3.5 animate-spin motion-reduce:animate-none"
+            aria-hidden="true"
+          />{m.s3_loading_config()}</span
+        >
+      {/if}
       {@render agentPicker()}
       {@render sidePicker()}
       {#if chat}
         <ChatPermissionMode
           mode={permissionMode}
           disabled={locked}
+          preventScroll={false}
           onchange={onmodechange}
         />
         {#if options.length}
           <ChatConfig
             config={options}
             disabled={locked}
+            preventScroll={false}
             onchange={onoptionchange}
           />
-        {/if}
-        {#if probing}
-          <span
-            class="flex shrink-0 items-center gap-1.5 px-2 text-xs text-muted-foreground"
-            role="status"
-            ><IconLoader2
-              class="size-3.5 animate-spin motion-reduce:animate-none"
-              aria-hidden="true"
-            />{m.s3_loading_config()}</span
-          >
         {/if}
       {/if}
     </div>

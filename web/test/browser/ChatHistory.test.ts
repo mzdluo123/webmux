@@ -268,9 +268,12 @@ test("archived rows mount only while expanded, a page at a time", async () => {
     .element(archivedList().getByRole("button", { name: "记录 24（已结束）" }))
     .toBeVisible();
   expect(rows.elements()).toHaveLength(25);
-  // Folding again drops the rows instead of keeping them hidden.
+  // Rows become inert immediately and unmount at the end of the transition.
   await page.getByRole("button", { name: /已归档/ }).click();
   expect(archivedList().elements()).toEqual([]);
+  await expect
+    .poll(() => document.querySelector('ul[aria-label="已归档聊天"]'))
+    .toBeNull();
 });
 
 test("archived section opens automatically when viewing or resuming an archived record", async () => {
@@ -298,6 +301,32 @@ test("archived section opens automatically when viewing or resuming an archived 
   await expect
     .element(archivedList().getByRole("button", { name: "整理文档（已结束）" }))
     .toHaveAttribute("aria-current", "page");
+});
+
+test("reopening chat history reveals a selected record beyond the first page", async () => {
+  const newest = Date.parse("2026-10-28T12:00:00Z");
+  const records = Array.from({ length: 45 }, (_, index) =>
+    record(
+      { id: `archiv${String(index).padStart(2, "0")}`, title: `记录 ${index}` },
+      { updatedAt: new Date(newest - index * 60_000).toISOString() },
+    ),
+  );
+  render(ChatHistory, {
+    ...noop,
+    sessions: [],
+    records,
+    current: records[41].id,
+  });
+  const trigger = page.getByRole("button", { name: /已归档/ });
+  const recordRow = archivedList().getByRole("button", {
+    name: "记录 41（已结束）",
+  });
+  await expect.element(recordRow).toHaveAttribute("aria-current", "page");
+  await trigger.click();
+  await expect.element(trigger).toHaveAttribute("aria-expanded", "false");
+  await trigger.click();
+  await expect.element(recordRow).toHaveAttribute("aria-current", "page");
+  await expect.element(trigger).toHaveFocus();
 });
 
 test("archived rows offer releasing a linked worktree and mark released records", async () => {

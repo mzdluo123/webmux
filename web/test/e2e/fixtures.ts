@@ -143,14 +143,12 @@ async function resetSettings(
 
 export const test = base.extend<
   { workDir: string; _isolation: void },
-  { server: E2EServer; features: FeatureID[] | undefined }
+  { server: E2EServer }
 >({
-  // Missing preserves legacy defaults; [] is explicitly core-only. Do not
-  // resolve dependencies here: the real backend validates the exact selection.
-  features: [undefined, { scope: "worker", option: true }],
   server: [
-    async ({ features }, use) => {
-      const server = await startE2EServer({ features });
+    async ({ browserName }, use) => {
+      void browserName;
+      const server = await startE2EServer();
       try {
         await use(server);
       } finally {
@@ -262,10 +260,6 @@ export const workspaceLayoutTest = test.extend({
     });
     await use(page);
   },
-});
-
-export const coreTest = test.extend<{}, { features: FeatureID[] | undefined }>({
-  features: [[], { scope: "worker", option: true }],
 });
 
 export { expect };
@@ -564,22 +558,6 @@ async function openPanelPicker(scope: Locator | Page) {
   const page = "viewportSize" in scope ? scope : scope.page();
   await scope.getByRole("button", { name: "打开面板", exact: true }).click();
   return page.getByRole("group", { name: "面板选择", exact: true });
-}
-
-/** Closes the picker: Cancel in the phone sheet, the header button on desktop. */
-export async function closePanelPicker(scope: Locator | Page) {
-  const page = "viewportSize" in scope ? scope : scope.page();
-  const cancel = page
-    .getByRole("group", { name: "面板选择", exact: true })
-    .getByRole("button", { name: "取消", exact: true });
-  if (await cancel.isVisible()) {
-    await cancel.click();
-    return;
-  }
-  await page
-    .getByRole("region", { name: "侧栏面板", exact: true })
-    .getByRole("button", { name: "关闭侧栏面板", exact: true })
-    .click();
 }
 
 export async function toggleCode(scope: Locator | Page) {

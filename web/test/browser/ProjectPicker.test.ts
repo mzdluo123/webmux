@@ -249,3 +249,24 @@ test("remote URL suggests a destination but preserves an edited target", async (
   await expect.element(target).toHaveValue("/projects/custom-target");
   expect(requests.some((request) => request.method === "POST")).toBe(false);
 });
+
+test("preserves body spacing on projects step and keeps command list untransformed on step change", async () => {
+  mount();
+  const addBtn = page.getByRole("button", { name: "添加项目…", exact: true });
+  await expect.element(addBtn).toBeVisible();
+  const searchBox = page
+    .getByRole("combobox", { name: "搜索项目", exact: true })
+    .element() as HTMLElement;
+  const commandRoot = searchBox.closest("[data-slot='command']") as HTMLElement;
+  const buttonEl = addBtn.element() as HTMLElement;
+  const gap =
+    buttonEl.getBoundingClientRect().top -
+    commandRoot.getBoundingClientRect().bottom;
+  expect(gap).toBeGreaterThanOrEqual(15);
+  expect(gap).toBeLessThanOrEqual(17);
+  await addBtn.click();
+  await expect
+    .element(page.getByRole("combobox", { name: "搜索项目来源", exact: true }))
+    .toBeVisible();
+  expect(commandRoot.style.transform).toBe("");
+});

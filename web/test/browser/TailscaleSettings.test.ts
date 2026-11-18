@@ -264,3 +264,16 @@ test("reset is only offered for web settings and is confirmed", async () => {
     expect(writes(calls).map((c) => c.method)).toEqual(["DELETE"]),
   );
 });
+
+test("switching modes animates container height while keeping tab panels untransformed", async () => {
+  serve(ready);
+  render(TailscaleSettingsPage);
+  await expect
+    .element(page.getByRole("tabpanel", { name: "Serve" }))
+    .toBeVisible();
+  await page.getByRole("tab", { name: "Funnel" }).click();
+  const funnelPanel = page
+    .getByRole("tabpanel", { name: "Funnel" })
+    .element() as HTMLElement;
+  expect(funnelPanel.style.transform).toBe("");
+});
