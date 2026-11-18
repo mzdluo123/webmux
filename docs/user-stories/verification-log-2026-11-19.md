@@ -45,3 +45,27 @@
   - 在隔离演示仓库采集桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色共 12 张前后对比截图，并在 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 视口下校验 `scrollWidth <= innerWidth`。
 - 局限：
   - 验证在 Linux 本地隔离实例与无头 Chromium 中完成，未验证物理 `hover`、`any-pointer: coarse` 媒体查询及 macOS / iOS / Android 真机浏览器。
+
+## 2026-11-19：终端指针悬停分流与输入确认复位（US-D03、US-D06）
+
+### 范围
+
+- 故事编号、总数与覆盖索引保持不变，更新 US-D03、US-D06 的验收标准与 [WebSocket 接口](../protocol/websocket.md)：
+  - 终端悬停分流（`web/src/domains/terminal/terminal-keys.ts`、`terminal-protocol.ts`、`web/src/hooks/terminal/terminal-socket.svelte.ts`、`terminal.svelte.ts`）：
+    - 识别 DEC 1003 SGR 无按键指针悬停（`CSI < Cb ; Cx ; Cy M` 且 `(Cb & ~28) == 35`），仅在控制端按动画帧合并后经 `0x06` 自动回复通道发送，并在后续按键、点击或提交前按序刷出；
+    - 观察端悬停保持观察身份，保留软修饰键与关注提醒；
+  - `internal/hub/hub.go`：单条 `/ws/s/{id}` 连接的 FIFO 输入队列扩展至 256 帧与 2 MiB 待写字节上限，吸收程序启动期设备查询应答与鼠标追踪帧突发；
+  - 输入确认跟踪（`web/src/platform/ws-handoff.ts`、`web/src/platform/ws.ts`）：
+    - 按输入序号跟踪同连接的 `0x04` 查询回执与 `0x03` 终态回执（`written`、`failed`），覆盖此前输入后清除未确认标记；
+    - 探测期间有后续按键时自动追加跟进探测，服务端以 `4410` 正常结束退出流时同步重置未确认标记。
+
+### 已执行验证与局限
+
+- 静态、架构、文档与 Lint 门禁：
+  - `make check` 通过（覆盖 `pnpm --dir web build`、`format-check`、`docs-check`、`persistence-check`、`check:test`、`lint`、`check:arch`、`go vet` 与 `golangci-lint`）。
+- Go 竞态与前端单元、浏览器、E2E 测试：
+  - `make test-fast` 通过，并行运行 Go `-race` 全包、`protocol/relay`、Vitest Node 单元套件与无头 Chromium 浏览器组件套件；
+  - 新增回归用例覆盖 `TestInputQueueAbsorbsStartupBurstAndBoundsBytes`、`test/input.test.ts`、`test/terminal-protocol.test.ts`、`test/ws.test.ts` 与 `test/browser/TerminalTransport.test.ts`；
+  - `WEBMUX_E2E_BINARY=$(realpath .cache/webmux-e2e/webmux) pnpm --dir web exec playwright test test/e2e/terminal.spec.ts` 通过。
+- 局限：
+  - 浏览器与 E2E 验证在 Linux 无头 Chromium 中执行，未在物理触控设备或 Safari 真机上复测。
