@@ -439,12 +439,21 @@ test("lists all worktrees including unpinned ones, filters, selects safe items, 
   await dialog()
     .getByRole("button", { name: "选中全部可安全清理（2）" })
     .click();
-  await dialog().getByRole("checkbox", { name: "wt/wip-agent" }).click();
-  await dialog().getByRole("button", { name: "下一步：预览删除 (3)" }).click();
+  const wip = dialog().getByRole("checkbox", { name: "wt/wip-agent" });
+  const next = dialog().getByRole("button", { name: "下一步：预览删除 (3)" });
+  await wip.click();
+  const y = wip.element().getBoundingClientRect().top;
+  await next.click();
 
-  await expect
-    .element(dialog().getByRole("heading", { name: "确认批量清理" }))
-    .toBeVisible();
+  const heading = dialog().getByRole("heading", { name: "确认批量清理" });
+  await expect.element(heading).toHaveFocus();
+  await dialog().getByRole("button", { name: "返回重选" }).click();
+  await expect.element(wip).toBeChecked();
+  await expect.element(wip).toHaveFocus();
+  expect(wip.element().getBoundingClientRect().top).toBeCloseTo(y, 0);
+
+  await next.click();
+  await expect.element(heading).toHaveFocus();
   await expect
     .element(dialog())
     .toMatchTextContent(/可安全清理 2 个.*有阻塞 1 个/);
