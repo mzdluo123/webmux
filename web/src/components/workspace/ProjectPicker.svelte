@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
+  import { usePanelMotion } from "../../hooks/shared/dock-motion.svelte";
   import { untrack, tick, onMount } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
@@ -41,9 +41,8 @@
   type Step = "projects" | "sources" | "new" | "local" | "git" | "github";
   let step = $state<Step>(untrack(() => initialStep));
   let body = $state<HTMLDivElement | null>(null);
-  useDockMotion(
+  usePanelMotion(
     () => body,
-    () => true,
     () => step,
   );
   let projectQuery = $state("");
@@ -160,7 +159,7 @@
       </p>
     </div>
   {/if}
-  <div bind:this={body}>
+  <div bind:this={body} class="space-y-4">
     {#if step === "projects" || step === "sources"}
       <Command.Root variant="outline">
         <Command.Input
