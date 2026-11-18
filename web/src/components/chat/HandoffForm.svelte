@@ -41,16 +41,15 @@
   let managedPath = $state("");
   let formatFields = $state<HTMLDivElement | null>(null);
   let targetFields = $state<HTMLDivElement | null>(null);
+  const imageFormat = $derived(e.format === "image");
   const existingTarget = $derived(e.targetSessionId !== "");
   useDockMotion(
     () => formatFields,
-    () => true,
-    () => e.format,
+    () => imageFormat,
   );
   useDockMotion(
     () => targetFields,
-    () => true,
-    () => String(existingTarget),
+    () => !existingTarget,
   );
   const locationReady = $derived(
     e.targetSessionId !== "" ||
@@ -60,21 +59,19 @@
           ? (worktreeFields?.isReady() ?? false)
           : !!e.location.repositoryId),
   );
-  const generateDisabled = $derived(
-    e.loading ||
-      e.busy ||
-      e.active ||
-      (!existingTarget && !agent) ||
-      !locationReady,
+  const asyncBusy = $derived(e.loading || e.busy);
+  const generateInvalid = $derived(
+    e.active || (!existingTarget && !agent) || !locationReady,
   );
-  const sendDisabled = $derived(
-    e.busy ||
-      e.active ||
+  const generateDisabled = $derived(!asyncBusy && generateInvalid);
+  const sendInvalid = $derived(
+    e.active ||
       e.sealed ||
       !e.preview ||
       !!e.preview.blockedReason ||
       e.choiceChanged,
   );
+  const sendDisabled = $derived(!asyncBusy && sendInvalid);
   function kind(next: TargetKind) {
     e.locationKind = next;
     const old = untrack(() => e.location);
@@ -120,139 +117,139 @@
         >
       </SegmentedControl>
     </div>
-    <div bind:this={formatFields}>
-      {#if e.format === "image"}
-        <div class="space-y-2 pb-3">
-          <Label for="handoff-pages"
-            >{m.handoff_max_pages({ max: handoffMaxPages })}</Label
-          >
-          <Input
-            id="handoff-pages"
-            inputmode="numeric"
-            autocomplete="off"
-            bind:value={e.maxPagesDraft}
-            onblur={() => e.commitMaxPages()}
-            aria-invalid={!!e.maxPagesError}
-            aria-describedby={e.maxPagesError
-              ? "handoff-pages-help handoff-pages-error"
-              : "handoff-pages-help"}
-          />
-          <p id="handoff-pages-help" class="text-xs text-muted-foreground">
-            {m.handoff_image_reselect()}
-          </p>
-        </div>
+    <div bind:this={formatFields} hidden={!imageFormat} inert={!imageFormat}>
+      <div class="space-y-2 pb-3">
+        <Label for="handoff-pages"
+          >{m.handoff_max_pages({ max: handoffMaxPages })}</Label
+        >
+        <Input
+          id="handoff-pages"
+          inputmode="numeric"
+          autocomplete="off"
+          bind:value={e.maxPagesDraft}
+          onblur={() => e.commitMaxPages()}
+          aria-invalid={!!e.maxPagesError}
+          aria-describedby={e.maxPagesError
+            ? "handoff-pages-help handoff-pages-error"
+            : "handoff-pages-help"}
+        />
+        <p id="handoff-pages-help" class="text-xs text-muted-foreground">
+          {m.handoff_image_reselect()}
+        </p>
+      </div>
+      {#if e.maxPagesError}
+        <p
+          id="handoff-pages-error"
+          class="pb-3 text-xs text-destructive"
+          role="alert"
+        >
+          {e.maxPagesError}
+        </p>
       {/if}
     </div>
-    {#if e.format === "image" && e.maxPagesError}
-      <p
-        id="handoff-pages-error"
-        class="pb-3 text-xs text-destructive"
-        role="alert"
-      >
-        {e.maxPagesError}
-      </p>
-    {/if}
     {#if !fork}<div class="space-y-2 pb-3">
         <Label for="handoff-target">{m.handoff_existing_target()}</Label><Input
           id="handoff-target"
           bind:value={e.targetSessionId}
         />
       </div>{/if}
-    <div bind:this={targetFields}>
-      {#if !existingTarget}
-        <div class="space-y-3 pb-3">
-          <div class="space-y-2">
-            <Label for="handoff-agent">{m.s3_handoff_target_agent()}</Label>
-            <Select.Root type="single" bind:value={e.configId}>
-              <Select.Trigger id="handoff-agent"
-                >{agent?.name ??
-                  m.s3_handoff_select_target_agent()}</Select.Trigger
-              >
-              <Select.Content
-                >{#each agents as item (item.id)}<Select.Item
-                    value={item.id}
-                    label={item.name}>{item.name}</Select.Item
-                  >{/each}</Select.Content
-              >
-            </Select.Root>
-          </div>
-          <div class="space-y-2">
-            <Label for="handoff-model">{m.s3_handoff_model_optional()}</Label
-            ><Input id="handoff-model" bind:value={e.model} />
-          </div>
-          {#if workspaceAvailable && LocationPicker}
-            <LocationPicker
-              {repositories}
-              recent={[]}
-              preferredRepositoryId={e.source?.workspace?.repositoryId ?? ""}
-              createdTree={null}
-              newWorktreeSummary={e.location.newWorktreeBranch ||
-                m.s3_handoff_create_worktree_on_send()}
-              bind:kind={() => e.locationKind, kind}
-              bind:cwd={
-                () => e.location.cwd,
-                (value) =>
-                  (e.location = { ...untrack(() => e.location), cwd: value })
-              }
-              bind:repositoryId={() => e.location.repositoryId, repositoryId}
-              bind:worktreeId={() => e.location.worktreeId, worktreeId}
+    <div
+      bind:this={targetFields}
+      hidden={existingTarget}
+      inert={existingTarget}
+    >
+      <div class="space-y-3 pb-3">
+        <div class="space-y-2">
+          <Label for="handoff-agent">{m.s3_handoff_target_agent()}</Label>
+          <Select.Root type="single" bind:value={e.configId}>
+            <Select.Trigger id="handoff-agent"
+              >{agent?.name ??
+                m.s3_handoff_select_target_agent()}</Select.Trigger
+            >
+            <Select.Content
+              >{#each agents as item (item.id)}<Select.Item
+                  value={item.id}
+                  label={item.name}>{item.name}</Select.Item
+                >{/each}</Select.Content
+            >
+          </Select.Root>
+        </div>
+        <div class="space-y-2">
+          <Label for="handoff-model">{m.s3_handoff_model_optional()}</Label
+          ><Input id="handoff-model" bind:value={e.model} />
+        </div>
+        {#if workspaceAvailable && LocationPicker}
+          <LocationPicker
+            {repositories}
+            recent={[]}
+            preferredRepositoryId={e.source?.workspace?.repositoryId ?? ""}
+            createdTree={null}
+            newWorktreeSummary={e.location.newWorktreeBranch ||
+              m.s3_handoff_create_worktree_on_send()}
+            bind:kind={() => e.locationKind, kind}
+            bind:cwd={
+              () => e.location.cwd,
+              (value) =>
+                (e.location = { ...untrack(() => e.location), cwd: value })
+            }
+            bind:repositoryId={() => e.location.repositoryId, repositoryId}
+            bind:worktreeId={() => e.location.worktreeId, worktreeId}
+            disabled={e.busy || e.active}
+          />
+        {:else}
+          <div class="min-w-0 space-y-2">
+            <Label for="handoff-cwd">{m.s3_working_directory()}</Label>
+            <Input
+              id="handoff-cwd"
+              value={e.location.cwd}
+              oninput={(event) => {
+                e.location = {
+                  ...emptyHandoffLocation(),
+                  cwd: event.currentTarget.value,
+                };
+                e.locationKind = "directory";
+              }}
+              placeholder={m.s3_enter_abs_dir_placeholder()}
+              autocomplete="off"
               disabled={e.busy || e.active}
             />
-          {:else}
-            <div class="min-w-0 space-y-2">
-              <Label for="handoff-cwd">{m.s3_working_directory()}</Label>
-              <Input
-                id="handoff-cwd"
-                value={e.location.cwd}
-                oninput={(event) => {
-                  e.location = {
-                    ...emptyHandoffLocation(),
-                    cwd: event.currentTarget.value,
-                  };
-                  e.locationKind = "directory";
-                }}
-                placeholder={m.s3_enter_abs_dir_placeholder()}
-                autocomplete="off"
-                disabled={e.busy || e.active}
-              />
-            </div>
-          {/if}
-          {#if workspaceAvailable && WorktreeCreateFields && e.locationKind === "new-worktree" && repository}
-            {#key repository.id}<WorktreeCreateFields
-                bind:this={worktreeFields}
-                {repository}
-                deferred
-                preset={{
-                  mode: "new",
-                  name: e.location.newWorktreeBranch,
-                  base: e.location.newWorktreeBase,
-                }}
-                mode="new"
-                bind:path={managedPath}
-                bind:branch={
-                  () => e.location.newWorktreeBranch,
-                  (value) =>
-                    (e.location = {
-                      ...untrack(() => e.location),
-                      newWorktreeBranch: value,
-                    })
-                }
-                bind:base={
-                  () => e.location.newWorktreeBase,
-                  (value) =>
-                    (e.location = {
-                      ...untrack(() => e.location),
-                      newWorktreeBase: value,
-                    })
-                }
-                disabled={e.busy || e.active}
-              />{/key}
-            <p class="text-xs text-muted-foreground">
-              {m.s3_handoff_worktree_deferred_hint()}
-            </p>
-          {/if}
-        </div>
-      {/if}
+          </div>
+        {/if}
+        {#if workspaceAvailable && WorktreeCreateFields && e.locationKind === "new-worktree" && repository}
+          {#key repository.id}<WorktreeCreateFields
+              bind:this={worktreeFields}
+              {repository}
+              deferred
+              preset={{
+                mode: "new",
+                name: e.location.newWorktreeBranch,
+                base: e.location.newWorktreeBase,
+              }}
+              mode="new"
+              bind:path={managedPath}
+              bind:branch={
+                () => e.location.newWorktreeBranch,
+                (value) =>
+                  (e.location = {
+                    ...untrack(() => e.location),
+                    newWorktreeBranch: value,
+                  })
+              }
+              bind:base={
+                () => e.location.newWorktreeBase,
+                (value) =>
+                  (e.location = {
+                    ...untrack(() => e.location),
+                    newWorktreeBase: value,
+                  })
+              }
+              disabled={e.busy || e.active}
+            />{/key}
+          <p class="text-xs text-muted-foreground">
+            {m.s3_handoff_worktree_deferred_hint()}
+          </p>
+        {/if}
+      </div>
     </div>
     <div class="space-y-2">
       <Label for="handoff-task">{m.s3_user_instruction()}</Label><Textarea
@@ -265,17 +262,21 @@
   <div class="flex flex-wrap gap-2">
     <Button
       variant="outline"
-      aria-disabled={generateDisabled}
-      tabindex={generateDisabled ? -1 : undefined}
+      disabled={generateDisabled}
+      aria-disabled={asyncBusy || undefined}
+      tabindex={asyncBusy ? -1 : undefined}
       onclick={() => {
-        if (!generateDisabled) void e.generate();
+        if (asyncBusy || generateInvalid) return;
+        void e.generate();
       }}>{m.s3_handoff_generate_preview()}</Button
     >
     <Button
-      aria-disabled={sendDisabled}
-      tabindex={sendDisabled ? -1 : undefined}
+      disabled={sendDisabled}
+      aria-disabled={asyncBusy || undefined}
+      tabindex={asyncBusy ? -1 : undefined}
       onclick={() => {
-        if (!sendDisabled) void e.send();
+        if (asyncBusy || sendInvalid) return;
+        void e.send();
       }}>{m.s3_handoff_send()}</Button
     >
   </div>

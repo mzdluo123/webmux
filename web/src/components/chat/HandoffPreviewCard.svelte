@@ -95,15 +95,22 @@
           <Button
             variant="outline"
             bind:ref={refreshButton}
-            aria-disabled={e.busy}
-            onclick={() => void e.refresh()}
-            >{m.handoff_refresh_result()}</Button
+            aria-disabled={e.busy || undefined}
+            tabindex={e.busy ? -1 : undefined}
+            onclick={() => {
+              if (e.busy) return;
+              void e.refresh();
+            }}>{m.handoff_refresh_result()}</Button
           >
           {#if e.active}<Button
               variant="outline"
               bind:ref={cancelButton}
-              aria-disabled={e.busy}
-              onclick={() => void e.cancel()}>{m.handoff_cancel()}</Button
+              aria-disabled={e.busy || undefined}
+              tabindex={e.busy ? -1 : undefined}
+              onclick={() => {
+                if (e.busy) return;
+                void e.cancel();
+              }}>{m.handoff_cancel()}</Button
             >{/if}
           {#if e.operation?.targetSessionId}<Button
               variant="outline"
