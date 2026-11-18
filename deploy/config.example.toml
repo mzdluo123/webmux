@@ -133,7 +133,7 @@ program_status = true
 # 主题、字号、阅读偏好、快捷指令与主页工作树由 settings.json 管理并跨设备同步。
 # TOML 保留启动、安全、进程策略与专用公网访问服务的默认值。
 
-# New installations start with the terminal core only. Changes require restart.
+# New installations enable the six features listed below. Changes require restart.
 # Omit this table only to retain the legacy full feature set on an existing
 # installation. Explicit [] means no features; missing dependencies are errors.
 # Available IDs: launch, workspace, code, files, chat, notifications,
@@ -144,5 +144,4 @@ program_status = true
 # The former [plugins] table was renamed; files still using it fail at startup
 # with a pointer to features.enabled.
 [features]
-enabled = []
-# Example: enabled = ["launch", "files", "chat", "workspace", "code"]
+enabled = ["launch", "workspace", "code", "files", "chat", "mcp"]

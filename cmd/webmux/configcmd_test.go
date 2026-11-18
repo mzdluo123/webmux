@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -117,6 +118,15 @@ func TestConfigInit(t *testing.T) {
 	}
 	if _, _, code := runConfig(t, "validate", "--config", path); code != 0 {
 		t.Fatal("generated configuration does not validate")
+	}
+
+	c, err := config.Load(path, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantFeatures := []string{"launch", "workspace", "code", "files", "chat", "mcp"}
+	if !slices.Equal(c.Features.Enabled, wantFeatures) || c.MCP.Enabled {
+		t.Fatalf("generated features = %v, network MCP enabled = %t", c.Features.Enabled, c.MCP.Enabled)
 	}
 
 	_, stderr, code = runConfig(t, "init", "--config", path)

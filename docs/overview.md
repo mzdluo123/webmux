@@ -2,7 +2,7 @@
 
 WebMux 是一个单二进制的 Web 终端服务，为在浏览器和手机上遥控 Claude Code、Codex、omp 等 CLI agent 而设计。本页是首页 [README](../README.md) 的完整版：定位、设计理念、全部特性与技术栈。操作步骤见 [使用指南](usage.md)，部署见 [部署指南](deployment.md)。
 
-新生成配置只启用持久 PTY 核心；下列扩展能力按 [14 个内置功能](deployment/configuration.md#内置功能选择) 显式选择并重启。
+新生成配置默认启用启动配置、工作区、代码浏览、文件、聊天和 MCP。完整清单见 [内置功能选择](deployment/configuration.md#内置功能选择)。
 功能随同一二进制发布，禁用时不加载前端实现、不启动后端服务或打开所属存储；不是功能市场、热加载或安全隔离。旧配置未声明选择时保留固定旧版全量功能。
 
 ## 定位
