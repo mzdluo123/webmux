@@ -107,14 +107,10 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	features := &featureServices{agents: registry}
 	var server *http.Server
 	var rt *localRuntime
-	var resumed <-chan struct{}
 	defer func() {
 		// Stop all writers and their processes before releasing any backing
 		// store. This path also releases a partially constructed feature graph.
 		cancel()
-		if resumed != nil {
-			<-resumed
-		}
 		features.stop()
 		shutdown, cancelShutdown := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancelShutdown()
@@ -199,14 +195,6 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	}()
 	relayControl.Start()
 	slog.Info("webmux listening", "address", listener.Addr(), "version", version)
-	if features.chat != nil {
-		done := make(chan struct{})
-		resumed = done
-		go func() {
-			defer close(done)
-			resumeRestarted(ctx, features.recovery, features.chat.Restarted())
-		}()
-	}
 	printConfigNotice(out, c)
 	local := localOrigin(listener.Addr())
 	_, _ = fmt.Fprintln(out, "WebMux local:  "+local)

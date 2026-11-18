@@ -96,21 +96,20 @@ func noViolations(t *testing.T, store string) {
 	}
 }
 
-// A restart reports only the sessions it found running: one the user closed,
-// or one already interrupted, is not for the server to bring back.
-func TestRestartedListsOnlyRunningSessions(t *testing.T) {
+// Unopened sessions remain resumable across subsequent restarts.
+func TestRestartMarksActiveSessionsForLazyResume(t *testing.T) {
 	h := newHarness(t, 0)
 	running := h.create(h.input(omp.Name, SideACP)).Info().ID
 	closed := h.create(h.input(omp.Name, SideACP)).Info().ID
 	h.closeSession(closed)
-
-	h.restart()
-	if got := h.svc.Restarted(); len(got) != 1 || got[0] != running {
-		t.Fatalf("restarted %v, want [%s]", got, running)
-	}
-	h.restart()
-	if got := h.svc.Restarted(); len(got) != 0 {
-		t.Fatalf("second restart reported already interrupted sessions: %v", got)
+	for range 2 {
+		h.restart()
+		if rec := h.record(running); !rec.ResumeOnOpen || rec.State != StateInterrupted || rec.PID != 0 {
+			t.Fatalf("unexpected dormant record: %+v", rec)
+		}
+		if h.record(closed).ResumeOnOpen {
+			t.Fatal("closed session marked for resume")
+		}
 	}
 }
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import DormantSessionLinks from "./DormantSessionLinks.svelte";
   import IconAlertTriangle from "~icons/tabler/alert-triangle";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconCircleCheck from "~icons/tabler/circle-check";
@@ -62,17 +63,23 @@
   let removing = $state<ArchivedSession | null>(null);
   let removeOpen = $state(false);
 
-  const reveal = $derived(archive.filtering && records.length > 0);
+  const dormant = $derived(
+    records.filter((r) => r.archive.resumeOnOpen && !r.released),
+  );
+  const history = $derived(
+    records.filter((r) => !r.archive.resumeOnOpen || r.released),
+  );
+  const reveal = $derived(archive.filtering && history.length > 0);
   $effect(() => {
     void reveal;
     override = undefined;
   });
   const open = $derived(override ?? (reveal || expanded));
   const shown = $derived(
-    showAll || archive.filtering ? records : records.slice(0, PAGE),
+    showAll || archive.filtering ? history : history.slice(0, PAGE),
   );
   const interrupted = $derived(
-    records.filter((record) => record.state === "interrupted").length,
+    history.filter((record) => record.state === "interrupted").length,
   );
 
   function since(record: ArchivedSession) {
@@ -107,10 +114,12 @@
   }
 </script>
 
+<DormantSessionLinks records={dormant} />
+
 <section
   class="min-w-0"
   aria-label={m.s3_archived_section_label({ title })}
-  hidden={!records.length}
+  hidden={!history.length}
 >
   <Collapsible.Root
     {open}
@@ -132,7 +141,7 @@
             <span class="font-medium text-muted-foreground"
               >{m.s3_archived()}</span
             >
-            <Badge variant="secondary">{records.length}</Badge>
+            <Badge variant="secondary">{history.length}</Badge>
           </Button>
         {/snippet}
       </Collapsible.Trigger>
@@ -293,12 +302,12 @@
           </Item.Actions>
         </Item.Root>
       {/each}
-      {#if shown.length < records.length}<Button
+      {#if shown.length < history.length}<Button
           variant="link"
           size="sm"
           class="justify-self-start"
           onclick={() => (showAll = true)}
-          >{m.s3_show_all_count({ count: String(records.length) })}</Button
+          >{m.s3_show_all_count({ count: String(history.length) })}</Button
         >{/if}
     </Collapsible.Content>
   </Collapsible.Root>

@@ -75,6 +75,7 @@ type SessionArchive struct {
 	// QueuedCount is how many queued prompts were lost when the session was
 	// interrupted; the text itself is never stored.
 	QueuedCount   int        `json:"queuedCount"`
+	ResumeOnOpen  bool       `json:"resumeOnOpen,omitempty"`
 	InterruptedAt *time.Time `json:"interruptedAt"`
 	UpdatedAt     time.Time  `json:"updatedAt"`
 }

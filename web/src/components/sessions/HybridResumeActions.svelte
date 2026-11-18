@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import IconLoader2 from "~icons/tabler/loader-2";
   import { Button } from "$lib/components/ui/button";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
@@ -27,6 +28,7 @@
     resume,
     onresumed,
     onrebuilt = () => {},
+    resumeOnMount = false,
     disabled = false,
     onbusy = () => {},
     onerror,
@@ -45,6 +47,7 @@
      * not reported through `onerror`, whose display a refresh may replace.
      */
     onrebuilt?: (failure: string) => void;
+    resumeOnMount?: boolean;
     disabled?: boolean;
     onbusy?: (busy: boolean) => void;
     /** Reports a failed resume; "" clears it when a new attempt starts. */
@@ -106,6 +109,11 @@
       settle();
     }
   }
+
+  onMount(() => {
+    if (resumeOnMount && record.archive.resumeOnOpen && !record.released)
+      void run(record.view);
+  });
 
   function confirmPending() {
     const answer = pending;

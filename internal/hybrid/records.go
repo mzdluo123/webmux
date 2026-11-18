@@ -99,6 +99,7 @@ type Record struct {
 	QueuedCount   int        `json:"queuedCount"`
 	CreatedAt     time.Time  `json:"createdAt"`
 	UpdatedAt     time.Time  `json:"updatedAt"`
+	ResumeOnOpen  bool       `json:"resumeOnOpen,omitempty"`
 	InterruptedAt *time.Time `json:"interruptedAt,omitempty"`
 	// PID and Process identify the side's root process, so a restart can
 	// end an orphan that survived an unclean shutdown.
@@ -308,12 +309,12 @@ func (r *records) accepts(skip func(string) bool) bool {
 }
 
 // oldestArchived is the archived record to drop first: the least recently
-// updated one, ties by ID. Active and skipped records never qualify; -1
+// updated one, ties by ID. Active, dormant and skipped records never qualify; -1
 // when every remaining record is active or skipped.
 func oldestArchived(list []Record, skip func(string) bool) int {
 	oldest := -1
 	for i, rec := range list {
-		if rec.State == StateActive || (skip != nil && skip(rec.ID)) {
+		if rec.State == StateActive || rec.ResumeOnOpen || (skip != nil && skip(rec.ID)) {
 			continue
 		}
 		if oldest < 0 || rec.UpdatedAt.Before(list[oldest].UpdatedAt) ||

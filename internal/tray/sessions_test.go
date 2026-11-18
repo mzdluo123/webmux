@@ -95,7 +95,7 @@ func TestRestartConfirmPrompt(t *testing.T) {
 				SessionCounts: SessionCounts{Total: 1, Known: true, Hybrid: 1, Working: 1, HybridWorking: 1},
 			},
 			needed: true,
-			want:   "重启 WebMux 将中断 1 个正在工作的混合会话；重启后该会话会自动恢复（排队消息不保留）。\n\n是否继续？",
+			want:   "重启 WebMux 将中断 1 个正在工作的混合会话；下次打开该会话时会恢复（排队消息不保留）。\n\n是否继续？",
 		},
 		{
 			name: "multiple hybrid sessions with one working",
@@ -104,7 +104,7 @@ func TestRestartConfirmPrompt(t *testing.T) {
 				SessionCounts: SessionCounts{Total: 3, Known: true, Hybrid: 3, Working: 1, HybridWorking: 1},
 			},
 			needed: true,
-			want:   "重启 WebMux 将中断 1 个正在工作的混合会话；3 个混合会话会在重启后自动恢复（排队消息不保留）。\n\n是否继续？",
+			want:   "重启 WebMux 将中断 1 个正在工作的混合会话；3 个混合会话会在下次打开时恢复（排队消息不保留）。\n\n是否继续？",
 		},
 		{
 			name: "idle ordinary terminal session still prompts",
@@ -131,7 +131,7 @@ func TestRestartConfirmPrompt(t *testing.T) {
 				SessionCounts: SessionCounts{Total: 3, Known: true, Terminal: 1, Hybrid: 2},
 			},
 			needed: true,
-			want:   "重启 WebMux 将结束 1 个普通终端会话（不会保存）；2 个混合会话会在重启后自动恢复。\n\n是否继续？",
+			want:   "重启 WebMux 将结束 1 个普通终端会话（不会保存）；2 个混合会话会在下次打开时恢复。\n\n是否继续？",
 		},
 		{
 			name: "ordinary terminal working plus idle hybrid sessions",
@@ -140,7 +140,7 @@ func TestRestartConfirmPrompt(t *testing.T) {
 				SessionCounts: SessionCounts{Total: 3, Known: true, Terminal: 1, Hybrid: 2, Working: 1},
 			},
 			needed: true,
-			want:   "重启 WebMux 将结束 1 个普通终端会话（其中 1 个正在工作，不会保存）；2 个混合会话会在重启后自动恢复。\n\n是否继续？",
+			want:   "重启 WebMux 将结束 1 个普通终端会话（其中 1 个正在工作，不会保存）；2 个混合会话会在下次打开时恢复。\n\n是否继续？",
 		},
 		{
 			name: "ordinary terminal plus working hybrid sessions",
@@ -149,7 +149,7 @@ func TestRestartConfirmPrompt(t *testing.T) {
 				SessionCounts: SessionCounts{Total: 3, Known: true, Terminal: 1, Hybrid: 2, Working: 1, HybridWorking: 1},
 			},
 			needed: true,
-			want:   "重启 WebMux 将结束 1 个普通终端会话（不会保存），并中断 1 个正在工作的混合会话；2 个混合会话会在重启后自动恢复（排队消息不保留）。\n\n是否继续？",
+			want:   "重启 WebMux 将结束 1 个普通终端会话（不会保存），并中断 1 个正在工作的混合会话；2 个混合会话会在下次打开时恢复（排队消息不保留）。\n\n是否继续？",
 		},
 		{
 			name: "unknown breakdown falls back conservatively",
@@ -157,7 +157,7 @@ func TestRestartConfirmPrompt(t *testing.T) {
 				Sessions: 2,
 			},
 			needed: true,
-			want:   "重启 WebMux 将结束普通终端会话，并中断正在运行的任务；混合会话会在重启后自动恢复（当前共 2 个会话）。\n\n是否继续？",
+			want:   "重启 WebMux 将结束普通终端会话，并中断正在运行的任务；混合会话会在下次打开时恢复（当前共 2 个会话）。\n\n是否继续？",
 		},
 	}
 
@@ -184,11 +184,11 @@ func TestStopConfirmPromptAndNotes(t *testing.T) {
 		SessionCounts: SessionCounts{Total: 2, Known: true, Hybrid: 2},
 	}
 	got, needed := StopConfirmPrompt("停止 WebMux ", idleHybrid)
-	want := "停止 WebMux 将停止当前的 2 个混合会话；下次启动时会自动恢复。\n\n是否继续？"
+	want := "停止 WebMux 将停止当前的 2 个混合会话；下次打开会话时会恢复。\n\n是否继续？"
 	if !needed || got != want {
 		t.Fatalf("idle hybrid stop prompt = (%q, %v), want (%q, true)", got, needed, want)
 	}
-	if note := RestartSessionNote(idleHybrid); note != "当前 2 个混合会话均已空闲，重启后会自动恢复。" {
+	if note := RestartSessionNote(idleHybrid); note != "当前 2 个混合会话均已空闲，下次打开时会恢复。" {
 		t.Fatalf("idle hybrid note = %q", note)
 	}
 

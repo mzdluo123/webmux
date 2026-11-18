@@ -11,22 +11,20 @@ import (
 	"github.com/rainchan/webmux/internal/statefile"
 )
 
-// recoverAfterRestart marks every active record interrupted and returns
-// their IDs. A leftover root process of any record whose PID and start
-// identity both still match is ended first, so it cannot keep writing the
+// recoverAfterRestart marks active records for recovery when opened.
+// A leftover root process whose PID and start identity match is ended first, so it cannot keep writing the
 // agent session: interrupted and closed records keep the identity of a
 // process that was not confirmed gone.
-func (r *records) recoverAfterRestart(now time.Time) ([]string, error) {
+func (r *records) recoverAfterRestart(now time.Time) error {
 	r.writeMu.Lock()
 	defer r.writeMu.Unlock()
 	r.mu.Lock()
 	if err := r.unavailableLocked(); err != nil {
 		r.mu.Unlock()
-		return nil, err
+		return err
 	}
 	next := slices.Clone(r.list)
 	r.mu.Unlock()
-	var interrupted []string
 	changed := false
 	for i, rec := range next {
 		if rec.State != StateActive && rec.PID == 0 && rec.Process == nil {
@@ -45,21 +43,21 @@ func (r *records) recoverAfterRestart(now time.Time) ([]string, error) {
 			if rec.Activity == "" {
 				rec.Activity = "idle"
 			}
-			interrupted = append(interrupted, rec.ID)
+			rec.ResumeOnOpen = true
 		}
 		next[i] = rec
 		changed = true
 	}
 	if !changed {
-		return nil, nil
+		return nil
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if err := r.commitLocked(next); err != nil {
-		return nil, err
+		return err
 	}
 	r.list = next
-	return interrupted, nil
+	return nil
 }
 
 // killGroup ends a leftover process group: SIGHUP lets agents flush their
@@ -124,6 +122,7 @@ func (r *records) markReleased(ids []string, rel Release) error {
 		rec := next[i].clone()
 		at := rel
 		rec.Released = &at
+		rec.ResumeOnOpen = false
 		next[i] = rec
 	}
 	if err := r.commitLocked(next); err != nil {

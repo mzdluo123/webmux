@@ -1930,7 +1930,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     });
   }
 
-  test("after a backend restart both sides resume the recorded conversation", async ({
+  test("after a backend restart each agent resumes only when opened", async ({
     page,
     request,
     server,
@@ -1953,16 +1953,22 @@ test.describe("hybrid sessions with the fake agent", () => {
     // twice a second) once chat becomes available; a resume needs it.
     await expect(sideTab(page, "chat")).toHaveAccessibleName("聊天");
 
-    await server.restart();
     await page.goto("/");
-    // A restart does not archive what the user left running: both sessions
-    // come back on their recorded side by themselves.
+    await server.restart();
+    await page.reload();
+    for (const id of [chat, terminal]) {
+      const record = await (await request.get(`/api/sessions/${id}`)).json();
+      expect(record.archive.resumeOnOpen).toBe(true);
+    }
     const resumedChat = await openSessionLink(page, "E2E resume chat");
     await expectSide(resumedChat, "chat");
     await expect(conversation(resumedChat)).toContainText("kept-in-chat");
     await expect(conversation(resumedChat)).toContainText("echo: kept-in-chat");
 
     await page.goto("/");
+    expect(
+      (await (await request.get(`/api/sessions/${terminal}`)).json()).state,
+    ).toBe("interrupted");
     const resumedTerminal = await openSessionLink(page, "E2E resume terminal");
     await expectSide(resumedTerminal, "terminal");
     await expectTerminalLine(resumedTerminal, "> kept-in-tui");

@@ -52,6 +52,7 @@
   <div class="flex flex-wrap gap-2">
     <HybridResumeActions
       {record}
+      resumeOnMount
       resume={resumeSession}
       onresumed={() => onresumed()}
       onrebuilt={rebuilt}

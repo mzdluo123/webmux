@@ -60,6 +60,7 @@ export const SessionArchiveSchema = z.object({
   // the agent's own transcript; 0 for a terminal-only session.
   activity: z.enum(["idle", "turn", "switching"]).optional(),
   queuedCount: z.number().int().nonnegative(),
+  resumeOnOpen: z.boolean().optional(),
   interruptedAt: datetime.nullable(),
   updatedAt: datetime,
 });

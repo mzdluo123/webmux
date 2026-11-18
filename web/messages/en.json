@@ -1477,6 +1477,7 @@
   "s3_resume_failed": "Failed to resume “{title}”: {error}",
   "s3_resume_launch_config_deleted_title": "Launch config deleted",
   "s3_resume_missing_agent_session_title": "Original agent session not found",
+  "sessions_resume_on_open": "Resume on open",
   "s3_resume_session_label": "Resume session",
   "s3_resume_to_terminal": "Resume in terminal",
   "s3_resume_without_saved_env": "Resuming will run the original command without the environment variables saved in that config.",

@@ -1378,6 +1378,7 @@
   "s3_resume_failed": "无法恢复“{title}”：{error}",
   "s3_resume_launch_config_deleted_title": "启动配置已删除",
   "s3_resume_missing_agent_session_title": "找不到原来的 agent 会话",
+  "sessions_resume_on_open": "打开时恢复",
   "s3_resume_session_label": "恢复会话",
   "s3_resume_to_terminal": "恢复到终端",
   "s3_resume_without_saved_env": "恢复后将使用原命令，但不再带有该配置保存的环境变量。",

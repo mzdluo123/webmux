@@ -9,7 +9,7 @@ import (
 
 // InstalledRestartNotice tells the user that an installed server binary takes
 // effect after a restart, distinguishing ordinary terminals from hybrid sessions.
-const InstalledRestartNotice = "新版本在重启 WebMux 后生效（普通终端会话会结束，混合会话会自动恢复）。"
+const InstalledRestartNotice = "新版本在重启 WebMux 后生效（普通终端会话会结束，混合会话会在下次打开时恢复）。"
 
 // SessionCounts summarizes active sessions reported over /ws/sessions.
 // Known is false until the live subscription delivers a snapshot (for example
@@ -91,7 +91,7 @@ func RestartSessionNote(snap Snapshot) string {
 		return ""
 	}
 	if c.Known && c.Terminal == 0 && c.Working == 0 {
-		return fmt.Sprintf("当前 %d 个混合会话均已空闲，重启后会自动恢复。", c.Hybrid)
+		return fmt.Sprintf("当前 %d 个混合会话均已空闲，下次打开时会恢复。", c.Hybrid)
 	}
 	return "重启" + restartImpact(c)
 }
@@ -118,7 +118,7 @@ func QuitPrompt(sessions int, forwarding bool) string {
 
 func restartImpact(c SessionCounts) string {
 	if !c.Known {
-		return fmt.Sprintf("将结束普通终端会话，并中断正在运行的任务；混合会话会在重启后自动恢复（当前共 %d 个会话）。", c.Total)
+		return fmt.Sprintf("将结束普通终端会话，并中断正在运行的任务；混合会话会在下次打开时恢复（当前共 %d 个会话）。", c.Total)
 	}
 	if c.Hybrid == 0 {
 		if c.Working > 0 {
@@ -128,17 +128,17 @@ func restartImpact(c SessionCounts) string {
 	}
 	if c.Terminal == 0 {
 		if c.Hybrid == 1 {
-			return "将中断 1 个正在工作的混合会话；重启后该会话会自动恢复（排队消息不保留）。"
+			return "将中断 1 个正在工作的混合会话；下次打开该会话时会恢复（排队消息不保留）。"
 		}
-		return fmt.Sprintf("将中断 %d 个正在工作的混合会话；%d 个混合会话会在重启后自动恢复（排队消息不保留）。", c.HybridWorking, c.Hybrid)
+		return fmt.Sprintf("将中断 %d 个正在工作的混合会话；%d 个混合会话会在下次打开时恢复（排队消息不保留）。", c.HybridWorking, c.Hybrid)
 	}
 	if c.HybridWorking > 0 {
-		return fmt.Sprintf("将结束 %d 个普通终端会话（不会保存），并中断 %d 个正在工作的混合会话；%d 个混合会话会在重启后自动恢复（排队消息不保留）。", c.Terminal, c.HybridWorking, c.Hybrid)
+		return fmt.Sprintf("将结束 %d 个普通终端会话（不会保存），并中断 %d 个正在工作的混合会话；%d 个混合会话会在下次打开时恢复（排队消息不保留）。", c.Terminal, c.HybridWorking, c.Hybrid)
 	}
 	if c.Working > 0 {
-		return fmt.Sprintf("将结束 %d 个普通终端会话（其中 %d 个正在工作，不会保存）；%d 个混合会话会在重启后自动恢复。", c.Terminal, c.Working, c.Hybrid)
+		return fmt.Sprintf("将结束 %d 个普通终端会话（其中 %d 个正在工作，不会保存）；%d 个混合会话会在下次打开时恢复。", c.Terminal, c.Working, c.Hybrid)
 	}
-	return fmt.Sprintf("将结束 %d 个普通终端会话（不会保存）；%d 个混合会话会在重启后自动恢复。", c.Terminal, c.Hybrid)
+	return fmt.Sprintf("将结束 %d 个普通终端会话（不会保存）；%d 个混合会话会在下次打开时恢复。", c.Terminal, c.Hybrid)
 }
 
 func stopImpact(c SessionCounts) string {
@@ -154,11 +154,11 @@ func stopImpact(c SessionCounts) string {
 	if c.Terminal == 0 {
 		if c.HybridWorking > 0 {
 			if c.Hybrid == 1 {
-				return "将中断 1 个正在工作的混合会话；下次启动时会自动恢复（排队消息不保留）。"
+				return "将中断 1 个正在工作的混合会话；下次打开会话时会恢复（排队消息不保留）。"
 			}
 			return fmt.Sprintf("将中断 %d 个正在工作的混合会话；%d 个混合会话会在下次启动时恢复（排队消息不保留）。", c.HybridWorking, c.Hybrid)
 		}
-		return fmt.Sprintf("将停止当前的 %d 个混合会话；下次启动时会自动恢复。", c.Hybrid)
+		return fmt.Sprintf("将停止当前的 %d 个混合会话；下次打开会话时会恢复。", c.Hybrid)
 	}
 	if c.HybridWorking > 0 {
 		return fmt.Sprintf("将结束 %d 个普通终端会话（不会保存），并中断 %d 个正在工作的混合会话；%d 个混合会话会在下次启动时恢复（排队消息不保留）。", c.Terminal, c.HybridWorking, c.Hybrid)

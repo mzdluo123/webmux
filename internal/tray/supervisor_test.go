@@ -624,7 +624,7 @@ func TestSupervisorUpgradeRestoresVersionHint(t *testing.T) {
 	}
 	h.sup.Recheck()
 	snap = h.wait("rechecked", func(s Snapshot) bool { return s.Compat == CompatMatched })
-	if snap.Installable() || VersionHint(snap) != "WSL 中已安装 0.3.0，重启 WebMux 后生效（普通终端会话会结束，混合会话会自动恢复）" || !snap.Actions().Restart {
+	if snap.Installable() || VersionHint(snap) != "WSL 中已安装 0.3.0，重启 WebMux 后生效（普通终端会话会结束，混合会话会在下次打开时恢复）" || !snap.Actions().Restart {
 		t.Fatalf("after install %q %+v", VersionHint(snap), snap.Actions())
 	}
 	h.sup.Restart()
@@ -679,7 +679,7 @@ func TestSupervisorRunningInstanceDiffersFromInstalled(t *testing.T) {
 	settings.Mode = ModeTray
 	h := newVersionedHarness(t, service, settings, "0.3.0")
 	snap := h.wait("checked", func(s Snapshot) bool { return s.State == StateExternal && s.Compat != "" && s.Running != nil })
-	if snap.Compat != CompatMatched || snap.RunningCompat != CompatServerOlder || snap.Actions().Restart || VersionHint(snap) != "WSL 中已安装 0.3.0，重启 WebMux 后生效（普通终端会话会结束，混合会话会自动恢复）" {
+	if snap.Compat != CompatMatched || snap.RunningCompat != CompatServerOlder || snap.Actions().Restart || VersionHint(snap) != "WSL 中已安装 0.3.0，重启 WebMux 后生效（普通终端会话会结束，混合会话会在下次打开时恢复）" {
 		t.Fatalf("systemd instance %+v %q", snap, VersionHint(snap))
 	}
 }
