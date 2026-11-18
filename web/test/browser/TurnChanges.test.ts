@@ -1,9 +1,10 @@
 import "../../src/styles.css";
-import { afterEach, beforeEach, expect, test } from "vite-plus/test";
+import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import TurnChanges from "../../src/components/chat/TurnChanges.svelte";
 import TurnPatch from "../../src/components/chat/TurnPatch.svelte";
+import { observeTranscriptResize } from "../../src/hooks/chat/transcript-resize";
 import { seedSettings } from "./settings-fixture";
 
 beforeEach(async () => {
@@ -166,4 +167,61 @@ test("patch-only and unchanged snapshot diffs render honestly without full-file 
   const status = page.getByRole("status");
   await expect.element(status).toHaveTextContent("文件内容没有变化");
   await expect.element(status).not.toHaveTextContent("完整文件");
+});
+
+test("switching files leaves the focused header in place and cancels old previews", async () => {
+  const view = await render(TurnChanges, {
+    changes: [
+      ...["one", "two"].map((oldText) => ({
+        type: "diff" as const,
+        path: "long.ts",
+        oldText,
+        newText: "next",
+      })),
+      { type: "diff", path: "short.ts", oldText: "old", newText: "new" },
+    ],
+  });
+  await page.getByRole("button", { name: "本轮改动 · 2 个文件" }).click();
+  const long = page.getByRole("button", { name: /^long\.ts/ });
+  const short = page.getByRole("button", { name: /^short\.ts/ });
+  await expect
+    .poll(() => view.container.getAnimations({ subtree: true }).length)
+    .toBe(0);
+  const top = () => short.element().getBoundingClientRect().top;
+  const initialTop = top();
+  const followEnd = vi.fn();
+  const follower = observeTranscriptResize({
+    viewport: view.container,
+    transcript: view.container,
+    dock: null,
+    scrollRoot: () => view.container,
+    following: () => true,
+    jumping: () => false,
+    scrollToBottom: followEnd,
+    onResize: () => {},
+    onManualScroll: () => {},
+  });
+  try {
+    await expect.poll(() => followEnd.mock.calls.length).toBeGreaterThan(0);
+    followEnd.mockClear();
+    await long.click();
+    await expect
+      .element(page.getByRole("region", { name: "回合差异：long.ts" }).nth(1))
+      .toBeVisible();
+    expect(top()).toBe(initialTop);
+
+    await long.click();
+    await long.click();
+    await short.click();
+    const activeDiff = page.getByRole("region", { name: "回合差异：short.ts" });
+    await expect.element(activeDiff).toBeVisible();
+    await expect.element(short).toHaveFocus();
+    expect(top()).toBe(initialTop);
+    expect(followEnd).not.toHaveBeenCalled();
+    await expect
+      .element(page.getByRole("region", { name: "回合差异：long.ts" }))
+      .not.toBeInTheDocument();
+  } finally {
+    follower.dispose();
+  }
 });

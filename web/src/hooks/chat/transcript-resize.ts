@@ -1,5 +1,7 @@
 import { untrack } from "svelte";
 
+export const holdTranscriptPosition = "webmux:hold-transcript-position";
+
 type TranscriptResize = {
   viewport: HTMLElement;
   transcript: HTMLElement | null;
@@ -17,6 +19,7 @@ type TranscriptResize = {
 // undo a reader's input or an explicit jump into history.
 export function observeTranscriptResize(options: TranscriptResize) {
   let frame = 0;
+  let holdFrame = 0;
   let followEnd = untrack(options.following);
   let scrollOwner = untrack(options.scrollRoot);
   const manualEvents = ["wheel", "touchmove", "pointerdown", "keydown"];
@@ -27,6 +30,18 @@ export function observeTranscriptResize(options: TranscriptResize) {
   };
   for (const type of manualEvents)
     options.viewport.addEventListener(type, interrupt, { passive: true });
+  const holdPosition = () => {
+    interrupt();
+    cancelAnimationFrame(holdFrame);
+    // Keep a deliberate transcript expansion anchored through its layout
+    // observation and the following frame, even when the reader was at end.
+    holdFrame = requestAnimationFrame(() => {
+      holdFrame = requestAnimationFrame(() => {
+        holdFrame = 0;
+      });
+    });
+  };
+  options.viewport.addEventListener(holdTranscriptPosition, holdPosition);
   const observer = new ResizeObserver(() => {
     const target = options.scrollRoot();
     // Document/container handoffs restore their own offset, not the old root's
@@ -37,6 +52,7 @@ export function observeTranscriptResize(options: TranscriptResize) {
     } else {
       followEnd ||= options.following();
     }
+    if (holdFrame) followEnd = false;
     const top = target?.scrollTop ?? 0;
     const scrollHeight = target?.scrollHeight;
     const clientHeight = target?.clientHeight;
@@ -50,6 +66,7 @@ export function observeTranscriptResize(options: TranscriptResize) {
         target.clientHeight === clientHeight;
       if (
         followEnd &&
+        !holdFrame &&
         !movedUp &&
         !options.jumping() &&
         target === options.scrollRoot()
@@ -66,9 +83,14 @@ export function observeTranscriptResize(options: TranscriptResize) {
     interrupt,
     dispose() {
       cancelAnimationFrame(frame);
+      cancelAnimationFrame(holdFrame);
       observer.disconnect();
       for (const type of manualEvents)
         options.viewport.removeEventListener(type, interrupt);
+      options.viewport.removeEventListener(
+        holdTranscriptPosition,
+        holdPosition,
+      );
     },
   };
 }
