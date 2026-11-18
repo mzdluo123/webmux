@@ -325,3 +325,91 @@ describe("WebSocket compression default", () => {
     expect(wsCompression()).toBe(true);
   });
 });
+
+describe("Terminal input confirmation and close codes", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    MockWebSocket.instances = [];
+    vi.stubGlobal("WebSocket", MockWebSocket);
+    vi.stubGlobal("location", { protocol: "http:", host: "localhost" });
+    vi.stubGlobal("localStorage", { getItem: () => "tok" });
+    vi.stubGlobal("document", new EventTarget());
+    vi.stubGlobal(
+      "window",
+      Object.assign(new EventTarget(), { setTimeout: globalThis.setTimeout }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  function frame(kind: number, body: string): ArrayBuffer {
+    const encoded = new TextEncoder().encode(body);
+    const out = new Uint8Array(encoded.length + 1);
+    out[0] = kind;
+    out.set(encoded, 1);
+    return out.buffer;
+  }
+
+  it("clears input uncertainty after FIFO query confirmation and follows up trailing keys", () => {
+    let probeIndex = 0;
+    const errors: string[] = [];
+    const conn = connect(
+      "/ws/s/test",
+      vi.fn(),
+      vi.fn(),
+      (err) => errors.push(err),
+      {
+        resume: (send) =>
+          send(
+            4,
+            new TextEncoder().encode(
+              JSON.stringify({ ids: [`probe-000${++probeIndex}`] }),
+            ),
+          ),
+      },
+    );
+    const socket = MockWebSocket.instances[0]!;
+    socket.onopen?.();
+
+    expect(conn.send(0, new Uint8Array([97]))).toBe(true);
+    conn.probe();
+    // A second key arrives while probe-0001 is still in flight.
+    expect(conn.send(0, new Uint8Array([103]))).toBe(true);
+    conn.probe();
+    expect(probeIndex).toBe(1);
+
+    // Output clears resumeTimer early, before probe-0001's receipt arrives.
+    socket.onmessage?.({ data: frame(0, "a") });
+    socket.onmessage?.({
+      data: frame(5, JSON.stringify({ id: "probe-0001", state: "missing" })),
+    });
+    // Trailing key automatically triggers one follow-up probe.
+    expect(probeIndex).toBe(2);
+
+    socket.onmessage?.({
+      data: frame(5, JSON.stringify({ id: "probe-0002", state: "missing" })),
+    });
+    // Once confirmed, reconnect or 4409 view move does not report uncertainty.
+    socket.readyState = 3;
+    socket.onclose?.({ code: 4409 });
+    expect(errors).toEqual([]);
+    conn.close();
+  });
+
+  it("does not report input uncertainty on clean 4410 session exit", () => {
+    const errors: string[] = [];
+    const conn = connect("/ws/s/test", vi.fn(), vi.fn(), (err) =>
+      errors.push(err),
+    );
+    const socket = MockWebSocket.instances[0]!;
+    socket.onopen?.();
+    expect(conn.send(0, new Uint8Array([4]))).toBe(true);
+    socket.readyState = 3;
+    socket.onclose?.({ code: 4410 });
+    expect(errors).toEqual([]);
+    conn.close();
+  });
+});
