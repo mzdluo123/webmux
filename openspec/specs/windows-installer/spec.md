@@ -109,26 +109,40 @@
 
 ### Requirement: 卸载
 
-卸载程序 SHALL 先按“覆盖安装即升级”的方式让托盘退出，再删除安装程序写入的内容：安装目录中的文件、开始菜单快捷方式、卸载项与预置的服务端文件。登录启动项只有指向本次安装的 `webmux-tray.exe` 时才 SHALL 删除。
+卸载程序 SHALL 按以下顺序清理本地安装与缓存：
 
-安装程序为本次安装添加过防火墙规则时，卸载 SHALL 删除该规则（弹出一次管理员确认）；用户取消时 SHALL 说明如何手工删除，卸载照常完成。
+- 先按“覆盖安装即升级”的方式让托盘退出，并停止已记录的 WSL 保活进程（`wsl.exe --exec sleep infinity`）及删除 `%LOCALAPPDATA%\WebMux\keepalive.json`；
+- 递归删除服务端下载缓存目录 `%LOCALAPPDATA%\WebMux\downloads\` 与自更新安装包缓存目录 `%LOCALAPPDATA%\WebMux\updates\`；
+- 删除安装目录中的文件、开始菜单快捷方式与卸载项，登录启动项仅在指向本次安装的 `webmux-tray.exe` 时才 SHALL 删除，空的 `%LOCALAPPDATA%\WebMux` 目录 SHALL 一并移除。
 
-卸载 SHALL NOT 停止 WebMux，SHALL NOT 删除托盘设置、托盘日志、保活记录或 WSL 中的任何文件。完成页 SHALL 说明保留了哪些内容；WebMux 正在运行时还 SHALL 说明它仍在 WSL 中运行。
+卸载程序 SHALL 对安装目录中的 `webmux-tray.exe`（以及卸载项 `FirewallRule` 记录的不同历史路径）执行 `firewall remove`：规则不存在时 SHALL 直接成功且不弹出管理员确认；存在规则时 SHALL 弹出管理员确认并删除规则，用户取消或删除失败时 SHALL 说明如何手工删除，卸载照常完成。
 
-#### Scenario: 卸载保留数据
+交互式卸载界面 SHALL 在独立的“卸载选项”页提供默认未勾选的“同时删除个人配置与本地日志（%APPDATA%\WebMux、%LOCALAPPDATA%\WebMux）”：
 
-- **WHEN** WebMux 正在运行，用户从“应用和功能”卸载 WebMux
-- **THEN** 托盘消失，安装目录、快捷方式与卸载项被删除；`%APPDATA%\WebMux\tray.json`、`%LOCALAPPDATA%\WebMux\tray.log` 与 WSL 中的 webmux 保留，浏览器中的会话继续可用
+- 未勾选时，卸载 SHALL 保留 `%APPDATA%\WebMux\tray.json`（及同目录临时文件）与 `%LOCALAPPDATA%\WebMux\tray.log*`；完成页 SHALL 如实列出已保留的本地路径，并说明正在运行的 WebMux 继续在 WSL 中运行及停止命令（`webmux stop`）。
+- 勾选时，卸载 SHALL 额外删除 `%APPDATA%\WebMux\` 下的 `tray.json`、`.tray-*.json` 及其目录，以及 `%LOCALAPPDATA%\WebMux\` 下的 `tray.log`、`tray.log.*` 及其目录；完成页 SHALL 说明已删除本地托盘设置与日志，并提示 WSL 发行版内的 `webmux` 与配置未自动删除及 WSL 侧停止与清理命令。
+
+卸载 SHALL NOT 停止 WSL 中的 WebMux，SHALL NOT 删除 WSL 发行版内的任何文件。
+
+#### Scenario: 默认卸载清理缓存与保活并保留个人数据
+
+- **WHEN** WebMux 正在运行，`%LOCALAPPDATA%\WebMux` 中存在多份下载缓存、自更新安装包缓存与运行中的保活进程，用户从“应用和功能”卸载 WebMux 并保持默认未勾选清理个人数据
+- **THEN** 托盘与保活进程退出，`keepalive.json`、`downloads\`、`updates\`、安装目录、快捷方式与卸载项被删除；`%APPDATA%\WebMux\tray.json`、`%LOCALAPPDATA%\WebMux\tray.log` 与 WSL 中的 webmux 保留，完成页显示保留说明，浏览器中的会话继续可用
+
+#### Scenario: 勾选清除个人配置与本地日志
+
+- **WHEN** 用户交互卸载并勾选“同时删除个人配置与本地日志（%APPDATA%\WebMux、%LOCALAPPDATA%\WebMux）”
+- **THEN** 除默认清理项外，`%APPDATA%\WebMux`（含 `tray.json` 与 `.tray-*.json`）和 `%LOCALAPPDATA%\WebMux`（含 `tray.log` 与 `tray.log.1`）均被删除；完成页提示本地配置与日志已清理，并给出 WSL 侧停止与清理命令
 
 #### Scenario: 启动项指向其他路径
 
 - **WHEN** 登录启动项指向另一个位置的托盘 exe，用户卸载安装版
 - **THEN** 该启动项保持不变
 
-#### Scenario: 删除防火墙规则
+#### Scenario: 删除防火墙规则（含手工补加规则）
 
-- **WHEN** 安装时添加过防火墙规则，用户卸载并在管理员确认中选择“是”
-- **THEN** 以“WebMux tray forwarding”开头、指向该托盘的规则被删除
+- **WHEN** 安装时添加过防火墙规则，或静默安装后用户通过 `webmux-tray.exe firewall allow` 补加了当前托盘路径的规则，用户卸载并在管理员确认中选择“是”
+- **THEN** 以“WebMux tray forwarding”开头、指向该托盘（及卸载项记录的历史路径）的规则被删除；若从未添加规则，卸载过程不弹出管理员确认
 
 ### Requirement: 静默安装
 
@@ -136,6 +150,7 @@
 
 - 首次安装：SHALL 使用默认选项（含登录启动）。
 - 覆盖已有安装：SHALL 沿用已有的安装目录，并 SHALL 保持登录启动项的现状（已删除的不重新登记，指向本次安装的保持不变）。
+- 静默卸载（`/S`）：默认 SHALL 清理运行态保活、缓存与防火墙规则，同时保留 `%APPDATA%\WebMux` 与 `%LOCALAPPDATA%\WebMux\tray.log*`（若日志不存在导致 `%LOCALAPPDATA%\WebMux` 为空目录则一并移除）；附带 `/PURGE`（`uninstall.exe /S /PURGE`）时 SHALL 一并删除个人配置与本地日志目录。
 - 架构不符或无法关闭其他位置的托盘：SHALL 以非零退出码结束且不留下部分安装。
 - 升级失败：SHALL 恢复升级前的 `webmux-tray.exe`（即使新文件已部分写入）。安装程序关闭过运行中的托盘时 SHALL 重新启动它；没有运行中的托盘时 SHALL NOT 启动托盘。
 - 退出码：`0` 成功；`2` 架构不符，或未关闭任何托盘时失败；`3` 无法关闭运行中的托盘，未写入任何文件；`4` 关闭托盘之后失败，已重新启动原托盘。
@@ -144,6 +159,11 @@
 
 - **WHEN** 用户在命令行运行 `webmux-setup-windows-amd64.exe /S`
 - **THEN** 进程以退出码 0 结束，安装内容与交互式默认安装相同
+
+#### Scenario: 静默卸载与显式全量清理
+
+- **WHEN** 用户运行 `uninstall.exe /S`
+- **THEN** 缓存与保活记录被删除，`%APPDATA%\WebMux\tray.json` 与 `%LOCALAPPDATA%\WebMux\tray.log` 保留；改用 `uninstall.exe /S /PURGE` 时，`%APPDATA%\WebMux` 与 `%LOCALAPPDATA%\WebMux` 一并删除
 
 #### Scenario: 静默安装失败
 

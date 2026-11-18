@@ -15,19 +15,26 @@ const (
 	QuitNone    = 3 // no tray was running
 )
 
-// ParseQuit parses the arguments after `quit`: an optional
-// `--kill-path PATH`, nothing else.
-func ParseQuit(args []string) (killPath string, err error) {
+// QuitOptions configures `webmux-tray quit`.
+type QuitOptions struct {
+	KillPath      string
+	StopKeepalive bool
+}
+
+// ParseQuit parses the arguments after `quit`: optional `--kill-path PATH`
+// and `--stop-keepalive`.
+func ParseQuit(args []string) (opts QuitOptions, err error) {
 	fs := flag.NewFlagSet("quit", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	fs.StringVar(&killPath, "kill-path", "", "")
+	fs.StringVar(&opts.KillPath, "kill-path", "", "")
+	fs.BoolVar(&opts.StopKeepalive, "stop-keepalive", false, "")
 	if err := fs.Parse(args); err != nil {
-		return "", err
+		return QuitOptions{}, err
 	}
 	if fs.NArg() > 0 {
-		return "", errors.New("quit takes no positional arguments")
+		return QuitOptions{}, errors.New("quit takes no positional arguments")
 	}
-	return killPath, nil
+	return opts, nil
 }
 
 // Quitter asks the running tray of this Windows user to exit as with
@@ -41,15 +48,29 @@ type Quitter struct {
 	Signal func() bool
 	// Kill terminates this user's trays started from path.
 	Kill func(path string) error
-	Logf func(format string, args ...any)
+	// StopKeepalive ends the recorded WSL keepalive process and deletes its
+	// record file once no tray runs.
+	StopKeepalive func() error
+	Logf          func(format string, args ...any)
 
 	Wait, Grace, Poll time.Duration
 }
 
-// Quit returns QuitNone, QuitDone or QuitRunning. With killPath set, trays
-// started from it are terminated once Wait passes; trays elsewhere are left
-// alone.
-func (q Quitter) Quit(killPath string) int {
+// Quit returns QuitNone, QuitDone or QuitRunning. With opts.KillPath set,
+// trays started from it are terminated once Wait passes; trays elsewhere are
+// left alone. With opts.StopKeepalive set, the recorded WSL keepalive is
+// stopped once no tray runs (QuitDone or QuitNone).
+func (q Quitter) Quit(opts QuitOptions) int {
+	code := q.quitTray(opts.KillPath)
+	if opts.StopKeepalive && q.StopKeepalive != nil && (code == QuitDone || code == QuitNone) {
+		if err := q.StopKeepalive(); err != nil {
+			q.logf("stop keepalive: %v", err)
+		}
+	}
+	return code
+}
+
+func (q Quitter) quitTray(killPath string) int {
 	if !q.Running() {
 		return QuitNone
 	}

@@ -28,7 +28,7 @@ func main() {
 			fmt.Println(version)
 			return
 		case "quit":
-			os.Exit(traysys.QuitCommand(os.Args[2:]))
+			os.Exit(traysys.QuitCommand(os.Args[2:], stopKeepalive))
 		case "firewall":
 			os.Exit(traysys.FirewallCommand(os.Args[2:]))
 		}
@@ -73,12 +73,7 @@ func run() error {
 	stdlog.SetOutput(log) // fyne.io/systray reports errors through package log
 
 	runner := tray.ExecRunner{}
-	keepalive := &tray.Keepalive{
-		Runner:   runner,
-		Path:     filepath.Join(localAppData, "WebMux", "keepalive.json"),
-		Identify: traysys.Identify,
-		Kill:     traysys.Kill,
-	}
+	keepalive := openKeepalive(localAppData, runner)
 	environ := os.Environ()
 	newService := func(s tray.Settings) *tray.WSLService {
 		return &tray.WSLService{
@@ -123,4 +118,21 @@ func run() error {
 		Releases:         func(ch update.Channel) tray.ReleaseClient { return update.Client{Channel: ch} },
 	})
 	return nil
+}
+
+func openKeepalive(localAppData string, runner tray.Runner) *tray.Keepalive {
+	return &tray.Keepalive{
+		Runner:   runner,
+		Path:     filepath.Join(localAppData, "WebMux", "keepalive.json"),
+		Identify: traysys.Identify,
+		Kill:     traysys.Kill,
+	}
+}
+
+func stopKeepalive() error {
+	localAppData, err := windows.KnownFolderPath(windows.FOLDERID_LocalAppData, 0)
+	if err != nil {
+		return err
+	}
+	return openKeepalive(localAppData, tray.ExecRunner{}).Stop()
 }

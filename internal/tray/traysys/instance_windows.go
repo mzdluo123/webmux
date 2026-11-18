@@ -107,10 +107,10 @@ func watch(event windows.Handle, f func()) {
 	}()
 }
 
-// QuitCommand runs `webmux-tray quit [--kill-path PATH]` and returns its
-// exit code. It never shows an icon or takes the instance mutex.
-func QuitCommand(args []string) int {
-	killPath, err := ParseQuit(args)
+// QuitCommand runs `webmux-tray quit [--kill-path PATH] [--stop-keepalive]`
+// and returns its exit code. It never shows an icon or takes the instance mutex.
+func QuitCommand(args []string, stopKeepalive func() error) int {
+	opts, err := ParseQuit(args)
 	if err != nil {
 		return QuitUsage
 	}
@@ -119,10 +119,11 @@ func QuitCommand(args []string) int {
 		return QuitRunning
 	}
 	return Quitter{
-		Running: func() bool { return mutexExists(instanceName(sid)) },
-		Signal:  func() bool { return signal(quitName(sid)) },
-		Kill:    killTrays,
-	}.Quit(killPath)
+		Running:       func() bool { return mutexExists(instanceName(sid)) },
+		Signal:        func() bool { return signal(quitName(sid)) },
+		Kill:          killTrays,
+		StopKeepalive: stopKeepalive,
+	}.Quit(opts)
 }
 
 // mutexExists reports whether any process still holds a handle to the

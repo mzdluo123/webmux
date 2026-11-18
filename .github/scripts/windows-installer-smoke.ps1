@@ -1,10 +1,11 @@
 # Smoke test of the Windows installer on a real Windows user session:
-# silent install, `webmux-tray quit`, `webmux-tray firewall` (allow/remove
-# only when elevated), upgrade over a running tray, refusal beside a foreign
-# tray, wrong-architecture refusal and uninstall.
+# silent install, `webmux-tray quit` (including `--stop-keepalive`),
+# `webmux-tray firewall` (allow/remove only when elevated), upgrade over a
+# running tray, refusal beside a foreign tray, wrong-architecture refusal,
+# default uninstall cleanup and `/PURGE` personal-data cleanup.
 #
-# It installs into the current user's profile and leaves tray.json/tray.log
-# behind by design; run it on a CI runner or a throwaway account.
+# It installs into the current user's profile and removes its test files on
+# completion; run it on a CI runner or a throwaway account.
 param(
   [Parameter(Mandatory)] [string] $Setup,          # installer for this machine
   [Parameter(Mandatory)] [string] $SetupOtherArch, # installer for the other arch
@@ -21,7 +22,12 @@ $uninstaller = Join-Path $installDir 'uninstall.exe'
 $shortcut = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\WebMux.lnk'
 $uninstKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\WebMux'
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
-$preseed = Join-Path $env:LOCALAPPDATA "WebMux\downloads\webmux-$Version-linux-$Arch"
+$localDir = Join-Path $env:LOCALAPPDATA 'WebMux'
+$roamingDir = Join-Path $env:APPDATA 'WebMux'
+$downloadsDir = Join-Path $localDir 'downloads'
+$updatesDir = Join-Path $localDir 'updates'
+$keepaliveFile = Join-Path $localDir 'keepalive.json'
+$preseed = Join-Path $downloadsDir "webmux-$Version-linux-$Arch"
 $work = Join-Path ([IO.Path]::GetTempPath()) ('webmux-smoke-' + [guid]::NewGuid())
 New-Item -ItemType Directory $work | Out-Null
 
@@ -62,7 +68,8 @@ function RunValue {
 }
 
 # A stand-in for an older tray: it holds the instance mutex but has no quit
-# event, so it never answers `quit`.
+# event, so it never answers `quit`. With another mutex name it also plays a
+# detached background keepalive process.
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 Add-Type -OutputType WindowsApplication -OutputAssembly (Join-Path $work 'fake.exe') -TypeDefinition @'
 using System.Threading;
@@ -71,6 +78,30 @@ static class FakeTray {
     var m = new Mutex(false, args[0]);
     Thread.Sleep(Timeout.Infinite);
     System.GC.KeepAlive(m);
+  }
+}
+'@
+# Matches traysys.Identify: creation FILETIME converted to Unix nanoseconds.
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class WinProc {
+  [DllImport("kernel32.dll", SetLastError = true)]
+  static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  static extern bool CloseHandle(IntPtr h);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  static extern bool GetProcessTimes(IntPtr h, out long creation, out long exit, out long kernel, out long user);
+  public static string Identity(int pid) {
+    IntPtr h = OpenProcess(0x1000, false, (uint)pid);
+    if (h == IntPtr.Zero) throw new InvalidOperationException("OpenProcess failed");
+    try {
+      long c, e, k, u;
+      if (!GetProcessTimes(h, out c, out e, out k, out u)) throw new InvalidOperationException("GetProcessTimes failed");
+      return ((c - 116444736000000000L) * 100L).ToString();
+    } finally {
+      CloseHandle(h);
+    }
   }
 }
 '@
@@ -86,6 +117,13 @@ function MutexExists {
 function StartFake {
   $p = Start-Process -FilePath $fake -ArgumentList "Local\WebMuxTray-$sid" -PassThru
   if (-not (WaitFor { MutexExists } 5)) { throw 'fake tray did not create the instance mutex' }
+  return $p
+}
+function StartFakeKeepalive {
+  $p = Start-Process -FilePath $fake -ArgumentList "Local\WebMuxKeepalive-$sid" -PassThru
+  New-Item -ItemType Directory -Force $localDir | Out-Null
+  $id = [WinProc]::Identity($p.Id)
+  [IO.File]::WriteAllText($keepaliveFile, "{`"pid`":$($p.Id),`"identity`":`"$id`"}")
   return $p
 }
 
@@ -119,6 +157,12 @@ try {
   Check ($code -eq 3 -and $t.TotalSeconds -lt 5) 'quit without a tray exits 3 at once'
   Check ((Run $tray @('quit', '--bogus')) -eq 2) 'quit rejects unknown arguments'
 
+  # quit --stop-keepalive ends the recorded keepalive and removes keepalive.json.
+  $ka = StartFakeKeepalive
+  Check ((Run $tray @('quit', '--stop-keepalive')) -eq 3) 'quit --stop-keepalive without a tray exits 3'
+  Check (WaitFor { $ka.HasExited } 5) 'keepalive process ended by quit --stop-keepalive'
+  Check (-not (Test-Path $keepaliveFile)) 'keepalive record removed by quit --stop-keepalive'
+
   # quit and an unresponsive tray: only the --kill-path one is ended.
   $old = StartFake
   Check ((Run $tray @('quit', '--kill-path', $tray)) -eq 1) 'quit exits 1 when an unresponsive tray runs elsewhere'
@@ -140,7 +184,8 @@ try {
   Check ((Run $tray @('firewall', 'remove', 'webmux-tray.exe')) -eq 2) 'firewall remove rejects a relative path'
   Check ((Run $tray @('firewall', 'remove')) -eq 0) 'firewall remove without a rule exits 0'
   $identity = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-  if ($identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+  $isAdmin = $identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+  if ($isAdmin) {
     Check ((Run $tray @('firewall', 'allow')) -eq 0) 'firewall allow exits 0'
     $rule = @(FirewallRules)
     Check ($rule.Count -eq 1 -and "$($rule[0].Direction)" -eq 'Inbound' -and "$($rule[0].Action)" -eq 'Allow' -and "$($rule[0].Profile)" -eq 'Domain, Private') 'rule allows inbound to this tray on private and domain networks only'
@@ -157,18 +202,56 @@ try {
   Check ((Run $Setup @('/S')) -eq 0) 'upgrade over a running tray exits 0'
   Check (WaitFor { $p = TrayProcesses $tray; $p.Count -eq 1 -and $p[0].Id -ne $before }) 'old tray replaced by a new one'
 
-  # Uninstall keeps settings, logs and a login item that points elsewhere.
-  $settings = Join-Path $env:APPDATA 'WebMux\tray.json'
+  # Default uninstall cleans caches, keepalive and an unrecorded firewall rule,
+  # while keeping personal settings, logs and a login item pointing elsewhere.
+  $settings = Join-Path $roamingDir 'tray.json'
+  New-Item -ItemType Directory -Force $roamingDir | Out-Null
   if (-not (Test-Path $settings)) { New-Item -ItemType File -Force $settings | Out-Null }
+  New-Item -ItemType Directory -Force $downloadsDir | Out-Null
+  New-Item -ItemType File -Force (Join-Path $downloadsDir 'webmux-0.0.0-linux-arm64') | Out-Null
+  New-Item -ItemType Directory -Force $updatesDir | Out-Null
+  New-Item -ItemType File -Force (Join-Path $updatesDir 'webmux-setup-windows-amd64.exe') | Out-Null
+  $kaUninstall = StartFakeKeepalive
+  if ($isAdmin) {
+    # Simulates a rule added manually after a silent install (no FirewallRule registry value).
+    Check ((Run $tray @('firewall', 'allow')) -eq 0 -and @(FirewallRules).Count -eq 1) 'unrecorded firewall rule added before uninstall'
+  }
   Set-ItemProperty $runKey WebMuxTray "`"$fake`""
   Check ((Run $uninstaller @('/S')) -eq 0) 'silent uninstall exits 0'
   Check (WaitFor { -not (Test-Path $uninstKey) }) 'uninstall entry removed'
   Check ((TrayProcesses $tray).Count -eq 0) 'tray closed by the uninstaller'
   Check (-not (Test-Path $installDir) -and -not (Test-Path $shortcut)) 'install directory and shortcut removed'
-  Check (-not (Test-Path $preseed)) 'pre-seeded server removed'
-  Check ((Test-Path $settings) -and (Test-Path (Join-Path $env:LOCALAPPDATA 'WebMux\tray.log'))) 'tray settings and log kept'
+  Check (-not (Test-Path $downloadsDir) -and -not (Test-Path $updatesDir)) 'downloads and updates caches removed recursively'
+  Check ((WaitFor { $kaUninstall.HasExited } 5) -and -not (Test-Path $keepaliveFile)) 'keepalive process and record removed on uninstall'
+  if ($isAdmin) {
+    Check (@(FirewallRules).Count -eq 0) 'unrecorded firewall rule removed on uninstall'
+  }
+  Check ((Test-Path $settings) -and (Test-Path (Join-Path $localDir 'tray.log'))) 'tray settings and log kept by default'
   Check ((RunValue) -ieq "`"$fake`"") 'login item pointing elsewhere kept'
   Remove-ItemProperty $runKey WebMuxTray
+
+  # When %LOCALAPPDATA%\WebMux holds only caches (no logs left), default
+  # uninstall also removes the empty parent directory.
+  Check ((Run $Setup @('/S')) -eq 0) 'reinstall before empty-dir check exits 0'
+  Check (WaitFor { (TrayProcesses $tray).Count -eq 1 }) 'tray started after reinstall'
+  Check ((Run $tray @('quit')) -eq 0) 'tray stopped before removing logs'
+  Remove-Item (Join-Path $localDir 'tray.log*') -Force
+  Check (-not (Test-Path (Join-Path $localDir 'tray.log')) -and (Test-Path $downloadsDir)) 'only caches remain in %LOCALAPPDATA%\WebMux'
+  Check ((Run $uninstaller @('/S')) -eq 0) 'silent uninstall for empty-dir check exits 0'
+  Check (WaitFor { -not (Test-Path $uninstKey) }) 'uninstall entry removed after empty-dir check'
+  Check (-not (Test-Path $localDir)) 'empty %LOCALAPPDATA%\WebMux directory removed'
+  Check (Test-Path $settings) 'settings still kept without /PURGE'
+
+  # Silent uninstall with /PURGE removes personal settings, atomic temp files
+  # and rotated logs along with their %APPDATA%\WebMux and %LOCALAPPDATA%\WebMux directories.
+  Check ((Run $Setup @('/S')) -eq 0) 'reinstall before /PURGE check exits 0'
+  Check (WaitFor { (TrayProcesses $tray).Count -eq 1 }) 'tray started before /PURGE check'
+  New-Item -ItemType File -Force (Join-Path $roamingDir '.tray-12345.json') | Out-Null
+  New-Item -ItemType File -Force (Join-Path $localDir 'tray.log.1') | Out-Null
+  Check ((Test-Path $settings) -and (Test-Path (Join-Path $localDir 'tray.log'))) 'settings and log present before /PURGE'
+  Check ((Run $uninstaller @('/S', '/PURGE')) -eq 0) 'silent /PURGE uninstall exits 0'
+  Check (WaitFor { -not (Test-Path $uninstKey) }) 'uninstall entry removed after /PURGE'
+  Check (-not (Test-Path $roamingDir) -and -not (Test-Path $localDir)) 'personal settings and local logs removed by /PURGE'
 } finally {
   Get-Process -ErrorAction SilentlyContinue | Where-Object {
     try { $_.Path -and $_.Path.StartsWith($work, [StringComparison]::OrdinalIgnoreCase) } catch { $false }

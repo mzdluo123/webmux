@@ -17,14 +17,17 @@
 ; the installed tray was closed (that tray was started again).
 ;
 ; Silent mode (/S) over an existing install keeps its directory and the
-; login item as they are; internal/tray updates itself this way.
+; login item as they are; internal/tray updates itself this way. Silent
+; uninstall (/S) keeps tray settings and logs; `/S /PURGE` also removes
+; %APPDATA%\WebMux and %LOCALAPPDATA%\WebMux.
 ;
 ; The only administrator prompt is the optional firewall rule of the
 ; interactive install ("安装选项"): `webmux-tray firewall allow` adds it for
 ; the installed tray and FirewallRule records that tray's path. Unchecking
-; the option on a later interactive install, or uninstalling, removes the
-; recorded rule. Silent installs never prompt and leave the rule as it is;
-; a silent update in place keeps it, since the rule follows the tray's path.
+; the option on a later interactive install removes the recorded rule;
+; uninstalling removes any rule for the current tray path and any recorded
+; earlier path (prompting only when a rule exists). Silent installs leave
+; the rule as it is; a silent update in place keeps it.
 
 !ifndef VERSION | ARCH | TRAY | SERVER | ICON | OUTFILE
   !error "VERSION, ARCH, TRAY, SERVER, ICON and OUTFILE must be defined with -D"
@@ -43,14 +46,21 @@ AllowSkipFiles off
 !include "FileFunc.nsh"
 !include "nsDialogs.nsh"
 
+!insertmacro un.GetParameters
+!insertmacro un.GetOptions
+
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\WebMux"
-; Same value name and quoting as internal/tray/winui/autostart.go, so the
+; Same value name and quoting as internal/tray/traysys/autostart.go, so the
 ; tray's "登录时自动启动" check box recognises the entry.
 !define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
 !define RUN_VALUE "WebMuxTray"
+!define LOCAL_DIR "$LOCALAPPDATA\WebMux"
 ; Same name as Installer.Install in internal/tray/install.go.
-!define CACHE_DIR "$LOCALAPPDATA\WebMux\downloads"
+!define CACHE_DIR "${LOCAL_DIR}\downloads"
 !define CACHE_FILE "webmux-${VERSION}-linux-${ARCH}"
+!define UPDATES_DIR "${LOCAL_DIR}\updates"
+!define KEEPALIVE_FILE "${LOCAL_DIR}\keepalive.json"
+!define ROAMING_DIR "$APPDATA\WebMux"
 
 ; The version resource takes four numbers: the part of VERSION before "-".
 !searchparse "-${VERSION}-" "-" VERSION_NUMBER "-"
@@ -83,48 +93,6 @@ VIAddVersionKey /LANG=2052 "FileVersion" "${VERSION}"
 VIAddVersionKey /LANG=2052 "FileDescription" "WebMux 安装程序（${ARCH}）"
 VIAddVersionKey /LANG=2052 "LegalCopyright" "WebMux contributors"
 
-!define MUI_ICON "${ICON}"
-!define MUI_UNICON "${ICON}"
-!define MUI_ABORTWARNING
-!define MUI_FINISHPAGE_TEXT "WebMux 托盘已安装并启动。$\r$\n$\r$\n首次使用时，在托盘菜单中选择“安装 WSL 中的 webmux”；安装包已内置 ${ARCH} 版服务端，WSL 为同一架构时无需联网。"
-!define MUI_UNFINISHPAGE_TEXT "WebMux 托盘已卸载。$\r$\n$\r$\n以下内容已保留：托盘设置（%APPDATA%\WebMux）、托盘日志（%LOCALAPPDATA%\WebMux）和 WSL 中的 webmux。$\r$\n$\r$\n如果 WebMux 正在运行，它会继续在 WSL 中运行；需要停止时在 WSL 中执行 webmux stop。"
-
-!insertmacro MUI_PAGE_DIRECTORY
-Page custom optionsPage optionsLeave
-!insertmacro MUI_PAGE_INSTFILES
-!insertmacro MUI_PAGE_FINISH
-!insertmacro MUI_UNPAGE_CONFIRM
-!insertmacro MUI_UNPAGE_INSTFILES
-!insertmacro MUI_UNPAGE_FINISH
-!insertmacro MUI_LANGUAGE "SimpChinese"
-
-; CloseTray asks the tray started from $INSTDIR (and any tray of this user)
-; to quit as with "仅退出托盘". `quit` kills an unresponsive tray only when
-; it runs from $INSTDIR; a tray elsewhere is the user's to close. It
-; returns with $0 = 0 when a running tray was closed and 3 when none ran
-; (a tray that predates exit code 3 also reports none as 0).
-!macro CloseTray UN EXE
-  Function ${UN}closeTray
-    retry:
-      ClearErrors
-      ExecWait '"${EXE}" quit --kill-path "$INSTDIR\webmux-tray.exe"' $0
-      ${If} ${Errors}
-        StrCpy $0 3 ; no tray executable to ask: nothing of ours can run
-      ${EndIf}
-      ${If} $0 == 0
-      ${OrIf} $0 == 3
-        Return
-      ${EndIf}
-      IfSilent fail
-      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "另一个 WebMux 托盘仍在运行，无法自动关闭（可能是旧版本或其他位置的托盘）。$\r$\n$\r$\n请在通知区域右键 WebMux 图标，选择“退出 → 仅退出托盘”，然后点击“重试”。" IDRETRY retry
-    fail:
-      SetErrorLevel 3
-      Quit
-  FunctionEnd
-!macroend
-!insertmacro CloseTray "" "$PLUGINSDIR\webmux-tray.exe"
-!insertmacro CloseTray "un." "$INSTDIR\webmux-tray.exe"
-
 ; ${BST_CHECKED} writes the login item. Silent installs keep the default;
 ; a silent update leaves the item as it is.
 Var Autostart
@@ -141,6 +109,64 @@ Var TrayClosed
 ; 1 while webmux-tray.exe.old holds the installed tray, until the install
 ; succeeds.
 Var TrayBackup
+; ${BST_CHECKED} removes %APPDATA%\WebMux and %LOCALAPPDATA%\WebMux logs
+; during uninstall. Defaults to unchecked; `/PURGE` enables it silently.
+Var Purge
+Var PurgeBox
+Var UnfinishText
+
+!define MUI_ICON "${ICON}"
+!define MUI_UNICON "${ICON}"
+!define MUI_ABORTWARNING
+
+!insertmacro MUI_PAGE_DIRECTORY
+Page custom optionsPage optionsLeave
+!insertmacro MUI_PAGE_INSTFILES
+!define MUI_FINISHPAGE_TEXT "WebMux 托盘已安装并启动。$\r$\n$\r$\n首次使用时，在托盘菜单中选择“安装 WSL 中的 webmux”；安装包已内置 ${ARCH} 版服务端，WSL 为同一架构时无需联网。"
+!insertmacro MUI_PAGE_FINISH
+
+!insertmacro MUI_UNPAGE_CONFIRM
+UninstPage custom un.optionsPage un.optionsLeave
+!insertmacro MUI_UNPAGE_INSTFILES
+!define MUI_FINISHPAGE_TEXT "$UnfinishText"
+!insertmacro MUI_UNPAGE_FINISH
+!insertmacro MUI_LANGUAGE "SimpChinese"
+
+; CloseTray asks the tray started from $INSTDIR (and any tray of this user)
+; to quit as with "仅退出托盘". `quit` kills an unresponsive tray only when
+; it runs from $INSTDIR; a tray elsewhere is the user's to close. EXTRA_ARGS
+; lets uninstall also pass `--stop-keepalive`. It returns with $0 = 0 when a
+; running tray was closed and 3 when none ran (a tray that predates exit
+; code 3 also reports none as 0).
+!macro CloseTray UN EXE EXTRA_ARGS
+  Function ${UN}closeTray
+    retry:
+      ClearErrors
+      ExecWait '"${EXE}" quit --kill-path "$INSTDIR\webmux-tray.exe"${EXTRA_ARGS}' $0
+      ${If} ${Errors}
+        StrCpy $0 3 ; no tray executable to ask: nothing of ours can run
+      ${ElseIf} "${EXTRA_ARGS}" != ""
+      ${AndIf} $0 == 2
+        ; Fallback when $INSTDIR\webmux-tray.exe was replaced by an older build.
+        ClearErrors
+        ExecWait '"${EXE}" quit --kill-path "$INSTDIR\webmux-tray.exe"' $0
+        ${If} ${Errors}
+          StrCpy $0 3
+        ${EndIf}
+      ${EndIf}
+      ${If} $0 == 0
+      ${OrIf} $0 == 3
+        Return
+      ${EndIf}
+      IfSilent fail
+      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "另一个 WebMux 托盘仍在运行，无法自动关闭（可能是旧版本或其他位置的托盘）。$\r$\n$\r$\n请在通知区域右键 WebMux 图标，选择“退出 → 仅退出托盘”，然后点击“重试”。" IDRETRY retry
+    fail:
+      SetErrorLevel 3
+      Quit
+  FunctionEnd
+!macroend
+!insertmacro CloseTray "" "$PLUGINSDIR\webmux-tray.exe" ""
+!insertmacro CloseTray "un." "$INSTDIR\webmux-tray.exe" " --stop-keepalive"
 
 Function .onInit
   StrCpy $Autostart ${BST_CHECKED}
@@ -222,6 +248,36 @@ FunctionEnd
 Function optionsLeave
   ${NSD_GetState} $AutostartBox $Autostart
   ${NSD_GetState} $FirewallBox $Firewall
+FunctionEnd
+
+Function un.onInit
+  StrCpy $Purge ${BST_UNCHECKED}
+  ${un.GetParameters} $0
+  ClearErrors
+  ${un.GetOptions} $0 "/PURGE" $1
+  ${IfNot} ${Errors}
+    StrCpy $Purge ${BST_CHECKED}
+  ${EndIf}
+FunctionEnd
+
+; "卸载选项": whether to remove personal tray settings and local logs.
+Function un.optionsPage
+  !insertmacro MUI_HEADER_TEXT "卸载选项" "选择是否一并清除个人配置与本地日志。"
+  nsDialogs::Create 1018
+  Pop $0
+  ${If} $0 == error
+    Abort
+  ${EndIf}
+  ${NSD_CreateCheckbox} 0 0 100% 12u "同时删除个人配置与本地日志（%APPDATA%\WebMux、%LOCALAPPDATA%\WebMux）"
+  Pop $PurgeBox
+  ${NSD_SetState} $PurgeBox $Purge
+  ${NSD_CreateLabel} 12u 14u -12u 48u "不勾选时保留托盘设置（tray.json）与托盘日志（tray.log），便于以后重新安装时沿用配置。$\r$\n$\r$\n无论是否勾选，卸载都不会停止或删除 WSL 发行版内的 webmux 及其配置。"
+  Pop $0
+  nsDialogs::Show
+FunctionEnd
+
+Function un.optionsLeave
+  ${NSD_GetState} $PurgeBox $Purge
 FunctionEnd
 
 Section "-WebMux tray"
@@ -343,17 +399,35 @@ SectionEnd
 Section "Uninstall"
   Call un.closeTray
 
-  ; The rule the installer added for this tray; removing it shows the
-  ; administrator prompt once.
+  ; Remove any forwarding rule for the current tray executable and, when
+  ; FirewallRule recorded a different path from an earlier install, that
+  ; path too. `firewall remove` queries netsh without elevation first and
+  ; exits 0 immediately when no rule exists.
   ReadRegStr $1 HKCU "${UNINST_KEY}" "FirewallRule"
-  ${If} $1 != ""
+  StrCpy $2 0
+  ${If} ${FileExists} "$INSTDIR\webmux-tray.exe"
     ClearErrors
-    ExecWait '"$INSTDIR\webmux-tray.exe" firewall remove "$1"' $0
+    ExecWait '"$INSTDIR\webmux-tray.exe" firewall remove' $0
     ${If} ${Errors}
     ${OrIf} $0 != 0
-      MessageBox MB_OK|MB_ICONINFORMATION "未删除 WebMux 添加的 Windows 防火墙规则。$\r$\n$\r$\n可在“高级安全 Windows Defender 防火墙”的入站规则中删除以“WebMux tray forwarding”开头的规则。" /SD IDOK
+      StrCpy $2 1
     ${EndIf}
     ClearErrors
+    ${If} $1 != ""
+    ${AndIf} $1 != "$INSTDIR\webmux-tray.exe"
+    ${AndIf} $0 != 3
+      ExecWait '"$INSTDIR\webmux-tray.exe" firewall remove "$1"' $0
+      ${If} ${Errors}
+      ${OrIf} $0 != 0
+        StrCpy $2 1
+      ${EndIf}
+      ClearErrors
+    ${EndIf}
+  ${ElseIf} $1 != ""
+    StrCpy $2 1
+  ${EndIf}
+  ${If} $2 != 0
+    MessageBox MB_OK|MB_ICONINFORMATION "未删除 WebMux 添加的 Windows 防火墙规则。$\r$\n$\r$\n可在“高级安全 Windows Defender 防火墙”的入站规则中删除以“WebMux tray forwarding”开头的规则。" /SD IDOK
   ${EndIf}
 
   ReadRegStr $1 HKCU "${RUN_KEY}" "${RUN_VALUE}"
@@ -365,7 +439,21 @@ Section "Uninstall"
   ${If} $1 != ""
     Delete "$1"
   ${EndIf}
-  RMDir "${CACHE_DIR}"
+  RMDir /r "${CACHE_DIR}"
+  RMDir /r "${UPDATES_DIR}"
+  Delete "${KEEPALIVE_FILE}"
+
+  ${If} $Purge == ${BST_CHECKED}
+    Delete "${ROAMING_DIR}\tray.json"
+    Delete "${ROAMING_DIR}\.tray-*.json"
+    RMDir "${ROAMING_DIR}"
+    Delete "${LOCAL_DIR}\tray.log"
+    Delete "${LOCAL_DIR}\tray.log.*"
+    StrCpy $UnfinishText "WebMux 托盘已卸载，已删除本地托盘设置（%APPDATA%\WebMux）与托盘日志（%LOCALAPPDATA%\WebMux）。$\r$\n$\r$\nWSL 发行版中的 webmux 与配置未自动删除。若 WebMux 正在运行，它会继续在 WSL 中运行；如需一并停止并清理 WSL 侧文件，可在发行版终端执行：$\r$\nwebmux stop$\r$\nrm -rf ~/.local/bin/webmux ~/.config/webmux ~/.local/state/webmux"
+  ${Else}
+    StrCpy $UnfinishText "WebMux 托盘已卸载。$\r$\n$\r$\n以下内容已保留：托盘设置（%APPDATA%\WebMux）、托盘日志（%LOCALAPPDATA%\WebMux）和 WSL 中的 webmux。$\r$\n$\r$\n如果 WebMux 正在运行，它会继续在 WSL 中运行；需要停止时在 WSL 中执行 webmux stop。"
+  ${EndIf}
+  RMDir "${LOCAL_DIR}"
 
   Delete "$SMPROGRAMS\WebMux.lnk"
   Delete "$INSTDIR\webmux-tray.exe"
