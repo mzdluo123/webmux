@@ -3,6 +3,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { api } from "../../platform/api";
   import {
     ChatSupportSchema,
@@ -78,7 +79,7 @@
     />
     <Label for="launch-config-hybrid">{m.s2_hybrid_mode_label()}</Label>
   </div>
-  <div class="h-36 min-w-0 overflow-y-auto">
+  <ScrollArea class="max-h-36">
     <p
       id="launch-config-hybrid-help"
       role="status"
@@ -98,5 +99,5 @@
         class="mt-2"
       />
     {/if}
-  </div>
+  </ScrollArea>
 </div>

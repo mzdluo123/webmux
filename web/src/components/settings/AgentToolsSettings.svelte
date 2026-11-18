@@ -9,6 +9,7 @@
   import * as Card from "$lib/components/ui/card";
   import * as Empty from "$lib/components/ui/empty";
   import * as Item from "$lib/components/ui/item";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import { AdvancedSection } from "$lib/components/ui/advanced-section";
   import { InfoHint } from "$lib/components/ui/info-hint";
@@ -182,131 +183,145 @@
       ></Card.Description
     >
   </Card.Header>
-  <Card.Content class="h-[min(25rem,60dvh)] space-y-4 overflow-y-auto">
-    {#if viewState === "loading"}
-      <div
-        role="status"
-        aria-busy="true"
-        aria-label={m.agent_tools_loading()}
-        class="space-y-3"
-      >
-        {#each [0, 1, 2] as idx (idx)}
-          <div class="flex items-center gap-3 py-2">
-            <Skeleton class="size-9 shrink-0" />
-            <div class="min-w-0 flex-1 space-y-2">
-              <Skeleton class="h-4 w-36" />
-              <Skeleton class="h-3 w-52 max-w-full" />
-            </div>
-            <Skeleton class="h-5 w-16 shrink-0" />
-          </div>
-        {/each}
-      </div>
-    {:else if viewState === "unavailable"}
-      <InlineNotice tone="danger">
-        <p>{m.agent_tools_unavailable()}</p>
-        <p class="mt-1 font-mono text-xs">{loadError}</p>
-      </InlineNotice>
-      <Button variant="outline" onclick={() => void loadReport(true)}
-        >{m.s2_reload()}</Button
-      >
-    {:else if report}
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex min-w-0 flex-wrap items-center gap-2 text-sm">
-          <span class="font-medium"
-            >{m.agent_tools_summary_installed({
-              installed: String(installedCount),
-            })}</span
+  <Card.Content>
+    <ScrollArea class="max-h-[min(25rem,60dvh)]">
+      <div class="space-y-4">
+        {#if viewState === "loading"}
+          <div
+            role="status"
+            aria-busy="true"
+            aria-label={m.agent_tools_loading()}
+            class="space-y-3"
           >
-          {#if updatesCount > 0}
-            <Badge variant="info"
-              >{m.agent_tools_summary_updates({
-                updates: String(updatesCount),
-              })}</Badge
-            >
-          {/if}
-          <span class="text-xs text-muted-foreground">
-            {report.remoteCheckedAt
-              ? m.agent_tools_checked_remote_at({
-                  time: formatTimestamp(report.remoteCheckedAt),
-                })
-              : m.agent_tools_checked_local_at({
-                  time: formatTimestamp(report.checkedAt),
-                })}
-          </span>
-        </div>
-        <div class="flex shrink-0 items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon-touch"
-            aria-disabled={busy}
-            aria-label={m.agent_tools_rescan_aria()}
-            title={m.agent_tools_rescan_aria()}
-            onclick={() => void loadReport(true)}
-          >
-            <IconRefresh
-              class={rescanning ? "motion-safe:animate-spin" : ""}
-              aria-hidden="true"
-            />
-          </Button>
-          <Button
-            variant="default"
-            disabled={installedTools.length === 0}
-            aria-disabled={busy || installedTools.length === 0}
-            onclick={() => void checkUpdates()}
-          >
-            {checking
-              ? m.agent_tools_checking_btn()
-              : m.agent_tools_check_btn()}
-          </Button>
-        </div>
-      </div>
-
-      {#if checkError}
-        <InlineNotice tone="warning">
-          <p>{m.agent_tools_check_error({ error: checkError })}</p>
-        </InlineNotice>
-      {/if}
-
-      {#if installedTools.length === 0}
-        <Empty.Root variant="outline">
-          <Empty.Header>
-            <Empty.Media variant="icon"
-              ><IconTerminal aria-hidden="true" /></Empty.Media
-            >
-            <Empty.Title>{m.agent_tools_empty_installed_title()}</Empty.Title>
-            <Empty.Description
-              >{m.agent_tools_empty_installed_desc()}</Empty.Description
-            >
-          </Empty.Header>
-        </Empty.Root>
-      {:else}
-        <Item.Group
-          variant="divided"
-          aria-label={m.agent_tools_installed_list_aria()}
-        >
-          {#each installedTools as tool (tool.id)}
-            <AgentToolRow {tool} />
-          {/each}
-        </Item.Group>
-      {/if}
-
-      {#if uninstalledTools.length > 0}
-        <AdvancedSection
-          title={m.agent_tools_uninstalled_toggle({
-            count: String(uninstalledTools.length),
-          })}
-          bind:open={uninstalledOpen}
-        >
-          <Item.Group
-            variant="divided"
-            aria-label={m.agent_tools_uninstalled_list_aria()}
-          >
-            {#each uninstalledTools as tool (tool.id)}
-              <AgentToolRow {tool} compact />
+            {#each [0, 1, 2] as idx (idx)}
+              <div class="flex items-center gap-3 py-2">
+                <Skeleton class="size-9 shrink-0" />
+                <div class="min-w-0 flex-1 space-y-2">
+                  <Skeleton class="h-4 w-36" />
+                  <Skeleton class="h-3 w-52 max-w-full" />
+                </div>
+                <Skeleton class="h-5 w-16 shrink-0" />
+              </div>
             {/each}
-          </Item.Group>
-        </AdvancedSection>
-      {/if}
-    {/if}
+          </div>
+        {:else if viewState === "unavailable"}
+          <InlineNotice tone="danger">
+            <p>{m.agent_tools_unavailable()}</p>
+            <p class="mt-1 font-mono text-xs">{loadError}</p>
+          </InlineNotice>
+          <Button variant="outline" onclick={() => void loadReport(true)}
+            >{m.s2_reload()}</Button
+          >
+        {:else if report}
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex min-w-0 flex-wrap items-center gap-2 text-sm">
+              <span class="font-medium"
+                >{m.agent_tools_summary_installed({
+                  installed: String(installedCount),
+                })}</span
+              >
+              {#if updatesCount > 0}
+                <Badge variant="info"
+                  >{m.agent_tools_summary_updates({
+                    updates: String(updatesCount),
+                  })}</Badge
+                >
+              {/if}
+              <span class="text-xs text-muted-foreground">
+                {report.remoteCheckedAt
+                  ? m.agent_tools_checked_remote_at({
+                      time: formatTimestamp(report.remoteCheckedAt),
+                    })
+                  : m.agent_tools_checked_local_at({
+                      time: formatTimestamp(report.checkedAt),
+                    })}
+              </span>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon-touch"
+                aria-disabled={busy || undefined}
+                tabindex={busy ? -1 : undefined}
+                aria-label={m.agent_tools_rescan_aria()}
+                title={m.agent_tools_rescan_aria()}
+                onclick={() => {
+                  if (busy) return;
+                  void loadReport(true);
+                }}
+              >
+                <IconRefresh
+                  class={rescanning ? "motion-safe:animate-spin" : ""}
+                  aria-hidden="true"
+                />
+              </Button>
+              <Button
+                variant="default"
+                disabled={installedTools.length === 0}
+                aria-disabled={busy || undefined}
+                tabindex={busy ? -1 : undefined}
+                onclick={() => {
+                  if (busy || installedTools.length === 0) return;
+                  void checkUpdates();
+                }}
+              >
+                {checking
+                  ? m.agent_tools_checking_btn()
+                  : m.agent_tools_check_btn()}
+              </Button>
+            </div>
+          </div>
+
+          {#if checkError}
+            <InlineNotice tone="warning">
+              <p>{m.agent_tools_check_error({ error: checkError })}</p>
+            </InlineNotice>
+          {/if}
+
+          {#if installedTools.length === 0}
+            <Empty.Root variant="outline">
+              <Empty.Header>
+                <Empty.Media variant="icon"
+                  ><IconTerminal aria-hidden="true" /></Empty.Media
+                >
+                <Empty.Title
+                  >{m.agent_tools_empty_installed_title()}</Empty.Title
+                >
+                <Empty.Description
+                  >{m.agent_tools_empty_installed_desc()}</Empty.Description
+                >
+              </Empty.Header>
+            </Empty.Root>
+          {:else}
+            <Item.Group
+              variant="divided"
+              aria-label={m.agent_tools_installed_list_aria()}
+            >
+              {#each installedTools as tool (tool.id)}
+                <AgentToolRow {tool} />
+              {/each}
+            </Item.Group>
+          {/if}
+
+          {#if uninstalledTools.length > 0}
+            <AdvancedSection
+              title={m.agent_tools_uninstalled_toggle({
+                count: String(uninstalledTools.length),
+              })}
+              bind:open={uninstalledOpen}
+            >
+              <Item.Group
+                variant="divided"
+                aria-label={m.agent_tools_uninstalled_list_aria()}
+              >
+                {#each uninstalledTools as tool (tool.id)}
+                  <AgentToolRow {tool} compact />
+                {/each}
+              </Item.Group>
+            </AdvancedSection>
+          {/if}
+        {/if}
+      </div>
+    </ScrollArea>
   </Card.Content>
 </Card.Root>

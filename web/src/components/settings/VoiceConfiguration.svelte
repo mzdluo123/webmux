@@ -85,8 +85,9 @@
 
   function submit(event: SubmitEvent) {
     event.preventDefault();
+    if (disabled) return;
     attempted = true;
-    if (disabled || invalid) return;
+    if (invalid) return;
     onsave({
       cmd: argv,
       env: Object.fromEntries(
@@ -119,7 +120,11 @@
     <Button
       type="submit"
       bind:ref={saveButton}
-      aria-disabled={disabled}
+      aria-disabled={disabled || undefined}
+      tabindex={disabled ? -1 : undefined}
+      onclick={(event) => {
+        if (disabled) event.preventDefault();
+      }}
       data-layout-row="save">{m.s2_save()}</Button
     >
     <div
@@ -132,9 +137,11 @@
         variant="outline"
         wrap
         bind:ref={resetButton}
-        aria-disabled={disabled}
+        aria-disabled={disabled || undefined}
+        tabindex={disabled ? -1 : undefined}
         onclick={() => {
-          if (!disabled) onreset();
+          if (disabled) return;
+          onreset();
         }}>{m.s2_voice_reset_config()}</Button
       >
     </div>

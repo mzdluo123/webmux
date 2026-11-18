@@ -97,7 +97,7 @@
       </p>
     {/if}
     <div
-      class="grid min-w-0 grid-cols-2 gap-4"
+      class="grid min-w-0 gap-4 sm:grid-cols-2"
       class:invisible={defaultPreview}
       inert={defaultPreview}
     >
