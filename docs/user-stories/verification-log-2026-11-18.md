@@ -39,6 +39,10 @@
 - `go test -race -count=1 ./internal/codexrollout ./internal/agent/{codex,kimi,omp,qoder,qodercn,opencode,agy,claudecode,devin}/history ./internal/{historyimport,historysource,historyprojection,handoff}` 的 14 个包通过。
 - 派生样本覆盖 Codex 0.170.0 和 9.99.0、Kimi Wire 1.10 和 2.0 与状态 v3、omp session v4、Qoder/QoderCN 较高版本，并核对正文和工具关联。OpenCode 在同一数据库内读取两种 SQLite 表结构。
 
+## 启动环境变量编辑（T088，US-B08、US-G07）
+
+- `pnpm --dir web test:browser test/browser/LaunchConfigDialog.test.ts` 通过。添加和删除后焦点落到对应变量名或添加按钮，值继续默认遮挡，错误与对应输入关联。
+
 ## 侧栏添加仓库入口（US-C16）
 
 - 「添加仓库」从「全部仓库」行菜单移到侧栏底部；按会话、按分支、窄栏及移动端抽屉共用登记弹窗和可用性条件。
