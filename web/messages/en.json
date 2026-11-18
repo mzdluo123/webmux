@@ -4483,6 +4483,7 @@
   "s8_proj_back_aria": "Back",
   "s8_proj_back_title": "Back (Esc)",
   "s8_proj_clone_resuming": "Resuming clone operation…",
+  "s8_proj_clone_status": "Clone status",
   "s8_proj_clone_succeeded": "Clone completed",
   "s8_proj_cloning_or_registering": "Cloning or registering project…",
   "s8_proj_empty": "No matches found; try another keyword or add a project.",
