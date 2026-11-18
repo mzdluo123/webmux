@@ -32,6 +32,11 @@
   - 本机免密与 Relay 浏览器顶层导航的非执行行为通过 HTTP 响应头契约（`application/octet-stream`、`attachment`、`nosniff` 与 `sandbox` CSP）回归验证，未连接公网 Relay 节点演练；
   - 浏览器与端到端用例仅在 Linux 无头 Chromium 中执行，未在 macOS / iOS / Android 真机浏览器上复测。
 
+## T045 终端查找与回放提示（US-D11）
+
+- 查找栏在查询为空且未回放时省略状态行保持紧凑覆盖高度；有查询或回放提示时仅挂载单个命名的 `role="status"`（`查找结果`），切换匹配结果与回放提示期间高度保持一致，并在回放完成前后保留输入框或按钮焦点。
+- `TerminalRendering.test.ts` 与 `terminal.spec.ts` 的桌面和 iPhone SE Chromium 用例覆盖紧凑初始高度、单一状态播报、回放焦点保留、匹配复制和关闭后的 PTY 输入。
+
 ## Codex 原生历史版本兼容（US-Q19、US-Q20）
 
 - 修复前，`go test -count=1 ./internal/agent/codex/history -run '^TestRuntimeDiscoveryCurrentCaptureAndFreeze$'` 在三个新增版本上均复现 byte 0 格式错误。
