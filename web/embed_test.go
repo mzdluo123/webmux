@@ -2,23 +2,16 @@ package web
 
 import (
 	"bytes"
-	"compress/gzip"
 	"io"
 	"io/fs"
 	"os"
 	"path"
 	"testing"
+
+	"github.com/andybalholm/brotli"
 )
 
-// Compare the Go ZIP reader against Vite's ordinary output. Compressible files
-// of at least 1 KiB are embedded only as stored .br and .gz siblings (see
-// web/scripts/embed-assets.ts); everything else, including fonts, images and
-// small files, is embedded under its own name. This covers both forms,
-// including lazy language chunks.
-//
-// The .gz sibling is inflated and compared byte for byte. Go's standard library
-// cannot decode Brotli and this module takes no Brotli dependency, so the .br
-// sibling is only required to exist and be non-empty.
+// Decode each embedded asset and compare it to the ordinary Vite output.
 func TestEmbeddedAssetsMatchBuild(t *testing.T) {
 	count := 0
 	err := fs.WalkDir(os.DirFS("dist"), ".", func(name string, entry fs.DirEntry, err error) error {
@@ -32,32 +25,18 @@ func TestEmbeddedAssetsMatchBuild(t *testing.T) {
 		count++
 
 		raw, rawErr := fs.ReadFile(Assets, "dist/"+name)
-		gz, gzErr := fs.ReadFile(Assets, "dist/"+name+".gz")
+		if _, err := fs.Stat(Assets, "dist/"+name+".gz"); err == nil {
+			t.Errorf("redundant gzip copy of %s", name)
+		}
 		br, brErr := fs.ReadFile(Assets, "dist/"+name+".br")
 		switch {
-		case gzErr == nil || brErr == nil:
+		case brErr == nil:
 			if rawErr == nil {
-				t.Errorf("asset %s is embedded both as itself and as precompressed siblings", name)
+				t.Errorf("duplicate identity copy of %s", name)
 			}
-			if gzErr != nil || brErr != nil {
-				t.Errorf("asset %s needs both .br and .gz siblings: br: %v, gz: %v", name, brErr, gzErr)
-				return nil
-			}
-			if len(br) == 0 {
-				t.Errorf("embedded asset %s.br is empty", name)
-			}
-			zr, err := gzip.NewReader(bytes.NewReader(gz))
-			if err != nil {
-				t.Errorf("embedded asset %s.gz is not valid gzip: %v", name, err)
-				return nil
-			}
-			got, err := io.ReadAll(zr)
-			if err != nil {
-				t.Errorf("inflate embedded asset %s.gz: %v", name, err)
-				return nil
-			}
-			if !bytes.Equal(got, want) {
-				t.Errorf("embedded asset %s.gz differs from build", name)
+			got, err := io.ReadAll(brotli.NewReader(bytes.NewReader(br)))
+			if err != nil || !bytes.Equal(got, want) {
+				t.Errorf("embedded %s.br differs from build: %v", name, err)
 			}
 		case rawErr == nil:
 			if !bytes.Equal(raw, want) {

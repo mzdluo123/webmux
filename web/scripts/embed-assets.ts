@@ -1,15 +1,12 @@
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { promisify } from "node:util";
-import { brotliCompress, constants, gzip } from "node:zlib";
+import { brotliCompress, constants } from "node:zlib";
 import { zipSync, type Zippable } from "fflate";
 import type { Plugin } from "vite";
 
 const brotli = promisify(brotliCompress);
-const gzipAsync = promisify(gzip);
-// Mirrors compressibleStaticType in internal/api/static.go. Matching files of
-// at least 1 KiB are embedded only as stored .br and .gz siblings, so serving
-// spends no CPU; the server inflates .gz for the rare identity request.
+// Matching assets are stored once. The server derives gzip or identity on demand.
 const compressible = /\.(html|js|mjs|css|webmanifest|svg|txt|wasm)$/;
 const stored = { level: 0, mtime: new Date(1980, 0, 1) } as const;
 
@@ -38,17 +35,13 @@ export function embedAssets(): Plugin {
           // zlib runs these on the libuv pool, so assets compress in parallel.
           pending.push(
             (async () => {
-              const [br, gz] = await Promise.all([
-                brotli(data, {
-                  params: {
-                    [constants.BROTLI_PARAM_QUALITY]: 11,
-                    [constants.BROTLI_PARAM_SIZE_HINT]: data.length,
-                  },
-                }),
-                gzipAsync(data, { level: 9 }),
-              ]);
+              const br = await brotli(data, {
+                params: {
+                  [constants.BROTLI_PARAM_QUALITY]: 11,
+                  [constants.BROTLI_PARAM_SIZE_HINT]: data.length,
+                },
+              });
               files[`${entry}.br`] = [br, stored];
-              files[`${entry}.gz`] = [gz, stored];
             })(),
           );
           continue;

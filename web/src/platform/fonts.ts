@@ -25,7 +25,7 @@ export async function loadTerminalFont(size: number): Promise<void> {
   ]);
 }
 
-// Icon, box-drawing and CJK slices load on first use, after xterm has already
+// Icon and box-drawing slices load on first use, after xterm has already
 // rasterized those cells. WebKit has no FontFaceSetLoadEvent and may never
 // dispatch loadingdone, so each pending terminal face reports its own load.
 // Faces are watched once per page and notify the open terminals, so a slice

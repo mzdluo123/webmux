@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/andybalholm/brotli"
+
 	assets "github.com/rainchan/webmux/web"
 )
 
@@ -24,22 +26,16 @@ type staticFiles struct {
 	files map[string]*staticAsset
 }
 
-// staticAsset is one served path. web/scripts/embed-assets.ts embeds
-// compressible files only as name.br and name.gz, compressed at build time, so
-// serving never compresses; the identity body is inflated from gzip on demand.
+// Each representation is initialized at most once per embedded asset.
 type staticAsset struct {
 	once        sync.Once
-	name        string // embedded identity file; empty when only variants exist
-	brotliName  string
-	gzipName    string
-	data        []byte
-	brotli      []byte
-	gzip        []byte
+	name        string
 	contentType string
+	compressed  bool
+	data        []byte
 	err         error
-
-	inflateOnce sync.Once
-	inflateErr  error
+	identity    func() ([]byte, error)
+	gzip        func() ([]byte, error)
 }
 
 func embeddedStaticFiles() (*staticFiles, error) {
@@ -52,28 +48,16 @@ func embeddedStaticFiles() (*staticFiles, error) {
 
 func newStaticFiles(root fs.FS) (*staticFiles, error) {
 	files := &staticFiles{root: root, files: make(map[string]*staticAsset)}
-	asset := func(name string) *staticAsset {
-		a := files.files[name]
-		if a == nil {
-			a = &staticAsset{contentType: staticContentType(name)}
-			files.files[name] = a
-		}
-		return a
-	}
 	err := fs.WalkDir(root, ".", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
 			return err
 		}
-		ext := path.Ext(name)
-		base := strings.TrimSuffix(name, ext)
-		switch {
-		case ext == ".br" && compressibleStaticType(staticContentType(base)):
-			asset(base).brotliName = name
-		case ext == ".gz" && compressibleStaticType(staticContentType(base)):
-			asset(base).gzipName = name
-		default:
-			asset(name).name = name
+		base := strings.TrimSuffix(name, ".br")
+		compressed := base != name && compressibleStaticType(staticContentType(base))
+		if !compressed {
+			base = name
 		}
+		files.files[base] = &staticAsset{name: name, contentType: staticContentType(base), compressed: compressed}
 		return nil
 	})
 	return files, err
@@ -85,39 +69,27 @@ func (files *staticFiles) get(name string) (*staticAsset, error) {
 		return nil, fs.ErrNotExist
 	}
 	asset.once.Do(func() {
-		read := func(name string) []byte {
-			if name == "" || asset.err != nil {
-				return nil
-			}
-			var data []byte
-			data, asset.err = fs.ReadFile(files.root, name)
-			return data
-		}
-		asset.data = read(asset.name)
-		asset.gzip = read(asset.gzipName)
-		asset.brotli = read(asset.brotliName)
-		if asset.err == nil && asset.name == "" && asset.gzip == nil {
-			asset.err = fs.ErrNotExist
+		asset.data, asset.err = fs.ReadFile(files.root, asset.name)
+		if asset.compressed && asset.err == nil {
+			reader := func() io.Reader { return brotli.NewReader(bytes.NewReader(asset.data)) }
+			asset.identity = sync.OnceValues(func() ([]byte, error) { return io.ReadAll(reader()) })
+			asset.gzip = sync.OnceValues(func() ([]byte, error) {
+				var buf bytes.Buffer
+				zw, err := gzip.NewWriterLevel(&buf, gzip.BestSpeed)
+				if err != nil {
+					return nil, err
+				}
+				if _, err := io.Copy(zw, reader()); err != nil {
+					return nil, err
+				}
+				if err := zw.Close(); err != nil {
+					return nil, err
+				}
+				return buf.Bytes(), nil
+			})
 		}
 	})
 	return asset, asset.err
-}
-
-// identity returns the uncompressed body, inflating the gzip variant once
-// when the build embedded no identity file.
-func (asset *staticAsset) identity() ([]byte, error) {
-	if asset.name != "" {
-		return asset.data, nil
-	}
-	asset.inflateOnce.Do(func() {
-		var zr *gzip.Reader
-		zr, asset.inflateErr = gzip.NewReader(bytes.NewReader(asset.gzip))
-		if asset.inflateErr != nil {
-			return
-		}
-		asset.data, asset.inflateErr = io.ReadAll(zr)
-	})
-	return asset.data, asset.inflateErr
 }
 
 func staticContentType(name string) string {
@@ -191,35 +163,35 @@ func (s *Server) static(w http.ResponseWriter, r *http.Request) {
 
 func (asset *staticAsset) write(w http.ResponseWriter, r *http.Request) {
 	q := staticEncodingQualities(strings.Join(r.Header.Values("Accept-Encoding"), ","))
-	if asset.gzip != nil || asset.brotli != nil {
-		w.Header().Add("Vary", "Accept-Encoding")
+	body := asset.data
+	encoding := ""
+	var err error
+	if asset.compressed {
+		w.Header().Set("Vary", "Accept-Encoding")
+		switch {
+		case q.br > 0 && q.br >= q.gzip && q.br >= q.identity:
+			encoding = "br"
+		case q.gzip > 0 && q.gzip >= q.identity:
+			encoding = "gzip"
+			body, err = asset.gzip()
+		case q.identity > 0:
+			body, err = asset.identity()
+		}
 	}
-	// Highest quality wins; ties prefer the smaller body (br, gzip, identity).
-	body, encoding, best := []byte(nil), "", q.identity
-	if asset.gzip != nil && q.gzip > 0 && q.gzip >= best {
-		body, encoding, best = asset.gzip, "gzip", q.gzip
-	}
-	if asset.brotli != nil && q.br > 0 && q.br >= best {
-		body, encoding = asset.brotli, "br"
-	}
-	if encoding != "" {
-		w.Header().Set("Content-Encoding", encoding)
-		_, _ = w.Write(body)
-		return
-	}
-	if q.identity <= 0 {
-		// A rejected representation must not inherit the immutable asset cache policy.
+	if encoding == "" && q.identity <= 0 {
 		w.Header().Del("Cache-Control")
 		http.Error(w, "no acceptable content encoding", http.StatusNotAcceptable)
 		return
 	}
-	data, err := asset.identity()
 	if err != nil {
 		w.Header().Del("Cache-Control")
 		http.Error(w, "corrupt embedded asset", http.StatusInternalServerError)
 		return
 	}
-	_, _ = w.Write(data)
+	if encoding != "" {
+		w.Header().Set("Content-Encoding", encoding)
+	}
+	_, _ = w.Write(body)
 }
 
 type encodingQualities struct{ br, gzip, identity float64 }
