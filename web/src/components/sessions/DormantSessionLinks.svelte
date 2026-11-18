@@ -20,8 +20,10 @@
           >
             <Item.Content class="min-w-0">
               <Item.Title>{recordTitle(record)}</Item.Title>
-              <Item.Description class="truncate">
-                {record.agent.title} · {record.cwd}
+              <Item.Description>
+                <span class="block truncate"
+                  >{record.agent.title} · {record.cwd}</span
+                >
               </Item.Description>
               <HybridRecordHints {record} />
             </Item.Content>
