@@ -49,6 +49,8 @@ export function createProjectSources(
   let error = $state("");
   let github = $state.raw<GitHubProjects | null>(null);
   let githubLoading = $state(false);
+  let githubQuery = $state<string | null>(null);
+  let githubError = $state("");
   let operation = $state.raw<ProjectCloneOperation | null>(null);
   let pending = $state.raw(savedClone());
   let disposed = false;
@@ -215,6 +217,12 @@ export function createProjectSources(
     get githubLoading() {
       return githubLoading;
     },
+    get githubQuery() {
+      return githubQuery;
+    },
+    get githubError() {
+      return githubError;
+    },
     get operation() {
       return operation;
     },
@@ -318,6 +326,8 @@ export function createProjectSources(
       githubAbort?.abort();
       githubAbort = new AbortController();
       githubLoading = true;
+      githubQuery = query;
+      githubError = "";
       try {
         const result = await api(
           `/projects/github?query=${encodeURIComponent(query)}&page=${page}`,
@@ -328,8 +338,10 @@ export function createProjectSources(
         );
         if (!disposed && generation === githubGeneration) github = result;
       } catch (err) {
-        if (!disposed && generation === githubGeneration)
-          error = errorMessage(err);
+        if (!disposed && generation === githubGeneration) {
+          github = null;
+          githubError = errorMessage(err);
+        }
       } finally {
         if (!disposed && generation === githubGeneration) githubLoading = false;
       }

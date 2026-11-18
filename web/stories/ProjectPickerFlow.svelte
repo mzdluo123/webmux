@@ -76,6 +76,8 @@
     busy: false,
     error: "",
     githubLoading: false,
+    githubQuery: "",
+    githubError: "",
     github: {
       available: initial !== "github-unavailable",
       reason:

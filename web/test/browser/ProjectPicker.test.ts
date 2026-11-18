@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
+import { tick } from "svelte";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import ProjectPicker from "../../src/components/workspace/ProjectPicker.svelte";
 import type { Project } from "../../src/contracts/schemas";
@@ -164,6 +165,52 @@ test("GitHub configuration failure stays readable and other sources remain acces
   await page.getByRole("option", { name: /本地文件夹/ }).click();
   await expect
     .element(page.getByRole("textbox", { name: "已有文件夹", exact: true }))
+    .toBeVisible();
+});
+
+test("editing the GitHub query immediately withdraws the previous options", async () => {
+  const fetchMock = vi.mocked(window.fetch);
+  const fetchProject = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (input, init) => {
+    const url = new URL(String(input), location.href);
+    if (url.pathname !== "/api/projects/github")
+      return fetchProject(input, init);
+    const query = url.searchParams.get("query") || "old";
+    return Response.json({
+      available: true,
+      reason: "",
+      login: "audit",
+      repositories: [
+        {
+          fullName: `audit/${query}`,
+          description: "",
+          private: false,
+          cloneUrl: `https://github.com/audit/${query}.git`,
+        },
+      ],
+      page: 1,
+      hasMore: false,
+    });
+  });
+  mount();
+  await source("GitHub 仓库");
+  await expect
+    .element(page.getByRole("option", { name: /audit\/old/ }))
+    .toBeVisible();
+  const search = page.getByRole("combobox");
+  const input = search.element() as HTMLInputElement;
+  input.value = "new";
+  input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+  await tick();
+  expect(document.querySelector('[role="option"]')).toBeNull();
+  input.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+  );
+  expect(document.body.textContent).not.toContain(
+    "https://github.com/audit/old.git",
+  );
+  await expect
+    .element(page.getByRole("option", { name: /audit\/new/ }))
     .toBeVisible();
 });
 
