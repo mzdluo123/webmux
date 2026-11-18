@@ -1,6 +1,4 @@
 <script lang="ts">
-  import IconBook2 from "~icons/tabler/book-2";
-  import IconFolder from "~icons/tabler/folder";
   import IconLayoutList from "~icons/tabler/layout-list";
   import { Button } from "$lib/components/ui/button";
   import { m } from "$lib/paraglide/messages.js";
@@ -11,6 +9,7 @@
     sessionsByPin,
   } from "../../domains/workspace/session-queue";
   import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
+  import SidebarProjectAvatar from "./SidebarProjectAvatar.svelte";
 
   let {
     sessions,
@@ -94,13 +93,10 @@
       <h2
         class="flex min-w-0 items-center gap-2 px-2 pb-1 text-xs font-medium text-muted-foreground"
       >
-        {#if group.id === "direct"}<IconFolder
-            class="size-3.5 shrink-0"
-            aria-hidden="true"
-          />{:else}<IconBook2
-            class="size-3.5 shrink-0"
-            aria-hidden="true"
-          />{/if}
+        <SidebarProjectAvatar
+          name={group.name}
+          repositoryId={group.id === "direct" ? undefined : group.id}
+        />
         <span class="min-w-0 flex-1 truncate" title={group.name}
           >{group.name}</span
         >

@@ -437,3 +437,65 @@ test("retains cross-view state, isolates worktree drafts, handles query popstate
 
   expect(sessionsWsCount).toBe(1);
 });
+
+test("project headings show GitHub avatars and keep a fallback when they fail", async ({
+  page,
+  request,
+  workDir,
+}) => {
+  const { repo, mainWt, mainPath } = await setupRepoWithLinkedWorktree(
+    request,
+    workDir,
+  );
+  git(
+    mainPath,
+    "remote",
+    "add",
+    "origin",
+    "git@github.com:octocat/example.git",
+  );
+  expect(
+    (
+      await request.post("/api/sessions", {
+        data: {
+          name: "Read project output",
+          workspace: { repositoryId: repo.id, worktreeId: mainWt.id },
+          cmd: ["/bin/sh", "-c", "sleep 120"],
+        },
+      })
+    ).status(),
+  ).toBe(201);
+
+  const url = "https://avatars.githubusercontent.com/octocat?s=48";
+  await page.route(url, async (route) => {
+    expect(route.request().headers()).not.toHaveProperty("referer");
+    await route.fulfill({
+      contentType: "image/gif",
+      headers: { "access-control-allow-origin": "*" },
+      body: Buffer.from(
+        "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+        "base64",
+      ),
+    });
+  });
+  await page.goto("/");
+  await revealSidebar(page);
+  const heading = page
+    .getByRole("region", { name: repo.name, exact: true })
+    .getByRole("heading");
+  const image = heading.locator("img");
+  await expect(image).toBeVisible();
+  await expect(image).toHaveAttribute("alt", "");
+  await expect(heading).toHaveAccessibleName(`${repo.name} 1`);
+  const initialBounds = await heading.boundingBox();
+
+  await page.unroute(url);
+  await page.route(url, (route) => route.abort());
+  const requestOnReload = page.waitForRequest(url);
+  await page.reload();
+  await revealSidebar(page);
+  await requestOnReload;
+  await expect(image).toHaveCount(0);
+  await expect(heading).toContainText("WE");
+  expect(await heading.boundingBox()).toEqual(initialBounds);
+});
