@@ -2,6 +2,12 @@
 
 承接 [verification-log-2026-11-17](verification-log-2026-11-17.md)（已接近 400 行文件上限），收录 2026-11-18 起的局部核对记录；索引见 [WebMux User Stories](../user-stories.md#核对记录)。
 
+## 2026-11-19：批量管理工作树返回原选择行（US-J14）
+
+- 隔离 Chromium 实测选择→预览→返回，以及确认→长结果→返回。验证桌面、平板、手机与手机减少动态效果。
+- `RepositoryPanel.test.ts` 及 `worktrees.spec.ts` 的批量清理用例通过，E2E 覆盖桌面及 iPhone SE Chromium。
+- 本轮使用无头 Linux Chromium，未在物理触屏或真机浏览器核对。
+
 ## 2026-11-18：会话上传读取响应头安全收敛（US-Q15）
 
 ### 范围
