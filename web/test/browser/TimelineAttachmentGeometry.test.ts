@@ -45,9 +45,12 @@ test.each(["loaded", "unavailable"])(
     const next = page.getByText("Next message");
     await expect.element(next).toBeVisible();
     expect(fetch).toHaveBeenCalledOnce();
+    await document.fonts.ready;
     const before = row.element().getBoundingClientRect().toJSON();
     const nextTop = next.element().getBoundingClientRect().top;
 
+    const unavailable = new Response("missing", { status: 404 });
+    const readError = vi.spyOn(unavailable, "json");
     response.resolve(
       state === "loaded"
         ? new Response(
@@ -56,16 +59,19 @@ test.each(["loaded", "unavailable"])(
               headers: { "Content-Type": "image/svg+xml" },
             },
           )
-        : new Response("missing", { status: 404 }),
+        : unavailable,
     );
     if (state === "loaded") {
       const image = page.getByRole("img", { name: "photo.svg" });
       await expect.element(image).toBeVisible();
       await (image.element() as HTMLImageElement).decode();
     } else {
-      await vi.waitFor(() =>
-        expect(row.element().querySelector("svg")).not.toBeNull(),
+      await vi.waitFor(() => expect(readError).toHaveBeenCalledOnce());
+      await readError.mock.results[0]!.value.catch(() => null);
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
       );
+      expect(row.element().querySelector("svg")).not.toBeNull();
     }
     expect(row.element().getBoundingClientRect().toJSON()).toEqual(before);
     expect(next.element().getBoundingClientRect().top).toBe(nextTop);
