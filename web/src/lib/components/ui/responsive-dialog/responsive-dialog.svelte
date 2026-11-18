@@ -23,6 +23,7 @@
     pinDrawerHeader = false,
     truncateDrawerTitle = false,
     actions,
+    footer,
   }: {
     title: string;
     description: string;
@@ -49,6 +50,8 @@
      * stay put while the body changes. Keep them icon-sized below `sm`.
      */
     actions?: Snippet;
+    /** Controls pinned below the scrolling body. */
+    footer?: Snippet;
   } = $props();
   const desktop = new MediaQuery("(min-width: 640px)");
   let open = $state(true);
@@ -96,6 +99,7 @@
     <Dialog.Content
       class={cn(
         "flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-xl",
+        footer && "[&>[data-slot=scroll-area]]:flex-1",
         className,
       )}
       onEscapeKeydown={(event) => {
@@ -124,6 +128,7 @@
           {@render children()}
         </div>
       </ScrollArea>
+      {#if footer}<div class="shrink-0">{@render footer()}</div>{/if}
     </Dialog.Content>
   </Dialog.Root>
 {:else}
@@ -146,6 +151,9 @@
             {@render drawerBody()}
           </div>
         </ScrollArea>
+      {/if}
+      {#if footer}
+        <div class="shrink-0 px-4 pt-2 pb-safe-4">{@render footer()}</div>
       {/if}
     </Drawer.Content>
   </Drawer.Root>
