@@ -6,7 +6,7 @@ import {
   expectTerminalLine,
   nameSession,
   runCommand,
-  test,
+  workspaceLayoutTest as test,
   useDirectory,
 } from "./fixtures";
 

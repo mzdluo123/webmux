@@ -1,6 +1,7 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
   import type { Snippet } from "svelte";
+  import IconArrowLeft from "~icons/tabler/arrow-left";
   import IconArrowBackUp from "~icons/tabler/arrow-back-up";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconArrowUp from "~icons/tabler/arrow-up";
@@ -52,6 +53,7 @@
     onUpdate,
     onPush,
     onReturnSession,
+    onReturnWorkbench,
   }: {
     operations?: Snippet;
     repositories: readonly Repository[];
@@ -83,6 +85,7 @@
     onUpdate: () => void;
     onPush: () => void;
     onReturnSession: (sessionId: string) => void;
+    onReturnWorkbench: () => void;
   } = $props();
 
   const repoAvailable = $derived(repository?.availability === "available");
@@ -144,6 +147,14 @@
   >
     <div class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
       <SidebarButton class="sm:hidden" />
+      <Button
+        variant="outline"
+        size="sm-touch"
+        aria-label={m.s7_switch_to_sessions()}
+        onclick={onReturnWorkbench}
+      >
+        <IconArrowLeft aria-hidden="true" />{m.s1_sessions()}
+      </Button>
 
       <GitWorkbenchTargetSwitchers
         {repositories}

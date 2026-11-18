@@ -13,6 +13,7 @@ export const deviceScopedKeys: ReadonlySet<string> = new Set([
   "sidebarCollapsed",
   "sidebarWidth",
   "homeSessionView",
+  "workbenchLayout",
   "quickStartSide",
   "codePanelShown",
   "codePanelSize",

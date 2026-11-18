@@ -284,7 +284,10 @@ export function useTerminal(
         hostScrolled: () => updateBottom(true),
       });
       safeFit();
-      if (!hasTouchInput() && isVisible() && isActive()) term.focus();
+      // A delayed font load must not take focus from sidebar controls.
+      const sidebarFocused = document.activeElement?.closest("nav");
+      if (!hasTouchInput() && isVisible() && isActive() && !sidebarFocused)
+        term.focus();
       return () => {
         disposed = true;
         view.dispose();

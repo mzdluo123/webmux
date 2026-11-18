@@ -10,11 +10,13 @@
     tabindex,
     disabled = false,
     children,
+    onmenuopen,
   }: {
     ariaLabel: string;
     tabindex?: number;
     disabled?: boolean;
     children: Snippet;
+    onmenuopen?: (open: boolean) => void;
   } = $props();
 
   let ready = $state(false);
@@ -43,7 +45,10 @@
 
 <DropdownMenu.Root
   onOpenChange={(open) => {
-    if (open) ready = true;
+    if (open) {
+      ready = true;
+      onmenuopen?.(true);
+    }
   }}
 >
   <DropdownMenu.Trigger {disabled}>
@@ -63,7 +68,11 @@
     {/snippet}
   </DropdownMenu.Trigger>
   {#if ready}
-    <DropdownMenu.Content align="end" class="min-w-48">
+    <DropdownMenu.Content
+      align="end"
+      class="min-w-48"
+      onCloseAutoFocus={() => queueMicrotask(() => onmenuopen?.(false))}
+    >
       {@render children()}
     </DropdownMenu.Content>
   {/if}

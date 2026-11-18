@@ -14,7 +14,10 @@
   import type { SessionInfo } from "../../contracts/schemas";
   import { openSession } from "../../hooks/shared/shell.svelte";
 
-  let { sessions }: { sessions: readonly SessionInfo[] } = $props();
+  let {
+    sessions,
+    triggerLabel,
+  }: { sessions: readonly SessionInfo[]; triggerLabel?: string } = $props();
   let open = $state(false);
   const alerts = $derived(
     sessions
@@ -54,7 +57,7 @@
             size="sm-touch"
             class="w-full justify-start"
           >
-            <IconBell aria-hidden="true" />{m.s2_inbox_title()}
+            <IconBell aria-hidden="true" />{triggerLabel ?? m.s2_inbox_title()}
             {#if pending}<Badge variant="warning" class="ml-auto"
                 >{pending}</Badge
               >{/if}

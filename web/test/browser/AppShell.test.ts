@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
+import { workbenchLayout } from "../../src/domains/workspace/workbench-layout.svelte";
 import { resetAttentionToasts } from "../../src/domains/notifications/attention-toast.svelte";
 import {
   openSession,
@@ -28,6 +29,7 @@ installChatFixture();
 beforeEach(() => {
   resetAttentionToasts();
   shellUi.setMode("workbench");
+  workbenchLayout.value = "workspaces";
   shellUi.setCollapsed(false);
   history.replaceState(null, "", "/");
   respond(/^GET \/api\/repositories$/, () => Response.json([repository()]));
@@ -39,6 +41,8 @@ afterEach(() => {
   localStorage.removeItem("webmux.sidebarCollapsed");
   localStorage.removeItem("webmux.toastNotifications");
   localStorage.removeItem("webmux.workbenchTree");
+  workbenchLayout.value = "queue";
+  localStorage.removeItem("webmux.workbenchLayout");
   resetAttentionToasts();
   history.replaceState(null, "", "/");
 });
@@ -64,49 +68,32 @@ test("without a saved width the sidebar starts at its default 288px", async () =
     .toBe(288);
 });
 
-test("the chat button takes a workbench home to quick start", async () => {
+test("the grouping switch changes Workbench without opening another page", async () => {
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot();
-  const chatMode = sidebar().getByRole("button", { name: "聊天模式" });
-  await expect.element(chatMode).toHaveAttribute("aria-pressed", "false");
-  await chatMode.click();
-  expect(location.pathname).toBe("/new");
-  expect(localStorage.getItem("webmux.shellMode")).toBe("chat");
-  await expect.element(chatMode).toHaveAttribute("aria-pressed", "true");
-  // Quick start puts the caret in its input.
+  const grouping = sidebar().getByRole("radio", { name: "按分支" });
+  await expect.element(grouping).toBeChecked();
+  await sidebar().getByRole("radio", { name: "按会话" }).click();
+  expect(location.pathname).toBe("/");
+  expect(localStorage.getItem("webmux.workbenchLayout")).toBe("queue");
+  await expect.element(grouping).not.toBeChecked();
   await expect
-    .element(page.getByRole("textbox", { name: "任务描述" }))
-    .toHaveFocus();
-  await expect
-    .element(sidebar().getByRole("list", { name: "聊天历史" }))
+    .element(sidebar().getByRole("radiogroup", { name: "会话范围" }))
     .toBeVisible();
 });
 
-test("on a session page switching mode only swaps the sidebar", async () => {
+test("the grouping switch leaves the active session and keyboard focus in place", async () => {
   history.replaceState(null, "", "/s/shellaaa");
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot([session({ id: "shellaaa", title: "pnpm dev" })]);
-  await expect
-    .element(sidebar().getByRole("tree", { name: "仓库与会话" }))
-    .toBeVisible();
-  await sidebar().getByRole("button", { name: "聊天模式" }).click();
+  const grouping = sidebar().getByRole("radio", { name: "按会话" });
+  await grouping.click();
   expect(location.pathname).toBe("/s/shellaaa");
-  await expect
-    .element(sidebar().getByRole("button", { name: "聊天模式" }))
-    .toHaveFocus();
+  await expect.element(grouping).toHaveFocus();
   await expect.element(page.getByTestId("session-page")).toBeVisible();
-  // A terminal session has no row among the chats; archived records fold below.
-  await sidebar()
-    .getByRole("button", { name: /已归档/ })
-    .click();
-  const archived = sidebar().getByRole("list", { name: "已归档聊天" });
-  await expect.element(archived).toBeVisible();
-  expect(
-    archived
-      .getByRole("button")
-      .elements()
-      .filter((row) => row.getAttribute("aria-current") === "page"),
-  ).toEqual([]);
+  await expect
+    .element(sidebar().getByRole("button", { name: /^pnpm dev/ }))
+    .toHaveAttribute("aria-current", "page");
 });
 
 test("the collapsed rail keeps the expand and primary actions, not the mode switch", async () => {
@@ -121,17 +108,14 @@ test("the collapsed rail keeps the expand and primary actions, not the mode swit
   await expect
     .element(rail.getByRole("button", { name: "新建会话" }))
     .toBeVisible();
-  expect(rail.getByRole("button", { name: "聊天模式" }).elements()).toEqual([]);
-  expect(rail.getByRole("button", { name: "工作台模式" }).elements()).toEqual(
-    [],
-  );
+  expect(rail.getByRole("radio", { name: "按分支" }).elements()).toEqual([]);
   expect(
     document.querySelector(".app-shell")?.getAttribute("data-collapsed"),
   ).toBe("true");
   await rail.getByRole("button", { name: "展开侧栏" }).click();
   expect(localStorage.getItem("webmux.sidebarCollapsed")).toBe("false");
   await expect
-    .element(sidebar().getByRole("button", { name: "聊天模式" }))
+    .element(sidebar().getByRole("radio", { name: "按分支" }))
     .toBeVisible();
 });
 
@@ -144,7 +128,7 @@ test("the sidebar's new-session action opens the shared dialog", async () => {
     .toBeVisible();
 });
 
-test("opening any session keeps the sidebar's mode", () => {
+test("opening any session keeps its return context", () => {
   for (const mode of ["workbench", "chat"] as const) {
     shellUi.setMode(mode);
     openSession(session({ id: "shellaaa" }));
@@ -211,8 +195,7 @@ test("session references use the active chat and visibly disable locked drafts",
 });
 
 test("renaming from the sidebar menu uses the shared dialog", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   respond(/^PATCH \/api\/sessions\/chataaaa$/, () =>
     Response.json(chat({ id: "chataaaa", title: "首页排序" })),
   );
@@ -256,8 +239,7 @@ test("renaming from the sidebar menu uses the shared dialog", async () => {
 });
 
 test("a rejected name stays in the dialog and the row keeps its title", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   respond(/^PATCH \/api\/sessions\/chataaaa$/, () =>
     Response.json({ error: "名称不能包含控制字符" }, { status: 400 }),
   );
@@ -277,8 +259,7 @@ test("a rejected name stays in the dialog and the row keeps its title", async ()
 });
 
 test("an archived chat resumes on its chat side, or says why it cannot", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   respond(/^POST \/api\/sessions\/archivea\/resume$/, () =>
     Response.json(
       { error: "工作目录 /repos/webmux 已不存在" },
@@ -297,7 +278,7 @@ test("an archived chat resumes on its chat side, or says why it cannot", async (
     .toMatchTextContent(
       /无法恢复“整理文档”：工作目录 \/repos\/webmux 已不存在/,
     );
-  expect(location.pathname).toBe("/s/otherabc");
+  expect(location.pathname).toBe("/new");
   expect(commands().at(-1)).toMatchObject({
     path: "/api/sessions/archivea/resume",
     body: { view: "chat" },
@@ -311,8 +292,7 @@ test("an archived chat resumes on its chat side, or says why it cannot", async (
 });
 
 test("the sidebar menu archives a live chat and deletes an archived record", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   respond(
     /^DELETE \/api\/sessions\/chataaaa$/,
     () => new Response(null, { status: 204 }),
@@ -418,8 +398,7 @@ async function openLinkedChatArchive() {
 }
 
 test("deleting an archived record leaves its linked worktree in place", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   serveLinkedWorktreeChat();
   await openLinkedChatArchive();
   await page.getByRole("menuitem", { name: "删除记录" }).click();
@@ -448,8 +427,7 @@ test("deleting an archived record leaves its linked worktree in place", async ()
 });
 
 test("deleting an archived record and its linked worktree removes both", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   serveLinkedWorktreeChat();
   await openLinkedChatArchive();
   await page.getByRole("menuitem", { name: "删除记录和工作树" }).click();
@@ -514,8 +492,7 @@ const releasedChat = record({
 });
 
 test("the sidebar releases an archived chat's worktree after a preview and marks the record", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   respond(/^GET \/api\/repositories$/, () =>
     Response.json([repository({ worktrees: [worktree(), branchTree] })]),
   );
@@ -596,8 +573,7 @@ test("the sidebar releases an archived chat's worktree after a preview and marks
 });
 
 test("a released archived chat rebuilds its worktree after confirmation before resuming", async () => {
-  shellUi.setMode("chat");
-  history.replaceState(null, "", "/s/otherabc");
+  history.replaceState(null, "", "/new");
   respond(/^GET \/api\/sessions$/, () => Response.json([releasedChat]));
   respond(/^POST \/api\/hybrid-sessions\/archivew\/rebuild-preview$/, () =>
     Response.json({
@@ -637,7 +613,7 @@ test("a released archived chat rebuilds its worktree after confirmation before r
   expect(released().map((c) => c.path)).toEqual([
     "/api/hybrid-sessions/archivew/rebuild-preview",
   ]);
-  expect(location.pathname).toBe("/s/otherabc");
+  expect(location.pathname).toBe("/new");
 
   await row.click();
   await dialog.getByRole("button", { name: "重建并恢复" }).click();
@@ -800,12 +776,10 @@ test("workbench sidebar offers a workspace refresh button and follows /ws/reposi
     .element(sidebar().getByText("feat/ext-sync").first())
     .toBeVisible();
 
-  // Switching to chat mode hides the workbench-only refresh button; switching back refreshes.
-  await sidebar().getByRole("button", { name: "聊天模式" }).click();
-  expect(
-    sidebar().getByRole("button", { name: "刷新工作区" }).elements(),
-  ).toEqual([]);
-  await sidebar().getByRole("button", { name: "工作台模式" }).click();
+  // The refresh button is reachable in both Workbench groupings.
+  await sidebar().getByRole("radio", { name: "按会话" }).click();
+  await expect.element(refreshBtn).toBeVisible();
+  await sidebar().getByRole("radio", { name: "按分支" }).click();
   await expect.element(refreshBtn).toBeVisible();
 
   // External removal reflected when clicking the sidebar refresh button.

@@ -252,6 +252,18 @@ export const test = base.extend<
   ],
 });
 
+// Specs for the repository-card and nested tree workflows exercise that
+// layout explicitly. The regular fixture keeps the production queue default.
+export const workspaceLayoutTest = test.extend({
+  page: async ({ page }, use) => {
+    await page.addInitScript(() => {
+      if (!localStorage.getItem("webmux.workbenchLayout"))
+        localStorage.setItem("webmux.workbenchLayout", "workspaces");
+    });
+    await use(page);
+  },
+});
+
 export const coreTest = test.extend<{}, { features: FeatureID[] | undefined }>({
   features: [[], { scope: "worker", option: true }],
 });
@@ -275,7 +287,7 @@ async function pick(
 
 /**
  * Leaves a session page for the session list: the header's back button on
- * wide screens; on phones the sidebar drawer's "全部仓库".
+ * wide screens; on phones the sidebar drawer's session overview entry.
  */
 export async function backToList(page: Page) {
   const back = page.getByRole("button", { name: "返回会话列表", exact: true });
@@ -284,9 +296,26 @@ export async function backToList(page: Page) {
   if (await back.isVisible()) return back.click();
   await open.click();
   await page
-    .getByRole("tree", { name: "仓库与会话" })
-    .locator('[data-tree-key="all"]')
+    .getByRole("radiogroup", { name: "会话范围", exact: true })
+    .getByRole("radio", { name: "全部", exact: true })
+    .or(
+      page
+        .getByRole("tree", { name: "仓库与会话" })
+        .locator('[data-tree-key="all"]'),
+    )
+    .first()
     .click();
+}
+
+/** Switches the Workbench grouping and returns whether the drawer was opened. */
+export async function useWorkbenchBranches(page: Page, enabled = true) {
+  const opened = await revealSidebar(page);
+  const toggle = page
+    .getByRole("navigation", { name: "导航", exact: true })
+    .getByRole("radio", { name: enabled ? "按分支" : "按会话", exact: true });
+  await expect(toggle).toBeVisible();
+  if (!(await toggle.isChecked())) await toggle.click();
+  return opened;
 }
 
 /**
@@ -440,6 +469,25 @@ export async function openSessionLink(page: Page, name: string): Promise<Page> {
   await page.getByRole("link", { name, exact: true }).click();
   await expect(page).toHaveURL(/\/s\/[a-z2-7]{8}$/);
   return page;
+}
+
+/** Holds the terminal renderer until the test releases the real font loader. */
+export async function holdTerminalFont(page: Page) {
+  await page.addInitScript(() => {
+    const load = document.fonts.load.bind(document.fonts);
+    const released = Promise.withResolvers<void>();
+    window.addEventListener(
+      "webmux:e2e-release-font",
+      () => released.resolve(),
+      { once: true },
+    );
+    document.fonts.load = (font, text) =>
+      released.promise.then(() => load(font, text));
+  });
+  return () =>
+    page.evaluate(() =>
+      window.dispatchEvent(new Event("webmux:e2e-release-font")),
+    );
 }
 
 // A healthy connection shows no text; the status dot names it instead.

@@ -11,9 +11,8 @@
 
   // A branch's or worktree's upstream: its name, then a coloured arrow and
   // the count for the commits ahead (green, outgoing) and behind (blue,
-  // incoming), or the words for a state without counts. `indicator` keeps
-  // only what needs attention (counts, a deleted upstream). Items flow into
-  // the parent's flex row.
+  // incoming), or the words for a state without counts. `indicator` shows
+  // only the counts. Items flow into the parent's flex row.
   let {
     state,
     indicator = false,
@@ -55,7 +54,9 @@
       state.behind,
       behindLabel(state.behind),
     )}{/if}
-{:else if state.kind === "gone"}<Badge variant="warning">{text}</Badge>{/if}
+{:else if !indicator && state.kind === "gone"}<Badge variant="warning"
+    >{text}</Badge
+  >{/if}
 {#if !indicator && state.kind !== "gone" && text}<span
     class="text-muted-foreground">{text}</span
   >{/if}

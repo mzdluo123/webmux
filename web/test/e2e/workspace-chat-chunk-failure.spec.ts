@@ -10,7 +10,7 @@ test("a failed chat entry leaves workspace home live sessions and terminal navig
   const created = await request.post("/api/sessions", {
     data: {
       cwd: workDir,
-      cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+      cmd: ["/bin/sh", "-c", "printf 'ready\n'; sleep 120"],
       name: "Live without chat history",
     },
   });
@@ -38,6 +38,7 @@ test("a failed chat entry leaves workspace home live sessions and terminal navig
   ).toBeVisible();
   expect(blocked).toBeGreaterThan(0);
   expect(failures).toEqual([]);
+  await page.getByRole("button", { name: "关闭 chat 加载提示" }).click();
   await live.click();
   await expect(page).toHaveURL(new RegExp(`/s/${session.id}$`));
 });

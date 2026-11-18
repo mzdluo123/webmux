@@ -43,6 +43,14 @@ export interface SessionCounts {
   exited: number;
 }
 
+export function sessionRelativeTime(now: number, timestamp: string): string {
+  const seconds = Math.max(0, Math.floor((now - Date.parse(timestamp)) / 1000));
+  if (seconds < 60) return m.s3_rel_just_now();
+  if (seconds < 3600)
+    return m.s3_rel_minutes_ago({ count: String(Math.floor(seconds / 60)) });
+  return m.s3_rel_hours_ago({ count: String(Math.floor(seconds / 3600)) });
+}
+
 export function isActive(status: SessionState) {
   return status === "running" || status === "idle";
 }

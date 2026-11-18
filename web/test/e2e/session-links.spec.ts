@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
-  test,
+  workspaceLayoutTest as test,
   expect,
   expectConnected,
   expectTerminalLine,

@@ -14,7 +14,8 @@ import {
   toggleCode,
   runCommand,
   revealSidebar,
-  test,
+  useWorkbenchBranches,
+  workspaceLayoutTest as test,
   useDirectory,
 } from "./fixtures";
 import type { E2EServer } from "./server.mjs";
@@ -1683,15 +1684,9 @@ test.describe("hybrid sessions with the fake agent", () => {
         await switchTo(page, view);
         const archived = await request.delete(`/api/sessions/${id}`);
         expect(archived.status(), await archived.text()).toBe(204);
-        await page.goto("/");
-        await revealSidebar(page);
-        await page
-          .getByRole("button", {
-            name: mode === "chat" ? "聊天模式" : "工作台模式",
-            exact: true,
-          })
-          .click();
+        await page.goto(mode === "chat" ? "/new" : "/");
         if (mode === "chat") {
+          await revealSidebar(page);
           await page
             .getByRole("button", { name: /已归档/ })
             .first()
@@ -1701,8 +1696,6 @@ test.describe("hybrid sessions with the fake agent", () => {
             .getByRole("button", { name: `${name}（已结束）`, exact: true })
             .click();
         } else {
-          if (test.info().project.use.isMobile)
-            await page.keyboard.press("Escape");
           const archived = page.getByRole("region", {
             name: "main 的已归档会话",
           });
@@ -1717,15 +1710,6 @@ test.describe("hybrid sessions with the fake agent", () => {
         if (view === "chat")
           await expect(conversation(page)).toContainText("remember-me");
         else await expectTerminalLine(page, "> remember-me");
-        if (test.info().project.use.isMobile) {
-          await page.getByRole("button", { name: "打开侧栏" }).first().click();
-        }
-        await expect(
-          page.getByRole("button", {
-            name: mode === "chat" ? "聊天模式" : "工作台模式",
-            exact: true,
-          }),
-        ).toHaveAttribute("aria-pressed", "true");
       });
     }
   }
@@ -1801,13 +1785,37 @@ test.describe("hybrid sessions with the fake agent", () => {
     expect(archived.status(), await archived.text()).toBe(204);
 
     await page.goto("/");
-    const feature = page.getByRole("region", {
-      name: "feature-x 的已归档会话",
+    if (await useWorkbenchBranches(page, false))
+      await page.keyboard.press("Escape");
+    const archivedList = "**/api/sessions?state=archived";
+    await page.route(archivedList, async (route) => {
+      const response = await route.fetch();
+      const records: { id: string; workspace?: unknown }[] =
+        await response.json();
+      for (const record of records) {
+        if (record.id === id) record.workspace = null;
+      }
+      await route.fulfill({ response, json: records });
     });
+    await page.reload();
+    const feature = page.getByRole("region", {
+      name: "会话历史 的已归档会话",
+    });
+    await expect(feature).toBeVisible();
+    const drawer = await revealSidebar(page);
+    const navigation = page.getByRole("navigation", {
+      name: "导航",
+      exact: true,
+    });
+    await expect(
+      navigation.getByRole("button", { name: /^已归档/ }),
+    ).toHaveCount(0);
+    if (drawer) await page.keyboard.press("Escape");
     await feature.getByRole("button", { name: /已归档/ }).click();
     await feature
       .getByRole("button", { name: "更多操作 E2E release", exact: true })
       .click();
+    await page.unroute(archivedList);
     await page.getByRole("menuitem", { name: "释放空间", exact: true }).click();
     const release = page.getByRole("dialog", { name: "释放空间" });
     await expect(release).toContainText("重建工作树也无法找回");
@@ -1819,6 +1827,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     git("rev-parse", "--verify", "refs/heads/feature-x");
 
     // The record stays archived, now under the unavailable workspaces.
+    if (await useWorkbenchBranches(page)) await page.keyboard.press("Escape");
     const gone = page.getByRole("region", {
       name: "已不可用工作区 的已归档会话",
     });

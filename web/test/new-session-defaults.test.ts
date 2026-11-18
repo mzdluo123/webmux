@@ -243,6 +243,21 @@ test("a worktree scope starts in that worktree; an unusable one asks for a new w
   ).toMatchObject({ kind: "new-worktree", repositoryId: "a", worktreeId: "" });
 });
 
+test("a repository entry selects its main worktree without locking the working tree", () => {
+  const entry = { kind: "repository", repositoryId: "a" } as const;
+  const scope = resolveLaunchScope({
+    entry,
+    home: true,
+    choice: "b",
+    worktreeId: null,
+    repositories: [a, b],
+  });
+  expect(scope).toEqual({ repositoryId: "a" });
+  expect(
+    resolveInitialTarget({ ...base, entry, scope, selectedRepositoryId: "b" }),
+  ).toMatchObject({ kind: "worktree", repositoryId: "a", worktreeId: "main" });
+});
+
 test("the launch scope follows the home view or the contextual entry", () => {
   const home = { home: true, repositories: [a, b], worktreeId: null };
   expect(resolveLaunchScope({ ...home, choice: "a" })).toEqual({

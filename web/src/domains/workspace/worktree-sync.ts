@@ -86,7 +86,7 @@ export function canCommitWorktree(tree: Worktree | undefined): boolean {
   );
 }
 
-export function hasWorktreeChanges(tree: Worktree | undefined): boolean {
+function hasWorktreeChanges(tree: Worktree | undefined): boolean {
   if (!tree || !tree.available || tree.prunable || tree.kind === "bare") {
     return false;
   }

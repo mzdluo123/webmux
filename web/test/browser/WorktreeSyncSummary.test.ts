@@ -45,7 +45,7 @@ test.each([
   expect(page.getByRole("img").elements()).toEqual([]);
 });
 
-test("the indicator shows only what needs attention", async () => {
+test("the indicator skips synced and deleted upstreams", async () => {
   render(WorktreeSyncSummary, {
     worktree: linked({ upstream: "origin/feat/x", ahead: 0, behind: 0 }),
     variant: "indicator",
@@ -57,8 +57,7 @@ test("the indicator shows only what needs attention", async () => {
     worktree: linked({ upstream: "origin/feat/x", upstreamGone: true }),
     variant: "indicator",
   });
-  await expect.element(page.getByText("上游已删除")).toBeVisible();
-  expect(page.getByText("origin/feat/x").elements()).toEqual([]);
+  expect(document.body.textContent?.trim()).toBe("");
 });
 
 test("a detached worktree shows no upstream; changes and an operation do", async () => {

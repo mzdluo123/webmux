@@ -7,8 +7,12 @@
     base: "group/segmented-control inline-flex w-fit items-center justify-center gap-1 p-[3px] text-muted-foreground",
     variants: {
       size: {
+        header:
+          "relative isolate inline-grid w-max max-w-full shrink-0 auto-cols-fr grid-flow-col items-stretch gap-0 p-0",
         default: "h-8",
         form: "h-[calc(var(--control-default)+6px)]",
+        navigation:
+          "min-h-8 w-full items-stretch max-sm:min-h-[calc(var(--control-touch)+8px)] any-pointer-coarse:min-h-[calc(var(--control-touch)+8px)]",
       },
       // Segments flow onto more rows on narrow screens; each row keeps room
       // for the underline below it.

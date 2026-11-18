@@ -1,9 +1,6 @@
 <script lang="ts">
-  import IconLayoutSidebarLeftCollapse from "~icons/tabler/layout-sidebar-left-collapse";
-  import IconMessagePlus from "~icons/tabler/message-plus";
   import IconPlus from "~icons/tabler/plus";
   import IconRefresh from "~icons/tabler/refresh";
-  import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { errorMessage } from "../../platform/error";
@@ -19,20 +16,21 @@
   } from "../../contracts/schemas";
   import {
     getShell,
-    openGitWorkbench,
     openPage,
     openSession,
     shellUi,
-    type ShellMode,
   } from "../../hooks/shared/shell.svelte";
+  import { queueLocation } from "../../domains/workspace/session-queue";
+  import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
+  import { useLayoutRowsMotion } from "../../hooks/shared/layout-rows-motion.svelte";
   import { paneEnter } from "../../hooks/shared/pane-enter";
-  import Brand from "./Brand.svelte";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
+  import SidebarWorkspaceTree from "./SidebarWorkspaceTree.svelte";
+  import WorkbenchSidebarSessions from "./WorkbenchSidebarSessions.svelte";
   import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
-  import ModeSwitch from "./ModeSwitch.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
+  import SidebarHeader from "./SidebarHeader.svelte";
   import { featureContributions } from "../../features/registry.svelte";
-  import { featureAvailable } from "../../platform/feature-host.svelte";
   import LazyDialog from "../shared/LazyDialog.svelte";
   import { m } from "$lib/paraglide/messages.js";
   const workspace = featureContributions.entries.workspace;
@@ -54,8 +52,6 @@
     collapsible = false,
     onclose,
     reconnection,
-    onmode,
-    onprimary,
   }: {
     route: Extract<
       Route,
@@ -65,13 +61,27 @@
     collapsible?: boolean;
     onclose?: () => void;
     reconnection?: RelayReconnection;
-    onmode: (mode: ShellMode) => void;
-    onprimary: () => void;
   } = $props();
   const shell = getShell();
   const current = $derived(route.name === "terminal" ? route.id : "");
   const live = $derived(
     shell.sessions.sessions.filter((session) => session.state === "active"),
+  );
+  const queue = $derived(
+    Boolean(workspace && workbenchLayout.value === "queue"),
+  );
+  const chatHome = $derived(
+    !!chat && (route.name === "quick-start" || route.name === "handoff"),
+  );
+  const navigationId = $props.id();
+  let navigationRows = $state<HTMLDivElement | null>(null);
+  useLayoutRowsMotion(
+    () => navigationRows,
+    () => (chatHome ? "" : workbenchLayout.value),
+    "[data-sidebar-session-id], [data-layout-row]",
+  );
+  const showWorkspaces = $derived(
+    Boolean(shell.repositories?.settled || shell.repositories?.list.length),
   );
   const pinned = $derived(sessionPins.ordered(live));
   const pinnedIDs = $derived(new Set(pinned.map((session) => session.id)));
@@ -105,15 +115,6 @@
       onremoved: () => void forgetAfterWorktree(record),
       forgetRecords: [record],
     });
-  }
-  // Runs a worktree action of the tree, by the IDs its rows carry.
-  function withTree(action: (tree: Worktree) => void) {
-    return (repositoryId: string, worktreeId: string) => {
-      const tree = shell.repositories?.list
-        .find((r) => r.id === repositoryId)
-        ?.worktrees.find((w) => w.id === worktreeId);
-      if (tree) action(tree);
-    };
   }
   // The worktree is already gone when this runs; a failed record deletion
   // leaves a released record behind, which the user can delete again.
@@ -199,7 +200,7 @@
       resuming = "";
     }
   }
-  function revealNavigation(node: HTMLElement, _mode: ShellMode) {
+  function revealNavigation(node: HTMLElement, _chatHome: boolean) {
     const animation = paneEnter(node, false);
     return {
       update() {
@@ -209,63 +210,80 @@
       destroy: animation.destroy,
     };
   }
+  function filterQueue(attention: boolean) {
+    shell.repositories?.select("all");
+    workbenchLayout.attentionOnly = attention;
+    if (route.name !== "sessions") openPage("/");
+  }
   function scope(next: string, worktreeId?: string) {
+    workbenchLayout.attentionOnly = false;
     shellUi.setMode("workbench");
     shell.repositories?.select(next, worktreeId);
     openPage("/");
   }
 </script>
 
-<nav class="flex h-full min-h-0 flex-col" aria-label={m.s1_navigation()}>
-  <div class="flex items-center gap-1 px-2 pt-2 pb-1">
-    {#if collapsible}
-      <Button
-        class="shrink-0"
-        variant="ghost"
-        size="icon-touch"
-        aria-label={m.s1_collapse_sidebar()}
-        title={m.s1_collapse_sidebar()}
-        onclick={() => shellUi.setCollapsed(true)}
-        ><IconLayoutSidebarLeftCollapse aria-hidden="true" /></Button
-      >
-    {/if}
-    <span class="brand mr-auto min-w-0 overflow-hidden px-1 whitespace-nowrap"
-      ><Brand /></span
-    >
-    {#if onclose}
-      <Button
-        class="shrink-0"
-        variant="ghost"
-        size="icon-touch"
-        aria-label={m.s1_close_sidebar()}
-        title={m.s1_close_sidebar()}
-        onclick={onclose}><IconX aria-hidden="true" /></Button
-      >
-    {/if}
-  </div>
-  {#if chat}
-    <div class="px-2 pb-1">
-      <ModeSwitch
-        mode={shellUi.mode}
-        workspaces={!!workspace}
-        onchange={onmode}
-      />
-    </div>
-  {/if}
-  <div class="flex items-center gap-1.5 px-2 pt-1">
+{#snippet history()}
+  {#if chat}<chat.History
+      sessions={unpinned}
+      records={shell.archived?.records ?? []}
+      {configs}
+      repositories={shell.repositories?.list ?? []}
+      {current}
+      {resuming}
+      onopen={openSession}
+      onresume={open}
+      onrename={shell.rename}
+      onclose={shell.close}
+      onrelease={shell.releaseWorktree}
+      onremove={askRemove}
+      onremoveworktree={askRemoveWithWorktree}
+    />{/if}
+{/snippet}
+
+{#snippet workspaces()}
+  <SidebarWorkspaceTree
+    sessions={unpinned}
+    showScope={route.name === "sessions"}
+    {current}
+    {configIcons}
+    onscope={scope}
+    {resuming}
+    onresume={open}
+    onremove={askRemove}
+  />
+{/snippet}
+
+<nav
+  class="flex h-full min-h-0 flex-col"
+  class:sidebar-drawer={Boolean(onclose)}
+  aria-label={m.s1_navigation()}
+>
+  <SidebarHeader
+    oncollapse={collapsible ? () => shellUi.setCollapsed(true) : undefined}
+    {onclose}
+    showSessionSwitcher={collapsible &&
+      route.name === "sessions" &&
+      !!workspace}
+    controls={navigationId}
+    byBranch={!queue}
+    onGroupingChange={workspace
+      ? (checked) => {
+          workbenchLayout.value = checked ? "workspaces" : "queue";
+          if (chatHome) openPage("/");
+        }
+      : undefined}
+  />
+  <div class="sidebar-actions flex items-center gap-1.5 pt-1">
     <Button
       variant="outline"
       size="sm-touch"
       class="min-w-0 flex-1"
-      onclick={onprimary}
+      onclick={() => shell.start()}
     >
-      {#if shellUi.mode === "chat"}<IconMessagePlus
-          aria-hidden="true"
-        />{m.s1_new_chat()}{:else}<IconPlus
-          aria-hidden="true"
-        />{m.s1_new_session()}{/if}
+      <IconPlus aria-hidden="true" />{m.s1_new_session()}
     </Button>
-    {#if shellUi.mode === "workbench" && workspace && shell.repositories}
+    {#if !chatHome && workspace && shell.repositories}
       <Button
         variant="outline"
         size="icon-touch"
@@ -296,13 +314,16 @@
       >
     </div>
   {/if}
-  {#if notifications}<notifications.Inbox sessions={live} />{/if}
+  {#if notifications}<notifications.Inbox
+      sessions={live}
+      triggerLabel={workspace ? m.s8_queue_notifications() : undefined}
+    />{/if}
   <ScrollArea
     type="hover"
     class="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]]:overscroll-contain [&_[data-slot=scroll-area-viewport]>div]:!block"
   >
-    <div class="px-2 py-2">
-      {#if pinned.length}
+    <div id={navigationId} class="px-2 py-2" bind:this={navigationRows}>
+      {#if pinned.length && (chatHome || !queue)}
         <section class="mb-3 border-b pb-3" aria-label={m.s1_pinned_sessions()}>
           <h2 class="px-3 pb-1 text-xs text-muted-foreground">
             {m.s1_pinned()}
@@ -316,6 +337,9 @@
                   configIcons.get(session.configId ?? "") ??
                   ""}
                 pinned
+                location={chatHome
+                  ? queueLocation(session, shell.repositories?.list ?? [])
+                  : undefined}
                 onopen={openSession}
                 onrename={shell.rename}
                 onclose={shell.close}
@@ -331,75 +355,35 @@
         >
           {resumeError || sessionPins.error}
         </p>{/if}
-      <div use:revealNavigation={shellUi.mode}>
-        {#if shellUi.mode === "chat" && chat}
-          <chat.History
-            sessions={unpinned}
-            records={shell.archived?.records ?? []}
-            {configs}
+      <div use:revealNavigation={chatHome}>
+        {#if chatHome}
+          {@render history()}
+        {:else if queue}
+          <WorkbenchSidebarSessions
+            sessions={live}
+            {pinned}
             repositories={shell.repositories?.list ?? []}
-            {current}
-            {resuming}
-            onopen={openSession}
-            onresume={open}
-            onrename={shell.rename}
-            onclose={shell.close}
-            onrelease={shell.releaseWorktree}
-            onremove={askRemove}
-            onremoveworktree={askRemoveWithWorktree}
-          />
-        {:else if workspace && shell.repositories && !shell.sessions.loading && (shell.repositories.settled || shell.repositories.list.length)}
-          <workspace.Tree
-            repositories={shell.repositories.list}
-            sessions={unpinned}
-            home={workspace.homeWorktrees.value}
-            scope={route.name === "sessions"
-              ? (shell.repositories?.choice ?? "all")
-              : ""}
-            worktree={route.name === "sessions"
-              ? (shell.repositories?.worktree ?? "")
-              : ""}
-            {current}
-            canCreate={setup.gitReady && setup.registryReady}
             {configIcons}
-            onscope={scope}
+            {current}
+            allCurrent={route.name === "sessions" &&
+              !workbenchLayout.attentionOnly &&
+              (!shell.repositories?.choice ||
+                shell.repositories.choice === "all")}
+            attentionCurrent={route.name === "sessions" &&
+              workbenchLayout.attentionOnly}
+            onfilter={filterQueue}
+            oncreate={(repositoryId) =>
+              shell.start(
+                repositoryId
+                  ? { kind: "repository", repositoryId }
+                  : { kind: "directory", cwd: "", workspace: null },
+              )}
             onopen={openSession}
-            onnewworktree={(repositoryId) =>
-              shell.start({ kind: "new-worktree", repositoryId })}
-            onhomeworktrees={(repositoryId) => {
-              const repo = shell.repositories?.list.find(
-                (r) => r.id === repositoryId,
-              );
-              if (repo) shell.chooseHomeWorktrees(repo);
-            }}
-            onmanageworktrees={(repositoryId) => {
-              const repo = shell.repositories?.list.find(
-                (r) => r.id === repositoryId,
-              );
-              if (repo) shell.repositoryDetails(repo, "worktrees");
-            }}
-            onrepositorydetails={(repositoryId) => {
-              const repo = shell.repositories?.list.find(
-                (r) => r.id === repositoryId,
-              );
-              if (repo) shell.repositoryDetails(repo);
-            }}
-            onworktreedetails={withTree((tree) => shell.worktreeDetails(tree))}
-            onremoveworktree={withTree((tree) => shell.removeWorktree(tree))}
-            onswitchbranch={withTree((tree) => shell.switchBranch(tree))}
-            onbranchoperation={shell.branchOperation}
-            onopengit={featureAvailable("workspace.git-workbench")
-              ? (repositoryId, worktreeId, view) =>
-                  openGitWorkbench({ repositoryId, worktreeId, view })
-              : undefined}
-            onaddrepository={() => shell.addRepository()}
             onrename={shell.rename}
             onclose={shell.close}
-            records={shell.archived?.records ?? []}
-            {resuming}
-            onresume={open}
-            onremove={askRemove}
           />
+        {:else if workspace && shell.repositories && !shell.sessions.loading && showWorkspaces}
+          {@render workspaces()}
         {:else if !workspace || !shell.repositories}
           <ul class="space-y-0.5">
             {#each unpinned as session (session.id)}
@@ -455,3 +439,30 @@
     {/snippet}
   </LazyDialog>
 {/if}
+
+<style>
+  nav {
+    --sidebar-gutter: 8px;
+  }
+
+  .sidebar-actions {
+    padding-inline: var(--sidebar-gutter);
+  }
+
+  /* Short drawers need one scroller for both the header and its navigation. */
+  @media (width < 40rem) and (height <= 600px) {
+    .sidebar-drawer {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    .sidebar-drawer > :global([data-slot="scroll-area"]) {
+      flex: none;
+    }
+
+    .sidebar-drawer
+      > :global([data-slot="scroll-area"] [data-slot="scroll-area-viewport"]) {
+      height: auto;
+    }
+  }
+</style>

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
+import { workbenchLayout } from "../../src/domains/workspace/workbench-layout.svelte";
 import ShellHarness from "./ShellHarness.svelte";
 import { enableHostFeatures, resetHostFeatures } from "./feature-fixture";
 import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
@@ -178,6 +179,8 @@ afterEach(async () => {
     await cleanup();
     await userEvent.cleanup();
   } finally {
+    workbenchLayout.value = "queue";
+    localStorage.removeItem("webmux.workbenchLayout");
     resetHostFeatures();
     vi.unstubAllGlobals();
     history.replaceState(null, "", "/");
@@ -214,7 +217,7 @@ test("a snapshot keeps drafts of archived hybrid sessions and drops the rest", a
   await vi.waitFor(() => expect(drafts.valid(gone!)).toBe(false));
   expect(drafts.valid(recoverable!)).toBe(true);
   await expect
-    .element(page.getByRole("region", { name: "work 的已归档会话" }))
+    .element(page.getByRole("region", { name: "会话历史 的已归档会话" }))
     .toMatchTextContent(/已归档\s*1/);
 });
 
@@ -229,7 +232,7 @@ test("archiving a hybrid session keeps its draft; deleting the record deletes it
   socket.message({ type: "snapshot", sessions: [active], forwards: [] });
   records = [{ ...record, id: "hybrid33", title: "进行中" }];
   socket.message({ type: "removed", id: "hybrid33" });
-  const group = page.getByRole("region", { name: "work 的已归档会话" });
+  const group = page.getByRole("region", { name: "会话历史 的已归档会话" });
   await expect.element(group).toMatchTextContent(/已归档\s*1/);
   expect(drafts.valid(closed!)).toBe(true);
 
@@ -257,7 +260,8 @@ const archived = (
   ...patch,
 });
 
-test("archived records sit in the group a live session of theirs would", async () => {
+test("the workspace layout groups archived records with matching live sessions", async () => {
+  workbenchLayout.value = "workspaces";
   repositories = [repository];
   records = [
     archived("recorded", {
@@ -314,7 +318,7 @@ test("status and search filters cover archived records", async () => {
     ],
     forwards: [],
   });
-  const region = page.getByRole("region", { name: "work 的已归档会话" });
+  const region = page.getByRole("region", { name: "会话历史 的已归档会话" });
   await expect.element(region).toMatchTextContent(/已归档\s*1/);
   const filters = page.getByRole("radiogroup", { name: "按会话状态筛选" });
 
@@ -324,8 +328,10 @@ test("status and search filters cover archived records", async () => {
   // Only archived records remain, revealed without a click.
   await expect.element(region.getByText("整理灯塔文档")).toBeVisible();
   await expect
-    .element(page.getByRole("main").getByText("进行中", { exact: true }))
-    .not.toBeVisible();
+    .element(
+      page.getByRole("main").getByRole("link", { name: "进行中", exact: true }),
+    )
+    .not.toBeInTheDocument();
 
   await filters.getByRole("radio", { name: /全部/ }).click();
   await page.getByRole("searchbox", { name: "搜索会话" }).fill("灯塔");
@@ -368,7 +374,10 @@ test("a scope without archived matches shows the empty state", async () => {
   render(ShellHarness, { drafts: createTerminalDrafts() });
   const socket = await connected();
   socket.message({ type: "snapshot", sessions: [], forwards: [] });
+  const layout = page.getByRole("radio", { name: "按分支", exact: true });
+  await layout.click();
   await page.getByRole("treeitem", { name: "other", exact: true }).click();
+  await page.getByRole("radio", { name: "按会话", exact: true }).click();
   await page
     .getByRole("radiogroup", { name: "按会话状态筛选" })
     .getByRole("radio", { name: /已归档/ })
@@ -381,7 +390,7 @@ test("returning home after archiving leaves the archived section collapsed", asy
   render(ShellHarness, { drafts: createTerminalDrafts() });
   const socket = await connected();
   socket.message({ type: "snapshot", sessions: [], forwards: [] });
-  const region = page.getByRole("region", { name: "work 的已归档会话" });
+  const region = page.getByRole("region", { name: "会话历史 的已归档会话" });
   await expect.element(region.getByText("修复排序")).not.toBeVisible();
   expect(page.getByText("刚归档").elements()).toEqual([]);
 });

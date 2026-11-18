@@ -2,7 +2,13 @@ import { spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { expect, expectConnected, test, toggleCode } from "./fixtures";
+import {
+  expect,
+  expectConnected,
+  revealSidebar,
+  workspaceLayoutTest as test,
+  toggleCode,
+} from "./fixtures";
 
 // The app shell around the home page, quick start and session pages: the
 // sidebar beside a session, its workbench tree, rename, and the phone
@@ -138,22 +144,17 @@ test.describe("desktop sidebar", () => {
       .getByRole("treeitem", { name: /^pnpm dev（/ })
       .click();
     await expect(page).toHaveURL(new RegExp(`/s/${terminal}$`));
-    await expect(
-      page.getByRole("button", { name: "工作台模式" }),
-    ).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("radio", { name: "按分支" })).toBeChecked();
 
-    // A chat-side hybrid session keeps the workbench; switching to chat
-    // mode only swaps the sidebar.
+    // A chat-side hybrid session stays open as the sidebar changes grouping.
     await page.goto("/");
     await tree(page).locator('[data-tree-key="all"]').click();
     await page.getByRole("link", { name: "修复排序" }).click();
     await expect(page).toHaveURL(new RegExp(`/s/${agent}$`));
-    await expect(
-      page.getByRole("button", { name: "工作台模式" }),
-    ).toHaveAttribute("aria-pressed", "true");
-    await page.getByRole("button", { name: "聊天模式" }).click();
+    await expect(page.getByRole("radio", { name: "按分支" })).toBeChecked();
+    await page.getByRole("radio", { name: "按会话" }).click();
     await expect(page).toHaveURL(new RegExp(`/s/${agent}$`));
-    const chats = page.getByRole("list", { name: "聊天历史" });
+    const chats = page.getByRole("navigation", { name: "导航", exact: true });
     await expect(chats.locator('[aria-current="page"]')).toHaveCount(1);
 
     // Renamed from the sidebar, the title follows everywhere.
@@ -175,7 +176,7 @@ test.describe("desktop sidebar", () => {
     ).toHaveCount(0);
 
     // The workbench repository menu opens the new-worktree dialog in place.
-    await page.getByRole("button", { name: "工作台模式" }).click();
+    await page.getByRole("radio", { name: "按分支" }).click();
     await expect(page).toHaveURL(new RegExp(`/s/${agent}$`));
     await tree(page)
       .getByRole("treeitem", { name: /^tree-repo，/ })
@@ -277,9 +278,9 @@ test.describe("desktop sidebar", () => {
     // Open files belong to their own session.
     await expect(note).toHaveCount(0);
 
-    // Chat mode keeps it too, open or closed.
-    await page.getByRole("button", { name: "聊天模式" }).click();
-    const chats = page.getByRole("list", { name: "聊天历史" });
+    // Conversation grouping keeps the panel state too.
+    await page.getByRole("radio", { name: "按会话" }).click();
+    const chats = page.getByRole("navigation", { name: "导航", exact: true });
     await chats.getByRole("button", { name: /^面板甲（/ }).click();
     await expect(page.locator(".terminal-header")).toContainText("面板甲");
     await expect(code).toBeVisible();
@@ -291,7 +292,7 @@ test.describe("desktop sidebar", () => {
     await expect(code).toBeHidden();
 
     // Back on the first session, its files are open again.
-    await page.getByRole("button", { name: "工作台模式" }).click();
+    await page.getByRole("radio", { name: "按分支" }).click();
     await tree(page)
       .getByRole("treeitem", { name: /^panel one（/ })
       .click();
@@ -356,13 +357,21 @@ test.describe("phone drawer", () => {
         exact: true,
       });
       await openHome.click();
-      await drawer
-        .getByRole("button", { name: "聊天模式", exact: true })
-        .click();
-      await expect(page).toHaveURL(/\/new$/);
-      await drawer
-        .getByRole("button", { name: "工作台模式", exact: true })
-        .click();
+      const grouping = drawer.getByRole("radio", {
+        name: "按分支",
+        exact: true,
+      });
+      await drawer.getByRole("radio", { name: "按会话", exact: true }).click();
+      await expect(grouping).not.toBeChecked();
+      await grouping.click();
+      await expect(grouping).toBeChecked();
+      const choices = drawer
+        .getByRole("radiogroup", { name: "会话分组" })
+        .getByRole("radio");
+      await expect(choices).toHaveCount(2);
+      for (const option of await choices.all()) {
+        await expect(option.locator("svg[data-grouping-icon]")).toBeVisible();
+      }
       await close.press("Enter");
       await expect(drawer).toBeHidden();
       await expect(
@@ -372,7 +381,7 @@ test.describe("phone drawer", () => {
       await expect(page).toHaveURL(/\/$/);
     });
 
-  test("tablet drawer restores rail focus after switching home modes", async ({
+  test("tablet drawer restores rail focus after switching groupings", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 768, height: 800 });
@@ -380,13 +389,14 @@ test.describe("phone drawer", () => {
     const open = page.getByRole("button", { name: "展开侧栏", exact: true });
     const drawer = page.getByRole("dialog", { name: "导航" });
     await open.press("Enter");
-    await drawer
-      .getByRole("button", { name: "聊天模式", exact: true })
-      .press("Enter");
-    await expect(page).toHaveURL(/\/new$/);
-    await drawer
-      .getByRole("button", { name: "工作台模式", exact: true })
-      .press("Enter");
+    const grouping = drawer.getByRole("radio", {
+      name: "按分支",
+      exact: true,
+    });
+    await grouping.press("ArrowLeft");
+    await expect(grouping).not.toBeChecked();
+    await grouping.press("Space");
+    await expect(grouping).toBeChecked();
     await drawer
       .getByRole("button", { name: "关闭侧栏", exact: true })
       .press("Enter");
@@ -397,45 +407,31 @@ test.describe("phone drawer", () => {
     await expect(open).toBeFocused();
   });
 
-  test("mode selection line follows the active button with or without motion", async ({
-    page,
-  }) => {
+  test("the grouping indicator respects reduced motion", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "打开侧栏" }).click();
     const drawer = page.getByRole("dialog", { name: "导航" });
-    const indicator = drawer.locator("[data-sidebar-mode-indicator]");
-    await expect(indicator).toBeVisible();
-    for (const [preference, mode] of [
-      ["no-preference", "聊天模式"],
-      ["reduce", "工作台模式"],
-    ] as const) {
-      await page.emulateMedia({ reducedMotion: preference });
-      const button = drawer.getByRole("button", { name: mode, exact: true });
-      await button.press("Enter");
-      await expect(button).toHaveAttribute("aria-pressed", "true");
-      await expect(button).toBeFocused();
-      if (preference === "reduce") {
-        const seconds = await indicator.evaluate((element) =>
-          Number.parseFloat(getComputedStyle(element).transitionDuration),
-        );
-        expect(seconds).toBeLessThan(0.001);
-      } else {
-        await expect(indicator).toHaveCSS("transition-duration", "0.2s");
-      }
-      await expect
-        .poll(async () => {
-          const marker = (await indicator.boundingBox())!;
-          const active = (await button.boundingBox())!;
-          return (
-            Math.abs(marker.x - active.x) +
-            Math.abs(marker.width - active.width)
-          );
-        })
-        .toBeLessThan(1);
-    }
+    const grouping = drawer.getByRole("radiogroup", { name: "会话分组" });
+    const branches = grouping.getByRole("radio", { name: "按分支" });
+    const conversations = grouping.getByRole("radio", { name: "按会话" });
+    const marker = grouping.locator('[data-slot="grouping-indicator"]');
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await branches.press("ArrowLeft");
+    await expect(conversations).toBeChecked();
+    await expect(conversations).toBeFocused();
+    await expect(marker).toHaveCSS(
+      "transition-property",
+      "transform, translate, scale, rotate",
+    );
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await conversations.press("ArrowRight");
+    await expect(branches).toBeChecked();
+    await expect(marker).toHaveCSS("transition-property", "none");
   });
 
-  test("drawer mode labels fit with enlarged text", async ({ page }) => {
+  test("drawer grouping and close targets fit with enlarged text", async ({
+    page,
+  }) => {
     await page.addInitScript(() => localStorage.setItem("webmux.locale", "en"));
     await page.setViewportSize({ width: 320, height: 568 });
     await page.goto("/");
@@ -443,19 +439,46 @@ test.describe("phone drawer", () => {
       .getByRole("button", { name: "Open sidebar", exact: true })
       .click();
     const drawer = page.getByRole("dialog", { name: "Navigation" });
-    const workbench = drawer.getByRole("button", { name: "Workbench mode" });
-    await expect(workbench).toBeVisible();
+    const conversations = drawer.getByRole("radio", { name: "Session" });
+    const branches = drawer.getByRole("radio", { name: "Branch" });
+    await expect(conversations).toBeVisible();
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "200%";
     });
-    const fits = await workbench.evaluate((button) => {
-      const contents = document.createRange();
-      contents.selectNodeContents(button);
-      const text = contents.getBoundingClientRect();
-      const box = button.getBoundingClientRect();
-      return text.left >= box.left && text.right <= box.right;
-    });
-    expect(fits).toBe(true);
+    await expect(conversations).toHaveCSS("font-size", "26px");
+    await expect(conversations.locator("svg[data-grouping-icon]")).toBeHidden();
+    await expect(conversations).toHaveText("Session");
+    await expect(conversations).toHaveAttribute("title", "Session");
+    await expect(branches).toHaveText("Branch");
+    for (const option of [conversations, branches]) {
+      const box = (await option.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      await option.tap();
+      await expect(option).toBeChecked();
+    }
+    const close = drawer.getByRole("button", { name: "Close sidebar" });
+    for (const option of [conversations, branches]) {
+      expect(
+        await option.evaluate((button) => {
+          const text = document.createRange();
+          text.selectNodeContents(button);
+          const label = text.getBoundingClientRect();
+          const control = button.getBoundingClientRect();
+          return label.left >= control.left && label.right <= control.right;
+        }),
+      ).toBe(true);
+    }
+    const branchBox = (await branches.boundingBox())!;
+    const closeBox = (await close.boundingBox())!;
+    expect(branchBox.y).toBeGreaterThanOrEqual(closeBox.y + closeBox.height);
+    expect(branchBox.x + branchBox.width).toBeCloseTo(
+      closeBox.x + closeBox.width,
+      0,
+    );
+    expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(320);
+    await close.tap();
+    await expect(drawer).toBeHidden();
   });
 });
 
@@ -490,42 +513,107 @@ test.describe("sidebar is always reachable", () => {
     });
 });
 
-// The brand row and labeled mode buttons must fit at minimum width and larger text.
+// The brand row and grouping switch must fit at minimum width and larger text.
 test.describe("sidebar header never overlaps", () => {
-  for (const fontSize of ["100%", "150%"])
-    test(`collapse button, brand and mode switch stay apart at the narrowest width (font ${fontSize})`, async ({
+  for (const fontSize of ["100%", "150%", "200%"])
+    test(`collapse button, brand and grouping switch stay apart at the narrowest width (font ${fontSize})`, async ({
       page,
     }) => {
-      await page.addInitScript(() => {
-        localStorage.setItem("webmux.sidebarCollapsed", "false");
-        localStorage.setItem("webmux.sidebarWidth", "1");
-      });
+      const english = fontSize === "200%";
+      await page.addInitScript(
+        (locale) => {
+          localStorage.setItem("webmux.locale", locale);
+          localStorage.setItem("webmux.sidebarCollapsed", "false");
+          localStorage.setItem("webmux.sidebarWidth", "1");
+        },
+        english ? "en" : "zh-CN",
+      );
       await page.setViewportSize({ width: 1280, height: 800 });
       await page.goto("/");
       await page.evaluate((size) => {
         document.documentElement.style.fontSize = size;
       }, fontSize);
-      const sidebar = page.getByRole("complementary", { name: "侧栏" });
-      const nav = sidebar.getByRole("navigation", { name: "导航" });
+      const sidebar = page.getByRole("complementary", {
+        name: english ? "Sidebar" : "侧栏",
+        exact: true,
+      });
+      const nav = sidebar.getByRole("navigation", {
+        name: english ? "Navigation" : "导航",
+      });
       await expect(nav).toBeVisible();
-      const collapse = nav.getByRole("button", { name: "收起侧栏" });
-      const brand = nav.locator(".brand");
-      const modes = nav.getByRole("group", { name: "模式" });
-      await expect(modes.getByText("聊天", { exact: true })).toBeVisible();
-      await expect(modes.getByText("工作台", { exact: true })).toBeVisible();
+      const collapse = nav.getByRole("button", {
+        name: english ? "Collapse sidebar" : "收起侧栏",
+      });
+      const brand = nav.locator(".brand-mark");
+      const modes = nav.getByRole("radiogroup", {
+        name: english ? "Session grouping" : "会话分组",
+      });
       for (const part of [collapse, brand, modes])
         await expect(part).toBeVisible();
       const toggle = (await collapse.boundingBox())!;
       const logo = (await brand.boundingBox())!;
       const group = (await modes.boundingBox())!;
-      const side = (await sidebar.boundingBox())!;
       expect(toggle.x + toggle.width).toBeLessThanOrEqual(logo.x + 0.5);
-      expect(
-        Math.max(toggle.y + toggle.height, logo.y + logo.height),
-      ).toBeLessThanOrEqual(group.y + 0.5);
-      expect(group.x).toBeGreaterThanOrEqual(side.x);
-      expect(group.x + group.width).toBeLessThanOrEqual(side.x + side.width);
+      const shortcut = (await nav
+        .getByRole("button", {
+          name: english ? "Switch session" : "快速切换会话",
+          exact: true,
+        })
+        .boundingBox())!;
+      if (english) {
+        await expect(modes.getByRole("radio", { name: "Session" })).toHaveCSS(
+          "font-size",
+          "26px",
+        );
+        expect(group.y).toBeGreaterThanOrEqual(shortcut.y + shortcut.height);
+        expect(group.x + group.width).toBeCloseTo(
+          shortcut.x + shortcut.width,
+          0,
+        );
+      } else {
+        expect(group.x - (logo.x + logo.width)).toBeGreaterThanOrEqual(12);
+        expect(group.y).toBeLessThan(logo.y + logo.height);
+        expect(group.y + group.height).toBeGreaterThan(logo.y);
+        expect(shortcut.x - (group.x + group.width)).toBeCloseTo(8, 0);
+      }
+      const refresh = (await nav
+        .getByRole("button", {
+          name: english ? "Refresh workspaces" : "刷新工作区",
+          exact: true,
+        })
+        .boundingBox())!;
+      expect(shortcut.x + shortcut.width).toBeCloseTo(
+        refresh.x + refresh.width,
+        0,
+      );
     });
+});
+
+test("an old chat preference opens Workbench with the new top switch", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("webmux.shellMode", "chat"),
+  );
+  await page.goto("/");
+  await revealSidebar(page);
+  const navigation = page.getByRole("navigation", {
+    name: "导航",
+    exact: true,
+  });
+  const grouping = navigation.getByRole("radio", {
+    name: "按分支",
+    exact: true,
+  });
+  await expect(grouping).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(
+    navigation.getByRole("button", { name: "聊天模式" }),
+  ).toHaveCount(0);
+  const create = navigation.getByRole("button", { name: "新建会话" });
+  expect((await grouping.boundingBox())!.y).toBeLessThan(
+    (await create.boundingBox())!.y,
+  );
 });
 
 test("session pins and their order sync to another browser", async ({
@@ -588,6 +676,9 @@ test("session pins and their order sync to another browser", async ({
     hasTouch: info.project.use.hasTouch,
   });
   try {
+    await other.addInitScript(() =>
+      localStorage.setItem("webmux.workbenchLayout", "workspaces"),
+    );
     const device = await other.newPage();
     await device.goto(new URL(`/s/${id}`, page.url()).href);
     if (mobile) await drawer(device);

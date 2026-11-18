@@ -1,5 +1,10 @@
 <script lang="ts">
   import SessionListRemovalDialog from "../components/sessions/SessionListRemovalDialog.svelte";
+  import WorkbenchSessionQueue from "../components/workspace/WorkbenchSessionQueue.svelte";
+  import { useLayoutRowsMotion } from "../hooks/shared/layout-rows-motion.svelte";
+  import WorkbenchPreviewControl from "../components/workspace/WorkbenchPreviewControl.svelte";
+  import { workbenchLayout } from "../domains/workspace/workbench-layout.svelte";
+  import { queueGroup } from "../domains/workspace/session-queue";
   import { onMount } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import WorkspaceHeaderActions from "../components/workspace/WorkspaceHeaderActions.svelte";
@@ -51,8 +56,7 @@
     featureAvailable,
   } from "../platform/feature-host.svelte";
 
-  // The workbench home: every live session grouped by repository and
-  // worktree, beside the shell's tree. The shell owns the shared data.
+  // The shell owns the live session, repository and archive state.
   const shell = getShell();
   const { drafts } = shell;
   const sessions = $derived(shell.sessions.sessions);
@@ -79,6 +83,14 @@
   let filterExpanded = $state<Record<string, boolean>>({});
   const repositoryChoice = $derived(shell.repositories?.choice ?? null);
   const compact = $derived(homeSessionView.compact);
+  const queue = $derived(workbenchLayout.value === "queue");
+  let layoutRows = $state<HTMLDivElement | null>(null);
+  useLayoutRowsMotion(
+    () => layoutRows,
+    () => workbenchLayout.value,
+    "[data-session-id]",
+  );
+  const attentionOnly = $derived(queue && workbenchLayout.attentionOnly);
   let searchInput = $state<HTMLInputElement | null>(null);
   const list = $derived(
     sessions.filter((session) => session.state === "active"),
@@ -120,7 +132,8 @@
       selectedWorktreeId: shell.repositories?.worktree ?? "",
       repositories,
       list,
-      select: (id) => shell.repositories?.select(id),
+      select: (id) =>
+        shell.repositories?.select(queue && !repositoryChoice ? "all" : id),
     });
   });
   const search = $derived(query.trim().toLocaleLowerCase());
@@ -143,7 +156,7 @@
     ),
   );
   const archivedMatches = $derived(
-    visibleArchiveIds === undefined
+    attentionOnly || visibleArchiveIds === undefined
       ? 0
       : scopedArchive.filter((record) => visibleArchiveIds.has(record.id))
           .length,
@@ -182,10 +195,13 @@
     void selectedWorktree;
     filterExpanded = {};
   });
-  function clearFilters() {
+  $effect(() => {
+    if (workbenchLayout.attentionOnly) clearFilters(false);
+  });
+  function clearFilters(focus = true) {
     query = "";
     statusFilter = "all";
-    searchInput?.focus();
+    if (focus) searchInput?.focus();
   }
   const expanded = $derived(
     deriveRepositoryExpanded(
@@ -249,48 +265,12 @@
 </script>
 
 {#snippet actions()}
-  <WorkspaceHeaderActions
-    {compact}
-    {refreshing}
-    repo={shell.settingsRepository}
-    {selectedWorktree}
-    {selectedPinned}
-    oncompactchange={(value) => (homeSessionView.compact = value)}
-    onrefresh={() => void shell.repositories?.refresh(true)}
-    ongit={featureAvailable("workspace.git-workbench")
-      ? () =>
-          openGitWorkbench({
-            repositoryId: shell.settingsRepository?.id ?? "",
-            worktreeId: shell.settingsRepository
-              ? selectedWorktree?.id
-              : undefined,
-          })
-      : undefined}
-    onnewworktree={(repo) =>
-      shell.start({ kind: "new-worktree", repositoryId: repo.id })}
-    onhome={(repo) => shell.chooseHomeWorktrees(repo)}
-    onmanage={(repo) => shell.repositoryDetails(repo, "worktrees")}
-    onsettings={shell.openRepositorySettings}
-    ondetails={(repo) => shell.repositoryDetails(repo)}
-    onscopegit={featureAvailable("workspace.git-workbench")
-      ? (repo, worktreeId, view) =>
-          openGitWorkbench({ repositoryId: repo.id, worktreeId, view })
-      : undefined}
-    onworktreedetails={() => (worktreeDetailsOpen = true)}
-    onswitch={(tree) => shell.switchBranch(tree)}
-    ontogglepin={(repo) => {
-      if (selectedWorktree)
-        pin(repo.id, [selectedWorktree.id], !selectedPinned);
-    }}
-    onremove={(tree) => (removing = tree)}
-    onoperation={(repo, operation) => shell.branchOperation(repo.id, operation)}
-  />
+  <WorkspaceHeaderActions {refreshing} {selectedWorktree} />
 {/snippet}
 
 <div class="workspace-page safe-area-page min-h-dvh">
   <WorkspaceMobileHeader
     reconnecting={shell.sessions.connection === "reconnecting"}
-    {actions}
   />
   <HomeUpdateNotice update={setup.pendingUpdate} inset />
   {#if loading || initializing}
@@ -304,20 +284,24 @@
     <div class="mx-auto max-w-6xl px-4 pt-4 pb-8 sm:px-6 sm:pt-8 lg:px-8">
       <main class="min-w-0">
         <WorkspaceToolbar
-          title={selectedRepository === "all"
-            ? m.s1_all_repositories()
-            : scopeLabel}
+          title={attentionOnly
+            ? m.s8_queue_attention()
+            : selectedRepository === "all"
+              ? m.s1_all_repositories()
+              : scopeLabel}
           mainWorktree={selectedWorktree?.kind === "main"}
           {loading}
           {filtering}
-          visibleCount={visible.length}
+          visibleCount={attentionOnly
+            ? visible.filter((session) => queueGroup(session) === "attention")
+                .length
+            : visible.length}
           sessionCount={scopedSessions.length}
           repositoryCount={selectedRepository === "all"
             ? repositories.length
             : selectedRepository === "direct"
               ? 0
               : 1}
-          showRepositoryCount={selectedRepository === "all"}
           {refreshing}
           {actions}
           onstart={() =>
@@ -349,6 +333,7 @@
             shortcutDisabled={Boolean(removing)}
             onclear={clearFilters}
           />
+          {#if !queue}<WorkbenchPreviewControl />{/if}
         </WorkspaceToolbar>
         <SessionListNotices
           setupError={shell.setup.error}
@@ -364,87 +349,108 @@
           {repositoryError}
           hasRepositories={repositories.length > 0}
         />
-        <div class="space-y-8">
-          {#each repositories as repo (repo.id)}
-            <RepositoryGroup
-              {repo}
-              sessions={list.filter(
-                (s) => s.workspace?.repositoryId === repo.id,
-              )}
+        <div class="space-y-8" bind:this={layoutRows}>
+          {#if queue}
+            <WorkbenchSessionQueue
+              sessions={visible}
+              available={scopedSessions}
+              {repositories}
+              records={attentionOnly
+                ? []
+                : scopedArchive.filter(
+                    (record) =>
+                      !visibleArchiveIds || visibleArchiveIds.has(record.id),
+                  )}
+              {archive}
+              {attentionOnly}
               {filtering}
-              {compact}
-              focused={selectedRepository === repo.id}
-              worktree={selectedRepository === repo.id
-                ? selectedWorktree?.id
-                : undefined}
-              hidden={selectedRepository !== "all" &&
-                selectedRepository !== repo.id}
-              {visibleIds}
-              open={isRepositoryGroupOpen({
-                repoId: repo.id,
-                filtering,
-                visible,
-                hasArchived: archivedInRepository(repo.id),
-                filterExpanded,
-                selectedRepository,
-                focusedExpanded,
-                expanded,
-              })}
-              onopenchange={(open) => {
-                if (filtering) filterExpanded[repo.id] = open;
-                else if (selectedRepository === repo.id)
-                  focusedExpanded[repo.id] = open;
-                else expansionOverrides[repo.id] = open;
-              }}
               {now}
-              onstart={(worktreeId) =>
-                worktreeId === undefined
-                  ? shell.start({
-                      kind: "new-worktree",
-                      repositoryId: repo.id,
-                    })
-                  : shell.start({
-                      kind: "worktree",
-                      repositoryId: repo.id,
-                      worktreeId,
-                    })}
-              ontogglepin={(worktreeId, pinned) =>
-                pin(repo.id, [worktreeId], pinned)}
-              onremove={(tree) => (removing = tree)}
-              onswitch={(tree) => shell.switchBranch(tree)}
+              onclear={clearFilters}
+              onrename={shell.rename}
               onclose={shell.close}
-              archived={placement.repositories.get(repo.id)}
-              {visibleArchiveIds}
-              {archive}
-              detailsOpen={worktreeDetailsOpen}
-              ondetailschange={(open) => (worktreeDetailsOpen = open)}
-              onoperation={(operation) =>
-                shell.branchOperation(repo.id, operation)}
-              ongit={featureAvailable("workspace.git-workbench")
-                ? (tree, view) =>
-                    openGitWorkbench({
-                      repositoryId: repo.id,
-                      worktreeId: tree.id,
-                      view,
-                    })
-                : undefined}
             />
-          {/each}
-          {#if direct.length || placement.direct.length}<DirectSessions
-              sessions={direct}
-              {compact}
-              focused={selectedRepository === "direct"}
-              {visibleIds}
-              {now}
-              onclose={shell.close}
-              archived={placement.direct}
-              visibleArchiveIds={selectedRepository === "all" ||
-              selectedRepository === "direct"
-                ? visibleArchiveIds
-                : new Set()}
-              {archive}
-            />{/if}
-          {#if isSessionListEmpty( { filtering, visibleCount: visible.length, archivedMatches, repositoriesCount: repositories.length, listCount: list.length, recoverableCount: recoverable.length, selectedRepository, directCount: direct.length, directArchiveCount: placement.direct.length } )}<SessionListEmpty
+          {:else}
+            {#each repositories as repo (repo.id)}
+              <RepositoryGroup
+                {repo}
+                sessions={list.filter(
+                  (s) => s.workspace?.repositoryId === repo.id,
+                )}
+                {filtering}
+                {compact}
+                focused={selectedRepository === repo.id}
+                worktree={selectedRepository === repo.id
+                  ? selectedWorktree?.id
+                  : undefined}
+                hidden={selectedRepository !== "all" &&
+                  selectedRepository !== repo.id}
+                {visibleIds}
+                open={isRepositoryGroupOpen({
+                  repoId: repo.id,
+                  filtering,
+                  visible,
+                  hasArchived: archivedInRepository(repo.id),
+                  filterExpanded,
+                  selectedRepository,
+                  focusedExpanded,
+                  expanded,
+                })}
+                onopenchange={(open) => {
+                  if (filtering) filterExpanded[repo.id] = open;
+                  else if (selectedRepository === repo.id)
+                    focusedExpanded[repo.id] = open;
+                  else expansionOverrides[repo.id] = open;
+                }}
+                {now}
+                onstart={(worktreeId) =>
+                  worktreeId === undefined
+                    ? shell.start({
+                        kind: "new-worktree",
+                        repositoryId: repo.id,
+                      })
+                    : shell.start({
+                        kind: "worktree",
+                        repositoryId: repo.id,
+                        worktreeId,
+                      })}
+                ontogglepin={(worktreeId, pinned) =>
+                  pin(repo.id, [worktreeId], pinned)}
+                onremove={(tree) => (removing = tree)}
+                onswitch={(tree) => shell.switchBranch(tree)}
+                onclose={shell.close}
+                archived={placement.repositories.get(repo.id)}
+                {visibleArchiveIds}
+                {archive}
+                detailsOpen={worktreeDetailsOpen}
+                ondetailschange={(open) => (worktreeDetailsOpen = open)}
+                onoperation={(operation) =>
+                  shell.branchOperation(repo.id, operation)}
+                ongit={featureAvailable("workspace.git-workbench")
+                  ? (tree, view) =>
+                      openGitWorkbench({
+                        repositoryId: repo.id,
+                        worktreeId: tree.id,
+                        view,
+                      })
+                  : undefined}
+              />
+            {/each}
+            {#if direct.length || placement.direct.length}<DirectSessions
+                sessions={direct}
+                {compact}
+                focused={selectedRepository === "direct"}
+                {visibleIds}
+                {now}
+                onclose={shell.close}
+                archived={placement.direct}
+                visibleArchiveIds={selectedRepository === "all" ||
+                selectedRepository === "direct"
+                  ? visibleArchiveIds
+                  : new Set()}
+                {archive}
+              />{/if}
+          {/if}
+          {#if !attentionOnly && (queue ? !visible.length && !(filtering ? archivedMatches : scopedArchiveCount) : isSessionListEmpty( { filtering, visibleCount: visible.length, archivedMatches, repositoriesCount: repositories.length, listCount: list.length, recoverableCount: recoverable.length, selectedRepository, directCount: direct.length, directArchiveCount: placement.direct.length } ))}<SessionListEmpty
               filtered={filtering && !visible.length && !archivedMatches}
               onclear={clearFilters}
               onexpand={selectedRepository === "all"

@@ -6,6 +6,7 @@ import {
   removableRecordWorktree,
   repositoryRecords,
 } from "../src/domains/sessions/archived";
+import { resolveScopedArchive } from "../src/hooks/sessions/session-list";
 import type {
   ArchivedSession,
   Repository,
@@ -131,6 +132,13 @@ describe("placeArchived", () => {
     expect(repositoryRecords(entry).length + placed.direct.length).toBe(
       records.length,
     );
+  });
+
+  test("keeps repository archives in feed order across worktrees", () => {
+    const placement = placeArchived(records, [repository]);
+    expect(
+      ids(resolveScopedArchive(repository.id, undefined, records, placement)),
+    ).toEqual(["recorded", "gone", "deep", "root"]);
   });
 
   test("without repositories, as when Git cannot be read, nothing is lost", () => {

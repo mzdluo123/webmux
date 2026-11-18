@@ -1,5 +1,6 @@
 <script lang="ts">
   import { openSession } from "../../hooks/shared/shell.svelte";
+  import { sessionRelativeTime } from "../../domains/sessions/session-status";
   import SessionStatus from "./SessionStatus.svelte";
   import RenameSessionDialog from "./RenameSessionDialog.svelte";
   import type { SessionInfo } from "../../contracts/schemas";
@@ -36,16 +37,7 @@
     groupPath?: string;
     onclose: (session: SessionInfo) => void;
   } = $props();
-  const seconds = $derived(
-    Math.max(0, Math.floor((now - Date.parse(session.lastActiveAt)) / 1000)),
-  );
-  const relative = $derived(
-    seconds < 60
-      ? m.s3_rel_just_now()
-      : seconds < 3600
-        ? m.s3_rel_minutes_ago({ count: String(Math.floor(seconds / 60)) })
-        : m.s3_rel_hours_ago({ count: String(Math.floor(seconds / 3600)) }),
-  );
+  const relative = $derived(sessionRelativeTime(now, session.lastActiveAt));
   const settings = $derived(previewFor(session.configId));
   const preview = $derived(selectPreview(session.preview, settings));
   // On the chat view the server's preview is the latest agent message.

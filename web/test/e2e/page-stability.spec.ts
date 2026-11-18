@@ -1,4 +1,4 @@
-import { test, expect, revealSidebar } from "./fixtures";
+import { workspaceLayoutTest as test, expect, revealSidebar } from "./fixtures";
 import { allRepositoriesMenu } from "./repository-menu";
 import { settled } from "../performance/performance";
 

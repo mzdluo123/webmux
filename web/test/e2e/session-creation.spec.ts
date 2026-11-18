@@ -8,7 +8,9 @@ import {
   chooseLocation,
   expect,
   openSplitPanel,
-  test,
+  revealSidebar,
+  test as queueTest,
+  workspaceLayoutTest as test,
   useCustomCommand,
 } from "./fixtures";
 import { chooseSessionProject, sessionLocation } from "./session-project";
@@ -329,3 +331,66 @@ for (const context of [false, true])
       context ? 1 : 0,
     );
   });
+
+queueTest(
+  "project plus opens a scoped session form even in collapsed or empty projects",
+  async ({ page, request, workDir }) => {
+    const active = await register(request, join(workDir, "active-project"));
+    const empty = await register(request, join(workDir, "empty-project"));
+    const seeded = await request.post("/api/sessions", {
+      data: {
+        name: "Running task",
+        workspace: {
+          repositoryId: active.id,
+          worktreeId: active.worktrees[0].id,
+        },
+        cmd: ["/bin/sh", "-c", "sleep 120"],
+      },
+    });
+    expect(seeded.status()).toBe(201);
+    await page.goto("/");
+    await revealSidebar(page);
+
+    const heading = page.getByRole("button", {
+      name: "active-project 1",
+      exact: true,
+    });
+    await heading.press("Space");
+    await expect(heading).toHaveAttribute("aria-expanded", "false");
+    await page
+      .getByRole("button", { name: "在active-project新建会话", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", { name: "新建会话", exact: true });
+    await expect(
+      dialog.getByText("active-project", { exact: true }),
+    ).toBeVisible();
+    await expect(sessionLocation(page)).toContainText("主工作区 · main");
+    await dialog.getByRole("button", { name: "取消", exact: true }).click();
+    await revealSidebar(page);
+    await expect(heading).toHaveAttribute("aria-expanded", "false");
+
+    await page
+      .getByRole("button", { name: "在empty-project新建会话", exact: true })
+      .click();
+    await expect(
+      dialog.getByText("empty-project", { exact: true }),
+    ).toBeVisible();
+    await expect(sessionLocation(page)).toContainText("主工作区 · main");
+    await useCustomCommand(page, "/bin/sh -i");
+    await dialog
+      .getByRole("button", { name: "创建并进入 →", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/s\/[a-z0-9]+$/);
+    const sessions = await (await request.get("/api/sessions")).json();
+    expect(sessions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          workspace: expect.objectContaining({
+            repositoryId: empty.id,
+            worktreeId: empty.worktrees[0].id,
+          }),
+        }),
+      ]),
+    );
+  },
+);

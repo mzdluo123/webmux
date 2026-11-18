@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
 import {
-  test,
+  workspaceLayoutTest as test,
   expect,
   createShell,
   expectTerminalLine,

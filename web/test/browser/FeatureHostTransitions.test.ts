@@ -237,7 +237,7 @@ test("same-origin reconnect replaces captured shell projections only when select
   await expect
     .element(page.getByRole("searchbox", { name: "搜索会话", exact: true }))
     .toBeVisible();
-  expect(reconnecting.readyState).toBe(FakeSocket.CLOSED);
+  await expect.poll(() => reconnecting.readyState).toBe(FakeSocket.CLOSED);
   await expect
     .element(page.getByRole("button", { name: "会话", exact: true }))
     .toBeVisible();

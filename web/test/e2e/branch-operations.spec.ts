@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, workspaceLayoutTest as test } from "./fixtures";
 import { repositoryMenu } from "./repository-menu";
 
 // Fast-forward, publish and branch cleanup against a local bare remote, all

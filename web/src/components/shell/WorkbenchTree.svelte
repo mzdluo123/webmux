@@ -14,6 +14,11 @@
     Repository,
     SessionInfo,
   } from "../../contracts/schemas";
+  import {
+    homeLayout,
+    setPinned,
+  } from "../../domains/workspace/home-worktrees";
+  import { homeWorktrees } from "../../domains/workspace/home-worktrees.svelte";
   import { rowStatus } from "../../domains/sessions/session-status";
   import {
     defaultNodeOpen,
@@ -53,13 +58,7 @@
   } from "./workbench-tree-labels";
   import WorktreeMenuItems from "../workspace/WorktreeMenuItems.svelte";
 
-  // The workbench-mode sidebar: repositories → worktrees → live sessions.
-  // Archived records that fit no worktree (a removed or released one) sit
-  // under the repository's "已不可用工作区" like the home page's, resuming
-  // when clicked. One roving tab stop for the rows (arrow keys move, left
-  // and right fold), and the focused row's action button is the next stop.
-  // Collapsed nodes keep their counts and waiting numbers, which cover live
-  // sessions only.
+  // Arrow keys move between rows, with the row menu as the next tab stop.
   let {
     repositories,
     sessions,
@@ -77,6 +76,7 @@
     onhomeworktrees,
     onmanageworktrees,
     onrepositorydetails,
+    onrepositorysettings,
     onworktreedetails,
     onremoveworktree,
     onswitchbranch,
@@ -89,22 +89,15 @@
     onremove,
   }: {
     repositories: readonly Repository[];
-    /** Live sessions, as the home page lists them. */
     sessions: readonly SessionInfo[];
-    /** Archived records; those fitting no worktree sit under their repository's unavailable workspaces. */
     records: readonly ArchivedSession[];
-    /** The record being resumed; its row shows the progress. */
     resuming?: string;
     home: HomeWorktrees;
     /** The home view shown ("all", "direct" or a repository ID); "" elsewhere. */
     scope: string;
-    /** The worktree the home view narrows to; "" for none. */
     worktree: string;
-    /** The session page shown; "" elsewhere. */
     current: string;
-    /** Git and the registry can create worktrees. */
     canCreate: boolean;
-    /** Launch config icons by ID, for ordinary sessions. */
     configIcons: ReadonlyMap<string, string>;
     onscope: (scope: string, worktreeId?: string) => void;
     onopen: (session: SessionInfo) => void;
@@ -112,13 +105,10 @@
     onhomeworktrees: (repositoryId: string) => void;
     onmanageworktrees: (repositoryId: string) => void;
     onrepositorydetails: (repositoryId: string) => void;
-    /** Opens a worktree's details. */
+    onrepositorysettings?: (repositoryId: string) => void;
     onworktreedetails: (repositoryId: string, worktreeId: string) => void;
-    /** Opens the removal dialog of a linked worktree. */
     onremoveworktree: (repositoryId: string, worktreeId: string) => void;
-    /** Opens the switch of a worktree's branch. */
     onswitchbranch: (repositoryId: string, worktreeId: string) => void;
-    /** Starts a sync action of a worktree's branch. */
     onbranchoperation?: (
       repositoryId: string,
       operation: BranchOperation,
@@ -128,21 +118,20 @@
       worktreeId?: string,
       view?: "commit",
     ) => void;
-    /** Opens the add-repository dialog from the "全部仓库" row's menu. */
     onaddrepository?: () => void;
     onrename: (session: SessionInfo) => void;
     onclose: (session: SessionInfo) => void;
-    /** Resumes an archived record, rebuilding a released worktree first. */
     onresume: (record: ArchivedSession) => void;
-    /** Asks to delete an archived record. */
     onremove: (record: ArchivedSession) => void;
   } = $props();
 
-  const nodes = $derived(workbenchTree(repositories, sessions, home, records));
+  const fullTree = $derived(
+    workbenchTree(repositories, sessions, home, records),
+  );
   let saved = $state<FolderMemory>(
     readFolderMemory(stored("workbenchTree", "{}")),
   );
-  const effective = $derived(reconcileFolderMemory(saved, nodes));
+  const effective = $derived(reconcileFolderMemory(saved, fullTree));
   $effect(() => {
     const next = effective;
     if (next !== saved) {
@@ -152,7 +141,6 @@
   });
   // The current session's repository and worktree open without being saved.
   const forced = $derived.by(() => {
-    // The keys of the current session's ancestors.
     const find = (list: TreeNode[], path: string[]): string[] => {
       for (const node of list) {
         if (
@@ -165,7 +153,7 @@
       }
       return [];
     };
-    return find(nodes, []);
+    return find(fullTree, []);
   });
   function isOpen(node: TreeNode) {
     if (!node.children.length || node.reason) return false;
@@ -189,7 +177,7 @@
         if (isOpen(node)) walk(node.children);
       }
     };
-    walk(nodes);
+    walk(fullTree);
     return rows;
   });
   let focusKey = $state("all");
@@ -273,7 +261,10 @@
        row's "⋯" menu takes their place on hover. `reserve` keeps the slot
        empty so the menu never covers the marks before it. -->
   {#if node.waiting}<span
-      class={`w-12 shrink-0 truncate text-right text-xs text-warning ${actioned ? underRowAction : ""}`}
+      class={[
+        "w-12 shrink-0 truncate text-right text-xs text-warning",
+        actioned && underRowAction,
+      ]}
       title={m.s1_waiting_sessions_title({ count: node.waiting })}
       >{m.s1_waiting_count({ count: node.waiting })}</span
     >{:else if node.count}<span
@@ -320,6 +311,8 @@
   {@const mainWorktree = node.worktree?.kind === "main"}
   <li
     role="none"
+    data-sidebar-session-id={node.session?.id}
+    data-layout-row={node.session ? undefined : node.key}
     class={`flex items-center ${node.level === 3 ? "pl-8" : node.level === 2 ? "pl-4" : ""}`}
   >
     {#if node.kind !== "session"}{@render chevron(node)}{:else}<span
@@ -413,11 +406,19 @@
           onhome={() => onhomeworktrees(node.repositoryId ?? "")}
           onmanage={() => onmanageworktrees(node.repositoryId ?? "")}
           ondetails={() => onrepositorydetails(node.repositoryId ?? "")}
+          onsettings={onrepositorysettings &&
+            (() => onrepositorysettings(node.repositoryId ?? ""))}
           ongit={onopengit && (() => onopengit(node.repositoryId ?? ""))}
         />
       {:else if node.kind === "worktree" && node.repositoryId && node.worktreeId}
         {@const repositoryId = node.repositoryId}
         {@const worktreeId = node.worktreeId}
+        {@const repo = repositories.find((repo) => repo.id === repositoryId)}
+        {@const pinned =
+          repo &&
+          homeLayout(home, repo, []).shown.some(
+            ({ tree }) => tree.id === worktreeId,
+          )}
         <SidebarRowMenu
           ariaLabel={m.s1_worktree_actions({ label: node.label })}
           tabindex={tabStop === node.key ? 0 : -1}
@@ -431,6 +432,12 @@
               ? () => onremoveworktree(repositoryId, worktreeId)
               : undefined}
             worktree={node.worktree}
+            {pinned}
+            ontogglepin={repo &&
+              (() =>
+                homeWorktrees.save(
+                  setPinned(home, repo, [worktreeId], !pinned),
+                ))}
             onoperation={onbranchoperation &&
               ((operation) => onbranchoperation(repositoryId, operation))}
             ongit={onopengit && (() => onopengit(repositoryId, worktreeId))}
@@ -474,5 +481,5 @@
   aria-label={m.s1_repositories_and_sessions()}
   class="space-y-0.5 text-sm"
 >
-  {#each nodes as node (node.key)}{@render row(node)}{/each}
+  {#each fullTree as node (node.key)}{@render row(node)}{/each}
 </ul>

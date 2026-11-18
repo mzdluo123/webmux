@@ -52,8 +52,10 @@
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { ListButton } from "$lib/components/ui/list-button";
   import { releasableRecordWorktree } from "../../domains/sessions/archived";
+  import { queueLocation } from "../../domains/workspace/session-queue";
   import LaunchConfigIcon from "../settings/LaunchConfigIcon.svelte";
   import RowStatus from "../shared/RowStatus.svelte";
+  import SidebarSessionName from "../shell/SidebarSessionName.svelte";
   import SidebarLiveSessionRow from "../shell/SidebarLiveSessionRow.svelte";
   import SidebarSessionMenu from "../shell/SidebarSessionMenu.svelte";
 
@@ -103,6 +105,7 @@
   // long history then costs nothing behind a closed section and never builds
   // every row at once.
   const PAGE = 20;
+  const locationIdPrefix = $props.id();
   const { live, archived } = $derived(chatHistorySections(sessions, records));
   let archivedExpanded = $state(false);
   let archivedOverride = $state<boolean | undefined>();
@@ -127,7 +130,7 @@
 <h2 class="px-3 pt-1 pb-1 text-xs text-muted-foreground">
   {m.s3_history_recent()}
 </h2>
-{#if live.length || archived.length}
+{#if archived.length || live.length}
   {#if live.length}
     <ul class="space-y-0.5" aria-label={m.s3_history_list_label()}>
       {#each live as session (session.id)}
@@ -135,6 +138,7 @@
           {session}
           {current}
           icon={session.agent?.icon ?? ""}
+          location={queueLocation(session, repositories)}
           {onopen}
           {onrename}
           {onclose}
@@ -198,6 +202,8 @@
                         ? m.s3_history_resuming_status()
                         : state,
                   })}
+                  aria-describedby={`${locationIdPrefix}-${record.id}`}
+                  data-allow-wrap
                   title={record.released
                     ? m.s3_history_released_title({
                         title,
@@ -219,9 +225,12 @@
                     )?.icon ?? ""}
                     size="sm"
                   />
-                  <span class="min-w-0 flex-1 truncate text-muted-foreground"
-                    >{title}</span
-                  >
+                  <SidebarSessionName
+                    {title}
+                    location={queueLocation(record, repositories)}
+                    locationId={`${locationIdPrefix}-${record.id}`}
+                    archived
+                  />
                   {#if resuming === record.id}<span
                       class="flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground"
                       ><IconLoader2

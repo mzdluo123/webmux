@@ -35,6 +35,8 @@
     title,
     records,
     worktree,
+    resolveWorktree,
+    timeline = false,
     archive,
   }: {
     // The workspace group's title, naming the section for assistive tech.
@@ -45,6 +47,8 @@
      * released record never targets it, deleting only itself.
      */
     worktree?: Worktree;
+    resolveWorktree?: (record: ArchivedSession) => Worktree | undefined;
+    timeline?: boolean;
     archive: ArchiveActions;
   } = $props();
 
@@ -148,13 +152,15 @@
     >
       {#if error}<InlineNotice tone="danger">{error}</InlineNotice>{/if}
       {#each shown as record (record.id)}
-        {@const removableWorktree = record.released ? undefined : worktree}
+        {@const removableWorktree = record.released
+          ? undefined
+          : (resolveWorktree?.(record) ?? worktree)}
         {@const hasMoreActions = Boolean(
           removableWorktree &&
           (archive.release || archive.removeRecordAndWorktree),
         )}
         <Item.Root
-          variant="muted"
+          variant={timeline ? "divided" : "muted"}
           class="min-w-0 flex-col flex-nowrap items-stretch"
           data-archived-id={record.id}
         >

@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, expectConnected, test } from "./fixtures";
+import { expect, expectConnected, test, workspaceLayoutTest } from "./fixtures";
 
 // A stand-in agent: it reports a question over the Warp cli-agent protocol,
 // then keeps redrawing a spinner exactly like omp does while it waits.
@@ -15,68 +15,67 @@ printf '\007'
 wait
 `;
 
-test("agent attention survives spinner output and clears on user input", async ({
-  page,
-  request,
-  workDir,
-}) => {
-  const created = await request.post("/api/sessions", {
-    data: {
-      cwd: workDir,
-      cmd: ["/bin/bash", "-c", agent],
-      name: "E2E agent",
-    },
-  });
-  expect(created.status()).toBe(201);
-  const { id } = (await created.json()).session;
-  const row = page.locator(`[data-session-id="${id}"]`);
+workspaceLayoutTest(
+  "agent attention survives spinner output and clears on user input",
+  async ({ page, request, workDir }) => {
+    const created = await request.post("/api/sessions", {
+      data: {
+        cwd: workDir,
+        cmd: ["/bin/bash", "-c", agent],
+        name: "E2E agent",
+      },
+    });
+    expect(created.status()).toBe(201);
+    const { id } = (await created.json()).session;
+    const row = page.locator(`[data-session-id="${id}"]`);
 
-  await page.goto("/");
-  await expect(row).toContainText("需要回答");
-  await expect(row.locator("[data-tone]")).toHaveAttribute(
-    "data-tone",
-    "destructive",
-  );
-  // Well past the 2-second output window that used to report "running".
-  await page.waitForTimeout(2500);
-  await expect(row).toContainText("需要回答");
-  await expect(row).toHaveAttribute("data-status", "waiting");
-  // A waiting session is not "executing": no title marker or animated icon.
-  await expect(page).toHaveTitle("WebMux · 工作区");
-  await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
-    "href",
-    "/icon.svg",
-  );
-  const info = await (await request.get(`/api/sessions/${id}`)).json();
-  expect(info.attention).toMatchObject({ kind: "question", source: "agent" });
+    await page.goto("/");
+    await expect(row).toContainText("需要回答");
+    await expect(row.locator("[data-tone]")).toHaveAttribute(
+      "data-tone",
+      "destructive",
+    );
+    // Well past the 2-second output window that used to report "running".
+    await page.waitForTimeout(2500);
+    await expect(row).toContainText("需要回答");
+    await expect(row).toHaveAttribute("data-status", "waiting");
+    // A waiting session is not "executing": no title marker or animated icon.
+    await expect(page).toHaveTitle("WebMux · 工作区");
+    await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
+      "href",
+      "/icon.svg",
+    );
+    const info = await (await request.get(`/api/sessions/${id}`)).json();
+    expect(info.attention).toMatchObject({ kind: "question", source: "agent" });
 
-  await page.goto(`/s/${id}`);
-  await expect(page.locator(".restore-overlay")).toBeHidden();
-  await expect(page).toHaveTitle("E2E agent · WebMux");
-  await expect(page.locator(".terminal-header .status-dot")).toHaveClass(
-    /status-failed/,
-  );
-  await page.locator(".xterm-helper-textarea").focus();
-  await page.keyboard.type("y");
-  // The bell rung right after the keystroke is ignored ...
-  await expect
-    .poll(
-      async () =>
-        (await (await request.get(`/api/sessions/${id}`)).json()).attention,
-      { intervals: [50] },
-    )
-    .toBeNull();
-  // ... while the bell after 1.5 s of quiet raises attention again.
-  await page.goto("/");
-  await expect(row).toContainText("响铃提醒");
-  await expect(row.locator("[data-tone]")).toHaveAttribute(
-    "data-tone",
-    "warning",
-  );
-  expect(
-    (await (await request.get(`/api/sessions/${id}`)).json()).attention,
-  ).toMatchObject({ kind: "bell", source: "terminal" });
-});
+    await page.goto(`/s/${id}`);
+    await expect(page.locator(".restore-overlay")).toBeHidden();
+    await expect(page).toHaveTitle("E2E agent · WebMux");
+    await expect(page.locator(".terminal-header .status-dot")).toHaveClass(
+      /status-failed/,
+    );
+    await page.locator(".xterm-helper-textarea").focus();
+    await page.keyboard.type("y");
+    // The bell rung right after the keystroke is ignored ...
+    await expect
+      .poll(
+        async () =>
+          (await (await request.get(`/api/sessions/${id}`)).json()).attention,
+        { intervals: [50] },
+      )
+      .toBeNull();
+    // ... while the bell after 1.5 s of quiet raises attention again.
+    await page.goto("/");
+    await expect(row).toContainText("响铃提醒");
+    await expect(row.locator("[data-tone]")).toHaveAttribute(
+      "data-tone",
+      "warning",
+    );
+    expect(
+      (await (await request.get(`/api/sessions/${id}`)).json()).attention,
+    ).toMatchObject({ kind: "bell", source: "terminal" });
+  },
+);
 
 // Historical queries stay local to replay. Live replies reach the PTY while
 // preserving the agent's question; step files trigger them without user input.
@@ -163,63 +162,64 @@ printf '\033]7501;state=done:app=e2e:msg=%s\007' "$msg"
 cat > /dev/null
 `;
 
-test("program status reports drive attention and status", async ({
-  page,
-  request,
-  workDir,
-}) => {
-  const created = await request.post("/api/sessions", {
-    data: {
-      cwd: workDir,
-      cmd: ["/bin/bash", "-c", statusAgent],
-      name: "E2E status agent",
-    },
-  });
-  expect(created.status()).toBe(201);
-  const { id } = (await created.json()).session;
-  const info = async () =>
-    (await request.get(`/api/sessions/${id}`)).json() as Promise<{
-      status: string;
-      attention: { kind: string; source: string } | null;
-    }>;
-  const row = page.locator(`[data-session-id="${id}"]`);
+workspaceLayoutTest(
+  "program status reports drive attention and status",
+  async ({ page, request, workDir }) => {
+    const created = await request.post("/api/sessions", {
+      data: {
+        cwd: workDir,
+        cmd: ["/bin/bash", "-c", statusAgent],
+        name: "E2E status agent",
+      },
+    });
+    expect(created.status()).toBe(201);
+    const { id } = (await created.json()).session;
+    const info = async () =>
+      (await request.get(`/api/sessions/${id}`)).json() as Promise<{
+        status: string;
+        attention: { kind: string; source: string } | null;
+      }>;
+    const row = page.locator(`[data-session-id="${id}"]`);
 
-  await expect.poll(info).toMatchObject({
-    status: "waiting",
-    attention: { kind: "permission", source: "agent" },
-  });
-  await page.goto("/");
-  await expect(row).toContainText("等待授权");
-  await expect(row).toHaveAttribute("data-status", "waiting");
-  await expect(row.locator("[data-tone]")).toHaveAttribute(
-    "data-tone",
-    "destructive",
-  );
+    await expect.poll(info).toMatchObject({
+      status: "waiting",
+      attention: { kind: "permission", source: "agent" },
+    });
+    await page.goto("/");
+    await expect(row).toContainText("等待授权");
+    await expect(row).toHaveAttribute("data-status", "waiting");
+    await expect(row.locator("[data-tone]")).toHaveAttribute(
+      "data-tone",
+      "destructive",
+    );
 
-  await writeFile(join(workDir, "step1"), "");
-  await expect.poll(info).toMatchObject({ status: "running", attention: null });
-  // A working record keeps the session running however the output looks.
-  await page.waitForTimeout(2500);
-  expect(await info()).toMatchObject({ status: "running", attention: null });
+    await writeFile(join(workDir, "step1"), "");
+    await expect
+      .poll(info)
+      .toMatchObject({ status: "running", attention: null });
+    // A working record keeps the session running however the output looks.
+    await page.waitForTimeout(2500);
+    expect(await info()).toMatchObject({ status: "running", attention: null });
 
-  await writeFile(join(workDir, "step2"), "");
-  await expect(row).toContainText("本轮完成");
-  await expect(row).toHaveAttribute("data-status", "waiting");
-  await expect(row.locator("[data-tone]")).toHaveAttribute(
-    "data-tone",
-    "warning",
-  );
-  const reported = await (await request.get(`/api/sessions/${id}`)).text();
-  expect(reported).not.toContain("c2VjcmV0");
+    await writeFile(join(workDir, "step2"), "");
+    await expect(row).toContainText("本轮完成");
+    await expect(row).toHaveAttribute("data-status", "waiting");
+    await expect(row.locator("[data-tone]")).toHaveAttribute(
+      "data-tone",
+      "warning",
+    );
+    const reported = await (await request.get(`/api/sessions/${id}`)).text();
+    expect(reported).not.toContain("c2VjcmV0");
 
-  await page.goto(`/s/${id}`);
-  await expect(page.locator(".restore-overlay")).toBeHidden();
-  await expect(page.locator(".xterm-rows")).toContainText("PROBE-OK");
-  await page.locator(".xterm-helper-textarea").focus();
-  await page.keyboard.type("y");
-  // Seen, the finished turn is idle even while the spinner keeps drawing.
-  await expect.poll(info).toMatchObject({ status: "idle", attention: null });
-});
+    await page.goto(`/s/${id}`);
+    await expect(page.locator(".restore-overlay")).toBeHidden();
+    await expect(page.locator(".xterm-rows")).toContainText("PROBE-OK");
+    await page.locator(".xterm-helper-textarea").focus();
+    await page.keyboard.type("y");
+    // Seen, the finished turn is idle even while the spinner keeps drawing.
+    await expect.poll(info).toMatchObject({ status: "idle", attention: null });
+  },
+);
 
 // The last line looks like a prompt and the program is blocked reading the
 // terminal: the heuristics call that waiting, unless the program already said
@@ -376,7 +376,7 @@ test("deferring an inbox alert lets it return without stopping the session", asy
   await page.goto(`/s/${id}`);
   if (info.project.use.isMobile)
     await page.getByRole("button", { name: "打开侧栏", exact: true }).click();
-  await page.getByRole("button", { name: /^待我处理/ }).click();
+  await page.getByRole("button", { name: /^会话通知/ }).click();
   const inbox = page.getByRole("dialog", { name: "待我处理", exact: true });
   await page.clock.install();
   const defer = inbox.getByRole("button", {
@@ -423,7 +423,7 @@ test("inbox has one conditional entry and keeps every landscape action reachable
   await page.goto(`/s/${quietId}`);
   await expectConnected(page);
   await page.getByRole("button", { name: "展开侧栏", exact: true }).click();
-  const trigger = page.getByRole("button", { name: /^待我处理/ });
+  const trigger = page.getByRole("button", { name: /^会话通知/ });
   await expect(trigger).toHaveCount(0);
   const ids: string[] = [];
   for (let index = 0; index < 8; index++) {

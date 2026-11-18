@@ -69,5 +69,6 @@
     onUpdate={() => {}}
     onPush={() => {}}
     onReturnSession={() => {}}
+    onReturnWorkbench={() => {}}
   />
 </div>
