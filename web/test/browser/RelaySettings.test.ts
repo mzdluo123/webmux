@@ -681,3 +681,40 @@ test("a rejected mutation stays actionable until later authoritative success cle
     host.requests.filter((request) => request.method === "POST"),
   ).toHaveLength(1);
 });
+test("pairing polls leave diagnostics and copy focus in place", async () => {
+  const host = installHost();
+  const container = Object.assign(document.createElement("section"), {
+    style: "width: 390px; max-width: 100%; margin: 0 auto",
+  });
+  document.body.append(container);
+  try {
+    render(RelayManager, { target: container });
+    await expect.element(start()).toBeEnabled();
+    const diagnostics = page.getByRole("button", {
+      name: m.relay_effective_diagnostics(),
+    });
+    const top = () =>
+      diagnostics.element().getBoundingClientRect().top + window.scrollY;
+    await startPairing();
+    await vi.waitFor(() =>
+      expect(container.getAnimations({ subtree: true })).toHaveLength(0),
+    );
+    const waitingTop = top();
+    const copy = page.getByRole("button", { name: m.relay_copy_code() });
+    (copy.element() as HTMLElement).focus();
+    const selection = window.getSelection()!;
+    selection.selectAllChildren(code().element());
+    host.pairing = { ...waiting, phase: "retrying" };
+    observeNow();
+    await expect
+      .element(page.getByText(m.relay_pairing_retrying()))
+      .toBeVisible();
+    const retryTop = top();
+    const retainedFocus = document.activeElement === copy.element();
+    expect(retryTop).toBe(waitingTop);
+    expect(retainedFocus).toBe(true);
+    expect(selection.toString()).toBe(waiting.userCode);
+  } finally {
+    container.remove();
+  }
+});
