@@ -37,6 +37,7 @@
   - 快捷范围与组合筛选：支持快捷范围（含受控 `#547`“当前任务”说明弹层）、关键字、作者、起止日期、字面路径组合筛选、选中提交消失提示及一键“定位当前 HEAD”，同步扩展 URL 查询参数 `author`、`since`、`until`、`path`；
   - `%P` 拓扑分页与提交详情：对接 `/git/history` 游标流式追加、`indirect` 虚线边与 `refsChanged` 提示；右上变更文件列表（键盘导航、路径二次过滤、重命名与二进制标记）与右下提交详情（合并提交多父节点切换、独立提交者、OID 复制、父提交跳转）联动；
   - Pierre `CodeDiffReader` 与两版本比较：复用 `CodeDiffReader` 提供底部可折叠/拖拽高度差异栏、放大态、手机端单列三步 Unified 阅读及快照全文/下载；支持任意两提交只读比较、交换方向与 `LatestRequest` + `AbortController` 竞态隔离。
+  - 2026-11-19（T063）：隔离 Chromium 中，桌面详情在普通、比较和交换方向三态保持 206.52 px 阅读视口。比较从顶部开始，退出恢复 310 px 阅读位置，交换方向后焦点留在方向按钮。
 - 依据：
   - Go 单元与竞态测试：`go test -race ./internal/workspace ./internal/codeview ./internal/wire ./internal/api ./internal/clicmd ./internal/archtest ./internal/docguard` 通过（含 `TestBranchesTagsAndHistoryTagFiltering` 及 wire 快照校验）；
   - 前端架构与单测门禁：`make check`、`test/git-log-controller.test.ts`、`test/route.test.ts` 与 `test/git-workbench.test.ts` 通过；
@@ -45,6 +46,7 @@
     - `test/e2e/git-workbench-log.spec.ts` 与 `test/e2e/git-workbench-route.spec.ts`（桌面与窄屏项目）验证分支/标签筛选不改写磁盘 `HEAD`、显式“检出分支…”预选弹窗、路径过滤 `indirect` 虚线边、游标分页追加与合并父节点 `#1/#2` 切换；
     - 同一 E2E 进一步验证任意两提交比较与方向交换、放大 Diff 返回保留列表滚动位置、手机窄屏三步导航零横向溢出，以及全程 `.git/index` 内容摘要与暂存区零改动；
     - 在真实运行实例上完成桌面（1280×900）、平板（768×800）、手机（390×844）浅色与深色前后对比截图及常速交互 GIF 录制与逐张视觉核查。
+- 2026-11-19（T061）：隔离 Chromium 用 122 个引用验证桌面和抽屉内的引用分组。未触及滚动边界时按钮纵坐标保持，页尾收起时焦点随按钮平滑到达新的滚动边界，开启减少动态效果时直接到位。
 - 限制：无头 Chromium 的 `hover` 与 `any-pointer: coarse` 媒体特性与物理设备存在差异，拖拽分隔条的真实触控阻尼与真机 iOS/Android 浏览器表现未在物理设备上验证。
 
 ## 2026-11-12：Git 工作台 05（V1a）Commit 暂存闭环、三处共享分支动作与宽幅 Push 对话框（US-J22）
@@ -173,6 +175,12 @@
   - 隔离实例 Playwright E2E（103 项，含 `git-workbench-line-smart.spec.ts` 桌面与 320px 手机视口 6 项）及性能套件（18 项）通过。
 - 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核对触屏手感；未重新核对本组以外的其余故事。
 
+### 2026-11-19：切换 Git 选行模式时保留代码行锚点（US-J28）
+
+- 隔离 Chromium 对全文差异测量切换前后，另外验证手机紧凑差异的行号映射和减少动态效果。
+- `git-workbench-line-smart.spec.ts` 的真实索引逐行暂存用例在桌面及 iPhone SE Chromium 均通过。
+- 本轮使用无头 Linux Chromium，未在物理触屏或真机浏览器核对。
+
 ## 2026-11-13：Git 工作台 12 原生设计系统重构（US-J20–US-J28）
 
 - 对应 US-J20–US-J28：复用原生色板、通用紧凑列表、等高控件、顶部水平标签与操作账本浮层，统一文件状态与审阅图标；故事 ID 和数量不变。
@@ -240,6 +248,7 @@
     - Storybook 多视口套件 `test/storybook/git-workbench.spec.ts`（27 项）通过；
   - 端到端与多视口视觉证据：
     - 隔离实例 Playwright E2E `git-workbench-log.spec.ts`、`git-workbench-commit-push.spec.ts`、`git-workbench-task-baseline.spec.ts`、`git-workbench-stash-blame.spec.ts`（24 项）通过；
+    - 2026-11-19（T064）：隔离 Chromium 验证比较加载、失败及路径过滤的文件结果区保持几何稳定，反向重命名仍选中同一文件。浏览器用例 `GitLogController.test.ts` 验证快速反向与过期响应处理。
     - 在隔离实例采集 `Log` 与 `Commit` 在桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色共 24 张修改前后对比截图，并通过 `1280×900` 至 `320×568` 及 `667×375` 共 7 组视口的 `scrollWidth <= innerWidth` 防溢出校验。
 - 限制：仅在 Linux 本地隔离实例与无头 Chromium 中核验；无头浏览器未验证物理 `hover` 与 `any-pointer: coarse` 媒体查询，未在 macOS 或 iOS/Android 物理真机上核验；未重新核对本组以外的其余故事。
 
