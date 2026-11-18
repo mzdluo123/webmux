@@ -169,6 +169,13 @@ test("4x CPU: create, type, replay, switch, filter and open dialogs remain usabl
         errors.push(error.stack ?? error.message),
       ),
     );
+  if (testInfo.project.use.isMobile) {
+    // Keep project registration open beyond Chromium's recent-input window.
+    await page.route("**/api/projects", async (route) => {
+      if (route.request().method() === "POST") await delay(850);
+      await route.continue();
+    });
+  }
   await createShell(page, "CPU 4x shell", workDir);
   await runCommand(page, "printf '\\n%s%s\\n' 'cpu-four-' 'ready'");
   await expectTerminalLine(page, "cpu-four-ready");

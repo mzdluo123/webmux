@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import * as NavigationMenu from "$lib/components/ui/navigation-menu";
   import { observeStickyHeaderOffset } from "../../hooks/shared/sticky-header";
@@ -9,11 +9,12 @@
   let active = $state("appearance");
   let navigation: HTMLElement;
   let vertical = $state(false);
-  let links: HTMLDivElement;
+  let links: HTMLDivElement | null;
   // Which edges of the horizontal strip hide more links; they fade out.
   let more = $state({ start: false, end: false });
 
   function edges() {
+    if (!links) return;
     more = {
       start: links.scrollLeft > 1,
       end: links.scrollLeft + links.clientWidth < links.scrollWidth - 1,
@@ -27,26 +28,69 @@
     });
     const desktop = matchMedia("(min-width: 1024px)");
     let frame = 0;
+    let restoreReading = false;
+    let width = innerWidth;
+    let reading:
+      | { section: HTMLElement; offset: number; atEnd: boolean }
+      | undefined;
 
     function update() {
       frame = 0;
-      vertical = desktop.matches;
+      if (width !== innerWidth) {
+        width = innerWidth;
+        restoreReading = true;
+      }
+      const nextVertical = desktop.matches;
+      if (vertical !== nextVertical) {
+        vertical = nextVertical;
+        restoreReading = true;
+        // The new orientation can change the navigation height.
+        void tick().then(() => {
+          if (navigation?.isConnected && !frame) update();
+        });
+        return;
+      }
       const first = targets[0];
-      if (!first) return;
+      if (!first || !links) return;
       const threshold =
         Math.max(
           parseFloat(getComputedStyle(first).scrollMarginTop),
-          desktop.matches
+          nextVertical
             ? parseFloat(getComputedStyle(navigation).top)
             : navigation.getBoundingClientRect().bottom,
         ) + 1;
+      // The navigation changes which part of the page stays visible.
+      // Keep the current section at the same offset from that boundary.
+      if (restoreReading && reading?.section.isConnected) {
+        const focused = document.activeElement === reading.section;
+        const followEnd = reading.atEnd && !focused;
+        // Scroll positions round to CSS pixels. Stay on the active side
+        // of the threshold after alignment.
+        const offset = focused ? -1 : Math.min(reading.offset, -1);
+        const delta = followEnd
+          ? document.documentElement.scrollHeight
+          : reading.section.getBoundingClientRect().top - threshold - offset;
+        if (Math.abs(delta) > 1)
+          window.scrollBy({ top: delta, behavior: "instant" });
+      }
+      restoreReading = false;
       let index = 0;
       for (const [i, target] of targets.entries()) {
         if (target.getBoundingClientRect().top <= threshold) index = i;
       }
       const bottom = document.documentElement.scrollHeight - innerHeight;
-      if (bottom > 0 && scrollY >= bottom - 2) index = targets.length - 1;
-      active = targets[index]!.id;
+      const atEnd = bottom > 0 && scrollY >= bottom - 2;
+      if (atEnd) index = targets.length - 1;
+      const current = targets[index]!;
+      active = current.id;
+      reading =
+        scrollY > 0
+          ? {
+              section: current,
+              offset: current.getBoundingClientRect().top - threshold,
+              atEnd,
+            }
+          : undefined;
       // Scroll only the horizontal strip; scrollIntoView would move the page.
       const link = links.querySelector<HTMLAnchorElement>(
         `a[href="#${active}"]`,
