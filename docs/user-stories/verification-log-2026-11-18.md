@@ -61,3 +61,10 @@
 
 - 从模板复制独立任务文件，标记为 `ready` 后用指南中的命令找到该文件，改为 `done` 后查询结果为空。
 - `make docs-check` 与 `go test ./internal/archtest -run TestAgents` 通过。
+
+## 按会话侧栏的分组显示（US-C17）
+
+- 会话缩进排列在项目标题下；无匹配会话的项目隐藏。侧栏顶部的「新建会话」仍可为这些项目创建首个会话。
+- `make e2e-runtime` 成功；`session-creation.spec.ts` 与 `workbench-session-queue.spec.ts` 的相关桌面和 iPhone SE Chromium 用例共 6 项通过。
+- 隔离 Chromium 中核对了 6 个视口的明暗主题、长标题和页面横向溢出，以及桌面键盘焦点与悬停提示。未验证实体触屏或真机。
+- [手机上为隐藏的项目创建首个会话](../images/pr/sidebar-session-groups/interaction-phone.gif)。
