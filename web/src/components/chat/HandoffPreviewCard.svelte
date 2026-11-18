@@ -13,6 +13,28 @@
     focusGenerate,
   }: { editor: HandoffEditor; focusGenerate: () => void } = $props();
   let refreshButton = $state<HTMLButtonElement | null>(null);
+  let previewViewport = $state<HTMLDivElement>();
+
+  $effect.pre(() => {
+    const preview = e.preview;
+    const viewport = previewViewport;
+    const active = document.activeElement;
+    if (!viewport?.contains(active)) return;
+    let current = true;
+    void tick().then(() => {
+      if (
+        current &&
+        preview === e.preview &&
+        viewport.isConnected &&
+        !active?.isConnected
+      ) {
+        viewport.focus({ preventScroll: true });
+      }
+    });
+    return () => {
+      current = false;
+    };
+  });
   async function observe(
     trigger: HTMLElement,
     action: () => Promise<void>,
@@ -101,10 +123,11 @@
   {/if}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex (the preview scrolls with keyboard focus) -->
   <div
+    bind:this={previewViewport}
     class="min-h-0 flex-1 overflow-y-auto p-3"
     role="region"
     aria-label={m.s3_preview()}
-    tabindex={e.preview ? 0 : undefined}
+    tabindex={e.preview ? 0 : -1}
   >
     {#if e.preview}
       <section class="min-w-0 space-y-3">

@@ -329,6 +329,35 @@ test("handoff form previews frozen images and clears process handles on refresh"
   await page.keyboard.press("Escape");
   await expect(viewer).toHaveCount(0);
   await expect(zoom).toBeFocused();
+
+  let releasePreview!: () => void;
+  const holdPreview = new Promise<void>(
+    (resolve) => (releasePreview = resolve),
+  );
+  await page.route(
+    "**/handoff-previews",
+    async (route) => {
+      const response = await route.fetch();
+      const preview: HandoffPreview = await response.json();
+      await holdPreview;
+      await route.fulfill({
+        response,
+        json: {
+          ...preview,
+          pages: [],
+          blockedReason: "目标暂时无法接收图片。",
+        },
+      });
+    },
+    { times: 1 },
+  );
+  await generate.press("Enter");
+  await zoom.focus();
+  releasePreview();
+  await expect(
+    page.getByRole("region", { name: "预览", exact: true }),
+  ).toBeFocused();
+
   await page.getByRole("button", { name: "补查冻结原文", exact: true }).click();
   await expect(page.locator("pre")).toContainText("original source constraint");
   await page.getByRole("radio", { name: "文本交接", exact: true }).click();
