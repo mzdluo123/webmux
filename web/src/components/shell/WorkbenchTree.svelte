@@ -61,7 +61,6 @@
   // Arrow keys move between rows, with the row menu as the next tab stop.
   let {
     repositories,
-    scopesOnly = false,
     sessions,
     records,
     resuming = "",
@@ -90,7 +89,6 @@
     onremove,
   }: {
     repositories: readonly Repository[];
-    scopesOnly?: boolean;
     sessions: readonly SessionInfo[];
     records: readonly ArchivedSession[];
     resuming?: string;
@@ -129,17 +127,6 @@
 
   const fullTree = $derived(
     workbenchTree(repositories, sessions, home, records),
-  );
-  const nodes = $derived(
-    scopesOnly
-      ? fullTree.map((node) => ({
-          ...node,
-          children:
-            node.kind === "repository"
-              ? node.children.map((child) => ({ ...child, children: [] }))
-              : [],
-        }))
-      : fullTree,
   );
   let saved = $state<FolderMemory>(
     readFolderMemory(stored("workbenchTree", "{}")),
@@ -190,7 +177,7 @@
         if (isOpen(node)) walk(node.children);
       }
     };
-    walk(nodes);
+    walk(fullTree);
     return rows;
   });
   let focusKey = $state("all");
@@ -242,7 +229,6 @@
   function isCurrent(node: TreeNode) {
     if (node.kind === "session") return node.session?.id === current;
     if (node.kind === "archived") return node.record?.id === current;
-    if (current && scopesOnly) return node.key === forced.at(-1);
     if (current || node.kind === "missing") return false;
     if (node.kind === "worktree")
       return scope === node.repositoryId && worktree === node.worktreeId;
@@ -276,8 +262,7 @@
        empty so the menu never covers the marks before it. -->
   {#if node.waiting}<span
       class={[
-        "w-12 shrink-0 truncate text-right text-xs",
-        scopesOnly ? "text-muted-foreground" : "text-warning",
+        "w-12 shrink-0 truncate text-right text-xs text-warning",
         actioned && underRowAction,
       ]}
       title={m.s1_waiting_sessions_title({ count: node.waiting })}
@@ -494,5 +479,5 @@
   aria-label={m.s1_repositories_and_sessions()}
   class="space-y-0.5 text-sm"
 >
-  {#each nodes as node (node.key)}{@render row(node)}{/each}
+  {#each fullTree as node (node.key)}{@render row(node)}{/each}
 </ul>

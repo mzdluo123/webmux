@@ -13,7 +13,6 @@
   } from "../../hooks/shared/shell.svelte";
 
   let {
-    scopesOnly,
     sessions,
     showScope,
     current,
@@ -23,7 +22,6 @@
     onresume,
     onremove,
   }: {
-    scopesOnly: boolean;
     sessions: readonly SessionInfo[];
     showScope: boolean;
     current: string;
@@ -49,7 +47,6 @@
 
 {#if workspace && shell.repositories}<workspace.Tree
     repositories={shell.repositories.list}
-    {scopesOnly}
     {sessions}
     home={workspace.homeWorktrees.value}
     scope={showScope ? (shell.repositories.choice ?? "all") : ""}

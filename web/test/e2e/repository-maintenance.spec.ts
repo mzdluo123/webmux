@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { test, expect } from "./fixtures";
+import { workspaceLayoutTest as test, expect } from "./fixtures";
 import { repositoryMenu } from "./repository-menu";
 
 const exec = promisify(execFile);

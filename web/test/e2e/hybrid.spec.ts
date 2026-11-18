@@ -1817,6 +1817,16 @@ test.describe("hybrid sessions with the fake agent", () => {
     const feature = page.getByRole("region", {
       name: "会话历史 的已归档会话",
     });
+    await expect(feature).toBeVisible();
+    const drawer = await revealSidebar(page);
+    const navigation = page.getByRole("navigation", {
+      name: "导航",
+      exact: true,
+    });
+    await expect(
+      navigation.getByRole("button", { name: /^已归档/ }),
+    ).toHaveCount(0);
+    if (drawer) await page.keyboard.press("Escape");
     await feature.getByRole("button", { name: /已归档/ }).click();
     await feature
       .getByRole("button", { name: "更多操作 E2E release", exact: true })

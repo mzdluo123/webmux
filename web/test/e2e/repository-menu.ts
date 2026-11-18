@@ -1,32 +1,17 @@
-import { expect, type Locator, type Page } from "@playwright/test";
-
-async function showWorkspaceTree(page: Page, tree: Locator, open: Locator) {
-  const disclosure = page.getByRole("button", {
-    name: "仓库与工作树",
-    exact: true,
-  });
-  await expect(tree.or(open).or(disclosure).first()).toBeVisible({
-    timeout: 2000,
-  });
-  if (await tree.isVisible()) return false;
-  const opened = !(await disclosure.isVisible());
-  if (opened) await open.click({ timeout: 2000 });
-  if (!(await tree.isVisible())) await disclosure.click({ timeout: 2000 });
-  return opened;
-}
+import { expect, type Page } from "@playwright/test";
+import { revealSidebar } from "./fixtures";
 
 // Opens a sidebar tree row's "⋯" menu (the phone drawer on narrow
 // screens); `label` matches the start of the menu button's name. Returns
 // whether the phone drawer had to be opened.
 async function openSidebarMenu(page: Page, label: RegExp) {
   const tree = page.getByRole("tree", { name: "仓库与会话" });
-  const open = page.getByRole("button", { name: "打开侧栏" });
   const trigger = tree.getByRole("button", { name: label }).first();
   let opened = false;
   // The sidebar renders after the page loads and a phone drawer may still be
   // sliding shut from an earlier step: retry from whichever form is shown.
   await expect(async () => {
-    if (await showWorkspaceTree(page, tree, open)) opened = true;
+    if (await revealSidebar(page)) opened = true;
     await trigger.click({ timeout: 2000 });
   }).toPass();
   return opened;
@@ -100,12 +85,11 @@ export async function worktreeMenu(
  */
 export async function unfoldRepository(page: Page, repositoryName: string) {
   const tree = page.getByRole("tree", { name: "仓库与会话" });
-  const open = page.getByRole("button", { name: "打开侧栏" });
   const toggle = tree.getByRole("button", {
     name: new RegExp(`^(展开|收起)${escape(repositoryName)}$`),
   });
   await expect(async () => {
-    await showWorkspaceTree(page, tree, open);
+    await revealSidebar(page);
     await expect(toggle).toBeVisible({ timeout: 2000 });
   }).toPass();
   if ((await toggle.getAttribute("aria-label"))?.startsWith("展开"))

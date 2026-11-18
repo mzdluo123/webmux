@@ -1,11 +1,9 @@
 <script lang="ts">
-  import IconChevronRight from "~icons/tabler/chevron-right";
   import IconLayoutSidebarLeftCollapse from "~icons/tabler/layout-sidebar-left-collapse";
   import IconMessagePlus from "~icons/tabler/message-plus";
   import IconPlus from "~icons/tabler/plus";
   import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
-  import * as Collapsible from "$lib/components/ui/collapsible";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { errorMessage } from "../../platform/error";
   import { sessionPins } from "../../domains/sessions/session-pins.svelte";
@@ -87,7 +85,6 @@
   const showWorkspaces = $derived(
     Boolean(shell.repositories?.settled || shell.repositories?.list.length),
   );
-  let workspacesOpen = $state(false);
   const pinned = $derived(sessionPins.ordered(live));
   const pinnedIDs = $derived(new Set(pinned.map((session) => session.id)));
   const unpinned = $derived(
@@ -223,10 +220,9 @@
   }
 </script>
 
-{#snippet history(archiveOnly: boolean)}
+{#snippet history()}
   {#if chat}<chat.History
-      sessions={archiveOnly ? live : unpinned}
-      {archiveOnly}
+      sessions={unpinned}
       records={shell.archived?.records ?? []}
       {configs}
       repositories={shell.repositories?.list ?? []}
@@ -244,8 +240,7 @@
 
 {#snippet workspaces()}
   <SidebarWorkspaceTree
-    scopesOnly={queue}
-    sessions={queue ? live : unpinned}
+    sessions={unpinned}
     showScope={route.name === "sessions" && !workbenchLayout.attentionOnly}
     {current}
     {configIcons}
@@ -363,7 +358,7 @@
         </p>{/if}
       <div use:revealNavigation={shellUi.mode}>
         {#if shellUi.mode === "chat" && chat}
-          {@render history(false)}
+          {@render history()}
         {:else if queue}
           <WorkbenchSidebarSessions
             sessions={live}
@@ -386,7 +381,6 @@
             onrename={shell.rename}
             onclose={shell.close}
           />
-          {@render history(true)}
         {:else if workspace && shell.repositories && !shell.sessions.loading && showWorkspaces}
           {@render workspaces()}
         {:else if !workspace || !shell.repositories}
@@ -408,31 +402,6 @@
       </div>
     </div>
   </ScrollArea>
-  {#if queue && showWorkspaces}
-    <div class="shrink-0 border-t px-2 py-1">
-      <Collapsible.Root bind:open={workspacesOpen}>
-        <Collapsible.Trigger>
-          {#snippet child({ props })}
-            <Button
-              {...props}
-              variant="ghost"
-              size="sm-touch"
-              class="w-full justify-start"
-            >
-              <IconChevronRight
-                aria-hidden="true"
-                class={workspacesOpen ? "rotate-90" : ""}
-              />
-              {m.s8_sidebar_workspaces()}
-            </Button>
-          {/snippet}
-        </Collapsible.Trigger>
-        <Collapsible.Content class="max-h-44 overflow-y-auto"
-          >{@render workspaces()}</Collapsible.Content
-        >
-      </Collapsible.Root>
-    </div>
-  {/if}
   <SidebarFooter
     connection={shell.sessions.connection}
     hostname={setup.hostname}

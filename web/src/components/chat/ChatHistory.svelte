@@ -68,7 +68,6 @@
   // clicked; a released one is marked so.
   let {
     sessions,
-    archiveOnly = false,
     records,
     configs,
     repositories,
@@ -83,7 +82,6 @@
     onremoveworktree,
   }: {
     sessions: readonly SessionInfo[];
-    archiveOnly?: boolean;
     records: readonly ArchivedSession[];
     configs: readonly LaunchConfigSummary[];
     /** Resolve which archived records' worktrees can be released. */
@@ -129,11 +127,11 @@
   const archivedRemaining = $derived(archived.length - archivedShown.length);
 </script>
 
-{#if !archiveOnly}<h2 class="px-3 pt-1 pb-1 text-xs text-muted-foreground">
-    {m.s3_history_recent()}
-  </h2>{/if}
-{#if archived.length || (!archiveOnly && live.length)}
-  {#if !archiveOnly && live.length}
+<h2 class="px-3 pt-1 pb-1 text-xs text-muted-foreground">
+  {m.s3_history_recent()}
+</h2>
+{#if archived.length || live.length}
+  {#if live.length}
     <ul class="space-y-0.5" aria-label={m.s3_history_list_label()}>
       {#each live as session (session.id)}
         <SidebarLiveSessionRow
@@ -179,7 +177,7 @@
       <Collapsible.Content forceMount hidden={!archivedOpen} class="mt-0.5">
         {#if archivedOpen}
           <ul
-            class={archiveOnly ? "space-y-1" : "space-y-0.5"}
+            class="space-y-0.5"
             aria-label={m.s3_history_archived_list_label()}
           >
             {#each archivedShown as record (record.id)}
@@ -195,9 +193,7 @@
                 <!-- The same end padding as live rows keeps every status in
                      one column. -->
                 <ListButton
-                  variant={archiveOnly
-                    ? "navigation-compact-action"
-                    : "navigation-action"}
+                  variant="navigation-action"
                   aria-current={record.id === current ? "page" : undefined}
                   aria-label={m.s3_session_row_label({
                     title,
@@ -227,7 +223,7 @@
                     icon={configs.find(
                       (config) => config.id === record.configId,
                     )?.icon ?? ""}
-                    size={archiveOnly ? "xs" : "sm"}
+                    size="sm"
                   />
                   <SidebarSessionName
                     {title}
@@ -278,7 +274,7 @@
       </Collapsible.Content>
     </Collapsible.Root>
   {/if}
-{:else if !archiveOnly}
+{:else}
   <p class="px-3 py-2 text-sm text-muted-foreground">
     {m.s3_history_empty()}
   </p>

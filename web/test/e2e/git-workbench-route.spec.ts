@@ -83,6 +83,14 @@ async function setupRepoWithLinkedWorktree(
   return { repo, mainWt, featWt, mainPath, linkedPath };
 }
 
+async function useWorkspaceLayout(page: Page) {
+  await page
+    .getByRole("main")
+    .getByRole("combobox", { name: "工作台布局" })
+    .click();
+  await page.getByRole("option", { name: "按工作区", exact: true }).click();
+}
+
 async function selectGitMode(
   page: Page,
   mode: "历史" | "提交" | "分支",
@@ -119,7 +127,7 @@ test("the Git and session views switch in both directions without losing the sel
     ).toBe(201);
   }
   await page.goto("/");
-  await revealSidebar(page);
+  const drawer = await revealSidebar(page);
   const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
   const project = sidebar.getByRole("list", { name: repo.name, exact: true });
   await expect(
@@ -128,6 +136,11 @@ test("the Git and session views switch in both directions without losing the sel
   await expect(
     project.getByRole("button", { name: /^Watch the main branch/ }),
   ).toHaveAccessibleDescription(`${repo.name} / main`);
+  await expect(
+    sidebar.getByRole("button", { name: "仓库与工作树" }),
+  ).toHaveCount(0);
+  if (drawer) await page.keyboard.press("Escape");
+  await useWorkspaceLayout(page);
   await unfoldRepository(page, repo.name);
   await page.getByRole("treeitem", { name: /^feat\/route/ }).click();
   const heading = page.getByRole("heading", { level: 1, name: /feat\/route/ });
@@ -171,6 +184,7 @@ test("standalone /git works with zero sessions, never spawns PTY, and survives l
   await page.goto("/");
   await expect(page.getByLabel("正在加载会话")).toHaveCount(0);
 
+  await useWorkspaceLayout(page);
   // Open standalone /git/{repoId} from sidebar repository "⋯" menu with 0 sessions.
   await repositoryMenu(page, "Git 工作台", repo.name);
   await expect(page).toHaveURL(new RegExp(`/git/${repo.id}(\\?|$)`));
@@ -255,6 +269,7 @@ test("worktree menu '提交改动…' deep-link and session Code Workspace round
   await page.goto("/");
   await expect(page.getByLabel("正在加载会话")).toHaveCount(0);
 
+  await useWorkspaceLayout(page);
   // Dirty worktree row in sidebar offers "提交改动…" directly opening ?view=commit.
   await unfoldRepository(page, repo.name);
   await worktreeMenu(page, "提交改动…", "feat/route");
