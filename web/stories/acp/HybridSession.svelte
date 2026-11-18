@@ -460,7 +460,7 @@
     setSizeLocked={() => {}}
     keyboardSizeHold={true}
     setKeyboardSizeHold={() => {}}
-    bind:codeShown
+    {codeShown}
     forceSoftKeys={false}
     {quickMenu}
     upload={async () => {}}

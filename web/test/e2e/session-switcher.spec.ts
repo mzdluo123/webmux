@@ -6,6 +6,8 @@ import {
   createShell,
   expect,
   expectConnected,
+  openSessionMenu,
+  openSessionSwitcher,
   openSplitPanel,
   recordInput,
   test,
@@ -13,8 +15,6 @@ import {
 
 const switcher = (page: Page) =>
   page.getByRole("dialog", { name: "快速切换会话", exact: true });
-const trigger = (page: Page) =>
-  page.getByRole("button", { name: "快速切换会话", exact: true });
 
 async function shell(
   request: APIRequestContext,
@@ -73,9 +73,7 @@ test("searches beyond the workbench scope and follows live session events", asyn
   await expect(
     page.getByRole("main").getByRole("link", { name: "Release shell" }),
   ).toHaveCount(0);
-  await trigger(page).click();
-
-  const dialog = switcher(page);
+  const dialog = await openSessionSwitcher(page);
   const search = dialog.getByRole("combobox");
   await expect(dialog).toBeInViewport({ ratio: 1 });
   await expect(search).toBeFocused();
@@ -124,7 +122,7 @@ test("settings can switch sessions while repository metadata loads", async ({
   const search = dialog.getByRole("combobox");
   const result = dialog.getByRole("option", { name: /Release shell/ });
   try {
-    await trigger(page).click();
+    await openSessionSwitcher(page);
     await expect(
       dialog.getByRole("option", { name: /Finished task.*已退出/ }),
     ).toBeVisible();
@@ -143,16 +141,25 @@ test("settings can switch sessions while repository metadata loads", async ({
 test("shortcut preserves Shell input and restores focus when dismissed", async ({
   page,
   workDir,
-}) => {
+}, { project }) => {
   await createShell(page, "Keep working", workDir);
   const recording = await recordInput(page, workDir);
   const terminal = page.locator(".xterm-helper-textarea");
-  const keys = await trigger(page).getAttribute("aria-keyshortcuts");
-  expect(keys).toBeTruthy();
+  const keys = /Macintosh|iPhone|iPad/.test(
+    await page.evaluate(() => navigator.userAgent),
+  )
+    ? "Meta+K"
+    : "Control+Alt+K";
+  if (!project.use.isMobile)
+    await expect(
+      page
+        .locator(".terminal-header")
+        .getByRole("button", { name: "快速切换会话", exact: true }),
+    ).toHaveAttribute("aria-keyshortcuts", keys);
   await terminal.press("Control+k");
   await expect.poll(() => readFile(recording, "utf8")).toBe("\x0b");
 
-  await page.keyboard.press(keys!);
+  await page.keyboard.press(keys);
   const dialog = switcher(page);
   await expect(dialog).toBeVisible();
   const search = dialog.getByRole("combobox");
@@ -162,11 +169,11 @@ test("shortcut preserves Shell input and restores focus when dismissed", async (
   await expect(terminal).toBeFocused();
   expect(await readFile(recording, "utf8")).toBe("\x0b");
 
-  await page.getByRole("button", { name: "终端菜单", exact: true }).click();
-  await page.keyboard.press(keys!);
+  const menu = await openSessionMenu(page);
+  await page.keyboard.press(keys);
   await expect(dialog).toBeHidden();
   await expect(
-    page.getByRole("menuitem", { name: "清屏", exact: true }),
+    menu.getByRole("menuitem", { name: "清屏", exact: true }),
   ).toBeVisible();
 });
 
@@ -187,10 +194,8 @@ test("a session already in a split activates its pane in place", async ({
     .click();
   const targetPane = page.locator(`[data-session-id="${target}"]`);
   await expect(targetPane).toHaveAttribute("data-active", "true");
-  await page.getByRole("button", { name: "快速切换会话", exact: true }).click();
-  await switcher(page)
-    .getByRole("option", { name: /Original pane/ })
-    .click();
+  const dialog = await openSessionSwitcher(page);
+  await dialog.getByRole("option", { name: /Original pane/ }).click();
   await expect(page.locator(`[data-session-id="${original}"]`)).toHaveAttribute(
     "data-active",
     "true",

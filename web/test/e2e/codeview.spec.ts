@@ -232,7 +232,7 @@ test("touch line actions infer the reference source from the clicked line", asyn
     .poll(async () => (await request.get(`/api/sessions/${id}/buffer`)).text())
     .toContain(`old:${join(workDir, "code.txt")}:2（索引版本）\r\n`);
   await page.keyboard.type("printf 'new:%s\\n' ");
-  await chooseDockPanel(page, "预览");
+  await chooseDockPanel(page, "预览 · code.txt");
   await lines.filter({ hasText: /^added two$/ }).tap();
   await page
     .getByRole("button", { name: "发送位置到终端" })

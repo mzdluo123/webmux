@@ -7,8 +7,10 @@ import {
   expect,
   createShell,
   closePanelPicker,
+  openSessionMenu,
   toggleCode,
   openSplitPanel,
+  sessionViewTabs,
 } from "./fixtures";
 import { codeReader, fileTree } from "./code-dock";
 
@@ -72,7 +74,11 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
 }, testInfo) => {
   await page.setViewportSize({ width: 393, height: 851 });
   await createShell(page, "demo-agent", workDir);
-  const title = header(page).getByText("demo-agent", { exact: true });
+  const title = header(page).getByRole("button", {
+    name: "demo-agent",
+    exact: true,
+  });
+  const label = title.getByText("demo-agent", { exact: true });
   for (const width of [393, 320]) {
     await page.setViewportSize({ width, height: 851 });
     for (const codeOpen of [false, true]) {
@@ -81,9 +87,9 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
       // 393px fits the whole title; 320px may truncate it but keeps it shown.
       if (width === 393)
         expect(
-          await title.evaluate((e) => e.scrollWidth <= e.clientWidth),
+          await label.evaluate((e) => e.scrollWidth <= e.clientWidth),
         ).toBe(true);
-      for (const name of ["全屏", "上传文件", "滚动到最新位置"])
+      for (const name of ["全屏", "上传文件", "滚动到最新位置", "快速切换会话"])
         await expect(
           header(page).getByRole("button", { name, exact: true }),
         ).toBeHidden();
@@ -92,9 +98,7 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
       await expect(
         header(page).getByRole("button", { name: /^草稿模式/ }),
       ).toBeHidden();
-      await expect(
-        header(page).getByRole("tablist", { name: "会话视图" }),
-      ).toHaveCount(0);
+      await expect(sessionViewTabs(page)).toHaveCount(0);
       await expect(
         header(page).getByRole("button", { name: "打开侧栏" }),
       ).toBeVisible();
@@ -126,9 +130,10 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
       .getByRole("button", { name: "新建会话…", exact: true }),
   ).toBeVisible();
   await closePanelPicker(page);
-  await header(page)
-    .getByRole("button", { name: "终端菜单", exact: true })
-    .click();
+  const menu = await openSessionMenu(page);
+  await expect(
+    menu.getByRole("menuitem", { name: "快速切换会话", exact: true }),
+  ).toBeVisible();
   // Draft mode left the phone header for the soft keys and this menu.
   for (const name of ["全屏", "上传文件"])
     await expect(
@@ -203,7 +208,7 @@ test("wide headers keep every action and the code workspace stays on single rows
   await modifiedRepository(workDir);
   await page.setViewportSize({ width: 1440, height: 900 });
   await createShell(page, "Wide layout", workDir);
-  for (const name of ["全屏", "上传文件", "打开面板"])
+  for (const name of ["全屏", "上传文件", "打开面板", "快速切换会话"])
     await expect(
       header(page).getByRole("button", { name, exact: true }),
     ).toBeVisible();

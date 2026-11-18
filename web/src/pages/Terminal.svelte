@@ -23,6 +23,7 @@
   import type { TerminalDrafts } from "../domains/terminal/terminal-draft.svelte";
   import SessionTerminal from "../components/terminal/SessionTerminal.svelte";
   import {
+    dockSessionLabels,
     sessionDockTree,
     sessionPanelIds,
   } from "../domains/terminal/session-dock";
@@ -146,7 +147,7 @@
     const current = info[active];
     if (current)
       setBrowserChrome(
-        `${current.title} · WebMux`,
+        `${paneTitle(active)} · WebMux`,
         current.status === "running" && connections[active] === "connected",
       );
   });
@@ -170,6 +171,11 @@
     forward: () => availableFeatures?.forward,
     error: (message) => (error = message),
   });
+  const paneTitle = (sessionId: string) =>
+    feed.byId.get(sessionId)?.title ||
+    info[sessionId]?.title ||
+    m.s4_tab_terminal();
+  const dockSessions = $derived(dockSessionLabels(ids, paneTitle));
   onMount(() => {
     mounted = true;
     if (openTarget) {
@@ -410,6 +416,7 @@
         {/snippet}
         {#each ids as sessionId (sessionId)}
           {@const panels = sessionPanelIds(sessionId)}
+          {@const dockSession = dockSessions.get(sessionId)}
           {@const visible =
             !!dock &&
             Object.values(panels).some((panel) => dock?.isVisible(panel))}
@@ -419,7 +426,8 @@
               {features}
               id={sessionId}
               {panels}
-              paneIndex={ids.indexOf(sessionId)}
+              dockSessionName={dockSession?.name}
+              dockSessionNumber={dockSession?.number}
               {toolbar}
               desktop={desktop.current}
               pickerOpen={showPicker}

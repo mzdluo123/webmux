@@ -8,7 +8,8 @@
     sessionSwitcherKeys,
   } from "../../hooks/shared/session-switcher";
 
-  let { size }: { size: ButtonSize } = $props();
+  let { size, class: className }: { size: ButtonSize; class?: string } =
+    $props();
   const open = findSessionSwitcher();
 </script>
 
@@ -16,6 +17,7 @@
   <Button
     variant="ghost"
     {size}
+    class={className}
     aria-label={m.s1_quick_switch_session()}
     aria-haspopup="dialog"
     aria-keyshortcuts={sessionSwitcherKeys}

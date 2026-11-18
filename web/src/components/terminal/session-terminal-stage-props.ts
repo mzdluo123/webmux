@@ -17,7 +17,8 @@ export interface SessionTerminalStageProps {
   id: string;
   features: TerminalFeatures;
   panels: ReturnType<typeof sessionPanelIds>;
-  paneIndex: number;
+  dockSessionName?: string;
+  dockSessionNumber?: number;
   toolbar?: HTMLDivElement;
   active: boolean;
   pickerOpen: boolean;

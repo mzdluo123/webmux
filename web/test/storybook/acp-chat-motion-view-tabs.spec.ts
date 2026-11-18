@@ -30,5 +30,18 @@ test("session indicator follows selection without skipping switch progress", asy
   expect(Math.abs(line!.x - tab!.x)).toBeLessThan(1);
   expect(Math.abs(line!.width - tab!.width)).toBeLessThan(1);
   await page.setViewportSize({ width: 320, height: 568 });
-  await expectNoOverflow(page, "session tabs on iPhone SE");
+  await expect(tabs).toBeHidden();
+  await expectNoOverflow(page, "session header on iPhone SE");
+  await page.getByRole("button", { name: "会话菜单", exact: true }).click();
+  const sides = page.getByRole("group", { name: "输入端", exact: true });
+  const chat = sides.getByRole("menuitemradio", { name: "聊天", exact: true });
+  const terminal = sides.getByRole("menuitemradio", {
+    name: "终端",
+    exact: true,
+  });
+  await expect(chat).toBeVisible();
+  await expect(chat).toHaveAttribute("aria-checked", "true");
+  await expect(terminal).toBeVisible();
+  await expect(terminal).toHaveAttribute("aria-checked", "false");
+  await expectNoOverflow(page, "session menu on iPhone SE");
 });

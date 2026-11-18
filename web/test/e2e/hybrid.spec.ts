@@ -8,13 +8,19 @@ import {
   chooseDockPanel,
   chooseLaunch,
   expect,
+  expectChatInputAvailable,
+  expectSessionInputSide,
   expectTerminalLine,
   nameSession,
+  openSessionMenu,
+  openSessionSwitcher,
   openSplitPanel,
   openSessionLink,
   toggleCode,
   runCommand,
   revealSidebar,
+  selectSessionInputSide,
+  sessionViewTabs,
   useWorkbenchBranches,
   workspaceLayoutTest as test,
   useDirectory,
@@ -70,13 +76,6 @@ async function createHybrid(
   return (await response.json()).session.id;
 }
 
-const sideTab = (page: Page, side: Side) =>
-  page
-    .getByRole("tablist", { name: "会话视图", exact: true })
-    .getByRole(
-      "tab",
-      side === "chat" ? { name: /^聊天/ } : { name: "终端", exact: true },
-    );
 const conversation = (page: Page) =>
   page.getByRole("list", { name: "对话", exact: true });
 const composer = (page: Page) =>
@@ -86,14 +85,12 @@ const working = (page: Page) =>
 const statusDot = (page: Page) => page.locator(".terminal-header .status-dot");
 
 async function expectSide(page: Page, side: Side) {
-  await expect(sideTab(page, side)).toHaveAttribute("aria-selected", "true");
-  // The switch has settled: its progress is gone and the tabs work again.
-  await expect(sideTab(page, side)).toBeEnabled();
   if (side === "chat") await expect(composer(page)).toBeEditable();
   else {
     await expect(page.locator("[data-chat-view]")).toHaveCount(0);
     await expect(page.locator(".xterm")).toBeVisible();
   }
+  await expectSessionInputSide(page, side);
 }
 
 async function openHybrid(page: Page, id: string, side: Side) {
@@ -132,21 +129,24 @@ test("inspecting a terminal panel does not change its hybrid input view or disca
   });
   await openHybrid(page, id, "chat");
   await composer(page).fill("keep this chat draft");
-  await chooseDockPanel(page, "终端 1：Docked chat");
+  await chooseDockPanel(page, "终端");
   const terminal = page.getByRole("region", {
-    name: "终端 1：Docked chat",
+    name: "终端",
     exact: true,
   });
+  await expect(terminal).toBeVisible();
   await expect(terminal).toContainText("会话当前处于聊天视图");
+  await expectSessionInputSide(page, "chat");
   if (!project.use.isMobile) {
     await terminal.locator("[draggable=true]").dblclick();
     await terminal
-      .getByRole("button", { name: "还原「终端 1：Docked chat」布局" })
+      .getByRole("button", { name: "还原「终端」布局", exact: true })
       .click();
   }
   const state = await (await request.get(`/api/sessions/${id}`)).json();
   expect(state.view).toBe("chat");
-  await chooseDockPanel(page, "聊天 1：Docked chat");
+  await chooseDockPanel(page, "聊天");
+  await expect(composer(page)).toBeVisible();
   await expect(composer(page)).toHaveValue("keep this chat draft");
 });
 
@@ -180,11 +180,7 @@ test("search opens only the target message in an existing split", async ({
     targetPane.getByText("Review the needle change", { exact: false }).first(),
   ).toBeVisible();
   await firstPane.getByRole("textbox", { name: "消息" }).click();
-  await page.getByRole("button", { name: "快速切换会话", exact: true }).click();
-  const search = page.getByRole("dialog", {
-    name: "快速切换会话",
-    exact: true,
-  });
+  const search = await openSessionSwitcher(page);
   await search.getByRole("combobox").fill("needle change");
   const match = search.getByRole("option", {
     name: /你 · Review the needle change/,
@@ -226,7 +222,7 @@ test("search opens only the target message in an existing split", async ({
   await expect(targetPane.locator("[data-message-highlight]")).toHaveCount(0);
   // Selecting the root session while the secondary pane is active must
   // activate the root without resetting the split or jumping the other pane.
-  await page.getByRole("button", { name: "快速切换会话", exact: true }).click();
+  await openSessionSwitcher(page);
   await search.getByRole("combobox").fill("Unrelated first");
   await search
     .getByRole("option", { name: /你 · Unrelated first message/ })
@@ -253,7 +249,7 @@ test("search opens only the target message in an existing split", async ({
   await expect(firstPane).toHaveCount(0);
   await expect(page.locator(".split-terminal")).toHaveCount(1);
   expect(new URL(page.url()).pathname).toBe(`/s/${anchor}`);
-  await page.getByRole("button", { name: "快速切换会话", exact: true }).click();
+  await openSessionSwitcher(page);
   await search.getByRole("combobox").fill("Unrelated first");
   await search
     .getByRole("option", { name: /你 · Unrelated first message/ })
@@ -308,11 +304,7 @@ test("message search activates its pane after restoring a saved split", async ({
     "true",
   );
   await page.goto("/");
-  await page.getByRole("button", { name: "快速切换会话", exact: true }).click();
-  const search = page.getByRole("dialog", {
-    name: "快速切换会话",
-    exact: true,
-  });
+  const search = await openSessionSwitcher(page);
   await search.getByRole("combobox").fill("restored needle");
   await page.evaluate(() => {
     document.documentElement.dataset.searchJumpDocument = "same-document";
@@ -361,7 +353,7 @@ test("message search reveals chat before consuming a jump hidden by narrow code"
     .getByRole("button", { name: /Code sibling/ })
     .click();
   await page.setViewportSize({ width: 390, height: 844 });
-  await chooseDockPanel(page, "聊天 1：Code target");
+  await chooseDockPanel(page, "聊天 · Code target");
   const targetPane = page.locator(`[data-dock-panel="chat:${target}"]`);
   const mountedPane = await targetPane.elementHandle();
   await toggleCode(page);
@@ -369,11 +361,7 @@ test("message search reveals chat before consuming a jump hidden by narrow code"
     page.locator(`[data-dock-panel="files:${target}"]`),
   ).toBeVisible();
   await expect(targetPane.locator("[data-chat-view]")).toBeHidden();
-  await page.getByRole("button", { name: "快速切换会话", exact: true }).click();
-  const search = page.getByRole("dialog", {
-    name: "快速切换会话",
-    exact: true,
-  });
+  const search = await openSessionSwitcher(page);
   await search.getByRole("combobox").fill("obscured needle");
   await search
     .getByRole("option", { name: /你 · Find the obscured needle/ })
@@ -398,15 +386,9 @@ async function tuiTurn(page: Page, text: string) {
   await expect(statusDot(page)).not.toHaveClass(/status-running/);
 }
 
-// Switches through the header tabs. Chat waits until the session is
-// eligible: the server reads the TUI's session ID twice a second, then
-// starts a short-lived ACP process to see that the agent lists it.
+// Choose the input side from the responsive header controls.
 async function switchTo(page: Page, side: Side, confirm = false) {
-  if (side === "chat")
-    await expect(sideTab(page, "chat")).toHaveAccessibleName("聊天", {
-      timeout: 20_000,
-    });
-  await sideTab(page, side).click();
+  await selectSessionInputSide(page, side);
   if (confirm) {
     const dialog = page.getByRole("alertdialog");
     await expect(dialog).toContainText(
@@ -726,7 +708,7 @@ test.describe("hybrid sessions with the fake agent", () => {
         .getByRole("button", { name: new RegExp(`Capacity filler ${i + 1}`) })
         .click();
     }
-    await chooseDockPanel(page, /^聊天 \d+：Capacity chat$/);
+    await chooseDockPanel(page, "聊天 · Capacity chat");
     const maximize = pane.getByRole("button", { name: /^放大「聊天/ });
     await maximize.click();
     const documentIdentity = await page.locator("body").elementHandle();
@@ -739,12 +721,12 @@ test.describe("hybrid sessions with the fake agent", () => {
     expect(
       await documentIdentity!.evaluate((element) => element.isConnected),
     ).toBe(true);
-    await chooseDockPanel(page, /^终端 \d+：Capacity filler 7$/);
+    await chooseDockPanel(page, "终端 · Capacity filler 7");
     await openSplitPanel(page.locator(`[data-session-id="${fillers[6]}"]`));
     await page
       .getByRole("button", { name: "关闭窗格（保留会话）", exact: true })
       .click();
-    await chooseDockPanel(page, /^聊天 \d+：Capacity chat$/);
+    await chooseDockPanel(page, "聊天 · Capacity chat");
     await maximize.click();
     await reference.click();
     await expect(page.getByRole("alert")).toHaveCount(0);
@@ -759,7 +741,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     ).toBe(true);
   });
 
-  test("phones switch chat and terminal in tabs and open code from the panel picker", async ({
+  test("phones keep the input side selected while code is visible", async ({
     page,
     request,
     workDir,
@@ -768,27 +750,20 @@ test.describe("hybrid sessions with the fake agent", () => {
     const id = await createHybrid(request, workDir, "chat");
     await page.setViewportSize({ width: 393, height: 851 });
     await openHybrid(page, id, "chat");
-    // Code replaces the pane without moving the session; no side stays selected.
+    // The picker changes the visible pane while the session keeps its input.
     await toggleCode(page);
     await expect(
       page.getByRole("region", { name: "文件树", exact: true }),
     ).toBeVisible();
-    await expect(sideTab(page, "chat")).toHaveAttribute(
-      "aria-selected",
-      "false",
-    );
-    await expect(sideTab(page, "terminal")).toHaveAttribute(
-      "aria-selected",
-      "false",
-    );
+    await expect(sessionViewTabs(page)).toBeHidden();
+    await expectSessionInputSide(page, "chat");
     await toggleCode(page);
     await expectSide(page, "chat");
     await expect(
       page.getByRole("region", { name: "文件树", exact: true }),
     ).toBeHidden();
     await toggleCode(page);
-    // Choosing the side the session is already on only leaves the code view.
-    await sideTab(page, "chat").click();
+    await chooseDockPanel(page, "聊天");
     await expectSide(page, "chat");
     await expect(
       page.getByRole("region", { name: "文件树", exact: true }),
@@ -949,7 +924,7 @@ test.describe("hybrid sessions with the fake agent", () => {
       "data-document-scroll",
       "true",
     );
-    await sideTab(page, "chat").click();
+    await chooseDockPanel(page, "聊天");
     await expect(terminalPage).toHaveAttribute("data-document-scroll", "true");
 
     // Switching to the terminal resets window.scrollY to 0 and fits the PTY cleanly.
@@ -1042,7 +1017,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     expect(await page.evaluate(() => window.scrollY)).toBe(windowOrigin);
   });
 
-  test("phones gain the side tabs when the session info arrives", async ({
+  test("the phone menu gains input controls when session info arrives", async ({
     page,
     request,
     workDir,
@@ -1051,18 +1026,21 @@ test.describe("hybrid sessions with the fake agent", () => {
     const id = await createHybrid(request, workDir, "terminal");
     await page.setViewportSize({ width: 393, height: 851 });
     // Until the terminal stream connects the page cannot know the session is
-    // hybrid: it shows the ordinary terminal, which has no side tabs.
+    // hybrid: the terminal menu has no input choices.
     const gate = Promise.withResolvers<void>();
     await page.routeWebSocket("**/ws/s/*", async (socket) => {
       await gate.promise;
       socket.connectToServer();
     });
     await page.goto(`/s/${id}`);
-    const views = page.getByRole("tablist", { name: "会话视图", exact: true });
     await expect(
       page.getByRole("button", { name: "打开面板", exact: true }),
     ).toBeVisible();
-    await expect(views).toHaveCount(0);
+    const menu = await openSessionMenu(page);
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole("menuitemradio")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeHidden();
     gate.resolve();
     await expectSide(page, "terminal");
   });
@@ -1197,9 +1175,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     // The cancelled turn kept the prompt and produced no reply.
     await expectTerminalLine(page, "> chat-mid");
     await expect(statusDot(page)).not.toHaveClass(/status-running/);
-    await expect(sideTab(page, "chat")).toHaveAccessibleName("聊天", {
-      timeout: 20_000,
-    });
+    await expectChatInputAvailable(page);
 
     await runCommand(page, "tui-mid a b c");
     await expect(statusDot(page)).toHaveClass(/status-running/);
@@ -1223,12 +1199,12 @@ test.describe("hybrid sessions with the fake agent", () => {
 
     await sendChat(page, "cancel-mid");
     await expect(working(page)).toBeVisible();
-    await sideTab(page, "terminal").click();
+    await selectSessionInputSide(page, "terminal");
     const dialog = page.getByRole("alertdialog");
     await expect(dialog).toContainText("切换到终端？");
     await dialog.getByRole("button", { name: "取消", exact: true }).click();
     await expect(dialog).toHaveCount(0);
-    // Focus returns to the tab; that must not count as choosing it.
+    // Handling focus after dismissal must not request another switch.
     await page.waitForTimeout(500);
     await expect(dialog).toHaveCount(0);
     await expectSide(page, "chat");
@@ -1521,7 +1497,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     await sendRange.click();
 
     if (testInfo.project.use.isMobile) {
-      await sideTab(page, "chat").click();
+      await chooseDockPanel(page, "聊天");
       await expectSide(page, "chat");
     }
     await expect(composer(page)).toHaveValue(/src\/target\.ts.*25.*27/);
@@ -1991,7 +1967,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     await tuiTurn(page, "kept-in-tui");
     // The terminal's agent session is known (read from its signals about
     // twice a second) once chat becomes available; a resume needs it.
-    await expect(sideTab(page, "chat")).toHaveAccessibleName("聊天");
+    await expectChatInputAvailable(page);
 
     await page.goto("/");
     await server.restart();
@@ -2061,7 +2037,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     });
     await openHybrid(page, id, "terminal");
     await tuiTurn(page, "candidate-one");
-    await expect(sideTab(page, "chat")).toHaveAccessibleName("聊天");
+    await expectChatInputAvailable(page);
     const info = await (await request.get(`/api/sessions/${id}`)).json();
     const sid = info.agent.sessionId;
 
@@ -2082,10 +2058,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     );
     await page.goto(`/s/${id}`);
     await delay(2_600);
-    await expect(sideTab(page, "chat")).toHaveAccessibleName("聊天", {
-      timeout: 20_000,
-    });
-    await sideTab(page, "chat").click();
+    await selectSessionInputSide(page, "chat");
     const picker = page.getByRole("combobox", { name: "选择要打开的会话" });
     await expect(picker).toBeVisible();
     await picker.selectOption(sid);
@@ -2106,7 +2079,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     });
     await openHybrid(page, id, "terminal");
     await tuiTurn(page, "external-one");
-    await expect(sideTab(page, "chat")).toHaveAccessibleName("聊天");
+    await expectChatInputAvailable(page);
     const info = await (await request.get(`/api/sessions/${id}`)).json();
     const sid = info.agent.sessionId;
     expect((await request.delete(`/api/sessions/${id}`)).status()).toBe(204);
@@ -2224,7 +2197,7 @@ test.describe("hybrid sessions with the fake agent", () => {
       await expect(page).toHaveURL(/\/s\/[a-z0-9]+$/);
       await expectSide(page, "terminal");
       await expectTerminalLine(page, "prompt>");
-      await expect(sideTab(page, "chat")).toBeDisabled({ timeout: 20_000 });
+      await expectChatInputAvailable(page, false);
       await expect(page.getByText("安装后会自动重新检测")).toBeVisible();
     });
   }

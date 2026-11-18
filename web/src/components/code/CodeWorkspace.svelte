@@ -85,18 +85,23 @@
       else if (shouldCloseOverlayNav(section)) ws.s.navOpen = false;
     },
   });
-  const activePath = $derived(
-    ws.s.tabs.find((tab) => tab.key === ws.s.active)?.file?.document.path ?? "",
+  const activeTab = $derived(ws.s.tabs.find((tab) => tab.key === ws.s.active));
+  const activePath = $derived(activeTab?.file?.document.path ?? "");
+  const activeDocumentPath = $derived(
+    activePath || activeTab?.diff?.new.path || activeTab?.diff?.old.path || "",
   );
-  const activeGitPath = $derived.by(() => {
-    const tab = ws.s.tabs.find((t) => t.key === ws.s.active);
-    if (!tab || tab.rootKind === "artifacts") return "";
-    return (
-      tab.file?.document.path || tab.diff?.new.path || tab.diff?.old.path || ""
-    );
-  });
-  const activeMenu = $derived(
-    ws.s.tabs.find((tab) => tab.key === ws.s.active)?.menu,
+  const activeGitPath = $derived(
+    activeTab?.rootKind === "artifacts" ? "" : activeDocumentPath,
+  );
+  const activeMenu = $derived(activeTab?.menu);
+  const readerTitle = $derived(
+    activeDocumentPath
+      ? m.dock_reader_title({
+          name: activeDocumentPath.slice(
+            activeDocumentPath.lastIndexOf("/") + 1,
+          ),
+        })
+      : m.s5_preview(),
   );
 
   /** The reading state of this workspace, for another instance to restore. */
@@ -408,7 +413,7 @@
 <Tabs.Root value={ws.s.active} onValueChange={ws.activate}>
   {#snippet child({ props })}
     {#if docked}
-      <DockPanel id={docked.reader} title={m.s5_preview()}>
+      <DockPanel id={docked.reader} title={readerTitle}>
         {@render workspace(props)}
       </DockPanel>
       <DockPanel id={docked.files} title={m.s5_file_tree()}>

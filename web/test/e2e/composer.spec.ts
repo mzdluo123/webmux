@@ -197,7 +197,8 @@ test("code references and uploaded paths join the same draft without PTY input",
   await expect
     .poll(() => readFile(received, "utf8"))
     .toBe(`\x1b[200~${expected}\x1b[201~\r`);
-  if (info.project.use.isMobile) await chooseDockPanel(page, "预览");
+  if (info.project.use.isMobile)
+    await chooseDockPanel(page, "预览 · reference.txt");
   await expect(codeReader(page)).toBeVisible();
   await expect(draft(page)).toBeHidden();
   // The phone header has no draft button while the soft keys are hidden.

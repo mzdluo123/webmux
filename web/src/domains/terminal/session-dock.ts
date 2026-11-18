@@ -10,6 +10,28 @@ export function sessionPanelIds(id: string) {
   };
 }
 
+export function dockSessionLabels(
+  ids: readonly string[],
+  titleFor: (id: string) => string,
+) {
+  const labels = new Map<string, { name: string; number?: number }>();
+  if (ids.length < 2) return labels;
+  const names = ids.map(titleFor);
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const name of names) {
+    if (seen.has(name)) duplicates.add(name);
+    seen.add(name);
+  }
+  for (const [index, name] of names.entries()) {
+    labels.set(ids[index]!, {
+      name,
+      number: duplicates.has(name) ? index + 1 : undefined,
+    });
+  }
+  return labels;
+}
+
 export function sessionDockTree(
   layout: PaneLayout,
   hasChat: (id: string) => boolean,

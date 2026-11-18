@@ -1,6 +1,6 @@
 import "../../src/styles.css";
 import { expect, test } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
 import Terminal from "../../src/pages/Terminal.svelte";
 import type {
@@ -288,6 +288,20 @@ test("switching to chat shows its steps, asks after a stuck interrupt and lands 
   // Neither side takes input while the session moves.
   await expect.element(chatTab("聊天")).toBeDisabled();
   await expect.element(page.getByRole("tab", { name: "终端" })).toBeDisabled();
+  await page.viewport(390, 844);
+  await expect
+    .element(page.getByRole("tablist", { name: "会话视图", exact: true }))
+    .not.toBeInTheDocument();
+  await page.getByRole("button", { name: "会话菜单", exact: true }).click();
+  const sides = page.getByRole("group", { name: "输入端", exact: true });
+  for (const name of ["聊天", "终端"]) {
+    const option = sides.getByRole("menuitemradio", { name, exact: true });
+    await expect.element(option).toBeVisible();
+    await expect.element(option).toBeDisabled();
+  }
+  await userEvent.keyboard("{Escape}");
+  await expect.element(sides).not.toBeInTheDocument();
+  await page.viewport(1280, 900);
 
   // D21: the interrupt did not stop the TUI; every device is asked.
   move(
@@ -470,11 +484,11 @@ test("a session moved by another device shows the chat view; switching back reat
   await expect.element(agentBadge()).not.toBeInTheDocument();
 });
 
-test("the chat view names its agent beside the title, icon only on a phone", async () => {
+test("the chat header names its agent on desktop and gives its title the space on a phone", async () => {
   const streams = await onTerminalSide(tuiState());
   // The terminal view shows the agent itself; the header adds nothing.
   await expect
-    .element(page.getByText(info.title, { exact: true }))
+    .element(page.getByRole("button", { name: info.title, exact: true }))
     .toBeVisible();
   await expect.element(agentBadge()).not.toBeInTheDocument();
 
@@ -502,13 +516,12 @@ test("the chat view names its agent beside the title, icon only on a phone", asy
   expect(badge.title).toBe("Agent：omp");
   expect(badge.querySelector('[data-launch-icon="pi"] svg')).not.toBeNull();
   expect(badge.innerText).toBe("omp");
-  // Wide headers read title, agent, then the status dot (phones put the dot
-  // first, by CSS order).
+  // Wide headers read title, agent, then status; phones reserve that space
+  // for the title and put the status dot first.
   await page.viewport(1024, 800);
-  await expect.element(page.getByText(title, { exact: true })).toBeVisible();
-  const heading = page
-    .getByText(title, { exact: true })
-    .element() as HTMLElement;
+  const titleButton = page.getByRole("button", { name: title, exact: true });
+  await expect.element(titleButton).toBeVisible();
+  const heading = titleButton.element();
   const dot = badge.closest("header")!.querySelector(".status-dot")!;
   await expect.poll(() => dot.classList.contains("status-failed")).toBe(true);
   expect(dot.getAttribute("aria-label")).toMatch(/^需要回答 · /);
@@ -522,14 +535,19 @@ test("the chat view names its agent beside the title, icon only on a phone", asy
     .toBe(true);
 
   await page.viewport(390, 844);
-  await expect.poll(() => badge.innerText).toBe("");
-  const icon = badge.querySelector("[data-launch-icon]")!;
-  expect(icon.getBoundingClientRect().width).toBeGreaterThan(0);
-  // The title gives way; the agent keeps its full width inside the header.
-  expect(heading.scrollWidth).toBeGreaterThan(heading.clientWidth);
-  expect(badge.scrollWidth).toBeLessThanOrEqual(badge.clientWidth);
-  const header = badge.closest("header")!.getBoundingClientRect();
-  expect(badge.getBoundingClientRect().right).toBeLessThanOrEqual(header.right);
+  await expect.element(agentBadge()).not.toBeInTheDocument();
+  await expect.element(titleButton).toBeVisible();
+  const label = titleButton.getByText(title, { exact: true }).element();
+  expect(label.scrollWidth).toBeGreaterThan(label.clientWidth);
+  expect(dot.getBoundingClientRect().right).toBeLessThanOrEqual(
+    titleButton.element().getBoundingClientRect().left,
+  );
+  await titleButton.click();
+  const details = page.getByRole("dialog", { name: "会话名称", exact: true });
+  await expect.element(details.getByText(title, { exact: true })).toBeVisible();
+  await expect
+    .element(details.getByText("Agent：omp", { exact: true }))
+    .toBeVisible();
 });
 
 test("prompts still queued return to this device's draft; a new TUI session ID is announced", async () => {

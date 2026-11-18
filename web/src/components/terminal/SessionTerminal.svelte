@@ -48,7 +48,8 @@
     visible,
     active,
     panels,
-    paneIndex,
+    dockSessionName,
+    dockSessionNumber,
     toolbar,
     desktop,
     pickerOpen,
@@ -75,7 +76,8 @@
     visible: boolean;
     active: boolean;
     panels: ReturnType<typeof sessionPanelIds>;
-    paneIndex: number;
+    dockSessionName?: string;
+    dockSessionNumber?: number;
     toolbar: HTMLDivElement | undefined;
     desktop: boolean;
     pickerOpen: boolean;
@@ -391,18 +393,13 @@
     bind:this={stage}
     bind:container
     bind:notice
-    bind:codeShown={
-      () =>
-        dock.compact() &&
-        (!!dock.rect(panels.files) || !!dock.rect(panels.reader)),
-      (value) => {
-        if (!value) showInputPanel();
-      }
-    }
+    codeShown={dock.compact() &&
+      (!!dock.rect(panels.files) || !!dock.rect(panels.reader))}
     {toolbar}
     {active}
     {panels}
-    {paneIndex}
+    {dockSessionName}
+    {dockSessionNumber}
     {pickerOpen}
     {openPanels}
     {onactivate}

@@ -3,7 +3,10 @@ import {
   expect,
   createShell,
   chooseDockPanel,
+  chooseDockPanelById,
+  expectSessionInputSide,
   openSplitPanel,
+  selectSessionInputSide,
   toggleCode,
 } from "./fixtures";
 import type { Locator, Page } from "@playwright/test";
@@ -53,9 +56,12 @@ test("docking and minimizing a running terminal retain the emulator, layout and 
   const placed = await root.boundingBox();
   await header.dblclick();
   await expect(anchor).toBeHidden();
-  await root.getByRole("button", { name: /^还原「终端 2/ }).click();
-  expect(await root.boundingBox()).toEqual(placed);
+  await expect(root).toHaveAccessibleName(/^终端 · .+$/);
   const name = (await root.getAttribute("aria-label"))!;
+  await root
+    .getByRole("button", { name: `还原「${name}」布局`, exact: true })
+    .click();
+  expect(await root.boundingBox()).toEqual(placed);
   await root
     .getByRole("button", { name: `收起「${name}」`, exact: true })
     .click();
@@ -148,7 +154,7 @@ test("nested splits preserve terminal state, isolate input and restore layout", 
       .toBeGreaterThan(45);
   } else {
     await expect(page.locator(".split-terminal:visible")).toHaveCount(1);
-    await chooseDockPanel(page, "终端 1：Primary shell");
+    await chooseDockPanel(page, "终端 · Primary shell");
     await expect(original).toBeVisible();
     await expect(draftInput).toHaveValue("keep this draft");
   }
@@ -171,7 +177,7 @@ test("nested splits preserve terminal state, isolate input and restore layout", 
   expect(
     sessions.every((session: { cwd: string }) => session.cwd === workDir),
   ).toBe(true);
-  await chooseDockPanel(page, "终端 1：Primary shell");
+  await chooseDockPanel(page, "终端 · Primary shell");
   await expect(original.locator(".terminal-composer textarea")).toHaveValue(
     "keep this draft",
   );
@@ -210,19 +216,18 @@ test("the keyboard size hold preference applies to every mounted pane", async ({
     name: "键盘弹出时保持尺寸",
     exact: true,
   });
-  // Narrow layouts show one pane at a time behind the pane switcher.
-  const showPane = async (index: number) => {
-    await chooseDockPanel(page, new RegExp(`^终端 ${index}：`));
-  };
+  const secondId = (await second.getAttribute("data-session-id"))!;
 
-  await showPane(2);
+  await chooseDockPanelById(page, secondId);
+  await expect(second).toBeVisible();
   await menu.click();
   await expect(option).toBeChecked();
   await option.click();
   await expect(option).not.toBeChecked();
   await page.keyboard.press("Escape");
 
-  await showPane(1);
+  await chooseDockPanel(page, "终端 · Hold preference");
+  await expect(first).toBeVisible();
   await menu.click();
   await expect(option).not.toBeChecked();
 });
@@ -312,7 +317,8 @@ test("existing sessions can join a split and missing panes can be dismissed", as
     .toBe("exited");
   await request.delete(`/api/sessions/${existing.id}?remove=1`);
   await page.reload();
-  await chooseDockPanel(page, /终端 2：/);
+  await chooseDockPanelById(page, existing.id);
+  await expect(joined).toBeVisible();
   await expect(
     page.getByRole("button", { name: "返回列表", exact: true }),
   ).toBeVisible();
@@ -359,7 +365,8 @@ test("返回列表 in a split leaves only its own pane", async ({
     .toBe("exited");
   await request.delete(`/api/sessions/${gone.id}?remove=1`);
   await page.reload();
-  await chooseDockPanel(page, /终端 2：/);
+  await chooseDockPanelById(page, gone.id);
+  await expect(pane).toBeVisible();
   await page.getByRole("button", { name: "返回列表", exact: true }).click();
   await expect(page.locator(".split-terminal")).toHaveCount(1);
   await expect(page).toHaveURL(new RegExp(`/s/${id}`));
@@ -450,25 +457,21 @@ test("a split preserves hybrid chat and terminal switching beside a shell", asyn
       .getByRole("button", { name: "关闭 Chat agent 的通知", exact: true })
       .click();
   });
-  const terminalTab = page
-    .getByRole("tablist", { name: "会话视图", exact: true })
-    .getByRole("tab", { name: "终端", exact: true });
-  await terminalTab.click();
-  await expect(terminalTab).toHaveAttribute("aria-selected", "true");
-  await expect(terminalTab).toBeEnabled();
+  await selectSessionInputSide(page, "terminal");
   const terminal = page.locator(`[data-session-id="${chatId}"]`);
   await expect(terminal.locator(".xterm")).toBeVisible();
   await expect(terminal.locator(".xterm-rows")).toContainText("prompt>");
+  await expectSessionInputSide(page, "terminal");
   await expect(anchor.locator(".xterm")).toHaveAttribute(
     "data-retained",
     "yes",
   );
-  await chooseDockPanel(page, "终端 1：Shell beside chat");
+  await chooseDockPanel(page, "终端 · Shell beside chat");
   await expect(page).toHaveTitle(/Shell beside chat · WebMux$/);
   await expect(page.locator(".split-terminal")).toHaveCount(2);
 
   // Archiving the hybrid pane removes only that pane; the page stays.
-  await chooseDockPanel(page, /^终端 2：/);
+  await chooseDockPanel(page, "终端 · Chat agent");
   await page.getByRole("button", { name: "终端菜单", exact: true }).click();
   await page
     .getByRole("menuitem", { name: "停止会话并归档", exact: true })

@@ -6,6 +6,7 @@ import {
   closePanelPicker,
   expect,
   expectConnected,
+  openSessionSwitcher,
   revealSidebar,
   workspaceLayoutTest as test,
   toggleCode,
@@ -167,7 +168,11 @@ test.describe("desktop sidebar", () => {
     await expect(
       chats.getByRole("button", { name: /^首页排序（/ }),
     ).toBeVisible();
-    await expect(page.locator(".terminal-header")).toContainText("首页排序");
+    await expect(
+      page
+        .locator(".terminal-header")
+        .getByRole("button", { name: "首页排序", exact: true }),
+    ).toBeVisible();
     await chats.getByRole("button", { name: "会话操作：首页排序" }).click();
     await page.getByRole("menuitem", { name: "修改标题" }).click();
     await dialog.getByRole("textbox").fill("");
@@ -654,13 +659,7 @@ test("session pins and their order sync to another browser", async ({
     await order(device, ["Pinned demo", "Second demo"]);
 
     await page.reload();
-    await page
-      .getByRole("button", { name: "快速切换会话", exact: true })
-      .click();
-    const dialog = page.getByRole("dialog", {
-      name: "快速切换会话",
-      exact: true,
-    });
+    const dialog = await openSessionSwitcher(page);
     await expect(dialog.getByRole("option").first()).toContainText(
       "Pinned demo",
     );
