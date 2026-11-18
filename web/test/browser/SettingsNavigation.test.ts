@@ -141,17 +141,20 @@ test.each(["access", "preview"])(
 
     for (const width of [1023, 1024, 390, 1280, 1023]) {
       await page.viewport(width, 800);
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      );
+      if (width < 1024) {
+        await expect
+          .poll(() => {
+            const top = target.getBoundingClientRect().top;
+            return (
+              top + 1 >= nav.element().getBoundingClientRect().bottom &&
+              top < innerHeight
+            );
+          })
+          .toBe(true);
+      }
       await expect.poll(current).toBe(`#${section}`);
       expect(document.activeElement).toBe(target);
       await expect.element(input).toHaveValue(null);
-      if (width < 1024) {
-        expect(target.getBoundingClientRect().top + 1).toBeGreaterThanOrEqual(
-          nav.element().getBoundingClientRect().bottom,
-        );
-      }
     }
   },
 );
