@@ -1965,6 +1965,15 @@ test("mobile options keep confirmed values on rejection and show errors inside t
       .toHaveTextContent("保存失败，请重试");
     await expect.element(permission).toHaveTextContent("全部接受");
     await model.click();
+    (
+      sheet
+        .getByRole("button", { name: "关闭选项", exact: true })
+        .element() as HTMLButtonElement
+    ).focus();
+    await userEvent.keyboard("{Escape}");
+    await expect.element(model).toHaveAttribute("aria-expanded", "false");
+    await expect.element(model).toHaveFocus();
+    await model.click();
     await sheet.getByRole("option", { name: "B", exact: true }).click();
     await expect
       .element(sheet.getByRole("alert"))
