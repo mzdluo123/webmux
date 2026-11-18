@@ -133,7 +133,10 @@
         {open}
         onOpenChange={(next) => workbenchLayout.setProjectOpen(group.id, next)}
       >
-        <div class="flex items-center gap-1">
+        <div
+          class="flex items-center gap-1"
+          data-layout-row={repositoryId ? `r:${repositoryId}` : "direct"}
+        >
           <h2 class="min-w-0 flex-1">
             <Collapsible.Trigger disabled={!hasSessions}>
               {#snippet child({ props })}

@@ -311,6 +311,8 @@
   {@const mainWorktree = node.worktree?.kind === "main"}
   <li
     role="none"
+    data-sidebar-session-id={node.session?.id}
+    data-layout-row={node.session ? undefined : node.key}
     class={`flex items-center ${node.level === 3 ? "pl-8" : node.level === 2 ? "pl-4" : ""}`}
   >
     {#if node.kind !== "session"}{@render chevron(node)}{:else}<span

@@ -51,7 +51,7 @@
     routeFeature,
     shellRouteFor,
   } from "./hooks/shared/route";
-  import { enterHome, openSession } from "./hooks/shared/shell.svelte";
+  import { openSession } from "./hooks/shared/shell.svelte";
   import { createTerminalDrafts } from "./domains/terminal/terminal-draft.svelte";
   import { browserDraftStorage } from "./domains/terminal/draft-storage";
   import { clearHomeCache } from "./domains/workspace/home-cache";
@@ -208,7 +208,6 @@
         );
         if (epoch !== bootstrapEpoch) return;
         setFeatureCapabilities(capabilities);
-        enterHome();
         path = location.pathname;
         await loadFeatureContributions({
           forwardAuth: route.name === "forward-auth",
@@ -219,7 +218,6 @@
         resetFeatureCapabilities();
         disposeFeatureContributions();
         discoveryFailureCause = errorMessage(discoveryFailure);
-        enterHome();
         path = location.pathname;
       }
       if (epoch !== bootstrapEpoch) return;
@@ -239,7 +237,6 @@
 
   onMount(() => {
     const change = () => {
-      if (ready && !shellRoute) enterHome();
       const pathChanged = path !== location.pathname;
       if (pathChanged) switcherOpen = false;
       pendingSessionOpen = "";
@@ -412,7 +409,6 @@
       bind:this={shell}
       route={shellRoute}
       {drafts}
-      requestRouteFocus={focusRoute}
       reconnection={relayReconnecting()
         ? {
             checking: reconnect.checking,

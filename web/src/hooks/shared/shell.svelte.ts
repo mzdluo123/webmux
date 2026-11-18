@@ -20,22 +20,16 @@ import type {
 } from "../../contracts/schemas";
 import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
 
-// The app shell around the home page, quick start and session pages: which
-// mode the sidebar shows, its width, and whether it is collapsed (desktop)
-// or open as a drawer (phones). The sidebar is only a way to navigate:
-// opening a session never changes its mode. Mode, width and collapse
-// survive reloads on this device.
+// Sidebar size and the route context shared by the app shell and session pages.
+// Width and collapse survive reloads. A legacy quick-start route can keep its
+// return path while the user is in a session started from that route.
 
 export type ShellMode = "chat" | "workbench";
 /** The sections of the repository panel. */
 export type RepositoryTab = "overview" | "worktrees" | "branches" | "remotes";
-const ModeSchema = z.enum(["chat", "workbench"]);
 const CollapsedSchema = z.enum(["true", "false"]);
 
-// First use, or an invalid stored value, starts in the workbench.
-let mode = $state<ShellMode>(
-  ModeSchema.safeParse(stored("shellMode")).data ?? "workbench",
-);
+let mode = $state<ShellMode>("workbench");
 let collapsed = $state(
   CollapsedSchema.safeParse(stored("sidebarCollapsed")).data === "true",
 );
@@ -63,10 +57,9 @@ export const shellUi = {
   get mode(): ShellMode {
     return mode;
   },
-  /** Remembers the mode; the sidebar follows, the page stays. */
+  /** The chat context is only active on the explicit quick-start routes. */
   setMode(next: ShellMode) {
     mode = next === "chat" && !featureEnabled("chat") ? "workbench" : next;
-    store("shellMode", mode);
   },
   get collapsed() {
     return collapsed;
@@ -94,24 +87,6 @@ export const shellUi = {
     return mode === "chat" ? "/new" : "/";
   },
 };
-
-/**
- * Opening `/` from outside the shell (a fresh load, the settings page)
- * returns to the remembered mode: chat mode replaces the entry with `/new`,
- * so going back never lands on the workbench home first.
- */
-export function enterHome() {
-  if (mode === "chat" && !featureEnabled("chat")) {
-    mode = "workbench";
-    store("shellMode", mode);
-  }
-  if (location.pathname === "/" && mode === "chat")
-    history.replaceState(
-      history.state,
-      "",
-      "/new" + location.search + location.hash,
-    );
-}
 
 /** The shell's shared data and the actions its sidebar and pages offer. */
 export interface Shell {

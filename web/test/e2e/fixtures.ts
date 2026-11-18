@@ -307,6 +307,17 @@ export async function backToList(page: Page) {
     .click();
 }
 
+/** Switches the Workbench grouping and returns whether the drawer was opened. */
+export async function useWorkbenchBranches(page: Page, enabled = true) {
+  const opened = await revealSidebar(page);
+  const toggle = page
+    .getByRole("navigation", { name: "导航", exact: true })
+    .getByRole("switch", { name: "按分支", exact: true });
+  await expect(toggle).toBeVisible();
+  if ((await toggle.isChecked()) !== enabled) await toggle.click();
+  return opened;
+}
+
 /**
  * Makes global sidebar entries reachable, waiting for mobile drawer entry
  * before consumers interact with its contents.

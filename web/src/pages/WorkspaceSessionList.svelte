@@ -1,7 +1,8 @@
 <script lang="ts">
   import SessionListRemovalDialog from "../components/sessions/SessionListRemovalDialog.svelte";
   import WorkbenchSessionQueue from "../components/workspace/WorkbenchSessionQueue.svelte";
-  import WorkbenchLayoutControl from "../components/workspace/WorkbenchLayoutControl.svelte";
+  import { useLayoutRowsMotion } from "../hooks/shared/layout-rows-motion.svelte";
+  import WorkbenchPreviewControl from "../components/workspace/WorkbenchPreviewControl.svelte";
   import { workbenchLayout } from "../domains/workspace/workbench-layout.svelte";
   import { queueGroup } from "../domains/workspace/session-queue";
   import { onMount } from "svelte";
@@ -83,6 +84,12 @@
   const repositoryChoice = $derived(shell.repositories?.choice ?? null);
   const compact = $derived(homeSessionView.compact);
   const queue = $derived(workbenchLayout.value === "queue");
+  let layoutRows = $state<HTMLDivElement | null>(null);
+  useLayoutRowsMotion(
+    () => layoutRows,
+    () => workbenchLayout.value,
+    "[data-session-id]",
+  );
   const attentionOnly = $derived(queue && workbenchLayout.attentionOnly);
   let searchInput = $state<HTMLInputElement | null>(null);
   const list = $derived(
@@ -189,7 +196,7 @@
     filterExpanded = {};
   });
   $effect(() => {
-    if (attentionOnly) clearFilters(false);
+    if (workbenchLayout.attentionOnly) clearFilters(false);
   });
   function clearFilters(focus = true) {
     query = "";
@@ -326,7 +333,7 @@
             shortcutDisabled={Boolean(removing)}
             onclear={clearFilters}
           />
-          <WorkbenchLayoutControl />
+          {#if !queue}<WorkbenchPreviewControl />{/if}
         </WorkspaceToolbar>
         <SessionListNotices
           setupError={shell.setup.error}
@@ -342,7 +349,7 @@
           {repositoryError}
           hasRepositories={repositories.length > 0}
         />
-        <div class="space-y-8">
+        <div class="space-y-8" bind:this={layoutRows}>
           {#if queue}
             <WorkbenchSessionQueue
               sessions={visible}

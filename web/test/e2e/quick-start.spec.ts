@@ -86,20 +86,7 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
   const repo = await repository(request, root, "先读 AGENTS.md");
   await hybridConfig(request, "Claude Code");
 
-  await page.goto("/");
-  const nav = await sidebar(page);
-  await nav.getByRole("button", { name: "聊天模式" }).click();
-  await expect(page).toHaveURL(/\/new$/);
-  await expect(nav.getByRole("button", { name: "聊天模式" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-  if (phone(page)) {
-    // Only the mode changed, so the drawer is still open.
-    await expect(nav.getByRole("list", { name: "聊天历史" })).toHaveCount(0);
-    await expect(nav.getByText("还没有聊天")).toBeVisible();
-    await page.keyboard.press("Escape");
-  }
+  await page.goto("/new");
 
   const toolbar = page.getByRole("toolbar", { name: "仓库与分支" });
   const input = page.getByRole("textbox", { name: "任务描述" });
@@ -143,8 +130,8 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
   await expect(where).toContainText(/wt\/[a-z]+-[a-z]+/);
   await expect(where.getByRole("button")).toHaveCount(0);
 
-  // The chat history lists it as the current chat.
-  const chats = (await sidebar(page)).getByRole("list", { name: "聊天历史" });
+  // The unified sidebar lists it as the current session.
+  const chats = await sidebar(page);
   await expect(chats.locator('[aria-current="page"]')).toHaveCount(1);
   if (phone(page)) await page.keyboard.press("Escape");
 
@@ -198,18 +185,14 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
   await expect(
     page.getByRole("dialog", { name: "删除 worktree" }),
   ).toBeHidden();
-  // The workbench home shows the same record in its worktree group.
-  if (phone(page)) await page.keyboard.press("Escape");
-  const nav2 = await sidebar(page);
-  await nav2.getByRole("button", { name: "工作台模式" }).click();
-  await expect(page).toHaveURL(/\/$/);
-  if (phone(page)) await page.keyboard.press("Escape");
+  // The workbench home shows the same record.
+  await page.goto("/");
   await expect(
     page.getByRole("region", { name: /的已归档会话$/ }).first(),
   ).toBeVisible();
-  // Back in chat mode, the record resumes on its chat side.
+  // The legacy quick-start archive can still resume the same chat.
+  await page.goto("/new");
   const nav3 = await sidebar(page);
-  await nav3.getByRole("button", { name: "聊天模式" }).click();
   await nav3.getByRole("button", { name: /^已归档/ }).click();
   await nav3
     .getByRole("list", { name: "已归档聊天" })
@@ -220,7 +203,7 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
   expect(basename(root)).toBe("qs-repo");
 });
 
-test("phone drawer: the chat history switches sessions and closes", async ({
+test("phone drawer: the conversation list switches chat sessions and closes", async ({
   page,
   request,
   workDir,
@@ -240,9 +223,6 @@ test("phone drawer: the chat history switches sessions and closes", async ({
   await page.goto(`/s/${ids[0]}`);
   await revealSidebar(page);
   const drawer = page.getByRole("dialog", { name: "导航" });
-  await expect(drawer).toBeVisible();
-  await drawer.getByRole("button", { name: "聊天模式" }).click();
-  // Only the mode changed: the drawer stays open on the chat history.
   await expect(drawer).toBeVisible();
   await drawer.getByRole("button", { name: /^第二个聊天/ }).click();
   await expect(drawer).toBeHidden();

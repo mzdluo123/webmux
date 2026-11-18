@@ -1,9 +1,9 @@
 <script lang="ts">
   import IconLayoutSidebarLeftCollapse from "~icons/tabler/layout-sidebar-left-collapse";
-  import IconMessagePlus from "~icons/tabler/message-plus";
   import IconPlus from "~icons/tabler/plus";
   import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
+  import { Switch } from "$lib/components/ui/switch";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { errorMessage } from "../../platform/error";
   import { sessionPins } from "../../domains/sessions/session-pins.svelte";
@@ -21,17 +21,16 @@
     openPage,
     openSession,
     shellUi,
-    type ShellMode,
   } from "../../hooks/shared/shell.svelte";
   import { queueLocation } from "../../domains/workspace/session-queue";
   import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
+  import { useLayoutRowsMotion } from "../../hooks/shared/layout-rows-motion.svelte";
   import { paneEnter } from "../../hooks/shared/pane-enter";
   import Brand from "./Brand.svelte";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import SidebarWorkspaceTree from "./SidebarWorkspaceTree.svelte";
   import WorkbenchSidebarSessions from "./WorkbenchSidebarSessions.svelte";
   import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
-  import ModeSwitch from "./ModeSwitch.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
   import SessionSwitcherTrigger from "./SessionSwitcherTrigger.svelte";
   import { featureContributions } from "../../features/registry.svelte";
@@ -56,8 +55,6 @@
     collapsible = false,
     onclose,
     reconnection,
-    onmode,
-    onprimary,
   }: {
     route: Extract<
       Route,
@@ -67,8 +64,6 @@
     collapsible?: boolean;
     onclose?: () => void;
     reconnection?: RelayReconnection;
-    onmode: (mode: ShellMode) => void;
-    onprimary: () => void;
   } = $props();
   const shell = getShell();
   const current = $derived(route.name === "terminal" ? route.id : "");
@@ -76,11 +71,17 @@
     shell.sessions.sessions.filter((session) => session.state === "active"),
   );
   const queue = $derived(
-    Boolean(
-      workspace &&
-      shellUi.mode === "workbench" &&
-      workbenchLayout.value === "queue",
-    ),
+    Boolean(workspace && workbenchLayout.value === "queue"),
+  );
+  const chatHome = $derived(
+    !!chat && (route.name === "quick-start" || route.name === "handoff"),
+  );
+  const navigationId = $props.id();
+  let navigationRows = $state<HTMLDivElement | null>(null);
+  useLayoutRowsMotion(
+    () => navigationRows,
+    () => (chatHome ? "" : workbenchLayout.value),
+    "[data-sidebar-session-id], [data-layout-row]",
   );
   const showWorkspaces = $derived(
     Boolean(shell.repositories?.settled || shell.repositories?.list.length),
@@ -202,7 +203,7 @@
       resuming = "";
     }
   }
-  function revealNavigation(node: HTMLElement, _mode: ShellMode) {
+  function revealNavigation(node: HTMLElement, _chatHome: boolean) {
     const animation = paneEnter(node, false);
     return {
       update() {
@@ -246,7 +247,7 @@
 {#snippet workspaces()}
   <SidebarWorkspaceTree
     sessions={unpinned}
-    showScope={route.name === "sessions" && !workbenchLayout.attentionOnly}
+    showScope={route.name === "sessions"}
     {current}
     {configIcons}
     onscope={scope}
@@ -290,13 +291,25 @@
       >
     {/if}
   </div>
-  {#if chat}
-    <div class="px-2 pb-1">
-      <ModeSwitch
-        mode={shellUi.mode}
-        workspaces={!!workspace}
-        onchange={onmode}
+  {#if workspace}
+    <div
+      class="grid min-h-10 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 px-4 py-1 text-center text-xs"
+    >
+      <span class={queue ? "font-medium" : "text-muted-foreground"}>
+        {m.s8_sidebar_by_conversation()}
+      </span>
+      <Switch
+        checked={!queue}
+        onCheckedChange={(checked) => {
+          workbenchLayout.value = checked ? "workspaces" : "queue";
+          if (chatHome) openPage("/");
+        }}
+        aria-label={m.s8_sidebar_by_branch()}
+        aria-controls={navigationId}
       />
+      <span class={queue ? "text-muted-foreground" : "font-medium"}>
+        {m.s8_sidebar_by_branch()}
+      </span>
     </div>
   {/if}
   <div class="px-2 pt-1">
@@ -304,13 +317,9 @@
       variant="outline"
       size="sm-touch"
       class="w-full"
-      onclick={onprimary}
+      onclick={() => shell.start()}
     >
-      {#if shellUi.mode === "chat"}<IconMessagePlus
-          aria-hidden="true"
-        />{m.s1_new_chat()}{:else}<IconPlus
-          aria-hidden="true"
-        />{m.s1_new_session()}{/if}
+      <IconPlus aria-hidden="true" />{m.s1_new_session()}
     </Button>
   </div>
   {#if !workspace}
@@ -326,14 +335,14 @@
   {/if}
   {#if notifications}<notifications.Inbox
       sessions={live}
-      triggerLabel={queue ? m.s8_queue_notifications() : undefined}
+      triggerLabel={workspace ? m.s8_queue_notifications() : undefined}
     />{/if}
   <ScrollArea
     type="hover"
     class="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]]:overscroll-contain [&_[data-slot=scroll-area-viewport]>div]:!block"
   >
-    <div class="px-2 py-2">
-      {#if pinned.length && !queue}
+    <div id={navigationId} class="px-2 py-2" bind:this={navigationRows}>
+      {#if pinned.length && (chatHome || !queue)}
         <section class="mb-3 border-b pb-3" aria-label={m.s1_pinned_sessions()}>
           <h2 class="px-3 pb-1 text-xs text-muted-foreground">
             {m.s1_pinned()}
@@ -347,7 +356,7 @@
                   configIcons.get(session.configId ?? "") ??
                   ""}
                 pinned
-                location={shellUi.mode === "chat"
+                location={chatHome
                   ? queueLocation(session, shell.repositories?.list ?? [])
                   : undefined}
                 onopen={openSession}
@@ -365,8 +374,8 @@
         >
           {resumeError || sessionPins.error}
         </p>{/if}
-      <div use:revealNavigation={shellUi.mode}>
-        {#if shellUi.mode === "chat" && chat}
+      <div use:revealNavigation={chatHome}>
+        {#if chatHome}
           {@render history()}
         {:else if queue}
           <WorkbenchSidebarSessions

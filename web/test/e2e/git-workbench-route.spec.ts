@@ -2,7 +2,13 @@ import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { expect, revealSidebar, test, toggleCode } from "./fixtures";
+import {
+  expect,
+  revealSidebar,
+  test,
+  toggleCode,
+  useWorkbenchBranches,
+} from "./fixtures";
 import {
   repositoryMenu,
   unfoldRepository,
@@ -83,14 +89,6 @@ async function setupRepoWithLinkedWorktree(
   return { repo, mainWt, featWt, mainPath, linkedPath };
 }
 
-async function useWorkspaceLayout(page: Page) {
-  await page
-    .getByRole("main")
-    .getByRole("combobox", { name: "工作台布局" })
-    .click();
-  await page.getByRole("option", { name: "按工作区", exact: true }).click();
-}
-
 async function selectGitMode(
   page: Page,
   mode: "历史" | "提交" | "分支",
@@ -127,7 +125,7 @@ test("the Git and session views switch in both directions without losing the sel
     ).toBe(201);
   }
   await page.goto("/");
-  const drawer = await revealSidebar(page);
+  await revealSidebar(page);
   const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
   const project = sidebar.getByRole("list", { name: repo.name, exact: true });
   await expect(
@@ -139,8 +137,7 @@ test("the Git and session views switch in both directions without losing the sel
   await expect(
     sidebar.getByRole("button", { name: "仓库与工作树" }),
   ).toHaveCount(0);
-  if (drawer) await page.keyboard.press("Escape");
-  await useWorkspaceLayout(page);
+  await useWorkbenchBranches(page);
   await unfoldRepository(page, repo.name);
   await page.getByRole("treeitem", { name: /^feat\/route/ }).click();
   const heading = page.getByRole("heading", { level: 1, name: /feat\/route/ });
@@ -184,7 +181,7 @@ test("standalone /git works with zero sessions, never spawns PTY, and survives l
   await page.goto("/");
   await expect(page.getByLabel("正在加载会话")).toHaveCount(0);
 
-  await useWorkspaceLayout(page);
+  await useWorkbenchBranches(page);
   // Open standalone /git/{repoId} from sidebar repository "⋯" menu with 0 sessions.
   await repositoryMenu(page, "Git 工作台", repo.name);
   await expect(page).toHaveURL(new RegExp(`/git/${repo.id}(\\?|$)`));
@@ -269,7 +266,7 @@ test("worktree menu '提交改动…' deep-link and session Code Workspace round
   await page.goto("/");
   await expect(page.getByLabel("正在加载会话")).toHaveCount(0);
 
-  await useWorkspaceLayout(page);
+  await useWorkbenchBranches(page);
   // Dirty worktree row in sidebar offers "提交改动…" directly opening ?view=commit.
   await unfoldRepository(page, repo.name);
   await worktreeMenu(page, "提交改动…", "feat/route");
@@ -438,13 +435,13 @@ test("retains cross-view state, isolates worktree drafts, handles query popstate
     .click();
   await expect(commitInput).toHaveValue("feat(wt): isolated draft for featWt");
 
-  // Sidebar mode switch (workbench <-> chat) keeps user on /git/... and keeps single /ws/sessions.
+  // Sidebar grouping keeps the Git route and the single session-list socket.
   const openedDrawer = await revealSidebar(page);
-  await page.getByRole("button", { name: "聊天模式" }).click();
+  await useWorkbenchBranches(page);
   await expect(page).toHaveURL(
     new RegExp(`/git/${repo.id}/worktrees/${featWt.id}`),
   );
-  await page.getByRole("button", { name: "工作台模式" }).click();
+  await useWorkbenchBranches(page, false);
   await expect(page).toHaveURL(
     new RegExp(`/git/${repo.id}/worktrees/${featWt.id}`),
   );
@@ -577,4 +574,56 @@ test("project groups collapse independently and remember the choice", async ({
   await revealSidebar(page);
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(session).toBeHidden();
+});
+
+test("the layout switch moves shared session rows and respects reduced motion", async ({
+  page,
+  request,
+  workDir,
+}) => {
+  const { repo, mainWt } = await setupRepoWithLinkedWorktree(request, workDir);
+  const created = await request.post("/api/sessions", {
+    data: {
+      name: "Keep this session open",
+      workspace: { repositoryId: repo.id, worktreeId: mainWt.id },
+      cmd: ["/bin/sh", "-c", "sleep 120"],
+    },
+  });
+  expect(created.status()).toBe(201);
+  const { session } = await created.json();
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto(`/s/${session.id}`);
+  await revealSidebar(page);
+
+  const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
+  const toggle = sidebar.getByRole("switch", { name: "按分支", exact: true });
+  const selected = sidebar.locator('[aria-current="page"]', {
+    hasText: "Keep this session open",
+  });
+  await expect(selected).toBeVisible();
+  const animatedRows = await page.evaluateHandle(() => {
+    const rows: string[] = [];
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (keyframes, options) {
+      if (this instanceof HTMLElement && this.dataset.sidebarSessionId)
+        rows.push(this.dataset.sidebarSessionId);
+      return animate.call(this, keyframes, options);
+    };
+    return rows;
+  });
+  await toggle.press("Space");
+  await expect(toggle).toBeChecked();
+  await expect(toggle).toBeFocused();
+  await expect(
+    sidebar.getByRole("treeitem", { name: /^Keep this session open/ }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect.poll(() => animatedRows.jsonValue()).toContain(session.id);
+  await expect(page).toHaveURL(new RegExp(`/s/${session.id}$`));
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await animatedRows.evaluate((rows) => (rows.length = 0));
+  await toggle.press("Space");
+  await expect(toggle).not.toBeChecked();
+  await expect(selected).toBeVisible();
+  expect(await animatedRows.jsonValue()).toEqual([]);
 });

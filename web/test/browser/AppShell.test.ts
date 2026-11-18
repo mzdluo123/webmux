@@ -68,49 +68,32 @@ test("without a saved width the sidebar starts at its default 288px", async () =
     .toBe(288);
 });
 
-test("the chat button takes a workbench home to quick start", async () => {
+test("the grouping switch changes Workbench without opening another page", async () => {
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot();
-  const chatMode = sidebar().getByRole("button", { name: "聊天模式" });
-  await expect.element(chatMode).toHaveAttribute("aria-pressed", "false");
-  await chatMode.click();
-  expect(location.pathname).toBe("/new");
-  expect(localStorage.getItem("webmux.shellMode")).toBe("chat");
-  await expect.element(chatMode).toHaveAttribute("aria-pressed", "true");
-  // Quick start puts the caret in its input.
+  const grouping = sidebar().getByRole("switch", { name: "按分支" });
+  await expect.element(grouping).toBeChecked();
+  await grouping.click();
+  expect(location.pathname).toBe("/");
+  expect(localStorage.getItem("webmux.workbenchLayout")).toBe("queue");
+  await expect.element(grouping).not.toBeChecked();
   await expect
-    .element(page.getByRole("textbox", { name: "任务描述" }))
-    .toHaveFocus();
-  await expect
-    .element(sidebar().getByRole("list", { name: "聊天历史" }))
+    .element(sidebar().getByRole("radiogroup", { name: "会话范围" }))
     .toBeVisible();
 });
 
-test("on a session page switching mode only swaps the sidebar", async () => {
+test("the grouping switch leaves the active session and keyboard focus in place", async () => {
   history.replaceState(null, "", "/s/shellaaa");
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot([session({ id: "shellaaa", title: "pnpm dev" })]);
-  await expect
-    .element(sidebar().getByRole("tree", { name: "仓库与会话" }))
-    .toBeVisible();
-  await sidebar().getByRole("button", { name: "聊天模式" }).click();
+  const grouping = sidebar().getByRole("switch", { name: "按分支" });
+  await grouping.click();
   expect(location.pathname).toBe("/s/shellaaa");
-  await expect
-    .element(sidebar().getByRole("button", { name: "聊天模式" }))
-    .toHaveFocus();
+  await expect.element(grouping).toHaveFocus();
   await expect.element(page.getByTestId("session-page")).toBeVisible();
-  // A terminal session has no row among the chats; archived records fold below.
-  await sidebar()
-    .getByRole("button", { name: /已归档/ })
-    .click();
-  const archived = sidebar().getByRole("list", { name: "已归档聊天" });
-  await expect.element(archived).toBeVisible();
-  expect(
-    archived
-      .getByRole("button")
-      .elements()
-      .filter((row) => row.getAttribute("aria-current") === "page"),
-  ).toEqual([]);
+  await expect
+    .element(sidebar().getByRole("button", { name: /^pnpm dev/ }))
+    .toHaveAttribute("aria-current", "page");
 });
 
 test("the collapsed rail keeps the expand and primary actions, not the mode switch", async () => {
@@ -125,17 +108,14 @@ test("the collapsed rail keeps the expand and primary actions, not the mode swit
   await expect
     .element(rail.getByRole("button", { name: "新建会话" }))
     .toBeVisible();
-  expect(rail.getByRole("button", { name: "聊天模式" }).elements()).toEqual([]);
-  expect(rail.getByRole("button", { name: "工作台模式" }).elements()).toEqual(
-    [],
-  );
+  expect(rail.getByRole("switch", { name: "按分支" }).elements()).toEqual([]);
   expect(
     document.querySelector(".app-shell")?.getAttribute("data-collapsed"),
   ).toBe("true");
   await rail.getByRole("button", { name: "展开侧栏" }).click();
   expect(localStorage.getItem("webmux.sidebarCollapsed")).toBe("false");
   await expect
-    .element(sidebar().getByRole("button", { name: "聊天模式" }))
+    .element(sidebar().getByRole("switch", { name: "按分支" }))
     .toBeVisible();
 });
 

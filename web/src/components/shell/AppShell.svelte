@@ -2,11 +2,9 @@
   import { onDestroy, untrack, type Snippet } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import IconLayoutSidebarLeftExpand from "~icons/tabler/layout-sidebar-left-expand";
-  import IconMessagePlus from "~icons/tabler/message-plus";
   import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
   import * as Drawer from "$lib/components/ui/drawer";
-  import { navigate } from "../../platform/api";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
   import { createArchiveSignal } from "../../domains/sessions/archive-signal";
   import {
@@ -22,7 +20,6 @@
     Worktree,
   } from "../../contracts/schemas";
   import {
-    openPage,
     openSession,
     setShell,
     shellUi,
@@ -30,7 +27,6 @@
     sidebarWidthMin,
     type RepositoryTab,
     type Shell,
-    type ShellMode,
   } from "../../hooks/shared/shell.svelte";
   import { dragWidth, keyWidth } from "../../hooks/shared/splitter";
   import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
@@ -54,7 +50,6 @@
   let {
     route,
     drafts,
-    requestRouteFocus,
     reconnection,
     children,
   }: {
@@ -63,7 +58,6 @@
       { name: "sessions" | "quick-start" | "terminal" | "handoff" | "git" }
     >;
     drafts: TerminalDrafts;
-    requestRouteFocus?: (target: "sidebar-opener") => void;
     reconnection?: RelayReconnection;
     children: Snippet;
   } = $props();
@@ -273,22 +267,20 @@
   });
 
   let drawerOpener: HTMLElement | null = null;
-  let modeChangedInDrawer = false;
+  let sidebarDrawer = $state<HTMLElement | null>(null);
 
   // The drawer takes focus when it opens and gives it back to the button
   // that opened it when it closes in place.
   $effect(() => {
     if (!shellUi.drawerOpen) return;
-    modeChangedInDrawer = false;
     drawerOpener =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
-    const timer = setTimeout(() =>
-      document
-        .querySelector<HTMLElement>('[data-slot="drawer-content"] button')
-        ?.focus(),
-    );
+    const timer = setTimeout(() => {
+      if (!sidebarDrawer?.contains(document.activeElement))
+        sidebarDrawer?.querySelector("button")?.focus();
+    });
     return () => clearTimeout(timer);
   });
 
@@ -297,17 +289,10 @@
     if (drawerOpener?.isConnected) {
       event.preventDefault();
       drawerOpener.focus();
-    } else if (
-      modeChangedInDrawer &&
-      (route.name === "sessions" || route.name === "quick-start")
-    ) {
-      // The replacement home header can mount after the drawer closes.
-      event.preventDefault();
-      requestRouteFocus?.("sidebar-opener");
     }
   }
 
-  // A home page decides the mode; a session page keeps the remembered one.
+  // Explicit quick-start pages retain a return path for sessions launched there.
   $effect(() => {
     if (route.name === "sessions" && shellUi.mode !== "workbench")
       shellUi.setMode("workbench");
@@ -317,26 +302,6 @@
     )
       shellUi.setMode("chat");
   });
-
-  // Switching by hand only swaps the sidebar on a session page; on a home
-  // page it also shows the other home. The drawer stays open either way.
-  function changeMode(next: ShellMode) {
-    if (next === shellUi.mode) return;
-    shellUi.setMode(next);
-    if (route.name !== "terminal" && route.name !== "git") {
-      modeChangedInDrawer = shellUi.drawerOpen;
-      navigate(
-        next === "chat"
-          ? (contributions.chat?.navigation[0]?.href ?? shellUi.home)
-          : (workspace?.navigation[0]?.href ?? shellUi.home),
-      );
-    }
-  }
-  function primary() {
-    if (shellUi.mode === "chat")
-      openPage(contributions.chat?.navigation[0]?.href ?? "/new");
-    else shell.start();
-  }
   // Dragging or arrow keys on the sidebar's edge set its width.
   const setWidth = (width: number) => shellUi.setWidth(width);
   function resizeStart(event: PointerEvent) {
@@ -355,7 +320,6 @@
 <div
   class="app-shell group/shell"
   data-collapsed={shellUi.collapsed}
-  data-mode={shellUi.mode}
   style:--app-sidebar-full-width={`${shellUi.width}px`}
 >
   <nav class="app-sidebar app-sidebar-rail" aria-label={m.s1_rail_navigation()}>
@@ -374,14 +338,9 @@
     <Button
       variant="ghost"
       size="icon-touch"
-      aria-label={shellUi.mode === "chat"
-        ? m.s1_new_chat()
-        : m.s1_new_session()}
-      title={shellUi.mode === "chat" ? m.s1_new_chat() : m.s1_new_session()}
-      onclick={primary}
-      >{#if shellUi.mode === "chat"}<IconMessagePlus
-          aria-hidden="true"
-        />{:else}<IconPlus aria-hidden="true" />{/if}</Button
+      aria-label={m.s1_new_session()}
+      title={m.s1_new_session()}
+      onclick={() => shell.start()}><IconPlus aria-hidden="true" /></Button
     >
     {#if route.name === "sessions" && workspace}
       <SessionSwitcherTrigger size="icon-touch" />
@@ -405,13 +364,7 @@
     </div>
   </nav>
   <aside class="app-sidebar app-sidebar-full" aria-label={m.s1_sidebar()}>
-    <AppSidebar
-      {route}
-      {reconnection}
-      collapsible
-      onmode={changeMode}
-      onprimary={primary}
-    />
+    <AppSidebar {route} {reconnection} collapsible />
     <!-- A focusable separator with aria-valuenow is an interactive widget (WAI-ARIA window splitter). -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
     <div
@@ -449,6 +402,7 @@
 <!-- noBodyStyles: the page under it keeps its scroll position and layout. -->
 <Drawer.Root direction="left" noBodyStyles bind:open={shellUi.drawerOpen}>
   <Drawer.Content
+    bind:ref={sidebarDrawer}
     class="w-80 max-w-[85vw] lg:hidden"
     onCloseAutoFocus={restoreDrawerFocus}
   >
@@ -457,8 +411,6 @@
       {route}
       {reconnection}
       onclose={() => (shellUi.drawerOpen = false)}
-      onmode={changeMode}
-      onprimary={primary}
     />
   </Drawer.Content>
 </Drawer.Root>

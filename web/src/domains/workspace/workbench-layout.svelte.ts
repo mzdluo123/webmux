@@ -43,7 +43,6 @@ export const workbenchLayout = {
   },
   set value(next: WorkbenchLayout) {
     layout = next;
-    filterAttention(false);
     store("workbenchLayout", next);
   },
   isProjectOpen(id: string) {

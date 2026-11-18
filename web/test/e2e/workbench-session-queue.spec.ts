@@ -1,4 +1,4 @@
-import { test, expect, revealSidebar } from "./fixtures";
+import { test, expect, revealSidebar, useWorkbenchBranches } from "./fixtures";
 
 test("the default queue prioritizes explicit attention and keeps a focused session in place", async ({
   page,
@@ -169,15 +169,24 @@ test("the default queue prioritizes explicit attention and keeps a focused sessi
   await expect(sidebarIssue).toBeFocused();
   expect((await clear()).status()).toBe(204);
   await expect(zero).toBeFocused();
+  if (reopened) await page.keyboard.press("Escape");
+  await search.fill("keep this filter");
+  const layoutDrawer = await useWorkbenchBranches(page);
+  await useWorkbenchBranches(page, false);
+  if (layoutDrawer) await page.keyboard.press("Escape");
+  await expect(search).toHaveValue("keep this filter");
+  const restoredDrawer = await revealSidebar(page);
+  await expect(zero).toBeChecked();
   await all.click();
   await expect(all).toHaveAttribute("aria-checked", "true");
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  if (reopened) await page.keyboard.press("Escape");
-  const layout = main.getByRole("combobox", { name: "工作台布局" });
-  await layout.click();
-  await page.getByRole("option", { name: "按工作区", exact: true }).click();
+  if (restoredDrawer) await page.keyboard.press("Escape");
+  await useWorkbenchBranches(page);
   await page.reload();
-  await expect(layout).toHaveText("按工作区");
+  await revealSidebar(page);
+  await expect(
+    page.getByRole("switch", { name: "按分支", exact: true }),
+  ).toBeChecked();
 });
 
 test("closing the docked preview returns focus after a running session exits", async ({
