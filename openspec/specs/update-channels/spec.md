@@ -63,12 +63,29 @@ Linux 与 macOS 上的通道 SHALL 保存在 `/etc/webmux/update-channel`，内�
 `install.sh` SHALL 支持环境变量 `WEBMUX_CHANNEL`，取值 `stable`（默认）或 `dev`；其他取值 SHALL 报错退出且不改动已安装文件。该变量只影响本次安装，SHALL NOT 写入任何通道配置。Release `dev` 中的 `install.sh` 与正式版 Release 中的是同一份脚本，SHALL 同样默认 `stable`。
 
 - 为 `dev` 时 SHALL 从 Release `dev` 读取 `SHA256SUMS`，从中找出唯一一个与本机系统、架构匹配的 `webmux-<X.Y.Z-dev.N>-<系统>-<架构>` 行，以文件名中的版本安装该二进制；找不到或多于一行时 SHALL 报错退出。
-- 下载的二进制 SHALL 与同一来源 `SHA256SUMS` 中的摘要一致后才安装，与正式版安装相同。
+- 下载的二进制 SHALL 按“安装脚本的签名与信任根校验”验证通过后才安装。
 
 #### Scenario: 安装开发版
 
 - **WHEN** 用户执行 `curl -fsSL <Release dev 的 install.sh> | WEBMUX_CHANNEL=dev sh`，最新开发版为 0.10.3-dev.4
 - **THEN** `~/.local/bin/webmux version` 输出 `webmux 0.10.3-dev.4`
+
+### Requirement: 安装脚本的签名与信任根校验
+
+未设置 `WEBMUX_SHA256` 时，`install.sh` SHALL 在使用 `SHA256SUMS` 前验证其信任根，并在二进制摘要一致后才安装：
+
+- 本机具备 `minisign` 或支持 Ed25519 的 `openssl` 时，SHALL 以当前通道对应的内置公钥组验证同源 `SHA256SUMS.minisig`（正式版只信任正式版公钥且要求匹配请求版本，开发版只信任开发版公钥且要求匹配清单构建版本）；
+- 本机缺少本地验签工具时，SHALL 只接受直接从 `https://github.com/mzdluo123/webmux` 获取的 `SHA256SUMS`，拒绝非官方来源的未验证清单（仅在已取得官方清单摘要或设置 `WEBMUX_SHA256` 时允许从镜像下载匹配的二进制）。
+
+#### Scenario: 镜像返回伪造清单与二进制
+
+- **WHEN** GitHub 不可达，镜像同时返回被篡改的二进制与匹配的未签名或伪造签名 `SHA256SUMS`，且未设置 `WEBMUX_SHA256`
+- **THEN** `install.sh` 判定该镜像失败，已安装文件不变
+
+#### Scenario: 缺少本地验签工具时回退镜像
+
+- **WHEN** 本机既无 `minisign` 也无支持 Ed25519 的 `openssl`，未设置 `WEBMUX_SHA256`，且 GitHub 清单下载失败
+- **THEN** `install.sh` 拒绝从镜像读取未验证的 `SHA256SUMS` 并报错退出，已安装文件不变
 
 ### Requirement: 安装脚本指定版本
 

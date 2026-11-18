@@ -145,25 +145,41 @@ func (s *Server) ensureArtifacts(w http.ResponseWriter, r *http.Request) {
 	reply(w, http.StatusOK, contract.ArtifactsFolder{Path: path})
 }
 
+var inlineUploadMediaTypes = map[string]bool{
+	"image/png":    true,
+	"image/jpeg":   true,
+	"image/gif":    true,
+	"image/webp":   true,
+	"image/avif":   true,
+	"image/bmp":    true,
+	"image/x-icon": true,
+}
+
+const uploadCSP = "default-src 'none'; sandbox"
+
+func uploadResponseMedia(mediaType string) (contentType, disposition string) {
+	if inlineUploadMediaTypes[mediaType] {
+		return mediaType, "inline"
+	}
+	return "application/octet-stream", "attachment"
+}
+
 // readUpload serves one uploaded file from the session's uploads/ folder.
+// Allowlisted raster images use their sniffed media type inline; other files
+// download as application/octet-stream, and every response carries a sandbox CSP.
 func (s *Server) readUpload(w http.ResponseWriter, r *http.Request) {
 	file, err := s.Artifacts.ReadUpload(r.PathValue("id"), r.URL.Query().Get("path"))
 	if err != nil {
 		artifactsFailure(w, err)
 		return
 	}
+	contentType, disposition := uploadResponseMedia(file.MediaType)
 	h := w.Header()
-	contentType := "application/octet-stream"
-	if file.MediaType != "" {
-		contentType = file.MediaType
-	}
 	h.Set("Content-Type", contentType)
 	h.Set("Content-Length", strconv.Itoa(len(file.Data)))
 	h.Set("Cache-Control", "no-store")
-	h.Set("Content-Disposition", contentDisposition("inline", file.Name))
-	if file.MediaType == "image/svg+xml" || file.MediaType == "application/pdf" {
-		h.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
-	}
+	h.Set("Content-Disposition", contentDisposition(disposition, file.Name))
+	h.Set("Content-Security-Policy", uploadCSP)
 	w.WriteHeader(http.StatusOK)
 	if r.Method == http.MethodHead {
 		return

@@ -115,3 +115,53 @@ func TestDevSigningUsesDevKeyGroup(t *testing.T) {
 		t.Fatal("dev-signed list verified in the stable group")
 	}
 }
+
+func TestInstallScriptPublicKeysMatchBuiltIn(t *testing.T) {
+	script, err := os.ReadFile(filepath.Join("..", "..", "..", "install.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	extract := func(prefix string) []update.PublicKey {
+		t.Helper()
+		for _, line := range strings.Split(string(script), "\n") {
+			rest, ok := strings.CutPrefix(strings.TrimSpace(line), prefix)
+			if !ok {
+				continue
+			}
+			raw, ok := strings.CutSuffix(rest, "}")
+			if !ok {
+				t.Fatalf("malformed key assignment %q", line)
+			}
+			fields := strings.Fields(raw)
+			if len(fields) == 0 {
+				t.Fatalf("empty key list in %q", line)
+			}
+			keys := make([]update.PublicKey, 0, len(fields))
+			for _, f := range fields {
+				k, err := update.ParsePublicKey(f)
+				if err != nil {
+					t.Fatalf("parse %q from install.sh: %v", f, err)
+				}
+				keys = append(keys, k)
+			}
+			return keys
+		}
+		t.Fatalf("missing %s in install.sh", prefix)
+		return nil
+	}
+
+	assertSameKeys := func(label string, got, want []update.PublicKey) {
+		t.Helper()
+		if len(got) != len(want) {
+			t.Fatalf("%s key count = %d, want %d", label, len(got), len(want))
+		}
+		for i := range want {
+			if got[i].String() != want[i].String() {
+				t.Fatalf("%s key[%d] = %s, want %s", label, i, got[i].String(), want[i].String())
+			}
+		}
+	}
+
+	assertSameKeys("stable", extract("stable_pubkeys=${WEBMUX_STABLE_PUBKEYS:-"), update.StableKeys())
+	assertSameKeys("dev", extract("dev_pubkeys=${WEBMUX_DEV_PUBKEYS:-"), update.DevKeys())
+}
