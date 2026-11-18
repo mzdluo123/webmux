@@ -397,21 +397,25 @@
         workspace={location.workspace}
         cwd={location.cwd}
       />{/if}
-    {#if request?.kind === "permission"}
-      <PermissionPrompt
-        {request}
-        tool={requestTool}
-        disabled={!!blocked || answering}
-        onanswer={(reply) => answer(request.requestId, reply)}
-      />
-    {:else if request?.kind === "form"}
-      {#key request.requestId}
-        <FormPrompt
-          {request}
-          disabled={!!blocked || answering}
-          onanswer={(reply) => answer(request.requestId, reply)}
-        />
-      {/key}
+    {#if request?.kind === "permission" || request?.kind === "form"}
+      <div class="max-h-[50dvh] overflow-y-auto overscroll-contain">
+        {#if request.kind === "permission"}
+          <PermissionPrompt
+            {request}
+            tool={requestTool}
+            disabled={!!blocked || answering}
+            onanswer={(reply) => answer(request.requestId, reply)}
+          />
+        {:else}
+          {#key request.requestId}
+            <FormPrompt
+              {request}
+              disabled={!!blocked || answering}
+              onanswer={(reply) => answer(request.requestId, reply)}
+            />
+          {/key}
+        {/if}
+      </div>
     {:else if chat}
       <ChatComposer
         bind:this={composer}
