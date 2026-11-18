@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import type {
     AgentConnector,
     Repository,
@@ -128,6 +129,24 @@
     onterminalcreate,
     onclose,
   }: Props = $props();
+  let worktreeFieldset = $state<HTMLFieldSetElement>();
+
+  async function selectLocation(next: CreationLocationProps["kind"]) {
+    const changed = kind !== next;
+    kind = next;
+    if (!changed || next !== "new-worktree") return;
+    await tick();
+    // The inline picker releases its list after the new fields mount.
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+    if (kind !== next) return;
+    const branchField = worktreeFieldset?.querySelector(
+      "#worktree-branch, #existing-branch",
+    );
+    branchField?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
   const repository = $derived(
     repositories.find((item) => item.id === repositoryId),
   );
@@ -209,7 +228,7 @@
         {createdTree}
         {newWorktreeSummary}
         {onremove}
-        bind:kind
+        bind:kind={() => kind, selectLocation}
         bind:cwd
         bind:repositoryId
         bind:worktreeId
@@ -243,6 +262,7 @@
     {/if}
     {#if workspaceEnabled && fieldsRepository && providers.WorktreeCreateFields}
       <fieldset
+        bind:this={worktreeFieldset}
         disabled={busy || kind !== "new-worktree"}
         hidden={kind !== "new-worktree"}
         class="min-w-0"

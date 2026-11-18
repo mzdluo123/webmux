@@ -24,6 +24,9 @@
   let picker = $state<{ back: () => boolean; showProjects: () => void }>();
   let form = $state<HTMLDivElement>();
   let wasChoosing = untrack(() => enabled && choosing);
+  let projectScroll = 0;
+  let settingsScroll = 0;
+  let settingsFocus: HTMLElement | undefined;
 
   export function back() {
     return picker?.back() ?? false;
@@ -34,33 +37,47 @@
     picker?.showProjects();
   }
 
-  // Both steps stay mounted for their drafts, so focus must explicitly leave
-  // the hidden Command search when selection reveals the session settings.
-  $effect(() => {
+  // Both steps share one dialog viewport. Read the outgoing position before
+  // hidden changes its scroll range, and restore the incoming step after layout.
+  $effect.pre(() => {
+    const node = form;
     const current = enabled && choosing;
-    const enteringSettings = wasChoosing && !current;
+    if (!node || current === wasChoosing) return;
     wasChoosing = current;
-    let canceled = false;
-    let frame = 0;
-    if (enteringSettings)
-      void tick().then(() => {
-        if (canceled) return;
-        frame = requestAnimationFrame(() => {
-          const targets = form?.querySelectorAll<HTMLElement>(
-            '#session-location, #session-launch, input:not([type="checkbox"]):not(:disabled), button[type="submit"]:not(:disabled)',
-          );
-          for (const target of targets ?? []) {
-            if (!target.getClientRects().length || target.closest("[hidden]"))
-              continue;
-            target.focus();
-            break;
-          }
-        });
+    const viewport = node.closest<HTMLElement>(
+      '[data-slot="scroll-area-viewport"]',
+    );
+    if (current) {
+      settingsScroll = viewport?.scrollTop ?? 0;
+      const active = document.activeElement;
+      settingsFocus =
+        active instanceof HTMLElement && node.contains(active)
+          ? active
+          : undefined;
+    } else projectScroll = viewport?.scrollTop ?? 0;
+
+    const frame = requestAnimationFrame(() => {
+      if (!node.isConnected) return;
+      if (viewport)
+        viewport.scrollTop = current ? projectScroll : settingsScroll;
+      if (current) return;
+
+      const targets = node.querySelectorAll<HTMLElement>(
+        '#session-location, #session-launch, input:not([type="checkbox"]):not(:disabled), button[type="submit"]:not(:disabled)',
+      );
+      const bounds = viewport?.getBoundingClientRect();
+      const target = [settingsFocus, ...targets].find((element) => {
+        if (!element || !node.contains(element) || element.matches(":disabled"))
+          return false;
+        const rect = element.getBoundingClientRect();
+        return (
+          rect.height > 0 &&
+          (!bounds || (rect.top < bounds.bottom && rect.bottom > bounds.top))
+        );
       });
-    return () => {
-      canceled = true;
-      cancelAnimationFrame(frame);
-    };
+      (target ?? node).focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
   });
 </script>
 
@@ -69,6 +86,6 @@
     <Picker bind:this={picker} {defaultCwd} {recent} {onselect} />
   </div>
 {/if}
-<div bind:this={form} hidden={enabled && choosing}>
+<div bind:this={form} hidden={enabled && choosing} tabindex="-1">
   {@render children()}
 </div>
