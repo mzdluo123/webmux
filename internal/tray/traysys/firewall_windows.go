@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 var (
@@ -23,6 +24,12 @@ const (
 	seeMaskNoCloseProcess = 0x00000040
 	seeMaskFlagNoUI       = 0x00000400
 	seeMaskNoConsole      = 0x00008000
+
+	localFirewallPolicyKey = `SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy`
+	localFirewallRulesKey  = localFirewallPolicyKey + `\FirewallRules`
+	gpoFirewallPolicyKey   = `SOFTWARE\Policies\Microsoft\WindowsFirewall`
+	gpoFirewallRulesKey    = gpoFirewallPolicyKey + `\FirewallRules`
+	mdmFirewallRulesKey    = localFirewallPolicyKey + `\Mdm\FirewallRules`
 )
 
 // shellExecuteInfo is SHELLEXECUTEINFOW; Go's natural alignment matches the
@@ -45,46 +52,213 @@ type shellExecuteInfo struct {
 	process    windows.Handle
 }
 
-// FirewallCommand runs `webmux-tray firewall allow|remove [PATH]` and
-// returns its exit code: the rule belongs to this executable, or for
-// remove to PATH. The installer runs it; the tray itself never changes the
-// firewall.
+// InspectFirewall reads Windows Defender Firewall rules and profile settings
+// for exe from HKLM without administrator rights or console subprocesses.
+func InspectFirewall(exe string) (FirewallStatus, error) {
+	if exe == "" {
+		return FirewallStatus{}, errors.New("empty executable path")
+	}
+	absExe, err := filepath.Abs(exe)
+	if err != nil {
+		return FirewallStatus{}, err
+	}
+	localRules, err := readRuleStrings(localFirewallRulesKey, true)
+	if err != nil {
+		return FirewallStatus{}, err
+	}
+	gpoRules, _ := readRuleStrings(gpoFirewallRulesKey, false)
+	mdmRules, _ := readRuleStrings(mdmFirewallRulesKey, false)
+	policyRules := append(gpoRules, mdmRules...)
+	profiles := readFirewallProfiles()
+	return EvaluateFirewall(
+		FirewallRule{Exe: absExe},
+		localRules,
+		policyRules,
+		profiles,
+		func(app, target string) bool {
+			return SamePath(expandEnvWindows(app), target)
+		},
+	), nil
+}
+
+// ApplyFirewall configures or removes the Windows Defender Firewall rule for
+// exe, requesting administrator elevation at most once when changes are needed.
+// For an installed copy, it also syncs HKCU\...\Uninstall\WebMux\FirewallRule.
+func ApplyFirewall(exe string, allow, clearBlocks bool) int {
+	var args []string
+	if allow {
+		args = []string{"allow"}
+		if clearBlocks {
+			args = append(args, "--clear-blocks")
+		}
+	} else {
+		args = []string{"remove", exe}
+	}
+	return runFirewall(args, exe)
+}
+
+// FirewallCommand runs `webmux-tray firewall allow [--clear-blocks] | remove [PATH]`
+// and returns its exit code.
 func FirewallCommand(args []string) int {
-	allow, exe, err := ParseFirewall(args)
+	selfExe, err := currentExecutable()
+	if err != nil {
+		return FirewallFailed
+	}
+	return runFirewall(args, selfExe)
+}
+
+func runFirewall(args []string, selfExe string) int {
+	req, err := ParseFirewallRequest(args)
 	if err != nil {
 		return FirewallUsage
 	}
-	if exe == "" {
-		if exe, err = os.Executable(); err != nil {
-			return FirewallFailed
-		}
-		if exe, err = filepath.Abs(exe); err != nil {
-			return FirewallFailed
-		}
+	targetExe := req.Program
+	if targetExe == "" {
+		targetExe = selfExe
 	}
 	system, err := windows.GetSystemDirectory()
 	if err != nil {
 		return FirewallFailed
 	}
 	netsh := filepath.Join(system, "netsh.exe")
-	return Firewall{
-		Rule:    FirewallRule{Exe: exe},
-		Exists:  func(args []string) (bool, error) { return netshSucceeds(netsh, args) },
-		Elevate: func(args []string) (int, error) { return runElevated(netsh, args) },
-	}.Apply(allow)
+	alreadyElevated := req.Elevated || isProcessElevated()
+
+	fw := Firewall{
+		Rule:    FirewallRule{Exe: targetExe},
+		Inspect: func() (FirewallStatus, error) { return InspectFirewall(targetExe) },
+		Run: func(cmds [][]string) (int, error) {
+			if alreadyElevated {
+				return runNetshBatch(netsh, cmds)
+			}
+			if len(cmds) == 1 {
+				return runElevated(netsh, cmds[0])
+			}
+			childArgs := []string{"firewall"}
+			if req.Allow {
+				childArgs = append(childArgs, "allow")
+				if req.ClearBlocks {
+					childArgs = append(childArgs, "--clear-blocks")
+				}
+			} else {
+				childArgs = append(childArgs, "remove")
+				if req.Program != "" {
+					childArgs = append(childArgs, req.Program)
+				}
+			}
+			childArgs = append(childArgs, "--elevated")
+			return runElevated(selfExe, childArgs)
+		},
+	}
+	code := fw.Apply(req.Allow, req.ClearBlocks)
+	if code == FirewallDone && !req.Elevated {
+		SyncFirewallRecord(targetExe, req.Allow)
+	}
+	return code
 }
 
-// netshSucceeds runs netsh without a console and reports whether it exited
-// 0; any other exit code is false, a failure to run it an error.
-func netshSucceeds(netsh string, args []string) (bool, error) {
-	cmd := exec.Command(netsh, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_NO_WINDOW}
-	err := cmd.Run()
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
-		return false, nil
+func currentExecutable() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
 	}
-	return err == nil, err
+	return filepath.Abs(exe)
+}
+
+func isProcessElevated() bool {
+	return windows.GetCurrentProcessToken().IsElevated()
+}
+
+func runNetshBatch(netsh string, cmds [][]string) (int, error) {
+	for _, args := range cmds {
+		cmd := exec.Command(netsh, args...)
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: windows.CREATE_NO_WINDOW}
+		err := cmd.Run()
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			return exit.ExitCode(), nil
+		}
+		if err != nil {
+			return 0, err
+		}
+	}
+	return 0, nil
+}
+
+func readRuleStrings(subkey string, requiredParent bool) ([]string, error) {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, subkey, registry.QUERY_VALUE)
+	if err != nil {
+		if errors.Is(err, registry.ErrNotExist) {
+			return nil, nil
+		}
+		if !requiredParent {
+			return nil, nil
+		}
+		return nil, err
+	}
+	defer func() { _ = k.Close() }()
+	names, err := k.ReadValueNames(-1)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(names))
+	for _, name := range names {
+		val, _, err := k.GetStringValue(name)
+		if err == nil && val != "" {
+			out = append(out, val)
+		}
+	}
+	return out, nil
+}
+
+func readFirewallProfiles() FirewallProfiles {
+	return FirewallProfiles{
+		Domain:  readProfilePolicy("DomainProfile"),
+		Private: readProfilePolicy("StandardProfile"),
+		Public:  readProfilePolicy("PublicProfile"),
+	}
+}
+
+func readProfilePolicy(profileKey string) FirewallProfilePolicy {
+	enabled := readProfileDWORD(gpoFirewallPolicyKey+`\`+profileKey, "EnableFirewall",
+		readProfileDWORD(localFirewallPolicyKey+`\`+profileKey, "EnableFirewall", 1))
+	shielded := readProfileDWORD(gpoFirewallPolicyKey+`\`+profileKey, "DoNotAllowExceptions",
+		readProfileDWORD(localFirewallPolicyKey+`\`+profileKey, "DoNotAllowExceptions", 0))
+	if enabled == 0 {
+		return FirewallProfilePolicy{Disabled: true}
+	}
+	return FirewallProfilePolicy{BlockAllInbound: shielded == 1}
+}
+
+func readProfileDWORD(subkey, valueName string, fallback uint64) uint64 {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, subkey, registry.QUERY_VALUE)
+	if err != nil {
+		return fallback
+	}
+	defer func() { _ = k.Close() }()
+	v, _, err := k.GetIntegerValue(valueName)
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func expandEnvWindows(s string) string {
+	if strings.IndexByte(s, '%') < 0 {
+		return s
+	}
+	src, err := windows.UTF16PtrFromString(s)
+	if err != nil {
+		return s
+	}
+	n, err := windows.ExpandEnvironmentStrings(src, nil, 0)
+	if err != nil || n == 0 {
+		return s
+	}
+	buf := make([]uint16, n)
+	if _, err := windows.ExpandEnvironmentStrings(src, &buf[0], n); err != nil {
+		return s
+	}
+	return windows.UTF16ToString(buf)
 }
 
 // runElevated starts file with args through the "runas" verb, which shows

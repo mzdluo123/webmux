@@ -197,9 +197,31 @@ try {
   if ($isAdmin) {
     Check ((Run $tray @('firewall', 'allow')) -eq 0) 'firewall allow exits 0'
     $rule = @(FirewallRules)
-    Check ($rule.Count -eq 1 -and "$($rule[0].Direction)" -eq 'Inbound' -and "$($rule[0].Action)" -eq 'Allow' -and "$($rule[0].Profile)" -eq 'Domain, Private') 'rule allows inbound to this tray on private and domain networks only'
+    Check ($rule.Count -eq 1 -and "$($rule[0].Direction)" -eq 'Inbound' -and "$($rule[0].Action)" -eq 'Allow' -and "$($rule[0].Profile)" -eq 'Domain, Private' -and "$($rule[0].Enabled)" -eq 'True') 'rule allows inbound to this tray on private and domain networks only'
+    Check ((Get-ItemProperty $uninstKey).FirewallRule -ieq $tray) 'firewall allow records FirewallRule on an installed copy'
     Check ((Run $tray @('firewall', 'allow')) -eq 0 -and @(FirewallRules).Count -eq 1) 'firewall allow is idempotent'
+
+    Set-NetFirewallRule -Name $rule[0].Name -Enabled False
+    Check ((Run $tray @('firewall', 'allow')) -eq 0) 'firewall allow repairs a disabled rule'
+    $rule = @(FirewallRules)
+    Check ($rule.Count -eq 1 -and "$($rule[0].Enabled)" -eq 'True' -and "$($rule[0].Action)" -eq 'Allow') 'disabled rule repaired without duplicates'
+
+    Set-NetFirewallRule -Name $rule[0].Name -Action Block
+    Check ((Run $tray @('firewall', 'allow')) -eq 0) 'firewall allow repairs a rule changed to Block'
+    $rule = @(FirewallRules)
+    Check ($rule.Count -eq 1 -and "$($rule[0].Action)" -eq 'Allow' -and "$($rule[0].Profile)" -eq 'Domain, Private') 'block-tampered rule replaced cleanly'
+
+    $blockRule = New-NetFirewallRule -DisplayName 'WebMux Smoke Block' -Direction Inbound -Action Block -Protocol TCP -Profile Private -Program $tray
+    try {
+      Check ((Run $tray @('firewall', 'allow', '--clear-blocks')) -eq 0) 'firewall allow --clear-blocks exits 0'
+      $remainingBlock = @(Get-NetFirewallRule -Name $blockRule.Name -ErrorAction SilentlyContinue)
+      Check ($remainingBlock.Count -eq 0 -and @(FirewallRules).Count -eq 1) 'conflicting local inbound block rule removed'
+    } finally {
+      Remove-NetFirewallRule -Name $blockRule.Name -ErrorAction SilentlyContinue
+    }
+
     Check ((Run $tray @('firewall', 'remove')) -eq 0 -and @(FirewallRules).Count -eq 0) 'firewall remove deletes the rule'
+    Check ($null -eq (Get-ItemProperty $uninstKey -Name FirewallRule -ErrorAction SilentlyContinue)) 'firewall remove clears FirewallRule record'
   } else {
     Write-Host 'skip - firewall allow and remove need an elevated session'
   }
@@ -222,8 +244,8 @@ try {
   New-Item -ItemType File -Force (Join-Path $updatesDir 'webmux-setup-windows-amd64.exe') | Out-Null
   $kaUninstall = StartFakeKeepalive
   if ($isAdmin) {
-    # Simulates a rule added manually after a silent install (no FirewallRule registry value).
-    Check ((Run $tray @('firewall', 'allow')) -eq 0 -and @(FirewallRules).Count -eq 1) 'unrecorded firewall rule added before uninstall'
+    Check ((Run $tray @('firewall', 'allow')) -eq 0 -and @(FirewallRules).Count -eq 1) 'runtime firewall rule added before uninstall'
+    Remove-ItemProperty $uninstKey FirewallRule
   }
   Set-ItemProperty $runKey WebMuxTray "`"$fake`""
   New-Item -Path $startupApprovedKey -Force | Out-Null

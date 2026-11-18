@@ -151,6 +151,14 @@ func (m *menu) render(snap tray.Snapshot, v view) bindings {
 	}
 
 	m.lanAccess.set("允许局域网访问", !v.noWSL && !busy && snap.HasStatus && !snap.Degraded && snap.Blocker == "", snap.LANEnabled())
+	b.lanFirewall = tray.LANFirewallEntry(snap, v.plan, v.firewall)
+	if b.lanFirewall.Show && !v.noWSL {
+		m.lanFirewallInfo.set(b.lanFirewall.Info, false, false)
+		m.lanFirewallAction.set(b.lanFirewall.ActionTitle, !busy, false)
+	} else {
+		m.lanFirewallInfo.hide()
+		m.lanFirewallAction.hide()
+	}
 
 	m.start.set("启动", acts.Start, false)
 	m.stop.set("停止", acts.Stop, false)

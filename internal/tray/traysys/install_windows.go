@@ -32,6 +32,33 @@ func InstalledCopy(exe string) bool {
 	return SamePath(location, filepath.Dir(exe))
 }
 
+// SyncFirewallRecord keeps HKCU\...\Uninstall\WebMux\FirewallRule aligned with
+// runtime firewall changes on an installed copy, so interactive reinstalls and
+// uninstallation track rules added after install.
+func SyncFirewallRecord(exe string, allow bool) {
+	if allow {
+		if !InstalledCopy(exe) {
+			return
+		}
+		k, err := registry.OpenKey(registry.CURRENT_USER, uninstallKey, registry.SET_VALUE)
+		if err != nil {
+			return
+		}
+		defer func() { _ = k.Close() }()
+		_ = k.SetStringValue("FirewallRule", exe)
+		return
+	}
+	k, err := registry.OpenKey(registry.CURRENT_USER, uninstallKey, registry.QUERY_VALUE|registry.SET_VALUE)
+	if err != nil {
+		return
+	}
+	defer func() { _ = k.Close() }()
+	recorded, _, err := k.GetStringValue("FirewallRule")
+	if err == nil && SamePath(recorded, exe) {
+		_ = k.DeleteValue("FirewallRule")
+	}
+}
+
 // LaunchInstaller starts the downloaded installer silently, detached from
 // the tray and without a console; wait returns its exit code. The installer
 // normally closes this tray before it exits.
