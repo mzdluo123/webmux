@@ -438,34 +438,44 @@
 }
 
 @container terminal-viewport (height < 8rem) {
-  .terminal-controls:has(.terminal-selection) {
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection) {
     inset: 0.5rem 0.5rem auto;
     display: flex;
     align-items: center;
     gap: 0.25rem;
   }
 
-  .terminal-controls:has(.terminal-selection) .terminal-jump,
-  .terminal-selection {
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-jump,
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-selection {
     position: static;
     translate: none;
   }
 
-  .terminal-selection {
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-selection {
     margin-inline-start: auto;
   }
 
-  .terminal-controls:has(.terminal-selection) .terminal-control-label {
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-control-label {
     display: none;
   }
 
-  .terminal-controls:has(.terminal-selection) .terminal-jump button,
-  .terminal-selection button {
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-jump
+    button,
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-selection
+    button {
     aspect-ratio: 1;
     padding-inline: 0;
   }
 
-  .terminal-selection .terminal-control-icon {
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-selection
+    .terminal-control-icon {
     display: inline-block;
   }
 }
