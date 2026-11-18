@@ -211,17 +211,11 @@
         {detail.subject}
       </p>
       {#if detail.body}
-        <ScrollArea
-          class="mt-1"
-          viewportClasses="max-h-24 overscroll-contain"
-          viewportProps={{ tabindex: 0 }}
+        <p
+          class="mt-1 font-mono whitespace-pre-wrap wrap-anywhere text-muted-foreground"
         >
-          <p
-            class="font-mono whitespace-pre-wrap wrap-anywhere text-muted-foreground"
-          >
-            {detail.body}
-          </p>
-        </ScrollArea>
+          {detail.body}
+        </p>
       {/if}
     </div>
   {/if}

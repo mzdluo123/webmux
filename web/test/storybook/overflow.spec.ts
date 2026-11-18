@@ -106,8 +106,30 @@ for (const story of stories) {
         // scroll for disabled controls, then assert full visibility in both cases.
         if (await button.isEnabled()) await button.click({ trial: true });
         else await button.scrollIntoViewIfNeeded();
-        // Chromium can round the scroll offset by a fraction of a pixel.
-        await expect.soft(button, name).toBeInViewport({ ratio: 0.99 });
+        // Chromium scroll offsets round to a CSS pixel. Check clipping in each
+        // dimension so a wide button cannot hide several pixels of its label.
+        await expect.soft
+          .poll(
+            () =>
+              button.evaluate(
+                (element) =>
+                  new Promise<boolean>((resolve) => {
+                    const observer = new IntersectionObserver(([entry]) => {
+                      observer.disconnect();
+                      const { boundingClientRect: box, intersectionRect } =
+                        entry!;
+                      resolve(
+                        entry!.isIntersecting &&
+                          box.width - intersectionRect.width <= 1 &&
+                          box.height - intersectionRect.height <= 1,
+                      );
+                    });
+                    observer.observe(element);
+                  }),
+              ),
+            { message: name },
+          )
+          .toBe(true);
       }
       if (story === "workspace-dialog") {
         const consent = page.getByRole("checkbox", {

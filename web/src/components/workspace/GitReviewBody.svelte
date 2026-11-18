@@ -26,7 +26,7 @@
 
 <div
   class={[
-    "flex min-w-0 flex-col gap-3 sm:h-[min(76dvh,calc(90dvh-7rem),36rem)]",
+    "flex min-h-min min-w-0 flex-col gap-3 sm:h-[min(76dvh,calc(90dvh-7rem),36rem)]",
     fullScreen
       ? "max-sm:h-[calc(100dvh-10rem-env(safe-area-inset-bottom))]"
       : "max-sm:h-[min(76dvh,calc(95dvh-10rem-env(safe-area-inset-bottom)),36rem)]",
@@ -35,7 +35,7 @@
 >
   {@render controls?.()}
   <ScrollArea
-    class="flex-1"
+    class="min-h-24 flex-1"
     bind:viewportRef={viewport}
     viewportClasses="overscroll-contain"
     viewportProps={{ tabindex: 0 }}
