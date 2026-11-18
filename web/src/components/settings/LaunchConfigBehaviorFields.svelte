@@ -111,6 +111,7 @@
           min={LAUNCH_PREVIEW_LINES_MIN}
           max={LAUNCH_PREVIEW_LINES_MAX}
           step={1}
+          disabled={defaultPreview}
           bind:value={previewLines}
           aria-invalid={previewLinesInvalid}
           aria-describedby={previewError
@@ -128,6 +129,7 @@
           min={LAUNCH_PREVIEW_SKIP_MIN}
           max={LAUNCH_PREVIEW_SKIP_MAX}
           step={1}
+          disabled={defaultPreview}
           bind:value={previewSkip}
           aria-invalid={previewSkipInvalid}
           aria-describedby={previewError

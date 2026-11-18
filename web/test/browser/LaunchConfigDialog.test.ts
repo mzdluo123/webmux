@@ -68,6 +68,37 @@ afterEach(async () => {
 
 const save = () => page.getByRole("button", { name: "保存", exact: true });
 
+test("saves global preview defaults after invalid custom values", async () => {
+  const onsaved = vi.fn();
+  const requests = serve({
+    "/api/launch-configs/abcdefg2": (method, body) =>
+      method === "GET"
+        ? Response.json({ ...saved, preview: { lines: 8, skip: 2 } })
+        : Response.json({ ...saved, ...(body as object) }),
+  });
+  render(LaunchConfigDialog, { open: true, configId: saved.id, onsaved });
+
+  const followDefaults = page.getByRole("checkbox", {
+    name: /跟随全局默认.*输出预览/,
+  });
+  const lines = page.getByRole("spinbutton", { name: "显示行数" });
+  const skip = page.getByRole("spinbutton", { name: "跳过末尾行数" });
+  await expect.element(lines).toHaveValue(8);
+  await lines.fill("51");
+  await skip.fill("-1");
+  await expect.element(save()).toBeDisabled();
+
+  await followDefaults.click();
+  await expect.element(followDefaults).toBeChecked();
+  await expect.element(save()).toBeEnabled();
+  await save().click();
+  await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
+  expect(savedRequest(requests)).toMatchObject({
+    method: "PUT",
+    body: { preview: null },
+  });
+});
+
 test.each([
   ["Antigravity CLI", "antigravity"],
   ["Gemini CLI（旧配置）", "geminicli"],
