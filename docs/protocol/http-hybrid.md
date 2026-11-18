@@ -73,7 +73,7 @@
 - agent 会话已不存在：返回 409 `session_missing`，`candidates` 为同一目录下的会话（`{agentSessionId, title, updatedAt}`，按更新时间倒序，最多 20 个）。以 `agentSessionId` 重试即改用所选会话，原 ID 进入历史。
 - 该会话正被其他会话打开：返回 409。
 - 档案的连接器未安装：恢复到聊天视图返回 409 `connector_missing`；恢复到终端视图跳过核对照常执行。
-- 记录中没有 agent 会话 ID：不核对，所选视图开始新对话。
+- 从终端开始且记录中没有 agent 会话 ID：对依赖 `session/list` 候选识别 ID 的档案，以记录创建时间为下界重新判定候选；唯一候选直接恢复，多个候选返回 409 `session_ambiguous` 并附同样的 `candidates`，以 `agentSessionId` 重试，没有候选才在所选视图开始新对话。
 
 聊天视图打开会话时 Codex 报告会话正被其他 Codex 客户端使用（`thread_active_writer`），恢复返回 409 `occupied_external`，切到聊天则回到终端视图并以同样原因失败。
 

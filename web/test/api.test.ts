@@ -2,6 +2,7 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import { z } from "zod";
 import { api } from "../src/platform/api";
 import { CreateSessionRequestSchema } from "../src/contracts/schemas";
+import { resumeSession } from "../src/domains/sessions/recoverable";
 
 vi.stubGlobal("localStorage", { getItem: () => null });
 afterEach(() => {
@@ -39,6 +40,32 @@ test("non-empty command or environment conflicts with configId", () => {
   ])
     expect(CreateSessionRequestSchema.safeParse(body).success).toBe(false);
 });
+
+test.each(["session_missing", "session_ambiguous"])(
+  "resume offers the candidates from %s",
+  async (reason) => {
+    vi.stubGlobal("localStorage", { getItem: () => null });
+    const candidate = {
+      agentSessionId: "session_1",
+      title: "原对话",
+      updatedAt: "2026-11-18T00:00:00Z",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          { error: "请选择要恢复的会话", reason, candidates: [candidate] },
+          { status: 409 },
+        ),
+      ),
+    );
+    await expect(resumeSession("hybrid22", "terminal")).resolves.toEqual({
+      status: "candidates",
+      message: "请选择要恢复的会话",
+      candidates: [candidate],
+    });
+  },
+);
 
 test("the initial terminal size stays within the PTY's 1..1000 grid", () => {
   const cmd = ["sh"];

@@ -34,10 +34,10 @@ func (e *SessionMissingError) Error() string { return ErrSessionMissing.Error() 
 
 func (e *SessionMissingError) Unwrap() error { return ErrSessionMissing }
 
-// SessionAmbiguousError refuses a switch to the chat when several agent
-// sessions were updated since the terminal run started and nothing tells
-// which one it has open. Candidates are those sessions, most recently
-// updated first; the switch can be asked again with one of them.
+// SessionAmbiguousError refuses a switch or an unresolved resume when
+// several agent sessions were updated since the terminal run started and
+// nothing tells which one it has open. Candidates are those sessions, most
+// recently updated first; the operation can be asked again with one of them.
 type SessionAmbiguousError struct {
 	Candidates []Candidate
 }
@@ -47,8 +47,8 @@ func (e *SessionAmbiguousError) Error() string { return ErrSessionAmbiguous.Erro
 func (e *SessionAmbiguousError) Unwrap() error { return ErrSessionAmbiguous }
 
 // ResumeInput resumes a closed or interrupted session on Side (empty: the
-// recorded side). AgentSessionID replaces the recorded agent session with
-// one a SessionMissingError offered. Env is the launch config's current
+// recorded side). AgentSessionID selects a candidate a SessionMissingError
+// or SessionAmbiguousError offered. Env is the launch config's current
 // environment, nil once the config was deleted; like at creation it only
 // reaches the processes.
 type ResumeInput struct {
@@ -63,11 +63,13 @@ type ResumeInput struct {
 // in.Side (default: the recorded side) and returns its shell once that side
 // runs. The agent session (the recorded one, or in.AgentSessionID) must
 // still be listed in the recorded directory, else a *SessionMissingError
-// offers the others, and open in no other session. Then the terminal UI
-// resumes it, or a new ACP process loads it and gets the recorded option
-// values back (D25); without an agent session the side starts a new
-// conversation. The command is the record's snapshot; the record becomes
-// active and a queue the interruption lost shows as ChatState.QueueLost.
+// offers the others, and open in no other session. A terminal-side record
+// from before its candidate ID was stored resolves the sessions created by
+// that run first. Then the terminal UI resumes it, or a new ACP process
+// loads it and gets the recorded option values back (D25); without an agent
+// session the side starts a new conversation. The command is the record's
+// snapshot; the record becomes active and a queue the interruption lost shows
+// as ChatState.QueueLost.
 // A failed resume leaves the record as it was. A retry with the same client
 // request ID gets the first outcome.
 func (s *Service) Resume(ctx context.Context, id string, in ResumeInput) (*session.Session, error) {
@@ -164,7 +166,11 @@ func (s *Service) resume(id string, in ResumeInput) (*session.Session, error) {
 	go a.observeLoop()
 	started := make(chan error, 1)
 	root := s.runtimeRoot(rec.Agent, rec.Cwd, in.Env)
-	a.post(func() { a.resume(started, sid, root) })
+	var candidatesSince time.Time
+	if rec.Side == SideTUI && sid == "" {
+		candidatesSince = rec.CreatedAt
+	}
+	a.post(func() { a.resume(started, sid, root, candidatesSince) })
 	if err := awaitStarted(a, started); err != nil {
 		return nil, err
 	}
@@ -174,11 +180,12 @@ func (s *Service) resume(id string, in ResumeInput) (*session.Session, error) {
 
 // resumeResult is a finished resume start.
 type resumeResult struct {
-	link        *acpLink
-	init        acp.InitializeResponse
-	config      []acp.ConfigOption
-	historyRoot string
-	notes       []string
+	agentSessionID string
+	link           *acpLink
+	init           acp.InitializeResponse
+	config         []acp.ConfigOption
+	historyRoot    string
+	notes          []string
 	// loaded: the ACP process loaded the existing agent session.
 	loaded  bool
 	resumed bool
@@ -192,12 +199,12 @@ type resumeResult struct {
 // subtask and reports the outcome on started once the actor applied it.
 // When the actor ended first, the subtask stops the ACP process it started
 // and reports errStopped.
-func (a *actor) resume(started chan<- error, sid, root string) {
+func (a *actor) resume(started chan<- error, sid, root string, candidatesSince time.Time) {
 	a.starting = true
 	a.epoch++
 	epoch, side := a.epoch, a.side
 	go func() {
-		res := a.resumeSide(epoch, side, sid)
+		res := a.resumeSide(epoch, side, sid, candidatesSince)
 		res.historyRoot = root
 		if !a.sync(func() { a.resumed(started, res) }) {
 			if res.link != nil {
@@ -210,11 +217,38 @@ func (a *actor) resume(started chan<- error, sid, root string) {
 
 // resumeSide verifies agent session sid, when there is one, and starts
 // side on it: the terminal UI's resume command, or an ACP process that
-// loads it. The terminal side does not need the profile's connector: a
-// missing one only skips the check that the session is still listed. It
+// loads it. A terminal-side record without an ID first resolves the candidate
+// sessions created since candidatesSince. The terminal side does not need the
+// profile's connector: a missing one only skips the session-list checks. It
 // runs in a subtask; a failure leaves no process running.
-func (a *actor) resumeSide(epoch int, side Side, sid string) resumeResult {
-	if sid != "" {
+func (a *actor) resumeSide(epoch int, side Side, sid string, candidatesSince time.Time) resumeResult {
+	resolved := false
+	if sid == "" && !candidatesSince.IsZero() && a.identityFallback() {
+		ans := a.listed(a.probeCtx, target{cwd: a.cwd}, candidatesSince)
+		if side == SideTUI && errors.Is(ans.err, ErrConnectorMissing) {
+			ans.err = nil
+		}
+		if ans.err != nil {
+			return resumeResult{err: ans.err}
+		}
+		if ans.listed {
+			var err error
+			sid, err = pickCandidate(ans.candidates, "")
+			if err != nil {
+				return resumeResult{err: err}
+			}
+			resolved = true
+		}
+	}
+	if sid != "" && resolved {
+		if a.externalWriterNow(sid) {
+			return resumeResult{err: ErrExternalWriter}
+		}
+		if a.svc.occupied(a.id, sid) {
+			return resumeResult{err: fmt.Errorf("%w: %s", ErrConflict, reasonText(ReasonOccupied))}
+		}
+	}
+	if sid != "" && !resolved {
 		err := a.verify(sid)
 		if side == SideTUI && errors.Is(err, ErrConnectorMissing) {
 			err = nil
@@ -239,7 +273,7 @@ func (a *actor) resumeSide(epoch int, side Side, sid string) resumeResult {
 			return resumeResult{err: fmt.Errorf("%w: 启动终端失败: %w", ErrInvalid, err)}
 		}
 		pid := a.shell.Identity().PID
-		return resumeResult{pid: pid, process: processIdentity(pid)}
+		return resumeResult{agentSessionID: sid, pid: pid, process: processIdentity(pid)}
 	}
 	if sid == "" {
 		r := a.spawnACP(epoch)
@@ -250,7 +284,7 @@ func (a *actor) resumeSide(epoch int, side Side, sid string) resumeResult {
 		return resumeResult{err: r.fail.err}
 	}
 	pid := r.link.sidecar.PID()
-	return resumeResult{link: r.link, init: r.init, config: r.config, notes: r.notes, loaded: !r.resumed, resumed: r.resumed, pid: pid, process: processIdentity(pid)}
+	return resumeResult{agentSessionID: sid, link: r.link, init: r.init, config: r.config, notes: r.notes, loaded: !r.resumed, resumed: r.resumed, pid: pid, process: processIdentity(pid)}
 }
 
 // verify checks before a resume that agent session sid is still listed in
@@ -301,6 +335,12 @@ func (a *actor) resumed(started chan<- error, res resumeResult) {
 	}
 	a.dirty = true
 	a.nativeContinue = res.resumed
+	if res.agentSessionID != "" {
+		a.agentSessionID = res.agentSessionID
+		if a.titleSession == "" {
+			a.titleSession = res.agentSessionID
+		}
+	}
 	if res.link != nil {
 		a.installLink(res.link, res.init, res.config, res.notes)
 		if res.loaded {

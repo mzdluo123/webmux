@@ -313,7 +313,8 @@ Kimi TUI 当前没有可靠会话 ID 时，系统 SHALL 用正确 cwd 调用 `ki
 1. 没有候选时，“聊天”按钮保持不可用，提示“请先在 TUI 中发送一条消息”；
 2. 切换时恰有一个候选则采用它；
 3. 有多个候选时，切换 SHALL 返回 409 `session_ambiguous` 并附候选列表，由用户选择后重试；
-4. 当前 TUI 是 WebMux 以 `--session <id>` 从聊天端恢复时，SHALL 优先使用本次恢复 ID，并仍核对该 ID 能被 `session/list` 找到。
+4. 尚未切到聊天便归档的记录没有保存 ID 时，恢复 SHALL 按记录创建时间重新执行同一候选判定，唯一候选直接恢复，多个候选由用户选择；
+5. 当前 TUI 是 WebMux 以 `--session <id>` 从聊天端恢复时，SHALL 优先使用本次恢复 ID，并仍核对该 ID 能被 `session/list` 找到。
 
 候选探测 SHALL 只初始化与列出会话，SHALL NOT 加载或恢复会话。`session/list` 返回的 `session_` 前缀 ID SHALL 原样用于后续 `session/load`、`session/resume` 与 TUI `--session`，SHALL NOT 改写为 UUID 或去除前缀。
 
@@ -326,6 +327,11 @@ Kimi TUI 当前没有可靠会话 ID 时，系统 SHALL 用正确 cwd 调用 `ki
 
 - **WHEN** 同一 cwd 下本次 Kimi TUI 启动后有多个会话被更新，用户点击“聊天”
 - **THEN** 服务端返回 409 `session_ambiguous` 与候选列表，前端显示候选供用户选择
+
+#### Scenario: TUI 直接关闭后的恢复
+
+- **WHEN** Kimi 混合会话只在 TUI 中使用、尚未切到聊天便关闭，记录没有保存 agent 会话 ID
+- **THEN** 恢复按原记录创建时间重新判定候选，唯一候选以 `kimi --session <id>` 打开，多个候选交给用户选择
 
 #### Scenario: 首条消息之前
 

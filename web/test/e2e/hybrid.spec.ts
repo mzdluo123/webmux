@@ -1714,6 +1714,67 @@ test.describe("hybrid sessions with the fake agent", () => {
     }
   }
 
+  test("a terminal-only Kimi record offers its native conversations when resumed", async ({
+    page,
+    request,
+    workDir,
+  }, testInfo) => {
+    const first = await createHybrid(request, workDir, "terminal", {
+      name: "Kimi TUI one",
+      agent: "kimi",
+    });
+    await openHybrid(page, first, "terminal");
+    await tuiTurn(page, "first-tui");
+    await expect(sideTab(page, "chat")).toHaveAccessibleName("聊天");
+    const second = await createHybrid(request, workDir, "terminal", {
+      name: "Kimi TUI two",
+      agent: "kimi",
+    });
+    await openHybrid(page, second, "terminal");
+    await tuiTurn(page, "second-tui");
+    await expect(sideTab(page, "chat")).toHaveAccessibleName("聊天");
+
+    for (const id of [first, second]) {
+      const archived = await request.delete(`/api/sessions/${id}`);
+      expect(archived.status(), await archived.text()).toBe(204);
+    }
+    await page.goto(`/s/${first}`);
+    const resume = page.getByRole("button", { name: "恢复", exact: true });
+    await expect(resume).toBeVisible();
+    const evidence = process.env.WEBMUX_EVIDENCE;
+    if (evidence) {
+      await mkdir(evidence, { recursive: true });
+      await page.screenshot({
+        path: join(evidence, `${testInfo.project.name}-00-recovery.png`),
+        fullPage: true,
+      });
+    }
+    await resume.click();
+    const question = page.getByRole("alertdialog", {
+      name: "找不到原来的 agent 会话",
+    });
+    await expect(question).toBeVisible();
+    await expect(question.getByRole("option")).toHaveCount(2);
+    if (evidence)
+      await page.screenshot({
+        path: join(evidence, `${testInfo.project.name}-01-candidates.png`),
+        fullPage: true,
+      });
+    await question
+      .getByRole("combobox", { name: "选择要恢复的会话" })
+      .selectOptions({ index: 1 });
+    await question.getByRole("button", { name: "确认" }).click();
+    await expectSide(page, "terminal");
+    await expectTerminalLine(page, "> first-tui");
+    const info = await (await request.get(`/api/sessions/${first}`)).json();
+    expect(info.agent.sessionId).not.toBeNull();
+    if (evidence)
+      await page.screenshot({
+        path: join(evidence, `${testInfo.project.name}-02-resumed.png`),
+        fullPage: true,
+      });
+  });
+
   test("stopping the open session from the sidebar leaves its page instead of offering to resume", async ({
     page,
     request,

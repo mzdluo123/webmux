@@ -92,7 +92,23 @@
 3. 恢复到聊天视图时，启动 ACP 并 `session/load`；恢复到终端视图时，在 PTY 中执行档案生成的恢复命令。
 4. 重新应用记录中的配置项取值。
 
+对依赖 `session/list` 候选识别 ID 的档案，从终端开始且记录尚无 agent 会话 ID 时，系统 SHALL 以记录创建时间为下界重新执行候选判定：
+
+- 唯一候选 SHALL 作为原会话恢复；
+- 多个候选 SHALL 返回 409 `session_ambiguous` 并附候选列表，由用户选择后重试；
+- 没有候选时 SHALL 按尚未创建原生会话处理，在所选端开始新对话。
+
 恢复后的会话 SHALL 仍是同一个混合会话，`state` 为 `active`，可以继续切换。
+
+#### Scenario: 终端直接使用后的归档恢复
+
+- **WHEN** Kimi 混合会话只在 TUI 中使用、尚未切到聊天便关闭，记录没有 agent 会话 ID，但原 TUI 运行期间只产生一个原生会话
+- **THEN** 恢复采用该原生会话 ID，终端显示此前的对话，不把恢复当成新会话
+
+#### Scenario: 无 ID 记录有多个候选
+
+- **WHEN** 从终端开始的归档记录没有 agent 会话 ID，其创建时间后有多个同目录原生会话被更新
+- **THEN** 恢复返回 409 `session_ambiguous` 与候选列表，用户选择后以 `agentSessionId` 重试
 
 #### Scenario: 恢复到终端
 

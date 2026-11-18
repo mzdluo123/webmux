@@ -73,6 +73,55 @@ func TestKimiRoundTripAndConfigReapply(t *testing.T) {
 	assertSingleWriter(t, h.store)
 }
 
+func TestKimiResumeTUIOnlySession(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	in := h.input(kimi.Name, SideTUI)
+	s := h.create(in)
+	id := s.Info().ID
+	tuiTurn(t, s, "one")
+	h.waitEligible(id)
+	sid := kimiStoredSessionID(t, h.store, "one")
+
+	h.closeSession(id)
+	resumed := h.mustResume(id, ResumeInput{Side: SideTUI, Env: in.Env})
+	if got := h.record(id).AgentSessionID; got != sid {
+		t.Fatalf("resumed terminal session %q, want %s", got, sid)
+	}
+	waitFor(t, "resumed transcript", func() bool { return strings.Contains(string(resumed.Buffer()), "> one") })
+}
+
+func TestKimiResumeTUIOnlySessionAmbiguous(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	in := h.input(kimi.Name, SideTUI)
+	s := h.create(in)
+	id := s.Info().ID
+	tuiTurn(t, s, "one")
+	h.waitEligible(id)
+	sid := kimiStoredSessionID(t, h.store, "one")
+
+	otherInput := h.input(kimi.Name, SideTUI)
+	otherInput.Cwd = in.Cwd
+	other := h.create(otherInput)
+	otherID := other.Info().ID
+	tuiTurn(t, other, "other")
+	h.waitEligible(otherID)
+	h.closeSession(otherID)
+	h.closeSession(id)
+
+	_, err := h.resume(id, ResumeInput{Side: SideTUI, Env: in.Env})
+	var ambiguous *SessionAmbiguousError
+	if !errors.As(err, &ambiguous) || len(ambiguous.Candidates) != 2 {
+		t.Fatalf("resume with two candidates: %+v %v", ambiguous, err)
+	}
+	resumed := h.mustResume(id, ResumeInput{Side: SideTUI, AgentSessionID: sid, Env: in.Env})
+	if got := h.record(id).AgentSessionID; got != sid {
+		t.Fatalf("resumed terminal session %q, want %s", got, sid)
+	}
+	waitFor(t, "selected transcript", func() bool { return strings.Contains(string(resumed.Buffer()), "> one") })
+}
+
 func TestKimiResumeLocalizesACPBinding(t *testing.T) {
 	h := newHarness(t, 0)
 	h.fast()
