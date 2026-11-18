@@ -1,11 +1,9 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
   import IconLoader2 from "~icons/tabler/loader-2";
-  import IconSelector from "~icons/tabler/selector";
   import IconSettings from "~icons/tabler/settings";
   import IconX from "~icons/tabler/x";
   import { Button } from "$lib/components/ui/button";
-  import * as Collapsible from "$lib/components/ui/collapsible";
   import * as Drawer from "$lib/components/ui/drawer";
   import { Label } from "$lib/components/ui/label";
   import { Switch } from "$lib/components/ui/switch";
@@ -17,7 +15,7 @@
   } from "../../domains/chat/chat-permission";
   import type { ChatConfig, ChatPermissionMode } from "../../contracts/schemas";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
-  import ChatChoiceCommandList from "./ChatChoiceCommandList.svelte";
+  import ChatInlineOptionPicker from "./ChatInlineOptionPicker.svelte";
 
   // Low-frequency options share one entry inside the mobile composer. The
   // temporary sheet shows names and current values without adding a bottom row.
@@ -44,6 +42,7 @@
   let origin = $state<DOMRectReadOnly | null>(null);
   let openPickerId = $state<string | null>(null);
   let pickerSearch = $state("");
+  const pickerIdPrefix = $props.id();
 
   function setPickerOpen(optionId: string, next: boolean) {
     if (next) {
@@ -51,8 +50,14 @@
       pickerSearch = "";
     } else if (openPickerId === optionId) {
       openPickerId = null;
-      pickerSearch = "";
     }
+  }
+
+  function closePicker(id: string) {
+    setPickerOpen(id, false);
+    document
+      .getElementById(`${pickerIdPrefix}-${id}`)
+      ?.focus({ preventScroll: true });
   }
 
   type RowChoice = {
@@ -90,6 +95,11 @@
     motion="origin"
     {origin}
     class="data-[vaul-drawer-direction=bottom]:max-h-[calc(100dvh-1rem)]"
+    onEscapeKeydown={(event) => {
+      if (openPickerId === null) return;
+      event.preventDefault();
+      closePicker(openPickerId);
+    }}
     onCloseAutoFocus={(event) => {
       // Safari does not focus tapped buttons. Returning to the previously
       // focused textarea would reopen the keyboard after dismissing the sheet.
@@ -195,56 +205,19 @@
   searchable: boolean;
   onselect: (value: string) => void;
 })}
-  {@const currentName =
-    choices.find((choice) => choice.value === value)?.name ?? value}
-  <Collapsible.Root
-    bind:open={() => openPickerId === id, (next) => setPickerOpen(id, next)}
-    class="space-y-2"
-    onkeydown={(event: KeyboardEvent) => {
-      if (openPickerId !== id || event.key !== "Escape") return;
-      event.preventDefault();
-      event.stopPropagation();
-      setPickerOpen(id, false);
-      document
-        .getElementById(`session-option-${id}`)
-        ?.focus({ preventScroll: true });
+  <ChatInlineOptionPicker
+    triggerId={`${pickerIdPrefix}-${id}`}
+    {name}
+    {value}
+    {choices}
+    {disabled}
+    {searchable}
+    bind:search={pickerSearch}
+    open={openPickerId === id}
+    onOpenChange={(next) => setPickerOpen(id, next)}
+    onselect={(next) => {
+      onselect(next);
+      closePicker(id);
     }}
-  >
-    <div
-      class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-2"
-    >
-      <Label for="session-option-{id}" class="min-w-0 wrap-anywhere"
-        >{name}</Label
-      >
-      <Collapsible.Trigger
-        id="session-option-{id}"
-        aria-label={name}
-        title={currentName}
-        {disabled}
-        class="flex h-(--control-default) w-full min-w-0 items-center justify-between gap-2 rounded-md border border-input bg-card px-3 py-1 text-left text-base outline-none select-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-expanded:border-ring md:text-sm dark:bg-input/30 dark:hover:bg-input/50"
-      >
-        <span class="min-w-0 flex-1 truncate">{currentName}</span>
-        <IconSelector
-          class="size-4 shrink-0 text-muted-foreground"
-          aria-hidden="true"
-        />
-      </Collapsible.Trigger>
-    </div>
-    <Collapsible.Content>
-      <div class="overflow-hidden rounded-lg border">
-        <ChatChoiceCommandList
-          {name}
-          {value}
-          {choices}
-          {disabled}
-          {searchable}
-          bind:search={pickerSearch}
-          onselect={(next) => {
-            onselect(next);
-            setPickerOpen(id, false);
-          }}
-        />
-      </div>
-    </Collapsible.Content>
-  </Collapsible.Root>
+  />
 {/snippet}

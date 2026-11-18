@@ -89,4 +89,5 @@ export function useDockMotion(
       media.removeEventListener("change", settle);
     };
   });
+  return settle;
 }
