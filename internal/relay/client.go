@@ -37,13 +37,14 @@ type Config struct {
 
 // Client owns at most one running connector. It never persists credentials.
 type Client struct {
-	config      Config
-	http        *http.Client
-	dialContext func(context.Context, string, string) (net.Conn, error)
-	mu          sync.Mutex
-	assignment  *protocol.Assignment
-	active      *connection
-	connecting  bool
+	config          Config
+	http            *http.Client
+	dialContext     func(context.Context, string, string) (net.Conn, error)
+	stableThreshold time.Duration
+	mu              sync.Mutex
+	assignment      *protocol.Assignment
+	active          *connection
+	connecting      bool
 }
 
 func New(cfg Config) (*Client, error) {

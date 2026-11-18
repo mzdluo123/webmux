@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"sync"
-	"time"
 
 	protocol "github.com/mzdluo123/webmux/protocol/relay"
 	"github.com/rainchan/webmux/internal/api"
@@ -100,6 +99,7 @@ func (c *p2pController) Signal(ctx context.Context, req contract.P2PSignalReques
 		return contract.P2PSignalResponse{}, p2p.ErrUnsupported
 	}
 	input := featurewire.P2PSignalInput(req)
+	var releasePeer func()
 	if principal, owner := api.RelayPrincipalContext(ctx); owner {
 		if c.relayAuth == nil {
 			return contract.P2PSignalResponse{}, protocol.Error{Code: protocol.Unauthenticated}
@@ -129,6 +129,7 @@ func (c *p2pController) Signal(ctx context.Context, req contract.P2PSignalReques
 		if err != nil {
 			return contract.P2PSignalResponse{}, err
 		}
+		releasePeer = peer.Release
 		servers := make([]p2p.ICEServer, len(peer.Host.Servers))
 		for i, server := range peer.Host.Servers {
 			servers[i] = p2p.ICEServer{URLs: server.URLs, Username: server.Username, Credential: server.Credential}
@@ -139,9 +140,17 @@ func (c *p2pController) Signal(ctx context.Context, req contract.P2PSignalReques
 			PeerConnectionID: string(peer.PeerConnectionID),
 			Fingerprint:      peer.Fingerprint,
 			ICEServers:       servers,
-			ExpiresAt:        time.Unix(peer.Host.ExpiresAt, 0),
-			RegisterAccess: func(close func(), done <-chan struct{}) (func(), error) {
-				return c.relayAuth.RegisterAccess(principal, close, done)
+			RegisterAccess: func(closeAccess func(), done <-chan struct{}) (func(), error) {
+				releaseAccess, err := c.relayAuth.RegisterAccess(principal, closeAccess, done)
+				if err != nil {
+					return nil, err
+				}
+				return func() {
+					releaseAccess()
+					if releasePeer != nil {
+						releasePeer()
+					}
+				}, nil
 			},
 		}
 	} else if req.PeerConnectionID != "" {
@@ -150,7 +159,13 @@ func (c *p2pController) Signal(ctx context.Context, req contract.P2PSignalReques
 	}
 	out, err := c.svc.Signal(ctx, input)
 	if err != nil {
+		if req.Action == "offer" && releasePeer != nil {
+			releasePeer()
+		}
 		return contract.P2PSignalResponse{}, err
+	}
+	if req.Action == "close" && releasePeer != nil {
+		releasePeer()
 	}
 	return featurewire.P2PSignalResponse(out), nil
 }

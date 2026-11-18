@@ -3,6 +3,7 @@ package relay
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 	"net"
 	"sync"
@@ -17,9 +18,11 @@ const (
 	connectionBuffer = 4 << 20
 	streamBuffer     = 1 << 20
 	// Bounds header parsing only; established HTTP streams are admitted by relay.
-	maxPendingHeaders = 128
-	maxBinaryMessage  = protocol.MaxControlBytes
-	maxBulkBackoff    = 15 * time.Second
+	maxPendingHeaders       = 128
+	maxBinaryMessage        = protocol.MaxControlBytes
+	minPhysicalBackoff      = 100 * time.Millisecond
+	maxBulkBackoff          = 15 * time.Second
+	stablePhysicalThreshold = protocol.ControlLease
 )
 
 type Callbacks struct {
@@ -260,11 +263,52 @@ func (s *connection) pool(role protocol.Role) *connectionPool {
 	}
 }
 
+type physicalBackoff struct {
+	current   time.Duration
+	min       time.Duration
+	max       time.Duration
+	threshold time.Duration
+}
+
+func newPhysicalBackoff(threshold time.Duration) physicalBackoff {
+	if threshold <= 0 {
+		threshold = stablePhysicalThreshold
+	}
+	return physicalBackoff{
+		current:   minPhysicalBackoff,
+		min:       minPhysicalBackoff,
+		max:       maxBulkBackoff,
+		threshold: threshold,
+	}
+}
+
+func (b *physicalBackoff) observeConnected(uptime time.Duration) {
+	if uptime >= b.threshold {
+		b.current = b.min
+	}
+}
+
+func (b *physicalBackoff) nextDelay(err error, jitter byte) time.Duration {
+	base := b.current
+	b.current = min(b.current*2, b.max)
+	delay := base + time.Duration(jitter)*base/512
+	var remote protocol.Error
+	if errors.As(err, &remote) && remote.RetryAfterSeconds > 0 {
+		retryAfter := min(time.Duration(remote.RetryAfterSeconds)*time.Second, 24*time.Hour)
+		if delay < retryAfter {
+			span := min(retryAfter, b.max)
+			delay = retryAfter + time.Duration(jitter)*span/512
+		}
+	}
+	return delay
+}
+
 // Each fixed slot owns its socket and reconnect loop. Six default workers can
 // authenticate concurrently without creating demand messages or pool counters.
 func (s *connection) runPhysical(role protocol.Role) {
-	backoff := 100 * time.Millisecond
+	backoff := newPhysicalBackoff(s.client.stableThreshold)
 	for s.ctx.Err() == nil {
+		var retryErr error
 		p, err := s.client.dial(s.ctx, s.ctx, s.key, s.assignment, role, s.scope)
 		if err == nil {
 			s.mu.Lock()
@@ -276,8 +320,9 @@ func (s *connection) runPhysical(role protocol.Role) {
 			s.pool(role).physicals[p] = struct{}{}
 			s.mu.Unlock()
 			s.publishPools()
-			backoff = 100 * time.Millisecond
-			_ = s.accept(p, role)
+			connectedAt := time.Now()
+			retryErr = s.accept(p, role)
+			uptime := time.Since(connectedAt)
 			p.close()
 			s.mu.Lock()
 			delete(s.pool(role).physicals, p)
@@ -291,18 +336,27 @@ func (s *connection) runPhysical(role protocol.Role) {
 			}
 			s.mu.Unlock()
 			s.publishPools()
+			if s.ctx.Err() != nil {
+				return
+			}
+			backoff.observeConnected(uptime)
 		} else if permanentError(err) {
 			s.stop(err)
 			return
+		} else {
+			retryErr = err
 		}
-		timer := time.NewTimer(backoff)
+		var jitter [1]byte
+		if _, randErr := rand.Read(jitter[:]); randErr != nil {
+			return
+		}
+		timer := time.NewTimer(backoff.nextDelay(retryErr, jitter[0]))
 		select {
 		case <-s.ctx.Done():
 			timer.Stop()
 			return
 		case <-timer.C:
 		}
-		backoff = min(backoff*2, maxBulkBackoff)
 	}
 }
 

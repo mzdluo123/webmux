@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
 	"time"
 
 	"github.com/coder/websocket"
@@ -32,6 +33,14 @@ func (c *Client) dial(ctx, authCtx context.Context, key ed25519.PrivateKey, a pr
 	if err != nil {
 		if response != nil && response.StatusCode >= 300 && response.StatusCode < 400 {
 			return nil, protocol.Error{Code: protocol.Forbidden}
+		}
+		if response != nil {
+			if retryAfter := relayRetryAfter(response.Header.Get("Retry-After"), time.Now()); retryAfter > 0 {
+				if response.StatusCode == http.StatusTooManyRequests {
+					return nil, protocol.Error{Code: protocol.RateLimited, RetryAfterSeconds: retryAfter}
+				}
+				return nil, protocol.Error{Code: protocol.Unavailable, RetryAfterSeconds: retryAfter}
+			}
 		}
 		return nil, transportError(authCtx, err)
 	}

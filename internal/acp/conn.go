@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 const (
@@ -18,6 +19,9 @@ const (
 	// together (a cancel plus permission answers) while the single writer
 	// is busy; callers block beyond it, bounded by their context.
 	writeQueueSize = 16
+	// defaultWriteTimeout bounds enqueuing session/cancel and incoming-request
+	// replies when the agent stops reading stdin and fills writeQueueSize.
+	defaultWriteTimeout = 5 * time.Second
 	// inboxSize lets the reader run ahead of a slow handler by a burst of
 	// streamed updates. Beyond it the reader stops reading, and the agent
 	// blocks on its stdout pipe rather than the client buffering without
@@ -68,9 +72,10 @@ type Options struct {
 // it. One goroutine reads lines, one dispatches them in order, and one
 // writes; the reader runs until r ends.
 type Conn struct {
-	w   io.WriteCloser
-	h   Handler
-	log *slog.Logger
+	w            io.WriteCloser
+	h            Handler
+	log          *slog.Logger
+	writeTimeout time.Duration
 
 	nextID atomic.Int64
 	out    chan []byte
@@ -104,17 +109,18 @@ func NewConn(r io.Reader, w io.WriteCloser, o Options) *Conn {
 	}
 	base, stop := context.WithCancel(context.Background())
 	c := &Conn{
-		w:        w,
-		h:        h,
-		log:      log,
-		out:      make(chan []byte, writeQueueSize),
-		inbox:    make(chan wireMessage, inboxSize),
-		pending:  make(map[int64]chan wireMessage),
-		incoming: make(map[string]context.CancelFunc),
-		dead:     make(chan struct{}),
-		base:     base,
-		stop:     stop,
-		done:     make(chan struct{}),
+		w:            w,
+		h:            h,
+		log:          log,
+		writeTimeout: defaultWriteTimeout,
+		out:          make(chan []byte, writeQueueSize),
+		inbox:        make(chan wireMessage, inboxSize),
+		pending:      make(map[int64]chan wireMessage),
+		incoming:     make(map[string]context.CancelFunc),
+		dead:         make(chan struct{}),
+		base:         base,
+		stop:         stop,
+		done:         make(chan struct{}),
 	}
 	c.loops.Add(3)
 	go c.readLoop(r)
@@ -272,6 +278,40 @@ func (c *Conn) enqueue(ctx context.Context, b []byte) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// tryEnqueue queues an encoded message when writeQueueSize has room and drops
+// it immediately when full or after the connection ended.
+func (c *Conn) tryEnqueue(b []byte) {
+	select {
+	case <-c.dead:
+		return
+	default:
+	}
+	select {
+	case c.out <- b:
+	case <-c.dead:
+	default:
+	}
+}
+
+// enqueueBounded waits up to writeTimeout to queue b and disconnects the
+// underlying connection when c.out stays full while the connection is live.
+func (c *Conn) enqueueBounded(b []byte) error {
+	timeout := c.writeTimeout
+	if timeout <= 0 {
+		timeout = defaultWriteTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	err := c.enqueue(ctx, b)
+	if err != nil && !c.isDead() {
+		stalled := fmt.Errorf("%w: write stalled: %w", ErrDisconnected, err)
+		c.log.Warn("acp write stalled; disconnecting", "error", err)
+		c.fail(stalled)
+		return c.Err()
+	}
+	return err
 }
 
 func (c *Conn) deliver(m wireMessage) {

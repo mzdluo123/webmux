@@ -72,7 +72,9 @@ func (s *Service) clear(ctx context.Context, id string) error {
 		if _, err := call(ctx, a, a.retire); err != nil && !errors.Is(err, ErrNotFound) {
 			return err
 		}
+		<-a.quit
 		a.probes.Wait()
+		a.subtasks.Wait()
 	}
 	switch err := s.manager.Remove(id); {
 	case err == nil, errors.Is(err, session.ErrNotFound):

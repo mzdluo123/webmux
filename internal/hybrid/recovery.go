@@ -164,14 +164,23 @@ func (s *Service) resume(id string, in ResumeInput) (*session.Session, error) {
 	go a.run()
 	go a.watchShell()
 	go a.observeLoop()
+	applied := false
 	started := make(chan error, 1)
 	root := s.runtimeRoot(rec.Agent, rec.Cwd, in.Env)
 	var candidatesSince time.Time
 	if rec.Side == SideTUI && sid == "" {
 		candidatesSince = rec.CreatedAt
 	}
-	a.post(func() { a.resume(started, sid, root, candidatesSince) })
+	a.post(func() { a.resume(started, sid, root, candidatesSince, &applied) })
 	if err := awaitStarted(a, started); err != nil {
+		if errors.Is(err, errStopped) {
+			<-a.quit
+			a.probes.Wait()
+			a.subtasks.Wait()
+			if !applied {
+				_ = s.manager.Remove(id)
+			}
+		}
 		return nil, err
 	}
 	resumed = true
@@ -197,22 +206,31 @@ type resumeResult struct {
 
 // resume starts the resumed session's side on agent session sid in a
 // subtask and reports the outcome on started once the actor applied it.
-// When the actor ended first, the subtask stops the ACP process it started
-// and reports errStopped.
-func (a *actor) resume(started chan<- error, sid, root string, candidatesSince time.Time) {
+// When the actor ended first, the subtask stops the ACP process or terminal
+// run it started and reports errStopped.
+func (a *actor) resume(started chan<- error, sid, root string, candidatesSince time.Time, applied *bool) {
 	a.starting = true
 	a.epoch++
 	epoch, side := a.epoch, a.side
-	go func() {
+	a.subtask(func() {
 		res := a.resumeSide(epoch, side, sid, candidatesSince)
 		res.historyRoot = root
-		if !a.sync(func() { a.resumed(started, res) }) {
+		if !a.sync(func() {
+			if applied != nil {
+				*applied = true
+			}
+			a.resumed(started, res)
+		}) {
 			if res.link != nil {
 				_ = res.link.stop()
+			} else if res.err == nil {
+				ctx, cancel := context.WithTimeout(context.Background(), a.closeWait())
+				_ = a.shell.EndRun(ctx)
+				cancel()
 			}
 			started <- errStopped
 		}
-	}()
+	})
 }
 
 // resumeSide verifies agent session sid, when there is one, and starts
@@ -222,6 +240,9 @@ func (a *actor) resume(started chan<- error, sid, root string, candidatesSince t
 // profile's connector: a missing one only skips the session-list checks. It
 // runs in a subtask; a failure leaves no process running.
 func (a *actor) resumeSide(epoch int, side Side, sid string, candidatesSince time.Time) resumeResult {
+	if a.lifetime().Err() != nil {
+		return resumeResult{err: errStopped}
+	}
 	resolved := false
 	if sid == "" && !candidatesSince.IsZero() && a.identityFallback() {
 		ans := a.listed(a.probeCtx, target{cwd: a.cwd}, candidatesSince)
@@ -261,6 +282,9 @@ func (a *actor) resumeSide(epoch int, side Side, sid string, candidatesSince tim
 		}
 	}
 	if side == SideTUI {
+		if a.lifetime().Err() != nil {
+			return resumeResult{err: errStopped}
+		}
 		argv := a.cmd.TUIArgv()
 		if sid != "" {
 			if err := a.prepareTUIResume(sid); err != nil {
@@ -268,6 +292,9 @@ func (a *actor) resumeSide(epoch int, side Side, sid string, candidatesSince tim
 				return resumeResult{err: fmt.Errorf("%w: 准备终端会话失败", ErrAgent)}
 			}
 			argv, _ = a.cmd.ResumeArgv(sid)
+		}
+		if a.lifetime().Err() != nil {
+			return resumeResult{err: errStopped}
 		}
 		if err := a.shell.StartRun(argv); err != nil {
 			return resumeResult{err: fmt.Errorf("%w: 启动终端失败: %w", ErrInvalid, err)}

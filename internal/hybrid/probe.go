@@ -2,6 +2,7 @@ package hybrid
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strconv"
 	"time"
@@ -23,26 +24,40 @@ const optionsProbeTimeout = 45 * time.Second
 // shares the eligibility probes' limit (maxProbes). A missing connector is
 // a *ConnectorMissingError, a failed agent call ErrAgent.
 func (s *Service) ProbeAgentOptions(ctx context.Context, in CreateInput) ([]ConfigOption, error) {
+	if err := s.beginOperation(); err != nil {
+		return nil, err
+	}
+	defer s.starting.Done()
 	in.StartSide = SideACP
 	cmd, _, cwd, err := s.admit(in)
 	if err != nil {
 		return nil, err
 	}
+	probeCtx, cancel := context.WithTimeout(ctx, optionsProbeTimeout)
+	stopOnClose := context.AfterFunc(s.closeCtx, cancel)
+	defer func() {
+		stopOnClose()
+		cancel()
+	}()
+	probeErr := func(err error) error {
+		if ctx.Err() == nil && s.closeCtx.Err() != nil {
+			return fmt.Errorf("%w: 服务已关闭", ErrUnavailable)
+		}
+		return err
+	}
 	select {
 	case s.probes <- struct{}{}:
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	case <-probeCtx.Done():
+		return nil, probeErr(probeCtx.Err())
 	}
 	defer func() { <-s.probes }()
-	ctx, cancel := context.WithTimeout(ctx, optionsProbeTimeout)
-	defer cancel()
 	shell, err := s.manager.ProbeShell(session.CreateInput{Cwd: cwd, Cmd: cmd.TUIArgv(), Env: in.Env, ConfigID: in.ConfigID})
 	if err != nil {
 		return nil, shellError(err)
 	}
-	tools, err := prepareACP(ctx, cmd, shell)
+	tools, err := prepareACP(probeCtx, cmd, shell)
 	if err != nil {
-		return nil, err
+		return nil, probeErr(err)
 	}
 	argv, _ := cmd.ACPArgv()
 	sidecar, err := shell.StartSidecar(argv, cmd.ProtocolOnFD3(), tools.env)
@@ -51,9 +66,13 @@ func (s *Service) ProbeAgentOptions(ctx context.Context, in CreateInput) ([]Conf
 	}
 	link := &acpLink{sidecar: sidecar}
 	link.conn = acp.NewConn(sidecar.Stdout(), sidecar.Stdin(), acp.Options{Logger: s.log})
-	defer func() { _ = link.release() }()
-	init, err := link.conn.Initialize(ctx, acp.Implementation{Name: "webmux", Title: "WebMux", Version: s.version}, nil)
+	defer func() { _ = link.releaseWithin(probeCtx) }()
+	init, err := link.conn.Initialize(probeCtx, acp.Implementation{Name: "webmux", Title: "WebMux", Version: s.version}, nil)
 	if err != nil {
+		if s.closeCtx.Err() != nil {
+			_ = link.stop()
+			return nil, probeErr(err)
+		}
 		s.log.Warn("hybrid options probe failed", "config", in.ConfigID, "method", acp.MethodInitialize, "error", err)
 		_ = link.stop()
 		if missing := exitedNotFound(cmd, sidecar); missing != nil {
@@ -62,8 +81,11 @@ func (s *Service) ProbeAgentOptions(ctx context.Context, in CreateInput) ([]Conf
 		return nil, agentFailure(acp.MethodInitialize, err, sidecar).err
 	}
 	link.caps = init.AgentCapabilities.SessionCapabilities
-	res, err := link.conn.NewSession(ctx, acp.NewSessionRequest{Cwd: cwd})
+	res, err := link.conn.NewSession(probeCtx, acp.NewSessionRequest{Cwd: cwd})
 	if err != nil {
+		if s.closeCtx.Err() != nil {
+			return nil, probeErr(err)
+		}
 		s.log.Warn("hybrid options probe failed", "config", in.ConfigID, "method", acp.MethodSessionNew, "error", err)
 		return nil, agentFailure(acp.MethodSessionNew, err, sidecar).err
 	}
