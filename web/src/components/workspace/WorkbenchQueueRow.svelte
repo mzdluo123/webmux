@@ -1,4 +1,8 @@
 <script lang="ts">
+  import IconAlertCircle from "~icons/tabler/alert-circle";
+  import IconClock from "~icons/tabler/clock";
+  import IconHelpCircle from "~icons/tabler/help-circle";
+  import IconLock from "~icons/tabler/lock";
   import IconPin from "~icons/tabler/pin";
   import IconTerminal from "~icons/tabler/terminal-2";
   import IconEye from "~icons/tabler/eye";
@@ -62,15 +66,22 @@
           ? m.s8_queue_error()
           : m.s8_queue_waiting(),
   );
+  const AttentionIcon = $derived(
+    attention === "error"
+      ? IconAlertCircle
+      : attention === "permission"
+        ? IconLock
+        : attention === "question"
+          ? IconHelpCircle
+          : IconClock,
+  );
   const pinned = $derived(sessionPins.has(session.id));
 </script>
 
 <li
   class={[
     "group/row relative flex min-w-0 items-start gap-1 border-b",
-    needsAttention && "rounded-md border border-l-2 bg-card",
-    needsAttention &&
-      (attention === "error" ? "border-l-destructive" : "border-l-warning"),
+    needsAttention && "rounded-md border bg-card",
     previewing && "bg-muted/70",
   ]}
   data-session-id={session.id}
@@ -86,7 +97,7 @@
   }}
 >
   <a
-    class="grid min-h-13 min-w-0 flex-1 grid-cols-1 items-center gap-1 rounded-sm px-3 py-2 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+    class="group/link grid min-h-13 min-w-0 flex-1 grid-cols-1 items-center gap-1 rounded-sm px-3 py-2 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
     data-session-link
     aria-label={session.title}
     href={`/s/${session.id}`}
@@ -131,11 +142,17 @@
     >
     <span class="flex min-w-0 flex-wrap items-center gap-2 text-xs">
       {#if activeAttention}
-        <span
-          class={attention === "error" ? "text-destructive" : "text-warning"}
-          >{attentionLabel}</span
-        >
-      {:else}<SessionStatus {session} />{/if}
+        <span class="inline-flex items-center gap-1.5 font-medium">
+          <AttentionIcon
+            class={[
+              "size-3.5 shrink-0",
+              attention === "error" ? "text-destructive" : "text-warning",
+            ]}
+            aria-hidden="true"
+          />
+          {attentionLabel}
+        </span>
+      {:else}<SessionStatus {session} quiet />{/if}
       <span class="text-muted-foreground tabular-nums">{relative}</span>
     </span>
     {#if activeAttention}
@@ -145,7 +162,8 @@
           >{session.attention.message}</span
         >
       {/if}
-      <span class="text-xs font-medium text-primary sm:col-span-full"
+      <span
+        class="text-xs font-medium text-muted-foreground underline-offset-2 group-hover/link:underline group-focus-visible/link:underline sm:col-span-full"
         >{m.s8_queue_review()} <span aria-hidden="true">→</span></span
       >
     {:else if group === "running" && session.agent?.work}

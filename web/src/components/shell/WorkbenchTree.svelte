@@ -289,7 +289,11 @@
        row's "⋯" menu takes their place on hover. `reserve` keeps the slot
        empty so the menu never covers the marks before it. -->
   {#if node.waiting}<span
-      class={`w-12 shrink-0 truncate text-right text-xs text-warning ${actioned ? underRowAction : ""}`}
+      class={[
+        "w-12 shrink-0 truncate text-right text-xs",
+        scopesOnly ? "text-muted-foreground" : "text-warning",
+        actioned && underRowAction,
+      ]}
       title={m.s1_waiting_sessions_title({ count: node.waiting })}
       >{m.s1_waiting_count({ count: node.waiting })}</span
     >{:else if node.count}<span
