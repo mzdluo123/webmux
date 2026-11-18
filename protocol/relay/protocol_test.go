@@ -125,6 +125,30 @@ func TestHostPurposeDomainSeparation(t *testing.T) {
 	requireCode(t, VerifyHost(pub, c, p, vectorNow), InvalidSignature)
 }
 
+func TestChallengeClockSkew(t *testing.T) {
+	key, pub := vectorKey(t)
+	receiverNow := vectorNow.Add(-3 * time.Second)
+	connector := vectorChallenge()
+	proof, err := SignConnector(key, connector, receiverNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyConnector(pub, connector, proof, vectorNow); err != nil {
+		t.Fatal(err)
+	}
+	host := HostChallenge{Version: V1, Audience: "control-test", HostID: vectorHost, BindingGeneration: 7, Purpose: PurposeAssignment, Nonce: vectorToken, ExpiresAt: vectorNow.Add(NonceTTL).Unix(), ControlEpoch: vectorToken}
+	hostProof, err := SignHost(key, host, receiverNow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyHost(pub, host, hostProof, vectorNow); err != nil {
+		t.Fatal(err)
+	}
+	expires := time.Unix(host.ExpiresAt, 0)
+	requireCode(t, VerifyHost(pub, host, hostProof, expires), Expired)
+	requireCode(t, VerifyConnector(pub, connector, proof, expires), Expired)
+}
+
 func TestStrictJSONAndCounter(t *testing.T) {
 	tests := []string{
 		`{"version":1,"version":2,"handle":"` + string(vectorToken) + `"}`,
@@ -266,6 +290,38 @@ func TestControlUnionAndBrowserAuthority(t *testing.T) {
 	}
 }
 
+func TestControlResumeUnionAndScope(t *testing.T) {
+	scope := Scope{HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, ControlEpoch: vectorToken, NodeEpoch: vectorToken}
+	m := ControlMessage{Version: V1, Type: ControlResume, RequestID: vectorToken, Scope: scope, ExpiresAt: vectorNow.Add(time.Minute).Unix(), Resume: &LoginResume{GrantID: vectorToken}}
+	if err := m.Validate(scope, vectorNow); err != nil {
+		t.Fatal(err)
+	}
+	var decoded ControlMessage
+	var wire bytes.Buffer
+	if err := WriteFrame(&wire, m, MaxControlBytes); err != nil {
+		t.Fatal(err)
+	}
+	if err := ReadFrame(&wire, &decoded, MaxControlBytes); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Type != ControlResume || decoded.Resume == nil || *decoded.Resume != *m.Resume {
+		t.Fatal("resume wire round trip lost payload")
+	}
+	m.Resume.GrantID = ""
+	requireCode(t, m.Validate(scope, vectorNow), Invalid)
+	m.Resume.GrantID = vectorToken
+	m.Exchange = &LoginExchange{}
+	requireCode(t, m.Validate(scope, vectorNow), Invalid)
+	m.Exchange = nil
+	m.Type = ControlICERequest
+	requireCode(t, m.Validate(scope, vectorNow), Invalid)
+	m.Type = ControlResume
+	other := scope
+	other.ConnectorGeneration++
+	requireCode(t, m.Validate(other, vectorNow), StaleGeneration)
+	requireCode(t, m.Validate(scope, vectorNow.Add(time.Minute)), Expired)
+}
+
 func TestControlMessageExpiry(t *testing.T) {
 	scope := Scope{HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, ControlEpoch: vectorToken, NodeEpoch: vectorToken}
 	for _, kind := range []ControlType{ControlPing, ControlPong} {
@@ -276,59 +332,32 @@ func TestControlMessageExpiry(t *testing.T) {
 			}
 		}
 		requireCode(t, m.Validate(scope, vectorNow.Add(time.Minute)), Expired)
-		for _, lead := range []time.Duration{1370 * time.Millisecond, 5 * time.Second} {
+		for _, lead := range []time.Duration{1370 * time.Millisecond, 5 * time.Second, time.Hour} {
 			m.ExpiresAt = vectorNow.Add(ControlMessageTTL + lead).Unix()
 			if err := m.Validate(scope, vectorNow); err != nil {
 				t.Fatalf("%s sender clock ahead by %s: %v", kind, lead, err)
 			}
 		}
-		m.ExpiresAt = vectorNow.Add(ControlMessageTTL + 6*time.Second).Unix()
-		requireCode(t, m.Validate(scope, vectorNow), Expired)
 		m.ExpiresAt = vectorNow.Unix()
 		requireCode(t, m.Validate(scope, vectorNow), Expired)
 	}
 }
 
-func TestConnectionDemandAuthority(t *testing.T) {
-	scope := Scope{HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, ControlEpoch: vectorToken, NodeEpoch: vectorToken}
-	m := ControlMessage{Version: V1, Type: ControlGrow, RequestID: vectorToken, Scope: scope, ExpiresAt: vectorNow.Add(ControlMessageTTL).Unix(), Grow: &ConnectionDemand{Role: RoleBulk, Connections: MaxRoleConnections}}
-	if err := m.Validate(scope, vectorNow); err != nil {
-		t.Fatal(err)
-	}
-	m.Grow.Role = RoleControl
-	if err := m.Validate(scope, vectorNow); err != nil {
-		t.Fatal(err)
-	}
-	m.Grow.Connections++
-	requireCode(t, m.Validate(scope, vectorNow), Invalid)
-	m.Grow.Connections = 0
-	requireCode(t, m.Validate(scope, vectorNow), Invalid)
-	m.Grow.Connections = 2
-	m.Grow.Role = "untrusted"
-	requireCode(t, m.Validate(scope, vectorNow), Invalid)
-	m.Grow.Role = RoleBulk
-	m.Error = &Error{Code: Unavailable}
-	requireCode(t, m.Validate(scope, vectorNow), Invalid)
-	m.Error = nil
-	stale := scope
-	stale.ConnectorGeneration++
-	requireCode(t, m.Validate(stale, vectorNow), StaleGeneration)
-	requireCode(t, m.Validate(scope, vectorNow.Add(ControlMessageTTL)), Expired)
-}
-
 func TestAuxiliaryConnectorHello(t *testing.T) {
-	for _, role := range []Role{RoleControl, RoleBulk} {
+	for _, role := range []Role{RoleInteractive, RoleBulk} {
 		hello := ConnectorHello{Version: V1, HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, Role: role}
 		if err := hello.Validate(); err != nil {
 			t.Fatal(err)
 		}
 		hello.ConnectorGeneration = 0
-		if role == RoleBulk {
-			requireCode(t, hello.Validate(), Invalid)
-		} else if err := hello.Validate(); err != nil {
-			t.Fatal(err)
-		}
+		requireCode(t, hello.Validate(), Invalid)
 	}
+	hello := ConnectorHello{Version: V1, HostID: vectorHost, BindingGeneration: 1, Role: RoleControl}
+	if err := hello.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	hello.ConnectorGeneration = 2
+	requireCode(t, hello.Validate(), Invalid)
 }
 
 func TestIndependentSignatureVector(t *testing.T) {
@@ -424,4 +453,27 @@ func TestNodeHelloUsesAuthenticatedIdentity(t *testing.T) {
 	requireCode(t, decoded.Validate("node-b", "webmux-control", "", vectorToken, vectorNow), Forbidden)
 	decoded.Hello = nil
 	requireCode(t, decoded.Validate("node-a", "webmux-control", "", vectorToken, vectorNow), Invalid)
+}
+
+func TestManagementAndHTTPRolesAreSeparated(t *testing.T) {
+	scope := Scope{HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, ControlEpoch: vectorToken, NodeEpoch: vectorToken}
+	for _, role := range []Role{RoleControl, RoleInteractive, RoleBulk} {
+		header := StreamHeader{Version: V1, Kind: StreamHTTP, RequestID: vectorToken, Scope: scope, Role: role}
+		if role == RoleControl {
+			requireCode(t, header.Validate(scope, role), Invalid)
+		} else if err := header.Validate(scope, role); err != nil {
+			t.Fatal(err)
+		}
+		header.Kind = StreamControl
+		if role != RoleControl {
+			requireCode(t, header.Validate(scope, role), Invalid)
+		} else if err := header.Validate(scope, role); err != nil {
+			t.Fatal(err)
+		}
+	}
+	legacy := ControlMessage{Version: V1, Type: "transport.grow", RequestID: vectorToken, Scope: scope, ExpiresAt: vectorNow.Add(ControlMessageTTL).Unix()}
+	requireCode(t, legacy.Validate(scope, vectorNow), Invalid)
+	if ConnectorSubprotocol != "webmux-relay.v2" {
+		t.Fatal("breaking connector semantics need explicit subprotocol version")
+	}
 }

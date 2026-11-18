@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
@@ -453,18 +454,72 @@ func TestTailscaleListenTargets(t *testing.T) {
 	}
 	for _, row := range []struct {
 		local string
+		host  string
 		port  int
 		ok    bool
 	}{
-		{"http://127.0.0.1:7681", 7681, true},
-		{"http://[::1]:7681", 0, false},
-		{"http://100.64.0.5:7681", 0, false},
+		{"http://127.0.0.1:7681", "127.0.0.1", 7681, true},
+		// localOrigin reports "::1" for any IPv6-family bind, including a
+		// dual-stack wildcard that does cover IPv4 loopback; the loopback
+		// probe in Start decides whether "::1" is actually usable.
+		{"http://[::1]:7681", "::1", 7681, true},
+		{"http://100.64.0.5:7681", "", 0, false},
 	} {
-		port, ok := localPort(row.local)
-		if port != row.port || ok != row.ok {
-			t.Errorf("localPort(%q) = %d, %v; want %d, %v", row.local, port, ok, row.port, row.ok)
+		host, port, ok := localHostPort(row.local)
+		if host != row.host || port != row.port || ok != row.ok {
+			t.Errorf("localHostPort(%q) = %q, %d, %v; want %q, %d, %v", row.local, host, port, ok, row.host, row.port, row.ok)
 		}
 	}
+}
+
+// A wildcard listen (":0", "0.0.0.0:0" or "[::]:0") binds a dual-stack "[::]"
+// socket whose localOrigin is "http://[::1]:<port>"; Start must not block it
+// while IPv4 loopback actually reaches the port.
+func TestStartAcceptsWildcardBindCoveringIPv4Loopback(t *testing.T) {
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Skipf("wildcard listen unavailable: %v", err)
+	}
+	defer func() { _ = ln.Close() }()
+	port := ln.Addr().(*net.TCPAddr).Port
+	probe, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
+	if err != nil {
+		t.Skipf("wildcard does not cover IPv4 loopback here: %v", err)
+	}
+	_ = probe.Close()
+	ctl := testTailscaleController(t, "", t.TempDir(), config.TailscaleConfig{Mode: "off", Provider: "auto"})
+	ctl.Start(context.Background(), localOrigin(ln.Addr()))
+	ctl.mu.Lock()
+	got, blocked := ctl.localPort, ctl.listenBlocked
+	ctl.mu.Unlock()
+	if blocked != "" || got != port {
+		t.Fatalf("localPort = %d, listenBlocked = %q; want %d, %q", got, blocked, port, "")
+	}
+	ctl.Close()
+}
+
+// A "[::1]"-only bind never covers IPv4 loopback, so Start must block it with
+// the documented "change listen" hint rather than the loopback-probe message.
+func TestStartBlocksIPv6OnlyLoopbackWithRemedyHint(t *testing.T) {
+	ln, err := net.Listen("tcp6", "[::1]:0")
+	if err != nil {
+		t.Skipf("IPv6 loopback unavailable: %v", err)
+	}
+	defer func() { _ = ln.Close() }()
+	port := ln.Addr().(*net.TCPAddr).Port
+	if probe, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second); err == nil {
+		_ = probe.Close()
+		t.Skip("IPv4 loopback unexpectedly reaches an IPv6-only bind")
+	}
+	ctl := testTailscaleController(t, "", t.TempDir(), config.TailscaleConfig{Mode: "off", Provider: "auto"})
+	ctl.Start(context.Background(), localOrigin(ln.Addr()))
+	ctl.mu.Lock()
+	blocked := ctl.listenBlocked
+	ctl.mu.Unlock()
+	if blocked != listenLoopbackHint {
+		t.Fatalf("listenBlocked = %q; want %q", blocked, listenLoopbackHint)
+	}
+	ctl.Close()
 }
 
 func TestClassifyTailscaleError(t *testing.T) {

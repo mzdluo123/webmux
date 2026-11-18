@@ -12,12 +12,12 @@ func TestWireTypesRequireReviewedExternalContractAliases(t *testing.T) {
 	const module = "example.com/host"
 	const protocolPath = "example.com/host/protocol/relay"
 	protocol := types.NewPackage(protocolPath, "relay")
-	approved := types.NewNamed(types.NewTypeName(token.NoPos, protocol, "Enrollment", nil), types.NewStruct(nil, nil), nil)
+	approved := types.NewNamed(types.NewTypeName(token.NoPos, protocol, "ICEEndpoint", nil), types.NewStruct(nil, nil), nil)
 	unaliased := types.NewNamed(types.NewTypeName(token.NoPos, protocol, "DeviceProof", nil), types.NewStruct(nil, nil), nil)
 	other := types.NewPackage("example.com/unrelated", "unrelated")
 	foreign := types.NewNamed(types.NewTypeName(token.NoPos, other, "Payload", nil), types.NewStruct(nil, nil), nil)
 	contract := types.NewPackage(module+"/internal/contract", "contract")
-	alias := types.NewAlias(types.NewTypeName(token.NoPos, contract, "RelayEnrollment", nil), approved)
+	alias := types.NewAlias(types.NewTypeName(token.NoPos, contract, "RelayICEEndpoint", nil), approved)
 	contract.Scope().Insert(alias.Obj())
 	foreignAlias := types.NewAlias(types.NewTypeName(token.NoPos, contract, "Foreign", nil), foreign)
 	contract.Scope().Insert(foreignAlias.Obj())

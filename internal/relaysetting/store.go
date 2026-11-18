@@ -3,7 +3,6 @@ package relaysetting
 import (
 	"crypto/ed25519"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 
 	protocol "github.com/mzdluo123/webmux/protocol/relay"
@@ -40,56 +39,6 @@ type storedFile struct {
 	OwnerLogin      string            `json:"ownerLogin"`
 }
 
-// storedFileV1 is read only: control pins no longer define the public authority.
-// Keep its strict schema and validation so corrupt legacy state still fails closed.
-type storedFileV1 struct {
-	V               int                   `json:"v"`
-	Enabled         *bool                 `json:"enabled"`
-	Confirmed       *bool                 `json:"confirmed"`
-	ControlEndpoint string                `json:"controlEndpoint"`
-	ControlAudience string                `json:"controlAudience"`
-	InitialTrust    protocol.ServiceTrust `json:"initialTrust"`
-	Seed            string                `json:"seed"`
-	PendingSeed     string                `json:"pendingSeed"`
-	Binding         *protocol.Binding     `json:"binding"`
-	OwnerLogin      string                `json:"ownerLogin"`
-}
-
-func (f *storedFile) UnmarshalJSON(data []byte) error {
-	var version struct {
-		V int `json:"v"`
-	}
-	if err := json.Unmarshal(data, &version); err != nil {
-		return err
-	}
-	switch version.V {
-	case 1:
-		var legacy storedFileV1
-		if err := statefile.Decode(data, &legacy); err != nil {
-			return err
-		}
-		if legacy.ControlEndpoint != "" || legacy.ControlAudience != "" {
-			if err := legacy.InitialTrust.Validate(); err != nil {
-				return ErrInvalid
-			}
-		} else if legacy.InitialTrust.Algorithm != "" || len(legacy.InitialTrust.Pins) != 0 {
-			return ErrInvalid
-		}
-		*f = storedFile{V: 2, Enabled: legacy.Enabled, Confirmed: legacy.Confirmed, ControlEndpoint: legacy.ControlEndpoint, ControlAudience: legacy.ControlAudience, Seed: legacy.Seed, PendingSeed: legacy.PendingSeed, Binding: legacy.Binding, OwnerLogin: legacy.OwnerLogin}
-		return nil
-	case 2:
-		type currentFile storedFile
-		var current currentFile
-		if err := statefile.Decode(data, &current); err != nil {
-			return err
-		}
-		*f = storedFile(current)
-		return nil
-	default:
-		return ErrInvalid
-	}
-}
-
 func (storedFile) UnavailableErr() error { return ErrUnavailable }
 
 type Service = settingsstore.Store[Settings, storedFile]
@@ -97,12 +46,11 @@ type Service = settingsstore.Store[Settings, storedFile]
 var storeSpec = settingsstore.Spec[Settings, storedFile]{
 	ID: statefile.Relay,
 	Decode: func(f storedFile, defaults Settings) (Settings, error) {
-		if f.V != 2 || f.Enabled == nil || f.Confirmed == nil {
+		if f.V != 3 || f.Enabled == nil || f.Confirmed == nil {
 			return Settings{}, ErrInvalid
 		}
 		c := config.RelayConfig{Enabled: *f.Enabled, Transport: "wss", ControlEndpoint: f.ControlEndpoint, ControlAudience: f.ControlAudience}
-		// Older unpaired settings could omit the authority entirely. Adopt the
-		// configured defaults only when there is no identity to redirect.
+		// Adopt configured defaults only when no identity can be redirected.
 		if c.ControlEndpoint == "" && c.ControlAudience == "" && f.Seed == "" && f.PendingSeed == "" && f.Binding == nil {
 			c.ControlEndpoint = defaults.Config.ControlEndpoint
 			c.ControlAudience = defaults.Config.ControlAudience
@@ -111,7 +59,7 @@ var storeSpec = settingsstore.Spec[Settings, storedFile]{
 	},
 	Normalize: validateBootstrap,
 	Encode: func(s Settings) storedFile {
-		return storedFile{V: 2, Enabled: &s.Config.Enabled, Confirmed: &s.Confirmed, ControlEndpoint: s.Config.ControlEndpoint, ControlAudience: s.Config.ControlAudience, Seed: s.Seed, PendingSeed: s.PendingSeed, Binding: s.Binding, OwnerLogin: s.OwnerLogin}
+		return storedFile{V: 3, Enabled: &s.Config.Enabled, Confirmed: &s.Confirmed, ControlEndpoint: s.Config.ControlEndpoint, ControlAudience: s.Config.ControlAudience, Seed: s.Seed, PendingSeed: s.PendingSeed, Binding: s.Binding, OwnerLogin: s.OwnerLogin}
 	},
 	FailClosed: func(s *Settings) { s.Config.Enabled = false },
 	Closed:     "relay settings service is closed",
@@ -123,6 +71,9 @@ func validateBootstrap(defaults, next Settings) (Settings, error) {
 	if a.ControlEndpoint != "" && (a.ControlEndpoint != b.ControlEndpoint || a.ControlAudience != b.ControlAudience) {
 		return Settings{}, ErrInvalid
 	}
+	// Pool sizes are local transport policy, not persisted identity state.
+	next.Config.InteractiveConnections = defaults.Config.InteractiveConnections
+	next.Config.BulkConnections = defaults.Config.BulkConnections
 	return validateSettings(next)
 }
 

@@ -7,6 +7,13 @@ import { describe, expect, test } from "vite-plus/test";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const UI_DIR = "src/lib/components/ui/";
+const generatedUIFiles = JSON.parse(
+  readFileSync(`${root}/ui-generated-files.json`, "utf8"),
+) as string[];
+const generatedUI = new Set(generatedUIFiles.map((file) => `${UI_DIR}${file}`));
+const isGeneratedUI = (file: string) => generatedUI.has(file);
+const isProjectUI = (file: string) =>
+  file.startsWith(UI_DIR) && !isGeneratedUI(file);
 const PARAGLIDE_DIR = "src/lib/paraglide/";
 
 const files = globSync("src/**/*.svelte", { cwd: root })
@@ -117,6 +124,23 @@ function radiusViolations(file: string): string[] {
 }
 
 describe("frontend architecture", () => {
+  test("generated UI exemptions name existing files once", () => {
+    const uiFiles = new Set(
+      globSync("src/lib/components/ui/**/*.{ts,svelte}", { cwd: root }).map(
+        (file) => file.replaceAll("\\", "/"),
+      ),
+    );
+    expect(generatedUIFiles).toEqual([...new Set(generatedUIFiles)].sort());
+    expect([...generatedUI].filter((file) => !uiFiles.has(file))).toEqual([]);
+    for (const file of [
+      "list-button/list-button.svelte",
+      "segmented-control/segmented-control.svelte",
+      "tabs/indicator.ts",
+      "new-widget/widget.svelte",
+    ])
+      expect(isProjectUI(`${UI_DIR}${file}`)).toBe(true);
+  });
+
   test("source root contains only bootstrapping, declarations and global styles", () => {
     const entryFiles: Record<string, true> = {
       "src/App.svelte": true,
@@ -210,7 +234,7 @@ describe("frontend architecture", () => {
   test(`appearance of ${MIN_CLASSES}+ classes is not copied into more than ${MAX_FILES} files`, () => {
     const seen = new Map<string, Set<string>>();
     for (const file of files) {
-      if (file.startsWith(UI_DIR)) continue;
+      if (isGeneratedUI(file)) continue;
       const source = readFileSync(`${root}/${file}`, "utf8");
       for (const raw of classStrings(source)) {
         const key = appearanceKey(raw);
@@ -270,12 +294,10 @@ const PASCAL_FILE = /^[A-Z][A-Za-z0-9]*(\.[a-z0-9]+)*\.(svelte|ts)$/;
 describe("file naming", () => {
   const sources = globSync("src/**/*.ts", { cwd: root })
     .map((file) => file.replaceAll("\\", "/"))
-    .filter(
-      (file) => !file.startsWith(UI_DIR) && !file.startsWith(PARAGLIDE_DIR),
-    );
+    .filter((file) => !isGeneratedUI(file) && !file.startsWith(PARAGLIDE_DIR));
   const unitTests = globSync("test/*.ts", { cwd: root });
   const components = globSync("src/**/*.svelte", { cwd: root }).filter(
-    (file) => !file.replaceAll("\\", "/").startsWith(UI_DIR),
+    (file) => !isGeneratedUI(file.replaceAll("\\", "/")),
   );
   const componentTests = [
     ...globSync("test/browser/*.ts", { cwd: root }),
@@ -291,10 +313,15 @@ describe("file naming", () => {
     ).toEqual([]);
   });
 
-  test("Svelte components are PascalCase", () => {
+  test("Svelte components follow business or project UI naming", () => {
     expect(
-      components.filter((file) => !PASCAL_FILE.test(basename(file))),
-      "Name components in PascalCase.",
+      components.filter(
+        (file) =>
+          !(isProjectUI(file)
+            ? /^[a-z0-9]+(-[a-z0-9]+)*\.svelte$/.test(basename(file))
+            : PASCAL_FILE.test(basename(file))),
+      ),
+      "Use PascalCase for business components and kebab-case for project UI.",
     ).toEqual([]);
   });
 

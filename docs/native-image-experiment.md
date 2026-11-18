@@ -1,8 +1,9 @@
 # 原生历史图片传输实验
 
-贡献者可用下列命令生成合成中文历史，并通过隔离的 CLI 会话比较文本与图片。
-已实际验证 `snapcompact-go v0.1.0 → omp → openai-codex/gpt-6.1-sol`：图片可读，但本样本的图片输入比同覆盖投影文本更贵。
-这是 #640 阶段 3、#638 的独立实验，不启动 WebMux，不改变文本路径，不默认启用图片，也不宣称整个阶段已验收。
+当前生成器比较原文、同覆盖投影文本与 Snapcompact 首尾文本/中段图片归档。
+2026-11-18 的工具/代码样本保留 102586 个投影字符，实测输入 token 减少 40.6%；长段落样本减少 15.4%。
+两个样本均无预算省略，13 个精确字段全部正确，没有补查请求。
+生产交接规则见[交接操作](hybrid-sessions/handoff.md)。本页后半保留 v0.1.0 的历史实验结果。
 
 ## 复现与安全边界
 
@@ -11,22 +12,48 @@
 
 ```sh
 out=$(mktemp -d /tmp/webmux-image-experiment.XXXXXX)
-go run ./cmd/native-image-experiment "$out"
+go run ./cmd/native-image-experiment \
+  -scenario tools -model openai-codex/gpt-6-astra -history-cap 64000 "$out"
 python3 cmd/native-image-experiment/run.py "$out" \
-  --backend omp --model openai-codex/gpt-6.1-sol --timeout 90
+  --backend omp --model openai-codex/gpt-6-astra \
+  --modes projected archive --readback --timeout 240
 ```
 
 [生成器](../cmd/native-image-experiment/main.go)直接引用 `go.mod` 已锁定的独立模块，没有复制渲染核心。
-[CLI runner](../cmd/native-image-experiment/run.py)输出每种表示的 JSON 报告；`--modes image` 可单独探测图片，`--backend codex` 可探测 Codex。
+[CLI runner](../cmd/native-image-experiment/run.py)输出逐次报告；`-scenario long` 使用长段落，`-scenario small` 使用短样本；`--backend codex` 可探测 Codex。
 模型 ID 及认证是否可用由当前 CLI 决定；不能把实验所用账号的可用性当作发布保证。
 
-- 历史只有生成器内的四条合成记录，不读取认证文件、环境转储或私人历史，不连接开发服务，不修改用户配置。
+- 历史只包含确定性合成记录，不读取私人历史或认证内容，不连接开发服务，不修改用户配置。
 - 每次请求使用新的临时 cwd；omp 禁用工具、扩展、skills、rules、上下文文件、LSP、标题生成和会话持久化，并限制辅助服务。
-- omp 设置每次运行 `$1` 的软成本上限及超时；正在执行的请求可能超过费用门槛，不把它当作硬账单上限。
+- omp 每次调用默认使用 `$2` 软成本上限及超时；`--max-cost` 可调整，正在执行的请求可能超过软门槛。
 - Codex 使用 `--ignore-user-config --ignore-rules --ephemeral --sandbox read-only --skip-git-repo-check`，不恢复旧会话；这不等同于禁用其全部内置工具。
 - CLI 正常使用已有认证。认证失效时停止该后端，不读取或搬运凭据、不自动登录、不改认证配置。
 - 生成物和原始 CLI 输出留在临时目录；报告权限为 `0600`，临时 cwd 在每次请求后清理。保留结果目录供复核，分享前检查原始输出。
-- 不提交 PNG、base64 或庞大的 CLI 流。仓库只保留生成脚本及[精简实测数据](../cmd/native-image-experiment/measurements.json)。
+- 生成物与逐次输出留在临时目录；仓库保存[归档实测数据](../cmd/native-image-experiment/archive-measurements.json)与[历史数据](../cmd/native-image-experiment/measurements.json)。
+
+## 2026-11-18：上游式混合归档
+
+渲染核心固定为 `snapcompact-go` 提交 `969040513d9e`；使用 omp 18.22.0、`openai-codex/gpt-6-astra`。
+按上游模型几何与点阵布局保留首尾文本，中段使用高密度图片，超出容量时先分级密度再显式省略。
+实验的 `projected.txt` 与归档保留序列完全相同，来源序号映射也相同；任何预算省略、缺字或未覆盖范围均使生成失败。
+
+| 合成样本   | 投影字符 | 记录数 | 文本输入 token | 归档输入 token |  节省 |
+| ---------- | -------: | -----: | -------------: | -------------: | ----: |
+| 长段落     |   102237 |    148 |          30312 |          25659 | 15.4% |
+| 工具与代码 |   102586 |    124 |          43506 |          25857 | 40.6% |
+
+- 每种表示各调用一次；两组均 13/13 字段正确，包含早期约束、各位置随机标记、中文、代码缩进、Shell 标点及最新修正。
+- 两组均无工具调用或补查。`--readback` 仅对明确返回 `NEED_SOURCE` 的字段补充最多三条、6000 字符原文，并单列第二次调用费用；本次没有触发。
+- CLI 报告的总费用：长段落文本 `$0.31427`、归档 `$0.27364`；工具/代码文本 `$0.44641`、归档 `$0.27467`。这是 CLI 目录估计，未核验账单。
+- 每次调用只读取一个最终 usage 快照；输入计数包含缓存与系统开销，未叠加流式事件。
+- 使用 64000 历史预算以保持完整覆盖；生产默认 `handoff_token_cap=16000` 仍有效，大历史需要显式提高预算。更大样本曾因 23 个省略范围被生成器拒绝，没有把删除内容计为压缩收益。
+- 机械投影会规范化空白；两组原始正文分别为 102239、102587 字符。表格比较规范化后的同覆盖正文，不宣称原始字节完全不变。
+- 只覆盖此模型和合成样本，没有置信区间；CLI 附件路径未验证真实 ACP 网关计费。浏览器与 ACP 内容顺序由独立集成回归覆盖。
+
+## 历史实验：v0.1.0
+
+以下记录来自 2026-11-15 的四条合成中文历史；当时完整历史图片比同覆盖投影文本更贵。
+对应生成器与旧模式保留在提交历史中，当前命令使用上述归档模式。
 
 ## 样本与评分
 
@@ -105,5 +132,6 @@ omp 使用自己的已配置 provider 正常成功，不把 Codex 的认证失�
 
 尚未测定模型/网关的最大图片数、detail、像素上限、请求体上限，也未独立验证最终计费规则；只确认本次 3 图/2 图输入可完成上述读取。
 没有通过 WebMux/ACP 或原生历史注入接口发送，不把这条 CLI 证据写成 WebMux 端到端交接已经支持图片。
-当前[原生历史开发入口](codex-native.md)仍只负责导入、冻结、机械投影和渲染。
-所有未实测组合、缺字/覆盖不全、能力或成本未知的情况继续文本；本次已测组合也没有显示相对投影文本的成本优势，不建议默认转图。
+实验时的[原生历史开发入口](codex-native.md)只负责导入、冻结、机械投影和渲染。
+当时对未实测组合、缺字/覆盖不全、能力或成本未知情况保留文本，并因未显示成本优势而不建议默认转图。
+这些结论保留其历史范围；当前图片交接遇到上述阻止条件时要求用户重新选择格式并预览，没有静默文本回退。

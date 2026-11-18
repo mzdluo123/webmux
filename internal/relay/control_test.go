@@ -27,7 +27,14 @@ func TestControlExchangeICEAndOwnerIsolation(t *testing.T) {
 	if result.Error != nil {
 		t.Fatal(result.Error)
 	}
-	awaitRole(t, bulks)
+	// Finish auxiliary authentication before the invalid-owner response closes
+	// the generation, so the node fixture sees no interrupted handshakes.
+	for range c.config.InteractiveConnections {
+		awaitRole(t, controls)
+	}
+	for range c.config.BulkConnections {
+		awaitRole(t, bulks)
+	}
 	exchange := protocol.LoginExchange{Code: testToken(t), Verifier: strings.Repeat("a", 43), RedirectURI: a.Binding.PublicURL + protocol.HostLoginCallback}
 	type grantResult struct {
 		grant protocol.BrowserGrant
@@ -54,6 +61,29 @@ func TestControlExchangeICEAndOwnerIsolation(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("grant RPC did not finish")
+	}
+
+	go func() {
+		grant, err := c.Resume(ctx, protocol.LoginResume{GrantID: grant.ID})
+		granted <- grantResult{grant, err}
+	}()
+	if err := protocol.ReadFrame(stream, &request, protocol.MaxControlBytes); err != nil {
+		t.Fatal(err)
+	}
+	if request.Type != protocol.ControlResume || request.Resume == nil || request.Resume.GrantID != grant.ID {
+		t.Fatal("resume grant identity not preserved")
+	}
+	response.RequestID = request.RequestID
+	if err := protocol.WriteFrame(stream, response, protocol.MaxControlBytes); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-granted:
+		if got.err != nil || got.grant != grant {
+			t.Fatalf("resumed grant = %#v, %v", got.grant, got.err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("resume RPC did not finish")
 	}
 
 	iceRequest := protocol.ICERequest{GrantID: grant.ID, PeerConnectionID: testToken(t)}

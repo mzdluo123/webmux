@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"strings"
+	"slices"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -16,18 +16,21 @@ import (
 	"github.com/rainchan/webmux/internal/historysource"
 	"github.com/rainchan/webmux/internal/hybrid"
 	"github.com/rainchan/webmux/internal/launch"
+	"github.com/rainchan/webmux/internal/sessioncreate"
 )
 
 const operationLifetime = 15 * time.Minute
 const maxPreviews = 32
 const maxOperations = 256
+const maxImagePages = 8
 
 type historyBinding struct{ scopeID, identity string }
 
 type operationEntry struct {
-	operation Operation
-	preview   *Preview
-	cancel    context.CancelFunc
+	operation      Operation
+	preview        *Preview
+	cancel         context.CancelFunc
+	upstreamChoice *sessioncreate.UpstreamChoice
 }
 type Service struct {
 	history    map[string]historyBinding
@@ -56,7 +59,18 @@ func New(o Options) *Service {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Service{options: o, history: map[string]historyBinding{}, previews: map[string]*Preview{}, operations: map[string]*operationEntry{}, instance: rand.Text(), now: time.Now, ctx: ctx, cancel: cancel}
 }
-func (s *Service) Close() { s.mu.Lock(); s.closed = true; s.cancel(); s.mu.Unlock(); s.workers.Wait() }
+func (s *Service) Close() {
+	s.mu.Lock()
+	s.closed = true
+	s.cancel()
+	for _, e := range s.operations {
+		if e.operation.State == "awaiting_upstream" {
+			s.finishLocked(e, "failed", "服务已关闭")
+		}
+	}
+	s.mu.Unlock()
+	s.workers.Wait()
+}
 func (s *Service) cleanLocked() {
 	now := s.now()
 	for key, binding := range s.history {
@@ -78,6 +92,9 @@ func (s *Service) cleanLocked() {
 		}
 	}
 	for id, e := range s.operations {
+		if e.operation.State == "awaiting_upstream" && e.preview != nil && !now.Before(e.preview.ExpiresAt) {
+			s.finishLocked(e, "failed", ErrExpired.Error())
+		}
 		if e.operation.FinishedAt != nil && !now.Before(e.operation.FinishedAt.Add(operationLifetime)) {
 			delete(s.operations, id)
 		}
@@ -101,12 +118,22 @@ func runtimeIdentity(r hybrid.Record) string {
 func clonePreview(p *Preview) Preview {
 	out := *p
 	out.Request.AgentConfig = maps.Clone(p.Request.AgentConfig)
+	out.Pages = slices.Clone(p.Pages)
 	return out
 }
 func (s *Service) Preview(ctx context.Context, source string, in Request) (Preview, error) {
 	var empty Preview
 	if s.options.Hybrid == nil || s.options.NativeHistory == nil || s.options.HistoryProjection == nil || s.options.Launch == nil {
 		return empty, ErrUnavailable
+	}
+	if in.Format == "" {
+		in.Format = "image"
+	}
+	if in.MaxPages == 0 {
+		in.MaxPages = maxImagePages
+	}
+	if (in.Format != "image" && in.Format != "text") || in.MaxPages < 1 || in.MaxPages > maxImagePages {
+		return empty, ErrInvalid
 	}
 	if !utf8.ValidString(in.UserText) || len(in.UserText) > int(s.options.MaxPromptBytes) || len(in.AgentConfig) > 64 {
 		return empty, ErrInvalid
@@ -182,38 +209,16 @@ func (s *Service) Preview(ctx context.Context, source string, in Request) (Previ
 	if err != nil {
 		return empty, err
 	}
-	header := fmt.Sprintf("Historical reference. Source agent=%q session=%q branch=%q cwd=%q. Frozen scope: %s. Source gaps: %d. Exact text: thread_read with snapshotId=%s.\n", doc.Source.Agent, doc.Source.NativeID, doc.Source.Branch, rec.Cwd, scope.ID, len(doc.Gaps), scope.ID)
-	available := max(int64(0), budget.History-int64(len(header))-512)
-	var selected []string
-	omitted := len(projection.Projection.Omissions)
-	segments := projection.Projection.Segments
-	// Recent complete segments are selected within the configured history budget.
-	for i := len(segments) - 1; i >= 0; i-- {
-		item := fmt.Sprintf("[role=%s id=%s tool=%s]\n%s\n", segments[i].Role, segments[i].SourceID, segments[i].ToolName, segments[i].Text)
-		cost := jsonBytes(item)
-		if cost > available {
-			omitted++
-			continue
-		}
-		available -= cost
-		selected = append(selected, item)
-	}
-	var history strings.Builder
-	history.WriteString(header)
-	fmt.Fprintf(&history, "Included: %d; omissions: %d.\n", len(selected), omitted)
-	for i := len(selected) - 1; i >= 0; i-- {
-		history.WriteString(selected[i])
-	}
-	text := history.String() + "\nCurrent user task:\n" + in.UserText
-	if err := hybrid.ValidatePromptText(text, 0); err != nil {
+	header := fmt.Sprintf("Historical reference. Source agent=%q session=%q branch=%q cwd=%q. Frozen scope: %s. Source gaps: %d. Exact text: thread_read with view=activity snapshotId=%s.\n", doc.Source.Agent, doc.Source.NativeID, doc.Source.Branch, rec.Cwd, scope.ID, len(doc.Gaps), scope.ID)
+	p, err := s.preparePreview(ctx, in, projection.Projection, header, budget)
+	if err != nil {
 		return empty, err
 	}
-	budget.Used = jsonBytes(history.String())
-	budget.OverBudget = budget.OverBudget || budget.Used > budget.History
-	if budget.OverBudget {
-		return empty, ErrBudget
+	storage := len(p.Text) + len(p.HistoryText) + len(in.UserText) + metadata + 2048
+	for _, page := range p.Pages {
+		storage += len(page.Data) + len(page.SHA256) + len(page.MimeType) + 64
 	}
-	if err := s.options.NativeHistory.ReserveScopeBytes(scope.ID, len(text)+len(in.UserText)+metadata+2048); err != nil {
+	if err := s.options.NativeHistory.ReserveScopeBytes(scope.ID, storage); err != nil {
 		return empty, err
 	}
 	in.AgentConfig = maps.Clone(in.AgentConfig)
@@ -228,7 +233,10 @@ func (s *Service) Preview(ctx context.Context, source string, in Request) (Previ
 	}
 	now := s.now()
 	id := s.instance + "_" + rand.Text()
-	p := &Preview{ID: id, InstanceID: s.instance, OperationID: s.instance + "_" + rand.Text(), SourceSessionID: source, SnapshotID: scope.ID, Request: in, Text: text, UserText: in.UserText, CreatedAt: now, ExpiresAt: scope.ExpiresAt, SelectedCount: len(selected), OmittedCount: omitted, GapCount: len(doc.Gaps), Budget: budget, sourceIdentity: runtimeIdentity(rec), targetIdentity: targetIdentity, configHash: fingerprint}
+	p.ID, p.InstanceID, p.OperationID = id, s.instance, s.instance+"_"+rand.Text()
+	p.SourceSessionID, p.SnapshotID, p.Request = source, scope.ID, in
+	p.CreatedAt, p.ExpiresAt, p.GapCount = now, scope.ExpiresAt, len(doc.Gaps)
+	p.sourceIdentity, p.targetIdentity, p.configHash = runtimeIdentity(rec), targetIdentity, fingerprint
 	s.previews[id] = p
 	saved = true
 	return clonePreview(p), nil
@@ -269,6 +277,9 @@ func (s *Service) Deliver(ctx context.Context, previewID, operationID string) (O
 	if p.consumed || operationID != p.OperationID {
 		return Operation{}, ErrConflict
 	}
+	if p.BlockedReason != "" {
+		return Operation{}, fmt.Errorf("%w: %s", ErrInvalid, p.BlockedReason)
+	}
 	if len(s.operations) >= maxOperations {
 		return Operation{}, ErrLimit
 	}
@@ -281,6 +292,42 @@ func (s *Service) Deliver(ctx context.Context, previewID, operationID string) (O
 	s.operations[operationID] = e
 	s.workers.Add(1)
 	go func() { defer s.workers.Done(); defer cancel(); s.send(ctx, e) }()
+	return e.operation, nil
+}
+
+// ConfirmUpstream resumes the same frozen delivery after an explicit decision.
+// Repeating an accepted decision observes its operation without starting it again.
+func (s *Service) ConfirmUpstream(ctx context.Context, previewID, operationID string, choice sessioncreate.UpstreamChoice) (Operation, error) {
+	if err := ctx.Err(); err != nil {
+		return Operation{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleanLocked()
+	if s.closed {
+		return Operation{}, ErrUnavailable
+	}
+	e := s.operations[operationID]
+	if e == nil || e.operation.PreviewID != previewID {
+		return Operation{}, ErrConflict
+	}
+	if e.upstreamChoice != nil && *e.upstreamChoice == choice && e.operation.State != "awaiting_upstream" {
+		return e.operation, nil
+	}
+	check := e.operation.WorktreeUpstream
+	if e.operation.State != "awaiting_upstream" || check == nil || check.ConfirmationID != choice.ConfirmationID {
+		return Operation{}, ErrConflict
+	}
+	if choice.UseUpstream && !check.CanUseUpstream {
+		return Operation{}, ErrInvalid
+	}
+	e.upstreamChoice = &choice
+	e.operation.WorktreeUpstream = nil
+	e.operation.State = "preparing"
+	runCtx, cancel := context.WithCancel(s.ctx)
+	e.cancel = cancel
+	s.workers.Add(1)
+	go func() { defer s.workers.Done(); defer cancel(); s.send(runCtx, e) }()
 	return e.operation, nil
 }
 func (s *Service) Delivery(ctx context.Context, id string) (Operation, error) {
@@ -310,7 +357,7 @@ func (s *Service) Cancel(ctx context.Context, id string) (Operation, error) {
 		return e.operation, nil
 	}
 	e.cancel()
-	if e.operation.State == "preparing" {
+	if e.operation.State == "preparing" || e.operation.State == "awaiting_upstream" {
 		s.finishLocked(e, "failed", "已取消")
 	}
 	return e.operation, nil

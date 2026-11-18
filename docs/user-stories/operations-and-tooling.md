@@ -33,8 +33,8 @@
   - 支持 `default_cwd`、`scrollback_bytes`、`idle_after_seconds`、`prompt_patterns`、`agent_protocol`、`bell_attention`、`program_status`、`agent_pretrust`，校验正则；
   - `agent_protocol`、`bell_attention`、`program_status` 属于核心 PTY 状态识别，不依赖通知或聊天功能；`agent_pretrust` 与 agent 专属提交延迟由 `launch` 启动集成提供，未选择时不装配；
   - 启动命令由显式 argv（核心）或 `launch` 保存配置提供，原 `shell`/`presets` 不提供内置命令；仅首次启用 `launch` 且文件缺失时写入常见 agent 预设；
-  - 选择 `chat` 后，通过 Agent 原生身份读取历史；`handoff_token_cap` 设置交接历史预算上限。
-  - 选择 `chat` 后，`handoff_token_cap` 默认 16000，校验范围 1024–64000，限制交接历史保守预算；实际预算仍受上下文窗口和 prompt 上限约束；
+  - 选择 `chat` 后，通过 Agent 原生身份读取历史，默认首尾文本与中段图片的压缩归档、显式文本；图片最多 8 页，短历史完整保持文本；
+  - `handoff_token_cap` 默认 16000、范围 1024–64000，约束文本保守上界与图片 token 估计之和，并受窗口和 prompt 上限限制；图片字节另受附件与编码请求限制，未知费率明确标注；
   - 提醒集成方式见 [使用指南](../usage/attention.md)。
 - **US-K05 安装后台用户服务**：作为部署者，我希望以当前用户安装并启动后台服务，以便不需要一直开着前台终端。
   验收要点：
@@ -145,7 +145,7 @@
   验收要点：
   - `[features] enabled = []` 只运行核心；新生成的默认配置显式使用空数组。旧配置缺表或缺 `enabled` 时启用固定的旧功能集合，不随未来新增功能扩张；
   - 启动时自动将旧 `[plugins]` 迁移为 `[features]`，保留原功能选择和其他配置值，原文以 0600 备份到配置路径加 `.pre-features.bak`；新旧两表并存时报错且原文件不变；再次启动不重写已迁移文件，`config show` / `validate` 保持只读；
-  - 可选 ID 为 `launch`、`workspace`、`code`、`files`、`chat`、`notifications`、`quick-commands`、`voice`、`forward`、`cloudflare`、`tailscale`、`p2p`、`mcp`、`immersive`；
+  - 可选 ID 为 `launch`、`workspace`、`code`、`files`、`chat`、`notifications`、`quick-commands`、`voice`、`forward`、`cloudflare`、`tailscale`、`p2p`、`mcp`；旧配置显式包含已移除的 `immersive` 时，启动前报告未知 ID，需从 `enabled` 删除；
   - 未知、重复 ID 与缺少依赖在启动前拒绝，不自动补依赖；`chat` 要求显式选择 `launch`、`files`，Git 工作台要求同时选择 `workspace`、`code`；
   - 功能选择变更须重启，网页设置不安装功能、不热切换选择，也不加载远程脚本。
 - **US-K19 不启用功能也能工作**：作为只需要终端的使用者，我希望核心模式仍能创建和接续 Shell，以便不依赖仓库或 agent 业务服务。
@@ -212,7 +212,7 @@
   - Go 采用 Uber Style Guide 与登记的仓库例外，`make check` 和 CI 在前端构建后执行 `go vet ./...`（CI 另以 `GOOS=darwin` 检查 macOS 构建）及固定 v2.15.0 的 golangci-lint（errcheck/govet/ineffassign/staticcheck/unused），生产零告警，测试仅冻结 errcheck，新增代码零新增告警，豁免只能收紧；
   - CI 先由 `Classify changes` job 按路径裁剪：仅文档变更只跑格式、文档、持久化与 agent/web 静态守卫，仅 Go 变更跳过前端套件，仅前端变更跳过 Go race 与 Windows 交叉编译，未知路径和工具/依赖变更全量运行；Go wire 快照同时触发前端 Zod 契约测试，分类脚本有独立路径用例；
   - 每次推送到 `main` 都强制完整运行（跳过分类），供发版复用；GitHub 并发组只保留一个待运行，密集合并仍可能取消中间提交的待运行，该提交发版时回退完整重跑；
-  - 独立的 `E2E runtime` job 按冻结锁文件统一安装并打包 Playwright、能力契约校验所需的 Zod 和 XR 夹具所需的 IWER；
+  - 独立的 `E2E runtime` job 按冻结锁文件统一安装并打包 Playwright 与能力契约校验所需的 Zod；
   - Makefile、CI 与本地 Playwright 从同一清单构建全部 agent 与连接器假程序（含 `agy`、`qoder`、`qodercn`、`kimi`），Qoder/QoderCN 也有双向往返 E2E，供 Ubuntu 4 个 E2E 分片及 Go race job 共用；
   - 分片仅准备 Node 与浏览器，不重复安装 pnpm、前端依赖、Go 或构建应用；
   - 显式预构建路径无效或缺少假 agent 时失败，本地默认仍从源码构建；

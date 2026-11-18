@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/tls"
 	"strconv"
@@ -19,27 +20,41 @@ import (
 	"github.com/rainchan/webmux/internal/transport"
 )
 
+type relayControlClient interface {
+	Enroll(context.Context, ed25519.PrivateKey, protocol.MachineID) (protocol.Enrollment, error)
+	Poll(context.Context, protocol.Token) (protocol.EnrollmentResult, error)
+	Cancel(context.Context, protocol.Token) error
+	Delete(context.Context, ed25519.PrivateKey, protocol.Binding) (protocol.BindingDeletionResult, error)
+	Assignment(context.Context, ed25519.PrivateKey, protocol.Binding) (protocol.Assignment, error)
+	Connect(context.Context, ed25519.PrivateKey, protocol.Assignment, relay.Callbacks) error
+}
+
 type relayController struct {
-	op             sync.Mutex
-	mu             sync.Mutex
-	ctx            context.Context
-	store          *relaysetting.Service
-	client         *relay.Client
-	auth           *relaysetting.Auth
-	p2p            *p2p.Service
-	public         *transport.PublicOrigins
-	tokenStrong    bool
-	settings       relaysetting.Settings
-	status         contract.RelayStatus
-	generation     uint64
-	cancel         context.CancelFunc
-	done           chan struct{}
-	assignment     protocol.Assignment
-	scope          protocol.Scope
-	pending        [32]byte
-	pendingExpires int64
-	nextPoll       time.Time
-	pollInterval   time.Duration
+	op            sync.Mutex
+	mu            sync.Mutex
+	ctx           context.Context
+	store         *relaysetting.Service
+	machine       *relaysetting.Machine
+	client        relayControlClient
+	auth          *relaysetting.Auth
+	p2p           *p2p.Service
+	public        *transport.PublicOrigins
+	tokenStrong   bool
+	settings      relaysetting.Settings
+	status        contract.RelayStatus
+	generation    uint64
+	cancel        context.CancelFunc
+	done          chan struct{}
+	assignment    protocol.Assignment
+	scope         protocol.Scope
+	pairing       contract.RelayPairing
+	pairingWake   chan struct{}
+	pairingDone   chan struct{}
+	pairingStop   context.CancelFunc
+	pairingCancel bool
+	pairingNow    func() time.Time
+	pairingWait   func(context.Context, <-chan struct{}, time.Duration) bool
+	closed        bool
 }
 
 var _ api.RelayControl = (*relayController)(nil)
@@ -54,8 +69,20 @@ func newRelayController(ctx context.Context, c config.Config, public *transport.
 	if web {
 		source = "web"
 	}
-	rc := &relayController{ctx: ctx, store: store, settings: settings, public: public, tokenStrong: len(c.Token) >= 43}
+	rc := &relayController{ctx: ctx, store: store, machine: relaysetting.OpenMachine(c.StateDir), settings: settings, public: public, tokenStrong: len(c.Token) >= 43}
+	rc.pairing = contract.RelayPairing{Phase: "idle"}
+	rc.pairingNow = time.Now
+	rc.pairingWait = waitRelayPairing
+	if settings.PendingSeed != "" {
+		settings.PendingSeed = ""
+		rc.settings = settings
+		rc.pairing = contract.RelayPairing{Phase: "interrupted", Error: "pairing-interrupted"}
+		if err := store.Save(settings); err != nil {
+			rc.pairing.Error = "storage-unavailable"
+		}
+	}
 	rc.status = contract.RelayStatus{State: "off", Transport: "wss", TCPAlgorithm: "unknown", ControlSource: source, ControlReachability: "unknown", DataReachability: "unassigned", AssignmentRevision: "0", ConfigRevision: "0", AppliedRevision: "0", AssignmentSource: "unassigned", Capabilities: []string{}, Sessions: []contract.RelaySessionDiagnostic{}}
+	rc.status.Operation = contract.RelayOperation{Kind: "idle", Phase: "idle"}
 	rc.status.HybridUnavailableReason = "p2p-feature-unavailable"
 	client, err := relay.New(assemble.RelayOptions(settings.Config, address, localTLS))
 	if err != nil {
@@ -67,6 +94,7 @@ func newRelayController(ctx context.Context, c config.Config, public *transport.
 	rc.auth, err = relaysetting.NewAuth(relaysetting.AuthConfig{}, relaysetting.AuthDependencies{Client: client, Snapshot: rc.authSnapshot})
 	if err != nil {
 		store.Close()
+		rc.machine.Close()
 		return nil, err
 	}
 	return rc, nil
@@ -75,10 +103,10 @@ func newRelayController(ctx context.Context, c config.Config, public *transport.
 func (rc *relayController) authSnapshot() (relaysetting.AuthBinding, bool) {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
-	if !rc.status.ControlReady || rc.settings.Binding == nil {
+	if rc.settings.Binding == nil {
 		return relaysetting.AuthBinding{}, false
 	}
-	return relaysetting.AuthBinding{Binding: *rc.settings.Binding, Scope: rc.scope, ControlOrigin: rc.settings.Config.ControlEndpoint}, true
+	return relaysetting.AuthBinding{Binding: *rc.settings.Binding, Scope: rc.scope, ControlOrigin: rc.settings.Config.ControlEndpoint}, rc.status.ControlReady
 }
 
 func (rc *relayController) Status() contract.RelayStatus {
@@ -87,7 +115,7 @@ func (rc *relayController) Status() contract.RelayStatus {
 	s := rc.status
 	s.Enabled = rc.settings.Config.Enabled
 	s.Paired = rc.settings.Binding != nil
-	s.Pairing = rc.pendingExpires > time.Now().Unix()
+	s.Pairing = activeRelayPairing(rc.pairing.Phase)
 	s.StorageAvailable = rc.store.Unavailable() == nil
 	s.TokenStrong = rc.tokenStrong
 	s.ControlEndpoint = rc.settings.Config.ControlEndpoint
@@ -125,18 +153,25 @@ func (rc *relayController) Status() contract.RelayStatus {
 	return s
 }
 
-func (rc *relayController) Update(ctx context.Context, req contract.RelayUpdate) (contract.RelayStatus, error) {
+func (rc *relayController) Update(_ context.Context, req contract.RelayUpdate) (contract.RelayStatus, error) {
 	rc.op.Lock()
 	defer rc.op.Unlock()
 	if req.Enabled == nil {
 		return rc.Status(), relaysetting.ErrInvalid
 	}
+	kind := "disable"
+	if *req.Enabled {
+		kind = "enable"
+	}
+	rc.beginOperation(kind)
 	rc.mu.Lock()
 	next := rc.settings
 	rc.mu.Unlock()
 	if *req.Enabled && (!req.ConfirmPublic || !rc.tokenStrong || next.Binding == nil || rc.client == nil || rc.store.Unavailable() != nil) {
-		return rc.Status(), relaysetting.ErrEnableBlocked
+		return rc.finishOperation(relaysetting.ErrEnableBlocked, false)
 	}
+	ctx, cancel := context.WithTimeout(rc.ctx, protocol.RequestTimeout)
+	defer cancel()
 	next.Config.Enabled = *req.Enabled
 	if *req.Enabled {
 		next.Confirmed = true
@@ -144,9 +179,9 @@ func (rc *relayController) Update(ctx context.Context, req contract.RelayUpdate)
 	rc.stop(ctx)
 	if err := rc.store.Save(next); err != nil {
 		if !*req.Enabled {
-			return rc.Status(), relaysetting.ErrNotPersisted
+			return rc.finishOperation(relaysetting.ErrNotPersisted, false)
 		}
-		return rc.Status(), err
+		return rc.finishOperation(err, false)
 	}
 	rc.mu.Lock()
 	rc.settings = next
@@ -154,27 +189,61 @@ func (rc *relayController) Update(ctx context.Context, req contract.RelayUpdate)
 	if *req.Enabled {
 		rc.restart()
 	}
-	return rc.Status(), nil
+	return rc.finishOperation(nil, false)
 }
 
-func (rc *relayController) Reconnect(ctx context.Context) (contract.RelayStatus, error) {
+func (rc *relayController) Reconnect(requestCtx context.Context) (contract.RelayStatus, error) {
 	rc.op.Lock()
 	defer rc.op.Unlock()
+	rc.beginOperation("reconnect")
 	rc.mu.Lock()
 	enabled := rc.settings.Config.Enabled
 	rc.mu.Unlock()
 	if !enabled || rc.client == nil || rc.store.Unavailable() != nil {
-		return rc.Status(), relaysetting.ErrEnableBlocked
+		return rc.finishOperation(relaysetting.ErrEnableBlocked, false)
 	}
-	rc.stop(ctx)
+	ctx, cancel := context.WithTimeout(requestCtx, protocol.RequestTimeout)
+	defer cancel()
+	rc.stopTransport()
+	if rc.auth != nil {
+		_ = rc.auth.SuspendAll(ctx)
+	}
 	rc.mu.Lock()
 	rc.settings.Config.Enabled = true
 	rc.mu.Unlock()
 	rc.restart()
-	return rc.Status(), nil
+	return rc.finishOperation(nil, false)
+}
+
+func (rc *relayController) beginOperation(kind string) {
+	rc.mu.Lock()
+	rc.status.Operation = contract.RelayOperation{Kind: kind, Phase: "submitting"}
+	rc.mu.Unlock()
+}
+
+func (rc *relayController) finishOperation(err error, uncertain bool) (contract.RelayStatus, error) {
+	rc.mu.Lock()
+	rc.status.Operation.Phase = "completed"
+	rc.status.Operation.Error = ""
+	if err != nil {
+		rc.status.Operation.Phase = "failed"
+		if uncertain {
+			rc.status.Operation.Phase = "uncertain"
+		}
+		rc.status.Operation.Error = safeRelayError(err)
+	}
+	rc.mu.Unlock()
+	return rc.Status(), err
 }
 
 func (rc *relayController) stop(ctx context.Context) {
+	rc.stopTransport()
+	if rc.auth != nil {
+		_ = rc.auth.InvalidateAll(ctx)
+	}
+}
+
+func (rc *relayController) stopTransport() {
 	rc.mu.Lock()
 	rc.generation++
 	rc.public.Clear("relay")
@@ -190,9 +259,6 @@ func (rc *relayController) stop(ctx context.Context) {
 	rc.status.State = "off"
 	rc.scope = protocol.Scope{}
 	rc.mu.Unlock()
-	if rc.auth != nil {
-		_ = rc.auth.InvalidateAll(ctx)
-	}
 }
 
 func (rc *relayController) restart() {
@@ -273,21 +339,7 @@ func (rc *relayController) run(ctx context.Context, gen uint64, settings relayse
 				Ready: func(scope protocol.Scope) {
 					rc.connected(ctx, gen, settings, scope)
 				},
-				BulkReady: func(ready bool) {
-					rc.mu.Lock()
-					defer rc.mu.Unlock()
-					if gen != rc.generation {
-						return
-					}
-					rc.status.BulkReady = ready
-					if ready {
-						rc.status.ReadyConnections = 2
-						rc.status.State = "ready"
-					} else if rc.status.ControlReady {
-						rc.status.ReadyConnections = 1
-						rc.status.State = "degraded"
-					}
-				},
+				PoolsReady:   func(interactive, bulk bool) { rc.poolsReady(gen, interactive, bulk) },
 				Disconnected: func() { rc.disconnected(gen) },
 				Revoke:       func(ctx context.Context, r protocol.Revocation) error { return rc.revoke(ctx, gen, r) },
 			})
@@ -352,8 +404,8 @@ func (rc *relayController) connected(ctx context.Context, gen uint64, settings r
 	}
 	rc.scope = scope
 	rc.status.ControlReady = true
-	rc.status.State = "degraded"
-	rc.status.ReadyConnections = 1
+	rc.status.State = "connecting"
+	rc.status.ReadyConnections = 0
 	rc.status.PublicURL = settings.Binding.PublicURL
 	rc.status.DataReachability = "reachable"
 	rc.status.AppliedRevision = rc.status.ConfigRevision
@@ -378,7 +430,7 @@ func (rc *relayController) disconnected(gen uint64) {
 	if rc.auth != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), protocol.RequestTimeout)
 		defer cancel()
-		_ = rc.auth.InvalidateAll(ctx)
+		_ = rc.auth.SuspendAll(ctx)
 	}
 }
 
@@ -410,6 +462,16 @@ func (rc *relayController) Start() {
 }
 
 func (rc *relayController) Close() {
+	rc.mu.Lock()
+	rc.closed = true
+	pairingDone := rc.pairingDone
+	if rc.pairingStop != nil {
+		rc.pairingStop()
+	}
+	rc.mu.Unlock()
+	if pairingDone != nil {
+		<-pairingDone
+	}
 	rc.op.Lock()
 	defer rc.op.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), protocol.RequestTimeout)
@@ -425,4 +487,5 @@ func (rc *relayController) Close() {
 		_ = rc.auth.Close()
 	}
 	rc.store.Close()
+	rc.machine.Close()
 }

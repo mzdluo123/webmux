@@ -27,12 +27,15 @@ type Options struct {
 }
 
 type Service struct {
-	source      Source
-	preprocess  snapcompact.PreprocessConfig
-	render      snapcompact.RenderConfig
-	once        sync.Once
-	renderer    snapcompact.Renderer
-	renderError error
+	source       Source
+	preprocess   snapcompact.PreprocessConfig
+	render       snapcompact.RenderConfig
+	once         sync.Once
+	renderer     snapcompact.Renderer
+	renderError  error
+	archiveOnce  sync.Once
+	archive      snapcompact.ArchiveRenderer
+	archiveError error
 }
 
 type Preview struct {
@@ -43,6 +46,9 @@ type Preview struct {
 }
 
 func New(o Options) *Service {
+	if o.Render == (snapcompact.RenderConfig{}) {
+		o.Render = snapcompact.DefaultRenderConfig()
+	}
 	return &Service{source: o.Source, preprocess: o.Preprocess, render: o.Render}
 }
 
@@ -84,6 +90,9 @@ func (s *Service) ProjectDocument(ctx context.Context, doc historysource.Documen
 		if !record.Exportable() {
 			continue
 		}
+		if strings.TrimSpace(record.Text) == "" && record.ToolName == "" && record.CallID == "" && record.Status == "" {
+			continue
+		}
 		// Unknown structure stays conservative; only an explicit prose message
 		// is eligible for prose whitespace folding. Tool bodies retain lines.
 		kind := "structured"
@@ -95,7 +104,7 @@ func (s *Service) ProjectDocument(ctx context.Context, doc historysource.Documen
 			item.Role = "assistant"
 		}
 		switch record.Kind {
-		case "tool_arguments":
+		case "tool_arguments", "tool-call":
 			item.Role = "tool_call"
 			decoder := json.NewDecoder(strings.NewReader(record.Text))
 			decoder.UseNumber()
@@ -108,7 +117,7 @@ func (s *Service) ProjectDocument(ctx context.Context, doc historysource.Documen
 		case "tool":
 			item.Role = "tool_call"
 			item.CallBody, item.Text = record.Text, ""
-		case "tool_result":
+		case "tool_result", "tool-result":
 			item.Role = "tool"
 			if item.ToolName == "" {
 				item.ToolName = calls[item.CallID]
@@ -126,16 +135,50 @@ func (s *Service) ProjectDocument(ctx context.Context, doc historysource.Documen
 	if err != nil {
 		return out, err
 	}
-	identity := fmt.Sprintf("%s:%s:%s:%+v", doc.Cursor, doc.ParserVersion, out.Projection.CacheKey, cfg)
-	if render {
-		s.once.Do(func() { s.renderer, s.renderError = snapcompact.NewRenderer() })
-		if s.renderError != nil {
-			return out, s.renderError
+	// v0.1.0 在正文首行写入身份 JSON；图片 renderer 自带身份标题。
+	// 正文保留字段标签与原始 Sources，文本交接由调用方添加一次标题。
+	for i := range out.Projection.Segments {
+		_, body, ok := strings.Cut(out.Projection.Segments[i].Text, "\n")
+		if ok {
+			record := input.History[i]
+			if record.Arguments == nil && record.CallBody == "" {
+				body = strings.TrimPrefix(body, "text:\n")
+			} else if record.Text == "" {
+				body = strings.TrimSuffix(body, "text:\n\n")
+			}
+			out.Projection.Segments[i].Text = body
 		}
-		out.Render, err = s.renderer.Render(ctx, out.Projection, s.render)
+	}
+	identity := fmt.Sprintf("compact-body-1:%s:%s:%s:%+v", doc.Cursor, doc.ParserVersion, out.Projection.CacheKey, cfg)
+	if render {
+		out.Render, err = s.RenderProjection(ctx, out.Projection)
 		identity += fmt.Sprintf(":%+v:%s", s.render, out.Render.CacheKey)
 	}
 	sum := sha256.Sum256([]byte(identity))
 	out.ID = hex.EncodeToString(sum[:])
 	return out, err
+}
+
+// RenderProjection renders the selected complete segments without changing
+// their source association or reopening native history.
+func (s *Service) RenderProjection(ctx context.Context, projection snapcompact.Projection, maxPages ...int) (snapcompact.RenderResult, error) {
+	s.once.Do(func() { s.renderer, s.renderError = snapcompact.NewRenderer() })
+	if s.renderError != nil {
+		return snapcompact.RenderResult{}, s.renderError
+	}
+	cfg := s.render
+	if len(maxPages) > 0 && maxPages[0] > 0 {
+		cfg.MaxPages = min(cfg.MaxPages, maxPages[0])
+	}
+	return s.renderer.Render(ctx, projection, cfg)
+}
+
+// CompactProjection plans text edges and dense image frames from the same
+// frozen projection. The core owns layout and all source-range accounting.
+func (s *Service) CompactProjection(ctx context.Context, projection snapcompact.Projection, cfg snapcompact.ArchiveConfig) (snapcompact.Archive, error) {
+	s.archiveOnce.Do(func() { s.archive, s.archiveError = snapcompact.NewArchiveRenderer() })
+	if s.archiveError != nil {
+		return snapcompact.Archive{}, s.archiveError
+	}
+	return s.archive.Compact(ctx, projection, cfg)
 }

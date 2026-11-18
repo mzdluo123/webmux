@@ -7,7 +7,10 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as Resizable from "$lib/components/ui/resizable";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import type { GitReviewScope } from "../../contracts/git-workbench-schemas";
   import type { GitHunkAndLineMutationProps } from "../../domains/workspace/git-line-selection";
@@ -371,7 +374,7 @@
 
 <div class="flex h-full min-h-0 min-w-0 flex-col bg-background">
   <GitPanelToolbar>
-    <SegmentedControl.Root
+    <SegmentedControl
       wrap
       value={effectiveScope}
       onValueChange={(val) => {
@@ -379,10 +382,10 @@
       }}
       aria-label={m.s6_review_scope_aria()}
     >
-      <SegmentedControl.Item value="uncommitted">
+      <SegmentedControlItem value="uncommitted">
         {m.s6_uncommitted_changes_tab({ count: changes.length })}
-      </SegmentedControl.Item>
-      <SegmentedControl.Item
+      </SegmentedControlItem>
+      <SegmentedControlItem
         value="task"
         aria-label={taskReview?.status === "ready"
           ? m.s6_task_changes_with_count({ count: taskReview.files.length })
@@ -394,8 +397,8 @@
         {#if taskReview?.status === "ready"}
           <span>({taskReview.files.length})</span>
         {/if}
-      </SegmentedControl.Item>
-    </SegmentedControl.Root>
+      </SegmentedControlItem>
+    </SegmentedControl>
 
     <div class="flex min-w-0 flex-wrap items-center gap-1.5">
       {#if !readonlyMode && activeProgress.total > 0}

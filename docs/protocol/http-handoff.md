@@ -10,17 +10,32 @@ POST /api/sessions/{id}/handoff-previews
 GET /api/handoff-previews/{previewId}
 ```
 
-请求字段：`configId`、`targetSessionId`、`agentConfig`、`userText`、`location`。
+请求字段：`configId`、`targetSessionId`、`agentConfig`、`userText`、`location`、`format`、`maxPages`。
 创建新聊天时提供 `configId`；已有目标使用 `targetSessionId`，并沿用目标配置。
 `location` 包含 cwd、repositoryId、worktreeId、newWorktreeBase 与 newWorktreeBranch。
-返回 `id`、`instanceId`、`operationId`、`snapshotId`、`sourceSessionId`、确切发送 `text` 与独立 `userText`。
+`format` 省略时为 `image`；显式 `text` 使用文本投影。`maxPages` 省略或为 0 时采用 8 页上限，显式取值范围为 1–8。
+返回 `id`、`instanceId`、`operationId`、`snapshotId`、`sourceSessionId`、发送文本块 `text` 与独立原样 `userText`。
 同时返回 `request`、`budget`、selectedCount、omittedCount、gapCount、createdAt 和 expiresAt。
+图片字段为 `format`、`pages`、`imageBudget`、`blockedReason`、`capability` 与审阅用 `historyText`：
+
+- `pages[]` 按页序包含 `index`（从 0 开始）、`mimeType`、base64 `data`、`sha256`、`width`、`height`、原始 `bytes`。
+- `imageBudget` 包含 `maxPages`、实际 `pages`、原始 `bytes`、`maxBytes` 与编码请求上限 `maxRequestBytes`。
+  另含投影正文 `projectedRunes`、实际保留正文 `retainedRunes`、图片 `estimatedTokens`、`tokenEstimateKnown`、`tokenBasis` 与 `shape`。
+- `capability` 为 `pending`、`supported` 或 `unsupported`；需要图片的新目标在创建前为 `pending`，发送前检查真实 ACP 图片能力。零页归档无需图片能力。
+- `blockedReason` 非空时不可发送；用户可选择文本模式并重新预览。
+- `historyText` 是保留历史的完整审阅表示。归档模式的 `text` 含来源指引、首尾历史文本与当前任务；ACP 按首部文本、图片、尾部文本及任务的顺序发送。
 
 ## 选择与预算
 
-Snapcompact 将可导出的原生记录转换成机械文本片段，按预算选入最近的完整片段并恢复来源顺序。
-预算包括当前任务、历史文本、模型窗口与保留空间。默认交接上限由 `handoff_token_cap` 控制。
-预览在五分钟内有效，最多 32 项；文本与 manifest 共用 64 MiB 预算。
+Snapcompact 从可导出记录的正文和可见工具调用/结果生成机械投影，保留角色、顺序和工具关联；私有推理及 provider 状态不进入投影。
+归档使用紧凑角色/来源序号、模型相关点阵排版和首尾文本，中段在容量不足时使用高/低密度分级，最后才省略中段较旧范围。
+布局先于 PNG 编码；正文的文本范围、图片范围与明确省略范围必须形成无缺口、无重叠的完整划分。
+短历史可返回空 `pages` 并完整保留文本。需要图片时，缺字、渲染失败、覆盖不全、能力不足或附件/编码请求超限阻止发送。
+每条最多 8 张、单图 10 MiB、原始数据合计 20 MiB；编码请求最多 30 MiB，并受服务端更低配置限制。
+文本模式按预算选择最近完整片段并恢复来源顺序。上下文预算包含当前任务、历史和保留空间，受 `handoff_token_cap` 限制。
+归档同时计入首尾文本的保守字节上界与模型图片 token 估计；`tokenBasis` 标注目录规则或未知费率预留，均不是实际 usage。
+预览冻结文本、图片字节、顺序及 SHA-256；发送使用这些内容，不重新渲染。已有目标模型配置变化使原预览失效。
+预览在五分钟内有效，最多 32 项；manifest、文本及图片表示共同计入 64 MiB 内存预算。
 
 ## 确认发送与查询
 
@@ -33,9 +48,19 @@ POST /api/handoff-operations/{operationId}/cancel
 发送体为 `{ "operationId": "<预览返回的操作 ID>" }`，返回 202。
 服务端在调用目标前原子消费预览并登记操作；同一操作的重复请求返回当前结果。
 操作返回 id、previewId、instanceId、state、targetSessionId、worktreeId、worktreePath、error 与时间字段。
-状态为 `preparing`、`sending`、`succeeded`、`failed` 或 `unknown`。
-目标创建和普通 prompt 各执行一次，prompt 的已确认响应决定成功状态。
+状态为 `preparing`、`sending`、`awaiting_upstream`、`succeeded`、`failed` 或 `unknown`。
+目标成功创建与普通 prompt 各执行一次；操作成功表示本轮已获得接收证据，不代表回合结束或任务验收。
+接收证据包括本轮 Agent 正文、思考、工具调用、plan、当前授权/提问，或成功的 `session/prompt` 响应。
+30 秒 commandTimeout 只约束校验与 actor 接受派发；确认观察绑定该 turn 的共享回执，慢模型不会仅因超过 30 秒变成 unknown。
+尚无活动且连接仍存活时保持 `sending`；取消确认观察或连接断开且没有接收证据时为 `unknown`，不会自动重发。
+准备阶段取消为 `failed`；用户须在目标会话检查指定 turn 的最终输出。
 结果不明返回「可能已发送，请检查目标会话」。操作结果最多保留 256 项，完成十五分钟后失效。
+
+新工作树上游有更新或获取失败时，操作停在 `awaiting_upstream`，`finishedAt` 为 null，`worktreeUpstream` 提供[上游确认信息](http-workspace.md#创建前的上游确认)。此时尚未创建目标资源：
+
+- 确认后向同一 `/send` 提交 `{operationId, upstreamChoice: {confirmationId, useUpstream}}`，继续原操作与冻结页集。
+- 重复相同确认只观察已有操作；上游状态再次变化时重新进入 `awaiting_upstream`。
+- 取消操作或预览过期后无法继续创建，保留来源与原工作树。
 
 ## 原文补查与错误
 
@@ -43,3 +68,9 @@ POST /api/handoff-operations/{operationId}/cancel
 400 表示请求或已撤销字段无效，409 表示身份、内容或消费冲突，410 表示句柄或协议失效。
 429 表示交接缓存已满，503 表示功能或原生来源暂不可用。
 `/api/conversations/*` 与 `/api/handoffs/*` 的旧协议返回 410。
+
+## CLI 与 MCP 入口边界
+
+交接创建、预览和发送由以上 HTTP 接口及浏览器页面提供。
+`webmux mcp-serve` 仅提供 `thread_read` 冻结原文补查；控制 MCP 的 `session_read` 提供原生历史分页。
+当前没有专用交接 CLI 子命令或 MCP preview/send 工具；`webmux api PATH -d '<JSON>'` 可经本机套接字调用以上 HTTP 契约。

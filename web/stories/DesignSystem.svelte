@@ -1,4 +1,9 @@
 <script lang="ts">
+  import { KeyValueSummary } from "$lib/components/ui/key-value-summary";
+  import { AdvancedSection } from "$lib/components/ui/advanced-section";
+  import { InfoHint } from "$lib/components/ui/info-hint";
+  import { PickerField } from "$lib/components/ui/picker-field";
+  import { StripNotice } from "$lib/components/ui/strip-notice";
   import IconEye from "~icons/tabler/eye";
   import IconEyeCheck from "~icons/tabler/eye-check";
   import Brand from "../src/components/shell/Brand.svelte";
@@ -18,16 +23,21 @@
   import * as Card from "$lib/components/ui/card";
   import * as Empty from "$lib/components/ui/empty";
   import * as Tabs from "$lib/components/ui/tabs";
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Drawer from "$lib/components/ui/drawer";
   import { ListButton } from "$lib/components/ui/list-button";
   import ChatSelect from "../src/components/chat/ChatSelect.svelte";
-  import InlineNotice from "../src/components/shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import SessionStatus from "../src/components/sessions/SessionStatus.svelte";
   import SessionRow from "../src/components/sessions/SessionRow.svelte";
-  import ResponsiveDialog from "../src/components/shared/ResponsiveDialog.svelte";
+  import ModeSwitch from "../src/components/shell/ModeSwitch.svelte";
+  import type { ShellMode } from "../src/hooks/shared/shell.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import { session, now } from "./fixtures";
   import type { SessionInfo } from "../src/contracts/schemas";
   import { untrack } from "svelte";
@@ -64,7 +74,9 @@
   let wrapping = $state(true);
   let name = $state("检查构建");
   let repository = $state("webmux");
+  let pickerOpen = $state(false);
   let model = $state("sonnet");
+  let shellMode = $state<ShellMode>("workbench");
   const sections = {
     foundations: [
       "设计基础",
@@ -306,6 +318,7 @@
         >
         <Button variant="outline">添加仓库</Button>
         <Button variant="ghost">刷新状态</Button>
+        <ModeSwitch mode={shellMode} onchange={(mode) => (shellMode = mode)} />
         <Button
           variant="ghost"
           aria-pressed={wrapping}
@@ -399,19 +412,19 @@
         </div>
         <div class="space-y-2 sm:col-span-2">
           <p class="text-sm font-medium">分屏方向</p>
-          <SegmentedControl.Root
+          <SegmentedControl
             value="horizontal"
             aria-label="分屏方向"
             size="form"
             wrap
           >
-            <SegmentedControl.Item value="horizontal"
-              >左右分屏</SegmentedControl.Item
+            <SegmentedControlItem value="horizontal"
+              >左右分屏</SegmentedControlItem
             >
-            <SegmentedControl.Item value="vertical"
-              >上下分屏</SegmentedControl.Item
+            <SegmentedControlItem value="vertical"
+              >上下分屏</SegmentedControlItem
             >
-          </SegmentedControl.Root>
+          </SegmentedControl>
         </div>
         <div class="flex flex-wrap gap-2 sm:col-span-2">
           <Button onclick={() => (notice = "示例已保存，不影响实际快捷指令。")}
@@ -539,6 +552,38 @@
         >
       </Card.Content>
     </Card.Root>
+    <Card.Root>
+      <Card.Header><Card.Title>公共表单组合</Card.Title></Card.Header>
+      <Card.Content class="space-y-4">
+        <div class="flex items-center gap-2">
+          <Label for="example-picker">示例目录</Label>
+          <InfoHint label="示例目录">选择本次操作使用的目录。</InfoHint>
+        </div>
+        <PickerField id="example-picker" bind:open={pickerOpen}>
+          {#snippet trigger()}{repository}{/snippet}
+          <div class="p-2">
+            {#each ["webmux", "demo"] as choice (choice)}
+              <ListButton
+                onclick={() => {
+                  repository = choice;
+                  pickerOpen = false;
+                }}>{choice}</ListButton
+              >
+            {/each}
+          </div>
+        </PickerField>
+        <AdvancedSection title="高级选项" summary="使用默认配置">
+          <Label for="example-note">备注</Label>
+          <Input id="example-note" placeholder="可选备注" />
+        </AdvancedSection>
+        <KeyValueSummary
+          rows={[
+            { label: "目录", value: `/workspace/${repository}`, mono: true },
+            { label: "配置", value: "默认" },
+          ]}
+        />
+      </Card.Content>
+    </Card.Root>
   {:else if section === "feedback"}
     <Card.Root>
       <Card.Header
@@ -561,6 +606,17 @@
       <InlineNotice tone="danger"
         >无法访问工作区。请检查目录是否存在，然后重新选择路径。</InlineNotice
       >
+      <InlineNotice size="compact">紧凑提示使用组件的统一尺寸。</InlineNotice>
+      <StripNotice tone="warning" label="连接提示">
+        连接已断开，正在重连。
+        {#snippet actions()}
+          <Button
+            variant="outline"
+            size="sm"
+            onclick={() => (notice = "正在重试连接")}>重试</Button
+          >
+        {/snippet}
+      </StripNotice>
     </div>
     <div class="flex flex-wrap gap-2">
       <Badge variant="secondary">主工作区</Badge><Badge variant="outline"

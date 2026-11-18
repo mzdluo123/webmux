@@ -54,7 +54,7 @@
   - 位置：
     - 当前目录所在的已登记 worktree 自动关联；
     - `--worktree REPO:WORKTREE|PATH` 选已有 worktree，`--cwd` 须在其中；
-    - `--new-worktree` 是开关（`--branch`、`--base`、`--existing-branch`、`--worktree-path`、`--repo`、`--refresh-base`）：只发一次带 `newWorktree` 的 `POST /api/sessions`，由服务端先建 worktree 再启动；
+    - `--new-worktree` 是开关（`--branch`、`--base`、`--existing-branch`、`--worktree-path`、`--repo`、`--no-pin`、`--upstream=latest|local`）：请求带 `newWorktree`，服务端先检查上游、确认选择，再建 worktree 与会话；
       省略 `--branch` 时服务端自动生成 `wt/<日期>-<时间>` 形式的不冲突分支名；默认像 Web 端一样加入主页显示（`--no-pin` 不加入）；
     - `--` 之前出现位置参数时以 2 结束，与 `--new-worktree` 同用时提示改用 `--branch`（旧写法 `--new-worktree BRANCH` 不会被当作命令执行）；
     - 失败按服务端的 `step` 报告失败步骤，保留已创建的 worktree 与会话并给出路径与 ID，不回滚；
@@ -78,6 +78,7 @@
 - **US-S09 向会话输入并等待结果**：作为编排脚本，我希望向终端会话输入并可靠地等到它有反应，以便把交互程序串进流程。
   - `webmux send SESSION [TEXT|-] [--enter] [--key NAME]...` 调用 `POST /api/sessions/{id}/input`，由服务端按当前视图分派，CLI 不再自己连接终端 WebSocket；
   - 终端视图：以带回执的提交写入文字，`--enter`（输入 API 的 `submit`）在正文同一提交里追加回车，不带它正文留在输入行不执行；收到 `written` 才以 0 退出，`partial`、`failed`、`missing`（409 `input_failed`）以 1 退出；命名按键在文字之后发送，未知按键以 2 结束；
+  - 文字按浏览器粘贴的规则写入（换行转 CR，程序开启 bracketed paste 时包裹），回车在正文之后至少隔 200ms 写入，间隔期间仍持有输入锁，因此 Claude Code 等 TUI 不会把回车当作粘贴内容而只填入不提交；MCP `session_send` 的 `submit` 同样如此；
   - 发送像浏览器输入一样取得控制权，控制指示器显示 `script`，在会话内附上来源会话 ID；
   - 脚本之后要改终端尺寸见 US-S19；
   - 聊天视图：文字作为提示发送（见 US-S14）；选项与当前视图不符（终端视图带 `--attach-file`/`--mode`，聊天视图带 `--key`）时服务端返回 409 `wrong_view`，CLI 以 1 结束且不写入任何内容；
@@ -110,7 +111,8 @@
   - 之后按原有规则清除：用户输入、程序的下一次状态报告（会话在聊天视图时为 agent 的新状态或新一轮）；`notify --clear` 与 `send` 的输入同样清除，并同步到所有设备；已退出的会话以 1 拒绝。
 - **US-S14 从脚本驱动混合会话聊天**：作为编排脚本，我希望向另一个 agent 发送提示、取回回复并代为处理它的请求，以便不打开浏览器也能完成多 agent 协作。
   - `webmux send SESSION TEXT` 对聊天视图的会话立即发送或进入服务端队列，可用 `--attach-file PATH`（先经会话上传接口上传，任一失败则不发送）附带文件；`--json` 输出 `{view, queued, itemId, position, turnId, promptId}`；
-  - `--mode` 取 `auto`（默认，空闲即发、忙则排队）、`steer`（插入当前回合）、`refuse`（忙时以 1 结束并报告 `busy`，不排队）或 `now`（取消当前回合并立即发送）；排队时在不带 `--json` 时向标准错误输出队列项与位置，标准输出保持为空；
+  - `--mode` 取 `auto`（默认，无运行回合、连接可用、队列为空且未暂停时发送，否则排队）、`steer`（向支持插话的运行回合补充内容）、`refuse`（不能立即发送时以 1 结束并报告 `busy`）或 `now`（取消后立即发送）；
+  - 排队时在不带 `--json` 时向标准错误输出队列项与位置，标准输出保持为空；帮助与 MCP 工具描述解释插话能力、竞态及回执边界，排队提示引导核对状态以避免重复发送；
   - `--reply` 先连接聊天流再发送，跟踪本次输入开启的回合（插话时跟踪进行中的回合，`now` 跟随取消后开始的回合），与 `--wait` 互斥；会话在终端视图时不写入任何内容，以 1 结束并提示改用 `--wait STATE`；
   - `end_turn` 以 0 退出并输出最终回复；`--json` 为原有 `{stopReason,error,reply,events,request}` 对象加顶层 unfinished；true 时 stderr 提示后台工作，仍为 0，不添加伪事件。其他结束原因或遇到授权、提问时为 1，
     `--auto-wait-requests` 继续等待；排队的提示被删除时以 1 退出；超时 124 且不取消回合；
@@ -133,7 +135,7 @@
   - 已删除的 `chat switch`、`chat ls`、`chat resume`、`chat forget` 按未知命令以 2 结束。
 - **US-S16 从脚本管理 worktree 与主页显示**：作为编排脚本，我希望为并行任务创建、查看和删除 worktree，并决定它们是否出现在主页，以便 Web 端与脚本看到同一个工作区。
   - `worktree ls|show|create|rm`：`REPO` 为 ID、路径或 `.`，worktree 为 ID、分支或路径，找不到时以 2 结束并列出候选；`create` 默认放在 `<仓库>.worktrees/<分支末段>`，
-    `--refresh-base` 先取回上游；`rm` 先在标准错误输出预览，有阻止原因时需要 `--force`，终端上要求输入路径确认，非交互时需要 `--yes`；
+    创建前统一检查上游，存在更新或获取失败时先明确选择最新上游、保留本地或取消；非交互调用返回可重试的确认信息；`rm` 先在标准错误输出预览，有阻止原因时需要 `--force`，终端上要求输入路径确认，非交互时需要 `--yes`；
   - 主页状态（`pinned`、`sessions`、`hidden`）与 Web 端规则一致：从未设置的仓库只显示主工作区，有会话或归档记录的 worktree 总会显示；
   - `worktree` 命令对已归档会话的计数读取 `GET /api/sessions?state=archived`；
   - `worktree create` 与 `run --new-worktree` 默认加入主页显示（`--no-pin`）；`worktree pin|unpin|home [--set|--reset]` 只改该仓库的 `homeWorktrees` 条目，

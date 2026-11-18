@@ -3,6 +3,7 @@
 ## Purpose
 
 WebMux 宿主通过独立中继密钥与官方 Relay 配对，以固定 HTTPS 地址提供低配置公网访问，并在连接断开时立即撤销入口授权、自动恢复连接，同时保持现有 Cloudflare、Tailscale、Web Push 和 P2P 能力的独立行为。
+设备配对、机器身份与页内设置操作遵循 [official-relay-pairing](../official-relay-pairing/spec.md)。
 
 ## Requirements
 
@@ -22,53 +23,30 @@ WebMux 宿主通过独立中继密钥与官方 Relay 配对，以固定 HTTPS �
 - **WHEN** 已配对主机当前登录 Token 少于 43 字符
 - **THEN** 启用被拒绝并给出修复方式，本机服务继续运行
 
-### Requirement: 本地密钥与账号配对
+### Requirement: 新版绑定持久化与安全降级
 
-WebMux SHALL 在本机生成并保存独立的 Ed25519 中继密钥对。配对接口 SHALL 返回官方验证地址、一次性用户码和剩余有效期，供用户在浏览器完成 GitHub 授权；WebMux 登录 Token MUST NOT 出现在配对请求中。
-
-私钥、轮询句柄和 GitHub 凭据 MUST NOT 出现在状态响应、诊断、日志或浏览器持久化中。配对失败或过期 SHALL 允许重试，不得改写 WebMux 登录 Token。
-
-同一账号的重新绑定 SHALL 需要显式确认；成功后旧私钥被替换，公共地址保持不变。
-
-#### Scenario: 从设置页完成配对
-
-- **WHEN** 用户打开 Relay 设置、开始配对并在官方页面完成 GitHub 授权
-- **THEN** WebMux 显示已配对和固定公共地址，本机仅保存中继私钥与绑定信息，不保存 GitHub 访问凭据
-
-#### Scenario: 配对接口不包含登录 Token
-
-- **WHEN** 宿主创建或轮询配对请求
-- **THEN** 请求只包含中继公钥或配对材料，不包含 WebMux 登录 Token
-
-### Requirement: 受控持久化与安全降级
-
-Relay 的启用意图、配置的 `controlEndpoint`、主机标识、完整固定公共 HTTPS Origin 和私钥 SHALL 通过登记的受控状态文件持久化，目录权限为 0700、文件权限为 0600，并使用原子写入和独立锁；新格式 v2 MUST NOT 保存公开控制 `controltrust`。
-已认证控制面下发的数据面分配及版本/来源元数据 SHALL 与本机配置区分，不得作为用户手工配置的第二端点或未经重新认证即可沿用的信任依据。
-
-状态文件损坏、不可读或锁冲突时，系统 SHALL 保留原文件、报告存储不可用并禁止启动新的 Relay 公网连接，不得回退到 TOML 意外开启。关闭操作即使落盘失败也 SHALL 立即撤销当前公网授权并停止连接，同时返回未持久化错误。
-
-重启后 SHALL 按持久化启用意图恢复连接；TOML 只提供默认开关、`controlEndpoint` 与独立受众等引导配置，不提供公开控制 InitialTrust/SPKI pin 或旧配置别名；网页绑定与私钥不得写入 `config.toml`。
-数据面地址 SHALL 从已认证控制面重新同步，不要求用户维护第二个端点。
-宿主 SHALL 严格读取并校验 v1 状态后在内存迁移，保留启用意图、私钥、所有者、主机标识、绑定代际及完整固定 Origin，仅消费并移除旧 `controltrust`。读取 MUST NOT 改写磁盘，正常保存 SHALL 只写 v2；非法旧状态 MUST NOT 被宽松忽略或重新配对覆盖。
+Relay 的启用意图、控制端点、主机标识、完整公共 HTTPS Origin 和私钥 SHALL 使用登记的 v3 状态文件，保持目录 0700、文件 0600、原子写入及独立锁；MUST NOT 保存公开控制 controltrust。
+状态损坏、不可读或锁冲突 SHALL 保留原文件、报告不可用并禁止新公网连接，不得回退 TOML 开启。旧 v1/v2 格式 MUST NOT 自动迁移或恢复绑定；部署 SHALL 先备份清理旧状态，保留机器 ID。
+数据面分配 SHALL 每次经已认证控制面重新取得，不作为手工第二端点或持久信任来源。关闭落盘失败仍 SHALL 立即停止公网授权并返回未持久化错误。TOML 仅提供现有引导配置，不保存绑定、私钥、旧别名或公开控制 pin；正常 v3 重启 SHALL 按持久启用意图连接。
 
 #### Scenario: 损坏设置阻止自动暴露
 
-- **WHEN** Relay 状态文件损坏且 TOML 配置为启用
-- **THEN** 本机服务正常启动，Relay 保持关闭并显示存储错误，不尝试连接公网
+- **WHEN** 状态损坏且 TOML 配置启用
+- **THEN** 本机服务正常启动，Relay 关闭并显示存储错误，不连接公网
 
 #### Scenario: 关闭时存储写失败
 
-- **WHEN** 用户关闭 Relay 但状态文件无法写入
-- **THEN** 当前连接和公共来源授权立即撤销，响应指出关闭状态未持久化，修复后需重新保存
+- **WHEN** 关闭状态不能落盘
+- **THEN** 当前连接与公共来源授权立即撤销，响应指出未持久化
 
-#### Scenario: 读取旧状态不改盘或丢绑定
+#### Scenario: 旧版绑定不再迁移
 
-- **WHEN** 宿主加载有效 v1 状态，随后用户正常保存设置
-- **THEN** 加载仅在内存迁移且保留密钥、绑定和完整 Origin，保存才原子写入无 `controltrust` 的 v2；未知/非法旧字段仍被拒绝，数据面 pin 不变
+- **WHEN** 新宿主遇到 v1/v2 绑定状态
+- **THEN** 拒绝恢复旧密钥及启用意图；完成备份清理后以未配对、关闭状态启动，独立机器 ID 不变
 
 ### Requirement: 连接状态机与公网来源撤权
 
-Relay 客户端 SHALL 区分关闭、连接中、就绪、bulk 降级和失败状态，并单独表示未配对、配对中与已配对。只有 control 认证和 stream 服务均就绪后，客户端才将固定 HTTPS 来源登记为允许的 Host/Origin 并公开地址；bulk 未就绪时 SHALL 显示降级并拒绝新批量请求。
+Relay 客户端 SHALL 区分关闭、连接中、就绪、bulk 降级和失败状态，并单独表示未配对、配对中与已配对。只有 control 认证和 stream 服务均就绪后，客户端才将固定 HTTPS 来源登记为允许的 Host/Origin 并公开地址；bulk 未就绪时 SHALL 显示降级，新批量请求在 Relay 有界等待容量。
 
 control 断开、绑定撤销、关闭或服务退出时，客户端 SHALL 立即撤销该来源的 Host/Origin 授权。新连接认证失败 MUST NOT 替换或撤销既有合法 control；仅 bulk 失败 SHALL 按同代际降级重连。迟到的连接事件 MUST NOT 在关闭或新配置后重新授权旧地址。
 
@@ -120,24 +98,6 @@ Relay 就绪后，固定公共地址 SHALL 出现在现有访问 URL 汇总、�
 - **WHEN** 手机通过就绪的 Relay HTTPS 地址打开 WebMux 并开启通知
 - **THEN** 订阅关联该固定来源，重启 WebMux 并重连 Relay 后通知仍指向同一地址
 
-### Requirement: 设置操作与删除绑定
-
-WebMux SHALL 在公网访问设置中提供开始配对、启停、刷新状态、重新绑定和删除绑定操作，并显示期望开关、运行状态、固定地址及失败原因。
-
-删除绑定 SHALL 先停止当前连接并由官方 Relay 确认撤销，再删除本地绑定与私钥。官方服务不可达时，系统 SHALL 保留本地绑定信息以便重试，明确提示远端尚未撤销，不得谎称删除完成。
-
-设置操作 SHALL 保留现有 API 认证和 Origin 校验；界面在桌面与手机布局可用，并在当前操作会断开正在使用的公网页面时给出确认提示。
-
-#### Scenario: 成功删除绑定
-
-- **WHEN** 用户确认删除且官方 Relay 完成撤销
-- **THEN** 当前连接停止、公共来源撤权、本地私钥与绑定被删除，公共地址不再接受该主机连接
-
-#### Scenario: 删除时官方服务不可达
-
-- **WHEN** 用户删除绑定但 Relay 控制面无法确认撤销
-- **THEN** 本地连接保持关闭，绑定信息保留用于重试，界面明确显示远端尚未撤销
-
 ### Requirement: GitHub 跳转与宿主浏览器会话
 
 宿主 SHALL 显式信任已配对控制面的所有者认证，并保存所有者 GitHub 数字 ID 与绑定代际。
@@ -147,6 +107,12 @@ WebMux SHALL 在公网访问设置中提供开始配对、启停、刷新状态�
 宿主 SHALL 为后台跳转创建绑定浏览器的单次 state 和 PKCE S256 事务，有效期不超过 5 分钟；回调必须校验事务，并通过宿主密钥认证的控制通道携 verifier 兑换 code。账号、host ID、受众或绑定代际不符 SHALL 拒绝登录，MUST NOT 仅相信浏览器携带的身份声明。
 
 成功后宿主 SHALL 创建绝对有效期不超过 12 小时的内存会话，使用 host-only、Secure、HttpOnly、SameSite=Lax、Path=/ 的 `__Host-` Cookie；MUST NOT 写入 localStorage、sessionStorage 或 URL。回调 SHALL 禁缓存、禁止 Referer 泄露并跳至无凭据 URL。长期 WebMux Token MUST NOT 参与跳转或自动下发。
+
+认证呈现 SHALL 区分中转暂时重连、登录过期、授权撤销与直连 Token 无效：
+
+- 暂时重连 SHALL 保留已挂载页面并以角落状态指示呈现，提供再次检查与官方登录入口；
+- 登录过期、授权撤销与未登录 SHALL 以门禁页呈现；
+- 中转登录入口 SHALL 保留经过校验的同源应用路径，完成 state、PKCE 和一次性 code 校验后返回原页面；外部地址、认证端点和携带凭据的路径 SHALL 被拒绝。
 
 #### Scenario: 新设备免 Token 打开面板
 
@@ -162,7 +128,21 @@ WebMux SHALL 在公网访问设置中提供开始配对、启停、刷新状态�
 
 Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端 SHALL 通过现有 API/WS 封装识别登录态。Cookie 写请求 MUST 校验同源 Origin 与 CSRF token，转发上游前 MUST 剥离宿主认证 Cookie 和 CSRF 材料。
 
-宿主注销、会话过期、对应后台会话撤销、绑定撤销、换钥、移出邀请名单、Relay 关闭或断线 SHALL 撤销相关宿主会话。宿主重启 SHALL 清空会话。撤销 SHALL 拒绝后续请求并关闭该会话建立的 WebSocket、P2P 和转发连接，但 MUST NOT 终止持久 PTY。
+宿主注销、会话过期、对应后台会话撤销、绑定撤销、换钥、移出邀请名单或 Relay 关闭 SHALL 撤销相关宿主会话。宿主重启 SHALL 清空会话。撤销 SHALL 拒绝后续请求并关闭该会话建立的 WebSocket、P2P 和转发连接，但 MUST NOT 终止持久 PTY。
+
+临时 control 断线 SHALL 立即暂停登录会话的业务访问并关闭派生连接，保留有界的内存恢复记录至原绝对到期时间。恢复记录 MUST NOT 单独授权业务访问。新连接就绪后，宿主 SHALL 经认证控制通道重新校验原 grant、后台会话、所有者、邀请及绑定，取得精确绑定新 Scope 的授权后才恢复原 Cookie 对应的访问。
+
+恢复 SHALL 保持原 grant ID、所有者、Origin 和绝对期限，不延长 12 小时上限。明确撤销与恢复并发时 SHALL 以撤销为准；旧访问上下文与旧 Scope SHALL 保持失效。前端暂时恢复期间 SHALL 保留原路由并有界退避查询，恢复成功后按原终端续接协议重连，不自动重放业务写请求。
+
+#### Scenario: 短暂断线后恢复登录
+
+- **WHEN** control 连接短暂中断后以新连接代际恢复，原后台会话、邀请、绑定及 grant 仍有效
+- **THEN** 断线期间业务访问被拒绝，旧派生连接关闭；控制面重新授权后原 Cookie 可继续访问，绝对到期时间不变
+
+#### Scenario: 断线期间撤销授权
+
+- **WHEN** 登录处于暂停状态时，后台注销、取消邀请、解绑或 grant 撤销
+- **THEN** 控制面拒绝恢复，旧 Cookie 不能访问业务；页面说明登录状态并提供重新登录入口，不显示直连 Token 错误
 
 #### Scenario: 关闭 Relay 后旧会话不能复用
 
@@ -184,7 +164,9 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 宿主连接器 SHALL 使用已认证控制面分配的 `connectorUrl` 与 WSS + smux v2，基线传输固定 wss，不提供 auto/quic 或 UDP connector endpoint。
 宿主 MUST NOT 接受浏览器指定或节点自行宣告的拨号地址；授权的 ICE/TURN 配置 SHALL 按下述独立流程获取。
 
-宿主 SHALL 在同一逻辑代际内认证 control/bulk 两条物理连接，角色纳入签名并共用配额。control 断开 SHALL 撤销来源及派生会话并关闭 bulk；仅 bulk 断开 SHALL 保留交互、显示降级和 bulkReady=false，有界重连 bulk，新批量请求返回不可用，不挤占 control。
+宿主 SHALL 使用 webmux-relay.v2，在同代际认证一条 control 管理连接及固定 interactive/bulk 数据池，默认数据连接数为二和四。
+宿主 SHALL 按固定槽位独立重连并保持 Scope；control 断开 SHALL 撤销派生访问并关闭数据池，数据连接丢失 SHALL 只关闭自身流。
+普通流并发 SHALL 由 Relay 单点准入，宿主 SHALL 保留帧、缓冲和流头超时边界而不重复业务配额拒绝。
 
 证书、pin、主机身份与协议错误 MUST NOT 通过重试绕过。网络重连 SHALL 使用有界退避，报告实际传输、角色就绪数与脱敏 reconnectReason；MUST NOT 自动重放非幂等业务请求。
 
@@ -210,6 +192,7 @@ Relay 会话 SHALL 覆盖 HTTP、WebSocket、P2P 信令和 `/forward/*`，前端
 
 发现结果 SHALL 来自管理员经控制服务校验并登记的用途化端点，不接受任意浏览器输入、节点自报或未认证下载扩展信任。
 宿主 SHALL 校验分配的主机/绑定代际、受众、版本及端点与服务身份的一致性，拒绝错误归属、重放或过期分配。
+各类材料的有效期上限 SHALL 在签发端限制；接收端 SHALL 检查绝对到期时间，不根据本机时钟重新推算签发寿命上限。签名、单次 nonce、归属、受众、代际及本地操作超时 SHALL 保持独立校验。
 只有具备 `wss` 能力且就绪的节点可作为连接器目标；`turn`-only 节点只提供 TURN，不暴露 WebMux HTTPS/WSS 入口，MUST NOT 被当作连接器目标。
 
 已配对控制面的数据面端点调整 SHALL 经认证、版本化分配完成，重新校验 TLS 与 pin 后切换，并使旧代际事件不能恢复旧入口授权；不得自动学习未知公钥或把数据面分配当作控制面信任变更。

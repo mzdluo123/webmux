@@ -1,5 +1,8 @@
 <script lang="ts">
-  import * as SegmentedControl from "$lib/components/ui/segmented-control";
+  import {
+    SegmentedControl,
+    SegmentedControlItem,
+  } from "$lib/components/ui/segmented-control";
   import { locale } from "$lib/locale";
   import { m } from "$lib/paraglide/messages.js";
 
@@ -10,7 +13,7 @@
   } = $props();
 </script>
 
-<SegmentedControl.Root
+<SegmentedControl
   value={locale.preference}
   onValueChange={(value) => {
     if (value === "system" || value === "zh-CN" || value === "en") {
@@ -21,9 +24,9 @@
   {size}
   wrap
 >
-  <SegmentedControl.Item value="system"
-    >{m.locale_follow_system()}</SegmentedControl.Item
+  <SegmentedControlItem value="system"
+    >{m.locale_follow_system()}</SegmentedControlItem
   >
-  <SegmentedControl.Item value="zh-CN">简体中文</SegmentedControl.Item>
-  <SegmentedControl.Item value="en">English</SegmentedControl.Item>
-</SegmentedControl.Root>
+  <SegmentedControlItem value="zh-CN">简体中文</SegmentedControlItem>
+  <SegmentedControlItem value="en">English</SegmentedControlItem>
+</SegmentedControl>

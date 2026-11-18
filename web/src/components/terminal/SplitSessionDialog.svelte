@@ -9,7 +9,7 @@
   import { ListButton } from "$lib/components/ui/list-button";
   import { m } from "$lib/paraglide/messages.js";
   import SplitDirectionChoice from "./SplitDirectionChoice.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import { errorMessage } from "../../platform/error";
 
   let {

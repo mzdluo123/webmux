@@ -14,7 +14,6 @@ export const FeatureIDSchema = z.enum([
   "tailscale",
   "p2p",
   "mcp",
-  "immersive",
 ]);
 export type FeatureID = z.infer<typeof FeatureIDSchema>;
 

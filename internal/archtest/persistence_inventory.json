@@ -118,6 +118,15 @@
       "source": "internal/relaysetting/store.go"
     },
     {
+      "id": "relay-machine",
+      "path": "relay-machine.json",
+      "lock": "relay-machine.json.lock",
+      "owner": "internal/relaysetting",
+      "failure": "pairing_unavailable",
+      "web": "否",
+      "source": "internal/relaysetting/machine.go"
+    },
+    {
       "id": "tailscale-ownership",
       "path": "tailscale-ownership.json",
       "lock": "tailscale-ownership.json.lock",
@@ -229,6 +238,14 @@
     "internal/statefile/catalog.go|path|relay-settings.json": {
       "count": 1,
       "owner": "relay"
+    },
+    "internal/statefile/catalog.go|path|relay-machine.json": {
+      "count": 1,
+      "owner": "relay-machine"
+    },
+    "internal/relaysetting/machine.go|OpenMachine|github.com/rainchan/webmux/internal/statefile.Open": {
+      "count": 1,
+      "owner": "relay-machine"
     },
     "internal/clicmd/repo.go|Env.editText|os.CreateTemp": {
       "count": 1,

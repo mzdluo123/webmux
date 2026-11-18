@@ -3,6 +3,10 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vite-plus/test";
 import { z } from "zod";
 import * as S from "../src/contracts/schemas";
+import {
+  RelayPairingSchema,
+  RelayStatusSchema,
+} from "../src/contracts/relay-schemas";
 
 const directory = fileURLToPath(
   new URL("../../internal/api/testdata/wire/", import.meta.url),
@@ -389,6 +393,22 @@ const groups: Array<[z.ZodType, string[]]> = [
       "error-409-git-no-task-baseline",
       "error-409-git-readonly",
       "error-409-git-stale",
+    ],
+  ],
+  [
+    RelayPairingSchema,
+    [
+      "relay-pairing-waiting",
+      "relay-pairing-preparing",
+      "relay-pairing-cancelling",
+    ],
+  ],
+  [
+    RelayStatusSchema,
+    [
+      "relay-status",
+      "relay-deleted-access-open",
+      "relay-deleted-access-closed",
     ],
   ],
 ];

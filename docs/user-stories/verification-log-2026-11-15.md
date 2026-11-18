@@ -288,6 +288,16 @@
 - `go test -count=1 ./internal/archtest -run '^(TestPersistence|TestGoFileNames|TestSourceFileSize)'` 通过。
 - 本次范围不涉及 SQLite 旧数据与缺少 `historyRoot` 的旧归档；故事 ID 和总数不变。
 
+## Relay 固定多 TCP 与单点准入（2026-11-16，US-A09、US-A10）
+
+- 默认连接布局为一条管理、两条交互和四条 bulk WSS；移除按需扩容及宿主重复业务限流，Relay 负责总额度、交互余量与排队。
+- 连接器子协议升级为 `webmux-relay.v2`，新增固定池大小 TOML 配置；现有绑定及密钥保留，需要协调升级两端。
+- `go test -race ./internal/relay ./internal/config ./cmd/internal/assemble` 通过；复现用例改为 32 并发、1024 次真实 WSS/smux/mTLS 请求，全部成功。
+- `go test -race ./...`（`protocol/relay`）通过；`go test -count=1 ./internal/docguard ./internal/archtest` 通过。
+- 服务端 `scripts/test-host-integration.sh /path/to/webmux` 通过：真实两端 96 并发、1536 次混合请求与长响应并行，未发生 503 或内容损坏，单条 bulk 断线后同代际补齐。
+- 本次使用本地隔离 TLS 服务与测试授权边界；没有执行生产部署、真实 GitHub 登录或跨运营商弱网验收。
+- 限速 FIN 回归通过：发送约需两秒的关闭帧保留健康 TCP；临时 overlay 恢复旧一秒期限时稳定失败，说明该用例覆盖实际故障边界。
+
 ## 移除终端菜单「粘贴」与「剪贴板」分组（2026-11-16，US-E02、US-H08）
 
 - 范围（故事 ID 与总数不变）：
@@ -302,24 +312,50 @@
   - 视觉与视口核验：隔离演示实例采集 `1280×900`、`768×800`、`390×844` 明暗主题共 6 组前后对比截图，并核验 `1280×720`、`375×667`、`320×568`、`667×375` 在中英文与明暗主题下打开终端菜单均无横向溢出且浮层完整落在视口内。
 - 局限：仅在 Linux 无头 Chromium 中验证；无头浏览器 `hover` 与 `any-pointer: coarse` 均为 `false`，物理悬停态与 iOS / Android 真机触屏表现未验证。
 
-## 工作台工作区刷新与外部 Git worktree 实时同步（2026-11-16，US-C08、US-C16、US-J03）
+## 独立机器身份、恢复与所有者删除（2026-11-16，US-A08–US-A10）
 
-- 范围：为工作台模式补充显式刷新、生命周期自动重读、服务端按需 worktree 变化监听推送及外部新增 linked worktree 自动加入主页，同步更新 US-C08、US-C16、US-J03、`docs/usage/sessions.md`、`docs/protocol/http-workspace.md` 与 `docs/user-stories/coverage.md`，故事 ID 与总数（264）不变。
-- 核心改动：
-  - 新增 `internal/workspace/watch.go` 与 `internal/featurehub/workspace.go`（`GET /ws/repositories`）：
-    - 仅在有活跃订阅时按 2s 周期扫描已登记仓库 `<CommonDir>/HEAD` 与 `<CommonDir>/worktrees/*` 元数据及检出目录状态；
-    - 250ms 防抖后执行 `reassociate` 并推送 `{"type":"changed"}`，无订阅者时零后台轮询、无 Git 子进程开销；
-  - 工作台侧栏在“新建会话”右侧新增常驻“刷新工作区”图标按钮（`AppSidebar.svelte`），并在全路由前台恢复、切换至工作台模式及打开新建会话/主页显示/工作树详情弹窗时自动重读仓库快照；
-  - 在服务端 `repositories.json`（`internal/workspace/known_worktrees.go`）维护各仓库已观测工作树基线并经 `settings.PinHomeWorktrees` 原子更新共享 `homeWorktrees`：
-    - 首次观察仓库时保留历史空闲工作树隐藏，之后外部 `git worktree add`（含浏览器关闭期间新增）自动加入 `homeWorktrees`；
-    - 受控新建（如 `--no-pin`）与多设备手动移出主页均不被重新置顶，设置暂时不可写时保留待重试状态，外部删除工作树后清理基线记录。
+- 范围：独立保存机器 ID；同账号同机重新授权恢复原域名；不同机器或旧空 ID 显式确认替换；所有者控制台确认删除并等待撤权，不操作当前生产绑定。
 - 本地验证：
-  - 静态与治理门禁：`make check`（前端构建、`svelte-check --tsgo --fail-on-warnings`、`format-check`、`docs-check`、`persistence-check`、Oxlint、`check:arch` 46 项架构断言、`go vet`、`golangci-lint` v2.15.0 0 告警）通过；
-  - 后端回归：`go test -race ./cmd/webmux ./internal/api ./internal/featureapi ./internal/featurehub ./internal/settings ./internal/workspace ./internal/featurewire ./internal/archtest ./internal/docguard` 通过，覆盖按需启停、外部新增/删除/分支切换、离线新增、多设备取消置顶与设置写入失败重试；
-  - 前端单元与浏览器回归：
-    - `pnpm --dir web test:unit` 95 文件 1,254 项通过（含 `home-worktrees.test.ts`、`i18n.test.ts`、`dependency-policy.test.ts`）；
-    - 无关的 `test/base64url.test.ts` 1 项因本机 Node `v24.20.0` 缺少 `.nvmrc` Node `26.13.0` 原生 `Uint8Array.prototype.toBase64` 在本地失败，由远端 Node 26 CI 验证；
-    - Vitest 浏览器 `WorkbenchTree.test.ts`（15 项）与 `AppShell.test.ts`（19 项）共 34 项通过；
-  - 端到端回归：Playwright `worktrees.spec.ts`、`app-shell.spec.ts`、`workspace-discovery.spec.ts`、`repository-scope.spec.ts`、`i18n.spec.ts`、`git-workbench-route.spec.ts` 共 71 项通过、5 项按设备项目条件跳过、0 失败；
-  - 视觉与证据：隔离演示服务核对 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 明暗主题与中英文共 28 个组合均无横向溢出且按钮高度精确对齐，采集桌面、平板、手机明暗六组前后对比截图与 `1280×900` 正常速度交互 GIF。
-- 局限：仅在 Linux 无头 Chromium 下验证；无头浏览器 `hover` 与 `any-pointer: coarse` 均为 `false`，真实鼠标悬停态与触屏硬件行为未在手机、平板、macOS 或 Windows 真机验证。
+  - `go test -race ./cmd/webmux`、目标 Go lint 通过；独立 PostgreSQL 中 `internal/store`、`internal/control`、`internal/httpcontrol`、`internal/console` race 测试通过。
+  - 真实 WebMux 配对客户端经 TLS 访问 Relay 控制服务，覆盖首次配对、同机恢复、跨机冲突及旧空 ID 显式迁移；外部 GitHub 身份服务与空节点输送边界为隔离夹具。
+  - 删除回归覆盖账号、邀请、过期会话、旧代际、恢复 CAS、在线与离线待完成、旧授权失效及精确撤权 ACK；控制台交互 Node 测试 4 项通过。
+  - 配对拒绝补充回归：控制器 Go race 覆盖 7 类明确拒绝、3 类不确定失败及取消 410/409/404/503；设置页覆盖轮询 503、取消 503 后保留句柄、取消 410 后重新配对及轮询 409 后立即恢复，桌面与 iPhone SE 共 4 项通过。
+  - 设置页 Playwright 桌面与 iPhone SE 共 4 项通过；前端类型、Storybook 类型、lint 及架构门禁 46 项通过。
+  - 文档与持久化守卫通过；OpenSpec 现行规范 128 项和本次变更严格校验通过。
+- 界面证据：隔离设置页与控制台分别采集桌面 `1280×900`、平板 `768×800`、手机 `390×844` 的明暗主题前后截图；额外检查 `320×568`，无横向溢出且确认框完整落在视口内。
+- [设置页恢复确认 GIF](../images/relay-machine-recovery/recovery-confirmation.gif)；[手机恢复入口](../images/relay-machine-recovery/after-phone-light.png)。
+- [控制台删除确认 GIF](../images/relay-owner-deletion/deletion-confirmation.gif)；[删除待完成](../images/relay-owner-deletion/deletion-pending-phone.png)与[撤权完成](../images/relay-owner-deletion/deletion-complete-phone.png)使用公开、隔离演示数据。
+- 局限：无真实 GitHub 账号交互、生产绑定恢复或删除验收；Linux 无头 Chromium 不证明 iOS / Android 真机触屏表现。生产部署结果另行记录。
+
+## 服务端终端提交的粘贴与提交间隔（2026-11-16，US-S09、US-Q08）
+
+- 现象：`webmux send <ID> TEXT --enter` 或 MCP `session_send`（`submit=true`）向 Claude Code 终端会话发送约 250 字节中文时，文字进入输入框但未提交。
+- 原因：
+  - `SubmitServer` 在同一次加锁写入中背靠背写正文与 `\r`，Claude Code 把整段快速输入当作粘贴，回车被并入粘贴；
+  - 启动提示走的 `SendWhenReady` 早已用 bracketed paste 与 200ms 间隔避开此问题。
+- 修复：
+  - `SubmitServer` 按浏览器粘贴规则准备正文：换行转 CR，程序开启 bracketed paste 时包裹；
+  - `Submit` 与 `SubmitServer` 的正文与提交键之间至少间隔 `submitDelay`（200ms），档案要求更长时取档案值；
+  - 间隔期间持有输入锁，提交键之后才写 `keys`；`SendWhenReady` 复用同一准备函数与写入路径；
+  - 回执、去重与 `partial` 语义不变。
+- 回归测试（未修复代码上失败，修复后通过）：
+  - `TestSubmitServerPastesThenSubmits`：普通、bracketed、档案更长三种情形的写入字节与耗时；
+  - `TestSubmitServerGapHoldsGate`：间隔期间输入锁未释放；运行在间隔中结束时回执为 `partial`，未写回车与按键，重复 ID 返回同一回执；
+  - `TestSubmitUsesSessionDelay` 增加默认下限与档案更长两种情形。
+- 命令结果：
+  - `make check` 通过；golangci-lint v2.15.0 用本机 go1.27.4 重新构建，0 issues；
+  - `make test-go` 仅 `TestMigrateConfigLeavesCurrentConfigurationUntouched`（`cmd/webmux`）与 `TestConcurrentTrustEditsPreserveAllProjects`（`internal/agenttrust`）失败；
+  - 这两项在未修改的 origin/main 上以相同断言失败（本机 umask 0077 等环境差异），与本改动无关。
+- 局限：未在真实 Claude Code TUI 上做端到端复测，结论基于 PTY 字节与耗时断言。故事编号、数量与覆盖索引不变。
+
+## 仅全新 Relay 配对与直接删除（US-A08–US-A10）
+
+- 共享协议固定 `v0.0.0-20261116163447-ae748f547aed`：配对 v2、必需机器 ID、无 rebind；本机仅接受 v3 绑定状态。
+- 协议 `go test -race ./...` 通过；宿主 `internal/relay`、`internal/relaysetting`、`internal/statefile`、`internal/api`、`cmd/webmux` 目标 race 通过；删除了已过时的 v1→v2 迁移测试，旧格式拒绝由真实设置存储回归覆盖。
+- 前端 check、check:test、check:storybook、lint、check:arch（含 46 项架构测试）通过；RelaySettings 浏览器组件 9 项及桌面/iPhone SE 端到端 4 项通过。
+- 文档和持久化守卫、目标 Go lint 通过；当前 OpenSpec 128 项规范与本次 change 严格校验通过。
+- 删除确认已检查浅色/深色桌面、平板、手机及 320×568、375×667、667×375，无横向或弹窗溢出；以下为隔离演示数据。
+  - 浅色：[桌面](../images/fresh-relay-bindings/delete-desktop-light.webp)、[平板](../images/fresh-relay-bindings/delete-tablet-light.webp)、[手机](../images/fresh-relay-bindings/delete-phone-light.webp)。
+  - 深色：[桌面](../images/fresh-relay-bindings/delete-desktop-dark.webp)、[平板](../images/fresh-relay-bindings/delete-tablet-dark.webp)、[手机](../images/fresh-relay-bindings/delete-phone-dark.webp)。
+  - [真实确认与取消 GIF](../images/fresh-relay-bindings/delete-consent.gif)。
+- 局限：无头 Chromium 未验证真实悬停、粗指针及 iOS/Android 真机。额外 wire 快照重录在无关 codeview 场景遭遇 `/bin/sh: operation not permitted`；此前包含现有 wire 快照的 API race 已通过，未将失败重录当作成功。

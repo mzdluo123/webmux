@@ -10,7 +10,7 @@
     formatConflictSideMeta,
     gitConflictKindLabel,
   } from "../../domains/workspace/git-conflict-model";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   let {
     detail,

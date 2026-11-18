@@ -8,17 +8,20 @@ import (
 	"time"
 )
 
+// BindingAPIVersion rejects the retired restore-and-rekey lifecycle.
+const BindingAPIVersion Version = 2
+
 const (
-	PathEnrollments      = "/v1/enrollments"
-	PathEnrollmentPoll   = "/v1/enrollments/poll"
+	PathEnrollments      = "/v2/enrollments"
+	PathEnrollmentPoll   = "/v2/enrollments/poll"
 	PathHostChallenge    = "/v1/hosts/challenge"
 	PathAssignments      = "/v1/assignments"
-	PathBinding          = "/v1/binding"
+	PathBinding          = "/v2/binding"
 	PathConnector        = "/v1/connector"
 	PathGitHubStart      = "/v1/auth/github/start"
 	PathGitHubCallback   = "/v1/auth/github/callback"
 	PathConsole          = "/v1/console"
-	PathConsoleHosts     = "/v1/console/hosts"
+	PathConsoleHosts     = "/v2/console/hosts"
 	PathConsoleLogout    = "/v1/console/logout"
 	PathLoginAuthorize   = "/v1/login-grants/authorize"
 	PathNodeControl      = "/v1/nodes/control"
@@ -33,12 +36,15 @@ const (
 type EnrollmentRequest struct {
 	Version   Version   `json:"version"`
 	PublicKey PublicKey `json:"publicKey"`
-	Rebind    bool      `json:"rebind"`
+	MachineID MachineID `json:"machineId"`
 }
 
 func (r EnrollmentRequest) Validate() error {
-	if r.Version != V1 {
+	if r.Version != BindingAPIVersion {
 		return Error{Code: Incompatible}
+	}
+	if err := r.MachineID.Validate(); err != nil {
+		return err
 	}
 	_, err := r.PublicKey.Parse()
 	return err
@@ -118,7 +124,7 @@ func (a Assignment) Validate(now time.Time) error {
 	if err := a.ControlEpoch.Validate(); err != nil {
 		return err
 	}
-	if !validUntil(now, a.ExpiresAt, ControlLease) {
+	if !validUntil(now, a.ExpiresAt) {
 		return Error{Code: Expired}
 	}
 	if err := a.Binding.Validate(); err != nil {
@@ -198,9 +204,20 @@ func (r LoginExchange) Validate() error {
 	return nil
 }
 
+// LoginResume revalidates a server-only grant on the authenticated current
+// connector. It never changes identity, origin or the original absolute expiry.
+type LoginResume struct {
+	GrantID Token `json:"grantId"`
+}
+
+func (r LoginResume) Validate() error {
+	return r.GrantID.Validate()
+}
+
 // BrowserGrant is a control-only reference, NEVER a browser Cookie or bearer
-// session. Only a successful LoginExchange can mint it. All ICE refreshes must
-// revalidate its server-side console session, invitation and current connector.
+// session. Only a successful LoginExchange can mint it; LoginResume may move
+// it to a new connector scope without extending expiry. Both resume and ICE
+// refresh revalidate its server-side console session, invitation and binding.
 type BrowserGrant struct {
 	ID                  Token   `json:"id"`
 	ConsoleSessionID    Token   `json:"consoleSessionId"`
@@ -226,7 +243,7 @@ func (g BrowserGrant) Validate(now time.Time) error {
 	if !decimalID(g.OwnerID) || g.BindingGeneration == 0 || g.ConnectorGeneration == 0 {
 		return Error{Code: Invalid}
 	}
-	if !validUntil(now, g.ExpiresAt, BrowserSessionTTL) {
+	if !validUntil(now, g.ExpiresAt) {
 		return Error{Code: Expired}
 	}
 	u, err := secureURL(g.Origin, "https", true)
@@ -282,7 +299,7 @@ func (c ICEConfig) Validate(now time.Time) error {
 	if err := c.PeerConnectionID.Validate(); err != nil {
 		return err
 	}
-	if !validUntil(now, c.ExpiresAt, MaxICETTL) {
+	if !validUntil(now, c.ExpiresAt) {
 		return Error{Code: Expired}
 	}
 	if c.Browser.Role != "browser" || c.Host.Role != "host" {
@@ -292,7 +309,7 @@ func (c ICEConfig) Validate(now time.Time) error {
 		if len(e.Servers) != 1 {
 			return Error{Code: Invalid}
 		}
-		if !validUntil(now, e.ExpiresAt, MaxICETTL) {
+		if !validUntil(now, e.ExpiresAt) {
 			return Error{Code: Expired}
 		}
 		for _, s := range e.Servers {
@@ -338,6 +355,34 @@ type ConsoleHost struct {
 type ConsoleHosts struct {
 	Version Version       `json:"version"`
 	Hosts   []ConsoleHost `json:"hosts"`
+}
+
+// ConsoleHostDelete fences owner-confirmed deletion against a newer binding.
+type ConsoleHostDelete struct {
+	Version           Version `json:"version"`
+	HostID            HostID  `json:"hostId"`
+	BindingGeneration Counter `json:"bindingGeneration"`
+}
+
+func (r ConsoleHostDelete) Validate() error {
+	if r.Version != BindingAPIVersion {
+		return Error{Code: Incompatible}
+	}
+	if err := r.HostID.Validate(); err != nil {
+		return err
+	}
+	if r.BindingGeneration == 0 {
+		return Error{Code: Invalid}
+	}
+	return nil
+}
+
+// BindingDeletionResult separates record removal from remote access closure.
+type BindingDeletionResult struct {
+	Version      Version `json:"version"`
+	RevocationID Token   `json:"revocationId"`
+	Deleted      bool    `json:"deleted"`
+	AccessClosed bool    `json:"accessClosed"`
 }
 
 type LogoutResult struct {

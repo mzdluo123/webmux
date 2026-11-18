@@ -25,7 +25,7 @@
   import BranchCommitList from "./BranchCommitList.svelte";
   import FlowActions from "../shared/FlowActions.svelte";
   import FlowStatus from "../shared/FlowStatus.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   // Deletes local branches after a preview that sorts them into "已包含"
   // (every commit stays reachable; preselected) and "有独有提交" (commits only

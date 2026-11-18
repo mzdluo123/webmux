@@ -10,9 +10,9 @@
   import * as Empty from "$lib/components/ui/empty";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
-  import AdvancedSection from "../shared/AdvancedSection.svelte";
+  import { AdvancedSection } from "$lib/components/ui/advanced-section";
   import ForwardOptionsFields from "./ForwardOptionsFields.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import { copyText } from "../../platform/clipboard";
   import { errorMessage } from "../../platform/error";
   import {

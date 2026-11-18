@@ -18,7 +18,7 @@
   import { Label } from "$lib/components/ui/label";
   import ChoiceDetails from "../shared/ChoiceDetails.svelte";
   import LaunchConfigIcon from "../settings/LaunchConfigIcon.svelte";
-  import PickerField from "../shared/PickerField.svelte";
+  import { PickerField } from "$lib/components/ui/picker-field";
 
   // The "what" row of the new-session dialog: saved launch configs and a
   // custom command in one list. Switching keeps both the chosen config and

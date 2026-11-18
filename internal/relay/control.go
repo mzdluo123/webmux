@@ -135,10 +135,6 @@ func (r *controlRPC) readLoop() {
 				r.session.stop(protocol.Error{Code: protocol.Invalid})
 				return
 			}
-		case protocol.ControlGrow:
-			// Validate above checks the exact scope, expiry and bounded target.
-			// Capacity demand is not heartbeat evidence and needs no response.
-			r.session.grow(*message.Grow)
 		case protocol.ControlRevoke:
 			if err := r.revoke(message); err != nil {
 				r.session.stop(err)
@@ -349,6 +345,30 @@ func (c *Client) Exchange(ctx context.Context, exchange protocol.LoginExchange) 
 	response, err := rpc.call(ctx, message, protocol.ControlGrant, nil)
 	if err != nil {
 		return protocol.BrowserGrant{}, err
+	}
+	return *response.Grant, nil
+}
+
+func (c *Client) Resume(ctx context.Context, resume protocol.LoginResume) (protocol.BrowserGrant, error) {
+	if err := resume.Validate(); err != nil {
+		return protocol.BrowserGrant{}, err
+	}
+	rpc, err := c.activeRPC()
+	if err != nil {
+		return protocol.BrowserGrant{}, err
+	}
+	id, err := newToken()
+	if err != nil {
+		return protocol.BrowserGrant{}, err
+	}
+	message := rpc.message(protocol.ControlResume, id)
+	message.Resume = &resume
+	response, err := rpc.call(ctx, message, protocol.ControlGrant, nil)
+	if err != nil {
+		return protocol.BrowserGrant{}, err
+	}
+	if response.Grant.ID != resume.GrantID {
+		return protocol.BrowserGrant{}, protocol.Error{Code: protocol.Forbidden}
 	}
 	return *response.Grant, nil
 }

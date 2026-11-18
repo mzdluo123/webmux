@@ -49,6 +49,13 @@ func (s *Server) createFailure(w http.ResponseWriter, err error) {
 		slog.Error("session create failed", "step", body.Step, "error", err)
 		body.Error = http.StatusText(status)
 	}
+	var confirmation *workspace.UpstreamConfirmationError
+	if errors.As(err, &confirmation) {
+		body.Reason = "worktree_upstream_confirmation"
+		body.WorktreeUpstream = featurewire.WorktreeUpstream(confirmation.WorktreeUpstream)
+		reply(w, status, body)
+		return
+	}
 	if _, ok := hybridStatus(err); ok {
 		body.Reason = hybridReason(err)
 		var ineligible *hybrid.IneligibleError

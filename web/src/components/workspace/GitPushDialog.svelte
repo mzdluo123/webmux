@@ -13,8 +13,8 @@
   } from "../../contracts/git-workbench-schemas";
   import { formatPushRemoteTrackingRef } from "../../domains/workspace/git-divergence-model";
   import type { GitPushController } from "../../hooks/workspace/git-push-controller.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import GitDialogFooter from "./GitDialogFooter.svelte";
   import GitIssueList from "./GitIssueList.svelte";
   import GitPushCommitInspector from "./GitPushCommitInspector.svelte";

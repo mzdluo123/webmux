@@ -151,7 +151,13 @@
 
 ### Requirement: 主题归属与架构规则回归
 
-`src/` 根目录 SHALL 只保留入口、应用组合、类型声明与全局样式。领域模块、hooks 与业务组件 SHALL 按主题放置；通用控制器与可复用组件 SHALL 分别放在 `hooks/shared/` 与 `components/shared/`，导航组件 SHALL 放在 `components/shell/`。
+`src/` 根目录 SHALL 只保留入口、应用组合、类型声明与全局样式。领域模块、hooks 与业务组件 SHALL 按主题放置；通用控制器与跨主题业务组件 SHALL 分别放在 `hooks/shared/` 与 `components/shared/`，导航组件 SHALL 放在 `components/shell/`。
+
+不依赖业务的公共 UI 组合 SHALL 放在 `lib/components/ui/`，使用 kebab-case 目录及文件名，通过 `index.ts` 命名导出。
+
+手工维护的公共组合 SHALL 默认接受命名、文件体量、循环依赖与未使用代码检查。生成文件豁免 SHALL 逐文件列在 `ui-generated-files.json`，清单 SHALL 校验排序、唯一性与文件存在性，未列出的新文件 SHALL 接受检查。
+
+基础控件的外观与原生元素封装豁免适用于设计系统实现。
 
 `arch:test` SHALL 扫描生产树验证目录归属，并以隔离临时模块调用实际依赖配置，验证合法依赖、越界依赖、type-only、循环与失效路径。
 

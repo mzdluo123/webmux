@@ -3,7 +3,7 @@
 
   // A single-choice radio group drawn like the line tabs: an underline marks
   // the chosen segment instead of a filled one.
-  export const segmentedControlVariants = tv({
+  const segmentedControlVariants = tv({
     base: "group/segmented-control inline-flex w-fit items-center justify-center gap-1 p-[3px] text-muted-foreground",
     variants: {
       size: {

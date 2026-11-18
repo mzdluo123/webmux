@@ -6,8 +6,8 @@
   import { m } from "$lib/paraglide/messages.js";
   import type { GitAbortOperationPreview } from "../../contracts/schemas";
   import { gitSequencerKindLabel } from "../../domains/workspace/git-divergence-model";
-  import InlineNotice from "../shared/InlineNotice.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import GitOperationSessionAck from "./GitOperationSessionAck.svelte";
   import PreviewIssues from "./PreviewIssues.svelte";
 

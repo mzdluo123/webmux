@@ -9,7 +9,7 @@
     GitFileInspectorController,
     GitFileInspectorTab,
   } from "../../hooks/workspace/git-file-inspector-controller.svelte";
-  import ResponsiveDialog from "../shared/ResponsiveDialog.svelte";
+  import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import GitBlameView from "./GitBlameView.svelte";
   import GitFileHistoryView from "./GitFileHistoryView.svelte";
   import GitRevisionCompareView from "./GitRevisionCompareView.svelte";

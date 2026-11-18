@@ -6,6 +6,8 @@ import {
   authenticationHeaders,
   clearRelayAuth,
   relayAuthRevision,
+  resetRelayAuth,
+  relayAuthStatus,
 } from "../src/platform/relay-auth";
 import {
   relayDiagnostic,
@@ -21,11 +23,12 @@ beforeEach(() => locale.setPreference("zh-CN"));
 
 const ownerSession = () => ({
   authenticated: true,
+  relay: true,
   csrfToken: "owner-csrf",
   expiresAt: Math.floor(Date.now() / 1000) + 3600,
 });
 afterEach(() => {
-  clearRelayAuth();
+  resetRelayAuth();
   vi.unstubAllGlobals();
   vi.useRealTimers();
   locale.setPreference("zh-CN");
@@ -73,7 +76,7 @@ test("credentialized and IP endpoints are never displayed as trusted config", ()
   );
 });
 
-test("absolute owner expiry revokes optimization and returns to the existing login flow", () => {
+test("absolute owner expiry retains relay mode and requests a new console login", () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
   const target = new EventTarget();
@@ -84,6 +87,7 @@ test("absolute owner expiry revokes optimization and returns to the existing log
   applyRelayAuth(
     {
       authenticated: true,
+      relay: true,
       csrfToken: "expiring-owner",
       expiresAt: Math.floor(Date.now() / 1000) + 1,
     },
@@ -92,6 +96,11 @@ test("absolute owner expiry revokes optimization and returns to the existing log
   vi.advanceTimersByTime(1000);
   expect(authenticationHeaders()).not.toHaveProperty("X-WebMux-CSRF");
   expect(events).toEqual(["revoked", "auth"]);
+  expect(relayAuthStatus()).toMatchObject({
+    relay: true,
+    reason: "expired",
+    authenticated: false,
+  });
 });
 
 test.each([false, true])(

@@ -56,3 +56,17 @@ func (s *Service) ContextUsage(ctx context.Context, id string) (*Usage, error) {
 		return &usage, nil
 	})
 }
+
+// ImageCapabilities 返回当前已连接 agent 的真实提示能力。
+func (s *Service) ImageCapabilities(ctx context.Context, id string) (PromptCapabilities, error) {
+	a, err := s.actor(id)
+	if err != nil {
+		return PromptCapabilities{}, err
+	}
+	return call(ctx, a, func() (PromptCapabilities, error) {
+		if err := a.linked(); err != nil {
+			return PromptCapabilities{}, err
+		}
+		return a.chat.PromptCapabilities, nil
+	})
+}

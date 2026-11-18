@@ -7,14 +7,15 @@ A reader should be able to predict a file's name from what it owns. Names state 
 
 ## Frontend (`web/`)
 
-| Kind                     | Rule                                                                            | Example                                          |
-| ------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------ |
-| Svelte component         | PascalCase, `<Family><Part>.svelte`; one family prefix per feature              | `CodeFileTree.svelte`, `TerminalHeader.svelte`   |
-| Non-component TypeScript | kebab-case, `<domain>-<role>.ts`                                                | `chat-api.ts`, `quick-commands.ts`               |
-| Rune state               | `x.svelte.ts` holds `$state`; the pure logic lives in `x.ts` with the same stem | `quick-commands.ts` + `quick-commands.svelte.ts` |
-| Unit test                | `web/test/<source-stem>.test.ts`                                                | `draft-storage.test.ts`                          |
-| Browser test, story      | `<Component>.test.ts` or `<Component>.stories.ts`; helpers stay kebab-case      | `CodePanel.test.ts`, `terminal-fixture.ts`       |
-| shadcn-svelte base       | generated under `src/lib/components/ui/`; keep the registry's names             | `button/button.svelte`                           |
+| Kind                     | Rule                                                                            | Example                                              |
+| ------------------------ | ------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Svelte component         | PascalCase, `<Family><Part>.svelte`; one family prefix per feature              | `CodeFileTree.svelte`, `TerminalHeader.svelte`       |
+| Non-component TypeScript | kebab-case, `<domain>-<role>.ts`                                                | `chat-api.ts`, `quick-commands.ts`                   |
+| Rune state               | `x.svelte.ts` holds `$state`; the pure logic lives in `x.ts` with the same stem | `quick-commands.ts` + `quick-commands.svelte.ts`     |
+| Unit test                | `web/test/<source-stem>.test.ts`                                                | `draft-storage.test.ts`                              |
+| Browser test, story      | `<Component>.test.ts` or `<Component>.stories.ts`; helpers stay kebab-case      | `CodePanel.test.ts`, `terminal-fixture.ts`           |
+| shadcn-svelte base       | generated under `src/lib/components/ui/`; keep the registry's names             | `button/button.svelte`                               |
+| Project UI composition   | under `src/lib/components/ui/<kebab-case>/`; named export from `index.ts`       | `inline-notice/inline-notice.svelte`, `InlineNotice` |
 
 - TypeScript file names use kebab-case. Identifiers inside the file stay camelCase.
 - Group by prefix: all chat modules start with `chat-`, all code-reader modules with `code-`. Add a new member to the existing family instead of inventing a new prefix.

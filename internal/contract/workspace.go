@@ -205,12 +205,34 @@ type UpdateRepositoryRequest struct {
 	InitInstruction string `json:"initInstruction"`
 }
 
+type UpstreamChoice struct {
+	ConfirmationID string `json:"confirmationId"`
+	UseUpstream    bool   `json:"useUpstream"`
+}
+
+type WorktreeUpstream struct {
+	ConfirmationID string `json:"confirmationId"`
+	Branch         string `json:"branch"`
+	LocalHead      string `json:"localHead"`
+	Upstream       string `json:"upstream"`
+	UpstreamHead   string `json:"upstreamHead"`
+	Warning        string `json:"warning"`
+	CanUseUpstream bool   `json:"canUseUpstream"`
+}
+
+type WorktreeUpstreamFailure struct {
+	Error            string            `json:"error"`
+	Reason           string            `json:"reason"`
+	WorktreeUpstream *WorktreeUpstream `json:"worktreeUpstream"`
+}
+
 // CreateWorktreeRequest is the body of POST /api/repositories/{id}/worktrees.
 type CreateWorktreeRequest struct {
-	Path   string `json:"path"`
-	Mode   string `json:"mode"`
-	Branch string `json:"branch"`
-	Base   string `json:"base"`
+	Path           string          `json:"path"`
+	Mode           string          `json:"mode"`
+	Branch         string          `json:"branch"`
+	Base           string          `json:"base"`
+	UpstreamChoice *UpstreamChoice `json:"upstreamChoice,omitempty"`
 }
 
 // RemovalPreviewRequest is the empty body of a removal preview.

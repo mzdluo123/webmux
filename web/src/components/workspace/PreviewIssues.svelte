@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Issue } from "../../contracts/schemas";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
 
   // A preview's blockers (nothing can be confirmed) and warnings, each with
   // the worktree path it refers to.

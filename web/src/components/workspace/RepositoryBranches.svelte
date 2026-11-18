@@ -23,7 +23,7 @@
   import type { Branches } from "../../contracts/schemas";
   import { upstreamState } from "../../domains/workspace/worktree-sync";
   import BranchMenuItems from "./BranchMenuItems.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import ListSearchInput from "../shared/ListSearchInput.svelte";
   import UpstreamStatus from "./UpstreamStatus.svelte";
 

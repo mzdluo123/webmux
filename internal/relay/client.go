@@ -26,11 +26,13 @@ import (
 // Config contains the control authority and startup-fixed WebMux listener.
 // TLSConfig may supply additional RootCAs, never a verification bypass.
 type Config struct {
-	ControlEndpoint   string
-	ControlAudience   string
-	LoopbackAddress   string
-	TLSConfig         *tls.Config
-	LoopbackTLSConfig *tls.Config
+	InteractiveConnections int
+	BulkConnections        int
+	ControlEndpoint        string
+	ControlAudience        string
+	LoopbackAddress        string
+	TLSConfig              *tls.Config
+	LoopbackTLSConfig      *tls.Config
 }
 
 // Client owns at most one running connector. It never persists credentials.
@@ -45,6 +47,15 @@ type Client struct {
 }
 
 func New(cfg Config) (*Client, error) {
+	if cfg.InteractiveConnections == 0 {
+		cfg.InteractiveConnections = protocol.DefaultInteractiveConnections
+	}
+	if cfg.BulkConnections == 0 {
+		cfg.BulkConnections = protocol.DefaultBulkConnections
+	}
+	if cfg.InteractiveConnections < 1 || cfg.InteractiveConnections > protocol.MaxRoleConnections || cfg.BulkConnections < 1 || cfg.BulkConnections > protocol.MaxRoleConnections {
+		return nil, protocol.Error{Code: protocol.InvalidConfig}
+	}
 	if !validOrigin(cfg.ControlEndpoint) || !validAudience(cfg.ControlAudience) {
 		return nil, protocol.Error{Code: protocol.InvalidConfig}
 	}
@@ -177,15 +188,19 @@ func (c *Client) request(ctx context.Context, method, path string, input, output
 		return res.StatusCode, protocol.Error{Code: protocol.Invalid}
 	}
 	if !slices.Contains(statuses, res.StatusCode) {
+		retryAfter := relayRetryAfter(res.Header.Get("Retry-After"), time.Now())
 		var remote protocol.Error
 		if protocol.Decode(data, &remote, protocol.MaxAuthBytes) == nil && remote.Code.Valid() && protocol.HTTPStatus(remote.Code) == res.StatusCode {
 			// Correlation identifiers are deliberately not surfaced to diagnostics.
-			return res.StatusCode, protocol.Error{Code: remote.Code, RetryAfterSeconds: remote.RetryAfterSeconds}
+			if remote.RetryAfterSeconds > retryAfter {
+				retryAfter = remote.RetryAfterSeconds
+			}
+			return res.StatusCode, protocol.Error{Code: remote.Code, RetryAfterSeconds: retryAfter}
 		}
 		if res.StatusCode >= 300 && res.StatusCode < 400 {
 			return res.StatusCode, protocol.Error{Code: protocol.Forbidden}
 		}
-		return res.StatusCode, protocol.Error{Code: protocol.Unavailable}
+		return res.StatusCode, protocol.Error{Code: protocol.Unavailable, RetryAfterSeconds: retryAfter}
 	}
 	if output == nil {
 		if len(data) != 0 {
@@ -197,6 +212,17 @@ func (c *Client) request(ctx context.Context, method, path string, input, output
 		return res.StatusCode, err
 	}
 	return res.StatusCode, nil
+}
+
+func relayRetryAfter(value string, now time.Time) uint32 {
+	if seconds, err := strconv.Atoi(value); err == nil {
+		return uint32(max(0, min(seconds, 24*60*60)))
+	}
+	if deadline, err := http.ParseTime(value); err == nil {
+		seconds := int((deadline.Sub(now) + time.Second - 1) / time.Second)
+		return uint32(max(0, min(seconds, 24*60*60)))
+	}
+	return 0
 }
 
 func transportError(ctx context.Context, err error) error {
@@ -215,18 +241,18 @@ func transportError(ctx context.Context, err error) error {
 	return protocol.Error{Code: protocol.Unavailable}
 }
 
-func (c *Client) Enroll(ctx context.Context, key ed25519.PrivateKey, rebind bool) (protocol.Enrollment, error) {
+func (c *Client) Enroll(ctx context.Context, key ed25519.PrivateKey, machineID protocol.MachineID) (protocol.Enrollment, error) {
 	var out protocol.Enrollment
-	if len(key) != ed25519.PrivateKeySize {
+	if len(key) != ed25519.PrivateKeySize || machineID.Validate() != nil {
 		return out, protocol.Error{Code: protocol.Invalid}
 	}
-	in := protocol.EnrollmentRequest{Version: protocol.V1, PublicKey: protocol.PublicKey{Algorithm: protocol.HostAlgorithm, Key: base64.RawURLEncoding.EncodeToString(key.Public().(ed25519.PublicKey))}, Rebind: rebind}
+	in := protocol.EnrollmentRequest{Version: protocol.BindingAPIVersion, PublicKey: protocol.PublicKey{Algorithm: protocol.HostAlgorithm, Key: base64.RawURLEncoding.EncodeToString(key.Public().(ed25519.PublicKey))}, MachineID: machineID}
 	if _, err := c.request(ctx, http.MethodPost, protocol.PathEnrollments, in, &out, http.StatusCreated); err != nil {
 		return out, err
 	}
 	u, err := url.Parse(out.VerificationURL)
 	now := time.Now()
-	if out.Version != protocol.V1 || out.Handle.Validate() != nil || out.UserCode == "" || len(out.UserCode) > 256 || strings.ContainsAny(out.UserCode, "\r\n\x00") || err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" || len(out.VerificationURL) > protocol.MaxURLBytes || out.ExpiresAt <= now.Unix() || out.ExpiresAt > now.Add(15*time.Minute).Unix() || out.PollIntervalSeconds < 1 || out.PollIntervalSeconds > 60 {
+	if out.Version != protocol.BindingAPIVersion || out.Handle.Validate() != nil || out.UserCode == "" || len(out.UserCode) > 256 || strings.ContainsAny(out.UserCode, "\r\n\x00") || err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" || len(out.VerificationURL) > protocol.MaxURLBytes || out.ExpiresAt <= now.Unix() || out.PollIntervalSeconds < 1 || out.PollIntervalSeconds > 60 {
 		return protocol.Enrollment{}, protocol.Error{Code: protocol.Invalid}
 	}
 	return out, nil
@@ -237,10 +263,10 @@ func (c *Client) Poll(ctx context.Context, handle protocol.Token) (protocol.Enro
 	if err := handle.Validate(); err != nil {
 		return out, err
 	}
-	if _, err := c.request(ctx, http.MethodPost, protocol.PathEnrollmentPoll, protocol.EnrollmentPoll{Version: protocol.V1, Handle: handle}, &out, http.StatusOK); err != nil {
+	if _, err := c.request(ctx, http.MethodPost, protocol.PathEnrollmentPoll, protocol.EnrollmentPoll{Version: protocol.BindingAPIVersion, Handle: handle}, &out, http.StatusOK); err != nil {
 		return out, err
 	}
-	if out.Version != protocol.V1 {
+	if out.Version != protocol.BindingAPIVersion {
 		return protocol.EnrollmentResult{}, protocol.Error{Code: protocol.Incompatible}
 	}
 	if err := out.Binding.Validate(); err != nil {
@@ -253,7 +279,7 @@ func (c *Client) Cancel(ctx context.Context, handle protocol.Token) error {
 	if err := handle.Validate(); err != nil {
 		return err
 	}
-	_, err := c.request(ctx, http.MethodDelete, protocol.PathEnrollments, protocol.EnrollmentPoll{Version: protocol.V1, Handle: handle}, nil, http.StatusNoContent)
+	_, err := c.request(ctx, http.MethodDelete, protocol.PathEnrollments, protocol.EnrollmentPoll{Version: protocol.BindingAPIVersion, Handle: handle}, nil, http.StatusNoContent)
 	return err
 }
 
@@ -304,18 +330,17 @@ func (c *Client) Assignment(ctx context.Context, key ed25519.PrivateKey, binding
 	return out, nil
 }
 
-func (c *Client) Delete(ctx context.Context, key ed25519.PrivateKey, binding protocol.Binding) (protocol.LogoutResult, error) {
-	var out protocol.LogoutResult
+func (c *Client) Delete(ctx context.Context, key ed25519.PrivateKey, binding protocol.Binding) (protocol.BindingDeletionResult, error) {
+	var out protocol.BindingDeletionResult
 	proof, _, err := c.hostProof(ctx, key, binding, protocol.PurposeDelete)
 	if err != nil {
 		return out, err
 	}
-	status, err := c.request(ctx, http.MethodDelete, protocol.PathBinding, proof, &out, http.StatusOK, http.StatusAccepted)
-	if err != nil {
-		return protocol.LogoutResult{}, err
+	if _, err := c.request(ctx, http.MethodDelete, protocol.PathBinding, proof, &out, http.StatusOK); err != nil {
+		return protocol.BindingDeletionResult{}, err
 	}
-	if out.Version != protocol.V1 || out.RevocationID.Validate() != nil || out.Complete != (status == http.StatusOK) {
-		return protocol.LogoutResult{}, protocol.Error{Code: protocol.Invalid}
+	if err := out.Validate(); err != nil {
+		return protocol.BindingDeletionResult{}, err
 	}
 	return out, nil
 }

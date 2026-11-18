@@ -8,7 +8,7 @@
   import * as Card from "$lib/components/ui/card";
   import { voicePreference } from "../../hooks/shared/voice-preference.svelte";
   import { useVoiceSettings } from "../../hooks/settings/voice-settings.svelte";
-  import InlineNotice from "../shared/InlineNotice.svelte";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import VoiceConfiguration from "./VoiceConfiguration.svelte";
 
   const protocolDoc = $derived(m.s2_voice_protocol_doc_url());

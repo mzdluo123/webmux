@@ -37,7 +37,8 @@
     - 会话还不存在时经 `POST /api/uploads` 上传到服务端的暂存文件夹，发送后移入新会话的上传目录，随首条消息发送；
     - 首条消息之前的步骤失败时附件保留以便重发；首条消息发送失败时附件已归新会话，输入框不再保留；
   - 输入框底部、发送按钮左侧有与聊天视图相同的“快捷指令”菜单（US-G02）：选择后正文原样插入光标处，不自动发送；正文里的 `{{dir}}`、`{{webmux}}` 不在浏览器展开；
-  - 发送只发出一次 `POST /api/sessions`（新建 worktree 时带 `newWorktree`，选择已有工作树时带 `workspace`；另有 `configId`、`view: "chat"`、`prompt`、`expandPrompt: true`、`attachments`、`agentConfig`、`permissionMode` 与 `clientRequestId`），快速开始没有独立接口：
+  - 发送调用统一 `POST /api/sessions`（新建 worktree 时带 `newWorktree`，选择已有工作树时带 `workspace`；另有 `configId`、`view: "chat"`、`prompt`、`expandPrompt: true`、`attachments`、`agentConfig`、`permissionMode` 与 `clientRequestId`），快速开始没有独立接口：
+    - 新建工作树遇到上游更新或获取失败时先显示确认；选择后携带 `upstreamChoice` 重试，保留首条消息与已上传附件，取消不创建资源；已有工作树仅启动会话，不因其上游状态改变分支；
     - `expandPrompt` 只由快速开始页设置：服务端在会话创建后替换首条消息里的 `{{dir}}`（会话临时文件夹路径）与 `{{webmux}}`（WebMux 工具说明）：
       - 先 `{{dir}}`、说明最后插入，单遍，不展开其他名称；
       - 临时文件夹或说明不可用时预检即以 503 拒绝，不创建会话或 worktree；

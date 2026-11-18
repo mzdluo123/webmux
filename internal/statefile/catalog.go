@@ -13,6 +13,7 @@ const (
 	VoiceSettings      ID = "voice-settings"
 	P2PSettings        ID = "p2p-settings"
 	Relay              ID = "relay"
+	RelayMachine       ID = "relay-machine"
 	TailscaleOwnership ID = "tailscale-ownership"
 	Push               ID = "push"
 	Runtime            ID = "runtime"
@@ -53,7 +54,8 @@ var catalog = []Descriptor{
 	{TailscaleSettings, "tailscale-settings.json", "internal/tailscalesettings", "fail_closed", "none", 1, "v", 64 << 10, true, "", 0},
 	{VoiceSettings, "voice-settings.json", "internal/voicesettings", "fail_closed", "env", 1, "v", 64 << 10, true, "", 0},
 	{P2PSettings, "p2p-settings.json", "internal/p2psettings", "fail_closed", "none", 1, "v", 64 << 10, true, "", 0},
-	{Relay, "relay-settings.json", "internal/relaysetting", "fail_closed", "Ed25519 identity/binding", 2, "v", 64 << 10, true, "", 1},
+	{Relay, "relay-settings.json", "internal/relaysetting", "fail_closed", "Ed25519 identity/binding", 3, "v", 64 << 10, true, "", 3},
+	{RelayMachine, "relay-machine.json", "internal/relaysetting", "pairing_unavailable", "public machine identity", 1, "v", 4 << 10, false, "", 0},
 	{TailscaleOwnership, "tailscale-ownership.json", "cmd/webmux", "block_start", "target", 1, "v", 64 << 10, false, "tailscale.json", 0},
 	{Push, "push.json", "internal/push", "unavailable", "vapid/subscriptions", 1, "v", 1 << 20, true, "", 0},
 	{Runtime, "run/server.json", "internal/runtime", "local_api_unavailable", "fingerprint", 1, "v", 64 << 10, false, "", 0},

@@ -14,18 +14,23 @@ import (
 // AuthSession is an opaque, non-bearer reference; callers cannot mint authority
 // by constructing it. All mutable fields are guarded by its owning Auth's lock.
 type AuthSession struct {
-	owner    *Auth
-	key      [32]byte
-	id       string
-	grant    protocol.BrowserGrant
-	binding  AuthBinding
-	csrf     [32]byte
-	expires  time.Time
-	ctx      context.Context
-	cancel   context.CancelFunc
-	done     chan struct{}
-	accesses map[*authAccess]struct{}
-	peers    map[protocol.Token]*authPeer
+	owner        *Auth
+	key          [32]byte
+	id           string
+	grant        protocol.BrowserGrant
+	binding      AuthBinding
+	csrf         [32]byte
+	expires      time.Time
+	ctx          context.Context
+	cancel       context.CancelFunc
+	done         chan struct{}
+	accesses     map[*authAccess]struct{}
+	peers        map[protocol.Token]*authPeer
+	suspended    bool
+	revoked      bool
+	resuming     bool
+	resumeCancel context.CancelFunc
+	retryAfter   time.Time
 }
 
 type AuthPrincipal struct {
@@ -39,6 +44,8 @@ type AuthSessionStatus struct {
 	Authenticated bool
 	CSRFToken     string
 	ExpiresAt     int64
+	Relay         bool
+	Reason        string
 }
 
 type authAccess struct {
@@ -92,16 +99,18 @@ func (a *Auth) newSession(handle string, grant protocol.BrowserGrant, binding Au
 		}
 	}
 	a.sessions[key] = s
-	a.workers.Go(func() { a.sessionLifetime(s, expires.Sub(now)) })
+	a.workers.Go(func() { a.sessionLifetime(s) })
 	return AuthFinish{Cookie: authCookie(AuthCookieName, handle, now, expires), Principal: a.principal(s)}, nil
 }
 
-func (a *Auth) sessionLifetime(s *AuthSession, lifetime time.Duration) {
-	timer := time.NewTimer(lifetime)
+func (a *Auth) sessionLifetime(s *AuthSession) {
+	timer := time.NewTimer(s.expires.Sub(a.deps.Now()))
 	defer timer.Stop()
 	select {
 	case <-timer.C:
-		s.cancel()
+		a.mu.Lock()
+		a.retireLocked(s, "expired")
+		a.mu.Unlock()
 	case <-s.ctx.Done():
 	}
 	a.mu.Lock()
@@ -126,23 +135,34 @@ func (a *Auth) sessionLifetime(s *AuthSession, lifetime time.Duration) {
 		<-peer.done
 	}
 	a.mu.Lock()
-	delete(a.sessions, s.key)
+	clear(s.accesses)
+	if !s.suspended || s.revoked || !a.deps.Now().Before(s.expires) {
+		if !s.revoked {
+			a.rememberFailureLocked(s, "expired")
+		}
+		if a.sessions[s.key] == s {
+			delete(a.sessions, s.key)
+		}
+	}
 	close(s.done)
 	a.mu.Unlock()
 }
 
 func (a *Auth) validLocked(principal AuthPrincipal, binding AuthBinding, now time.Time) (*AuthSession, error) {
 	s := principal.Session
-	if s == nil || s.owner != a || a.sessions[s.key] != s || principal.GrantID != s.grant.ID || principal.ID != s.id || s.ctx.Err() != nil || a.closed {
+	if s == nil || s.owner != a || a.sessions[s.key] != s || principal.GrantID != s.grant.ID || principal.ID != s.id || principal.Context != s.ctx || s.revoked || a.closed {
 		return nil, protocol.Error{Code: protocol.Unauthenticated}
 	}
 	if !now.Before(s.expires) {
-		s.cancel()
+		a.retireLocked(s, "expired")
 		return nil, protocol.Error{Code: protocol.Expired}
 	}
+	if s.suspended || s.ctx.Err() != nil {
+		return nil, protocol.Error{Code: protocol.Unavailable}
+	}
 	if binding != s.binding {
-		s.cancel()
-		return nil, protocol.Error{Code: protocol.Unauthenticated}
+		a.suspendLocked(s)
+		return nil, protocol.Error{Code: protocol.Unavailable}
 	}
 	return s, nil
 }
@@ -150,9 +170,11 @@ func (a *Auth) validLocked(principal AuthPrincipal, binding AuthBinding, now tim
 func (a *Auth) validatePrincipal(principal AuthPrincipal) (*AuthSession, error) {
 	binding, err := a.snapshot()
 	if err != nil {
-		if s := principal.Session; s != nil && s.owner == a {
-			s.cancel()
+		a.mu.Lock()
+		if s := principal.Session; s != nil && s.owner == a && a.sessions[s.key] == s {
+			a.suspendLocked(s)
 		}
+		a.mu.Unlock()
 		return nil, err
 	}
 	a.mu.Lock()
@@ -164,24 +186,37 @@ func (a *Auth) Authenticate(cookie, publicOrigin string) (AuthPrincipal, error) 
 	if protocol.Token(cookie).Validate() != nil {
 		return AuthPrincipal{}, protocol.Error{Code: protocol.Unauthenticated}
 	}
-	binding, err := a.snapshot()
-	if err != nil {
-		return AuthPrincipal{}, err
-	}
-	if publicOrigin != binding.Binding.PublicURL {
-		return AuthPrincipal{}, protocol.Error{Code: protocol.Forbidden}
-	}
+	binding, snapshotErr := a.snapshot()
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	s := a.sessions[authDigest(cookie)]
-	if s == nil {
+	key := authDigest(cookie)
+	s := a.sessions[key]
+	if s == nil || s.revoked || a.closed {
+		if failure, ok := a.failures[key]; ok && failure.origin == publicOrigin && failure.reason == "expired" && a.deps.Now().Before(failure.until) {
+			return AuthPrincipal{}, protocol.Error{Code: protocol.Expired}
+		}
 		return AuthPrincipal{}, protocol.Error{Code: protocol.Unauthenticated}
 	}
-	principal := a.principal(s)
-	if _, err := a.validLocked(principal, binding, a.deps.Now()); err != nil {
-		return AuthPrincipal{}, err
+	if publicOrigin != s.grant.Origin {
+		return AuthPrincipal{}, protocol.Error{Code: protocol.Forbidden}
 	}
-	return principal, nil
+	now := a.deps.Now()
+	if !now.Before(s.expires) {
+		a.retireLocked(s, "expired")
+		return AuthPrincipal{}, protocol.Error{Code: protocol.Expired}
+	}
+	if snapshotErr != nil {
+		a.suspendLocked(s)
+		return AuthPrincipal{}, protocol.Error{Code: protocol.Unavailable}
+	}
+	if binding != s.binding {
+		a.suspendLocked(s)
+	}
+	if s.suspended {
+		a.resumeLocked(s, binding, now)
+		return AuthPrincipal{}, protocol.Error{Code: protocol.Unavailable}
+	}
+	return a.principal(s), nil
 }
 
 func (a *Auth) Status(principal AuthPrincipal) (AuthSessionStatus, error) {
@@ -189,7 +224,7 @@ func (a *Auth) Status(principal AuthPrincipal) (AuthSessionStatus, error) {
 	if err != nil {
 		return AuthSessionStatus{}, err
 	}
-	return AuthSessionStatus{Authenticated: true, CSRFToken: a.csrfToken(s.key), ExpiresAt: s.expires.Unix()}, nil
+	return AuthSessionStatus{Authenticated: true, CSRFToken: a.csrfToken(s.key), ExpiresAt: s.expires.Unix(), Relay: true}, nil
 }
 
 func (a *Auth) CheckOrigin(principal AuthPrincipal, origin string) error {
@@ -249,11 +284,32 @@ func (a *Auth) RegisterAccess(principal AuthPrincipal, closeAccess func(), done 
 func (a *Auth) Logout(ctx context.Context, principal AuthPrincipal) error {
 	s := principal.Session
 	a.mu.Lock()
-	if s == nil || s.owner != a || principal.GrantID != s.grant.ID || principal.ID != s.id {
+	if s == nil || s.owner != a || a.sessions[s.key] != s || principal.Context != s.ctx || principal.GrantID != s.grant.ID || principal.ID != s.id {
 		a.mu.Unlock()
 		return protocol.Error{Code: protocol.Unauthenticated}
 	}
-	s.cancel()
+	a.retireLocked(s, "revoked")
+	a.mu.Unlock()
+	return authWait(ctx, []*AuthSession{s})
+}
+
+// LogoutBrowser can revoke suspended authority without waiting for recovery.
+// It still requires the host-only cookie, exact origin and session CSRF secret.
+func (a *Auth) LogoutBrowser(ctx context.Context, cookie, origin, csrf string) error {
+	if protocol.Token(cookie).Validate() != nil {
+		return protocol.Error{Code: protocol.Unauthenticated}
+	}
+	a.mu.Lock()
+	s := a.sessions[authDigest(cookie)]
+	if s == nil || s.revoked || a.closed {
+		a.mu.Unlock()
+		return protocol.Error{Code: protocol.Unauthenticated}
+	}
+	if origin != s.grant.Origin || protocol.Token(csrf).Validate() != nil || !hmac.Equal(s.csrf[:], authDigestBytes(csrf)) {
+		a.mu.Unlock()
+		return protocol.Error{Code: protocol.Forbidden}
+	}
+	a.retireLocked(s, "revoked")
 	a.mu.Unlock()
 	return authWait(ctx, []*AuthSession{s})
 }
@@ -288,7 +344,7 @@ func (a *Auth) Revoke(ctx context.Context, revocation protocol.Revocation) error
 		}
 		matches := revocation.Scope == "binding" || revocation.Scope == "connector" && g.ConnectorGeneration == revocation.ConnectorGeneration || revocation.Scope == "console-session" && g.ConsoleSessionID == revocation.ConsoleSessionID || revocation.Scope == "grant" && g.ID == revocation.GrantID
 		if matches {
-			s.cancel()
+			a.retireLocked(s, "revoked")
 			sessions = append(sessions, s)
 		}
 	}
@@ -302,7 +358,7 @@ func (a *Auth) InvalidateAll(ctx context.Context) error {
 	clear(a.transactions)
 	sessions := make([]*AuthSession, 0, len(a.sessions))
 	for _, s := range a.sessions {
-		s.cancel()
+		a.retireLocked(s, "revoked")
 		sessions = append(sessions, s)
 	}
 	a.mu.Unlock()

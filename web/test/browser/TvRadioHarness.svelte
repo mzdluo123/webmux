@@ -2,8 +2,10 @@
   import { onMount } from "svelte";
   import { Button } from "../../src/lib/components/ui/button";
   import * as Command from "../../src/lib/components/ui/command";
-  import SegmentedControl from "../../src/lib/components/ui/segmented-control/segmented-control.svelte";
-  import SegmentedItem from "../../src/lib/components/ui/segmented-control/segmented-control-item.svelte";
+  import {
+    SegmentedControl,
+    SegmentedControlItem as SegmentedItem,
+  } from "$lib/components/ui/segmented-control";
   import { useTvNavigation } from "../../src/hooks/shared/tv-navigation.svelte";
   import { tvMode } from "../../src/hooks/shared/tv-mode.svelte";
 

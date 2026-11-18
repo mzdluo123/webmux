@@ -10,6 +10,8 @@ type HandoffLocation struct {
 	NewWorktreeBranch string `json:"newWorktreeBranch"`
 }
 type HandoffPreviewRequest struct {
+	Format          string            `json:"format"`
+	MaxPages        int               `json:"maxPages"`
 	ConfigID        string            `json:"configId"`
 	TargetSessionID string            `json:"targetSessionId"`
 	AgentConfig     map[string]string `json:"agentConfig"`
@@ -26,7 +28,35 @@ type HandoffBudget struct {
 	Source     string `json:"source"`
 	OverBudget bool   `json:"overBudget"`
 }
+type HandoffImagePage struct {
+	Index    int    `json:"index"`
+	MimeType string `json:"mimeType"`
+	Data     string `json:"data"`
+	SHA256   string `json:"sha256"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	Bytes    int    `json:"bytes"`
+}
+type HandoffImageBudget struct {
+	MaxPages           int    `json:"maxPages"`
+	Pages              int    `json:"pages"`
+	Bytes              int    `json:"bytes"`
+	MaxBytes           int    `json:"maxBytes"`
+	MaxRequestBytes    int    `json:"maxRequestBytes"`
+	ProjectedRunes     int    `json:"projectedRunes"`
+	RetainedRunes      int    `json:"retainedRunes"`
+	EstimatedTokens    int64  `json:"estimatedTokens"`
+	TokenEstimateKnown bool   `json:"tokenEstimateKnown"`
+	TokenBasis         string `json:"tokenBasis"`
+	Shape              string `json:"shape"`
+}
 type HandoffPreview struct {
+	Format          string                `json:"format"`
+	Pages           []HandoffImagePage    `json:"pages"`
+	ImageBudget     HandoffImageBudget    `json:"imageBudget"`
+	BlockedReason   string                `json:"blockedReason"`
+	Capability      string                `json:"capability"`
+	HistoryText     string                `json:"historyText"`
 	ID              string                `json:"id"`
 	InstanceID      string                `json:"instanceId"`
 	OperationID     string                `json:"operationId"`
@@ -43,17 +73,19 @@ type HandoffPreview struct {
 	Budget          HandoffBudget         `json:"budget"`
 }
 type HandoffSendRequest struct {
-	OperationID string `json:"operationId"`
+	OperationID    string          `json:"operationId"`
+	UpstreamChoice *UpstreamChoice `json:"upstreamChoice,omitempty"`
 }
 type HandoffOperation struct {
-	ID              string     `json:"id"`
-	PreviewID       string     `json:"previewId"`
-	InstanceID      string     `json:"instanceId"`
-	State           string     `json:"state"`
-	TargetSessionID string     `json:"targetSessionId"`
-	Error           string     `json:"error"`
-	WorktreeID      string     `json:"worktreeId"`
-	WorktreePath    string     `json:"worktreePath"`
-	StartedAt       time.Time  `json:"startedAt"`
-	FinishedAt      *time.Time `json:"finishedAt"`
+	ID               string            `json:"id"`
+	PreviewID        string            `json:"previewId"`
+	InstanceID       string            `json:"instanceId"`
+	State            string            `json:"state"`
+	TargetSessionID  string            `json:"targetSessionId"`
+	Error            string            `json:"error"`
+	WorktreeID       string            `json:"worktreeId"`
+	WorktreePath     string            `json:"worktreePath"`
+	StartedAt        time.Time         `json:"startedAt"`
+	FinishedAt       *time.Time        `json:"finishedAt"`
+	WorktreeUpstream *WorktreeUpstream `json:"worktreeUpstream,omitempty"`
 }

@@ -325,20 +325,20 @@ var worktreeCreateCommand = &Command{
 	Description: "--branch creates a new branch from --base (default: the repository's default base); --existing checks out a " +
 		"branch that exists. The worktree goes beside the repository in <name>.worktrees/<branch leaf>, as quick start " +
 		"does, unless --path says otherwise. Like the Web UI, the new worktree is added to the home page; --no-pin leaves " +
-		"it off, and a failure to add it is only a warning. --refresh-base fetches the base's upstream first and starts " +
-		"from the fetched commit; when fetching fails, a warning is printed and the local branch is used.",
+		"it off, and a failure to add it is only a warning. Upstream changes require a choice on a terminal, or " +
+		"explicit --upstream=latest|local in scripts; an existing diverged branch can only be kept locally.",
 	Arguments: []Item{repoArgument},
 	Output:    "The worktree path; with --json, the Worktree.",
 	Exit:      exitsCommon(ExitItem{Code: 1, Text: "Also: Git refused (the branch exists, the path is taken)."}),
 	Examples: []Example{
 		{Command: "webmux worktree create . --branch fix/lint --base main", Text: "Prepare a worktree for a parallel task."},
-		{Command: "cd \"$(webmux worktree create . --branch exp/a --refresh-base)\"", Text: "Start from the fetched upstream and enter it."},
+		{Command: "cd \"$(webmux worktree create . --branch exp/a --upstream=latest)\"", Text: "Use the latest upstream when available and enter the worktree."},
 		{Command: "webmux worktree create . --existing release/1.2 --no-pin", Text: "Check out an existing branch without showing it on the home page."},
 	},
 	SeeAlso: []string{"webmux run --new-worktree", "webmux repo base", "webmux worktree rm"},
 	Notes: map[string]Note{
-		"branch": {Conflicts: []string{"existing"}}, "existing": {Conflicts: []string{"branch", "base", "refresh-base"}},
-		"base": {Requires: []string{"branch"}}, "refresh-base": {Requires: []string{"branch"}},
+		"branch": {Conflicts: []string{"existing"}}, "existing": {Conflicts: []string{"branch", "base"}},
+		"base": {Requires: []string{"branch"}},
 	},
 	Bind: func(fs *flag.FlagSet) Action {
 		branch := fs.String("branch", "", "create the new branch `NAME`")
@@ -346,7 +346,7 @@ var worktreeCreateCommand = &Command{
 		existing := fs.String("existing", "", "check out the existing `BRANCH`")
 		dir := fs.String("path", "", "put the worktree at `DIR` instead of <repo>.worktrees/<branch leaf>")
 		noPin := fs.Bool("no-pin", false, "do not add the worktree to the home page")
-		refresh := fs.Bool("refresh-base", false, "fetch the base's upstream first and start from it")
+		upstream := fs.String("upstream", "", "when confirmation is needed, choose `latest|local` without prompting")
 		asJSON := fs.Bool("json", false, "print the Worktree")
 		return func(ctx context.Context, e Env, args []string) int {
 			if len(args) != 1 {
@@ -355,8 +355,11 @@ var worktreeCreateCommand = &Command{
 			if (*branch == "") == (*existing == "") {
 				return e.Usagef("give either --branch NAME or --existing BRANCH")
 			}
-			if *existing != "" && (*base != "" || *refresh) {
-				return e.Usagef("--base and --refresh-base apply to --branch only")
+			if !validUpstreamPolicy(*upstream) {
+				return e.Usagef("--upstream must be latest or local")
+			}
+			if *existing != "" && *base != "" {
+				return e.Usagef("--base applies to --branch only")
 			}
 			client, repo, code := e.repoAndClient(ctx, args[0])
 			if client == nil {
@@ -367,7 +370,7 @@ var worktreeCreateCommand = &Command{
 			if *existing != "" {
 				name = *existing
 			}
-			tree, err := e.createWorktree(ctx, client, repo, name, *base, *dir, *existing != "", *refresh, !*noPin)
+			tree, err := e.createWorktree(ctx, client, repo, name, *base, *dir, *upstream, *existing != "", !*noPin)
 			if err != nil {
 				return e.Fail(err)
 			}

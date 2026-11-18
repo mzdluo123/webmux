@@ -65,7 +65,7 @@ func (h StreamHeader) Validate(expected Scope, role Role) error {
 	if h.Scope != expected {
 		return Error{Code: StaleGeneration}
 	}
-	if !role.Valid() || h.Role != role || h.Kind != StreamHTTP && h.Kind != StreamControl || h.Kind == StreamControl && role != RoleControl {
+	if !role.Valid() || h.Role != role || h.Kind != StreamHTTP && h.Kind != StreamControl || h.Kind == StreamControl && role != RoleControl || h.Kind == StreamHTTP && role == RoleControl {
 		return Error{Code: Invalid}
 	}
 	return nil
@@ -81,6 +81,7 @@ type ControlType string
 
 const (
 	ControlExchange   ControlType = "login.exchange"
+	ControlResume     ControlType = "login.resume"
 	ControlGrant      ControlType = "login.grant"
 	ControlICERequest ControlType = "ice.request"
 	ControlICEConfig  ControlType = "ice.config"
@@ -89,15 +90,7 @@ const (
 	ControlFailure    ControlType = "error"
 	ControlPing       ControlType = "ping"
 	ControlPong       ControlType = "pong"
-	ControlGrow       ControlType = "transport.grow"
 )
-
-// ConnectionDemand requests a bounded target pool size, not an increment.
-// Every added socket authenticates independently in the existing Scope/Role.
-type ConnectionDemand struct {
-	Role        Role   `json:"role"`
-	Connections uint32 `json:"connections"`
-}
 
 type Revocation struct {
 	ID Token `json:"id"`
@@ -170,24 +163,20 @@ type RevocationAck struct {
 // stream. Exactly one matching payload is present, except ping/pong (none).
 // Responses echo RequestID; events use independent IDs. No implicit retries.
 type ControlMessage struct {
-	Version       Version           `json:"version"`
-	Type          ControlType       `json:"type"`
-	RequestID     Token             `json:"requestId"`
-	Scope         Scope             `json:"scope"`
-	ExpiresAt     int64             `json:"expiresAt"`
-	Exchange      *LoginExchange    `json:"exchange,omitempty"`
-	Grant         *BrowserGrant     `json:"grant,omitempty"`
-	ICERequest    *ICERequest       `json:"iceRequest,omitempty"`
-	ICEConfig     *ICEConfig        `json:"iceConfig,omitempty"`
-	Revocation    *Revocation       `json:"revocation,omitempty"`
-	RevocationAck *RevocationAck    `json:"revocationAck,omitempty"`
-	Grow          *ConnectionDemand `json:"grow,omitempty"`
-	Error         *Error            `json:"error,omitempty"`
+	Version       Version        `json:"version"`
+	Type          ControlType    `json:"type"`
+	RequestID     Token          `json:"requestId"`
+	Scope         Scope          `json:"scope"`
+	ExpiresAt     int64          `json:"expiresAt"`
+	Exchange      *LoginExchange `json:"exchange,omitempty"`
+	Resume        *LoginResume   `json:"resume,omitempty"`
+	Grant         *BrowserGrant  `json:"grant,omitempty"`
+	ICERequest    *ICERequest    `json:"iceRequest,omitempty"`
+	ICEConfig     *ICEConfig     `json:"iceConfig,omitempty"`
+	Revocation    *Revocation    `json:"revocation,omitempty"`
+	RevocationAck *RevocationAck `json:"revocationAck,omitempty"`
+	Error         *Error         `json:"error,omitempty"`
 }
-
-// Allow bounded sender clock lead without accepting already expired messages.
-// This does not change heartbeat supervision or any authorization lifetime.
-const controlMessageClockSkew = 5 * time.Second
 
 func (m ControlMessage) Validate(expected Scope, now time.Time) error {
 	if m.Version != V1 {
@@ -202,11 +191,11 @@ func (m ControlMessage) Validate(expected Scope, now time.Time) error {
 	if m.Scope != expected {
 		return Error{Code: StaleGeneration}
 	}
-	if !validUntil(now, m.ExpiresAt, ControlMessageTTL+controlMessageClockSkew) {
+	if !validUntil(now, m.ExpiresAt) {
 		return Error{Code: Expired}
 	}
 	count := 0
-	for _, present := range []bool{m.Exchange != nil, m.Grant != nil, m.ICERequest != nil, m.ICEConfig != nil, m.Revocation != nil, m.RevocationAck != nil, m.Error != nil, m.Grow != nil} {
+	for _, present := range []bool{m.Exchange != nil, m.Resume != nil, m.Grant != nil, m.ICERequest != nil, m.ICEConfig != nil, m.Revocation != nil, m.RevocationAck != nil, m.Error != nil} {
 		if present {
 			count++
 		}
@@ -221,13 +210,13 @@ func (m ControlMessage) Validate(expected Scope, now time.Time) error {
 		return Error{Code: Invalid}
 	}
 	switch m.Type {
-	case ControlGrow:
-		if m.Grow != nil && m.Grow.Role.Valid() && m.Grow.Connections > 0 && m.Grow.Connections <= MaxRoleConnections {
-			return nil
-		}
 	case ControlExchange:
 		if m.Exchange != nil {
 			return m.Exchange.Validate()
+		}
+	case ControlResume:
+		if m.Resume != nil {
+			return m.Resume.Validate()
 		}
 	case ControlGrant:
 		if m.Grant != nil {

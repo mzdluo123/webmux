@@ -48,13 +48,18 @@
 `POST /api/sessions/{id}/input` 的请求体为 `{clientRequestId, text, submit?, keys?, attachments?, mode?}`，按会话当前视图分派：
 
 - 终端视图：`text` 与 `submit` 作为一次带回执的提交写入 PTY，随后按顺序写入 `keys`。
+  - `text` 按浏览器粘贴的规则写入：换行转为 CR，程序开启 bracketed paste 时包裹 `ESC[200~`/`ESC[201~`；提交键在正文之后至少隔 200ms 写入（档案可要求更长），避免 Claude Code 等 TUI 把它当作粘贴的一部分。间隔期间输入锁继续持有，其他连接的输入不会插入；`keys` 在提交键之后写入。
   - `submit` 缺省 `false`，为 `true` 时追加档案或终端的提交键（回车；对应 CLI 的 `--enter`）。只发 `text` 正文留在输入行不执行。
   - `keys` 取 `backspace`、`ctrl-c`、`ctrl-d`、`down`、`enter`、`esc`、`left`、`right`、`tab`、`up`，未知名称 400。
   - 回执为 `written` 时 200 `{view: "terminal"}`；`partial`、`failed` 或 `missing` 时 409 `input_failed`，`submission` 带回执状态。
   - 输入像浏览器输入一样取得终端控制，控制者标签为 `script`；从会话内经本机套接字调用时为 `script · <来源会话 ID>`。
   - 带 `attachments` 或 `mode` 时 409 `wrong_view`，不写入任何内容。
-- 聊天视图：`text` 与 `attachments` 作为提示，`mode` 取 `auto`（缺省，空闲时发送，否则排队）或 `steer`（插话）；`submit` 被忽略。
-  - 200 `{view: "chat", queued, itemId?, turnId?, promptId?}`，含义见 [聊天视图的输入](http-hybrid.md#聊天视图的输入)。
+- 聊天视图：`text` 与 `attachments` 作为提示，`submit` 被忽略。`mode` 支持以下四种值，能力、竞态与回执见[聊天视图的输入](http-hybrid.md#聊天视图的输入)：
+  - `auto`（缺省）：无运行回合、连接可用、队列为空且未暂停时开始新回合，否则排队。
+  - `steer`（插话）：向支持插话的运行中回合补充内容，不取消当前回合。
+  - `refuse`：立即发送条件同 `auto`，不满足时返回 409 `busy`，不排队。
+  - `now`（取消后立即发送）：取消运行回合后队首优先发送，可能打断工作；无运行回合且连接可用时直接发送。
+  - 200 `{view: "chat", queued, itemId?, position?, turnId?, promptId?}`，含义见 [聊天视图的输入](http-hybrid.md#聊天视图的输入)。
   - 带 `keys` 时 409 `wrong_view`。
 
 `POST /api/sessions/{id}/interrupt {clientRequestId}`：

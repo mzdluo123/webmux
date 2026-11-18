@@ -10,38 +10,41 @@
 
 ## Requirements
 
-### Requirement: 账号配对与单主机绑定
+### Requirement: 全新账号配对与单主机绑定
 
-Relay SHALL 支持以 GitHub 设备授权完成主机配对。未配对的宿主 SHALL 能提交新生成的公钥并取得一次性用户码、验证地址和轮询句柄；只有用户在有效期内完成授权后，Relay 才建立账号与公钥绑定。
-每个账号 SHALL 同时最多绑定一台主机。已有绑定的账号再次配对时，Relay SHALL 要求显式重新绑定，不得静默增加第二台主机；重新绑定 SHALL 保留原公共主机名、撤销旧公钥并断开旧连接器。
-用户码和轮询句柄 SHALL 单次使用且有有效期。Relay SHALL 对配对创建与轮询实施速率限制，且 MUST NOT 要求或接受 WebMux 登录 Token。
-MVP SHALL 使用 GitHub 账号允许列表实施邀请制。未获邀请的账号 SHALL 在授权完成后收到明确拒绝，不占用主机绑定或公共主机名。
+Relay SHALL 使用 v2 配对接口，以必需的有效机器 ID 和新公钥发起 GitHub 设备授权，返回一次性用户码、验证地址和轮询句柄。每个账号 SHALL 最多绑定一台主机；任何已有绑定均 SHALL 返回冲突，不按机器 ID 恢复、换钥或保留旧域名。
+用户码与句柄 SHALL 单次使用、限时且受限流保护，不接受 WebMux 登录 Token。只有有效 GitHub 数字账号且仍获邀请时才建立绑定；机器 ID MUST NOT 作为授权或跨账号选择依据。并发首次配对 SHALL 最多成功一项。
 
 #### Scenario: 完成首次配对
 
-- **WHEN** 宿主提交新公钥，用户在有效期内通过 GitHub 完成授权
-- **THEN** Relay 将账号的数字身份与公钥绑定，并返回固定公共 HTTPS 地址
+- **WHEN** 宿主提交新公钥和机器 ID，用户在有效期内完成 GitHub 授权
+- **THEN** 建立数字账号与公钥绑定并返回固定 HTTPS 地址
 
 #### Scenario: 过期或重复使用的配对码
 
-- **WHEN** 配对码已过期、已使用或轮询句柄无效
-- **THEN** Relay 拒绝建立或修改绑定，并要求重新发起配对
+- **WHEN** 用户码或句柄失效、过期或已消费
+- **THEN** 拒绝建立绑定，要求重新发起配对
 
 #### Scenario: 未邀请账号完成授权
 
-- **WHEN** 不在允许列表中的 GitHub 账号完成设备授权
-- **THEN** Relay 返回邀请制拒绝原因，不创建绑定或分配公共主机名
+- **WHEN** 账号不在邀请名单
+- **THEN** 配对被拒绝，不创建主机或分配地址
 
-#### Scenario: 显式重新绑定丢失的密钥
+#### Scenario: 已有绑定不能覆盖
 
-- **WHEN** 已绑定账号确认用新公钥替换旧公钥
-- **THEN** 公共主机名保持不变，旧私钥不能再建立连接，旧活动连接被关闭
+- **WHEN** 账号已有绑定，不论机器 ID 是否相同
+- **THEN** 返回冲突，不换钥、不恢复原记录
+
+#### Scenario: 并发首次配对
+
+- **WHEN** 同账号两个请求重叠建立首次绑定
+- **THEN** 最多创建一个绑定，另一项返回冲突，不覆盖成功结果
 
 ### Requirement: 主机身份与固定公共主机名
 
 Relay SHALL 为每台主机分配具有至少 128 位随机熵的 DNS 安全公共标识，并将标识、账号数字身份与主机公钥持久化。公共标识 MUST NOT 由 WebMux Token、GitHub Token 或私钥派生。
-宿主连接时，Relay SHALL 使用随机质询验证签名。签名 transcript SHALL 绑定随机数、主机标识、协议版本、Relay 受众、绑定代际、连接器代际与 control/bulk 角色，防止重放到其他角色、会话或服务。无效签名 MUST NOT 替换该主机的现有有效连接。
-除显式释放主机名外，重新启动和重新绑定密钥 SHALL 保持公共地址不变。
+宿主连接时，Relay SHALL 使用随机质询验证签名。签名 transcript SHALL 绑定随机数、主机标识、协议版本、Relay 受众、绑定代际、连接器代际与 control/interactive/bulk 角色，防止重放到其他角色、会话或服务。无效签名 MUST NOT 替换该主机的现有有效连接。
+同一绑定重启 SHALL 保留地址；删除绑定 SHALL 释放旧地址，此后配对 SHALL 创建新标识和地址，不恢复旧记录。
 
 #### Scenario: 错误私钥不能劫持主机名
 
@@ -53,9 +56,15 @@ Relay SHALL 为每台主机分配具有至少 128 位随机熵的 DNS 安全公�
 - **WHEN** 攻击者在另一次连接或另一 Relay 受众中重放旧签名
 - **THEN** Relay 因随机数或受众不匹配而拒绝连接
 
+#### Scenario: 删除后重新配对
+
+- **WHEN** 所有者删除旧绑定并重新完成授权
+- **THEN** 新地址与旧地址不同，旧地址不再路由到宿主
+
 ### Requirement: 单活动连接器与撤销
 
-每个主机标识 SHALL 同时只有一个活动逻辑连接器，内部最多包含 control 与 bulk 两条已认证 WSS/smux v2 物理连接。角色、绑定及连接器代际 SHALL 纳入签名；同代际重复角色 SHALL 拒绝。新的合法 control 认证后 SHALL 原子替换整个旧代际；未认证连接不得影响旧连接。
+每个主机标识 SHALL 同时只有一个活动逻辑连接器，包含一条 control 管理连接与固定 interactive/bulk 数据池，默认数据池数量为二和四。
+角色、绑定及连接器代际 SHALL 纳入签名，数据角色每代际最多十六条连接；新的合法 control SHALL 原子替换整个旧代际。
 Relay SHALL 只把公共请求路由到当前已认证且处于活动状态的逻辑连接器。control 断开、绑定撤销或公钥替换后，对应公共入口 SHALL 立即停止转发；后续请求返回不可用响应，不得转入其他主机。仅 bulk 失败 SHALL 按数据面要求降级，不能顶掉合法 control。
 
 #### Scenario: 同一主机的重复连接
@@ -189,9 +198,25 @@ Relay MUST NOT 接受任意回调或开放重定向，MUST NOT 为非所有者�
 - **WHEN** 已登录账号以已知 host ID 请求另一个账号的跳转授权
 - **THEN** Relay 拒绝签发，不泄露目标账号或主机详情
 
+### Requirement: 连接恢复时重新授权浏览器会话
+
+控制面 SHALL 接受已认证宿主在当前 Scope 发出的 `login.resume`，以服务端 grant ID 查询原授权，事务性复核后台会话、所有者、邀请、主机绑定、撤销记录和绝对期限。仅全部校验通过时 SHALL 将 grant 绑定到当前连接 Scope，返回 `login.grant`。
+
+恢复 SHALL 保留 grant ID 和原到期时间，以支持响应丢失后的同 Scope 重试；旧 Scope SHALL 不能继续使用该授权。grant ID 仅为控制通道引用，MUST NOT 作为浏览器凭据或替代当前宿主身份。显式连接代际撤销 SHALL 保持不可恢复。
+
+#### Scenario: 恢复响应丢失
+
+- **WHEN** 有效授权已迁移到新 Scope，但宿主未收到恢复响应后在同 Scope 重试
+- **THEN** 返回同一有效授权及原到期时间，不创建额外授权或延长会话
+
+#### Scenario: 后台会话已失效
+
+- **WHEN** 宿主为已注销、过期、控制面重启失效或失去邀请的后台会话申请恢复
+- **THEN** 拒绝恢复，不因宿主设备密钥仍有效而签发浏览器权限
+
 ### Requirement: 后台注销与授权撤销传播
 
-后台注销 SHALL 撤销当前后台会话、未消费 code 和派生宿主会话；换钥、解绑或移出邀请名单 SHALL 撤销相关全部授权。Relay SHALL 通过已认证控制通道传播撤销，事件送达前 MUST NOT 声称在线宿主已完成全局撤销；通道断开 SHALL 触发宿主本地会话失效。
+后台注销 SHALL 撤销当前后台会话、未消费 code 和派生宿主会话；换钥、解绑或移出邀请名单 SHALL 撤销相关全部授权。Relay SHALL 通过已认证控制通道传播撤销，事件送达前 MUST NOT 声称在线宿主已完成全局撤销；通道断开 SHALL 立即暂停宿主派生访问，恢复须重新验证控制面权威状态。
 
 控制面重启 SHALL 使重启前的后台会话及跳转 code 失效，保留账号和主机绑定；数据面重启 SHALL 清空活动连接。GitHub 网站注销 SHALL 不被描述为自动注销 WebMux。
 
@@ -200,7 +225,7 @@ Relay MUST NOT 接受任意回调或开放重定向，MUST NOT 为非所有者�
 - **WHEN** 用户注销后台，派生宿主会话仍在使用
 - **THEN** Relay 撤销记录并通知宿主关闭该会话访问，收到确认后报告完成，不结束 PTY
 
-### Requirement: 双连接 WSS 传输与性能证据
+### Requirement: 固定多 TCP WSS 传输与性能证据
 
 宿主连接器 SHALL 使用 TLS 1.3 WSS + smux v2，嵌入库而非受管 sidecar；连接器 MUST NOT 探测 QUIC、配置 FEC 或自研可靠 UDP，此限制不禁止独立 WebRTC/TURN 交互优化。
 TCP 运维 SHALL 区分服务端与客户端：
@@ -208,14 +233,17 @@ TCP 运维 SHALL 区分服务端与客户端：
 - 服务器 TCP SHALL 使用 BBR，部署 SHALL 核实实际接口队列，不能仅凭 default_qdisc 宣称使用 fq。
 - 客户端 SHALL 如实记录操作系统算法，不假定 Windows 支持 BBR。
 
-批量流量 SHALL 使用 bulk，交互与控制 SHALL 使用 control。两条物理连接 SHALL 共用账号总配额和资源预算。control 断开 SHALL 撤销来源及派生会话并关闭 bulk；仅 bulk 断开 SHALL 保留交互、报告降级并拒绝新批量请求，不得转入 control。
+批量流量 SHALL 使用 bulk，交互 SHALL 使用 interactive，control SHALL 只承载管理消息。
+Relay SHALL 单点执行账号和宿主普通流配额，管理流 SHALL 独立于 HTTP 配额及数据带宽桶，bulk SHALL 留出交互余量。
+数据池 SHALL 按最少活跃流选择连接并在同负载时轮转，每物理连接 SHALL 不设置四流业务阈值。
+准入队列 SHALL 每账号最多 128 条、最长 15 秒，队列满或等待到期 SHALL 返回 429 与 Retry-After。
 
 重连 MUST NOT 自动重放非幂等请求，终端 SHALL 沿用 offset 续接。窗口、stream 和账号配额 SHALL 有界，不能声称多 TCP 消除了所有排队。
 
 #### Scenario: bulk 失败保持交互可用
 
 - **WHEN** 已认证逻辑连接器的 bulk 中断而 control 仍可用
-- **THEN** 终端继续服务，新批量请求返回 503，bulk 有界重连并重新认证同一代际，不能建立第三条连接
+- **THEN** 终端继续服务，新批量请求有界等待，宿主补齐同代际固定 bulk 槽位，其余健康数据连接保持可用
 
 #### Scenario: control 断开立即撤权
 
@@ -315,3 +343,23 @@ TURN 凭据 SHALL 仅授权受限网络资源，MUST NOT 作为 WebMux 登录凭
 
 - **WHEN** 准备发布包含 TURN 优化的版本
 - **THEN** SHALL 附真实浏览器、节点故障/过期、权限撤销、抖动防切换及长时验证结果，并注明线路与未覆盖边界；不以历史原型或节点所在地代替证据
+
+### Requirement: 直接删除绑定与访问关闭状态
+
+Relay SHALL 允许获邀请的已登录所有者确认删除自己的绑定，并校验同源 Origin、CSRF、所有权与绑定代际；宿主删除 SHALL 校验绑定私钥签名。删除 SHALL 撤销旧凭据及派生授权，物理移除绑定与分配，保留账号控制台身份和必要撤权记录。
+响应 SHALL 分别表示绑定已删除与旧访问是否确认关闭。离线旧宿主的 ACK MUST NOT 阻塞绑定删除，也 MUST NOT 被伪造成访问关闭证明。全局退出和邀请撤销仍 SHALL 保留原严格关闭保证。
+
+#### Scenario: 所有者确认删除
+
+- **WHEN** 所有者确认删除匹配当前代际的绑定
+- **THEN** 绑定从列表移除，新配对创建新地址，不等待旧宿主上线
+
+#### Scenario: 离线旧访问未确认关闭
+
+- **WHEN** 绑定已删除但旧 P2P 关闭没有可靠确认
+- **THEN** 返回已删除及访问未确认关闭，界面明确说明两者不同，不声称旧直连已安全关闭
+
+#### Scenario: 迟到删除不能撤销新绑定
+
+- **WHEN** 旧标识或旧代际的删除在新配对完成后到达
+- **THEN** 不删除或修改新绑定，不跨账号删除记录

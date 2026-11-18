@@ -80,3 +80,53 @@ func TestDiscoverySmallHeadersDoNotConsumeBodySizedBudget(t *testing.T) {
 		}
 	}
 }
+
+func TestInspectRetainsVerifiedIdentityForUnsupportedFormats(t *testing.T) {
+	header := string(bytes.SplitN(fixture(t), []byte{'\n'}, 2)[0])
+	tests := []struct {
+		name, header string
+	}{
+		{"future-version", strings.Replace(header, "0.77.0", "0.170.0", 1)},
+		{"history-base", strings.Replace(header, `"cli_version":`, `"history_base":{"session_id":"parent"},"cli_version":`, 1)},
+		{"fork-reference", strings.Replace(header, `"cli_version":`, `"forked_from_id":"parent","cli_version":`, 1)},
+		{"subagent-reference", strings.Replace(header, `"cli_version":`, `"subagent_history_start_ordinal":0,"cli_version":`, 1)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			dir := filepath.Join(root, "sessions")
+			if err := os.Mkdir(dir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(dir, "misleading-name.jsonl")
+			if err := os.WriteFile(path, []byte(tt.header+"\ninvalid body\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			metadata, err := Inspect(context.Background(), path)
+			if !errors.Is(err, ErrVersion) || metadata.ID != "00000000-0000-4000-8000-000000000001" {
+				t.Fatalf("inspect lost verified identity: %+v %v", metadata, err)
+			}
+			found, err := Discover(context.Background(), root)
+			if err != nil || len(found.Files) != 1 || found.Files[0].Metadata.ID != metadata.ID || found.Files[0].Problem != "unreadable_or_unsupported" {
+				t.Fatalf("discovery lost candidate or problem: %+v %v", found, err)
+			}
+		})
+	}
+}
+
+func TestInspectNeverInfersIdentityFromFilename(t *testing.T) {
+	for _, header := range []string{
+		`{"type":"session_meta","payload":{"cwd":"/synthetic","cli_version":"0.169.0"}}`,
+		`{"type":"response_item","payload":{"id":"filename-id","cwd":"/synthetic","cli_version":"0.169.0"}}`,
+		`{"type":"session_meta","payload":{"id":17,"cwd":"/synthetic","cli_version":"0.169.0"}}`,
+		`{"type":"session_meta","payload":{"id":"filename-id","cwd":"/synthetic","cli_version":"0.169.0"}`,
+	} {
+		path := filepath.Join(t.TempDir(), "rollout-filename-id.jsonl")
+		if err := os.WriteFile(path, []byte(header+"\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if metadata, err := Inspect(context.Background(), path); !errors.Is(err, ErrFormat) || metadata.ID != "" {
+			t.Fatalf("unverified header became identity: %+v %v", metadata, err)
+		}
+	}
+}

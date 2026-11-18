@@ -33,7 +33,6 @@
   import { longPress } from "../../hooks/shared/long-press";
   import { makeRootFileTarget } from "../../domains/code/code-file-actions";
   import { navigateFileTreeKey } from "../../domains/code/file-tree-keyboard";
-  import { xrTreePanel } from "../../domains/code/xr-code-navigation";
   import { openFileTreeMenu } from "../../domains/code/file-tree-menu";
 
   let {
@@ -116,24 +115,6 @@
       expanded: [...expanded],
       branches: [...branches],
     };
-  }
-  const xrNavigation = $derived(
-    xrTreePanel({
-      listing,
-      expanded,
-      branches,
-      loading,
-      errors,
-      toggle,
-      open: openFile,
-      more: (path) => {
-        if (path) void loadBranch(path, true);
-        else void loadMore();
-      },
-    }),
-  );
-  export function xrPanel() {
-    return xrNavigation;
   }
   function loadBranch(path: string, append = false): Promise<void> {
     const current = inflight.get(path);

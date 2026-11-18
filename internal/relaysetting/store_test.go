@@ -25,7 +25,7 @@ func storageTestSettings() Settings {
 	pending := make([]byte, ed25519.SeedSize)
 	pending[0] = 1
 	return Settings{
-		Config:      config.RelayConfig{Enabled: true, Transport: "wss", ControlEndpoint: "https://control.example.com", ControlAudience: "webmux-control"},
+		Config:      config.RelayConfig{InteractiveConnections: 2, BulkConnections: 4, Enabled: true, Transport: "wss", ControlEndpoint: "https://control.example.com", ControlAudience: "webmux-control"},
 		Seed:        base64.RawURLEncoding.EncodeToString(seed),
 		PendingSeed: base64.RawURLEncoding.EncodeToString(pending),
 		Binding:     &protocol.Binding{HostID: "0123456789abcdef0123456789abcdef", OwnerID: "12345", BindingGeneration: 7, PublicURL: "https://h-0123456789abcdef0123456789abcdef.hosts.example.com"},
@@ -43,11 +43,15 @@ func storageTestDocument(t *testing.T, settings Settings) []byte {
 	return data
 }
 
-func legacyStorageTestDocument(t *testing.T, settings Settings) []byte {
+func oldStorageTestDocument(t *testing.T, settings Settings, version int) []byte {
 	t.Helper()
-	f := storedFileV1{V: 1, Enabled: &settings.Config.Enabled, Confirmed: &settings.Confirmed, ControlEndpoint: settings.Config.ControlEndpoint, ControlAudience: settings.Config.ControlAudience, Seed: settings.Seed, PendingSeed: settings.PendingSeed, Binding: settings.Binding, OwnerLogin: settings.OwnerLogin}
-	if f.ControlEndpoint != "" {
-		f.InitialTrust = protocol.ServiceTrust{Algorithm: protocol.ServiceAlgorithm, Pins: []string{storageTestSettings().Seed}}
+	f := struct {
+		storedFile
+		InitialTrust *protocol.ServiceTrust `json:"initialTrust,omitempty"`
+	}{storedFile: storeSpec.Encode(settings)}
+	f.V = version
+	if version == 1 && settings.Config.ControlEndpoint != "" {
+		f.InitialTrust = &protocol.ServiceTrust{Algorithm: protocol.ServiceAlgorithm, Pins: []string{storageTestSettings().Seed}}
 	}
 	data, err := json.Marshal(f)
 	if err != nil {
@@ -56,7 +60,82 @@ func legacyStorageTestDocument(t *testing.T, settings Settings) []byte {
 	return data
 }
 
-func TestRelayV1MigrationPreservesBindingAndPairingState(t *testing.T) {
+func TestRelayStorageRequiresV3(t *testing.T) {
+	descriptor := statefile.Describe(statefile.Relay)
+	if descriptor.Version != 3 || descriptor.MinReadVersion != 3 {
+		t.Fatalf("relay settings readable versions = %d..%d, want only v3", descriptor.MinReadVersion, descriptor.Version)
+	}
+}
+
+func TestRelayRejectsOldStorageVersions(t *testing.T) {
+	for _, version := range []int{1, 2} {
+		for _, state := range []string{"enabled", "disabled", "pending", "unconfigured"} {
+			t.Run(fmt.Sprintf("v%d/%s", version, state), func(t *testing.T) {
+				settings := storageTestSettings()
+				switch state {
+				case "disabled":
+					settings.Config.Enabled = false
+				case "pending":
+					settings.Config.Enabled = false
+					settings.Seed, settings.Binding, settings.OwnerLogin, settings.Confirmed = "", nil, "", false
+				case "unconfigured":
+					settings = Settings{Config: config.RelayConfig{Transport: "wss"}}
+				}
+				dir := t.TempDir()
+				machine := OpenMachine(dir)
+				t.Cleanup(machine.Close)
+				machineID, err := machine.ID()
+				if err != nil {
+					t.Fatal(err)
+				}
+				machine.Close()
+				machinePath := filepath.Join(dir, "relay-machine.json")
+				machineBefore, err := os.ReadFile(machinePath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				path := filepath.Join(dir, "relay-settings.json")
+				document := oldStorageTestDocument(t, settings, version)
+				if err := os.WriteFile(path, document, 0600); err != nil {
+					t.Fatal(err)
+				}
+				for range 2 {
+					defaults := storageTestSettings().Config
+					if got, web, err := Inspect(dir, defaults); err == nil || web || got.Config.Enabled || got.Seed != "" || got.PendingSeed != "" || got.Binding != nil {
+						t.Fatalf("old settings inspection restored identity: web=%v err=%v", web, err)
+					}
+					s := Open(dir, defaults)
+					t.Cleanup(s.Close)
+					if !errors.Is(s.Unavailable(), ErrUnavailable) {
+						t.Fatal("old settings did not make storage unavailable")
+					}
+					if got, web := s.Effective(); web || got.Config.Enabled || got.Seed != "" || got.PendingSeed != "" || got.Binding != nil {
+						t.Fatal("old settings restored identity or enabled exposure")
+					}
+					if !errors.Is(s.Save(storageTestSettings()), ErrUnavailable) {
+						t.Fatal("old settings could be overwritten")
+					}
+					s.Close()
+				}
+				after, err := os.ReadFile(path)
+				if err != nil || !bytes.Equal(after, document) {
+					t.Fatal("old settings evidence changed")
+				}
+				machineAfter, err := os.ReadFile(machinePath)
+				if err != nil || !bytes.Equal(machineAfter, machineBefore) {
+					t.Fatal("rejecting old settings changed machine identity evidence")
+				}
+				machine = OpenMachine(dir)
+				defer machine.Close()
+				if got, err := machine.ID(); err != nil || got != machineID {
+					t.Fatalf("rejecting old settings lost machine identity: %v", err)
+				}
+			})
+		}
+	}
+}
+
+func TestRelayV3PreservesBindingAndPairingState(t *testing.T) {
 	for _, state := range []string{"enabled", "disabled", "pending", "unconfigured"} {
 		t.Run(state, func(t *testing.T) {
 			want := storageTestSettings()
@@ -67,17 +146,16 @@ func TestRelayV1MigrationPreservesBindingAndPairingState(t *testing.T) {
 				want.Config.Enabled = false
 				want.Seed, want.Binding, want.OwnerLogin, want.Confirmed = "", nil, "", false
 			case "unconfigured":
-				want = Settings{Config: config.RelayConfig{Transport: "wss"}}
+				want = Settings{Config: config.RelayConfig{InteractiveConnections: 2, BulkConnections: 4, Transport: "wss"}}
 			}
 			dir := t.TempDir()
 			path := filepath.Join(dir, "relay-settings.json")
-			legacy := legacyStorageTestDocument(t, want)
-			if err := os.WriteFile(path, legacy, 0600); err != nil {
+			if err := os.WriteFile(path, storageTestDocument(t, want), 0600); err != nil {
 				t.Fatal(err)
 			}
 			got, web, err := Inspect(dir, want.Config)
 			if err != nil || !web || !reflect.DeepEqual(got, want) {
-				t.Fatalf("legacy inspection lost pairing state: web=%v err=%v", web, err)
+				t.Fatalf("v3 inspection lost pairing state: web=%v err=%v", web, err)
 			}
 			s := Open(dir, want.Config)
 			t.Cleanup(s.Close)
@@ -86,7 +164,7 @@ func TestRelayV1MigrationPreservesBindingAndPairingState(t *testing.T) {
 			}
 			got, web = s.Effective()
 			if !web || !reflect.DeepEqual(got, want) {
-				t.Fatal("legacy load lost identity, consent, Origin or enabled intent")
+				t.Fatal("v3 load lost identity, consent, Origin or enabled intent")
 			}
 			if err := s.Save(got); err != nil {
 				t.Fatal(err)
@@ -100,8 +178,8 @@ func TestRelayV1MigrationPreservesBindingAndPairingState(t *testing.T) {
 			if err := json.Unmarshal(data, &document); err != nil {
 				t.Fatal(err)
 			}
-			if string(document["v"]) != "2" || document["initialTrust"] != nil {
-				t.Fatal("migrated save retained the legacy control trust schema")
+			if string(document["v"]) != "3" || document["initialTrust"] != nil {
+				t.Fatal("save did not use the current v3 schema")
 			}
 			reopened := Open(dir, want.Config)
 			defer reopened.Close()
@@ -109,7 +187,7 @@ func TestRelayV1MigrationPreservesBindingAndPairingState(t *testing.T) {
 				t.Fatal(err)
 			}
 			if got, web := reopened.Effective(); !web || !reflect.DeepEqual(got, want) {
-				t.Fatal("migration did not preserve state after restart")
+				t.Fatal("v3 did not preserve state after restart")
 			}
 		})
 	}
@@ -171,19 +249,15 @@ func TestRelayDamagedStorageFailsClosedWithoutChangingEvidence(t *testing.T) {
 	valid := storageTestSettings()
 	good := storageTestDocument(t, valid)
 	cases := map[string][]byte{
-		"truncated":       good[:len(good)-1],
-		"empty":           {},
-		"trailing":        append(append([]byte(nil), good...), []byte(` {}`)...),
-		"unknown field":   append([]byte(`{"unexpected":true,`), good[1:]...),
-		"duplicate field": append([]byte(`{"enabled":false,`), good[1:]...),
+		"truncated":          good[:len(good)-1],
+		"empty":              {},
+		"trailing":           append(append([]byte(nil), good...), []byte(` {}`)...),
+		"unknown field":      append([]byte(`{"unexpected":true,`), good[1:]...),
+		"duplicate field":    append([]byte(`{"enabled":false,`), good[1:]...),
+		"legacy trust field": append([]byte(`{"initialTrust":{},`), good[1:]...),
 	}
-	legacy := legacyStorageTestDocument(t, valid)
-	cases["legacy unknown field"] = append([]byte(`{"unexpected":true,`), legacy[1:]...)
-	cases["legacy duplicate field"] = append([]byte(`{"enabled":false,`), legacy[1:]...)
-	cases["legacy invalid pin"] = bytes.Replace(legacy, []byte(valid.Seed), []byte("bad-pin"), 1)
-	cases["v2 legacy trust field"] = append([]byte(`{"initialTrust":{},`), good[1:]...)
 	for name, mutate := range map[string]func(*storedFile){
-		"wrong version":         func(f *storedFile) { f.V = 3 },
+		"wrong version":         func(f *storedFile) { f.V = 4 },
 		"missing enabled":       func(f *storedFile) { f.Enabled = nil },
 		"missing consent":       func(f *storedFile) { f.Confirmed = nil },
 		"malformed key":         func(f *storedFile) { f.Seed = "bad-seed" },
@@ -297,26 +371,22 @@ func TestRelayBootstrapChangesDoNotRestoreOldCredentials(t *testing.T) {
 		{"audience", func(c *config.RelayConfig) { c.ControlAudience = "other-control" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			for version, document := range map[string][]byte{"v1": legacyStorageTestDocument(t, valid), "v2": storageTestDocument(t, valid)} {
-				t.Run(version, func(t *testing.T) {
-					dir := t.TempDir()
-					if err := os.WriteFile(filepath.Join(dir, "relay-settings.json"), document, 0600); err != nil {
-						t.Fatal(err)
-					}
-					defaults := storageTestSettings().Config
-					tc.mutate(&defaults)
-					s := Open(dir, defaults)
-					defer s.Close()
-					if got, _ := s.Effective(); got.Config.Enabled || got.Seed != "" || got.PendingSeed != "" || got.Binding != nil {
-						t.Fatal("bootstrap change restored credentials for another authority")
-					}
-					if !errors.Is(s.Unavailable(), ErrUnavailable) {
-						t.Fatal("bootstrap change did not fail closed")
-					}
-					if _, _, err := Inspect(dir, defaults); err == nil {
-						t.Fatal("inspection restored credentials across bootstrap change")
-					}
-				})
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "relay-settings.json"), storageTestDocument(t, valid), 0600); err != nil {
+				t.Fatal(err)
+			}
+			defaults := storageTestSettings().Config
+			tc.mutate(&defaults)
+			s := Open(dir, defaults)
+			defer s.Close()
+			if got, _ := s.Effective(); got.Config.Enabled || got.Seed != "" || got.PendingSeed != "" || got.Binding != nil {
+				t.Fatal("bootstrap change restored credentials for another authority")
+			}
+			if !errors.Is(s.Unavailable(), ErrUnavailable) {
+				t.Fatal("bootstrap change did not fail closed")
+			}
+			if _, _, err := Inspect(dir, defaults); err == nil {
+				t.Fatal("inspection restored credentials across bootstrap change")
 			}
 		})
 	}
@@ -432,28 +502,48 @@ func TestRelayUnconfiguredStorageAdoptsDefaultsWithoutRedirectingIdentity(t *tes
 		if withIdentity {
 			settings.Seed = storageTestSettings().Seed
 		}
-		for version, document := range map[string][]byte{"v1": legacyStorageTestDocument(t, settings), "v2": storageTestDocument(t, settings)} {
-			t.Run(fmt.Sprintf("%s/identity=%t", version, withIdentity), func(t *testing.T) {
-				dir := t.TempDir()
-				path := filepath.Join(dir, "relay-settings.json")
-				if err := os.WriteFile(path, document, 0600); err != nil {
-					t.Fatal(err)
+		t.Run(fmt.Sprintf("identity=%t", withIdentity), func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "relay-settings.json")
+			document := storageTestDocument(t, settings)
+			if err := os.WriteFile(path, document, 0600); err != nil {
+				t.Fatal(err)
+			}
+			s := Open(dir, config.DefaultRelayConfig())
+			defer s.Close()
+			got, _ := s.Effective()
+			if withIdentity {
+				if !errors.Is(s.Unavailable(), ErrUnavailable) || got.Seed != "" || got.Config.Enabled {
+					t.Fatal("identity without an authority was redirected to the defaults")
 				}
-				s := Open(dir, config.DefaultRelayConfig())
-				defer s.Close()
-				got, _ := s.Effective()
-				if withIdentity {
-					if !errors.Is(s.Unavailable(), ErrUnavailable) || got.Seed != "" || got.Config.Enabled {
-						t.Fatal("identity without an authority was redirected to the defaults")
-					}
-				} else if s.Unavailable() != nil || got.Config != config.DefaultRelayConfig() {
-					t.Fatalf("unpaired legacy settings prevented default bootstrap: %+v, %v", got, s.Unavailable())
-				}
-				after, err := os.ReadFile(path)
-				if err != nil || !bytes.Equal(after, document) {
-					t.Fatal("loading defaults rewrote persisted evidence")
-				}
-			})
-		}
+			} else if s.Unavailable() != nil || got.Config != config.DefaultRelayConfig() {
+				t.Fatalf("unpaired v3 settings prevented default bootstrap: %+v, %v", got, s.Unavailable())
+			}
+			after, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(after, document) {
+				t.Fatal("loading defaults rewrote persisted evidence")
+			}
+		})
+	}
+}
+
+func TestRelayRestoresConfiguredPoolSizes(t *testing.T) {
+	want := storageTestSettings()
+	want.Config.InteractiveConnections = 3
+	want.Config.BulkConnections = 7
+	dir := t.TempDir()
+	s := Open(dir, want.Config)
+	if err := s.Save(want); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	got, web, err := Inspect(dir, want.Config)
+	if err != nil || !web || !reflect.DeepEqual(got, want) {
+		t.Fatalf("pool configuration lost on restore: got=%+v err=%v", got.Config, err)
+	}
+	want.Config.InteractiveConnections = 5
+	got, _, err = Inspect(dir, want.Config)
+	if err != nil || got.Config.InteractiveConnections != 5 {
+		t.Fatalf("updated local pool configuration ignored: got=%+v err=%v", got.Config, err)
 	}
 }
