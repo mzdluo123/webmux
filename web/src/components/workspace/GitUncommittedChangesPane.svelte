@@ -220,7 +220,7 @@
 </script>
 
 <section
-  class="flex h-full min-h-0 min-w-0 flex-col bg-background"
+  class="flex h-full min-h-0 min-w-0 flex-col overflow-y-auto bg-background"
   aria-label={m.s7_uncommitted_pane_aria()}
 >
   <GitPanelToolbar>

@@ -35,7 +35,7 @@
     data-slot="scroll-area"
     class={cn(
       "relative flex min-h-0 min-w-0 flex-col",
-      footer ? "flex-1" : className,
+      footer ? "min-h-24 flex-1" : className,
     )}
     {...restProps}
   >
@@ -62,7 +62,7 @@
 {/snippet}
 
 {#if footer}
-  <div class={cn("flex min-h-0 min-w-0 flex-col", className)}>
+  <div class={cn(className, "flex min-h-min min-w-0 flex-col")}>
     {@render area()}
     {@render footer()}
   </div>
