@@ -101,6 +101,7 @@
   const showingPreview = $derived(Boolean(previewOpen && preview));
   let layout: HTMLDivElement;
   let previewColumn: HTMLDivElement;
+  let previewMoving = $state(false);
   let animation: ReturnType<typeof animate> | undefined;
   let generation = 0;
   const motionQuery = "(prefers-reduced-motion: reduce)";
@@ -109,6 +110,7 @@
     generation++;
     animation?.cancel();
     animation = undefined;
+    previewMoving = false;
     layout?.style.removeProperty("grid-template-columns");
   }
 
@@ -118,11 +120,15 @@
     settlePreviewWidth();
     previewOpen = value;
     if (!docked.current || matchMedia(motionQuery).matches) return;
+    previewMoving = true;
     const version = generation;
     void tick().then(() => {
       if (version !== generation || !layout.isConnected) return;
       const to = previewColumn.getBoundingClientRect().width;
-      if (from === to) return;
+      if (from === to) {
+        settlePreviewWidth();
+        return;
+      }
       animation = animate(
         layout,
         {
@@ -269,15 +275,22 @@
   <div
     bind:this={previewColumn}
     class={docked.current
-      ? "sticky top-4 min-w-0 self-start overflow-clip"
+      ? ["min-w-0", previewMoving && "overflow-clip"]
       : "contents"}
   >
-    <div class={docked.current ? "w-84 pl-4" : "contents"}>
+    <div
+      class={docked.current
+        ? showingPreview || previewMoving
+          ? "h-full w-84 pl-4"
+          : undefined
+        : "contents"}
+    >
       <WorkbenchQueuePreview
         session={preview}
         location={preview ? queueLocation(preview, repositories) : ""}
         docked={docked.current}
         open={showingPreview}
+        moving={previewMoving}
         {opener}
         onclose={() => setPreviewOpen(false)}
         onrestored={() => (previewRow = null)}
