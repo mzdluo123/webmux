@@ -11,10 +11,12 @@
   // still has the conversation, so it can resume on the recorded view.
   let {
     record,
+    claimAutoResume,
     onresumed,
     leave,
   }: {
     record: ArchivedSession;
+    claimAutoResume: () => boolean;
     onresumed: () => void;
     /** Leaves this session: the page returns home, a split closes its pane. */
     leave: () => void;
@@ -52,7 +54,7 @@
   <div class="flex flex-wrap gap-2">
     <HybridResumeActions
       {record}
-      resumeOnMount
+      {claimAutoResume}
       resume={resumeSession}
       onresumed={() => onresumed()}
       onrebuilt={rebuilt}

@@ -219,6 +219,14 @@
     chatView.setVoiceError(message);
     return true;
   }
+  // Recovery controls may remount while a failed agent launch is reconciled.
+  // Only a new visit to the session should initiate another automatic attempt.
+  let attemptedResume: string | undefined;
+  function claimAutoResume() {
+    if (attemptedResume === id) return false;
+    attemptedResume = id;
+    return true;
+  }
 </script>
 
 {#snippet voiceButton(
@@ -283,6 +291,7 @@
 {#snippet recovery()}
   {#if features.chat && hybrid.recoverable}<features.chat.Recovery
       record={hybrid.recoverable}
+      {claimAutoResume}
       onresumed={reopen}
       {leave}
     />{/if}

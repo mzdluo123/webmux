@@ -28,7 +28,7 @@
     resume,
     onresumed,
     onrebuilt = () => {},
-    resumeOnMount = false,
+    claimAutoResume,
     disabled = false,
     onbusy = () => {},
     onerror,
@@ -47,7 +47,7 @@
      * not reported through `onerror`, whose display a refresh may replace.
      */
     onrebuilt?: (failure: string) => void;
-    resumeOnMount?: boolean;
+    claimAutoResume?: () => boolean;
     disabled?: boolean;
     onbusy?: (busy: boolean) => void;
     /** Reports a failed resume; "" clears it when a new attempt starts. */
@@ -111,7 +111,7 @@
   }
 
   onMount(() => {
-    if (resumeOnMount && record.archive.resumeOnOpen && !record.released)
+    if (record.archive.resumeOnOpen && !record.released && claimAutoResume?.())
       void run(record.view);
   });
 

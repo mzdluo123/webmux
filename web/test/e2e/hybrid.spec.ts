@@ -1976,6 +1976,38 @@ test.describe("hybrid sessions with the fake agent", () => {
     await tuiTurn(resumedTerminal, "after-restart");
   });
 
+  test("a missing conversation asks once when a dormant session is opened", async ({
+    page,
+    request,
+    server,
+    workDir,
+  }) => {
+    const id = await createHybrid(request, workDir, "chat");
+    const info = await (await request.get(`/api/sessions/${id}`)).json();
+    await server.restart();
+    await rm(
+      join(
+        server.env.FAKEAGENT_STORE,
+        "sessions",
+        info.agent.sessionId + ".json",
+      ),
+    );
+    let attempts = 0;
+    page.on("request", (req) => {
+      if (req.url().endsWith(`/sessions/${id}/resume`)) attempts++;
+    });
+    await page.goto(`/s/${id}`);
+    const question = page.getByRole("alertdialog", {
+      name: "找不到原来的 agent 会话",
+    });
+    await expect(question).toBeVisible();
+    await question.getByRole("button", { name: "取消" }).click();
+    await expect(
+      page.getByRole("button", { name: "恢复", exact: true }),
+    ).toBeEnabled();
+    expect(attempts).toBe(1);
+  });
+
   test("Claude falls back to candidates when its process record is unavailable", async ({
     page,
     request,
