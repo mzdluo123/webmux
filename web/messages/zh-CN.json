@@ -114,6 +114,7 @@
   "s1_handoff_to_new_chat": "交接到新聊天",
   "s1_hint_artifact_dir": "{token} 会在会话创建后替换为它的临时文件夹路径。",
   "s1_hint_webmux_brief": "{token} 会在会话创建后替换为 WebMux 工具说明。",
+  "s1_home_list_notices": "会话列表提示",
   "s1_home_worktrees": "主页显示",
   "s1_host_online": "{hostname} 在线",
   "s1_host_online_strained": "{hostname} 在线（{strain}）",
