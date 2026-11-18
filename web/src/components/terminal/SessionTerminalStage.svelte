@@ -24,7 +24,6 @@
   import TerminalWorkspace from "./TerminalWorkspace.svelte";
   import type { createHeaderTerminalView } from "../../domains/terminal/session-terminal-io";
   import type { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
-  import { useTvTerminalBack } from "../../hooks/terminal/tv-terminal-back.svelte";
   import type { TerminalFeatures } from "../../features/terminal";
   import type ChatViewComponent from "../chat/ChatView.svelte";
   import SessionPanelDock from "./SessionPanelDock.svelte";
@@ -184,13 +183,6 @@
     header?.focusPanels();
   }
 
-  useTvTerminalBack({
-    host: () => container,
-    codeShown: () => codeShown,
-    closeCode: closePanel,
-    leave: () => leave(),
-  });
-
   export function focusFind() {
     findPanel?.focus();
   }
@@ -252,10 +244,9 @@
   side: "top" | "bottom",
   size?: ButtonSize,
   variant?: ButtonVariant,
-  submenu?: boolean,
 )}
   <!-- In the terminal view the microphone lives in the draft box only. -->
-  {#if voiceEnabled && hybrid.view === "chat" && !submenu}
+  {#if voiceEnabled && hybrid.view === "chat"}
     {@render voiceButton(side, size, variant)}
   {/if}
   {#if features.quickCommands}<features.quickCommands.Menu
@@ -272,7 +263,6 @@
       {side}
       {size}
       {variant}
-      {submenu}
       run={runQuickCommand}
       manage={manageQuickCommands}
       onCloseAutoFocus={focusTerminal}
@@ -301,7 +291,6 @@
   bind:this={header}
   {features}
   {chatActions}
-  keyboard={holdBegin}
   {openPanels}
   terminal={headerTerminal}
   {fullscreen}
@@ -399,9 +388,6 @@
         <TerminalViewport
           bind:container
           {terminal}
-          focusTerminal={() => terminal.focus()}
-          scroll={(lines) => terminal.scrollLines(lines)}
-          sendControl={(input) => terminal.send(input)}
           visible={terminalVisible}
           sizeLocked={sizeLocked || keyboardHeld}
           {touchGamepad}

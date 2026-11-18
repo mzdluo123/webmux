@@ -86,7 +86,6 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 
 ### 设备模式边界
 
-- `hooks/shared/` 拥有 TV/头显显式开关、设备偏好和 TV 导航生命周期；`platform/spatial-navigation.ts` 只计算几何候选。根属性由应用外壳设置，呈现使用共享设计系统令牌，不由设备 UA 推断业务模式。
 - 复合控件用 `data-tv-native-keys` 保留自己的键盘协议；聊天内联菜单在 `webmux:tv-back` 的 capture 阶段，仅消费自己拥有焦点时的返回，再由根导航释放编辑。
 - `hooks/terminal/terminal.svelte.ts` 的 `TerminalController` 保有唯一 xterm emulator、输入路由与 socket；视图切换保留解析模型和连接。
 - `Terminal.svelte` 按会话键挂载 2D 窗格；`TerminalSessionHost` 在分屏与视图状态变化时保留原 `SessionTerminal`。

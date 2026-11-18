@@ -23,7 +23,7 @@ Relay 有效期上限由签发端限制、接收端仅检查绝对到期时间�
 
 ## 阅读约定与产品边界
 
-- **使用者**：通过桌面、手机、平板、头显或 TV 浏览器使用服务器上的 Shell、CLI agent 和其他终端程序的人。
+- **使用者**：通过桌面、手机或平板 浏览器使用服务器上的 Shell、CLI agent 和其他终端程序的人。
 - **部署者**：安装、配置和维护自己的 WebMux 服务的人，通常也是使用者。
 - **贡献者**：开发、测试和发布 WebMux 的人；相关故事单独列在 L 节。
 - WebMux 面向单用户，多设备连接仍共享同一服务用户的权限，不存在团队账号、成员角色或设备间文件隔离。
@@ -47,7 +47,7 @@ Relay 有效期上限由签发端限制、接收端仅检查绝对到期时间�
 | E    | 剪贴板与文件上传                       | US-E01–US-E07 |
 | F    | 草稿编写、保存与发送确认               | US-F01–US-F09 |
 | G    | 快捷指令与语音输入                     | US-G01–US-G07 |
-| H    | 移动端、头显、TV 与慢速网络            | US-H01–US-H15 |
+| H    | 移动端与慢速网络                       | US-H01–US-H15 |
 | I    | 代码工作区、Diff、引用与文件操作       | US-I01–US-I19 |
 | J    | 仓库登记与 worktree 管理               | US-J01–US-J28 |
 | K    | 配置、升级迁移、功能选择与服务管理     | US-K01–US-K21 |
@@ -78,7 +78,7 @@ Relay 有效期上限由签发端限制、接收端仅检查绝对到期时间�
 | [原生客户端、隧道与托盘](user-stories/clients-network-tray.md)                    | M–P                |
 | [终端分屏用户故事](user-stories/terminal-splits.md)                               | D13–D14            |
 | [网络压缩与 P2P 直连用户故事](user-stories/terminal-network.md)                   | H10–H12            |
-| [头显与 TV 工作区](user-stories/terminal-headset-tv.md)                           | H13–H15            |
+| [头显与 TV 工作区（已退役）](user-stories/terminal-headset-tv.md)                 | H13–H15            |
 | [语音输入用户故事](user-stories/terminal-voice.md)                                | G07                |
 | [混合会话](user-stories/hybrid-sessions.md)                                       | Q                  |
 | [端口转发预览](user-stories/port-forwarding.md)                                   | R                  |

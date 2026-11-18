@@ -331,4 +331,4 @@ US-H09 图标验收：应用图标与页头标志一致。maskable 版本为系�
 
 偏好同步依据：[服务](../../internal/settings/service.go)、[统一前端入口](../../web/src/domains/settings/settings.svelte.ts)、[操作重放](../../web/src/domains/settings/settings-intent.ts)、[双客户端验收](../../web/test/e2e/settings-sync.spec.ts)。
 
-头显 2D 与 TV 导航（US-H13–US-H14，含已退役的 US-H15 历史）见[头显与 TV 用户故事](terminal-headset-tv.md)。
+头显、TV 与 VR 的历史故事 US-H13–US-H15 均已退役。

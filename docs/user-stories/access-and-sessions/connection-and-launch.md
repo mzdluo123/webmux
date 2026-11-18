@@ -129,7 +129,7 @@
   验收要点：
   - 显式 argv、cwd 与环境变量属于核心能力；保存的配置与预设需 `launch`，仓库位置需 `workspace`，混合模式需 `chat`，附件及临时文件引用需 `files`。关闭这些功能不妨碍创建普通 PTY（US-K19）；
   - 启用 workspace.projects 时，全局新建会话先进入可搜索的项目列表，选定后显示项目与运行设置；明确仓库、工作树和分屏上下文直接进入设置，缺少项目能力时保留“位置”与“运行”的直接创建方式；
-  - 选定项目后，键盘与遥控器焦点进入可见的工作位置、运行或命令控件，不停留在隐藏的项目搜索框；
+  - 选定项目后，键盘焦点进入可见的工作位置、运行或命令控件，不停留在隐藏的项目搜索框；
   - 启用 `launch` 时提供保存的启动配置与末尾的“自定义命令…”，首次启用且存储缺失时才写入常见 agent 预设，没有不可修改的内置预设；
   - Claude Code、Codex CLI、Antigravity CLI、Open Code、Qoder、QoderCN、Kimi、Devin 与 omp 的预置配置默认自动批准工具调用：
     - Claude Code `--dangerously-skip-permissions`；
