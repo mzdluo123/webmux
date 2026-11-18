@@ -58,11 +58,11 @@
   import { tick } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import IconArchive from "~icons/tabler/archive";
-  import IconChevronDown from "~icons/tabler/chevron-down";
   import IconChevronRight from "~icons/tabler/chevron-right";
   import IconRefresh from "~icons/tabler/refresh";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import * as Collapsible from "$lib/components/ui/collapsible";
   import { ListButton } from "$lib/components/ui/list-button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { GitChangeGroup } from "../../contracts/git-workbench-schemas";
@@ -71,7 +71,6 @@
     groupWorkingChanges,
     isChangeReviewed,
   } from "../../domains/workspace/git-workbench-state";
-  import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitCommitComposer from "./GitCommitComposer.svelte";
   import GitConflictTerminalNotice from "./GitConflictTerminalNotice.svelte";
@@ -194,17 +193,6 @@
     }
     return out;
   });
-
-  const animatedGroups = new Set<GitChangeGroup>(["staged", "unstaged"]);
-  for (const key of animatedGroups) {
-    useDockMotion(
-      () =>
-        listScrollEl?.querySelector<HTMLElement>(
-          `[data-change-rows="${key}"]`,
-        ) ?? null,
-      () => !collapsed[key],
-    );
-  }
 
   function focusChangeRow(index: number) {
     const rows = listScrollEl?.querySelectorAll<HTMLButtonElement>(
@@ -348,91 +336,87 @@
       {#each sections as sec (sec.key)}
         {@const list = grouped[sec.key]}
         {@const isOpen = !collapsed[sec.key]}
-        <div class="space-y-0.5" data-change-section={sec.key}>
-          <div class="flex min-w-0 flex-wrap items-center gap-1">
-            <div class="min-w-0 basis-32 flex-1">
-              <ListButton
-                variant="section-header"
-                aria-expanded={isOpen}
-                onclick={(event) => {
-                  collapsed = { ...collapsed, [sec.key]: isOpen };
-                  event.currentTarget.scrollIntoView({ block: "nearest" });
-                }}
-              >
-                {#if isOpen}
-                  <IconChevronDown
-                    class="size-3.5 shrink-0"
-                    aria-hidden="true"
-                  />
-                {:else}
-                  <IconChevronRight
-                    class="size-3.5 shrink-0"
-                    aria-hidden="true"
-                  />
-                {/if}
-                <span class="min-w-0 flex-1 truncate">{sec.title}</span>
-                <Badge variant="outline">{list.length}</Badge>
-              </ListButton>
-            </div>
+        <div data-change-section={sec.key}>
+          <Collapsible.MotionRoot
+            open={isOpen}
+            onOpenChange={(next) => {
+              collapsed = { ...collapsed, [sec.key]: !next };
+              listScrollEl
+                ?.querySelector<HTMLElement>(
+                  `[data-change-section="${sec.key}"] [data-slot="collapsible-trigger"]`,
+                )
+                ?.scrollIntoView({ block: "nearest" });
+            }}
+          >
+            {#snippet header()}
+              <div class="flex min-w-0 flex-wrap items-center gap-1">
+                <div class="min-w-0 basis-32 flex-1">
+                  <Collapsible.Trigger>
+                    {#snippet child({ props })}
+                      <ListButton {...props} variant="section-header">
+                        <IconChevronRight
+                          class={[
+                            "size-3.5 shrink-0 motion-safe:transition-transform",
+                            isOpen && "rotate-90",
+                          ]}
+                          aria-hidden="true"
+                        />
+                        <span class="min-w-0 flex-1 truncate">{sec.title}</span>
+                        <Badge variant="outline">{list.length}</Badge>
+                      </ListButton>
+                    {/snippet}
+                  </Collapsible.Trigger>
+                </div>
 
-            {#if !readonlyMode && list.length > 0 && onStageGroup}
-              {#if sec.key === "staged"}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={stagingBusy}
-                  onclick={() => onStageGroup("unstage", "staged")}
-                >
-                  {m.s7_uncommitted_unstage_all()}
-                </Button>
-              {:else if sec.key === "unstaged" || sec.key === "untracked"}
-                {#if onDiscardChanges}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={stagingBusy}
-                    onclick={() =>
-                      onDiscardChanges(
-                        list.map((i) => i.id),
-                        list.map((i) => i.path),
-                      )}
-                    data-testid={`git-discard-group-${sec.key}`}
-                  >
-                    {m.s7_uncommitted_discard_all()}
-                  </Button>
+                {#if !readonlyMode && list.length > 0 && onStageGroup}
+                  {#if sec.key === "staged"}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={stagingBusy}
+                      onclick={() => onStageGroup("unstage", "staged")}
+                    >
+                      {m.s7_uncommitted_unstage_all()}
+                    </Button>
+                  {:else if sec.key === "unstaged" || sec.key === "untracked"}
+                    {#if onDiscardChanges}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={stagingBusy}
+                        onclick={() =>
+                          onDiscardChanges(
+                            list.map((i) => i.id),
+                            list.map((i) => i.path),
+                          )}
+                        data-testid={`git-discard-group-${sec.key}`}
+                      >
+                        {m.s7_uncommitted_discard_all()}
+                      </Button>
+                    {/if}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={stagingBusy}
+                      onclick={() =>
+                        onStageGroup(
+                          "stage",
+                          sec.key === "unstaged" ? "unstaged" : "untracked",
+                        )}
+                    >
+                      {m.s7_uncommitted_stage_all()}
+                    </Button>
+                  {/if}
                 {/if}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={stagingBusy}
-                  onclick={() =>
-                    onStageGroup(
-                      "stage",
-                      sec.key === "unstaged" ? "unstaged" : "untracked",
-                    )}
-                >
-                  {m.s7_uncommitted_stage_all()}
-                </Button>
-              {/if}
-            {/if}
-          </div>
+              </div>
+            {/snippet}
 
-          {#if isOpen || animatedGroups.has(sec.key)}
             {#if list.length === 0}
-              <p
-                class="px-6 py-1 text-xs text-muted-foreground"
-                data-change-rows={sec.key}
-                hidden={!isOpen}
-              >
+              <p class="mt-0.5 px-6 py-1 text-xs text-muted-foreground">
                 {m.s7_uncommitted_empty_section()}
               </p>
             {:else}
-              <div
-                class="space-y-0.5"
-                data-change-rows={sec.key}
-                hidden={!isOpen}
-                inert={!isOpen}
-              >
+              <div class="mt-0.5 space-y-0.5">
                 {#each list as entry (entry.id)}
                   <GitWorkingChangeRow
                     item={entry}
@@ -461,7 +445,7 @@
                 {/each}
               </div>
             {/if}
-          {/if}
+          </Collapsible.MotionRoot>
         </div>
       {/each}
     </div>

@@ -1,3 +1,4 @@
+import { tick } from "svelte";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
@@ -10,6 +11,7 @@ import {
   GitWorktreeContextSchema,
 } from "../../src/contracts/git-workbench-schemas";
 import GitLogListPane from "../../src/components/workspace/GitLogListPane.svelte";
+import GitUncommittedChangesPane from "../../src/components/workspace/GitUncommittedChangesPane.svelte";
 import Harness from "./GitWorkbenchHarness.svelte";
 
 afterEach(async () => {
@@ -773,4 +775,157 @@ test("GitLogListPane retains reading scroll position across cursor append and st
     listScrollTop: savedScrollTop,
   });
   await expect.poll(() => Math.round(listboxEl.scrollTop)).toBe(180);
+});
+
+test("GitUncommittedChangesPane folds all four change groups uniformly, marks closing rows inert, unmounts settled rows, and skips animation on refresh", async () => {
+  await page.viewport(1280, 900);
+  const fixture = createFixtureState("commit");
+  const allGroupChanges = [
+    GitWorkingChangeSchema.parse({
+      id: "conflicted:conflict.ts",
+      path: "web/src/conflict.ts",
+      group: "conflicted",
+      status: "U",
+      hunkStageAvailable: false,
+      hunks: [],
+    }),
+    ...fixture.workingChanges,
+    GitWorkingChangeSchema.parse({
+      id: "untracked:notes.md",
+      path: "docs/notes.md",
+      group: "untracked",
+      status: "?",
+      hunkStageAvailable: false,
+      hunks: [],
+    }),
+  ];
+  const onSelectChange = vi.fn();
+  const baseProps = {
+    context: fixture.context,
+    changes: allGroupChanges,
+    activeChange: allGroupChanges[1]!,
+    reviewedPaths: [],
+    commitMessage: "",
+    onSelectChange,
+    onToggleReviewed: () => {},
+    onStageChange: () => {},
+    onUnstageChange: () => {},
+    onCommitMessageChange: () => {},
+    onOpenCommitPreview: () => {},
+    onOpenPush: () => {},
+    onCreateBranchFromHead: () => {},
+    onResolveDraftKeepLocal: () => {},
+    onResolveDraftAdoptRemote: () => {},
+    onResolveDraftMergeBoth: () => {},
+    onToggleCommitAmend: () => {},
+    onResolveAmendDraft: () => {},
+    onCommitAuthorOverrideChange: () => {},
+    onToggleCommitSignoff: () => {},
+  };
+
+  const view = await render(GitUncommittedChangesPane, { props: baseProps });
+  view.container.style.height = "640px";
+  view.container.style.width = "420px";
+
+  const groups = ["conflicted", "staged", "unstaged", "untracked"] as const;
+  for (const group of groups) {
+    const section = document.querySelector<HTMLElement>(
+      `[data-change-section="${group}"]`,
+    )!;
+    const trigger = section.querySelector<HTMLButtonElement>(
+      '[data-slot="collapsible-trigger"]',
+    )!;
+    const panel = trigger.closest('[data-slot="collapsible"]')!
+      .lastElementChild as HTMLDivElement;
+
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(
+      section.querySelectorAll("[data-working-change-row]").length,
+    ).toBeGreaterThan(0);
+
+    // Collapsing marks panel inert immediately, animates height, and unmounts rows once settled.
+    trigger.click();
+    await tick();
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(panel.inert).toBe(true);
+    await expect.poll(() => panel.getAnimations().length).toBeGreaterThan(0);
+    await expect
+      .poll(() => section.querySelectorAll("[data-working-change-row]").length)
+      .toBe(0);
+
+    // Expanding mounts rows and animates height back open across every group.
+    trigger.click();
+    await tick();
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(panel.inert).toBe(false);
+    await expect.poll(() => panel.getAnimations().length).toBeGreaterThan(0);
+    await expect.poll(() => panel.getAnimations().length).toBe(0);
+    expect(
+      section.querySelectorAll("[data-working-change-row]").length,
+    ).toBeGreaterThan(0);
+  }
+
+  // While the first group is mid-collapse, Home jumps immediately to the next open group's row.
+  const conflictedSec = document.querySelector<HTMLElement>(
+    '[data-change-section="conflicted"]',
+  )!;
+  conflictedSec
+    .querySelector<HTMLButtonElement>('[data-slot="collapsible-trigger"]')!
+    .click();
+  await tick();
+  const unstagedRow = document.querySelector<HTMLButtonElement>(
+    '[data-change-section="unstaged"] [data-working-change-row]',
+  )!;
+  unstagedRow.focus();
+  await userEvent.keyboard("{Home}");
+  expect(onSelectChange).toHaveBeenLastCalledWith("staged:cli.go");
+  await expect
+    .poll(
+      () => conflictedSec.querySelectorAll("[data-working-change-row]").length,
+    )
+    .toBe(0);
+
+  // Rapid mid-collapse click reverses back open without dropping the rows.
+  const stagedSec = document.querySelector<HTMLElement>(
+    '[data-change-section="staged"]',
+  )!;
+  const stagedTrigger = stagedSec.querySelector<HTMLButtonElement>(
+    '[data-slot="collapsible-trigger"]',
+  )!;
+  const stagedPanel = stagedTrigger.closest('[data-slot="collapsible"]')!
+    .lastElementChild as HTMLDivElement;
+  stagedTrigger.click();
+  await expect
+    .poll(() => stagedPanel.getAnimations().length)
+    .toBeGreaterThan(0);
+  stagedTrigger.click();
+  await tick();
+  expect(stagedTrigger.getAttribute("aria-expanded")).toBe("true");
+  expect(stagedPanel.inert).toBe(false);
+  await expect.poll(() => stagedPanel.getAnimations().length).toBe(0);
+  expect(
+    stagedSec.querySelectorAll("[data-working-change-row]").length,
+  ).toBeGreaterThan(0);
+
+  // Background refresh updates file list without starting disclosure animations.
+  const refreshedChanges = [
+    ...allGroupChanges,
+    GitWorkingChangeSchema.parse({
+      id: "untracked:second.md",
+      path: "docs/second.md",
+      group: "untracked",
+      status: "?",
+      hunkStageAvailable: false,
+      hunks: [],
+    }),
+  ];
+  await view.rerender({ ...baseProps, changes: refreshedChanges });
+  await expect
+    .element(page.getByRole("option", { name: /docs\/second\.md/ }))
+    .toBeVisible();
+  for (const el of document.querySelectorAll<HTMLElement>(
+    '[data-slot="collapsible"] > div:last-child',
+  )) {
+    expect(el.getAnimations()).toHaveLength(0);
+  }
 });
