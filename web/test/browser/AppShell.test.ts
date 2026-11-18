@@ -71,9 +71,9 @@ test("without a saved width the sidebar starts at its default 288px", async () =
 test("the grouping switch changes Workbench without opening another page", async () => {
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot();
-  const grouping = sidebar().getByRole("switch", { name: "按分支" });
+  const grouping = sidebar().getByRole("radio", { name: "按分支" });
   await expect.element(grouping).toBeChecked();
-  await grouping.click();
+  await sidebar().getByRole("radio", { name: "按会话" }).click();
   expect(location.pathname).toBe("/");
   expect(localStorage.getItem("webmux.workbenchLayout")).toBe("queue");
   await expect.element(grouping).not.toBeChecked();
@@ -86,7 +86,7 @@ test("the grouping switch leaves the active session and keyboard focus in place"
   history.replaceState(null, "", "/s/shellaaa");
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot([session({ id: "shellaaa", title: "pnpm dev" })]);
-  const grouping = sidebar().getByRole("switch", { name: "按分支" });
+  const grouping = sidebar().getByRole("radio", { name: "按会话" });
   await grouping.click();
   expect(location.pathname).toBe("/s/shellaaa");
   await expect.element(grouping).toHaveFocus();
@@ -108,14 +108,14 @@ test("the collapsed rail keeps the expand and primary actions, not the mode swit
   await expect
     .element(rail.getByRole("button", { name: "新建会话" }))
     .toBeVisible();
-  expect(rail.getByRole("switch", { name: "按分支" }).elements()).toEqual([]);
+  expect(rail.getByRole("radio", { name: "按分支" }).elements()).toEqual([]);
   expect(
     document.querySelector(".app-shell")?.getAttribute("data-collapsed"),
   ).toBe("true");
   await rail.getByRole("button", { name: "展开侧栏" }).click();
   expect(localStorage.getItem("webmux.sidebarCollapsed")).toBe("false");
   await expect
-    .element(sidebar().getByRole("switch", { name: "按分支" }))
+    .element(sidebar().getByRole("radio", { name: "按分支" }))
     .toBeVisible();
 });
 

@@ -185,7 +185,7 @@ test("the default queue prioritizes explicit attention and keeps a focused sessi
   await page.reload();
   await revealSidebar(page);
   await expect(
-    page.getByRole("switch", { name: "按分支", exact: true }),
+    page.getByRole("radio", { name: "按分支", exact: true }),
   ).toBeChecked();
 });
 

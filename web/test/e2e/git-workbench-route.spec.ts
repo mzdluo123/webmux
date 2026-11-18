@@ -598,7 +598,7 @@ test("the layout switch moves shared session rows and respects reduced motion", 
   await revealSidebar(page);
 
   const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
-  const toggle = sidebar.getByRole("switch", { name: "按分支", exact: true });
+  const toggle = sidebar.getByRole("radio", { name: "按分支", exact: true });
   const selected = sidebar.locator('[aria-current="page"]', {
     hasText: "Keep this session open",
   });
@@ -626,7 +626,7 @@ test("the layout switch moves shared session rows and respects reduced motion", 
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await animatedRows.evaluate((rows) => (rows.length = 0));
-  await toggle.press("Space");
+  await toggle.press("ArrowLeft");
   await expect(toggle).not.toBeChecked();
   await expect(selected).toBeVisible();
   expect(await animatedRows.jsonValue()).toEqual([]);

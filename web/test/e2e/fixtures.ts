@@ -312,9 +312,9 @@ export async function useWorkbenchBranches(page: Page, enabled = true) {
   const opened = await revealSidebar(page);
   const toggle = page
     .getByRole("navigation", { name: "导航", exact: true })
-    .getByRole("switch", { name: "按分支", exact: true });
+    .getByRole("radio", { name: enabled ? "按分支" : "按会话", exact: true });
   await expect(toggle).toBeVisible();
-  if ((await toggle.isChecked()) !== enabled) await toggle.click();
+  if (!(await toggle.isChecked())) await toggle.click();
   return opened;
 }
 

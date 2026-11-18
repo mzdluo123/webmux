@@ -17,6 +17,7 @@
     "after:absolute after:inset-x-0 after:bottom-[-5px] after:h-0.5 after:bg-foreground after:opacity-0 after:transition-opacity data-[state=checked]:after:opacity-100",
     "group-data-[size=form]/segmented-control:px-3 group-data-[size=form]/segmented-control:text-sm group-data-wrap/segmented-control:flex-none",
     "group-data-[size=navigation]/segmented-control:h-auto group-data-[size=navigation]/segmented-control:min-w-0 group-data-[size=navigation]/segmented-control:py-1 group-data-[size=navigation]/segmented-control:text-center group-data-[size=navigation]/segmented-control:whitespace-normal",
+    "group-data-framed/segmented-control:rounded-lg group-data-framed/segmented-control:after:hidden group-data-framed/segmented-control:hover:bg-muted/60 group-data-framed/segmented-control:focus-visible:z-10 group-data-framed/segmented-control:[&_svg]:size-3.5",
     className,
   )}
   {...restProps}

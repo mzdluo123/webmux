@@ -144,15 +144,15 @@ test.describe("desktop sidebar", () => {
       .getByRole("treeitem", { name: /^pnpm dev（/ })
       .click();
     await expect(page).toHaveURL(new RegExp(`/s/${terminal}$`));
-    await expect(page.getByRole("switch", { name: "按分支" })).toBeChecked();
+    await expect(page.getByRole("radio", { name: "按分支" })).toBeChecked();
 
     // A chat-side hybrid session stays open as the sidebar changes grouping.
     await page.goto("/");
     await tree(page).locator('[data-tree-key="all"]').click();
     await page.getByRole("link", { name: "修复排序" }).click();
     await expect(page).toHaveURL(new RegExp(`/s/${agent}$`));
-    await expect(page.getByRole("switch", { name: "按分支" })).toBeChecked();
-    await page.getByRole("switch", { name: "按分支" }).click();
+    await expect(page.getByRole("radio", { name: "按分支" })).toBeChecked();
+    await page.getByRole("radio", { name: "按会话" }).click();
     await expect(page).toHaveURL(new RegExp(`/s/${agent}$`));
     const chats = page.getByRole("navigation", { name: "导航", exact: true });
     await expect(chats.locator('[aria-current="page"]')).toHaveCount(1);
@@ -176,7 +176,7 @@ test.describe("desktop sidebar", () => {
     ).toHaveCount(0);
 
     // The workbench repository menu opens the new-worktree dialog in place.
-    await page.getByRole("switch", { name: "按分支" }).click();
+    await page.getByRole("radio", { name: "按分支" }).click();
     await expect(page).toHaveURL(new RegExp(`/s/${agent}$`));
     await tree(page)
       .getByRole("treeitem", { name: /^tree-repo，/ })
@@ -279,7 +279,7 @@ test.describe("desktop sidebar", () => {
     await expect(note).toHaveCount(0);
 
     // Conversation grouping keeps the panel state too.
-    await page.getByRole("switch", { name: "按分支" }).click();
+    await page.getByRole("radio", { name: "按会话" }).click();
     const chats = page.getByRole("navigation", { name: "导航", exact: true });
     await chats.getByRole("button", { name: /^面板甲（/ }).click();
     await expect(page.locator(".terminal-header")).toContainText("面板甲");
@@ -292,7 +292,7 @@ test.describe("desktop sidebar", () => {
     await expect(code).toBeHidden();
 
     // Back on the first session, its files are open again.
-    await page.getByRole("switch", { name: "按分支" }).click();
+    await page.getByRole("radio", { name: "按分支" }).click();
     await tree(page)
       .getByRole("treeitem", { name: /^panel one（/ })
       .click();
@@ -357,11 +357,11 @@ test.describe("phone drawer", () => {
         exact: true,
       });
       await openHome.click();
-      const grouping = drawer.getByRole("switch", {
+      const grouping = drawer.getByRole("radio", {
         name: "按分支",
         exact: true,
       });
-      await grouping.click();
+      await drawer.getByRole("radio", { name: "按会话", exact: true }).click();
       await expect(grouping).not.toBeChecked();
       await grouping.click();
       await expect(grouping).toBeChecked();
@@ -382,11 +382,11 @@ test.describe("phone drawer", () => {
     const open = page.getByRole("button", { name: "展开侧栏", exact: true });
     const drawer = page.getByRole("dialog", { name: "导航" });
     await open.press("Enter");
-    const grouping = drawer.getByRole("switch", {
+    const grouping = drawer.getByRole("radio", {
       name: "按分支",
       exact: true,
     });
-    await grouping.press("Space");
+    await grouping.press("ArrowLeft");
     await expect(grouping).not.toBeChecked();
     await grouping.press("Space");
     await expect(grouping).toBeChecked();
@@ -400,27 +400,26 @@ test.describe("phone drawer", () => {
     await expect(open).toBeFocused();
   });
 
-  test("the grouping thumb respects reduced motion", async ({ page }) => {
+  test("the grouping indicator respects reduced motion", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "打开侧栏" }).click();
     const drawer = page.getByRole("dialog", { name: "导航" });
-    const grouping = drawer.getByRole("switch", {
-      name: "按分支",
-      exact: true,
-    });
-    const thumb = grouping.locator('[data-slot="switch-thumb"]');
+    const grouping = drawer.getByRole("radiogroup", { name: "会话分组" });
+    const branches = grouping.getByRole("radio", { name: "按分支" });
+    const conversations = grouping.getByRole("radio", { name: "按会话" });
+    const marker = grouping.locator('[data-slot="grouping-indicator"]');
     await page.emulateMedia({ reducedMotion: "no-preference" });
-    await grouping.press("Space");
-    await expect(grouping).not.toBeChecked();
-    await expect(grouping).toBeFocused();
-    await expect(thumb).toHaveCSS(
+    await branches.press("ArrowLeft");
+    await expect(conversations).toBeChecked();
+    await expect(conversations).toBeFocused();
+    await expect(marker).toHaveCSS(
       "transition-property",
       "transform, translate, scale, rotate",
     );
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await grouping.press("Space");
-    await expect(grouping).toBeChecked();
-    await expect(thumb).toHaveCSS("transition-property", "none");
+    await conversations.press("ArrowRight");
+    await expect(branches).toBeChecked();
+    await expect(marker).toHaveCSS("transition-property", "none");
   });
 
   test("drawer grouping labels fit with enlarged text", async ({ page }) => {
@@ -432,7 +431,7 @@ test.describe("phone drawer", () => {
       .click();
     const drawer = page.getByRole("dialog", { name: "Navigation" });
     const workbench = drawer
-      .getByRole("switch", { name: "By branch" })
+      .getByRole("radio", { name: "Branch" })
       .locator("..");
     await expect(workbench).toBeVisible();
     await page.evaluate(() => {
@@ -445,6 +444,13 @@ test.describe("phone drawer", () => {
       const box = button.getBoundingClientRect();
       return text.left >= box.left && text.right <= box.right;
     });
+    const label = workbench.getByText("Conversation", { exact: true });
+    const lines = await label.evaluate((element) => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return range.getClientRects().length;
+    });
+    expect(lines).toBeLessThanOrEqual(3);
     expect(fits).toBe(true);
   });
 });
@@ -500,7 +506,7 @@ test.describe("sidebar header never overlaps", () => {
       await expect(nav).toBeVisible();
       const collapse = nav.getByRole("button", { name: "收起侧栏" });
       const brand = nav.locator(".brand");
-      const modes = nav.getByRole("switch", { name: "按分支" }).locator("..");
+      const modes = nav.getByRole("radio", { name: "按分支" }).locator("..");
       await expect(modes.getByText("按会话", { exact: true })).toBeVisible();
       await expect(modes.getByText("按分支", { exact: true })).toBeVisible();
       for (const part of [collapse, brand, modes])
@@ -530,7 +536,7 @@ test("an old chat preference opens Workbench with the new top switch", async ({
     name: "导航",
     exact: true,
   });
-  const grouping = navigation.getByRole("switch", {
+  const grouping = navigation.getByRole("radio", {
     name: "按分支",
     exact: true,
   });

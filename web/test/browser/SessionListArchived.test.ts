@@ -374,10 +374,10 @@ test("a scope without archived matches shows the empty state", async () => {
   render(ShellHarness, { drafts: createTerminalDrafts() });
   const socket = await connected();
   socket.message({ type: "snapshot", sessions: [], forwards: [] });
-  const layout = page.getByRole("switch", { name: "按分支", exact: true });
+  const layout = page.getByRole("radio", { name: "按分支", exact: true });
   await layout.click();
   await page.getByRole("treeitem", { name: "other", exact: true }).click();
-  await layout.click();
+  await page.getByRole("radio", { name: "按会话", exact: true }).click();
   await page
     .getByRole("radiogroup", { name: "按会话状态筛选" })
     .getByRole("radio", { name: /已归档/ })
