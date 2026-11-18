@@ -72,5 +72,6 @@ func (s *Service) registerRepository(ctx context.Context, path string) (*reposit
 	if err != nil {
 		return nil, false, fmt.Errorf("保存仓库清单: %w", err)
 	}
+	s.notifyWorkspaces()
 	return r, true, nil
 }

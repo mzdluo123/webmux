@@ -82,6 +82,9 @@ export const RepositorySchema = z.object({
 });
 export type Repository = z.infer<typeof RepositorySchema>;
 export const RepositoriesSchema = z.array(RepositorySchema);
+export const RepositoriesEventSchema = z.object({
+  type: z.literal("changed"),
+});
 export const RegisterRepositoryRequestSchema = z.object({
   path: z.string().min(1),
 });

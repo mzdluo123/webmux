@@ -105,6 +105,64 @@ func (s *Service) PruneSessionPins(keep func(string) bool) (Snapshot, error) {
 	return s.patchLocked(Changes{Fields: map[string]bool{"sessionPins": true}, Values: Values{SessionPins: pins}}, nil)
 }
 
+// PinHomeWorktrees adds newly discovered linked worktree IDs to repoID's home
+// page display list and publishes the change when new entries fit within the
+// settings bounds. When repoID has no explicit entry yet, mainWorktreeID seeds
+// the default main worktree before appending added IDs.
+func (s *Service) PinHomeWorktrees(repoID, mainWorktreeID string, added []string) error {
+	if s == nil {
+		return ErrUnavailable
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.unavailable(); err != nil {
+		return err
+	}
+	if repoID == "" || !validText(repoID, 128) || len(added) == 0 {
+		return nil
+	}
+	nextHome := make(map[string][]string, len(s.current.Values.HomeWorktrees)+1)
+	total := 0
+	for k, list := range s.current.Values.HomeWorktrees {
+		copied := append([]string{}, list...)
+		nextHome[k] = copied
+		total += len(copied)
+	}
+	existing, hasRepo := nextHome[repoID]
+	if !hasRepo && len(nextHome) >= 200 {
+		return nil
+	}
+	list := append([]string{}, existing...)
+	seen := make(map[string]bool, len(list)+len(added)+1)
+	for _, wid := range list {
+		seen[wid] = true
+	}
+	if !hasRepo && mainWorktreeID != "" && validText(mainWorktreeID, 128) && !seen[mainWorktreeID] && total < 2000 {
+		list = append(list, mainWorktreeID)
+		seen[mainWorktreeID] = true
+		total++
+	}
+	appended := false
+	for _, wid := range added {
+		if wid == "" || !validText(wid, 128) || seen[wid] {
+			continue
+		}
+		if len(list) >= 1000 || total >= 2000 {
+			break
+		}
+		list = append(list, wid)
+		seen[wid] = true
+		total++
+		appended = true
+	}
+	if !appended {
+		return nil
+	}
+	nextHome[repoID] = list
+	_, err := s.patchLocked(Changes{Fields: map[string]bool{"homeWorktrees": true}, Values: Values{HomeWorktrees: nextHome}}, nil)
+	return err
+}
+
 func retainSessionPins(pins []string, keep func(string) bool) []string {
 	return slices.DeleteFunc(slices.Clone(pins), func(id string) bool { return !keep(id) })
 }

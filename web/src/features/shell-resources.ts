@@ -79,7 +79,18 @@ export function createShellSessionResources(
   });
   void setup.load(controller.signal);
   if (launchConfigs) void launchConfigs.load(true);
-  if (repositories) void repositories.refresh();
+  const onVisible = () => {
+    if (!document.hidden && !controller.signal.aborted && repositories) {
+      void repositories.refresh();
+    }
+  };
+  if (repositories) {
+    void repositories.refresh();
+    if (typeof document !== "undefined" && typeof window !== "undefined") {
+      document.addEventListener("visibilitychange", onVisible);
+      window.addEventListener("pageshow", onVisible);
+    }
+  }
   return {
     sessions,
     setup,
@@ -98,6 +109,14 @@ export function createShellSessionResources(
         });
     },
     dispose() {
+      if (
+        repositories &&
+        typeof document !== "undefined" &&
+        typeof window !== "undefined"
+      ) {
+        document.removeEventListener("visibilitychange", onVisible);
+        window.removeEventListener("pageshow", onVisible);
+      }
       sessions.close();
       entries.forward?.disconnectSessionFeed();
       controller.abort();

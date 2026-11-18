@@ -383,6 +383,7 @@ func (s *Service) executeLockedRemoval(ctx context.Context, r *repositoryState, 
 	s.purgeWorktreeBaseline(ctx, r, repositoryID, worktreeID)
 	s.clearUnstashRefBestEffort(ctx, r.entry.AnchorPath, worktreeID)
 	s.purgeWorktreeCollabState(repositoryID, worktreeID)
+	s.notifyWorkspaces()
 	return nil
 }
 
