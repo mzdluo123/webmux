@@ -1,5 +1,5 @@
-snapcompact-go v0.1.1-0.20261118084437-f7922c4bbb11
-Source: https://github.com/mzdluo123/snapcompact-go/commit/f7922c4bbb1140601037e9f966d9367c7a7b71b7
+snapcompact-go v0.1.1-0.20261118090152-568ce53ff15a
+Source: https://github.com/mzdluo123/snapcompact-go/commit/568ce53ff15a8761382ccc78e4e50768400fd0a3
 
 MIT License
 

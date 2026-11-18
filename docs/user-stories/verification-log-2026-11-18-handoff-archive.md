@@ -28,3 +28,4 @@
 - Go 模块的 `go test ./...` 和 `go test -race ./...` 通过。OMP 18.22.2 固定样本覆盖 17 种布局的解码像素，以及短历史、完整与截断归档的摘要、文本边缘、顺序、计费估计和解码像素。
 - `go run ./cmd/native-image-experiment -scenario tools -model openai-codex/gpt-6-astra -history-cap 64000 OUTPUT_DIRECTORY` 生成六张图，保留 103395 字符，估计 15704 图片 token。默认预算下报告 38470 个省略字符。其他结果见[离线对照](../native-image-experiment.md#go-移植与原版一致性)。
 - `go test ./internal/api -run TestWireSnapshots -update` 更新默认压缩预览快照。交接发送继续使用预览冻结的图片字节及顺序，原文补查从相同快照读取。
+- `make check` 与交接相关 Go race 回归通过。隔离生产构建运行 `test/e2e/handoff.spec.ts`，桌面与手机共 10 项通过，覆盖预览、原文补查、冻结发送及不支持图片时的文本预览。

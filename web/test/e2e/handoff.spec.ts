@@ -43,7 +43,7 @@ async function source(request: APIRequestContext, cwd: string, long = false) {
             ? Array.from(
                 { length: 160 },
                 (_, index) =>
-                  `record ${turn}.${index}: preserve exact code(x <= 7);\n`,
+                  `record ${turn}.${index}: preserve exact code(x <= 7) in the history;\n`,
               ).join("")
             : ""),
         mode: "refuse",
@@ -322,13 +322,15 @@ test("handoff form previews frozen images and clears process handles on refresh"
   await page.route("**/api/handoff-previews/*", (route) =>
     route.request().method() === "GET" ? route.abort() : route.continue(),
   );
+  const send = page.getByRole("button", { name: "发送交接", exact: true });
+  await expect(send).toBeEnabled();
   const sent = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
       response.url().includes("/handoff-previews/") &&
       response.url().endsWith("/send"),
   );
-  await page.getByRole("button", { name: "发送交接", exact: true }).click();
+  await send.click();
   const response = await sent;
   expect(response.status(), await response.text()).toBe(202);
   const operation = (await response.json()) as HandoffOperation;

@@ -20,7 +20,7 @@ GET /api/handoff-previews/{previewId}
 
 - `pages[]` 按页序包含 `index`（从 0 开始）、`mimeType`、base64 `data`、`sha256`、`width`、`height`、原始 `bytes`。
 - `imageBudget` 包含 `maxPages`、实际 `pages`、原始 `bytes`、`maxBytes` 与编码请求上限 `maxRequestBytes`。
-  另含规范化正文 `projectedRunes`、实际保留正文 `retainedRunes`（沿用 OMP 的 UTF-16 字符计数）、图片 `estimatedTokens`、`tokenEstimateKnown`、`tokenBasis` 与 `shape`。
+  另含规范化正文 `projectedRunes`、实际保留正文 `retainedRunes`（沿用 OMP 归档计数，文本边缘与截断用 UTF-16 长度，图片统计已渲染字符）、图片 `estimatedTokens`、`tokenEstimateKnown`、`tokenBasis` 与 `shape`。
 - `capability` 为 `pending`、`supported` 或 `unsupported`；需要图片的新目标在创建前为 `pending`，发送前检查真实 ACP 图片能力。零页归档无需图片能力。
 - `blockedReason` 非空时不可发送；用户可选择文本模式并重新预览。
 - `historyText` 是保留历史的完整审阅表示。归档模式的 `text` 含来源指引、首尾历史文本与当前任务；ACP 按首部文本、图片、尾部文本及任务的顺序发送。
