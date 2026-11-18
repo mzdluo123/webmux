@@ -218,6 +218,30 @@ test("more than two ports collapse into one strip that opens the dialog", async 
   expect(showForwards).toHaveBeenCalledOnce();
 });
 
+test("a later lower port keeps displayed forwarding actions in their slots", async () => {
+  seedForwards([]);
+  const showForwards = vi.fn();
+  const view = await notices({
+    session: "late-port",
+    listening: ports(5173, 9229),
+    showForwards,
+  });
+  const first = page.getByRole("button", { name: "转发并打开" }).first();
+  await expect.element(first).toBeVisible();
+  const button = first.element() as HTMLButtonElement;
+  button.focus();
+  const bounds = button.getBoundingClientRect();
+
+  await view.rerender({ listening: ports(3000, 5173, 9229) });
+  await expect.element(page.getByText("另有 1 个端口")).toBeVisible();
+  await expect.element(prompt(3000)).not.toBeInTheDocument();
+  expect(first.element()).toBe(button);
+  expect(button.getBoundingClientRect()).toEqual(bounds);
+  await expect.element(first).toHaveFocus();
+  await page.getByRole("button", { name: "查看全部" }).click();
+  expect(showForwards).toHaveBeenCalledOnce();
+});
+
 test("ports from 30000 up are ignored by default and prompted when the setting is turned off", async () => {
   await seedSettings();
   seedForwards([]);

@@ -41,7 +41,6 @@
   "dialog/dialog-overlay.svelte",
   "dialog/dialog-portal.svelte",
   "dialog/dialog-title.svelte",
-  "dialog/dialog-trigger.svelte",
   "dialog/dialog.svelte",
   "dialog/index.ts",
   "drawer/drawer-close.svelte",
