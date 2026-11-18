@@ -64,3 +64,8 @@
   - `go test -race -count=1 ./cmd/... ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过；
   - Playwright E2E `agent-tools.spec.ts`、`relay-settings.spec.ts` 与 `worktrees.spec.ts`（直接目录创建降级）共 10 项通过。
+
+### T051 矮窗格的选区与回到底部（US-D07）
+
+- `TerminalViewport.test.ts` 通过，验证短窗格回放后悬浮热区分离，终端宿主几何一致。
+- 隔离 Chromium 的 390 px 宽、150 px 高终端窗格中，按钮在回放恢复后无重叠。复制保留选区，回到底部保留终端输入焦点。

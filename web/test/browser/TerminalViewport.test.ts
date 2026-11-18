@@ -187,6 +187,29 @@ test("restoration keeps its blocking overlay labels", async () => {
   expect(document.querySelector(".restore-overlay")).toBeNull();
 });
 
+test("selection and jump controls share a short viewport after replay", async () => {
+  const props = {
+    selection: "retained text",
+    atBottom: false,
+    width: 320,
+    height: 125,
+  };
+  const view = await render(Harness, { ...props, restoring: true });
+  const host = document.querySelector(".terminal-host")!;
+  const jump = page.getByRole("button", { name: "回到最新" });
+  const toolbar = page.getByRole("toolbar", { name: "终端文字选择" });
+  const grid = host.getBoundingClientRect();
+  await expect.element(jump).not.toBeInTheDocument();
+
+  await view.rerender({ ...props, restoring: false, connection: "connected" });
+  await expect.element(jump).toBeVisible();
+  await expect.element(toolbar).toBeVisible();
+  const jumpBox = jump.element().getBoundingClientRect();
+  const selectionBox = toolbar.element().getBoundingClientRect();
+  expect(jumpBox.right).toBeLessThan(selectionBox.left);
+  expect(host.getBoundingClientRect()).toEqual(grid);
+});
+
 test("floating jump-to-latest button centers near the bottom across desktop and narrow viewports without stealing focus", async () => {
   const scrollToBottom = vi.fn();
   try {

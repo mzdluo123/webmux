@@ -8,6 +8,8 @@
     atBottom = true,
     visible = true,
     width = 400,
+    height = 240,
+    selection = "",
     controlling = true,
     touchGamepad = false,
     send = () => {},
@@ -20,6 +22,8 @@
     atBottom?: boolean;
     visible?: boolean;
     width?: number;
+    height?: number;
+    selection?: string;
     controlling?: boolean;
     touchGamepad?: boolean;
     send?: (input: string) => void;
@@ -29,7 +33,9 @@
   } = $props();
 
   const terminal = {
-    selection: "",
+    get selection() {
+      return selection;
+    },
     get restoring() {
       return restoring;
     },
@@ -59,7 +65,7 @@
 
 <div
   class="session-terminal force-soft-keys"
-  style={`position: relative; width: ${width}px; height: 240px`}
+  style={`position: relative; width: ${width}px; height: ${height}px`}
 >
   <TerminalViewport
     {terminal}
