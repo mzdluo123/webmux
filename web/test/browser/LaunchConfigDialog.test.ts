@@ -519,6 +519,44 @@ test("the hybrid checkbox follows the server's verdict for the edited command", 
   });
 });
 
+test("an obsolete support reply cannot replace the current command result", async () => {
+  const stale = Promise.withResolvers<Response>();
+  const requests = serve({
+    "/api/launch-configs/abcdefg2": () => Response.json(saved),
+    "/api/launch-configs/chat-support": (_method, body) =>
+      (body as { cmd: string[] }).cmd[0] === "old-probe"
+        ? stale.promise
+        : Response.json({ supported: true, supportedAgents: [] }),
+  });
+  render(LaunchConfigDialog, {
+    open: true,
+    configId: saved.id,
+    onsaved: () => {},
+  });
+  const command = page.getByLabelText("启动命令");
+  const hybrid = page.getByRole("checkbox", {
+    name: "混合模式（聊天 ↔ 终端）",
+  });
+  await expect.element(command).toHaveValue("claude --resume");
+  await command.fill("old-probe");
+  await vi.waitFor(() =>
+    expect(requests.at(-1)?.body).toEqual({ cmd: ["old-probe"] }),
+  );
+  await command.fill("new-probe");
+  await expect.element(hybrid).toBeEnabled();
+
+  const obsolete = Response.json({
+    supported: false,
+    supportedAgents: [],
+    reason: "unknown_agent",
+  });
+  const consumed = vi.spyOn(obsolete, "json");
+  stale.resolve(obsolete);
+  await vi.waitFor(() => expect(consumed).toHaveBeenCalledOnce());
+  await expect.element(hybrid).toBeEnabled();
+  await expect.element(command).toHaveValue("new-probe");
+});
+
 test("launch-only editing preserves inactive feature fields and never probes chat support", async () => {
   await enableCreationFeatures(["launch"]);
   const inactive: LaunchConfig = {

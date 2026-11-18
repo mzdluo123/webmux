@@ -343,7 +343,7 @@
               {#if providers.LaunchChatFields}
                 <providers.LaunchChatFields
                   config={loadedConfig}
-                  cmd={draft.ok ? draft.value.cmd : undefined}
+                  cmd={draft.ok ? draft.value.cmd : draft.cmd}
                   bind:hybrid
                   disabled={busy}
                 />
