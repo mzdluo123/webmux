@@ -1,6 +1,151 @@
 import type { Meta, StoryObj } from "@storybook/svelte-vite";
-import AgentToolsSettings from "../src/components/settings/AgentToolsSettings.svelte";
-import type { AgentToolsReport } from "../src/contracts/schemas";
+import LaunchConfigsSettings from "../src/components/settings/LaunchConfigsSettings.svelte";
+import type {
+  AgentToolsReport,
+  LaunchConfigSummary,
+  LaunchPreset,
+} from "../src/contracts/schemas";
+
+const timestamp = "2026-04-15T08:30:00Z";
+
+const baseConfigs: LaunchConfigSummary[] = [
+  {
+    id: "shellcfg",
+    name: "Shell",
+    icon: "terminal",
+    cmd: ["/bin/bash", "-l", "-i"],
+    envNames: [],
+    chatOptions: [],
+    chat: false,
+    chatSupport: {
+      supported: false,
+      supportedAgents: [],
+      reason: "unknown_agent",
+    },
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  },
+  {
+    id: "claudecg",
+    name: "Claude Code",
+    icon: "claudecode",
+    cmd: [
+      "/usr/bin/env",
+      "bash",
+      "-ic",
+      'exec -- "$@"',
+      "webmux",
+      "claude",
+      "--dangerously-skip-permissions",
+    ],
+    envNames: [],
+    chatOptions: [],
+    chat: true,
+    chatSupport: {
+      supported: true,
+      supportedAgents: ["Claude Code"],
+      agent: "claudecode",
+    },
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  },
+  {
+    id: "codexcfg",
+    name: "Codex CLI",
+    icon: "codex",
+    cmd: [
+      "/usr/bin/env",
+      "bash",
+      "-ic",
+      'exec -- "$@"',
+      "webmux",
+      "codex",
+      "--dangerously-bypass-approvals-and-sandbox",
+    ],
+    envNames: ["OPENAI_BASE_URL"],
+    chatOptions: [],
+    chat: true,
+    chatSupport: {
+      supported: true,
+      supportedAgents: ["Codex CLI"],
+      agent: "codex",
+    },
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  },
+  {
+    id: "agyconfg",
+    name: "Antigravity CLI",
+    icon: "antigravity",
+    cmd: [
+      "/usr/bin/env",
+      "bash",
+      "-ic",
+      'exec -- "$@"',
+      "webmux",
+      "agy",
+      "--dangerously-skip-permissions",
+    ],
+    envNames: [],
+    chatOptions: [],
+    chat: true,
+    chatSupport: {
+      supported: true,
+      supportedAgents: ["Antigravity CLI"],
+      agent: "agy",
+    },
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  },
+  {
+    id: "opencfg2",
+    name: "Open Code",
+    icon: "opencode",
+    cmd: [
+      "/usr/bin/env",
+      "bash",
+      "-ic",
+      'exec -- "$@"',
+      "webmux",
+      "opencode",
+      "--auto",
+    ],
+    envNames: [],
+    chatOptions: [],
+    chat: true,
+    chatSupport: {
+      supported: true,
+      supportedAgents: ["OpenCode"],
+      agent: "opencode",
+    },
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  },
+  {
+    id: "copilcfg",
+    name: "GitHub Copilot CLI",
+    icon: "githubcopilot",
+    cmd: ["/usr/bin/env", "bash", "-ic", 'exec -- "$@"', "webmux", "copilot"],
+    envNames: [],
+    chatOptions: [],
+    chat: false,
+    chatSupport: {
+      supported: false,
+      supportedAgents: [],
+      reason: "unknown_agent",
+    },
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  },
+];
+
+const basePresets: LaunchPreset[] = baseConfigs.map((item) => ({
+  name: item.name,
+  icon: item.icon,
+  cmd: item.cmd,
+  envNames: item.envNames,
+  chat: item.chat,
+}));
 
 const baseTools: AgentToolsReport["tools"] = [
   {
@@ -104,13 +249,13 @@ const baseTools: AgentToolsReport["tools"] = [
 ];
 
 const localReport: AgentToolsReport = {
-  checkedAt: "2026-04-15T08:30:00Z",
+  checkedAt: timestamp,
   shell: "/bin/bash",
   tools: baseTools,
 };
 
 const checkedReport: AgentToolsReport = {
-  checkedAt: "2026-04-15T08:30:00Z",
+  checkedAt: timestamp,
   remoteCheckedAt: "2026-04-15T08:31:00Z",
   shell: "/bin/bash",
   tools: baseTools.map((tool) => {
@@ -146,15 +291,18 @@ const checkedReport: AgentToolsReport = {
 };
 
 const meta = {
-  title: "Settings/Agent Tools",
-  component: AgentToolsSettings,
+  title: "Settings/Launch Configs",
+  component: LaunchConfigsSettings,
   args: {
     fixture: {
+      configs: baseConfigs,
+      presets: basePresets,
+      launchState: "ready",
       report: localReport,
-      state: "ready",
+      agentState: "ready",
     },
   },
-} satisfies Meta<typeof AgentToolsSettings>;
+} satisfies Meta<typeof LaunchConfigsSettings>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -162,7 +310,8 @@ type Story = StoryObj<typeof meta>;
 export const Loading: Story = {
   args: {
     fixture: {
-      state: "loading",
+      launchState: "loading",
+      agentState: "loading",
     },
   },
 };
@@ -172,8 +321,11 @@ export const LocalScanned: Story = {};
 export const UpdatesAvailable: Story = {
   args: {
     fixture: {
+      configs: baseConfigs,
+      presets: basePresets,
+      launchState: "ready",
       report: checkedReport,
-      state: "ready",
+      agentState: "ready",
     },
   },
 };
@@ -181,12 +333,30 @@ export const UpdatesAvailable: Story = {
 export const EmptyInstalled: Story = {
   args: {
     fixture: {
+      configs: baseConfigs.filter((item) => item.id !== "shellcfg"),
+      presets: basePresets,
+      launchState: "ready",
       report: {
-        checkedAt: "2026-04-15T08:30:00Z",
+        checkedAt: timestamp,
         shell: "/bin/bash",
-        tools: baseTools.filter((tool) => !tool.installed),
+        tools: baseTools.map((tool) => ({
+          ...tool,
+          installed: false,
+          path: undefined,
+          installedVersion: undefined,
+          updateStatus: "not_installed",
+          connector: tool.connector
+            ? {
+                ...tool.connector,
+                installed: false,
+                path: undefined,
+                installedVersion: undefined,
+                updateStatus: "not_installed",
+              }
+            : undefined,
+        })),
       },
-      state: "ready",
+      agentState: "ready",
     },
   },
 };
@@ -194,8 +364,11 @@ export const EmptyInstalled: Story = {
 export const Unavailable: Story = {
   args: {
     fixture: {
-      state: "unavailable",
-      error: "startup shell probe timed out",
+      configs: baseConfigs.slice(0, 2),
+      presets: basePresets,
+      launchState: "ready",
+      agentState: "unavailable",
+      agentError: "startup shell probe timed out",
     },
   },
 };

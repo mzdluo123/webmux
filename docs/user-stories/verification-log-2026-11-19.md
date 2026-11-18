@@ -2,6 +2,30 @@
 
 承接 [verification-log-2026-11-18](verification-log-2026-11-18.md)，收录 2026-11-19 起的局部核对记录；索引见 [WebMux User Stories](../user-stories.md#核对记录)。
 
+## 2026-11-19：设置页合并启动配置与 Agent 工具及自动隐藏未安装 Agent（US-B01、US-B03、US-B08、US-B13、US-Q18、US-Q20）
+
+### 范围
+
+- 故事编号与总数保持不变，将 `docs/user-stories/access-and-sessions/connection-and-launch.md` 拆分为 A 组连接认证（`connection-and-launch.md`）与 B 组创建会话及启动位置（`launch.md`），并同步更新索引与验收标准：
+  - 设置导航合并为单一「启动配置」（`#launch-configs`，兼容 `#agent-tools` 跳转）；卡片顶部汇总本机已安装计数、可更新计数、扫描时间及重扫/检查更新操作；
+  - 已安装的受检 CLI Agent 启动配置在行内直接融合当前版本、解析路径、按需检查的更新状态与外部 ACP 连接器子卡片；未安装的受检 Agent 启动配置与未安装工具统一折叠于底部「未安装的工具（N）」区域，保留编辑、删除与一键复制安装命令，新建或补回未安装预设时自动展开；
+  - 新建会话「运行」选择器、快速开始聊天与交接新建目标在本机扫描就绪后自动隐藏对应主 CLI 未安装的受检 Agent 启动配置：
+    - 保留 `Shell` 等非 Agent 配置、显式路径、携带自定义 `PATH` 环境变量及主 CLI 已安装仅缺外部 ACP 连接器的配置，扫描未完成或失败时保留全部配置；
+    - 默认选中自动跳过未安装项，记住的配置变为未安装时要求显式重新选择。
+
+### 已执行验证与局限
+
+- 静态门禁、格式、架构与文档守卫：
+  - `make format` 与 `make check`（含 `pnpm --dir web build`、`format-check`、`docs-check`、`persistence-check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch` 49 项依赖与分层测试、`go vet` 及 `golangci-lint` v2.15.0）全部通过，0 warning / 0 error。
+- 单元测试、浏览器组件、Storybook 响应式防溢出与端到端回归：
+  - Vitest 单元测试：`test/launch-configs.test.ts`（61 项）、`test/new-session-defaults.test.ts`（13 项）、`test/i18n.test.ts`（5 项）通过；
+  - Vitest 浏览器测试：`LaunchConfigsSettings.test.ts`、`AgentToolsSettings.test.ts`、`SettingsNavigation.test.ts`、`NewSessionDialog.test.ts`、`QuickStart.test.ts`、`FeatureCreationAvailability.test.ts` 通过；
+  - Storybook 布局与防溢出测试：`pnpm --dir web exec playwright test --config playwright.storybook.config.ts -g "launch configs"` 覆盖 4 类场景 × 12 种视口/主题/大字号（含 320px `large-text`）全部通过；
+  - Playwright E2E 测试：`agent-tools.spec.ts`、`launch-configs.spec.ts`、`session-creation.spec.ts`、`quick-start.spec.ts`、`i18n.spec.ts`（桌面与 iPhone SE 移动视口）通过；
+  - 隔离 Chromium 视觉核验覆盖 `1280×900`、`768×800`、`390×844` 浅色与深色主题的修改前后对比及真实操作 GIF，核验工具栏与页脚同排按钮盒高度一致且无横向溢出。
+- 局限：
+  - 本轮验证在无头 Linux Chromium 中执行（`hover` 与 `any-pointer: coarse` 为 false），未连接外网包仓库生产源（更新检查使用受控模拟响应），未在物理触屏或真机 iOS Safari / Android 浏览器上复测。
+
 ## 2026-11-19：启动配置完成与介入提醒范围切换（T090，US-B08）
 
 ### 范围

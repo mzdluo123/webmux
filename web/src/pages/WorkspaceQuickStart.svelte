@@ -32,6 +32,7 @@
     usesArtifactDir,
     usesWebmuxBrief,
   } from "../domains/settings/quick-commands";
+  import { visibleLaunchConfigs } from "../domains/settings/launch-configs";
   import { insertAtSelection } from "../lib/text-insertion";
   import { useQuickStartAgentOptions } from "../hooks/sessions/quick-start-agent-options.svelte";
   import type {
@@ -59,9 +60,16 @@
   const shell = getShell();
 
   const repositories = $derived(shell.repositories?.list ?? []);
-  const agents = $derived(
+  const allHybridConfigs = $derived(
     shell.launchConfigs?.state.status === "ready"
       ? shell.launchConfigs.state.configs.filter((config) => config.chat)
+      : [],
+  );
+  const agents = $derived(
+    shell.launchConfigs
+      ? visibleLaunchConfigs(shell.launchConfigs.state).filter(
+          (config) => config.chat,
+        )
       : [],
   );
   const initialDraft = quickStartMemory.loadDraft();
@@ -142,9 +150,15 @@
   let branchError = $state<string | undefined>();
   let base = $state("");
 
-  const missing = $derived<"" | "agent" | "repository">(
-    shell.launchConfigs?.state.status === "ready" && !agents.length
-      ? "agent"
+  const launchSettled = $derived(
+    shell.launchConfigs?.state.status === "ready" &&
+      !shell.launchConfigs.state.agentToolsLoading,
+  );
+  const missing = $derived<"" | "agent" | "agent-uninstalled" | "repository">(
+    launchSettled && !agents.length
+      ? allHybridConfigs.length
+        ? "agent-uninstalled"
+        : "agent"
       : shell.repositories?.settled && !repositories.some(usableRepository)
         ? "repository"
         : "",

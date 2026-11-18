@@ -25,7 +25,8 @@
 - [terminal-quick-commands](../openspec/specs/terminal-quick-commands/spec.md)：在设置中保存并一键发送常用命令
 - [terminal-session-cli](../openspec/specs/terminal-session-cli/spec.md)：`webmux run|attach|ls|open` 本机终端附着
 - [session-launch-environment](../openspec/specs/session-launch-environment/spec.md)：会话启动时的进程环境约定
-- [launch-configs](../openspec/specs/launch-configs/spec.md)：服务器持久化的启动配置（名称 + argv + 环境变量）
+- [launch-configs](../openspec/specs/launch-configs/spec.md)：服务器持久化的启动配置（名称 + argv + 环境变量）与设置页融合呈现
+- [launch-config-shell-and-hybrid](../openspec/specs/launch-config-shell-and-hybrid/spec.md)：启动配置的混合模式开关、`chatSupport` 判定、交互式启动文件包装与默认 Shell
 - [agent-tools-check](../openspec/specs/agent-tools-check/spec.md)：本机已安装 CLI agent 与 ACP 连接器的路径、版本检测及按需更新检查
 - [session-artifacts](../openspec/specs/session-artifacts/spec.md)：会话产物目录
 - [terminal-keyboard-size-hold](../openspec/specs/terminal-keyboard-size-hold/spec.md)：触屏唤起软键盘时暂时保持 PTY 行列不变

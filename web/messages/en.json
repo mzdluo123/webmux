@@ -602,7 +602,7 @@
   "s2_launch_cmd_placeholder": "claude --resume or bash -lc 'npm run dev'",
   "s2_launch_delete_desc": "This will delete \"{name}\" and cannot be undone; running sessions are unaffected.",
   "s2_launch_delete_title": "Delete launch config?",
-  "s2_launch_desc": "Commands and environment variables for new sessions.",
+  "s2_launch_desc": "Manage saved launch commands, environment variables, and local agent tool versions and updates.",
   "s2_launch_dialog_desc": "Saved on the server and available when creating sessions on any device.",
   "s2_launch_edit_title": "Edit launch config",
   "s2_launch_empty_desc": "Save common commands, arguments, and environment variables to launch sessions in one click.",
@@ -637,7 +637,7 @@
   "s2_launch_err_name_max": "Name cannot exceed {max} characters",
   "s2_launch_err_preview_lines": "Visible lines must be an integer from {min} to {max}",
   "s2_launch_err_preview_skip": "Trailing lines to skip must be an integer from {min} to {max}",
-  "s2_launch_hint": "Save a name, full command, and environment variables to pick when creating sessions; custom configs live on the server and sync across devices. You can also enter a one-off command without saving.",
+  "s2_launch_hint": "Launch configs live on the server and sync across devices. Opening this page scans local PATH via your startup shell; clicking “Check updates” queries public registries. Uninstalled agents are hidden automatically when starting new sessions, chats, or handoffs.",
   "s2_launch_icon": "Icon",
   "s2_launch_icon_help": "Matches the executable automatically, or pick an icon manually. Brand icons by LobeHub.",
   "s2_launch_limit_hint": "Up to {limit} configs; delete one first",
@@ -4949,5 +4949,10 @@
   "worktree_upstream_latest": "Use latest upstream",
   "worktree_upstream_keep": "Keep local",
   "worktree_upstream_preview": "Upstream preview · {branch}. Choose the baseline when creating.",
-  "worktree_upstream_waiting": "Waiting for a worktree baseline choice"
+  "worktree_upstream_waiting": "Waiting for a worktree baseline choice",
+  "s2_launch_hidden_uninstalled": "Not installed · auto-hidden",
+  "s3_all_launch_configs_uninstalled": "The saved agent launch configs are not installed on this host.",
+  "s3_go_settings_manage_launch": "View install commands or manage launch configs in Settings",
+  "s3_qs_all_hybrid_uninstalled": "The saved hybrid agents are not installed on this host; install one to start from chat.",
+  "s3_qs_view_launch_configs": "View launch configs"
 }
