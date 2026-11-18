@@ -84,3 +84,6 @@ Storybook 设计系统标题允许换行，以适应不同系统字体和大号�
 原始二进制在内嵌资源 `/fonts/licenses/OFL-NotoSansCJK.txt` 中携带完整版权和 OFL 文本。
 `/fonts/licenses/Snapcompact-Go-NOTICES.txt` 同时包含压缩库和依赖的许可声明；Linux deb/rpm 另将两份文本安装到 `/usr/share/licenses/webmux/`。
 许可证静态资源读取和包内路径、内容、权限、卸载均有回归检查；PNG 生成成功不证明模型可读或节省 token。
+
+2026-11-18 的归档预算接入了离线 `cl100k_base` 词表。复用同一份前端 ZIP，以 `29157a82` 为基线，Linux amd64 裁去调试符号后的二进制由 83,726,496 B 增至 87,429,280 B（+3.53 MiB）。
+词表与正则库许可证随上述许可文件发放。

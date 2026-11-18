@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	snapcompact "github.com/mzdluo123/snapcompact-go"
+	"github.com/rainchan/webmux/internal/historyprojection"
 	"github.com/rainchan/webmux/internal/hybrid"
 )
 
@@ -35,23 +36,24 @@ func (s *Service) prepareArchive(ctx context.Context, in Request, projection sna
 		fmt.Fprintf(&legend, "s%d=%q\n", i+1, segment.SourceID)
 	}
 	header += legend.String()
-	// Text bytes are a conservative token ceiling. Reserve them separately
-	// from the model-specific image estimate before planning the archive.
-	overhead := jsonBytes(header) + 1024
-	available := max(int64(0), p.Budget.History-overhead)
-	edgeBytes := min(available/3, 8192)
-	imageTokens := available - edgeBytes
-	if imageTokens <= 0 {
+	const guideReserve = 1024
+	textBytes := s.options.MaxPromptBytes - int64(len(header)+len(in.UserText)) - guideReserve
+	wireReserve := int64(guideReserve + 1024 + in.MaxPages*80)
+	wireBytes := int64(p.ImageBudget.MaxRequestBytes) - jsonBytes(header) - jsonBytes(in.UserText) - wireReserve
+	var tokens int64
+	if textBytes > 0 && wireBytes > 0 {
+		tokens = p.Budget.History - historyprojection.ArchiveTextTokens(header) - guideReserve
+	}
+	if tokens <= 0 {
 		p.Budget.OverBudget = true
 		p.Text = header + "\n当前用户任务：\n" + in.UserText
 		return nil
 	}
 	cfg := snapcompact.ArchiveConfig{
-		Model: model, MaxPages: in.MaxPages, MaxTextBytes: max(int64(1), edgeBytes/2),
-		MaxImageTokens: imageTokens,
-		MaxImageBytes:  min(hybrid.MaxPromptAttachmentBytes, max(int64(1), (int64(p.ImageBudget.MaxRequestBytes)-overhead-edgeBytes-jsonBytes(in.UserText))*3/4)),
+		Model: model, MaxPages: in.MaxPages, MaxTextBytes: textBytes,
+		MaxImageBytes: hybrid.MaxPromptAttachmentBytes,
 	}
-	archive, err := s.options.HistoryProjection.CompactProjection(ctx, projection, cfg)
+	archive, err := s.options.HistoryProjection.CompactProjection(ctx, projection, cfg, tokens, wireBytes)
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -94,7 +96,7 @@ func (s *Service) prepareArchive(ctx context.Context, in Request, projection sna
 		p.imageTextOffset = len(p.Text)
 	}
 	p.Text += "\n" + archive.TextTail + "\n当前用户任务：\n" + in.UserText
-	p.Budget.Used = jsonBytes(strings.TrimSuffix(p.Text, in.UserText)) + archive.ImageTokens
+	p.Budget.Used = historyprojection.ArchiveTextTokens(strings.TrimSuffix(p.Text, in.UserText)) + archive.ImageTokens
 	if len(p.Pages) > 0 {
 		capability, capabilityErr := s.imageCapability(ctx, in.TargetSessionID)
 		p.Capability = capability

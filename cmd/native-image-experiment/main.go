@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	snapcompact "github.com/mzdluo123/snapcompact-go"
+	"github.com/rainchan/webmux/internal/historyprojection"
 )
 
 func main() {
@@ -57,24 +58,16 @@ func generate(dir, scenario, model string, seed, historyCap int64) error {
 		}
 		fmt.Fprintf(&legend, "s%d=%q\n", i+1, projection.Segments[i].SourceID)
 	}
-	legendJSON, err := json.Marshal(legend.String())
-	if err != nil {
-		return err
-	}
-	available := historyCap - int64(len(legendJSON)) - 1024
+	available := historyCap - historyprojection.ArchiveTextTokens(legend.String()) - 1024
 	if available <= 0 {
 		return fmt.Errorf("history budget cannot hold source mapping")
 	}
-	edgeBytes := min(available/3, 8192)
-	renderer, err := snapcompact.NewArchiveRenderer()
-	if err != nil {
-		return err
+	renderer := historyprojection.New(historyprojection.Options{})
+	config := snapcompact.ArchiveConfig{
+		Model: model, MaxPages: 8, MaxTextBytes: 64 << 10, MaxImageBytes: 20 << 20,
 	}
-	config := snapcompact.ArchiveConfig{Model: model, MaxPages: 8,
-		MaxTextBytes: max(int64(1), edgeBytes/2), MaxImageTokens: available - edgeBytes,
-		MaxImageBytes: 20 << 20}
 	start = time.Now()
-	archive, err := renderer.Compact(ctx, projection, config)
+	archive, err := renderer.CompactProjection(ctx, projection, config, available, 30<<20)
 	if err != nil {
 		return err
 	}
@@ -83,9 +76,9 @@ func generate(dir, scenario, model string, seed, historyCap int64) error {
 	if len(projection.Omissions) != 0 || len(archive.Omitted) != 0 ||
 		len(archive.Render.Uncovered) != 0 || len(archive.Render.Missing) != 0 ||
 		archive.SourceRunes != archive.RetainedRunes {
-		return fmt.Errorf("benchmark requires full coverage: projection omissions=%d archive omissions=%d uncovered=%d missing=%d source=%d retained=%d",
+		return fmt.Errorf("benchmark requires full coverage: projection omissions=%d archive omissions=%d uncovered=%d missing=%d source=%d retained=%d pages=%d text bytes=%d image tokens=%d",
 			len(projection.Omissions), len(archive.Omitted), len(archive.Render.Uncovered),
-			len(archive.Render.Missing), archive.SourceRunes, archive.RetainedRunes)
+			len(archive.Render.Missing), archive.SourceRunes, archive.RetainedRunes, len(archive.Render.Pages), len(archive.TextHead)+len(archive.TextTail), archive.ImageTokens)
 	}
 	if scenario == "long" && len(archive.Render.Pages) < 3 {
 		return fmt.Errorf("long scenario needs at least three middle frames; got %d", len(archive.Render.Pages))

@@ -22,3 +22,11 @@
 | 手机深色   | [前](../images/handoff/archive-before-phone-dark.png)    | [后](../images/handoff/archive-after-phone-dark.png)    |
 
 ![390×844 深色手机：清空预算、校验无效值并重新输入](../images/handoff/archive-mobile-budget.gif)
+
+## 2026-11-18：默认预算与上游布局（US-Q20、US-K04）
+
+- `go run ./cmd/native-image-experiment -scenario tools -model openai-codex/gpt-6-astra -history-cap 16000 OUTPUT_DIRECTORY` 对照主分支，正文保留由 29431 增至 47713 字符；生成器明确报告省略。
+- `bun upstream.mjs MANIFEST OUTPUT_DIRECTORY 8` 使用官方 18.22.2 包，短样本输出零图，两组长样本各六图、无预算省略。OMP CLI 模型读回与实测输入见[归档实验](../native-image-experiment.md#2026-11-18上游原版对照)。
+- `go test -race ./internal/handoff ./internal/historyprojection ./internal/archtest` 通过；默认预算保留量、首尾原文、短历史零页、冻结发送及图片请求限制均有回归覆盖。
+- `go test ./internal/api -run TestWireSnapshots -update` 通过，快照相同。`make docs-check` 通过。
+- `pnpm --dir web check:arch` 49 项通过。复用隔离 E2E 二进制运行 `pnpm --dir web exec playwright test test/e2e/handoff.spec.ts --workers=2`，桌面与手机共 10 项通过。

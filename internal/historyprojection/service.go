@@ -172,13 +172,3 @@ func (s *Service) RenderProjection(ctx context.Context, projection snapcompact.P
 	}
 	return s.renderer.Render(ctx, projection, cfg)
 }
-
-// CompactProjection plans text edges and dense image frames from the same
-// frozen projection. The core owns layout and all source-range accounting.
-func (s *Service) CompactProjection(ctx context.Context, projection snapcompact.Projection, cfg snapcompact.ArchiveConfig) (snapcompact.Archive, error) {
-	s.archiveOnce.Do(func() { s.archive, s.archiveError = snapcompact.NewArchiveRenderer() })
-	if s.archiveError != nil {
-		return snapcompact.Archive{}, s.archiveError
-	}
-	return s.archive.Compact(ctx, projection, cfg)
-}

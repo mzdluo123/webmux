@@ -20,8 +20,8 @@ import (
 )
 
 func useLongImageHistory(b *testBackend) {
-	b.body = "early constraint\n" + strings.Repeat("archive_line(x <= 7); ", 350) +
-		"MIDDLE_ONLY_SENTINEL " + strings.Repeat("second_half(x != 9); ", 350) + "\nlatest correction\n  code()"
+	b.body = "early constraint\n" + strings.Repeat("archive_line(x <= 7); ", 950) +
+		"MIDDLE_ONLY_SENTINEL " + strings.Repeat("second_half(x != 9); ", 950) + "\nlatest correction\n  code()"
 	target := b.records["target"]
 	target.Config = map[string]string{"model": "openai-codex/gpt-6-astra"}
 	b.records["target"] = target
@@ -90,14 +90,14 @@ func TestDefaultImagePreviewSendsFrozenPages(t *testing.T) {
 func TestImagePageBudgetPreservesEdgesAndReportsMiddleOmissions(t *testing.T) {
 	s, b := newTestService(t)
 	useLongImageHistory(b)
-	for i := range 4 {
+	for i := range 6 {
 		b.history = append(b.history, historysource.Record{ID: fmt.Sprintf("record-%d", i), Role: "user", Kind: "structured", Text: fmt.Sprintf("start_marker_%d\n", i) + strings.Repeat("  code_line()\n", 800) + fmt.Sprintf("end_marker_%d\n", i)})
 	}
 	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", MaxPages: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.BlockedReason != "" || len(p.Pages) != 1 || p.OmittedCount == 0 || !strings.Contains(p.Text, "start_marker_0") || !strings.Contains(p.Text, "end_marker_3") || p.ImageBudget.RetainedRunes >= p.ImageBudget.ProjectedRunes {
+	if p.BlockedReason != "" || len(p.Pages) != 1 || p.OmittedCount == 0 || !strings.Contains(p.Text, "start_marker_0") || !strings.Contains(p.Text, "end_marker_5") || p.ImageBudget.RetainedRunes >= p.ImageBudget.ProjectedRunes {
 		t.Fatalf("selection=%d omitted=%d pages=%d blocked=%q budget=%+v", p.SelectedCount, p.OmittedCount, len(p.Pages), p.BlockedReason, p.ImageBudget)
 	}
 }
@@ -206,6 +206,26 @@ func TestNewSessionImageCapabilityCheckedAfterCreation(t *testing.T) {
 	}
 }
 
+func TestDefaultBudgetReallocatesUnusedTextRoomToImages(t *testing.T) {
+	s, b := newTestService(t)
+	useLongImageHistory(b)
+	for i := range 110 {
+		b.history = append(b.history, historysource.Record{
+			ID: fmt.Sprintf("record-%d", i), Role: "assistant", Kind: "structured",
+			Text: fmt.Sprintf("marker_%d\n", i) + strings.Repeat("offset := readSnapshot(revision); preserve the order of observations.\n", 13),
+		})
+	}
+	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.BlockedReason != "" || p.Budget.OverBudget || p.Budget.History != DefaultTokenCap ||
+		p.Budget.Used > p.Budget.History || p.OmittedCount == 0 || p.ImageBudget.RetainedRunes < 40000 ||
+		!strings.Contains(p.Text, "marker_0\n") || !strings.Contains(p.Text, "marker_109\n") {
+		t.Fatalf("budget=%+v image=%+v omitted=%d blocked=%q", p.Budget, p.ImageBudget, p.OmittedCount, p.BlockedReason)
+	}
+}
+
 func TestImageTokensParticipateInHistoryBudget(t *testing.T) {
 	s, b := newTestService(t)
 	useLongImageHistory(b)
@@ -251,6 +271,7 @@ func TestArchiveCoveragePartitionsTextImagesAndOmissions(t *testing.T) {
 func TestShortArchiveKeepsTextWithoutImageCapability(t *testing.T) {
 	s, b := newTestService(t)
 	b.image = false
+	b.body = "历史内容\n  code()" + strings.Repeat("\nshort archived record", 600)
 	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", UserText: "任务原文"})
 	if err != nil || p.BlockedReason != "" || len(p.Pages) != 0 || !strings.Contains(p.Text, "code()") || !strings.HasSuffix(p.Text, "任务原文") || p.ImageBudget.RetainedRunes != p.ImageBudget.ProjectedRunes {
 		t.Fatalf("short archive=%+v err=%v", p, err)

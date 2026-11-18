@@ -33,37 +33,38 @@ async function create(
 async function source(request: APIRequestContext, cwd: string, long = false) {
   const cfg = await config(request, "Handoff source");
   const id = await create(request, cwd, cfg);
-  expect(
-    (
-      await request.post(`/api/sessions/${id}/input`, {
-        data: {
-          clientRequestId: "original-source-turn",
-          text:
-            "original source constraint\n" +
-            (long
-              ? Array.from(
-                  { length: 160 },
-                  (_, index) =>
-                    `record ${index}: preserve exact code(x <= 7);\n`,
-                ).join("")
-              : ""),
-          mode: "refuse",
-        },
+  for (let turn = 0; turn < (long ? 3 : 1); turn++) {
+    const response = await request.post(`/api/sessions/${id}/input`, {
+      data: {
+        clientRequestId: `original-source-turn-${turn}`,
+        text:
+          "original source constraint\n" +
+          (long
+            ? Array.from(
+                { length: 160 },
+                (_, index) =>
+                  `record ${turn}.${index}: preserve exact code(x <= 7);\n`,
+              ).join("")
+            : ""),
+        mode: "refuse",
+      },
+    });
+    expect(response.ok(), await response.text()).toBeTruthy();
+    await expect
+      .poll(async () => {
+        const response = await request.get(
+          `/api/sessions/${id}/native-history?maxBytes=64000`,
+        );
+        if (!response.ok()) return false;
+        const result = await response.json();
+        return (
+          result.records.filter((r: { role: string }) => r.role === "assistant")
+            .length ===
+          turn + 1
+        );
       })
-    ).ok(),
-  ).toBeTruthy();
-  await expect
-    .poll(async () => {
-      const response = await request.get(
-        `/api/sessions/${id}/native-history?maxBytes=16000`,
-      );
-      if (!response.ok()) return false;
-      const result = await response.json();
-      return result.records.some(
-        (r: { role: string }) => r.role === "assistant",
-      );
-    })
-    .toBe(true);
+      .toBe(true);
+  }
   return { id, cfg };
 }
 async function preview(
