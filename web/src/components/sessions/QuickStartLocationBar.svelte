@@ -202,8 +202,11 @@
         </QuietTrigger>
       {/snippet}
     </Popover.Trigger>
-    <Popover.Content align="start" class="w-72 gap-0 overflow-hidden p-0">
-      <div class="border-b px-2 py-1.5">
+    <Popover.Content
+      align="start"
+      class="max-h-(--bits-popover-content-available-height) w-72 max-w-(--bits-popover-content-available-width) gap-0 overflow-hidden p-0 [&>[data-slot=command]]:min-h-0 [&_[data-slot=command-input-wrapper]]:shrink-0"
+    >
+      <div class="shrink-0 border-b px-2 py-1.5">
         <SegmentedControl
           value={targetMode}
           onValueChange={(next) => {
@@ -213,6 +216,7 @@
           }}
           aria-label={m.s3_qs_worktree_mode_label()}
           class="w-full"
+          wrap
         >
           <SegmentedControlItem value="new" disabled={sending}
             >{m.s3_qs_new_worktree_tab()}</SegmentedControlItem
