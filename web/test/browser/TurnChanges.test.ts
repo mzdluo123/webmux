@@ -225,3 +225,52 @@ test("switching files leaves the focused header in place and cancels old preview
     follower.dispose();
   }
 });
+
+test("snapshot replacement keeps the patch boundary and restores a selected line", async () => {
+  const patch = { type: "diff" as const, path: "routes.ts", truncated: true };
+  const lines = (label: string) =>
+    Array.from(
+      { length: 90 },
+      (_, i) => `${i % 2 === 0 ? label : "same"} ${i + 1}\n`,
+    ).join("");
+  const view = await render(TurnPatch, { patch });
+  const shell = view.container.firstElementChild!;
+  const height = shell.getBoundingClientRect().height;
+  await view.rerender({
+    patch: { ...patch, oldText: lines("old"), newText: lines("new") },
+  });
+  const diff = page.getByRole("region", { name: "回合差异：routes.ts" });
+  await expect.element(diff).toBeVisible();
+  expect(shell.getBoundingClientRect().height).toBe(height);
+
+  const reader = () => diff.element().querySelector(".code-diff-reader")!;
+  reader().scrollTop = 520;
+  const row = () =>
+    reader()
+      .querySelector("diffs-container")
+      ?.shadowRoot?.querySelector(
+        '[data-line-type="change-addition"][data-column-number="17"]',
+      );
+  await expect.poll(row).toBeTruthy();
+  await page.elementLocator(row()!).click();
+  await expect.poll(() => row()?.hasAttribute("data-selected-line")).toBe(true);
+  const scrollTop = reader().scrollTop;
+  expect(scrollTop).toBeGreaterThan(0);
+  await view.rerender({
+    patch: { ...patch, oldText: lines("old"), newText: lines("refreshed") },
+  });
+  await expect.element(diff).toBeVisible();
+  await expect.poll(() => row()?.hasAttribute("data-selected-line")).toBe(true);
+  expect(Math.abs(reader().scrollTop - scrollTop)).toBeLessThan(24);
+  expect(shell.getBoundingClientRect().height).toBe(height);
+
+  await view.rerender({
+    patch: { ...patch, oldText: "old\n", newText: "shortened\n" },
+  });
+  await expect
+    .poll(
+      () => reader().querySelector("diffs-container")?.shadowRoot?.textContent,
+    )
+    .toContain("shortened");
+  expect(row()).toBeNull();
+});

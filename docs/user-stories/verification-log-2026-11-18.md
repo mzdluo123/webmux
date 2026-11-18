@@ -64,3 +64,12 @@
   - `go test -race -count=1 ./cmd/... ./internal/config ./internal/builtin ./internal/archtest ./internal/docguard` 通过；
   - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过；
   - Playwright E2E `agent-tools.spec.ts`、`relay-settings.spec.ts` 与 `worktrees.spec.ts`（直接目录创建降级）共 10 项通过。
+
+## 2026-11-19：启动和回合改动的阅读位置（US-Q18、US-B01、US-Q05）
+
+- 隔离 Chromium 复测 T026、T030、T037、T038。320×568 下，更新初始化指令引用提示时，输入与发送按钮坐标保持稳定，浮层留在视口内。
+- 320×568 的项目列表与运行设置往返后，分别恢复项目列表滚动和设置页的 205px 滚动位置，并保留搜索、命令、名称及配置焦点。
+- 隔离浏览器展开两个补丁或换到单补丁时，三个文件头的坐标一致。服务端假 Agent 的 Playwright 探针也确认桌面及移动 Chromium 展开两个补丁时，所选文件头的坐标保持不变。
+- 缺快照、计算中与着色差异共用 256px 桌面边界。快照替换后保留第 19 行选区和首个可见行。
+- `make e2e-runtime` 构建成功。`playwright test` 在 `quick-start.spec.ts`、`session-creation.spec.ts`、`hybrid.spec.ts` 的相关桌面与手机场景通过 19 项，跳过 1 项桌面快捷键用例的手机版。
+- `pnpm --dir web test:unit test/turn-changes.test.ts test/chat-model.test.ts test/code-diff.test.ts` 的 38 项通过。减少动态效果模式在 320×568 独立复测。触屏交互使用 Chromium 模拟，实体设备和悬停待真机验证。
