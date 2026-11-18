@@ -1,5 +1,5 @@
 import { expect, test, vi } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
 import WorktreeDetailsDialog from "../../src/components/workspace/WorktreeDetailsDialog.svelte";
 import { WorktreeUsageSchema } from "../../src/contracts/schemas";
@@ -50,18 +50,41 @@ test("the size is only walked when asked for, and a partial count says so", asyn
     .toBeEnabled();
 });
 
-test("a failed measurement shows the error and can be retried", async () => {
-  respond(usagePath, () =>
-    Response.json({ error: "无法读取工作树目录" }, { status: 503 }),
-  );
-  open();
-  await page.getByRole("button", { name: "计算容量" }).click();
+test("measuring and retrying keep focus and the section below in place", async () => {
+  const first = Promise.withResolvers<Response>();
+  let attempts = 0;
+  respond(usagePath, () => {
+    attempts++;
+    return attempts === 1
+      ? first.promise
+      : Response.json({ bytes: 4096, entries: 120000, complete: false });
+  });
+  open({ path: "/repos/" + "isolated-worktree/".repeat(8) });
+  const measure = page.getByRole("button", { name: "计算容量" });
+  await expect.element(measure).toBeEnabled();
+  const following = page.getByRole("region", { name: "分支与上游" }).element();
+  const usageRow = measure.element().closest("dd")!;
+  // Layout coordinates stay constant through the dialog's entrance transform.
+  const gap = () => (following as HTMLElement).offsetTop - usageRow.offsetTop;
+  const before = gap();
+
+  await measure.click();
+  await expect.element(measure).toBeDisabled();
+  await expect.element(measure).toHaveFocus();
+  expect(gap()).toBeCloseTo(before, 0);
+
+  const message = "无法读取工作树目录 /" + "very-long-path/".repeat(30);
+  first.resolve(Response.json({ error: message }, { status: 503 }));
+  await expect.element(page.getByRole("alert")).toHaveTextContent(message);
+  await expect.element(measure).toHaveFocus();
+  expect(gap()).toBeCloseTo(before, 0);
+  await userEvent.keyboard("{Enter}");
+  await expect.element(page.getByRole("status")).toMatchTextContent(/120,000/);
   await expect
-    .element(page.getByRole("alert"))
-    .toHaveTextContent("无法读取工作树目录");
-  await expect
-    .element(page.getByRole("button", { name: "计算容量" }))
-    .toBeEnabled();
+    .element(page.getByRole("button", { name: "重新计算" }))
+    .toHaveFocus();
+  expect(gap()).toBeCloseTo(before, 0);
+  expect(attempts).toBe(2);
 });
 
 test("a worktree whose directory is missing cannot be measured", async () => {

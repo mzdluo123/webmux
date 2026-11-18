@@ -34,6 +34,10 @@
 - `go test -race -count=1 ./internal/codexrollout ./internal/agent/codex/history ./internal/historyimport ./internal/historysource ./internal/historyprojection ./internal/handoff` 六个包通过，覆盖默认分页图片、任务原文、来源冻结与预览到期。
 - `make docs-check` 通过。
 
+## 工作树容量结果（T085，US-J02）
+
+- `pnpm --dir web test:browser test/browser/WorktreeDetailsDialog.test.ts` 的 5 项通过。延迟的测量请求失败后可用键盘重试，下方分支与上游区的位置保持稳定。
+
 ## 原生历史最低版本基线（US-Q19、US-Q20）
 
 - `go test -race -count=1 ./internal/codexrollout ./internal/agent/{codex,kimi,omp,qoder,qodercn,opencode,agy,claudecode,devin}/history ./internal/{historyimport,historysource,historyprojection,handoff}` 的 14 个包通过。

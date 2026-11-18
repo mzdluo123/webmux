@@ -5,6 +5,7 @@
   import { locale } from "$lib/locale";
   import { Button } from "$lib/components/ui/button";
   import { Badge } from "$lib/components/ui/badge";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import {
     branchActionLabels,
     branchActions,
@@ -23,7 +24,6 @@
     WorktreeUsage,
   } from "../../contracts/schemas";
   import { countSessions } from "../../domains/sessions/session-status";
-  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import WorktreeSyncSummary from "./WorktreeSyncSummary.svelte";
 
   // What a group of the home page stands for: its path, the worktree's Git
@@ -61,6 +61,7 @@
   const requests = new LatestRequest();
   onDestroy(() => requests.dispose());
   async function measure(target: Worktree) {
+    if (measuring || !target.available) return;
     const request = requests.begin();
     measuring = true;
     usageError = "";
@@ -126,30 +127,44 @@
     </dd>
     {#if worktree}
       <dt class="text-muted-foreground">{m.s8_label_disk_usage()}</dt>
-      <dd class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-        {#if measuring}
-          <span role="status">{m.s8_calculating()}</span>
-        {:else if usage}
-          {@const entriesStr = usage.entries.toLocaleString(locale.current)}
-          <span role="status" class="tabular-nums"
-            >{usage.complete
-              ? m.s8_details_usage({
-                  bytes: formatBytes(usage.bytes),
-                  entries: entriesStr,
-                })
-              : m.s8_details_usage_incomplete({
-                  bytes: formatBytes(usage.bytes),
-                  entries: entriesStr,
-                })}</span
-          >
-        {/if}
+      <dd class="grid min-w-0 justify-items-start gap-1">
         <Button
           size="xs"
           variant="outline"
-          disabled={measuring || !worktree.available}
+          disabled={!worktree.available}
+          aria-disabled={measuring || undefined}
           onclick={() => void measure(worktree)}
           >{usage ? m.s8_recalculate() : m.s8_calculate_usage()}</Button
         >
+        {#if worktree.available}
+          <ScrollArea
+            class="h-12 w-full"
+            viewportClasses="overscroll-contain wrap-anywhere"
+            viewportProps={{
+              role: "region",
+              tabindex: usageError ? 0 : undefined,
+              "aria-label": m.s8_label_disk_usage(),
+            }}
+          >
+            <div role="status" class="tabular-nums">
+              {#if measuring}
+                {m.s8_calculating()}
+              {:else if usage && !usageError}
+                {@const entries = usage.entries.toLocaleString(locale.current)}
+                {usage.complete
+                  ? m.s8_details_usage({
+                      bytes: formatBytes(usage.bytes),
+                      entries,
+                    })
+                  : m.s8_details_usage_incomplete({
+                      bytes: formatBytes(usage.bytes),
+                      entries,
+                    })}
+              {/if}
+            </div>
+            <div role="alert" class="text-destructive">{usageError}</div>
+          </ScrollArea>
+        {/if}
       </dd>
     {/if}
   </dl>
@@ -158,7 +173,6 @@
       {m.s8_details_cannot_measure_missing()}
     </p>
   {/if}
-  {#if usageError}<InlineNotice tone="danger">{usageError}</InlineNotice>{/if}
   {#if worktree}<WorktreeSyncSummary
       {worktree}
       variant="full"
