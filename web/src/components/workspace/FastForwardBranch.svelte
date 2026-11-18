@@ -47,6 +47,7 @@
   const sessions = $derived(preview?.sessions ?? []);
   const ready = $derived(
     !!preview?.confirmationId &&
+      preview.blockers.length === 0 &&
       !flow.loading &&
       !flow.running &&
       (sessions.length === 0 || acknowledged),

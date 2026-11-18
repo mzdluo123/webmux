@@ -112,7 +112,8 @@
     onclose();
   }
   async function remove() {
-    if (!preview) return;
+    if (!preview?.confirmationId) return;
+    if (force ? !closeSessions : preview.blockers.length > 0) return;
     busy = true;
     error = "";
     try {
@@ -136,6 +137,7 @@
       error = m.s8_rm_wt_failed_retry({ error: errorMessage(err) });
       preview = null;
       force = false;
+      closeSessions = false;
     } finally {
       busy = false;
       onchange();
@@ -264,11 +266,15 @@
             form={formId}
             wrap
             variant="destructive"
-            disabled={busy || !closeSessions}
+            disabled={busy || !closeSessions || !preview.confirmationId}
             >{m.s8_rm_wt_confirm_force_btn()}</Button
           >
         {:else if !preview.blockers.length}
-          <Button type="submit" form={formId} wrap disabled={busy}
+          <Button
+            type="submit"
+            form={formId}
+            wrap
+            disabled={busy || !preview.confirmationId}
             >{m.s8_rm_wt_confirm_safe_btn()}</Button
           >
         {:else if preview.forceAllowed}

@@ -8,6 +8,7 @@ import {
   createInitialConflictDraftState,
   detectTextConflictMarkers,
   markAllUnresolvedAsManual,
+  normalizeConflictLineEndings,
   summarizeConflictDraftProgress,
   toggleNonConflictingSegment,
 } from "../src/domains/workspace/git-conflict-model";
@@ -259,6 +260,298 @@ describe("git-conflict-model progressive 4-stage workflow", () => {
     expect(progress.unresolvedConflicts).toBe(0);
     expect(progress.hasSavedToDisk).toBe(true);
     expect(progress.canMarkResolved).toBe(true);
+  });
+
+  it("replaces only the target segment slice when manual edits add or remove lines in other segments", () => {
+    const detail = makeSampleConflictDetail();
+    let draft = createInitialConflictDraftState(detail);
+
+    // User manually inserts header lines in seg-1 and footer lines in seg-3.
+    draft = {
+      ...draft,
+      manualEdited: true,
+      resultText: [
+        "// custom header 1",
+        "// custom header 2",
+        "const host = '0.0.0.0';",
+        "const port = 7681;",
+        "const debug = false;",
+        "export const extraFooter = true;",
+        "",
+      ].join("\n"),
+    };
+
+    // Choosing Left on seg-2 updates only seg-2 and preserves custom header/footer.
+    draft = applyConflictChunkChoice(detail, draft, "seg-2", "left");
+    expect(draft.resultText).toBe(
+      [
+        "// custom header 1",
+        "// custom header 2",
+        "const host = '0.0.0.0';",
+        "const port = 8080;",
+        "const debug = false;",
+        "export const extraFooter = true;",
+        "",
+      ].join("\n"),
+    );
+
+    // Switching seg-2 choice from Left to both_rl tracks previous segment lines and updates seg-2 in place.
+    draft = applyConflictChunkChoice(detail, draft, "seg-2", "both_rl");
+    expect(draft.resultText).toBe(
+      [
+        "// custom header 1",
+        "// custom header 2",
+        "const host = '0.0.0.0';",
+        "const port = 9000;",
+        "const port = 8080;",
+        "const debug = false;",
+        "export const extraFooter = true;",
+        "",
+      ].join("\n"),
+    );
+
+    // Toggling non-conflicting seg-3 updates only seg-3 while keeping header and seg-2 intact.
+    draft = toggleNonConflictingSegment(detail, draft, "seg-3", true);
+    expect(draft.resultText).toBe(
+      [
+        "// custom header 1",
+        "// custom header 2",
+        "const host = '0.0.0.0';",
+        "const port = 9000;",
+        "const port = 8080;",
+        "const debug = true;",
+        "export const extraFooter = true;",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("disambiguates duplicate conflict slices via context anchors and preserves wholesale manual rewrites", () => {
+    const detail = makeSampleConflictDetail({
+      segments: [
+        {
+          id: "seg-1",
+          kind: "common",
+          baseStart: 1,
+          baseLines: ["function alpha() {"],
+          leftStart: 1,
+          leftLines: ["function alpha() {"],
+          rightStart: 1,
+          rightLines: ["function alpha() {"],
+        },
+        {
+          id: "seg-2",
+          kind: "conflict",
+          baseStart: 2,
+          baseLines: ["  return false;"],
+          leftStart: 2,
+          leftLines: ["  return true; // alpha-left"],
+          rightStart: 2,
+          rightLines: ["  return true; // alpha-right"],
+        },
+        {
+          id: "seg-3",
+          kind: "common",
+          baseStart: 3,
+          baseLines: ["}", "function beta() {"],
+          leftStart: 3,
+          leftLines: ["}", "function beta() {"],
+          rightStart: 3,
+          rightLines: ["}", "function beta() {"],
+        },
+        {
+          id: "seg-4",
+          kind: "conflict",
+          baseStart: 5,
+          baseLines: ["  return false;"],
+          leftStart: 5,
+          leftLines: ["  return true; // beta-left"],
+          rightStart: 5,
+          rightLines: ["  return true; // beta-right"],
+        },
+        {
+          id: "seg-5",
+          kind: "common",
+          baseStart: 6,
+          baseLines: ["}"],
+          leftStart: 6,
+          leftLines: ["}"],
+          rightStart: 6,
+          rightLines: ["}"],
+        },
+      ],
+      initialResultText: [
+        "function alpha() {",
+        "  return false;",
+        "}",
+        "function beta() {",
+        "  return false;",
+        "}",
+        "",
+      ].join("\n"),
+    });
+
+    let draft = createInitialConflictDraftState(detail);
+    draft = {
+      ...draft,
+      manualEdited: true,
+      resultText: [
+        "// manual banner",
+        "function alpha() {",
+        "  return false;",
+        "}",
+        "function beta() {",
+        "  return false;",
+        "}",
+        "",
+      ].join("\n"),
+    };
+
+    // Choosing right on seg-4 uses seg-3/seg-5 context anchors so seg-2 stays untouched.
+    draft = applyConflictChunkChoice(detail, draft, "seg-4", "right");
+    expect(draft.resultText).toBe(
+      [
+        "// manual banner",
+        "function alpha() {",
+        "  return false;",
+        "}",
+        "function beta() {",
+        "  return true; // beta-right",
+        "}",
+        "",
+      ].join("\n"),
+    );
+
+    // If user edits inside seg-2 directly while seg-1 and seg-3 anchors remain intact, choosing left replaces seg-2.
+    draft = {
+      ...draft,
+      manualEdited: true,
+      resultText: [
+        "function alpha() {",
+        "  const temp = 1;",
+        "  return Boolean(temp);",
+        "}",
+        "function beta() {",
+        "  return true; // beta-right",
+        "}",
+        "",
+      ].join("\n"),
+    };
+    draft = applyConflictChunkChoice(detail, draft, "seg-2", "left");
+    expect(draft.resultText).toBe(
+      [
+        "function alpha() {",
+        "  return true; // alpha-left",
+        "}",
+        "function beta() {",
+        "  return true; // beta-right",
+        "}",
+        "",
+      ].join("\n"),
+    );
+
+    // Wholesale rewrite with no matching target slice or anchors preserves custom resultText.
+    const customRewrite = "export const customConfig = { port: 443 };\n";
+    draft = {
+      ...draft,
+      manualEdited: true,
+      resultText: customRewrite,
+    };
+    draft = applyConflictChunkChoice(detail, draft, "seg-2", "right");
+    expect(draft.resultText).toBe(customRewrite);
+  });
+
+  it("marks hasUnsavedDraftChanges when non-conflicting segments are applied or manualEdited is set", () => {
+    const noOpNonConflictDetail = makeSampleConflictDetail({
+      segments: [
+        {
+          id: "seg-same",
+          kind: "change_both_same",
+          baseStart: 1,
+          baseLines: ["const host = 'localhost';"],
+          leftStart: 1,
+          leftLines: ["const host = 'localhost';"],
+          rightStart: 1,
+          rightLines: ["const host = 'localhost';"],
+        },
+      ],
+      initialResultText: "const host = 'localhost';\n",
+    });
+
+    const initial = createInitialConflictDraftState(noOpNonConflictDetail);
+    expect(
+      summarizeConflictDraftProgress(noOpNonConflictDetail, initial)
+        .hasUnsavedDraftChanges,
+    ).toBe(false);
+
+    const afterNonConflict = toggleNonConflictingSegment(
+      noOpNonConflictDetail,
+      initial,
+      "seg-same",
+      true,
+    );
+    expect(
+      summarizeConflictDraftProgress(noOpNonConflictDetail, afterNonConflict)
+        .hasUnsavedDraftChanges,
+    ).toBe(true);
+
+    const afterManualFlag: typeof initial = {
+      ...initial,
+      manualEdited: true,
+    };
+    expect(
+      summarizeConflictDraftProgress(noOpNonConflictDetail, afterManualFlag)
+        .hasUnsavedDraftChanges,
+    ).toBe(true);
+  });
+
+  it("preserves CRLF line endings across LF-normalized textarea manual edits, chunk choices, and save normalization", () => {
+    const crlfDetail = makeSampleConflictDetail({
+      base: {
+        ...makeSampleConflictDetail().base,
+        text: "const host = 'localhost';\r\nconst port = 7681;\r\nconst debug = false;\r\n",
+        lineEnding: "crlf",
+      },
+      left: {
+        ...makeSampleConflictDetail().left,
+        text: "const host = '127.0.0.1';\r\nconst port = 8080;\r\nconst debug = false;\r\n",
+        lineEnding: "crlf",
+      },
+      right: {
+        ...makeSampleConflictDetail().right,
+        text: "const host = 'localhost';\r\nconst port = 9000;\r\nconst debug = true;\r\n",
+        lineEnding: "crlf",
+      },
+      initialResultText:
+        "const host = 'localhost';\r\nconst port = 7681;\r\nconst debug = false;\r\n",
+    });
+
+    let draft = createInitialConflictDraftState(crlfDetail);
+    // Browser HTMLTextAreaElement.value normalizes \r\n to \n on manual edits.
+    draft = {
+      ...draft,
+      manualEdited: true,
+      resultText:
+        "// custom header\nconst host = 'localhost';\nconst port = 7681;\nconst debug = false;\n",
+    };
+
+    // Subsequent chunk click restores CRLF across both manual lines and replaced segment lines.
+    draft = applyConflictChunkChoice(crlfDetail, draft, "seg-2", "left");
+    expect(draft.resultText).toBe(
+      "// custom header\r\nconst host = 'localhost';\r\nconst port = 8080;\r\nconst debug = false;\r\n",
+    );
+
+    // Another manual textarea edit right before saving normalizes to \n again;
+    // normalizeConflictLineEndings restores \r\n while leaving LF files untouched.
+    const editedAgainLf =
+      "// custom header\nconst host = 'localhost';\nconst port = 8080;\nconst debug = true;\n";
+    expect(normalizeConflictLineEndings(editedAgainLf, crlfDetail)).toBe(
+      "// custom header\r\nconst host = 'localhost';\r\nconst port = 8080;\r\nconst debug = true;\r\n",
+    );
+    const lfDetail = makeSampleConflictDetail();
+    expect(normalizeConflictLineEndings(editedAgainLf, lfDetail)).toBe(
+      editedAgainLf,
+    );
   });
 });
 

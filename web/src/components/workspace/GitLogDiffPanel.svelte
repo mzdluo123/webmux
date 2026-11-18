@@ -146,7 +146,11 @@
         <CodeDiffReader
           bind:this={readerRef}
           fileDiff={activeFileDiff}
-          side={fileStatus === "D" ? "old" : "new"}
+          side={fileStatus === "D" ||
+          (activeFileDiff.additionLines.length === 0 &&
+            activeFileDiff.deletionLines.length > 0)
+            ? "old"
+            : "new"}
           expired={false}
           draftEnabled={false}
           preferredDiffStyle={effectiveDiffStyle}

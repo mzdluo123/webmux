@@ -9,6 +9,7 @@ import {
 import { GitConflictSchema, type Remote } from "../../contracts/schemas";
 import { generateGitClientRequestId } from "../../domains/workspace/git-operations-model";
 import { containsRedactedRemoteMask } from "../../domains/workspace/git-v2-adapter";
+import { LatestRequest } from "../shared/remote-request.svelte";
 import type { GitOperationsController } from "./git-operations-controller.svelte";
 
 export function parseGitManageError(err: unknown): string {
@@ -19,9 +20,38 @@ export function parseGitManageError(err: unknown): string {
   return errorMessage(err);
 }
 
+export async function runLatestGitPreview<T>(options: {
+  tracker: LatestRequest;
+  isActive: () => boolean;
+  setLoading: (loading: boolean) => void;
+  setDialogError: (error: string) => void;
+  load: (signal: AbortSignal) => Promise<T>;
+  onLoaded: (preview: T) => void;
+  onCleared: () => void;
+}): Promise<void> {
+  options.setLoading(true);
+  options.setDialogError("");
+  const req = options.tracker.begin();
+  try {
+    const res = await options.load(req.signal);
+    if (!req.current() || !options.isActive()) return;
+    options.onLoaded(res);
+  } catch (err) {
+    options.onCleared();
+    if (req.reportable() && options.isActive()) {
+      options.setDialogError(parseGitManageError(err));
+    }
+  } finally {
+    if (req.current() && options.isActive()) {
+      options.setLoading(false);
+    }
+  }
+}
+
 export async function executeTrackedGitMutation<T>(options: {
-  repoId: string;
-  worktreeId?: string;
+  getRepoId: () => string;
+  getWorktreeId?: () => string | undefined;
+  isAlive?: () => boolean;
   operations?: GitOperationsController;
   opKind:
     | "branch_rename"
@@ -34,9 +64,17 @@ export async function executeTrackedGitMutation<T>(options: {
   progressText: string;
   setSubmitting: (busy: boolean) => void;
   setDialogError: (msg: string) => void;
-  exec: (clientRequestId: string) => Promise<T>;
+  exec: (repoId: string, clientRequestId: string) => Promise<T>;
   afterSuccess: (res: T) => Promise<void> | void;
+  onFailure?: () => void;
 }): Promise<void> {
+  const repoId = options.getRepoId();
+  const worktreeId = options.getWorktreeId?.();
+  if (!repoId) return;
+  const stillCurrent = () =>
+    (options.isAlive ? options.isAlive() : true) &&
+    repoId === options.getRepoId() &&
+    worktreeId === options.getWorktreeId?.();
   options.setSubmitting(true);
   options.setDialogError("");
   const clientRequestId = generateGitClientRequestId(options.opKind);
@@ -49,17 +87,21 @@ export async function executeTrackedGitMutation<T>(options: {
     },
   );
   try {
-    const res = await options.exec(clientRequestId);
+    const res = await options.exec(repoId, clientRequestId);
+    if (!stillCurrent()) return;
     await options.afterSuccess(res);
-    await options.operations?.refreshOperations(
-      options.repoId,
-      options.worktreeId,
-    );
+    if (!stillCurrent()) return;
+    await options.operations?.refreshOperations(repoId, worktreeId);
   } catch (err) {
-    options.setDialogError(parseGitManageError(err));
+    if (stillCurrent()) {
+      options.onFailure?.();
+      options.setDialogError(parseGitManageError(err));
+    }
   } finally {
-    options.operations?.clearActive();
-    options.setSubmitting(false);
+    if (stillCurrent()) {
+      options.operations?.clearActive();
+      options.setSubmitting(false);
+    }
   }
 }
 
@@ -120,11 +162,17 @@ export function createGitRemotesController(deps: GitRemotesControllerDeps) {
     editOpen = true;
   }
 
+  function isSameTarget(repoId: string, wtId: string | undefined): boolean {
+    return repoId === deps.getRepoId() && wtId === deps.getWorktreeId?.();
+  }
+
   async function refreshRemotes(summary?: string) {
     const repoId = deps.getRepoId();
+    const wtId = deps.getWorktreeId?.();
     if (!repoId) return;
     const res = await repositoryRemotes(repoId).catch(() => null);
-    if (res && repoId === deps.getRepoId()) {
+    if (!isSameTarget(repoId, wtId)) return;
+    if (res) {
       deps.onRemotesUpdated(res.remotes, summary);
     } else if (summary) {
       deps.onRemotesUpdated([...deps.getRemotes()], summary);
@@ -135,14 +183,16 @@ export function createGitRemotesController(deps: GitRemotesControllerDeps) {
   async function runRemoteMutation(
     opKind: "remote_add" | "remote_update" | "remote_remove",
     progressText: string,
-    exec: (clientRequestId: string) => Promise<{ remotes: Remote[] }>,
+    exec: (
+      repoId: string,
+      clientRequestId: string,
+    ) => Promise<{ remotes: Remote[] }>,
     onSuccess: (remotes: Remote[]) => void,
   ) {
-    const repoId = deps.getRepoId();
-    if (!repoId || submitting) return;
+    if (submitting) return;
     await executeTrackedGitMutation({
-      repoId,
-      worktreeId: deps.getWorktreeId?.(),
+      getRepoId: deps.getRepoId,
+      getWorktreeId: deps.getWorktreeId,
       operations: deps.operations,
       opKind,
       progressText,
@@ -176,15 +226,15 @@ export function createGitRemotesController(deps: GitRemotesControllerDeps) {
     await runRemoteMutation(
       isAdd ? "remote_add" : "remote_update",
       m.s7_remote_saving_phase(),
-      (clientRequestId) =>
+      (targetRepoId, clientRequestId) =>
         isAdd
-          ? gitRemoteAdd(repoId, {
+          ? gitRemoteAdd(targetRepoId, {
               name: cleanName,
               fetchUrl: cleanFetch,
               pushUrl: cleanPush || undefined,
               clientRequestId,
             })
-          : gitRemoteUpdate(repoId, cleanName, {
+          : gitRemoteUpdate(targetRepoId, cleanName, {
               fetchUrl: cleanFetch,
               ...(cleanPush ? { pushUrl: cleanPush } : { clearPushUrl: true }),
               clientRequestId,
@@ -213,8 +263,8 @@ export function createGitRemotesController(deps: GitRemotesControllerDeps) {
     await runRemoteMutation(
       "remote_remove",
       m.s7_remote_removing_phase(),
-      (clientRequestId) =>
-        gitRemoteRemove(repoId, target.name, { clientRequestId }),
+      (targetRepoId, clientRequestId) =>
+        gitRemoteRemove(targetRepoId, target.name, { clientRequestId }),
       (nextRemotes) => {
         removeTarget = null;
         deps.onRemotesUpdated(

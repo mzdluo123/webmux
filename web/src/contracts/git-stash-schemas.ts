@@ -126,7 +126,7 @@ export type GitStashApplyPreview = z.infer<typeof GitStashApplyPreviewSchema>;
 export const GitStashApplyResultSchema = z.object({
   operationId: z.string().optional(),
   kind: z.string(),
-  outcome: z.enum(["completed", "conflicted"]),
+  outcome: z.enum(["completed", "conflicted", "needs_review"]),
   stashRef: z.string(),
   stashOid: z.string(),
   stashDropped: z.boolean(),

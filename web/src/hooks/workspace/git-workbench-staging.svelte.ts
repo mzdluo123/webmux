@@ -23,8 +23,11 @@ import { createGitStagingDiffController } from "./git-staging-diff.svelte";
 import {
   fetchGitStagingDiffForEntry,
   fetchGitStagingState,
-  performStageMutation,
 } from "./git-workbench-actions";
+import {
+  executeGroupStageMutation,
+  executeSingleStageMutation,
+} from "./git-workbench-staging-mutations";
 
 export interface GitStagingBindings {
   getRepoId: () => string;
@@ -57,21 +60,34 @@ export function createGitStagingController(bindings: GitStagingBindings) {
 
   const diffReq = new LatestRequest();
   const actionReq = new LatestRequest();
+  const previewReq = new LatestRequest();
+  const commitReq = new LatestRequest();
   const preflightReq = new LatestRequest();
+  const requests = [diffReq, actionReq, previewReq, commitReq, preflightReq];
+  let disposed = false;
 
   const reader = createGitStagingDiffController({
     getRepoId: bindings.getRepoId,
     getWorktreeId: bindings.getWorktreeId,
   });
 
+  function isSameTarget(repoId: string, wtId: string | undefined): boolean {
+    return (
+      !disposed &&
+      repoId === bindings.getRepoId() &&
+      wtId === bindings.getWorktreeId()
+    );
+  }
+
   function dispose() {
-    diffReq.dispose();
-    actionReq.dispose();
-    preflightReq.dispose();
+    disposed = true;
+    for (const r of requests) r.dispose();
     reader.dispose();
   }
 
   function resetTarget() {
+    for (const r of requests) r.cancel();
+    stagingBusy = false;
     commitConfirmationId = null;
     commitSubmitting = false;
     activeDiffStale = false;
@@ -93,10 +109,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
       repoId,
       wtId,
       signal: effectiveSignal,
-      isCurrent: () =>
-        req.current() &&
-        repoId === bindings.getRepoId() &&
-        wtId === bindings.getWorktreeId(),
+      isCurrent: () => req.current() && isSameTarget(repoId, wtId),
       commitOptions: bindings.commitOptions,
       getLatestView: bindings.getView,
       patchView: bindings.patchView,
@@ -135,12 +148,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
         entry,
         signal: req.signal,
       });
-      if (
-        !out ||
-        !req.current() ||
-        repoId !== bindings.getRepoId() ||
-        wtId !== bindings.getWorktreeId()
-      ) {
+      if (!out || !req.current() || !isSameTarget(repoId, wtId)) {
         return;
       }
       diffCache.set(out.diffKey, out.diff);
@@ -187,7 +195,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
       webmuxStagedPaths,
       signal,
     });
-    if (repoId !== bindings.getRepoId() || wtId !== bindings.getWorktreeId()) {
+    if (signal?.aborted || !isSameTarget(repoId, wtId)) {
       return;
     }
 
@@ -246,6 +254,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
     activeDiffStale = false;
     activeDiffStaleReason = "";
     await refresh(repoId, wtId);
+    if (!isSameTarget(repoId, wtId)) return;
     const activeId = bindings.getView().activeChangeId;
     if (activeId) await loadActiveDiff(repoId, wtId, activeId, true);
   }
@@ -260,6 +269,17 @@ export function createGitStagingController(bindings: GitStagingBindings) {
     }).catch(() => undefined);
   }
 
+  async function reloadStagingAfterMutation(
+    repoId: string,
+    wtId: string,
+    signal: AbortSignal,
+  ) {
+    diffCache.clear();
+    activeDiffStale = false;
+    activeDiffStaleReason = "";
+    await refresh(repoId, wtId, signal).catch(() => undefined);
+  }
+
   async function stageOrUnstage(
     kind: "stage" | "unstage",
     changeId: string,
@@ -268,41 +288,30 @@ export function createGitStagingController(bindings: GitStagingBindings) {
   ) {
     const repoId = bindings.getRepoId();
     const wtId = bindings.getWorktreeId();
-    if (!repoId || !wtId || stagingBusy) return;
+    if (!repoId || !wtId || stagingBusy || commitSubmitting) return;
     const entry = entryById.get(changeId);
     if (!entry) return;
-    stagingBusy = true;
     const req = actionReq.begin();
-    try {
-      const out = await performStageMutation({
-        kind,
-        repositoryId: repoId,
-        worktreeId: wtId,
-        entry,
-        hunkId,
-        lineSelections,
-        signal: req.signal,
-      });
-      if (out.ok) {
-        if (kind === "stage") webmuxStagedPaths.add(entry.path);
-        diffCache.clear();
-        activeDiffStale = false;
-        activeDiffStaleReason = "";
-        await refresh(repoId, wtId, req.signal).catch(() => undefined);
-        bindings.onRefreshRepositories?.();
-      } else if (out.reason === "stale") {
+    await executeSingleStageMutation({
+      kind,
+      repoId,
+      wtId,
+      entry,
+      hunkId,
+      lineSelections,
+      req,
+      isSameTarget: () => isSameTarget(repoId, wtId),
+      onRecordStagedPath: (path) => webmuxStagedPaths.add(path),
+      onReloadAfterMutation: (sig) =>
+        reloadStagingAfterMutation(repoId, wtId, sig),
+      onMarkStale: (reason) => {
         activeDiffStale = true;
-        activeDiffStaleReason =
-          out.banner || m.s7_staging_external_stale_stage();
-        bindings.patchView({ statusBanner: activeDiffStaleReason });
-      } else if (out.busyOutcome) {
-        bindings.patchView({ lastCommitOutcome: out.busyOutcome });
-      } else if (out.banner) {
-        bindings.patchView({ statusBanner: out.banner });
-      }
-    } finally {
-      stagingBusy = false;
-    }
+        activeDiffStaleReason = reason;
+      },
+      patchView: bindings.patchView,
+      onRefreshRepositories: bindings.onRefreshRepositories,
+      setStagingBusy: (busy) => (stagingBusy = busy),
+    });
   }
 
   async function stageOrUnstageGroup(
@@ -310,58 +319,46 @@ export function createGitStagingController(bindings: GitStagingBindings) {
   ) {
     const repoId = bindings.getRepoId();
     const wtId = bindings.getWorktreeId();
-    if (!repoId || !wtId || stagingBusy) return;
+    if (!repoId || !wtId || stagingBusy || commitSubmitting) return;
     const targets = bindings
       .getView()
       .workingChanges.filter((c) => c.group === group);
     if (targets.length === 0) return;
-
-    const kind = group === "staged" ? "unstage" : "stage";
-    stagingBusy = true;
     const req = actionReq.begin();
-    try {
-      let failureBanner = "";
-      for (const item of targets) {
-        const entry = entryById.get(item.id);
-        if (!entry) continue;
-        const out = await performStageMutation({
-          kind,
-          repositoryId: repoId,
-          worktreeId: wtId,
-          entry,
-          signal: req.signal,
-        });
-        if (out.ok) {
-          if (kind === "stage") webmuxStagedPaths.add(entry.path);
-          continue;
-        }
-        if (out.busyOutcome) {
-          bindings.patchView({ lastCommitOutcome: out.busyOutcome });
-          return;
-        }
-        failureBanner = out.banner || m.s7_staging_batch_partial_fail();
-        break;
-      }
-      diffCache.clear();
-      activeDiffStale = false;
-      activeDiffStaleReason = "";
-      await refresh(repoId, wtId, req.signal).catch(() => undefined);
-      bindings.onRefreshRepositories?.();
-      if (failureBanner) bindings.patchView({ statusBanner: failureBanner });
-    } finally {
-      stagingBusy = false;
-    }
+    await executeGroupStageMutation({
+      kind: group === "staged" ? "unstage" : "stage",
+      repoId,
+      wtId,
+      targets,
+      getEntry: (id) => entryById.get(id),
+      req,
+      isSameTarget: () => isSameTarget(repoId, wtId),
+      onRecordStagedPath: (path) => webmuxStagedPaths.add(path),
+      onReloadAfterMutation: (sig) =>
+        reloadStagingAfterMutation(repoId, wtId, sig),
+      patchView: bindings.patchView,
+      onRefreshRepositories: bindings.onRefreshRepositories,
+      setStagingBusy: (busy) => (stagingBusy = busy),
+    });
   }
 
+  const canApplyPreview = (
+    req: { current(): boolean },
+    repoId: string,
+    wtId: string,
+  ) => req.current() && isSameTarget(repoId, wtId) && !commitSubmitting;
+
   async function openCommitPreview(followUpPush: boolean) {
+    if (commitSubmitting) return;
+    commitConfirmationId = null;
     const repoId = bindings.getRepoId();
     const wtId = bindings.getWorktreeId();
     if (!repoId || !wtId) return;
+    const req = previewReq.begin();
     if (bindings.onBeforeOpenPreview) {
       const ok = await bindings.onBeforeOpenPreview();
-      if (!ok) return;
+      if (!ok || !canApplyPreview(req, repoId, wtId)) return;
     }
-    const req = actionReq.begin();
     await runOpenCommitPreview({
       repoId,
       wtId,
@@ -369,7 +366,9 @@ export function createGitStagingController(bindings: GitStagingBindings) {
       followUpPush,
       previewRequest: bindings.commitOptions?.buildPreviewRequest(),
       signal: req.signal,
-      isCurrent: () => req.current(),
+      isCurrent: () => canApplyPreview(req, repoId, wtId),
+      isReportable: () =>
+        req.reportable() && canApplyPreview(req, repoId, wtId),
       setConfirmationId: (id) => (commitConfirmationId = id),
       getLatestView: bindings.getView,
       patchView: bindings.patchView,
@@ -377,19 +376,27 @@ export function createGitStagingController(bindings: GitStagingBindings) {
   }
 
   async function refreshCommitPreview() {
+    if (commitSubmitting || stagingBusy) return;
     const preview = bindings.getView().commitPreview;
     if (!preview) return;
+    commitConfirmationId = null;
     const repoId = bindings.getRepoId();
     const wtId = bindings.getWorktreeId();
-    if (repoId && wtId) {
-      diffCache.clear();
-      await refresh(repoId, wtId).catch(() => undefined);
-    }
+    if (!repoId || !wtId) return;
+    const req = previewReq.begin();
+    diffCache.clear();
+    await refresh(repoId, wtId).catch(() => undefined);
+    if (
+      !canApplyPreview(req, repoId, wtId) ||
+      !bindings.getView().commitPreview
+    )
+      return;
     await openCommitPreview(preview.followUpPush);
   }
 
   function closeCommitPreview() {
     if (commitSubmitting) return;
+    previewReq.cancel();
     commitConfirmationId = null;
     bindings.patchView({ commitPreview: null });
   }
@@ -405,6 +412,7 @@ export function createGitStagingController(bindings: GitStagingBindings) {
     const current = bindings.getView();
     if (
       !current.commitPreview ||
+      current.commitPreview.stale ||
       !commitConfirmationId ||
       !repoId ||
       !wtId ||
@@ -413,9 +421,10 @@ export function createGitStagingController(bindings: GitStagingBindings) {
       return;
     }
     const confirmationId = commitConfirmationId;
+    previewReq.cancel();
     commitConfirmationId = null;
     commitSubmitting = true;
-    const req = actionReq.begin();
+    const req = commitReq.begin();
     try {
       await runConfirmCommitFlow({
         repoId,
@@ -424,9 +433,11 @@ export function createGitStagingController(bindings: GitStagingBindings) {
         current,
         acknowledgePushedAmend: bindings.commitOptions?.acknowledgePushedAmend,
         signal: req.signal,
+        isCurrentTarget: () => isSameTarget(repoId, wtId),
         operations: bindings.operations,
         clearWebmuxStaged: () => webmuxStagedPaths.clear(),
         refreshStaging: async () => {
+          if (!isSameTarget(repoId, wtId)) return;
           diffCache.clear();
           await refresh(repoId, wtId).catch(() => undefined);
         },
@@ -438,7 +449,9 @@ export function createGitStagingController(bindings: GitStagingBindings) {
         onFollowUpPush,
       });
     } finally {
-      commitSubmitting = false;
+      if (isSameTarget(repoId, wtId)) {
+        commitSubmitting = false;
+      }
     }
   }
 

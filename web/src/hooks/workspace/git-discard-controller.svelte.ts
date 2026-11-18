@@ -51,10 +51,13 @@ function emptyDiscardDialogState(): DiscardDialogState {
 export function createGitDiscardController(deps: GitDiscardControllerDeps) {
   let dialog = $state<DiscardDialogState>(emptyDiscardDialogState());
   const previewReq = new LatestRequest();
-  let disposed = false;
+
+  const matchesDiscardTarget = (repoId: string, wtId: string | undefined) =>
+    !previewReq.disposed &&
+    repoId === deps.getRepoId() &&
+    wtId === deps.getWorktreeId();
 
   function dispose() {
-    disposed = true;
     previewReq.dispose();
   }
 
@@ -64,9 +67,13 @@ export function createGitDiscardController(deps: GitDiscardControllerDeps) {
   }
 
   async function loadPreview(request: GitDiscardPreviewRequest) {
+    previewReq.cancel();
+    dialog.preview = null;
+    dialog.acknowledgeSessions = false;
     const repoId = deps.getRepoId();
     const wtId = deps.getWorktreeId();
     if (!repoId || !wtId) {
+      dialog.loadingPreview = false;
       dialog.dialogError = m.s7_discard_readonly_error();
       return;
     }
@@ -77,15 +84,20 @@ export function createGitDiscardController(deps: GitDiscardControllerDeps) {
     const req = previewReq.begin();
     try {
       const res = await gitDiscardPreview(repoId, wtId, request, req.signal);
-      if (!req.current() || disposed) return;
+      if (!req.current() || !dialog.open || !matchesDiscardTarget(repoId, wtId))
+        return;
       dialog.preview = res;
     } catch (err) {
-      if (req.reportable()) {
+      dialog.preview = null;
+      dialog.acknowledgeSessions = false;
+      if (req.reportable() && matchesDiscardTarget(repoId, wtId)) {
         dialog.staleRejected = gitConflictReason(err) === "stale";
         dialog.dialogError = parseGitManageError(err);
       }
     } finally {
-      if (req.current()) dialog.loadingPreview = false;
+      if (req.current() && matchesDiscardTarget(repoId, wtId)) {
+        dialog.loadingPreview = false;
+      }
     }
   }
 
@@ -161,9 +173,20 @@ export function createGitDiscardController(deps: GitDiscardControllerDeps) {
   }
 
   async function refreshPreviewAfterStale() {
+    const repoId = deps.getRepoId();
+    const wtId = deps.getWorktreeId();
+    previewReq.cancel();
+    dialog.preview = null;
+    dialog.acknowledgeSessions = false;
+    dialog.loadingPreview = false;
     await deps.onAfterDiscard();
+    if (!dialog.open || !matchesDiscardTarget(repoId, wtId)) return;
     const prev = dialog.lastRequest;
-    if (!prev) return;
+    if (!prev) {
+      dialog.preview = null;
+      dialog.acknowledgeSessions = false;
+      return;
+    }
     if (prev.scope === "files") {
       const identities = collectUnstagedIdentities(dialog.lastChangeIds);
       await loadPreview({
@@ -177,6 +200,8 @@ export function createGitDiscardController(deps: GitDiscardControllerDeps) {
       ? deps.getEntryIdentity(dialog.lastChangeIds[0])
       : undefined;
     if (!freshIdentity || freshIdentity.area !== "unstaged") {
+      dialog.preview = null;
+      dialog.acknowledgeSessions = false;
       dialog.staleRejected = false;
       dialog.dialogError = m.s7_discard_no_unstaged_left();
       return;
@@ -188,10 +213,23 @@ export function createGitDiscardController(deps: GitDiscardControllerDeps) {
     const repoId = deps.getRepoId();
     const wtId = deps.getWorktreeId();
     const cur = dialog.preview;
-    if (!repoId || !wtId || !cur?.confirmationId || dialog.submitting) return;
+    if (
+      !dialog.open ||
+      !repoId ||
+      !wtId ||
+      !cur?.confirmationId ||
+      dialog.loadingPreview ||
+      dialog.submitting ||
+      dialog.staleRejected ||
+      cur.blockers.length > 0 ||
+      (cur.sessions.length > 0 && !dialog.acknowledgeSessions)
+    ) {
+      return;
+    }
     dialog.submitting = true;
     dialog.dialogError = "";
     dialog.staleRejected = false;
+    const ack = dialog.acknowledgeSessions;
     const clientRequestId = generateGitClientRequestId("discard");
     deps.operations?.setPhase(
       "running",
@@ -203,10 +241,12 @@ export function createGitDiscardController(deps: GitDiscardControllerDeps) {
       const res = await gitDiscard(repoId, wtId, {
         confirmationId: cur.confirmationId,
         clientRequestId,
-        acknowledgeSessions: dialog.acknowledgeSessions,
+        acknowledgeSessions: ack,
       });
+      if (!matchesDiscardTarget(repoId, wtId)) return;
       dialog.open = false;
       dialog.preview = null;
+      dialog.acknowledgeSessions = false;
       dialog.lastRequest = null;
       const recoverySuffix = res.recoveryOid
         ? m.s7_discard_recovery_suffix({
@@ -218,13 +258,21 @@ export function createGitDiscardController(deps: GitDiscardControllerDeps) {
         statusBanner: `${res.summary}${recoverySuffix}`,
       });
       await deps.onAfterDiscard();
-      await deps.operations?.refreshOperations(repoId, wtId);
+      if (matchesDiscardTarget(repoId, wtId)) {
+        await deps.operations?.refreshOperations(repoId, wtId);
+      }
     } catch (err) {
-      dialog.staleRejected = gitConflictReason(err) === "stale";
-      dialog.dialogError = parseGitManageError(err);
+      if (matchesDiscardTarget(repoId, wtId)) {
+        dialog.preview = null;
+        dialog.acknowledgeSessions = false;
+        dialog.staleRejected = gitConflictReason(err) === "stale";
+        dialog.dialogError = parseGitManageError(err);
+      }
     } finally {
-      deps.operations?.clearActive();
-      dialog.submitting = false;
+      if (matchesDiscardTarget(repoId, wtId)) {
+        deps.operations?.clearActive();
+        dialog.submitting = false;
+      }
     }
   }
 

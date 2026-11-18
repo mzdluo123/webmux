@@ -275,6 +275,7 @@
     } catch (err) {
       if (request.reportable()) {
         preview = null;
+        acknowledged = false;
         previewError = errorMessage(err);
         smart.syncPlainPreview(null);
       }
@@ -288,6 +289,7 @@
     preview = null;
     previewing = false;
     previewError = "";
+    acknowledged = false;
     smart.resetAll();
   }
 
@@ -301,6 +303,7 @@
     untrack(() => {
       previews.cancel();
       preview = null;
+      acknowledged = false;
       conflict = "";
       error = "";
       previewing = true;

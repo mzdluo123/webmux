@@ -382,7 +382,11 @@
           {:else if inspectState.phase === "ready" && inspectState.fileDiff}
             <CodeDiffReader
               fileDiff={inspectState.fileDiff}
-              side="new"
+              side={expandedFile.status === "D" ||
+              (inspectState.fileDiff.additionLines.length === 0 &&
+                inspectState.fileDiff.deletionLines.length > 0)
+                ? "old"
+                : "new"}
               expired={false}
               draftEnabled={false}
               preferredDiffStyle="split"

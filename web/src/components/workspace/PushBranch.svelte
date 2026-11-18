@@ -83,10 +83,8 @@
   // Typing a name previews it once the user pauses.
   function editTarget() {
     clearTimeout(timer);
-    if (!targetName) {
-      flow.invalidate();
-      return;
-    }
+    flow.invalidate();
+    if (!targetName) return;
     timer = setTimeout(() => void flow.refresh(), 300);
   }
 
@@ -99,7 +97,11 @@
         (preview.remote === remote && preview.target === targetName)),
   );
   const ready = $derived(
-    current && !!preview?.confirmationId && !flow.loading && !flow.running,
+    current &&
+      !!preview?.confirmationId &&
+      preview.blockers.length === 0 &&
+      !flow.loading &&
+      !flow.running,
   );
   async function confirm() {
     const pushed = preview;
@@ -149,8 +151,10 @@
             value={remote}
             disabled={busy}
             onchange={(event) => {
+              clearTimeout(timer);
               remote = event.currentTarget.value;
-              void flow.refresh();
+              flow.invalidate();
+              if (targetName) void flow.refresh();
             }}
           >
             {#if !remote}<NativeSelect.Option value="" disabled

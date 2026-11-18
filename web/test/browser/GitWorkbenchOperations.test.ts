@@ -224,3 +224,67 @@ test("recovers in-flight commit on network failure via GET /git/operations witho
   expect(restoredOutcome).toBeNull();
   opsCtrl.dispose();
 });
+
+test("operations.resetTarget clears fetching and drops cross-repository runFetch status updates", async () => {
+  const fetchGate = Promise.withResolvers<Response>();
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    const url = String(input);
+    if (url.endsWith("/api/repositories/repo-a/fetch")) {
+      return fetchGate.promise;
+    }
+    throw new Error(`Unexpected fetch URL: ${url}`);
+  });
+
+  let activeRepo = "repo-a";
+  let activeWt: string | undefined = "wt-a";
+  const banners: string[] = [];
+  const updatedRepoIds: string[] = [];
+  const reloadCalls: string[] = [];
+
+  const opsCtrl = createGitOperationsController({
+    getRepoId: () => activeRepo,
+    getWorktreeId: () => activeWt,
+    onOutcomeRestored: () => {},
+    onStatusBanner: (b) => banners.push(b),
+    onRepositoryUpdated: (r) => updatedRepoIds.push(r.id),
+    onReloadTarget: async (r) => {
+      reloadCalls.push(r?.id ?? "none");
+    },
+  });
+
+  try {
+    const fetchPromise = opsCtrl.runFetch();
+    expect(opsCtrl.fetching).toBe(true);
+
+    activeRepo = "repo-b";
+    activeWt = "wt-b";
+    opsCtrl.resetTarget();
+    expect(opsCtrl.fetching).toBe(false);
+    expect(opsCtrl.active).toBeNull();
+
+    fetchGate.resolve(
+      Response.json({
+        results: [{ remote: "origin", status: "ok", message: "" }],
+        repository: {
+          id: "repo-a",
+          name: "repo-a",
+          commonDir: "/repos/a/.git",
+          anchorPath: "/repos/a",
+          availability: "available",
+          error: "",
+          checkedAt: "2026-11-19T00:00:00Z",
+          lastFetchedAt: "2026-11-19T00:00:01Z",
+          initInstruction: "",
+          worktrees: [],
+        },
+      }),
+    );
+
+    await fetchPromise;
+    expect(updatedRepoIds).toEqual(["repo-a"]);
+    expect(banners).toEqual([]);
+    expect(reloadCalls).toEqual([]);
+  } finally {
+    opsCtrl.dispose();
+  }
+});

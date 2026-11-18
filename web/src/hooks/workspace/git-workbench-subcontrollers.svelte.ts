@@ -271,6 +271,7 @@ export function createGitWorkbenchSubControllers(
     logHistory.resetTarget();
     logCompare.resetTarget();
     logDiff.resetTarget();
+    push.resetTarget();
     divergence.resetTarget();
     conflict.resetTarget();
     stash.resetTarget();

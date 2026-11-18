@@ -138,6 +138,8 @@ export function createGitStagingDiffController(deps: {
     }
 
     const req = reqTracker.begin();
+    const isCurrentTarget = () =>
+      repoId === deps.getRepoId() && wtId === deps.getWorktreeId();
     state = {
       phase: "loading",
       changeId: change.id,
@@ -189,7 +191,7 @@ export function createGitStagingDiffController(deps: {
           },
         );
 
-        if (!req.current()) return;
+        if (!req.current() || !isCurrentTarget()) return;
 
         if (rawDiff) {
           if (
@@ -223,7 +225,7 @@ export function createGitStagingDiffController(deps: {
           }
 
           const calc = await resolveCalculatedDiff(rawDiff, req.signal);
-          if (!req.current()) return;
+          if (!req.current() || !isCurrentTarget()) return;
           if (calc.calculation === "ready" && calc.fileDiff) {
             state = {
               ...state,
@@ -255,7 +257,7 @@ export function createGitStagingDiffController(deps: {
           change.hunks,
           req.signal,
         );
-        if (!req.current()) return;
+        if (!req.current() || !isCurrentTarget()) return;
         if (calc.calculation === "ready" && calc.fileDiff) {
           state = {
             ...state,
@@ -267,13 +269,14 @@ export function createGitStagingDiffController(deps: {
         }
       }
 
+      if (!isCurrentTarget()) return;
       state = {
         ...state,
         phase: "limited",
         reason: change.degradeReason || m.s7_staging_meta_only_reason(),
       };
     } catch (err) {
-      if (!req.reportable()) return;
+      if (!req.reportable() || !isCurrentTarget()) return;
       state = {
         ...state,
         phase: "error",

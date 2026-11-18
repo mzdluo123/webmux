@@ -1,6 +1,4 @@
 import { m } from "$lib/paraglide/messages.js";
-import { APIError } from "../../platform/api";
-import { errorMessage } from "../../platform/error";
 import {
   gitAbortOperation,
   gitAbortOperationPreview,
@@ -12,13 +10,12 @@ import {
   gitRebasePreview,
   gitRevertPreview,
 } from "../../platform/git-conflict-api";
-import {
-  GitConflictSchema,
-  type GitAbortOperationPreview,
-  type GitDivergenceKind,
-  type GitDivergencePreview,
-  type GitDivergenceResult,
-  type GitInProgressOperation,
+import type {
+  GitAbortOperationPreview,
+  GitDivergenceKind,
+  GitDivergencePreview,
+  GitDivergenceResult,
+  GitInProgressOperation,
 } from "../../contracts/schemas";
 import type { GitWorkbenchViewState } from "../../contracts/git-workbench-schemas";
 import {
@@ -28,6 +25,10 @@ import {
 } from "../../domains/workspace/git-operations-model";
 import { LatestRequest } from "../shared/remote-request.svelte";
 import type { GitOperationsController } from "./git-operations-controller.svelte";
+import {
+  parseGitManageError,
+  runLatestGitPreview,
+} from "./git-remotes-controller.svelte";
 
 export interface GitDivergenceControllerDeps {
   getRepoId: () => string;
@@ -38,19 +39,6 @@ export interface GitDivergenceControllerDeps {
   onAfterMutation: () => Promise<void>;
   onOpenConflictResolver?: (path?: string) => void;
   onCloseConflictResolver?: () => void;
-}
-
-function extractConflictReason(err: unknown): {
-  reason?: string;
-  message: string;
-} {
-  if (err instanceof APIError && err.status === 409) {
-    const parsed = GitConflictSchema.safeParse(err.body);
-    if (parsed.success) {
-      return { reason: parsed.data.reason, message: parsed.data.error };
-    }
-  }
-  return { message: errorMessage(err) };
 }
 
 export function createGitDivergenceController(
@@ -134,6 +122,12 @@ export function createGitDivergenceController(
     }
   }
 
+  function isSameTarget(repoId: string, wtId: string | undefined): boolean {
+    return (
+      !disposed && repoId === deps.getRepoId() && wtId === deps.getWorktreeId()
+    );
+  }
+
   async function runOpenPreview(
     kind: GitDivergenceKind,
     loader: (
@@ -150,24 +144,24 @@ export function createGitDivergenceController(
       });
       return;
     }
-    const req = previewReq.begin();
     previewKind = kind;
     previewOpen = true;
     preview = null;
-    loadingPreview = true;
-    dialogError = "";
     acknowledgeSessions = false;
-    try {
-      const res = await loader(repoId, wtId, req.signal);
-      if (!req.current() || disposed) return;
-      preview = res;
-    } catch (err) {
-      if (req.reportable()) {
-        dialogError = extractConflictReason(err).message;
-      }
-    } finally {
-      if (req.current()) loadingPreview = false;
-    }
+    await runLatestGitPreview({
+      tracker: previewReq,
+      isActive: () => previewOpen && isSameTarget(repoId, wtId),
+      setLoading: (busy) => (loadingPreview = busy),
+      setDialogError: (msg) => (dialogError = msg),
+      load: (signal) => loader(repoId, wtId, signal),
+      onLoaded: (res) => {
+        preview = res;
+      },
+      onCleared: () => {
+        preview = null;
+        acknowledgeSessions = false;
+      },
+    });
   }
 
   function openMergePreview(refKind: "local" | "remote", refName: string) {
@@ -197,17 +191,25 @@ export function createGitDivergenceController(
   function closePreview() {
     if (submitting) return;
     previewReq.cancel();
+    loadingPreview = false;
     previewOpen = false;
     preview = null;
     dialogError = "";
     acknowledgeSessions = false;
   }
 
-  async function applyDivergenceResult(res: GitDivergenceResult) {
+  async function applyDivergenceResult(
+    repoId: string,
+    wtId: string,
+    res: GitDivergenceResult,
+  ) {
+    if (!isSameTarget(repoId, wtId)) return;
     syncContextOperation(res.inProgress);
     deps.patchView({ statusBanner: res.summary });
     await deps.onAfterMutation();
-    await deps.operations.refreshOperations();
+    if (!isSameTarget(repoId, wtId)) return;
+    await deps.operations.refreshOperations(repoId, wtId);
+    if (!isSameTarget(repoId, wtId)) return;
     if (res.outcome === "conflicted" || res.inProgress.conflictedCount > 0) {
       deps.onOpenConflictResolver?.(res.inProgress.conflictedFiles[0]?.path);
     } else if (!res.inProgress.active) {
@@ -231,7 +233,19 @@ export function createGitDivergenceController(
 
   async function confirmDivergence() {
     const cur = preview;
-    if (!cur?.confirmationId) return;
+    if (
+      !previewOpen ||
+      loadingPreview ||
+      submitting ||
+      !cur?.confirmationId ||
+      cur.kind !== previewKind ||
+      cur.blockers.length > 0 ||
+      cur.alreadyUpToDate ||
+      (cur.sessions.length > 0 && !acknowledgeSessions)
+    ) {
+      return;
+    }
+    const ack = acknowledgeSessions;
     const ctx = beginConfirmedAction(
       cur.kind,
       m.s7_op_running_kind({ kind: gitOperationKindLabel(cur.kind) }),
@@ -241,13 +255,19 @@ export function createGitDivergenceController(
     try {
       const res = await gitExecuteDivergence(repoId, wtId, cur.kind, {
         confirmationId: cur.confirmationId,
-        acknowledgeSessions,
+        acknowledgeSessions: ack,
         clientRequestId,
       });
+      if (!isSameTarget(repoId, wtId)) return;
       previewOpen = false;
       preview = null;
-      await applyDivergenceResult(res);
+      acknowledgeSessions = false;
+      await applyDivergenceResult(repoId, wtId, res);
     } catch (err) {
+      if (isSameTarget(repoId, wtId)) {
+        preview = null;
+        acknowledgeSessions = false;
+      }
       if (isRecoverableNetworkFailure(err)) {
         const recovered = await deps.operations.recoverByClientRequest({
           repositoryId: repoId,
@@ -256,6 +276,7 @@ export function createGitDivergenceController(
           clientRequestId,
         });
         const latestState = await refreshState(repoId, wtId);
+        if (!isSameTarget(repoId, wtId)) return;
         if (recovered || latestState?.active) {
           previewOpen = false;
           preview = null;
@@ -264,16 +285,24 @@ export function createGitDivergenceController(
               recovered?.summary || m.s7_div_recovered_in_progress(),
           });
           await deps.onAfterMutation();
-          if (latestState && latestState.conflictedCount > 0) {
+          if (
+            isSameTarget(repoId, wtId) &&
+            latestState &&
+            latestState.conflictedCount > 0
+          ) {
             deps.onOpenConflictResolver?.(latestState.conflictedFiles[0]?.path);
           }
           return;
         }
       }
-      dialogError = extractConflictReason(err).message;
+      if (isSameTarget(repoId, wtId)) {
+        dialogError = parseGitManageError(err);
+      }
     } finally {
-      deps.operations.clearActive();
-      submitting = false;
+      if (isSameTarget(repoId, wtId)) {
+        deps.operations.clearActive();
+        submitting = false;
+      }
     }
   }
 
@@ -288,17 +317,22 @@ export function createGitDivergenceController(
         kind: cur.kind,
         clientRequestId,
       });
-      await applyDivergenceResult(res);
+      await applyDivergenceResult(repoId, wtId, res);
     } catch (err) {
-      const info = extractConflictReason(err);
-      deps.patchView({
-        statusBanner: m.s7_div_continue_failed({ error: info.message }),
-      });
-      await refreshState(repoId, wtId);
-      await deps.operations.refreshOperations(repoId, wtId);
+      if (isSameTarget(repoId, wtId)) {
+        deps.patchView({
+          statusBanner: m.s7_div_continue_failed({
+            error: parseGitManageError(err),
+          }),
+        });
+        await refreshState(repoId, wtId);
+        await deps.operations.refreshOperations(repoId, wtId);
+      }
     } finally {
-      deps.operations.clearActive();
-      submitting = false;
+      if (isSameTarget(repoId, wtId)) {
+        deps.operations.clearActive();
+        submitting = false;
+      }
     }
   }
 
@@ -306,28 +340,29 @@ export function createGitDivergenceController(
     const repoId = deps.getRepoId();
     const wtId = deps.getWorktreeId();
     if (!repoId || !wtId) return;
-    const req = previewReq.begin();
     abortOpen = true;
     abortPreview = null;
-    loadingPreview = true;
-    dialogError = "";
     acknowledgeSessions = false;
-    try {
-      const res = await gitAbortOperationPreview(repoId, wtId, req.signal);
-      if (!req.current() || disposed) return;
-      abortPreview = res;
-    } catch (err) {
-      if (req.reportable()) {
-        dialogError = extractConflictReason(err).message;
-      }
-    } finally {
-      if (req.current()) loadingPreview = false;
-    }
+    await runLatestGitPreview({
+      tracker: previewReq,
+      isActive: () => abortOpen && isSameTarget(repoId, wtId),
+      setLoading: (busy) => (loadingPreview = busy),
+      setDialogError: (msg) => (dialogError = msg),
+      load: (signal) => gitAbortOperationPreview(repoId, wtId, signal),
+      onLoaded: (res) => {
+        abortPreview = res;
+      },
+      onCleared: () => {
+        abortPreview = null;
+        acknowledgeSessions = false;
+      },
+    });
   }
 
   function closeAbortPreview() {
     if (submitting) return;
     previewReq.cancel();
+    loadingPreview = false;
     abortOpen = false;
     abortPreview = null;
     dialogError = "";
@@ -336,25 +371,43 @@ export function createGitDivergenceController(
 
   async function confirmAbort() {
     const cur = abortPreview;
-    if (!cur?.confirmationId) return;
+    if (
+      !abortOpen ||
+      loadingPreview ||
+      submitting ||
+      !cur?.confirmationId ||
+      cur.blockers.length > 0 ||
+      (cur.sessions.length > 0 && !acknowledgeSessions)
+    ) {
+      return;
+    }
+    const ack = acknowledgeSessions;
     const ctx = beginConfirmedAction("abort", m.s7_div_aborting_phase());
     if (!ctx) return;
     const { repoId, wtId, clientRequestId } = ctx;
     try {
       const res = await gitAbortOperation(repoId, wtId, {
         confirmationId: cur.confirmationId,
-        acknowledgeSessions,
+        acknowledgeSessions: ack,
         clientRequestId,
       });
+      if (!isSameTarget(repoId, wtId)) return;
       abortOpen = false;
       abortPreview = null;
-      await applyDivergenceResult(res);
+      acknowledgeSessions = false;
+      await applyDivergenceResult(repoId, wtId, res);
     } catch (err) {
-      dialogError = extractConflictReason(err).message;
-      await refreshState(repoId, wtId);
+      if (isSameTarget(repoId, wtId)) {
+        abortPreview = null;
+        acknowledgeSessions = false;
+        dialogError = parseGitManageError(err);
+        await refreshState(repoId, wtId);
+      }
     } finally {
-      deps.operations.clearActive();
-      submitting = false;
+      if (isSameTarget(repoId, wtId)) {
+        deps.operations.clearActive();
+        submitting = false;
+      }
     }
   }
 

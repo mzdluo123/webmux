@@ -1,6 +1,4 @@
 import { m } from "$lib/paraglide/messages.js";
-import { SvelteSet } from "svelte/reactivity";
-import { repositoryBranches, repositoryRemotes } from "../../platform/api";
 import {
   gitBranchRename,
   gitBranchRenamePreview,
@@ -17,14 +15,19 @@ import type {
   GitBranchItem,
   GitWorkbenchViewState,
 } from "../../contracts/git-workbench-schemas";
-import { readFavoriteBranches } from "../../domains/workspace/git-favorites";
-import { mapGitBranchesResponse } from "../../domains/workspace/git-workbench-adapter";
 import { LatestRequest } from "../shared/remote-request.svelte";
 import type { GitOperationsController } from "./git-operations-controller.svelte";
 import {
+  canConfirmBranchRename,
+  formatTagCreatedBanner,
+  formatUpstreamUpdatedBanner,
+  refreshRepositoryRefsAndRemotes,
+  resolveInitialUpstreamSelection,
+} from "./git-refs-manage-actions";
+import {
   createGitRemotesController,
   executeTrackedGitMutation,
-  parseGitManageError,
+  runLatestGitPreview,
 } from "./git-remotes-controller.svelte";
 
 export interface GitRefsManageDeps {
@@ -66,7 +69,21 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
   let dialogError = $state("");
 
   const previewReq = new LatestRequest();
+  let renameTimer: ReturnType<typeof setTimeout> | null = null;
   let disposed = false;
+
+  function clearRenameTimer() {
+    if (renameTimer !== null) {
+      clearTimeout(renameTimer);
+      renameTimer = null;
+    }
+  }
+
+  function isSameTarget(repoId: string, wtId: string | undefined): boolean {
+    return (
+      !disposed && repoId === deps.getRepoId() && wtId === deps.getWorktreeId()
+    );
+  }
 
   const remotes = createGitRemotesController({
     getRepoId: deps.getRepoId,
@@ -85,14 +102,17 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
 
   function dispose() {
     disposed = true;
+    clearRenameTimer();
     previewReq.dispose();
   }
 
   function resetTarget() {
+    clearRenameTimer();
     previewReq.cancel();
     remotes.resetTarget();
     renameOpen = false;
     renamePreview = null;
+    renameAckSessions = false;
     upstreamOpen = false;
     tagCreateOpen = false;
     tagDeleteOpen = false;
@@ -104,9 +124,13 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
 
   function closeDialogs() {
     if (submitting) return;
+    clearRenameTimer();
     previewReq.cancel();
     remotes.closeDialogs();
+    loadingPreview = false;
     renameOpen = false;
+    renamePreview = null;
+    renameAckSessions = false;
     upstreamOpen = false;
     tagCreateOpen = false;
     tagDeleteOpen = false;
@@ -115,72 +139,59 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
 
   async function refreshRefsAndRemotes() {
     const repoId = deps.getRepoId();
-    if (!repoId || disposed) return;
-    const [branchesRes, remotesRes] = await Promise.all([
-      repositoryBranches(repoId).catch(() => null),
-      repositoryRemotes(repoId).catch(() => null),
-    ]);
-    if (disposed || repoId !== deps.getRepoId()) return;
-    const curView = deps.getView();
-    const patch: Partial<GitWorkbenchViewState> = {};
-    if (branchesRes) {
-      const localNames = new SvelteSet(branchesRes.branches.map((b) => b.name));
-      const favorites = readFavoriteBranches(
-        repoId,
-        branchesRes.defaultBranch,
-        localNames,
-      );
-      patch.branches = mapGitBranchesResponse(
-        deps.getRepository(),
-        curView.context.worktreePath,
-        deps.getSessions(),
-        branchesRes,
-        favorites,
-      );
-    }
-    if (remotesRes) {
-      patch.remotes = remotesRes.remotes;
-    }
-    if (Object.keys(patch).length > 0) {
-      deps.patchView(patch);
-    }
-    deps.onRefreshRepositories?.();
-    deps.onAfterRefsChanged?.();
+    const wtId = deps.getWorktreeId();
+    await refreshRepositoryRefsAndRemotes({
+      repoId,
+      isCurrentTarget: () => isSameTarget(repoId, wtId),
+      getRepository: deps.getRepository,
+      getSessions: deps.getSessions,
+      getView: deps.getView,
+      patchView: deps.patchView,
+      onRefreshRepositories: deps.onRefreshRepositories,
+      onAfterRefsChanged: deps.onAfterRefsChanged,
+    });
   }
 
   async function refreshRenamePreview() {
+    clearRenameTimer();
+    previewReq.cancel();
+    renamePreview = null;
+    renameAckSessions = false;
     const repoId = deps.getRepoId();
+    const wtId = deps.getWorktreeId();
+    const oldName = renameOldName;
     const cleanNew = renameNewName.trim();
-    if (!repoId || !renameOldName || !cleanNew) {
-      renamePreview = null;
+    if (!repoId || !oldName || !cleanNew || cleanNew === oldName) {
+      loadingPreview = false;
       return;
     }
-    loadingPreview = true;
-    dialogError = "";
-    const req = previewReq.begin();
-    try {
-      const res = await gitBranchRenamePreview(
-        repoId,
-        { oldName: renameOldName, newName: cleanNew },
-        req.signal,
-      );
-      if (!req.current() || disposed) return;
-      renamePreview = res;
-    } catch (err) {
-      if (req.reportable()) dialogError = parseGitManageError(err);
-    } finally {
-      if (req.current()) loadingPreview = false;
-    }
+    await runLatestGitPreview({
+      tracker: previewReq,
+      isActive: () => renameOpen && isSameTarget(repoId, wtId),
+      setLoading: (busy) => (loadingPreview = busy),
+      setDialogError: (msg) => (dialogError = msg),
+      load: (signal) =>
+        gitBranchRenamePreview(repoId, { oldName, newName: cleanNew }, signal),
+      onLoaded: (res) => {
+        renamePreview = res;
+      },
+      onCleared: () => {
+        renamePreview = null;
+        renameAckSessions = false;
+      },
+    });
   }
 
   function openRenameDialog(branchName: string) {
+    clearRenameTimer();
+    previewReq.cancel();
     renameOldName = branchName;
     renameNewName = branchName;
     renameAckSessions = false;
     renamePreview = null;
+    loadingPreview = false;
     dialogError = "";
     renameOpen = true;
-    void refreshRenamePreview();
   }
 
   async function runRefMutation<T>(
@@ -188,41 +199,55 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
     progressText: string,
     exec: (repoId: string, clientRequestId: string) => Promise<T>,
     onSuccess: (res: T) => void,
+    onFailure?: () => void,
   ) {
-    const repoId = deps.getRepoId();
-    if (!repoId || submitting) return;
+    if (submitting) return;
     await executeTrackedGitMutation({
-      repoId,
-      worktreeId: deps.getWorktreeId(),
+      getRepoId: deps.getRepoId,
+      getWorktreeId: deps.getWorktreeId,
+      isAlive: () => !disposed,
       operations: deps.operations,
       opKind,
       progressText,
       setSubmitting: (busy) => (submitting = busy),
       setDialogError: (msg) => (dialogError = msg),
-      exec: (clientRequestId) => exec(repoId, clientRequestId),
+      exec,
       afterSuccess: async (res) => {
         onSuccess(res);
         await refreshRefsAndRemotes();
       },
+      onFailure,
     });
   }
 
   async function confirmRename() {
-    const cur = renamePreview;
-    if (!cur?.confirmationId) return;
+    const check = {
+      renameOpen,
+      loadingPreview,
+      submitting,
+      hasPendingDebounce: renameTimer !== null,
+      oldName: renameOldName,
+      newName: renameNewName,
+      acknowledgeSessions: renameAckSessions,
+      preview: renamePreview,
+    };
+    if (!canConfirmBranchRename(check)) return;
     const oldBranch = renameOldName;
+    const ack = renameAckSessions;
+    const confirmationId = check.preview.confirmationId;
     await runRefMutation(
       "branch_rename",
       m.s7_refs_renaming_phase(),
       (repoId, clientRequestId) =>
         gitBranchRename(repoId, {
-          confirmationId: cur.confirmationId,
+          confirmationId,
           clientRequestId,
-          acknowledgeSessions: renameAckSessions,
+          acknowledgeSessions: ack,
         }),
       (res) => {
         renameOpen = false;
         renamePreview = null;
+        renameAckSessions = false;
         const curView = deps.getView();
         const checkedOutUpdated =
           curView.context.checkedOutBranch === oldBranch
@@ -236,20 +261,20 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
           }),
         });
       },
+      () => {
+        renamePreview = null;
+        renameAckSessions = false;
+      },
     );
   }
 
   function openUpstreamDialog(item: GitBranchItem) {
     upstreamBranch = item.name;
     upstreamCurrent = item.upstream ?? "";
-    const remoteItems = deps
-      .getView()
-      .branches.filter((b) => b.kind === "remote");
-    upstreamSelection =
-      item.upstream ||
-      remoteItems.find((r) => r.name.endsWith(`/${item.name}`))?.name ||
-      remoteItems[0]?.name ||
-      "";
+    upstreamSelection = resolveInitialUpstreamSelection(
+      item,
+      deps.getView().branches,
+    );
     dialogError = "";
     upstreamOpen = true;
   }
@@ -273,12 +298,7 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
       (res) => {
         upstreamOpen = false;
         deps.patchView({
-          statusBanner: res.upstream
-            ? m.s7_refs_upstream_set_banner({
-                branch: res.branch,
-                upstream: res.upstream,
-              })
-            : m.s7_refs_upstream_unset_banner({ branch: res.branch }),
+          statusBanner: formatUpstreamUpdatedBanner(res.branch, res.upstream),
         });
       },
     );
@@ -314,12 +334,8 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
         }),
       (res) => {
         tagCreateOpen = false;
-        const oid = res.tag.head.slice(0, 7);
         deps.patchView({
-          statusBanner:
-            res.tag.kind === "annotated"
-              ? m.s7_refs_tag_created_annotated({ name: res.tag.name, oid })
-              : m.s7_refs_tag_created_lightweight({ name: res.tag.name, oid }),
+          statusBanner: formatTagCreatedBanner(res.tag),
         });
       },
     );
@@ -368,8 +384,23 @@ export function createGitRefsManageController(deps: GitRefsManageDeps) {
       return renameNewName;
     },
     setRenameNewName(val: string) {
+      if (submitting || val === renameNewName) return;
       renameNewName = val;
-      void refreshRenamePreview();
+      clearRenameTimer();
+      previewReq.cancel();
+      renamePreview = null;
+      renameAckSessions = false;
+      dialogError = "";
+      const cleanNew = val.trim();
+      if (!cleanNew || cleanNew === renameOldName || !deps.getRepoId()) {
+        loadingPreview = false;
+        return;
+      }
+      loadingPreview = true;
+      renameTimer = setTimeout(() => {
+        renameTimer = null;
+        void refreshRenamePreview();
+      }, 250);
     },
     get renameAckSessions() {
       return renameAckSessions;

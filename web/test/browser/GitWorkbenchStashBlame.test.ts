@@ -169,3 +169,98 @@ test("Revision compare keeps result viewport stationary on mobile and desktop an
   const desktopWorktreeTop = resultEl.getBoundingClientRect().top;
   expect(desktopWorktreeTop).toBeCloseTo(desktopRevTop, 0);
 });
+
+test("Git staging diff panel searches and jumps across deleted file lines via Ctrl+F", async () => {
+  await page.viewport(1280, 900);
+  const initial = buildGitWorkbenchFixture("commit-staging");
+  const deletedChange = {
+    id: "staged:obsolete_runner.go",
+    path: "internal/workspace/obsolete_runner.go",
+    oldPath: "internal/workspace/obsolete_runner.go",
+    group: "staged" as const,
+    status: "D" as const,
+    binary: false,
+    hunkStageAvailable: true,
+    preStagedFromCli: false,
+    hunks: [
+      {
+        id: "h-del-1",
+        header: "@@ -1,4 +0,0 @@",
+        oldStart: 1,
+        oldLines: 4,
+        newStart: 0,
+        newLines: 0,
+        lines: [
+          { kind: "delete" as const, oldLine: 1, text: "package workspace" },
+          {
+            kind: "delete" as const,
+            oldLine: 2,
+            text: "func obsoleteRunnerTarget() {}",
+          },
+          { kind: "delete" as const, oldLine: 3, text: "// trailing note" },
+          {
+            kind: "delete" as const,
+            oldLine: 4,
+            text: "func obsoleteRunnerTargetTwo() {}",
+          },
+        ],
+      },
+    ],
+  };
+  initial.workingChanges = [deletedChange, ...initial.workingChanges];
+  initial.activeChangeId = deletedChange.id;
+
+  render(Harness, { initialState: initial });
+
+  const diffPanel = page.getByTestId("git-staging-diff-panel");
+  await expect.element(diffPanel).toBeVisible();
+  await expect
+    .poll(
+      () =>
+        diffPanel
+          .element()
+          .querySelector("diffs-container")
+          ?.shadowRoot?.textContent?.includes("obsoleteRunnerTarget") ?? false,
+      { timeout: 10000 },
+    )
+    .toBe(true);
+
+  const host = diffPanel
+    .element()
+    .querySelector<HTMLElement>(".code-diff-reader")!;
+  host.focus();
+  await userEvent.keyboard("{Control>}f{/Control}");
+
+  const searchInput = diffPanel.getByRole("textbox", { name: "查找" });
+  await expect.element(searchInput).toHaveFocus();
+  await searchInput.fill("obsoleteRunnerTarget");
+
+  await expect
+    .poll(() =>
+      [...diffPanel.element().querySelectorAll('[role="status"]')].map((el) =>
+        el.textContent?.replace(/\s+/g, " ").trim(),
+      ),
+    )
+    .toContain("修改前 · 0 / 2");
+
+  await diffPanel
+    .getByRole("button", { name: "下一个匹配", exact: true })
+    .click();
+  await expect
+    .poll(() =>
+      [...diffPanel.element().querySelectorAll('[role="status"]')].map((el) =>
+        el.textContent?.replace(/\s+/g, " ").trim(),
+      ),
+    )
+    .toContain("修改前 · 1 / 2");
+  await diffPanel
+    .getByRole("button", { name: "下一个匹配", exact: true })
+    .click();
+  await expect
+    .poll(() =>
+      [...diffPanel.element().querySelectorAll('[role="status"]')].map((el) =>
+        el.textContent?.replace(/\s+/g, " ").trim(),
+      ),
+    )
+    .toContain("修改前 · 2 / 2");
+});
