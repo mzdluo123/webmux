@@ -118,7 +118,8 @@
   let messagePanel = $state("");
   $effect(() => {
     const target = messagePanel && terminals[messagePanel];
-    if (!target) return;
+    // A reopened pane can mount before the hybrid session registers its chat.
+    if (!target || !dock?.hasPanel(sessionPanelIds(messagePanel).chat)) return;
     untrack(() => target.revealChat());
     messagePanel = "";
   });

@@ -107,6 +107,10 @@
     return !!rect(id);
   }
 
+  export function hasPanel(id: string) {
+    return entries.has(id);
+  }
+
   export function show(id: string) {
     if (compact) {
       if (mobile && mobile !== id)
