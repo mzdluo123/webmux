@@ -102,6 +102,33 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+test("code navigation adjusts from its rendered width and restores a hidden splitter's focus", async () => {
+  await page.viewport(1280, 900);
+  try {
+    serve();
+    render(Harness);
+    const divider = page.getByRole("separator", { name: "调整导航宽度" });
+    await expect.element(divider).toBeVisible();
+    divider.element().focus();
+    await userEvent.keyboard("{End}");
+    const nav = document.querySelector<HTMLElement>(".code-navigation")!;
+    const panel = nav.closest<HTMLElement>(".code-panel")!;
+    panel.style.maxWidth = "700px";
+    await expect.poll(() => nav.getBoundingClientRect().width).toBe(540);
+    await userEvent.keyboard("{ArrowLeft}");
+    await expect.poll(() => nav.getBoundingClientRect().width).toBe(524);
+
+    await page.viewport(390, 844);
+    await expect
+      .element(page.getByRole("tab", { name: "工作区", exact: true }))
+      .toHaveFocus();
+    await page.viewport(1280, 900);
+    await expect.element(divider).toHaveFocus();
+  } finally {
+    await page.viewport(1024, 900);
+  }
+});
+
 test("updates only on refresh, blocks stale references and pauses hidden polling", async () => {
   serve();
   render(Harness);
