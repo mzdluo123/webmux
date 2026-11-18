@@ -10,7 +10,7 @@
   - 本地与 CI 使用 `.nvmrc` 固定的 Node.js 26.13.0；
   - 本地通过官方独立脚本安装 pnpm 12.18.0，CI 使用 pnpm/action-setup；
   - 使用 pnpm frozen lockfile，安装项目本地的 `vite-plus` 1.6.0，不要求全局安装 `vp`；
-  - 构建使用 `pnpm --dir web exec vp build`；`pnpm --dir web build` 先运行拒绝 warning 的 `svelte-check --tsgo` 再构建；
+  - 构建使用 `pnpm --dir web exec vp build`；`pnpm --dir web build` 先运行拒绝 warning 的 `svelte-check --tsrs` 再构建；
   - Vite+ 开发服务器代理 API/WebSocket 到独立后端并需配置开发 Origin；
   - `make web/build/install` 提供检查、打包与安装；
   - CI 将 pnpm store、Go 模块与 Go 构建/测试缓存分开，构建缓存使用按周滚动且随模块文件变化的 key 在 `main` 刷新。
@@ -96,7 +96,7 @@
   - `docs/frontend-style.md` 以 Svelte 官方 Best practices 为主规范、Google TypeScript Style Guide 为补充，登记本地化取舍与 7 条日常审查规则；
   - `pnpm --dir web lint` 通过 Vite+ 内置的 Oxlint 类型感知运行 Promise 规则，`check:arch` 保留 ESLint 的 Svelte 推荐模板规则；
   - `check:arch` 的 Knip 检查跟踪 CSS 导入，识别样式表直接使用的依赖；
-  - 所有 `svelte-check` 入口保留 `--tsgo` 并拒绝 warning；Vite+ 的 lint 不代替 Svelte/TypeScript 类型检查；
+  - 所有 `svelte-check` 入口保留 `--tsrs` 并拒绝 warning；Vite+ 的 lint 不代替 Svelte/TypeScript 类型检查；
   - `check:test` 检查源码和顶层 Node 测试并进入 CI；
   - 严格索引、请求体 Zod 校验、Go 强类型枚举及 `wire-contract.test.ts` 防止契约漂移；
   - 中途 401、上传失败重试、重复提交、Dialog 焦点循环和列表断线恢复各有失败路径回归；

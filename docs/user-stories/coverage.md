@@ -164,7 +164,7 @@ Relay 页内配对、宿主权威流程、导航恢复与操作核对：US-A10�
 | agent 适配器接口、注册表、Claude 进程注册记录与隐私边界、契约测试与 agent 名称守卫                                                                                           | US-L05；US-Q01；US-Q03                                        |
 | 前端架构守卫：保留 ESLint 设计系统/模板规则、分层、重复代码、未使用代码与基线                                                                                                | US-L06                                                        |
 | Pullfrog 指定订阅模型与 GitHub Actions 密钥                                                                                                                                  | US-L07                                                        |
-| 前端质量基线、Vite+ 类型感知 lint、svelte-check --tsgo、Svelte 模板 lint、测试类型、wire 契约和失败路径回归                                                                  | US-L09                                                        |
+| 前端质量基线、Vite+ 类型感知 lint、svelte-check --tsrs、Svelte 模板 lint、测试类型、wire 契约和失败路径回归                                                                  | US-L09                                                        |
 | URL token 片段消费与 WebSocket 子协议认证                                                                                                                                    | US-A06                                                        |
 | 桌面代码独立窗口、状态保留与收回                                                                                                                                             | US-I13                                                        |
 | run（含 Web 端保存启动配置）、显式环境、attach/observe、输入取消/等待与信号中断重试、分离和控制交接                                                                          | US-M01–US-M04                                                 |

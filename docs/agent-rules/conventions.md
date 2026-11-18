@@ -35,7 +35,7 @@ Detail moved out of `AGENTS.md`, which has a 10 KiB budget. The short versions i
 ## Frontend
 
 - Frontend files use Vite+ `vp fmt` (Oxfmt) with an 80-column print width, two spaces, semicolons, trailing commas, and Svelte formatting enabled.
-- Vite+ `vp lint` (Oxlint) checks JS/TS and Svelte script blocks, with type-aware Promise rules for `.ts` and `.svelte.ts`. Keep `svelte-check --tsgo` for Svelte template and type diagnostics, and ESLint for architecture and template rules.
+- Vite+ `vp lint` (Oxlint) checks JS/TS and Svelte script blocks, with type-aware Promise rules for `.ts` and `.svelte.ts`. Keep `svelte-check --tsrs` for Svelte template and type diagnostics, and ESLint for architecture and template rules.
 - TypeScript is strict with `noUncheckedIndexedAccess`. `$lib` aliases `web/src/lib`.
 - Follow existing names: PascalCase Svelte components, camelCase TypeScript functions, `*Schema` Zod contracts, `*.svelte.ts` rune-bearing hooks, Go `*_test.go`, and Playwright `*.spec.ts`.
 - Before writing UI, look for an existing component in `web/src/lib/components/ui/`, then `web/src/components/`, then the shadcn-svelte registry.
@@ -72,8 +72,8 @@ Run from the repository root.
   - `VERSION=X.Y.Z-dev.N` builds a development release with versioned file names, signed with `WEBMUX_DEV_SIGNING_KEY` instead of `WEBMUX_RELEASE_SIGNING_KEY`.
 - `./bin/webmux --listen 127.0.0.1:7681`: run the backend and embedded production app.
 - `pnpm --dir web dev`: run Vite+ at `http://127.0.0.1:5173`.
-- `pnpm --dir web check`: check Svelte/TypeScript with `svelte-check --tsgo` without building; warnings fail.
-- `pnpm --dir web check:test`: type-check `web/src` and top-level `web/test/*.test.ts` with `svelte-check --tsgo`.
+- `pnpm --dir web check`: check Svelte/TypeScript with `svelte-check --tsrs` without building; warnings fail.
+- `pnpm --dir web check:test`: type-check `web/src` and top-level `web/test/*.test.ts` with `svelte-check --tsrs`.
 - `make check`: build the frontend, check test types and formatting, run the doc and persistence guards, Oxlint, the architecture guard, `go vet` and `golangci-lint`.
 - `make docs-check`: run the documentation/spec size and tree-layout guard (`internal/docguard`).
 - `make persistence-check`: run the persistence inventory guard (`TestPersistence*` in `internal/archtest`).

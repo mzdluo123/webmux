@@ -17,7 +17,7 @@ export default {
   ],
   ignoreDependencies: [
     "@inlang/plugin-message-format",
-    "@typescript/native",
+    "tsrs", // Loaded by the svelte-check patch.
     "shadcn-svelte",
   ],
   rules: {
