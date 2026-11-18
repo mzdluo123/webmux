@@ -7,7 +7,7 @@
     SegmentedControl,
     SegmentedControlItem,
   } from "$lib/components/ui/segmented-control";
-  import { Textarea } from "$lib/components/ui/textarea";
+  import GitConflictResultEditor from "./GitConflictResultEditor.svelte";
   import { m } from "$lib/paraglide/messages.js";
   import type { GitConflictFileDetail } from "../../contracts/schemas";
   import type {
@@ -24,6 +24,7 @@
     onApplyAllNonConflicting,
     onConfirmManualEdits,
     onChangeResultText,
+    resultEditor = $bindable(null),
   }: {
     detail: GitConflictFileDetail;
     draft: GitConflictDraftState;
@@ -31,6 +32,7 @@
     onChooseChunk: (segmentId: string, choice: GitConflictChunkChoice) => void;
     onApplyAllNonConflicting: () => void;
     onConfirmManualEdits: () => void;
+    resultEditor?: HTMLTextAreaElement | null;
     onChangeResultText: (nextText: string) => void;
   } = $props();
 
@@ -250,14 +252,11 @@
       <div
         class="rounded-md border bg-background p-1.5 focus-within:ring-2 focus-within:ring-ring/40"
       >
-        <Textarea
-          variant="bare"
-          code
-          aria-label={m.s6_conflict_result_editor_aria()}
+        <GitConflictResultEditor
+          bind:ref={resultEditor}
           value={draft.resultText}
-          oninput={(e) => onChangeResultText(e.currentTarget.value)}
-          class="min-h-40"
-          data-testid="git-conflict-mobile-textarea"
+          oninput={onChangeResultText}
+          mobile
         />
       </div>
     </section>

@@ -46,14 +46,13 @@ async function stopChild(child) {
 // codex-acp, claude and claude-agent-acp, with a session store private to this
 // server that survives its restarts. Connector-missing cases use an isolated
 // per-config PATH instead of changing this shared agent directory.
-// Omit features for the legacy full installation. [] writes an explicit core-only
-// selection; other arrays are passed unchanged, including dependency ordering.
-/** @param {{noGit?: boolean, token?: string, features?: string[], tunnel?: {cloudflared: string, enabled?: boolean}}} options @returns {Promise<E2EServer>} */
+// All built-in features run enabled; stateFiles optionally pre-populates state_dir.
+/** @param {{noGit?: boolean, token?: string, stateFiles?: Record<string, string>, tunnel?: {cloudflared: string, enabled?: boolean}}} options @returns {Promise<E2EServer>} */
 export async function startE2EServer({
   noGit = false,
   token = "",
   tunnel,
-  features,
+  stateFiles,
 } = {}) {
   const binary = process.env.WEBMUX_E2E_BINARY;
   const agents = process.env.WEBMUX_E2E_AGENTS;
@@ -89,18 +88,23 @@ export async function startE2EServer({
     await Promise.all([
       mkdir(workDir),
       mkdir(home),
+      mkdir(stateDir),
       writeFile(
         config,
         `listen = "127.0.0.1:0"\ntoken = ${JSON.stringify(token)}\ndefault_cwd = ${JSON.stringify(workDir)}\nstate_dir = ${JSON.stringify(stateDir)}\nidle_after_seconds = 30\n` +
-          (features === undefined
-            ? ""
-            : `\n[features]\nenabled = ${JSON.stringify(features)}\n`) +
           `\n[p2p]\nport_mapping = false\nstun_servers = []\n` +
           (tunnel
             ? `\n[tunnel]\nenabled = ${tunnel.enabled ?? false}\ncloudflared = ${JSON.stringify(tunnel.cloudflared)}\n`
             : ""),
       ),
     ]);
+    if (stateFiles) {
+      await Promise.all(
+        Object.entries(stateFiles).map(([name, body]) =>
+          writeFile(join(stateDir, name), body, { mode: 0o600 }),
+        ),
+      );
+    }
     /** @type {Record<string, string>} */
     const env = {
       PATH: noGit
