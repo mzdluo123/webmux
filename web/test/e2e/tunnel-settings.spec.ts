@@ -118,6 +118,50 @@ test("configure, switch and stop tunnels without ending the PTY session", async 
   expect(server.logs()).not.toContain(secret);
 });
 
+test("blocked clipboard exposes the address without moving public-access controls", async ({
+  page,
+  tunnelServer: server,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async () => {
+          throw new Error("Clipboard denied");
+        },
+      },
+    });
+    document.execCommand = () => false;
+  });
+  await page.goto(server.baseURL + `/settings/tunnel#token=${token}`);
+  const copy = page.getByRole("button", { name: "复制访问链接" });
+  const disable = page.getByRole("button", { name: "关闭公网访问" });
+  await expect(copy).toBeVisible();
+  await copy.scrollIntoViewIfNeeded();
+  const before = await disable.boundingBox();
+
+  await copy.click();
+  const fallback = page.getByRole("textbox", {
+    name: "复制失败，请手动复制链接",
+  });
+  const address = "https://acceptance.trycloudflare.com";
+  await expect(fallback).toBeFocused();
+  await expect(fallback).toHaveValue(address);
+  await expect(fallback).toHaveJSProperty("selectionEnd", address.length);
+  expect(await disable.boundingBox()).toEqual(before);
+
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async () => {} },
+    });
+  });
+  await copy.click();
+  await expect(page.getByRole("button", { name: "已复制" })).toBeVisible();
+  await expect(fallback).toBeHidden();
+  expect(await disable.boundingBox()).toEqual(before);
+});
+
 test("saved shutdown survives restart and corrupt storage cannot restore TOML exposure", async ({
   request,
   tunnelServer: server,

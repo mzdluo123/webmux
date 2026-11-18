@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { untrack } from "svelte";
-  import { SvelteMap } from "svelte/reactivity";
+  import { tick, untrack } from "svelte";
+  import { SvelteMap, SvelteSet } from "svelte/reactivity";
   import { m } from "$lib/paraglide/messages.js";
   import { parseJson, type JsonNode } from "../../domains/code/code-json";
   import type { CodeJsonState } from "../../contracts/schemas";
   import { Button } from "$lib/components/ui/button";
   import * as Collapsible from "$lib/components/ui/collapsible";
+  import { paneEnter } from "../../hooks/shared/pane-enter";
   import IconChevronRight from "~icons/tabler/chevron-right";
   let {
     text,
@@ -19,6 +20,7 @@
   const initial = untrack(() => restore);
   const opened = new SvelteMap<string, boolean>(initial?.opened);
   const shown = new SvelteMap<string, number>(initial?.shown);
+  const manuallyOpened = new SvelteSet<string>();
   const isOpen = (key: string, depth: number) => opened.get(key) ?? depth < 2;
   export function capture(): CodeJsonState {
     return { opened: [...opened], shown: [...shown] };
@@ -30,6 +32,47 @@
         ? node.items.map((value, index) => ({ name: String(index), value }))
         : [];
   }
+  function toggle(key: string, open: boolean) {
+    opened.set(key, open);
+    if (open) manuallyOpened.add(key);
+    else manuallyOpened.delete(key);
+  }
+  function reveal(node: HTMLElement) {
+    let attached = true;
+    let animation: ReturnType<typeof paneEnter> | undefined;
+    // The collapsible updates its hidden attribute in the same flush.
+    void tick().then(() => {
+      if (attached && !node.contains(node.ownerDocument.activeElement))
+        animation = paneEnter(node, true, 128);
+    });
+    const settle = () => animation?.update(false);
+    node.addEventListener("focusin", settle, { once: true });
+    return () => {
+      attached = false;
+      animation?.destroy();
+      node.removeEventListener("focusin", settle);
+    };
+  }
+  async function showMore(button: HTMLElement, key: string, limit: number) {
+    const last = button.previousElementSibling;
+    const document = button.ownerDocument;
+    const focused = document.activeElement === button;
+    shown.set(key, limit + batch);
+    await tick();
+    if (
+      !focused ||
+      (document.activeElement !== button &&
+        document.activeElement !== document.body)
+    )
+      return;
+    const next = last?.nextElementSibling;
+    if (!(next instanceof HTMLElement)) return;
+    const row =
+      next.querySelector<HTMLElement>('[data-slot="collapsible-trigger"]') ??
+      next;
+    row.focus({ preventScroll: true });
+    row.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
 </script>
 
 {#snippet tree(node: JsonNode, key: string, depth: number, name?: string)}
@@ -39,7 +82,7 @@
     {@const limit = shown.get(key) ?? batch}
     <Collapsible.Root
       open={isOpen(key, depth)}
-      onOpenChange={(value) => opened.set(key, value)}
+      onOpenChange={(value) => toggle(key, value)}
     >
       <Collapsible.Trigger
         class="flex items-center gap-1 rounded-sm text-left hover:bg-muted"
@@ -60,25 +103,28 @@
       <Collapsible.Content class="pl-4">
         <!-- Closed collections render nothing, so large documents stay light. -->
         {#if open}
-          {#each all.slice(0, limit) as member, index (index)}
-            {@render tree(
-              member.value,
-              `${key}/${index}`,
-              depth + 1,
-              member.name,
-            )}
-          {/each}
-          {#if all.length > limit}<Button
-              variant="ghost"
-              size="sm"
-              onclick={() => shown.set(key, limit + batch)}
-              >{m.s5_json_show_more_items({ count: String(batch) })}</Button
-            >{/if}
+          <div {@attach manuallyOpened.has(key) ? reveal : undefined}>
+            {#each all.slice(0, limit) as member, index (index)}
+              {@render tree(
+                member.value,
+                `${key}/${index}`,
+                depth + 1,
+                member.name,
+              )}
+            {/each}
+            {#if all.length > limit}<Button
+                variant="ghost"
+                size="sm"
+                onclick={(event) =>
+                  void showMore(event.currentTarget, key, limit)}
+                >{m.s5_json_show_more_items({ count: String(batch) })}</Button
+              >{/if}
+          </div>
         {/if}
       </Collapsible.Content>
     </Collapsible.Root>
   {:else}
-    <p class="break-all whitespace-pre-wrap">
+    <p tabindex="-1" class="break-all whitespace-pre-wrap">
       {#if name !== undefined}<span class="text-muted-foreground">{name}:</span
         >{/if}
       {#if node.kind === "string"}<span class="text-primary"
