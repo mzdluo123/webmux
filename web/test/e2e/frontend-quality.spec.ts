@@ -1,7 +1,7 @@
 import {
   createShell,
   expect,
-  test,
+  workspaceLayoutTest as test,
   backToList,
   revealSidebar,
 } from "./fixtures";

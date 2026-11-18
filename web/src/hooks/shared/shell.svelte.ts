@@ -100,7 +100,7 @@ export interface Shell {
   readonly archiveSignal: ArchiveSignal;
   readonly setup: ServerSetup;
   readonly launchConfigs?: LaunchConfigs;
-  /** Opens the new-session dialog, optionally at a contextual entry. */
+  /** Starts a session using the current grouping or a specific launch target. */
   start(entry?: LaunchEntry): void;
   /** Opens the shared rename dialog for a live session. */
   rename(session: SessionInfo): void;

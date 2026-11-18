@@ -6,6 +6,8 @@
   import { Button } from "$lib/components/ui/button";
   import * as Drawer from "$lib/components/ui/drawer";
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
+  import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
   import { createArchiveSignal } from "../../domains/sessions/archive-signal";
   import {
     resolveLaunchScope,
@@ -20,6 +22,7 @@
     Worktree,
   } from "../../contracts/schemas";
   import {
+    openPage,
     openSession,
     setShell,
     shellUi,
@@ -152,6 +155,22 @@
     launchConfigs,
     start(entry) {
       shellUi.drawerOpen = false;
+      if (
+        !entry &&
+        route.name !== "quick-start" &&
+        workbenchLayout.value === "queue" &&
+        contributions.chat &&
+        featureAvailable("chat.acp") &&
+        featureAvailable("workspace.manage") &&
+        !(
+          route.name === "sessions" &&
+          repositories?.choice &&
+          repositories.choice !== "all"
+        )
+      ) {
+        openPage("/new");
+        return;
+      }
       creating = {
         entry,
         scope: repositories

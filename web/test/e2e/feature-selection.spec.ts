@@ -4,6 +4,7 @@ import {
   expectConnected,
   expectTerminalLine,
   runCommand,
+  openSessionForm,
   useCustomCommand,
   useDirectory,
 } from "./fixtures";
@@ -40,11 +41,7 @@ for (const selection of selections) {
           paths.push(new URL(request.url()).pathname),
         );
         await page.goto("/");
-        await page
-          .getByRole("main")
-          .getByRole("button", { name: /^(＋ )?新建会话$/ })
-          .first()
-          .click();
+        await openSessionForm(page);
         await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
         await useDirectory(page, workDir);
         await page

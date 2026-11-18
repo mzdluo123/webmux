@@ -86,7 +86,13 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
   const repo = await repository(request, root, "先读 AGENTS.md");
   await hybridConfig(request, "Claude Code");
 
-  await page.goto("/new");
+  await page.goto("/");
+  const navigation = await sidebar(page);
+  await navigation.getByRole("radio", { name: "按会话" }).click();
+  await navigation
+    .getByRole("button", { name: "新建会话", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/new$/);
 
   const toolbar = page.getByRole("toolbar", { name: "仓库与分支" });
   const input = page.getByRole("textbox", { name: "任务描述" });

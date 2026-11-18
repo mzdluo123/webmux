@@ -416,17 +416,28 @@ export async function nameSession(page: Page, name: string) {
   await page.getByLabel("会话名称", { exact: false }).fill(name);
 }
 
+export async function openSessionForm(page: Page) {
+  await page
+    .getByRole("main")
+    .getByRole("button", { name: /^(＋ )?新建会话$/, exact: true })
+    .first()
+    .click();
+  if (new URL(page.url()).pathname === "/new") {
+    await revealSidebar(page);
+    await page
+      .getByRole("navigation", { name: "导航", exact: true })
+      .getByRole("button", { name: "新建会话", exact: true })
+      .click();
+  }
+}
+
 export async function createShell(
   page: Page,
   name = "E2E shell",
   cwd?: string,
 ): Promise<string> {
   await page.goto("/");
-  await page
-    .getByRole("main")
-    .getByRole("button", { name: "＋ 新建会话", exact: true })
-    .first()
-    .click();
+  await openSessionForm(page);
   await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
   if (cwd) await useDirectory(page, cwd);
   await nameSession(page, name);

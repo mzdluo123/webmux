@@ -5,7 +5,7 @@ import {
   expect,
   expectTerminalLine,
   holdTerminalReattach,
-  test,
+  workspaceLayoutTest as test,
 } from "./fixtures";
 
 // Keep the full marker out of readline's redrawable command echo.
