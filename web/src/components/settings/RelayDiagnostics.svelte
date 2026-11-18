@@ -1,7 +1,7 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
-  import * as Collapsible from "$lib/components/ui/collapsible";
+  import RelayDiagnosticSection from "./RelayDiagnosticSection.svelte";
   import type { RelayStatus } from "../../contracts/relay-schemas";
   import RelayPathStatus from "./RelayPathStatus.svelte";
   import {
@@ -26,15 +26,8 @@
   });
 </script>
 
-<Collapsible.Root class="space-y-3">
-  <Collapsible.Trigger>
-    {#snippet child({ props })}
-      <Button {...props} variant="outline"
-        >{m.relay_effective_diagnostics()}</Button
-      >
-    {/snippet}
-  </Collapsible.Trigger>
-  <Collapsible.Content class="space-y-4">
+<RelayDiagnosticSection title={m.relay_effective_diagnostics()}>
+  <div class="space-y-4">
     <section class="space-y-2" aria-label={m.relay_health()}>
       <h3 class="text-sm font-medium">{m.relay_health()}</h3>
       <dl class="grid min-w-0 grid-cols-1 gap-2 text-sm sm:grid-cols-2">
@@ -78,13 +71,8 @@
         >
       {/if}
     </section>
-    <Collapsible.Root class="space-y-3">
-      <Collapsible.Trigger>
-        {#snippet child({ props })}
-          <Button {...props} variant="outline">{m.relay_routing()}</Button>
-        {/snippet}
-      </Collapsible.Trigger>
-      <Collapsible.Content>
+    <RelayDiagnosticSection title={m.relay_routing()}>
+      <div>
         <dl class="grid min-w-0 grid-cols-1 gap-2 text-sm sm:grid-cols-2">
           <dt>{m.relay_configured_control()}</dt>
           <dd class="wrap-anywhere">
@@ -129,17 +117,10 @@
         <p class="mt-3 text-xs text-muted-foreground">
           {m.relay_assignment_disclaimer()}
         </p>
-      </Collapsible.Content>
-    </Collapsible.Root>
-    <Collapsible.Root class="space-y-3">
-      <Collapsible.Trigger>
-        {#snippet child({ props })}
-          <Button {...props} variant="outline"
-            >{m.relay_host_candidates()}</Button
-          >
-        {/snippet}
-      </Collapsible.Trigger>
-      <Collapsible.Content class="space-y-2">
+      </div>
+    </RelayDiagnosticSection>
+    <RelayDiagnosticSection title={m.relay_host_candidates()}>
+      <div class="space-y-2">
         {#each status.sessions as session (session.id)}
           <p class="text-sm wrap-anywhere">
             {m.relay_session_path({
@@ -156,8 +137,8 @@
         <p class="text-xs text-muted-foreground">
           {m.relay_candidate_disclaimer()}
         </p>
-      </Collapsible.Content>
-    </Collapsible.Root>
+      </div>
+    </RelayDiagnosticSection>
     <RelayPathStatus />
-  </Collapsible.Content>
-</Collapsible.Root>
+  </div>
+</RelayDiagnosticSection>

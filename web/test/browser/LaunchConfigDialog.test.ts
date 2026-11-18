@@ -134,7 +134,9 @@ test("masks env values by default and validates variable names", async () => {
   });
   await page.getByLabelText("名称").fill("Agent");
   await page.getByLabelText("启动命令").fill("claude");
-  await page.getByRole("button", { name: "添加环境变量" }).click();
+  const addVariable = page.getByRole("button", { name: "添加环境变量" });
+  await addVariable.click();
+  await expect.element(page.getByLabelText("变量名 1")).toHaveFocus();
   const value = page.getByLabelText("变量值 1");
   await expect.element(value).toHaveAttribute("type", "password");
   const toggle = page.getByRole("button", { name: "显示变量值 1" });
@@ -156,8 +158,26 @@ test("masks env values by default and validates variable names", async () => {
     .element(page.getByText(/变量名只能包含字母、数字和下划线/))
     .toBeVisible();
   await expect.element(save()).toBeDisabled();
+  expect(name.element().getAttribute("aria-describedby")).toBeTruthy();
   await name.fill("API_KEY");
   await expect.element(save()).toBeEnabled();
+  expect(name.element().getAttribute("aria-describedby")).toBeNull();
+  const validControlsRow = name.element().parentElement!;
+  const validOuterRow = validControlsRow.parentElement!;
+  expect(validOuterRow.offsetHeight).toBeLessThanOrEqual(
+    validControlsRow.offsetHeight + 2,
+  );
+  const envScrollViewport = validOuterRow.closest(
+    "[data-slot=scroll-area-viewport]",
+  ) as HTMLElement | null;
+  expect(envScrollViewport).not.toBeNull();
+
+  await addVariable.click();
+  await expect.element(page.getByLabelText("变量名 2")).toHaveFocus();
+  await page.getByRole("button", { name: "删除变量 1" }).click();
+  await expect.element(page.getByLabelText("变量名 1")).toHaveFocus();
+  await page.getByRole("button", { name: "删除变量 1" }).click();
+  await expect.element(addVariable).toHaveFocus();
 });
 
 test("the startup-file checkbox saves a normal command without expanding its arguments", async () => {
@@ -385,7 +405,22 @@ test.each([
     await expect
       .element(page.getByLabelText("启动命令"))
       .toHaveValue("codex --resume 'a b' '' '$HOME'");
-    if (!enabled) await checkbox.click();
+    if (!enabled) {
+      const env = page.getByLabelText("变量名 1").element();
+      const startup = checkbox.element();
+      const offset = () =>
+        (env.getBoundingClientRect().top -
+          startup.getBoundingClientRect().top) /
+        (env.getBoundingClientRect().height /
+          (env as HTMLElement).offsetHeight);
+      const expanded = offset();
+      await checkbox.click();
+      expect(offset()).toBeCloseTo(expanded, 0);
+      await userEvent.keyboard("{Tab}");
+      expect(document.activeElement?.id).not.toBe(
+        "launch-config-startup-shell",
+      );
+    }
     await save().click();
     await vi.waitFor(() => expect(onsaved).toHaveBeenCalledOnce());
     expect(savedRequest(requests)).toMatchObject({

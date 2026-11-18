@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
   import type { z } from "zod";
@@ -42,6 +43,8 @@
   } = $props();
 
   let searchOpen = $state(false);
+  let searchToggle: HTMLButtonElement | null = $state(null);
+  let searchField: HTMLInputElement | null = $state(null);
   let searchInput = $state("");
   let locateOpen = $state(false);
   let locateInput = $state("");
@@ -70,6 +73,25 @@
         : m.s5_locate_no_base(),
   );
   let locating = $state(false);
+  function closeSearch() {
+    searchOpen = false;
+    searchToggle?.focus({ preventScroll: true });
+    if (!query) return;
+    query = "";
+    void load();
+  }
+  async function toggleSearch() {
+    if (searchOpen) return closeSearch();
+    searchOpen = true;
+    await tick();
+    if (searchOpen) searchField?.focus({ preventScroll: true });
+  }
+  function searchKeydown(event: KeyboardEvent) {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    closeSearch();
+  }
   async function submitLocate(event: SubmitEvent) {
     event.preventDefault();
     locateError = "";
@@ -93,18 +115,14 @@
     >{m.s5_explorer()}</span
   >
   <Button
+    bind:ref={searchToggle}
     variant="ghost"
     size="icon-xs"
     aria-label={m.s5_toggle_path_search()}
     title={m.s5_search_file_path()}
     aria-expanded={searchOpen}
-    onclick={() => {
-      searchOpen = !searchOpen;
-      if (!searchOpen && query) {
-        query = "";
-        void load();
-      }
-    }}><IconSearch aria-hidden="true" /></Button
+    onclick={() => void toggleSearch()}
+    ><IconSearch aria-hidden="true" /></Button
   >
   <Popover.Root bind:open={locateOpen}>
     <Popover.Trigger>
@@ -117,7 +135,10 @@
           ><IconFileSearch aria-hidden="true" /></Button
         >{/snippet}
     </Popover.Trigger>
-    <Popover.Content align="start" class="w-72">
+    <Popover.Content
+      align="start"
+      class="max-h-(--bits-popover-content-available-height) max-w-(--bits-popover-content-available-width) overflow-auto"
+    >
       <Popover.Header
         ><Popover.Title>{m.s5_open_by_path()}</Popover.Title
         ><Popover.Description>{locateHint}</Popover.Description></Popover.Header
@@ -202,12 +223,14 @@
     }}
   >
     <Input
+      bind:ref={searchField}
+      onkeydown={searchKeydown}
       size="sm"
       aria-label={m.s5_search_file_path()}
       placeholder={m.s5_filename_or_path_placeholder()}
       bind:value={searchInput}
     />
-    <Button size="sm" variant="outline" type="submit"
+    <Button size="sm" variant="outline" type="submit" onkeydown={searchKeydown}
       >{m.s5_search_paths_btn()}</Button
     >
   </form>
