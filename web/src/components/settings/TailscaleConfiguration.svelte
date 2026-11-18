@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
   import { untrack } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
@@ -22,6 +23,12 @@
     onsave: (draft: TailscaleSettingsUpdate) => void;
   } = $props();
   let mode = $state(untrack(() => current.mode));
+  let panels = $state<HTMLDivElement | null>(null);
+  useDockMotion(
+    () => panels,
+    () => true,
+    () => mode,
+  );
   let provider = $state(untrack(() => current.configuredProvider));
   // Serve takes any port; empty or 0 selects 443, 8443 or 10000 automatically.
   let servePort = $state(
@@ -68,50 +75,55 @@
         <Tabs.Trigger value="serve">Serve</Tabs.Trigger>
         <Tabs.Trigger value="funnel">Funnel</Tabs.Trigger>
       </Tabs.List>
-      <Tabs.Content value="off" class="pt-3">
-        <p class="text-sm text-muted-foreground">
-          {m.s2_ts_off_desc()}
-        </p>
-      </Tabs.Content>
-      <Tabs.Content value="serve" class="space-y-4 pt-3">
-        <p class="text-sm text-muted-foreground">
-          {m.s2_ts_serve_desc()}
-        </p>
-        <div class="grid gap-2">
-          <Label for="tailscale-serve-port">{m.s2_ts_serve_port()}</Label>
-          <Input
-            id="tailscale-serve-port"
-            inputmode="numeric"
-            bind:value={servePort}
-            placeholder={m.s2_ts_serve_port_placeholder()}
-            autocomplete="off"
-            aria-invalid={attempted && !!portError}
-            aria-describedby="tailscale-serve-port-help"
-          />
-          <p
-            id="tailscale-serve-port-help"
-            class="text-xs text-muted-foreground"
-          >
-            {attempted && portError ? portError : m.s2_ts_serve_port_help()}
+      <div bind:this={panels}>
+        <Tabs.Content value="off" class="pt-3">
+          <p class="text-sm text-muted-foreground">
+            {m.s2_ts_off_desc()}
           </p>
-        </div>
-      </Tabs.Content>
-      <Tabs.Content value="funnel" class="space-y-4 pt-3">
-        <p class="text-sm text-warning">
-          {m.s2_ts_funnel_warn()}
-        </p>
-        <div class="grid gap-2">
-          <Label for="tailscale-funnel-port">{m.s2_ts_funnel_port()}</Label>
-          <NativeSelect.Root id="tailscale-funnel-port" bind:value={funnelPort}>
-            <NativeSelect.Option value="0">{m.s2_auto()}</NativeSelect.Option>
-            {#each TailscaleFunnelPorts as option (option)}
-              <NativeSelect.Option value={String(option)}
-                >{option}</NativeSelect.Option
-              >
-            {/each}
-          </NativeSelect.Root>
-        </div>
-      </Tabs.Content>
+        </Tabs.Content>
+        <Tabs.Content value="serve" class="space-y-4 pt-3">
+          <p class="text-sm text-muted-foreground">
+            {m.s2_ts_serve_desc()}
+          </p>
+          <div class="grid gap-2">
+            <Label for="tailscale-serve-port">{m.s2_ts_serve_port()}</Label>
+            <Input
+              id="tailscale-serve-port"
+              inputmode="numeric"
+              bind:value={servePort}
+              placeholder={m.s2_ts_serve_port_placeholder()}
+              autocomplete="off"
+              aria-invalid={attempted && !!portError}
+              aria-describedby="tailscale-serve-port-help"
+            />
+            <p
+              id="tailscale-serve-port-help"
+              class="text-xs text-muted-foreground"
+            >
+              {attempted && portError ? portError : m.s2_ts_serve_port_help()}
+            </p>
+          </div>
+        </Tabs.Content>
+        <Tabs.Content value="funnel" class="space-y-4 pt-3">
+          <p class="text-sm text-warning">
+            {m.s2_ts_funnel_warn()}
+          </p>
+          <div class="grid gap-2">
+            <Label for="tailscale-funnel-port">{m.s2_ts_funnel_port()}</Label>
+            <NativeSelect.Root
+              id="tailscale-funnel-port"
+              bind:value={funnelPort}
+            >
+              <NativeSelect.Option value="0">{m.s2_auto()}</NativeSelect.Option>
+              {#each TailscaleFunnelPorts as option (option)}
+                <NativeSelect.Option value={String(option)}
+                  >{option}</NativeSelect.Option
+                >
+              {/each}
+            </NativeSelect.Root>
+          </div>
+        </Tabs.Content>
+      </div>
     </Tabs.Root>
     <div class="grid gap-2">
       <Label for="tailscale-provider">Provider</Label>
