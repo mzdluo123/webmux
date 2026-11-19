@@ -291,6 +291,15 @@ export const WorkspaceCapabilitySchema = z.object({
 
 export const SessionIdSchema = SessionInfoSchema.shape.id;
 
+export const UploadDirRequestSchema = z.strictObject({
+  name: z.string().min(1),
+  parent: z.string().optional(),
+});
+export const UploadDirResultSchema = z.object({
+  path: z.string().startsWith("/"),
+  relativePath: z.string().min(1),
+});
+
 export const TerminalOutputSchema = z.object({
   generation: z.string(),
   start: z.string(),
