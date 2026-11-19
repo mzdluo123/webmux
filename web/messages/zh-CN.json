@@ -1723,7 +1723,7 @@
   "s4_port_listening_with_proc": "检测到端口 {port}（{process}）正在监听",
   "s4_prefix_shortcut_bar": "Ctrl+B · % 左右分屏 · \" 上下分屏 · 方向键 / o 切换 · z 放大 · x 关闭窗格 · Esc 取消",
   "s4_preview_short": "预览",
-  "s4_process_exited_strip": "进程已退出（code {code}）",
+  "s4_exit_status_code": "已退出 · 退出码 {code}",
   "s4_quick_commands_unavailable": "快捷指令暂不可用",
   "s4_quick_draft_submitting": "草稿正在提交到终端，快捷指令未插入；请确认结果后重试。",
   "s4_quick_msg_failed": "快捷指令未写入终端；请检查终端后重试。",

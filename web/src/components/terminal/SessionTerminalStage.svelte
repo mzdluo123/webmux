@@ -261,7 +261,6 @@
       bind:notice
       {showScratch}
       dismissScratch={() => (draft.scratchUpdatedWhileHidden = false)}
-      remove={closeSession}
       notices={hybrid.notices}
       dismiss={(key) => hybrid.dismiss(key)}
       recovery={hybrid.recoverable && !closing ? recovery : undefined}

@@ -118,7 +118,6 @@
       notice=""
       showScratch={() => {}}
       dismissScratch={() => {}}
-      remove={() => {}}
       leave={() => {}}
     />
   </div>

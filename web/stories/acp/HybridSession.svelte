@@ -496,7 +496,6 @@
     notice=""
     showScratch={() => {}}
     dismissScratch={() => {}}
-    remove={() => {}}
     {notices}
     dismiss={(key) => {
       if (key.startsWith("notice:")) notice = "";

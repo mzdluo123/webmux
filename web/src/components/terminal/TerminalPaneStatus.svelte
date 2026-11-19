@@ -13,21 +13,26 @@
     terminal: {
       readonly info: SessionInfo | undefined;
       readonly connection: Connection;
+      readonly exitCode: number | null;
     };
     children?: Snippet;
   } = $props();
 
   const showConnection = $derived(
-    !terminal.info || terminal.connection !== "connected",
+    terminal.exitCode !== null ||
+      !terminal.info ||
+      terminal.connection !== "connected",
   );
   const connectionText = $derived(
-    terminal.connection === "connected"
-      ? m.s4_conn_connected()
-      : terminal.connection === "exited"
-        ? m.s4_conn_exited()
-        : terminal.connection === "missing"
-          ? m.s4_conn_missing()
-          : m.s4_conn_reconnecting(),
+    terminal.exitCode !== null
+      ? m.s4_exit_status_code({ code: String(terminal.exitCode) })
+      : terminal.connection === "connected"
+        ? m.s4_conn_connected()
+        : terminal.connection === "exited"
+          ? m.s4_conn_exited()
+          : terminal.connection === "missing"
+            ? m.s4_conn_missing()
+            : m.s4_conn_reconnecting(),
   );
 </script>
 
@@ -38,11 +43,14 @@
   ]}
 >
   {#if terminal.info}
-    {@const label = `${sessionStatusText(terminal.info)} · ${connectionText}`}
+    {@const label = terminal.exitCode !== null
+      ? connectionText
+      : `${sessionStatusText(terminal.info)} · ${connectionText}`}
     <span
       class={`status-dot shrink-0 status-${terminal.info.status}`}
       class:status-failed={sessionStatusTone(terminal.info) === "destructive"}
-      class:motion-safe:animate-pulse={terminal.connection !== "connected"}
+      class:motion-safe:animate-pulse={terminal.connection === "connecting" ||
+        terminal.connection === "reconnecting"}
       role="img"
       aria-label={label}
       title={label}

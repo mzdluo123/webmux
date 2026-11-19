@@ -1925,7 +1925,7 @@
   "s4_port_listening_with_proc": "Port {port} ({process}) is listening",
   "s4_prefix_shortcut_bar": "Ctrl+B · % split left/right · \" split top/bottom · Arrows / o switch · z zoom · x close pane · Esc cancel",
   "s4_preview_short": "Preview",
-  "s4_process_exited_strip": "Process exited (code {code})",
+  "s4_exit_status_code": "Exited · code {code}",
   "s4_quick_commands_unavailable": "Quick commands are currently unavailable",
   "s4_quick_draft_submitting": "Draft is being submitted to terminal, quick command not inserted; confirm outcome and retry.",
   "s4_quick_msg_failed": "Quick command was not written to terminal; check the terminal and retry.",

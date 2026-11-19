@@ -192,7 +192,7 @@ test("commands are disabled while the terminal cannot send, but drafts still acc
   await expectConnected(page);
   await request.delete(`/api/sessions/${id}`);
   await expect(sessionPaneHeader(page).getByRole("status")).toHaveText(
-    "已退出",
+    /^已退出 · 退出码 /,
   );
   await quick(page).click();
   await expect(menu(page).getByText("会话已退出，无法发送")).toBeVisible();
