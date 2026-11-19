@@ -390,8 +390,12 @@ queueTest(
     await revealSidebar(page);
     await expect(heading).toHaveAttribute("aria-expanded", "false");
 
-    await sidebar
-      .getByRole("button", { name: "新建会话", exact: true })
+    if (await page.getByRole("dialog", { name: "导航" }).isVisible())
+      await page.keyboard.press("Escape");
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: "＋ 新建会话", exact: true })
+      .first()
       .click();
     await chooseSessionProject(page, "empty-project");
     await expect(sessionLocation(page)).toContainText("主工作区 · main");

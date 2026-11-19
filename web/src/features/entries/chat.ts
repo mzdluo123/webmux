@@ -29,7 +29,7 @@ export const navigation = [
   {
     id: "chat.new",
     get label() {
-      return m.s1_new_chat();
+      return m.s1_new_session();
     },
     href: "/new",
   },

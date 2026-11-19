@@ -88,7 +88,12 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
 
   await page.goto("/");
   const navigation = await sidebar(page);
-  await navigation.getByRole("button", { name: "新聊天", exact: true }).click();
+  await expect(
+    navigation.getByRole("button", { name: "新聊天", exact: true }),
+  ).toHaveCount(0);
+  await navigation
+    .getByRole("button", { name: "新建会话", exact: true })
+    .click();
   await expect(page).toHaveURL(/\/new$/);
   await expect(
     page.getByRole("dialog", { name: "导航", exact: true }),
@@ -109,6 +114,16 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
   await expect(
     page.getByRole("checkbox", { name: "使用初始化指令" }),
   ).toBeChecked();
+  if (!phone(page)) {
+    const main = (await page.getByRole("main").last().boundingBox())!;
+    const card = (await page.locator("[data-composer-card]").boundingBox())!;
+    expect(
+      Math.abs(card.x + card.width / 2 - (main.x + main.width / 2)),
+    ).toBeLessThan(4);
+    expect(
+      Math.abs(card.y + card.height / 2 - (main.y + main.height / 2)),
+    ).toBeLessThan(50);
+  }
   await input.fill("修复首页排序");
   await page.getByRole("button", { name: "发送", exact: true }).click();
 
@@ -197,7 +212,7 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
     await page.getByRole("button", { name: "收起侧栏", exact: true }).click();
     await page
       .getByRole("navigation", { name: "窄栏导航", exact: true })
-      .getByRole("button", { name: "新聊天", exact: true })
+      .getByRole("button", { name: "新建会话", exact: true })
       .press("Enter");
     await expect(page).toHaveURL(/\/new$/);
     await expect(input).toBeVisible();

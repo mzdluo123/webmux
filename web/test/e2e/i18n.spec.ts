@@ -35,7 +35,11 @@ test.describe("English system locale and live switching", () => {
     await expectNoHorizontalOverflow(page);
 
     // Open New Session dialog in English and verify no horizontal overflow.
-    await page.getByRole("button", { name: "New session" }).first().click();
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: "+ New session", exact: true })
+      .first()
+      .click();
     await expect(
       page.getByRole("dialog", { name: "New session" }),
     ).toBeVisible();
