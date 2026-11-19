@@ -1186,6 +1186,26 @@ test.describe("hybrid sessions with the fake agent", () => {
     });
     await openHybrid(page, id, "chat");
     for (let i = 0; i < 24; i++) await chatTurn(page, `history-${i}`);
+    const viewport = page.viewportSize();
+    if (viewport && viewport.width < 640) {
+      // Leave editing and return to the pane title before opening its menu.
+      // Auto-scrolling just the trigger into view can put it behind the
+      // sticky workspace toolbar instead.
+      await composer(page).blur();
+      await expect(page.locator(".terminal-page")).toHaveAttribute(
+        "data-document-scroll",
+        "true",
+      );
+      await expect
+        .poll(() => page.evaluate(() => window.scrollY))
+        .toBeGreaterThan(0);
+      await page.mouse.move(viewport.width / 2, viewport.height / 2);
+      await page.mouse.wheel(
+        0,
+        -(await page.evaluate(() => document.scrollingElement!.scrollHeight)),
+      );
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    }
     await switchTo(page, "terminal");
     await expectTerminalLine(page, "> history-23");
     await expectTerminalLine(page, "< echo: history-23");
