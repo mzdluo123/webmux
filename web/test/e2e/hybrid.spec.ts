@@ -372,6 +372,54 @@ test("message search reveals chat before consuming a jump hidden by narrow code"
   await expect(page).toHaveURL(new RegExp(`/s/${target}$`));
 });
 
+test("changing the first hybrid view preserves the adjacent shell and document geometry", async ({
+  page,
+  request,
+  workDir,
+}, info) => {
+  test.skip(!!info.project.use.isMobile, "Simultaneous panes");
+  await writeFile(join(workDir, "geometry.txt"), "stable position");
+  const id = await createHybrid(request, workDir, "chat", { name: "Geometry" });
+  await openHybrid(page, id, "chat");
+  await openSplitPanel(page);
+  await page.getByRole("button", { name: "左右分屏 · 新建 Shell" }).click();
+  const anchor = page.locator(`[data-dock-panel="${id}"]`);
+  const shell = page.locator("[data-dock-panel]").filter({
+    has: page.locator(`.split-terminal:not([data-session-id="${id}"])`),
+  });
+  await expect(shell).toBeVisible();
+  await anchor.getByRole("textbox", { name: "消息" }).click();
+  await page.getByRole("button", { name: "文件树 · Geometry" }).click();
+  await page.getByRole("button", { name: "geometry.txt", exact: true }).click();
+  const reader = page.locator(`[data-dock-panel="reader:${id}"]`);
+  await expect(reader).toContainText("stable position");
+  const before = await Promise.all([shell.boundingBox(), reader.boundingBox()]);
+  await anchor.getByRole("tab", { name: "终端", exact: true }).click();
+  await expect(anchor.locator(".xterm")).toBeVisible();
+  expect(
+    await Promise.all([shell.boundingBox(), reader.boundingBox()]),
+  ).toEqual(before);
+  await page
+    .locator(".session-toolbar")
+    .getByRole("button", { name: "全屏", exact: true })
+    .click();
+  await expect
+    .poll(() => page.evaluate(() => !!document.fullscreenElement))
+    .toBe(true);
+  await anchor.getByRole("button", { name: /^放大/ }).click();
+  await expect(shell).toBeHidden();
+  await anchor.getByRole("button", { name: /^还原/ }).click();
+  await expect(shell).toBeVisible();
+  expect(await page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+  await page
+    .locator(".session-toolbar")
+    .getByRole("button", { name: "退出全屏", exact: true })
+    .click();
+  await expect
+    .poll(() => page.evaluate(() => !!document.fullscreenElement))
+    .toBe(false);
+});
+
 async function tuiTurn(page: Page, text: string) {
   await runCommand(page, text);
   await expectTerminalLine(page, `< echo: ${text}`);

@@ -33,7 +33,6 @@ export function dockSessionLabels(
 
 export function sessionDockTree(
   layout: PaneLayout,
-  preferredChat: (id: string) => boolean,
   codeRatio: number,
 ): DockNode {
   function code(id: string) {
@@ -58,18 +57,5 @@ export function sessionDockTree(
     );
   }
 
-  if (
-    layout.kind === "split" &&
-    layout.first.kind === "pane" &&
-    preferredChat(layout.first.sessionId)
-  ) {
-    const { sessionId } = layout.first;
-    return dockSplit(
-      "horizontal",
-      dockGroup(sessionId),
-      dockSplit("vertical", code(sessionId), visit(layout.second), 0.68),
-      1 - codeRatio,
-    );
-  }
   return visit(layout);
 }

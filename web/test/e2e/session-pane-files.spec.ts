@@ -20,10 +20,11 @@ test("browse before reading and compare files without replacing the session", as
   await tree.getByRole("button", { name: "first.txt", exact: true }).click();
   await expect(readers).toContainText("Contents of first.txt");
   if (testInfo.project.use.isMobile) {
-    await readers
-      .getByRole("button", { name: "文件导航", exact: true })
-      .click();
+    await readers.getByRole("button", { name: "返回", exact: true }).click();
     await expect(tree).toBeVisible();
+    await tree.getByRole("button", { name: "返回", exact: true }).click();
+    await expect(page.locator(".split-terminal")).toBeVisible();
+    await expect(page.locator(".xterm-helper-textarea")).not.toBeFocused();
     return;
   }
   await tree

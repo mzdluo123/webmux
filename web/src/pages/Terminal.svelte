@@ -156,7 +156,6 @@
     layout
       ? sessionDockTree(
           layout,
-          (sid) => (info[sid] ?? feed.byId.get(sid))?.view === "chat",
           (availableFeatures?.code?.codePanelState.size() ?? 50) / 100,
         )
       : dockGroup(),

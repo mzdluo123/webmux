@@ -136,8 +136,15 @@
     const key = `${ws.s.context.contextId}:${opaqueId}:worktree`;
     const anchor = groups.has(lastGroup) ? panelId(lastGroup) : id;
     const group = ++nextGroup;
-    const failure = await openFile(path, opaqueId);
-    if (failure || !ws.mounted || !ws.s.tabs.some((tab) => tab.key === key))
+    const opening = openFile(path, opaqueId);
+    const intent = ws.selectionSequence;
+    const failure = await opening;
+    if (
+      failure ||
+      !ws.mounted ||
+      intent !== ws.selectionSequence ||
+      !ws.s.tabs.some((tab) => tab.key === key)
+    )
       return;
     assignment[key] = group;
     selected[group] = key;
