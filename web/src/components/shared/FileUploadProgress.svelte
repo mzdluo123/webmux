@@ -35,23 +35,27 @@
 >
   <div class="flex items-center gap-3 text-xs" role="status">
     <span class="min-w-0 flex-1 truncate"
-      >{progress.waiting
-        ? progress.total > 1
-          ? m.s1_upload_waiting_terminal_batch({
-              name: progress.name,
-              index: progress.index,
-              total: progress.total,
-            })
-          : m.s1_upload_waiting_terminal({ name: progress.name })
-        : progress.total > 1
-          ? m.s1_uploading_file_batch({
-              name: progress.name,
-              index: progress.index,
-              total: progress.total,
-            })
-          : m.s1_uploading_file({ name: progress.name })}</span
+      >{progress.scanning
+        ? m.s1_scanning_folder({ name: progress.name })
+        : progress.waiting
+          ? progress.total > 1
+            ? m.s1_upload_waiting_terminal_batch({
+                name: progress.name,
+                index: progress.index,
+                total: progress.total,
+              })
+            : m.s1_upload_waiting_terminal({ name: progress.name })
+          : progress.total > 1
+            ? m.s1_uploading_file_batch({
+                name: progress.name,
+                index: progress.index,
+                total: progress.total,
+              })
+            : m.s1_uploading_file({ name: progress.name })}</span
     >
-    <span class="shrink-0 tabular-nums">{progress.percent}%</span>
+    {#if !progress.scanning}<span class="shrink-0 tabular-nums"
+        >{progress.percent}%</span
+      >{/if}
     <Button variant="ghost" size="sm" class="shrink-0" onclick={cancel}
       >{m.s1_cancel()}</Button
     >
@@ -59,7 +63,7 @@
   <progress
     aria-label={m.s1_file_upload_progress()}
     max={100}
-    value={progress.percent}
+    value={progress.scanning ? undefined : progress.percent}
     class="block h-1 w-full accent-primary"
   ></progress>
 </div>

@@ -6,6 +6,7 @@
   import CodeFileTree from "./CodeFileTree.svelte";
   import CodeFileActions, { type FileTarget } from "./CodeFileActions.svelte";
   import { attachFileDrop } from "../../hooks/shared/file-drop";
+  import { captureDroppedSource } from "../../platform/upload-entries";
   import { longPress } from "../../hooks/shared/long-press";
   import CodeChangesList from "./CodeChangesList.svelte";
   import {
@@ -159,22 +160,16 @@
   }
   async function receive(transfer: DataTransfer, into: FileTarget) {
     // Entries can only be read while the drop event is dispatched.
-    const folder = [...transfer.items].some(
-      (item) => item.webkitGetAsEntry()?.isDirectory,
-    );
-    const files = [...transfer.files];
+    const source = captureDroppedSource(transfer);
     if (!actions) return;
-    const refusal =
-      folder && context?.writableAvailable
-        ? m.s5_folder_upload_unsupported()
-        : actions.uploadRefusal();
+    const refusal = actions.uploadRefusal();
     if (refusal) {
       actions.refuse(refusal);
       dropStatus = refusal;
       return;
     }
     dropStatus = "";
-    dropStatus = await actions.upload(files, into);
+    dropStatus = await actions.uploadSource(source, into);
   }
   $effect(() => {
     const host = dropHost;

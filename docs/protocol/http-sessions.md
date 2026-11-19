@@ -21,7 +21,8 @@
 | GET    | `/api/sessions/{id}/output`      | 分页读取原始保留字节，见下文；不附着终端、不触发重绘                                             |
 | GET    | `/api/sessions/{id}/buffer`      | 下载完整原始缓冲（`application/octet-stream`）                                                   |
 | GET    | `/api/sessions/{id}/upload`      | 读取本会话已上传的单个文件（`?path=`），见下文                                                   |
-| POST   | `/api/sessions/{id}/upload`      | 上传文件，见下文                                                                                 |
+| POST   | `/api/sessions/{id}/upload`      | 上传文件（可选 `?dir=` 指定 `uploads/` 内已创建的相对子目录），见下文                            |
+| POST   | `/api/sessions/{id}/uploads/dir` | 在本会话 `uploads/` 内创建上传目录，201 `{path, relativePath}`，见下文                           |
 | POST   | `/api/uploads`                   | 创建会话前暂存附件，201 `{path}`，见 [创建会话](http-session-create.md#创建前的上传与选项探测)   |
 | POST   | `/api/sessions/{id}/artifacts`   | 确保会话临时文件夹存在，200 `{path}`，见下文                                                     |
 | GET    | `/api/sessions/{id}/details`     | 会话详情 `SessionDetails`，见下文；不存在 404                                                    |
@@ -165,8 +166,9 @@
 - TCP 上不含版本、主机、路径或任何会话信息；本机套接字上在摘要后列出本实例的版本、可执行文件与套接字路径。
 - 本机套接字上，`/llms.txt` 与 `/llms-full.txt` 还按对端进程（与父会话记录相同的判定）指出调用者所在的会话，在“本实例”清单里多一行“本会话 ID”；调用者不在任何会话内、或会话已不存在时省略该行。判定不创建临时文件夹，`/llms/<主题>.md` 不随调用者变化。
 
-**上传**：`multipart/form-data`，恰好一个文件字段 `file`。成功返回 201 `{"path": "<服务器绝对路径>"}`。
+**上传**：`multipart/form-data`，恰好一个文件字段 `file`；可选查询参数 `?dir=<相对子目录>` 指定写入会话 `uploads/` 内已创建的相对子目录（拒绝路径穿越与符号链接）。成功返回 201 `{"path": "<服务器绝对路径>"}`。
 
+- `POST /api/sessions/{id}/uploads/dir` 接收 `{"name": "<目录名>", "parent"?: "<相对父目录>"}`，在 `uploads/` 内创建权限 0700 的目录，同名时追加 ` (2)` 等序号而不覆盖，返回 201 `{"path": "<服务器绝对路径>", "relativePath": "<相对路径>"}`。
 - 文件位于会话临时文件夹的 `uploads/` 中，同名时追加 ` (2)` 等序号而不覆盖。
 - 单文件上限 100 MiB（超限 413），读期限 5 分钟（超时 408）。
 - 无效请求 400，会话不存在 404，会话已退出 409，临时文件夹不可用 503。

@@ -161,6 +161,12 @@
         })),
       ];
     },
+    async uploadSource(source) {
+      const files = source.items
+        .filter((item) => item.kind === "file")
+        .map((item) => item.file);
+      await chatUploads.uploadFiles(files);
+    },
     filePaste() {
       return false;
     },

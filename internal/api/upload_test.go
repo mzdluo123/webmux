@@ -664,3 +664,103 @@ func TestUploadCancellationRemovesPartialFile(t *testing.T) {
 		t.Fatalf("missing cancellation context: %s", w.Body.String())
 	}
 }
+
+func TestUploadFolderTreePreservesHierarchyAndRejectsTraversal(t *testing.T) {
+	handler, manager, item, _, uploads := uploadAPI(t)
+
+	postDir := func(payload string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, "http://webmux.example/api/sessions/"+item.Info().ID+"/uploads/dir", strings.NewReader(payload))
+		r.Header.Set("Authorization", "Bearer secret")
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		return w
+	}
+
+	// Create top-level folder and a duplicate to verify collision suffixing.
+	w := postDir(`{"name":"design"}`)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create root dir status %d: %s", w.Code, w.Body.String())
+	}
+	var rootRes struct {
+		Path         string `json:"path"`
+		RelativePath string `json:"relativePath"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &rootRes); err != nil {
+		t.Fatal(err)
+	}
+	if rootRes.RelativePath != "design" || rootRes.Path != filepath.Join(uploads, "design") {
+		t.Fatalf("root dir = %+v", rootRes)
+	}
+
+	wDup := postDir(`{"name":"design"}`)
+	if wDup.Code != http.StatusCreated {
+		t.Fatalf("duplicate dir status %d: %s", wDup.Code, wDup.Body.String())
+	}
+	var dupRes struct {
+		Path         string `json:"path"`
+		RelativePath string `json:"relativePath"`
+	}
+	if err := json.Unmarshal(wDup.Body.Bytes(), &dupRes); err != nil {
+		t.Fatal(err)
+	}
+	if dupRes.RelativePath != "design (2)" {
+		t.Fatalf("duplicate dir = %+v", dupRes)
+	}
+
+	// Create nested directory and upload a file into it.
+	wSub := postDir(`{"name":"assets","parent":"design"}`)
+	if wSub.Code != http.StatusCreated {
+		t.Fatalf("create sub dir status %d: %s", wSub.Code, wSub.Body.String())
+	}
+	body, ct := uploadBody(t, "logo.txt", []byte("nested-data"), "")
+	req := uploadRequest(item, bytes.NewReader(body), ct)
+	req.URL.RawQuery = url.Values{"dir": {"design/assets"}}.Encode()
+	wFile := httptest.NewRecorder()
+	handler.ServeHTTP(wFile, req)
+	if wFile.Code != http.StatusCreated {
+		t.Fatalf("nested file upload status %d: %s", wFile.Code, wFile.Body.String())
+	}
+	var fileRes struct {
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(wFile.Body.Bytes(), &fileRes); err != nil {
+		t.Fatal(err)
+	}
+	wantPath := filepath.Join(uploads, "design", "assets", "logo.txt")
+	if fileRes.Path != wantPath {
+		t.Fatalf("nested file path = %q, want %q", fileRes.Path, wantPath)
+	}
+	if data, err := os.ReadFile(wantPath); err != nil || string(data) != "nested-data" {
+		t.Fatalf("nested file content = %q, %v", data, err)
+	}
+
+	// Traversal attempts are rejected with 400.
+	if wBad := postDir(`{"name":".."}`); wBad.Code != http.StatusBadRequest {
+		t.Fatalf("bad dir name status %d, want 400", wBad.Code)
+	}
+	if wBad := postDir(`{"name":"child","parent":"../escape"}`); wBad.Code != http.StatusBadRequest {
+		t.Fatalf("bad parent status %d, want 400", wBad.Code)
+	}
+	badBody, badCT := uploadBody(t, "a.txt", []byte("x"), "")
+	badReq := uploadRequest(item, bytes.NewReader(badBody), badCT)
+	badReq.URL.RawQuery = url.Values{"dir": {"../escape"}}.Encode()
+	wBadFile := httptest.NewRecorder()
+	handler.ServeHTTP(wBadFile, badReq)
+	if wBadFile.Code != http.StatusBadRequest {
+		t.Fatalf("bad upload dir status %d, want 400", wBadFile.Code)
+	}
+
+	// Exited session rejects directory creation with 409.
+	if err := manager.Close(item.Info().ID); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-item.Done():
+	case <-time.After(7 * time.Second):
+		t.Fatal("session did not exit")
+	}
+	if wExited := postDir(`{"name":"after-exit"}`); wExited.Code != http.StatusConflict {
+		t.Fatalf("exited dir status %d, want 409", wExited.Code)
+	}
+}

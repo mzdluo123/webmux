@@ -373,6 +373,14 @@ export const ErrorSchema = z.object({
   notPersisted: z.boolean().optional(),
 });
 export const UploadSchema = z.object({ path: z.string().startsWith("/") });
+export const UploadDirRequestSchema = z.strictObject({
+  name: z.string().min(1),
+  parent: z.string().optional(),
+});
+export const UploadDirResultSchema = z.object({
+  path: z.string().startsWith("/"),
+  relativePath: z.string().min(1),
+});
 export const ArtifactsFolderSchema = z.object({
   path: z.string().startsWith("/"),
 });

@@ -38,6 +38,7 @@ import {
 import { RelayAuthReasonSchema } from "../contracts/relay-schemas";
 import { store, stored } from "./storage";
 import { currentTransport, TransportUploadError } from "./transport";
+import { ensureReadableFile } from "./upload-entries";
 import { resolveWorktreeUpstream } from "./worktree-upstream";
 
 export { store, stored };
@@ -187,9 +188,11 @@ export function uploadFile(
   file: File,
   progress: (percent: number) => void,
   signal: AbortSignal,
+  dir?: string,
 ): Promise<z.infer<typeof UploadSchema>> {
+  const query = dir ? `?${new URLSearchParams({ dir })}` : "";
   return uploadForm(
-    `/sessions/${id}/upload`,
+    `/sessions/${id}/upload${query}`,
     file,
     UploadSchema,
     progress,
@@ -230,7 +233,10 @@ export async function uploadForm<T extends z.ZodType>(
       onProgress: progress,
     });
   } catch (err) {
-    if (err instanceof TransportUploadError) throw new APIError(0, err.message);
+    if (err instanceof TransportUploadError) {
+      if (err.kind === "network") await ensureReadableFile(file);
+      throw new APIError(0, err.message);
+    }
     throw err;
   }
   if (result.status < 200 || result.status >= 300)

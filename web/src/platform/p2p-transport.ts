@@ -272,7 +272,21 @@ export function createP2PTransport(
       const headers: Record<string, string> = {
         Authorization: "Bearer " + request.token,
       };
-      const body = await serializeBody(request.form, headers);
+      let body: Uint8Array<ArrayBuffer>;
+      try {
+        body = await serializeBody(request.form, headers);
+      } catch (err) {
+        if (request.signal.aborted) {
+          throw new DOMException(m.s1_upload_cancelled(), "AbortError");
+        }
+        const raw = request.form.get("file");
+        if (raw instanceof File) {
+          throw new Error(m.s1_upload_file_unreadable({ name: raw.name }), {
+            cause: err,
+          });
+        }
+        throw new TransportUploadError("network");
+      }
       if (request.signal.aborted) {
         throw new DOMException(m.s1_upload_cancelled(), "AbortError");
       }

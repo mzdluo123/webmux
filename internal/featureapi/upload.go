@@ -30,7 +30,8 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		failure(w, http.StatusConflict, errors.New("cannot upload to an exited session"))
 		return
 	}
-	upload, received := s.storeUpload(w, r, func() (string, error) { return s.Artifacts.EnsureUploads(item.Info().ID) })
+	relDir := r.URL.Query().Get("dir")
+	upload, received := s.storeUploadIn(w, r, func() (string, error) { return s.Artifacts.EnsureUploads(item.Info().ID) }, relDir)
 	if received && item.Info().Status == session.StatusExited {
 		failure(w, http.StatusConflict, errors.New("session exited during upload"))
 		received = false
@@ -44,9 +45,49 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 	reply(w, http.StatusCreated, contract.UploadResult{Path: upload.Path})
 }
 
+// uploadDir creates one private directory inside a running session's uploads/
+// folder so dropped folders can preserve their tree structure.
+func (s *Server) uploadDir(w http.ResponseWriter, r *http.Request) {
+	item := s.find(w, r)
+	if item == nil {
+		return
+	}
+	if item.Info().Status == session.StatusExited {
+		failure(w, http.StatusConflict, errors.New("cannot upload to an exited session"))
+		return
+	}
+	var req contract.UploadDirRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	folder, err := s.Artifacts.EnsureUploads(item.Info().ID)
+	if err != nil {
+		artifactsFailure(w, err)
+		return
+	}
+	dir, err := s.Files.CreateUploadDir(folder, req.Parent, req.Name)
+	if err != nil {
+		filesFailure(w, err)
+		return
+	}
+	if item.Info().Status == session.StatusExited {
+		dir.Discard()
+		failure(w, http.StatusConflict, errors.New("session exited during upload"))
+		return
+	}
+	reply(w, http.StatusCreated, contract.UploadDirResult{
+		Path:         dir.Path,
+		RelativePath: dir.RelativePath,
+	})
+}
+
 // storeUpload receives one file into the folder dir returns, answering
 // every failure. The caller discards the file when it reports false.
 func (s *Server) storeUpload(w http.ResponseWriter, r *http.Request, dir func() (string, error)) (*files.Upload, bool) {
+	return s.storeUploadIn(w, r, dir, "")
+}
+
+func (s *Server) storeUploadIn(w http.ResponseWriter, r *http.Request, dir func() (string, error), relDir string) (*files.Upload, bool) {
 	var upload *files.Upload
 	received := receiveUpload(w, r, func(filename string, src io.Reader) bool {
 		folder, err := dir()
@@ -54,7 +95,7 @@ func (s *Server) storeUpload(w http.ResponseWriter, r *http.Request, dir func() 
 			artifactsFailure(w, err)
 			return false
 		}
-		upload, err = s.Files.StoreUpload(folder, filename, src, maxUploadBytes)
+		upload, err = s.Files.StoreUploadIn(folder, relDir, filename, src, maxUploadBytes)
 		if err != nil {
 			filesFailure(w, err)
 			return false

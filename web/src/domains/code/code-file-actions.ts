@@ -1,6 +1,6 @@
 import type { Component } from "svelte";
 import { m } from "$lib/paraglide/messages.js";
-import { api, apiBlob, uploadForm } from "../../platform/api";
+import { api, apiBlob } from "../../platform/api";
 import { saveBlob } from "../../platform/download";
 import { formatBytes, rawError } from "./code-image";
 import {
@@ -334,49 +334,6 @@ export async function downloadCodeNode(input: {
     if (!input.signal.aborted) input.onError(rawError(e, "download"));
   } finally {
     input.onDone();
-  }
-}
-
-export async function uploadCodeFilesBatch(input: {
-  base: string;
-  contextId: string;
-  into: FileTarget;
-  files: File[];
-  signal: AbortSignal;
-  onProgress: (progress: {
-    name: string;
-    percent: number;
-    index: number;
-    total: number;
-    waiting: boolean;
-  }) => void;
-  onCleanup: (storedCount: number) => void;
-}): Promise<string> {
-  const stored: string[] = [];
-  try {
-    for (const [index, file] of input.files.entries()) {
-      const current = {
-        name: file.name,
-        percent: 0,
-        index: index + 1,
-        total: input.files.length,
-        waiting: false,
-      };
-      input.onProgress(current);
-      const result = await uploadForm(
-        `${input.base}/upload?${buildCodeNodeQuery(input.contextId, input.into)}`,
-        file,
-        CodeMutationSchema,
-        (percent) => input.onProgress({ ...current, percent }),
-        input.signal,
-      );
-      stored.push(...result.nodes.map((n) => n.name));
-    }
-    return m.s5_uploaded_files({
-      names: stored.join(m.s5_list_separator()),
-    });
-  } finally {
-    input.onCleanup(stored.length);
   }
 }
 

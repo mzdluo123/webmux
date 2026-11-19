@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"unicode"
 
 	"github.com/rainchan/webmux/internal/pathutil"
@@ -94,6 +94,15 @@ type Upload struct {
 // Discard deletes the uploaded file, leaving its directory's other files.
 func (u *Upload) Discard() { _ = os.Remove(u.Path) }
 
+// UploadDir is a created directory inside a session's uploads folder.
+type UploadDir struct {
+	Path         string
+	RelativePath string
+}
+
+// Discard removes the empty directory when a request is aborted before reply.
+func (d *UploadDir) Discard() { _ = os.Remove(d.Path) }
+
 // uploadFilename reduces a client-supplied filename to its base name and
 // refuses control characters and names that do not name a file.
 func uploadFilename(name string) (string, error) {
@@ -108,7 +117,131 @@ func uploadFilename(name string) (string, error) {
 	if name == "" || name == "." || name == ".." || name == string(filepath.Separator) {
 		return "", fail(ErrInvalid, errors.New("upload filename must name a file"))
 	}
+	if len(name) > pathutil.MaxNameBytes {
+		return "", fail(ErrInvalid, fmt.Errorf("upload filename exceeds %d bytes", pathutil.MaxNameBytes))
+	}
 	return name, nil
+}
+
+// uploadDirSegment validates one directory name segment inside uploads/.
+func uploadDirSegment(name string) (string, error) {
+	if name == "" || name == "." || name == ".." {
+		return "", fail(ErrInvalid, errors.New("upload directory name must name a directory"))
+	}
+	if strings.ContainsAny(name, `/\`) {
+		return "", fail(ErrInvalid, errors.New("upload directory name must not contain path separators"))
+	}
+	if len(name) > pathutil.MaxNameBytes {
+		return "", fail(ErrInvalid, fmt.Errorf("upload directory name exceeds %d bytes", pathutil.MaxNameBytes))
+	}
+	for _, ch := range name {
+		if unicode.IsControl(ch) {
+			return "", fail(ErrInvalid, errors.New("upload directory name contains an unsafe control character"))
+		}
+	}
+	return name, nil
+}
+
+// parseUploadRelDir splits a relative directory path inside uploads/ into
+// validated single segments, refusing empty, traversal, or backslash paths.
+func parseUploadRelDir(rel string) ([]string, error) {
+	if strings.Contains(rel, `\`) || strings.HasPrefix(rel, "/") || strings.HasSuffix(rel, "/") {
+		return nil, fail(ErrInvalid, errors.New("invalid upload directory path"))
+	}
+	parts := strings.Split(rel, "/")
+	for _, seg := range parts {
+		if _, err := uploadDirSegment(seg); err != nil {
+			return nil, err
+		}
+	}
+	return parts, nil
+}
+
+// openUploadSubdir walks rel segment by segment inside root, refusing
+// symlinks and non-directories at every step.
+func openUploadSubdir(root *os.Root, rel string) (*os.Root, string, error) {
+	parts, err := parseUploadRelDir(rel)
+	if err != nil {
+		return nil, "", err
+	}
+	cur := root
+	var owned *os.Root
+	for _, seg := range parts {
+		info, err := cur.Lstat(seg)
+		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			if owned != nil {
+				_ = owned.Close()
+			}
+			return nil, "", fail(ErrInvalid, errors.New("upload directory not found"))
+		}
+		next, err := cur.OpenRoot(seg)
+		if owned != nil {
+			_ = owned.Close()
+		}
+		if err != nil {
+			return nil, "", fail(ErrInvalid, errors.New("upload directory not found"))
+		}
+		cur = next
+		owned = next
+	}
+	return owned, path.Join(parts...), nil
+}
+
+// CreateUploadDir creates a private (0700) directory named name under baseDir
+// (or its relative subdirectory parentRel). A taken name gets the smallest
+// free " (n)" suffix; no existing entry is ever replaced.
+func (s *Service) CreateUploadDir(baseDir, parentRel, name string) (*UploadDir, error) {
+	clean, err := uploadDirSegment(name)
+	if err != nil {
+		return nil, err
+	}
+	root, err := os.OpenRoot(baseDir)
+	if err != nil {
+		return nil, failf(ErrInternal, "open upload directory: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+
+	target := root
+	cleanParent := ""
+	if parentRel != "" {
+		sub, rel, err := openUploadSubdir(root, parentRel)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = sub.Close() }()
+		target = sub
+		cleanParent = rel
+	}
+
+	placed, err := createUniqueDirInRoot(target, clean)
+	if err != nil {
+		return nil, err
+	}
+	rel := placed
+	if cleanParent != "" {
+		rel = cleanParent + "/" + placed
+	}
+	return &UploadDir{
+		Path:         filepath.Join(baseDir, filepath.FromSlash(rel)),
+		RelativePath: rel,
+	}, nil
+}
+
+func createUniqueDirInRoot(target *os.Root, name string) (string, error) {
+	for n := 1; n <= pathutil.MaxNameAttempts; n++ {
+		candidate := pathutil.SuffixedName(name, n)
+		if len(candidate) > pathutil.MaxNameBytes {
+			return "", fail(ErrInvalid, fmt.Errorf("upload directory name exceeds %d bytes", pathutil.MaxNameBytes))
+		}
+		err := target.Mkdir(candidate, 0o700)
+		if err == nil {
+			return candidate, nil
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return "", failf(ErrInternal, "create upload directory: %w", err)
+		}
+	}
+	return "", fail(ErrInternal, errors.New("too many uploaded directories share this name"))
 }
 
 // StoreUpload copies at most limit bytes of src into a new file in dir named
@@ -116,11 +249,36 @@ func uploadFilename(name string) (string, error) {
 // " (n)" suffix before its extension; no file is ever replaced. dir must be
 // a private directory the caller owns. On any error nothing is left behind.
 func (s *Service) StoreUpload(dir, filename string, src io.Reader, limit int64) (*Upload, error) {
+	return s.StoreUploadIn(dir, "", filename, src, limit)
+}
+
+// StoreUploadIn stores an uploaded file inside relDir under baseDir (or
+// directly in baseDir when relDir is empty), confining traversal to baseDir
+// and refusing symlinks.
+func (s *Service) StoreUploadIn(baseDir, relDir, filename string, src io.Reader, limit int64) (*Upload, error) {
 	name, err := uploadFilename(filename)
 	if err != nil {
 		return nil, err
 	}
-	file, path, err := createUnique(dir, name)
+	root, err := os.OpenRoot(baseDir)
+	if err != nil {
+		return nil, failf(ErrInternal, "open upload directory: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+
+	target := root
+	destDir := baseDir
+	if relDir != "" {
+		sub, cleanRel, err := openUploadSubdir(root, relDir)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = sub.Close() }()
+		target = sub
+		destDir = filepath.Join(baseDir, filepath.FromSlash(cleanRel))
+	}
+
+	file, path, err := createUniqueInRoot(target, destDir, name)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +291,7 @@ func (s *Service) StoreUpload(dir, filename string, src io.Reader, limit int64) 
 	}()
 	// Cleanup on failure; the successful write path checks Close below.
 	defer func() { _ = file.Close() }()
-	if err := file.Chmod(0600); err != nil {
+	if err := file.Chmod(0o600); err != nil {
 		return nil, failf(ErrInternal, "set uploaded file permissions: %w", err)
 	}
 	written, err := copyBounded(file, src, limit)
@@ -154,15 +312,18 @@ func (s *Service) StoreUpload(dir, filename string, src io.Reader, limit int64) 
 	return upload, nil
 }
 
-// createUnique exclusively creates name in dir, or name with the smallest
-// free " (n)" suffix (n >= 2) placed before the extension. A leading dot
-// alone (".env") is not an extension.
-func createUnique(dir, name string) (*os.File, string, error) {
+// createUniqueInRoot exclusively creates name in target, or name with the
+// smallest free " (n)" suffix (n >= 2) placed before the extension. A leading
+// dot alone (".env") is not an extension.
+func createUniqueInRoot(target *os.Root, dir, name string) (*os.File, string, error) {
 	for n := 1; n <= pathutil.MaxNameAttempts; n++ {
-		path := filepath.Join(dir, pathutil.SuffixedName(name, n))
-		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL|syscall.O_NOFOLLOW, 0600)
+		candidate := pathutil.SuffixedName(name, n)
+		if len(candidate) > pathutil.MaxNameBytes {
+			return nil, "", fail(ErrInvalid, fmt.Errorf("upload filename exceeds %d bytes", pathutil.MaxNameBytes))
+		}
+		file, err := target.OpenFile(candidate, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 		if err == nil {
-			return file, path, nil
+			return file, filepath.Join(dir, candidate), nil
 		}
 		if !errors.Is(err, os.ErrExist) {
 			return nil, "", failf(ErrInternal, "create uploaded file: %w", err)

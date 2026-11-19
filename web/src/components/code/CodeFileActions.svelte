@@ -22,10 +22,14 @@
     runNamingMutation,
     selectFileStem,
     toMenuAnchor,
-    uploadCodeFilesBatch,
     type CodeFileClipboard,
     type FileTarget,
   } from "../../domains/code/code-file-actions";
+  import { uploadCodeEntriesBatch } from "../../domains/code/code-upload";
+  import {
+    filesToDroppedSource,
+    type DroppedSource,
+  } from "../../platform/upload-entries";
   import { CodeContextSchema } from "../../contracts/schemas";
   import type { UploadProgress } from "../../hooks/shared/upload.svelte";
   import { Button } from "$lib/components/ui/button";
@@ -247,17 +251,17 @@
     );
   }
 
-  export async function upload(files: File[], into: FileTarget) {
-    if (!files.length) return "";
+  export async function uploadSource(source: DroppedSource, into: FileTarget) {
+    if (!source.items.length) return "";
     uploadController?.abort();
     const controller = new AbortController();
     uploadController = controller;
     await run(() =>
-      uploadCodeFilesBatch({
+      uploadCodeEntriesBatch({
         base,
         contextId: context?.contextId ?? "",
         into,
-        files,
+        source,
         signal: controller.signal,
         onProgress: (next) => (progress = next),
         onCleanup: (storedCount) => {
@@ -270,6 +274,10 @@
       }),
     );
     return error || notice;
+  }
+
+  export async function upload(files: File[], into: FileTarget) {
+    return uploadSource(filesToDroppedSource(files), into);
   }
 
   async function save(node: FileTarget, archive: boolean) {

@@ -17,6 +17,7 @@ class FakeXHR {
   upload: { onprogress: ((event: ProgressEvent) => void) | null } = {
     onprogress: null,
   };
+  url = "";
   status = 0;
   statusText = "";
   response: unknown;
@@ -27,7 +28,9 @@ class FakeXHR {
   onabort: (() => void) | null = null;
   ontimeout: (() => void) | null = null;
 
-  open() {}
+  open(_method: string, url: string) {
+    this.url = url;
+  }
   setRequestHeader() {}
   send() {
     FakeXHR.pending.push(this);
@@ -210,4 +213,119 @@ test("handles drag-and-drop and clipboard paste on the terminal host", async () 
   await expect.poll(() => FakeXHR.pending.length).toBe(2);
   ctx.upload.cancel();
   await expect.poll(() => ctx.upload.progress).toBeNull();
+});
+
+test("dropping a folder onto the terminal uploads its nested tree and inserts the folder path", async () => {
+  const createdDirs: { name: string; parent?: string }[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        name: string;
+        parent?: string;
+      };
+      createdDirs.push(body);
+      const rel = body.parent ? `${body.parent}/${body.name}` : body.name;
+      return Response.json(
+        { path: `/tmp/uploads/${rel}`, relativePath: rel },
+        { status: 201 },
+      );
+    }),
+  );
+
+  const ctx = setup();
+  await expect.poll(() => Boolean(ctx.host)).toBe(true);
+
+  const fileEntry = (name: string, text: string): FileSystemFileEntry => ({
+    isFile: true,
+    isDirectory: false,
+    name,
+    fullPath: `/${name}`,
+    filesystem: {} as FileSystem,
+    getParent: () => {},
+    file(success) {
+      success(new File([text], name, { type: "text/plain" }));
+    },
+  });
+  const dirEntry = (
+    name: string,
+    children: FileSystemEntry[],
+  ): FileSystemDirectoryEntry => ({
+    isFile: false,
+    isDirectory: true,
+    name,
+    fullPath: `/${name}`,
+    filesystem: {} as FileSystem,
+    getParent: () => {},
+    getFile: () => {},
+    getDirectory: () => {},
+    createReader() {
+      let done = false;
+      return {
+        readEntries(success) {
+          if (done) return success([]);
+          done = true;
+          success(children);
+        },
+      };
+    },
+  });
+
+  const folder = dirEntry("specs", [
+    fileEntry("a.md", "hello"),
+    dirEntry("sub", [fileEntry("b.md", "world")]),
+    dirEntry("empty", []),
+  ]);
+  const event = new Event("drop", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "dataTransfer", {
+    value: {
+      types: ["Files"],
+      items: [{ kind: "file", webkitGetAsEntry: () => folder }],
+      files: [],
+    },
+  });
+  ctx.host.dispatchEvent(event);
+
+  await expect.poll(() => FakeXHR.pending.length).toBe(1);
+  expect(FakeXHR.pending[0]?.url).toContain("dir=specs");
+  finish("/tmp/uploads/specs/a.md");
+
+  await expect.poll(() => FakeXHR.pending.length).toBe(2);
+  expect(FakeXHR.pending[1]?.url).toContain("dir=specs%2Fsub");
+  finish("/tmp/uploads/specs/sub/b.md");
+
+  await expect.poll(() => ctx.inserted.length).toBe(1);
+  expect(createdDirs).toEqual([
+    { name: "specs" },
+    { name: "empty", parent: "specs" },
+    { name: "sub", parent: "specs" },
+  ]);
+  expect(ctx.inserted).toEqual(["'/tmp/uploads/specs' "]);
+  expect(ctx.errors.filter(Boolean)).toEqual([]);
+});
+
+test("an unreadable file handle reports a local read error instead of a network error", async () => {
+  const ctx = setup();
+  await expect.poll(() => Boolean(ctx.upload)).toBe(true);
+
+  const unreadable = new File([], "broken-folder");
+  vi.spyOn(unreadable, "slice").mockReturnValue({
+    arrayBuffer: () =>
+      Promise.reject(
+        new DOMException(
+          "The requested file could not be read",
+          "NotReadableError",
+        ),
+      ),
+  } as unknown as Blob);
+
+  const promise = ctx.upload.uploadFiles([unreadable]);
+  await expect.poll(() => FakeXHR.pending.length).toBe(1);
+  FakeXHR.pending[0]?.onerror?.();
+  await promise;
+
+  expect(ctx.errors.at(-1)).toBe(
+    "无法读取文件 broken-folder（可能是文件夹或无访问权限）",
+  );
+  expect(ctx.inserted).toEqual([]);
 });
