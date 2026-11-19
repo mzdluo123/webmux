@@ -471,9 +471,6 @@ Section "Uninstall"
   ${If} $2 != 0
     MessageBox MB_OK|MB_ICONINFORMATION "未删除 WebMux 添加的 Windows 防火墙规则。$\r$\n$\r$\n可在“高级安全 Windows Defender 防火墙”的入站规则中删除以“WebMux tray forwarding”开头的规则。" /SD IDOK
   ${EndIf}
-  ${If} $2 != 0
-    MessageBox MB_OK|MB_ICONINFORMATION "未删除 WebMux 添加的 Windows 防火墙规则。$\r$\n$\r$\n可在“高级安全 Windows Defender 防火墙”的入站规则中删除以“WebMux tray forwarding”开头的规则。" /SD IDOK
-  ${EndIf}
 
   ReadRegStr $1 HKCU "${RUN_KEY}" "${RUN_VALUE}"
   ${If} $1 == '"$INSTDIR\webmux-tray.exe"'
