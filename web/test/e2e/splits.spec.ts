@@ -49,14 +49,14 @@ test("docking, peeking and pinning retain a running terminal and its layout", as
 
   const header = root.locator("[draggable=true]");
   const box = (await anchor.boundingBox())!;
-  await header.dragTo(anchor, {
+  await root.locator(".terminal-header .status-dot").dragTo(anchor, {
     targetPosition: { x: box.width / 2, y: box.height - 10 },
   });
   await expect
     .poll(async () => (await root.boundingBox())!.y)
     .toBeGreaterThan((await anchor.boundingBox())!.y + 100);
   const placed = await root.boundingBox();
-  await header.dblclick();
+  await header.locator(".dock-title-space").dblclick();
   await expect(anchor).toBeHidden();
   await expect(root).toHaveAccessibleName(/.+/);
   const name = (await root.getAttribute("aria-label"))!;

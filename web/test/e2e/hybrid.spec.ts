@@ -133,7 +133,7 @@ test("inspecting a terminal panel does not change its hybrid input view or disca
   const pane = page.locator(`[data-dock-panel="${id}"]`);
   await expect(pane.getByRole("textbox", { name: "消息" })).toBeVisible();
   if (!project.use.isMobile) {
-    await pane.locator("[draggable=true]").dblclick();
+    await pane.locator(".dock-title-space").dblclick();
     await pane.getByRole("button", { name: /还原.*布局/ }).click();
   }
   const state = await (await request.get(`/api/sessions/${id}`)).json();

@@ -95,7 +95,26 @@
       onactivate?.();
     }}
   >
-    <div class="dock-title">
+    <div
+      class="dock-title"
+      role="presentation"
+      draggable={canMove}
+      ondblclick={(event) => {
+        if (
+          !peeked &&
+          event.target instanceof Element &&
+          !event.target.closest("button, input, a, [role=tab]")
+        )
+          dock.toggleZoom(id);
+      }}
+      ondragstart={(event) => {
+        if (!canMove || !event.dataTransfer) return;
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", title);
+        dock.drag(id);
+      }}
+      ondragend={() => dock.drag(undefined)}
+    >
       {#if compact && dock.canGoBack()}
         <Button
           size="icon-sm"
@@ -124,20 +143,7 @@
         </div>
       {/if}
       {#if header}{@render header()}{/if}
-      <div
-        class="dock-title-space"
-        class:with-header={!!header}
-        role="presentation"
-        draggable={canMove}
-        ondblclick={peeked ? undefined : () => dock.toggleZoom(id)}
-        ondragstart={(event) => {
-          if (!canMove || !event.dataTransfer) return;
-          event.dataTransfer.effectAllowed = "move";
-          event.dataTransfer.setData("text/plain", title);
-          dock.drag(id);
-        }}
-        ondragend={() => dock.drag(undefined)}
-      >
+      <div class="dock-title-space" class:with-header={!!header}>
         {#if !header && !showTabs}<span class="truncate" {title}>{title}</span
           >{/if}
       </div>
@@ -269,7 +275,8 @@
     flex: 0 0 1rem;
     padding: 0;
   }
-  .dock-title-space[draggable="true"] {
+  .dock-title[draggable="true"] {
+    user-select: none;
     cursor: grab;
   }
 </style>
