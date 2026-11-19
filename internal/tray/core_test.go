@@ -292,7 +292,7 @@ func TestPlanForward(t *testing.T) {
 		{Name: "WAN", Up: true, Addrs: []net.IP{net.ParseIP("203.0.113.5")}},
 		{Name: "Ethernet 2", Up: false, Addrs: []net.IP{net.ParseIP("10.0.0.5")}},
 	}
-	candidates := []Candidate{{"100.64.0.9", "Tailscale", "tailscale"}, {"192.168.1.20", "Wi-Fi", "lan"}}
+	candidates := []Candidate{{Address: "100.64.0.9", Interface: "Tailscale", Kind: "tailscale"}, {Address: "192.168.1.20", Interface: "Wi-Fi", Kind: "lan"}}
 	if got := WindowsCandidates(ifaces); !reflect.DeepEqual(got, candidates) {
 		t.Fatalf("candidates %+v", got)
 	}

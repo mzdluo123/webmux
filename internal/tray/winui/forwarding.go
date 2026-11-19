@@ -33,14 +33,23 @@ func newRelays(logf func(string, ...any)) *relays {
 }
 
 // windowsInterfaces lists the host's interfaces for tray.PlanForward.
-func windowsInterfaces() []tray.WinInterface {
+func (a *App) windowsInterfaces(withCategories bool) []tray.WinInterface {
+	var cats map[string]tray.NetworkCategory
+	if withCategories && a.o.AdapterCategories != nil {
+		cats = a.o.AdapterCategories()
+	}
 	list, err := net.Interfaces()
 	if err != nil {
 		return nil
 	}
 	out := make([]tray.WinInterface, 0, len(list))
 	for _, iface := range list {
-		w := tray.WinInterface{Name: iface.Name, Up: iface.Flags&net.FlagUp != 0, Loopback: iface.Flags&net.FlagLoopback != 0}
+		w := tray.WinInterface{
+			Name:     iface.Name,
+			Up:       iface.Flags&net.FlagUp != 0,
+			Loopback: iface.Flags&net.FlagLoopback != 0,
+			Category: cats[iface.Name],
+		}
 		addrs, _ := iface.Addrs()
 		for _, addr := range addrs {
 			if ipnet, ok := addr.(*net.IPNet); ok {

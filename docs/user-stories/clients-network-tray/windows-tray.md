@@ -54,13 +54,16 @@
   - 独立从 Windows 回环地址检查可达性，不带 token 且不走系统代理；
   - 故障时提示 localhostForwarding/networkingMode；
   - 不把 WSL 内健康等同于 Windows 浏览器可达。
-- **US-O08 允许局域网访问与转发可信远程地址**：作为 Windows 使用者，我希望通过托盘的“允许局域网访问”开关控制 WSL 服务是否向局域网与 Tailscale 开放，以便从手机或其他设备继续操作。
+- **US-O08 允许局域网访问与转发可信远程地址**：作为 Windows 使用者，我希望通过托盘的“允许局域网访问”开关控制 WSL 服务是否向局域网与 Tailscale 开放，并在开启及运行期间看到防火墙与网络类型状态并能一键修复放行规则，以便从手机或其他设备顺畅连接。
   验收要点：
   - 开关默认关闭（`127.0.0.1:7681`），切换时通过 `webmux config listen` 修改 WSL `config.toml` 的 `listen`（开启为 `0.0.0.0:<端口>`，关闭为 `127.0.0.1:<端口>`）并自动重启托盘托管的 WebMux；
   - NAT 模式下开启时自动把当前所有可用 Windows 候选地址（Tailscale 地址优先展示）转发到本机链接，仅在服务健康、配置 token 且 Windows 可达时监听，条件失效暂停、恢复后继续；
   - 转发 HTTP 与 WebSocket 并按请求 `Host` 校验同源 `Origin`，不限制请求 `Host`，支持任意 IP 或主机名（如 Tailscale MagicDNS）；
   - 退出托盘即停止本机转发；
-  - 托盘运行时不修改防火墙；安装版可在安装时添加专用网络与域网络的放行规则（US-O12），公用网络或未添加规则时由 Windows 原生提示处理。
+  - 无需管理员权限且无控制台窗口地直接从 Windows 防火墙注册表规则存储（本机、组策略与 MDM）及 Network List Manager 只读检测当前 `webmux-tray.exe` 的专用/域允许规则属性、本机或策略阻止规则、`DoNotAllowExceptions` 状态及各候选网卡网络类别（专用/域/公用）；
+  - 开启“允许局域网访问”且需要启用 Windows 侧转发时，在绑定转发监听前检查防火墙：规则缺失/失效或存在本机入站阻止规则时弹窗说明，确认后通过单次 UAC（`firewall allow` 或带 `--clear-blocks`）配置或修复规则，避免重复触发 Windows 原生防火墙弹窗；
+  - 用户暂不配置、取消 UAC 或执行失败时仍完成开关切换，并在菜单保留状态提示与手动重试项，后台轮询期间保持静默提示；
+  - 转发开启期间在菜单打开与界面刷新时只读复查：缺少/失效规则或存在本机阻止规则时显示“放行 / 修复 Windows 防火墙…”（仅点击时触发 UAC），规则已有效而候选网卡处于公用网络（区分纯公用网络与专用+公用混合）或受系统策略拦截时显示具体网卡/策略提示及“防火墙与网络说明…”而不触发无效 UAC。
 - **US-O09 打开和复制受保护入口**：作为 Windows 使用者，我希望从托盘打开页面、在统一的“复制链接”子菜单中复制本机/远程/经托盘转发链接以及所有已就绪的远程访问入口（Cloudflare Tunnel、Tailscale Serve/Funnel 等）的域名链接，或复制 token，以便把访问入口带到另一设备。
   验收要点：
   - 操作时从 WSL 获取 token，不在 Windows 配置中保存；
@@ -90,9 +93,10 @@
   - `webmux-setup-windows-<架构>.exe` 按当前用户安装、安装本身不需要管理员，默认目录 `%LOCALAPPDATA%\Programs\WebMux`（可更改，升级沿用上次目录）；
   - 安装 `webmux-tray.exe`、开始菜单“WebMux”与“应用和功能”卸载项（名称、版本、发布者）；
   - “安装选项”页的“开机后自动启动 WebMux”默认勾选，写入与托盘菜单“登录时自动启动”相同的启动项；
-  - “安装选项”页的“允许其他设备通过托盘转发访问 WebMux”默认勾选：安装完成后弹出一次管理员确认，由 `webmux-tray.exe firewall allow` 为该托盘路径添加只适用于专用与域网络的入站 TCP 允许规则；规则已存在时不弹窗，取消或失败时安装照常完成并说明手工命令；
-  - 再次交互安装时该选项沿用上次的选择，取消勾选或改换安装目录时删除之前记录的规则；静默安装不弹管理员确认、不改动防火墙规则，自更新在原路径覆盖后规则继续有效；
-  - `webmux-tray.exe firewall allow|remove [路径]` 退出码：0 已是目标状态、1 失败、2 参数错误、3 取消确认；
+  - “安装选项”页的“允许其他设备通过托盘转发访问 WebMux”默认勾选：安装完成后弹出一次管理员确认，由 `webmux-tray.exe firewall allow` 为该托盘路径添加只适用于专用与域网络的入站 TCP 允许规则；规则已存在且有效时不弹窗，取消或失败时安装照常完成并说明可在托盘开启“允许局域网访问”时放行或手工执行命令；
+  - 安装版托盘运行期通过 `firewall allow` 成功放行时同步登记卸载项 `FirewallRule`；再次交互安装时默认沿用当前是否已登记规则，取消勾选或改换安装目录时删除之前记录的规则；
+  - 静默安装不弹管理员确认、不改动防火墙规则，自更新在原路径覆盖后规则继续有效；
+  - `webmux-tray.exe firewall allow [--clear-blocks]` 与 `firewall remove [路径]` 校验规则属性并在单次提权内修复失效规则（`--clear-blocks` 一并清理指向该托盘的本机入站阻止规则），退出码：0 已是目标状态、1 失败、2 参数错误、3 取消确认；
   - 预置同架构 Linux 服务端到托盘下载缓存，不访问或改动 WSL；
   - 安装包架构与 Windows 不符时提示正确的安装包并以退出码 2 退出，不写任何文件；
   - 覆盖安装先以 `quit` 关闭本用户托盘（WebMux 与会话保持），安装目录中的托盘 10 秒无响应才强制结束，其他位置不响应的托盘只提示用户退出并可重试，静默模式以退出码 3 结束且不写文件；
@@ -138,6 +142,7 @@ Windows 原生终端客户端复用 US-M01–US-M06：提供 run、attach、ls�
 
 - [Windows CLI](../../../cmd/webmux-windows/main_windows.go)、[WSL 桥接与路径](../../../internal/wslclient/)、[托盘服务与安装](../../../internal/tray/)
 - [托盘自更新](../../../internal/tray/selfupdate.go)、[安装版识别与启动安装程序](../../../internal/tray/traysys/install_windows.go)、[自动更新说明](../../deployment/updates.md)
+- [防火墙检测与规则管理](../../../internal/tray/traysys/firewall.go)、[网卡类别检测](../../../internal/tray/traysys/network_windows.go)、[托盘防火墙评估](../../../internal/tray/firewall.go)、[托盘防火墙交互](../../../internal/tray/winui/firewall.go)
 - [兼容判定](../../../internal/tray/compat.go)、[会话确认](../../../internal/tray/sessions.go)、[托盘菜单](../../../internal/tray/winui/menu.go)、[转发](../../../internal/tray/forward/)
 - [敏感剪贴板](../../../internal/tray/winui/clipboard.go)、[退出请求](../../../internal/tray/traysys/quit.go)、[单实例与退出事件](../../../internal/tray/traysys/instance_windows.go)
 - [安装程序脚本](../../../deploy/windows/webmux.nsi)、[安装程序冒烟](../../../.github/scripts/windows-installer-smoke.ps1)、[Windows 部署](../../deployment/windows-wsl.md)。

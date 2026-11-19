@@ -70,6 +70,7 @@ type view struct {
 	detection    tray.Detection
 	detected     bool
 	plan         tray.ForwardPlan
+	firewall     tray.FirewallCheck
 	forwarding   []string // active relay listen addresses
 	autostart    bool
 	// installSupported: the tray carries release server digests.
