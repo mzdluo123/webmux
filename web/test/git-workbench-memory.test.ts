@@ -9,11 +9,8 @@ import {
 import {
   applyGitQueryOverrides,
   clearGitWorkbenchMemoryCache,
-  readGitDeviceLayout,
   readGitTargetMemory,
-  resetGitDeviceLayout,
   resolveGitDeviceClass,
-  writeGitDeviceLayout,
   writeGitTargetMemory,
 } from "../src/domains/workspace/git-workbench-memory";
 import { clearHostStorage, setActiveHostId } from "../src/platform/storage";
@@ -40,7 +37,7 @@ class MemoryStorage implements Storage {
   }
 }
 
-describe("git workbench state isolation and device-class layout memory", () => {
+describe("git workbench state isolation", () => {
   beforeEach(() => {
     vi.stubGlobal("localStorage", new MemoryStorage());
     setActiveHostId(null);
@@ -61,54 +58,6 @@ describe("git workbench state isolation and device-class layout memory", () => {
     expect(resolveGitDeviceClass(640)).toBe("tablet");
     expect(resolveGitDeviceClass(639)).toBe("phone");
     expect(resolveGitDeviceClass(390)).toBe("phone");
-  });
-
-  test("isolates splitter ratios and dock preferences across phone and desktop", () => {
-    writeGitDeviceLayout("desktop", {
-      logThreePaneSizes: [18, 50, 32],
-      diffHeight: 360,
-      diffCollapsed: true,
-      showBranchesPanel: true,
-    });
-    writeGitDeviceLayout("phone", {
-      diffHeight: 220,
-      diffCollapsed: false,
-      showBranchesPanel: false,
-    });
-
-    expect(readGitDeviceLayout("desktop")).toMatchObject({
-      logThreePaneSizes: [18, 50, 32],
-      diffHeight: 360,
-      diffCollapsed: true,
-      showBranchesPanel: true,
-    });
-    expect(readGitDeviceLayout("phone")).toMatchObject({
-      diffHeight: 220,
-      diffCollapsed: false,
-      showBranchesPanel: false,
-    });
-
-    // Legacy stored diffMode keys from older builds are stripped safely without losing pane sizes.
-    localStorage.setItem(
-      "webmux:gitWorkbenchLayout",
-      JSON.stringify({
-        desktop: {
-          ...readGitDeviceLayout("desktop"),
-          diffMode: "unified",
-        },
-      }),
-    );
-    const migratedDesktop = readGitDeviceLayout("desktop");
-    expect(migratedDesktop.logThreePaneSizes).toEqual([18, 50, 32]);
-    expect("diffMode" in migratedDesktop).toBe(false);
-
-    // Switching active host keeps device-scoped layout preferences intact.
-    setActiveHostId("host-alpha");
-    expect(readGitDeviceLayout("desktop").diffHeight).toBe(360);
-
-    resetGitDeviceLayout("desktop");
-    expect(readGitDeviceLayout("desktop").diffHeight).toBe(280);
-    expect(readGitDeviceLayout("desktop").diffCollapsed).toBe(false);
   });
 
   test("isolates target memory by (hostId, repositoryId, worktreeId) and clears per host", () => {

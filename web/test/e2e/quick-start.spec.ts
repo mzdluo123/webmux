@@ -2,7 +2,14 @@ import { spawnSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { expect, expectTerminalLine, revealSidebar, test } from "./fixtures";
+import {
+  expect,
+  expectSessionInputSide,
+  expectTerminalLine,
+  revealSidebar,
+  selectSessionInputSide,
+  test,
+} from "./fixtures";
 
 // Quick start over the fake agent (internal/acp/testdata/fakeagent), which
 // global-setup puts on PATH as claude and claude-agent-acp: its chat side
@@ -63,13 +70,6 @@ async function sidebar(page: Page) {
 
 const conversation = (page: Page) =>
   page.getByRole("list", { name: "对话", exact: true });
-const sideTab = (page: Page, view: "chat" | "terminal") =>
-  page
-    .getByRole("tablist", { name: "会话视图", exact: true })
-    .getByRole(
-      "tab",
-      view === "chat" ? { name: /^聊天/ } : { name: "终端", exact: true },
-    );
 
 test("one send creates a worktree and starts the chat; the result is an ordinary hybrid session", async ({
   page,
@@ -141,18 +141,12 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
   await expect(
     page.getByRole("status").filter({ hasText: "正在工作…" }),
   ).toHaveCount(0);
-  await sideTab(page, "terminal").click();
-  await expect(sideTab(page, "terminal")).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await selectSessionInputSide(page, "terminal");
   await expectTerminalLine(page, "> 先读 AGENTS.md");
-  await expect(sideTab(page, "chat")).toHaveAccessibleName("聊天", {
-    timeout: 20_000,
-  });
-  await sideTab(page, "chat").click();
-  await expect(sideTab(page, "chat")).toHaveAttribute("aria-selected", "true");
+  await expectSessionInputSide(page, "terminal");
+  await selectSessionInputSide(page, "chat");
   await expect(conversation(page)).toContainText("echo: 先读 AGENTS.md");
+  await expectSessionInputSide(page, "chat");
 
   // Archived, it stays in the chat history and resumes from there.
   await page.getByRole("button", { name: "会话菜单", exact: true }).click();

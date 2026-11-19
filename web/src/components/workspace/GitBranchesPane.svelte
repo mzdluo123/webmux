@@ -1,5 +1,6 @@
 <script lang="ts">
   import { MediaQuery } from "svelte/reactivity";
+  import IconArrowLeft from "~icons/tabler/arrow-left";
   import IconTag from "~icons/tabler/tag";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -16,12 +17,17 @@
     type GitSharedBranchActionKind,
   } from "../../domains/workspace/git-branches-model";
   import type { GitRemotesController } from "../../hooks/workspace/git-remotes-controller.svelte";
+  import { dockGroup, dockSplit } from "$lib/dock-layout";
+  import DockPanel from "../shared/DockPanel.svelte";
+  import DockWorkspace from "../shared/DockWorkspace.svelte";
   import GitBranchDetailCard from "./GitBranchDetailCard.svelte";
   import GitBranchListItem from "./GitBranchListItem.svelte";
+  import GitCompactPanelContent from "./GitCompactPanelContent.svelte";
   import GitRemotesSection from "./GitRemotesSection.svelte";
 
   let {
     context,
+    storageKey = "git.branches",
     branches,
     remotes,
     remotesController,
@@ -34,6 +40,7 @@
     onOpenCreateTagFromHead,
   }: {
     context: GitWorktreeContext;
+    storageKey?: string;
     branches: readonly GitBranchItem[];
     remotes?: readonly Remote[];
     remotesController?: GitRemotesController;
@@ -50,6 +57,14 @@
   } = $props();
 
   const desktop = new MediaQuery("(min-width: 1024px)");
+  const initial = dockSplit(
+    "horizontal",
+    dockGroup("list"),
+    dockGroup("detail"),
+    0.65,
+  );
+  let dock = $state<ReturnType<typeof DockWorkspace>>();
+  let compactDetailTarget = $state<HTMLDivElement>();
   let query = $state("");
   let selectedKey = $state<string | null>(null);
   let listEl = $state<HTMLElement | null>(null);
@@ -164,118 +179,147 @@
   {/if}
 {/snippet}
 
-<div class="h-full min-h-0 min-w-0 bg-background" data-slot="git-branches-pane">
-  <ScrollArea class="h-full min-h-8">
-    <div
-      class={desktop.current
-        ? "flex h-full min-h-0 min-w-0 flex-row"
-        : "flex min-h-full min-w-0 flex-col"}
+{#snippet branchListSection()}
+  <ScrollArea class="h-full">
+    <section
+      class="flex min-h-0 min-w-0 flex-col"
+      class:h-full={desktop.current}
+      aria-label={m.s6_branches_list_section_aria()}
     >
-      <section
-        class={desktop.current
-          ? "flex min-h-0 min-w-0 flex-1 flex-col border-r"
-          : "flex shrink-0 min-w-0 flex-col border-b"}
-        aria-label={m.s6_branches_list_section_aria()}
+      <div
+        class="flex min-w-0 flex-wrap items-center gap-2 border-b bg-background p-2.5"
       >
-        <div
-          class="flex min-w-0 flex-wrap items-center gap-2 border-b bg-background p-2.5"
-        >
-          <div class="min-w-0 flex-1 basis-36">
-            <Input
-              size="sm"
-              value={query}
-              placeholder={m.s6_branches_search_placeholder()}
-              aria-label={m.s6_branches_search_aria()}
-              oninput={(e) => (query = e.currentTarget.value)}
-            />
-          </div>
-          {#if onOpenCreateTagFromHead && context.headOid}
-            <Button
-              size="sm"
-              variant="outline"
-              onclick={onOpenCreateTagFromHead}
-              data-testid="git-branches-create-tag-head-btn"
-            >
-              <IconTag aria-hidden="true" />
-              {m.s6_create_tag_ellipsis()}
-            </Button>
+        <div class="min-w-0 flex-1 basis-36">
+          <Input
+            size="sm"
+            value={query}
+            placeholder={m.s6_branches_search_placeholder()}
+            aria-label={m.s6_branches_search_aria()}
+            oninput={(e) => (query = e.currentTarget.value)}
+          />
+        </div>
+        {#if onOpenCreateTagFromHead && context.headOid}
+          <Button
+            size="sm"
+            variant="outline"
+            onclick={onOpenCreateTagFromHead}
+            data-testid="git-branches-create-tag-head-btn"
+          >
+            <IconTag aria-hidden="true" />
+            {m.s6_create_tag_ellipsis()}
+          </Button>
+        {/if}
+      </div>
+
+      <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child options. -->
+      <ScrollArea
+        bind:viewportRef={listEl}
+        class="min-h-8 flex-1"
+        viewportProps={{
+          role: "listbox",
+          "aria-label": m.s6_branches_listbox_aria(),
+          "aria-orientation": "vertical",
+          onkeydown: handleBranchListKeydown,
+        }}
+      >
+        <div class="space-y-3 p-2">
+          {@render branchGroup(
+            "current",
+            m.s6_branches_group_current(),
+            grouped.current,
+          )}
+          {@render branchGroup(
+            "favorites",
+            m.s6_branches_group_favorites(),
+            grouped.favorites,
+          )}
+          {@render branchGroup(
+            "local",
+            m.s6_branches_group_local(),
+            grouped.local.filter((b) => !b.favorite),
+          )}
+          {@render branchGroup(
+            "remote",
+            m.s6_branches_group_remote(),
+            grouped.remote.filter((b) => !b.favorite),
+          )}
+          {@render branchGroup(
+            "tags",
+            m.s6_branches_group_tags(),
+            grouped.tags,
+          )}
+
+          {#if allVisible.length === 0}
+            <p class="p-3 text-xs text-muted-foreground">
+              {m.s6_branches_no_matches()}
+            </p>
           {/if}
         </div>
-
-        <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child options. -->
-        <ScrollArea
-          bind:viewportRef={listEl}
-          class="min-h-8 flex-1"
-          viewportProps={{
-            role: "listbox",
-            "aria-label": m.s6_branches_listbox_aria(),
-            "aria-orientation": "vertical",
-            onkeydown: handleBranchListKeydown,
-          }}
-        >
-          <div class="space-y-3 p-2">
-            {@render branchGroup(
-              "current",
-              m.s6_branches_group_current(),
-              grouped.current,
-            )}
-            {@render branchGroup(
-              "favorites",
-              m.s6_branches_group_favorites(),
-              grouped.favorites,
-            )}
-            {@render branchGroup(
-              "local",
-              m.s6_branches_group_local(),
-              grouped.local.filter((b) => !b.favorite),
-            )}
-            {@render branchGroup(
-              "remote",
-              m.s6_branches_group_remote(),
-              grouped.remote.filter((b) => !b.favorite),
-            )}
-            {@render branchGroup(
-              "tags",
-              m.s6_branches_group_tags(),
-              grouped.tags,
-            )}
-
-            {#if allVisible.length === 0}
-              <p class="p-3 text-xs text-muted-foreground">
-                {m.s6_branches_no_matches()}
-              </p>
-            {/if}
-          </div>
-        </ScrollArea>
-      </section>
-
-      <section
-        class={desktop.current
-          ? "flex w-96 min-h-0 shrink-0 flex-col bg-background"
-          : "flex shrink-0 flex-col bg-background"}
-        aria-label={m.s6_branches_detail_section_aria()}
-      >
-        <ScrollArea class="min-h-8 flex-1">
-          <div class={desktop.current ? "space-y-4 p-4" : "space-y-4 p-3"}>
-            <GitBranchDetailCard
-              {activeBranch}
-              {context}
-              {branchFilter}
-              onRouteOp={routeBranchOp}
-            />
-
-            {#if remotes !== undefined || remotesController}
-              <div class="border-t pt-3">
-                <GitRemotesSection
-                  remotes={remotes ?? []}
-                  controller={remotesController}
-                  compact
-                />
-              </div>
-            {/if}
-          </div>
-        </ScrollArea>
-      </section>
-    </div>
+      </ScrollArea>
+    </section>
+    <div bind:this={compactDetailTarget}></div>
   </ScrollArea>
+{/snippet}
+
+<div class="h-full min-h-0 min-w-0 bg-background" data-slot="git-branches-pane">
+  <DockWorkspace
+    {initial}
+    {storageKey}
+    compact={!desktop.current}
+    bind:this={dock}
+  >
+    <DockPanel id="list" title={m.s6_branches_listbox_aria()}>
+      {@render branchListSection()}
+    </DockPanel>
+
+    <DockPanel id="detail" title={m.dock_git_branch_details()}>
+      {#snippet children(visible)}
+        {#if !desktop.current}
+          <div class="border-b px-2.5 py-1.5">
+            <Button
+              size="sm"
+              variant="ghost"
+              onclick={() => dock?.show("list")}
+            >
+              <IconArrowLeft aria-hidden="true" />
+              {m.s8_back()}
+            </Button>
+          </div>
+        {/if}
+        <GitCompactPanelContent
+          target={!desktop.current && !visible
+            ? compactDetailTarget
+            : undefined}
+        >
+          <section
+            class="min-h-0 min-w-0 bg-background"
+            class:border-t={!desktop.current && !visible}
+            class:flex-1={desktop.current || visible}
+            aria-label={m.s6_branches_detail_section_aria()}
+          >
+            <ScrollArea class="h-full min-h-8">
+              <div class={desktop.current ? "space-y-4 p-4" : "space-y-4 p-3"}>
+                <GitBranchDetailCard
+                  {activeBranch}
+                  {context}
+                  {branchFilter}
+                  onRouteOp={routeBranchOp}
+                />
+
+                {#if remotes !== undefined || remotesController}
+                  <div class="border-t pt-3">
+                    <GitRemotesSection
+                      remotes={remotes ?? []}
+                      controller={remotesController}
+                      compact
+                    />
+                  </div>
+                {/if}
+              </div>
+            </ScrollArea>
+          </section>
+        </GitCompactPanelContent>
+      {/snippet}
+    </DockPanel>
+  </DockWorkspace>
 </div>

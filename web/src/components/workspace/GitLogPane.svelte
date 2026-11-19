@@ -3,19 +3,15 @@
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import { Button } from "$lib/components/ui/button";
   import * as Drawer from "$lib/components/ui/drawer";
-  import * as Resizable from "$lib/components/ui/resizable";
-  import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import { dockGroup, dockSplit } from "$lib/dock-layout";
   import { m } from "$lib/paraglide/messages.js";
   import {
     filterLogCommits,
     resolveCommitParentFiles,
   } from "../../domains/workspace/git-workbench-state";
-  import {
-    dragHeight,
-    dragWidth,
-    keyHeight,
-    keyWidth,
-  } from "../../hooks/shared/splitter";
+  import DockPanel from "../shared/DockPanel.svelte";
+  import DockWorkspace from "../shared/DockWorkspace.svelte";
+  import GitCompactPanelContent from "./GitCompactPanelContent.svelte";
   import GitLogBranchTree from "./GitLogBranchTree.svelte";
   import GitLogDetailPane from "./GitLogDetailPane.svelte";
   import GitLogDiffPanel from "./GitLogDiffPanel.svelte";
@@ -23,40 +19,40 @@
   import GitLogListPane from "./GitLogListPane.svelte";
   import type { GitLogPaneProps } from "./git-log-pane-types";
 
-  const TREE_BOUNDS = { min: 180, max: 360 };
-  const DIFF_BOUNDS = { min: 140, max: 640 };
-
   let props: GitLogPaneProps = $props();
 
   const desktop = new MediaQuery("(min-width: 1280px)");
   const multiColumn = new MediaQuery("(min-width: 640px)");
 
-  let localShowBranches = $state(true);
-  let localTreeWidth = $state(240);
-  let localDiffHeight = $state(280);
-  let localDiffCollapsed = $state(false);
+  const commitPanes = dockSplit(
+    "vertical",
+    dockGroup("files"),
+    dockGroup("detail"),
+    0.52,
+  );
+  const initial = $derived(
+    dockSplit(
+      "vertical",
+      desktop.current
+        ? dockSplit(
+            "horizontal",
+            dockGroup("refs"),
+            dockSplit("horizontal", dockGroup("list"), commitPanes, 0.6),
+            0.19,
+          )
+        : dockSplit("horizontal", dockGroup("list", "refs"), commitPanes, 0.56),
+      dockGroup("diff"),
+      desktop.current ? 0.64 : 0.6,
+    ),
+  );
+  let dock = $state<ReturnType<typeof DockWorkspace>>();
+  let showPicker = $state(false);
+  let mobilePanel = $state("list");
+  let backFromDiff = $state<"detail" | "files">("detail");
   let refDrawerOpen = $state(false);
-  let mobileStep = $state<"list" | "detail" | "diff">("list");
-  let paneResetKey = $state(0);
+  let drawerRefTarget = $state<HTMLDivElement>();
+  let compactFilesTarget = $state<HTMLDivElement>();
   let diffPanelRef = $state<ReturnType<typeof GitLogDiffPanel>>();
-
-  const showBranchesPanel = $derived(
-    props.preferredShowBranches ?? localShowBranches,
-  );
-  const effectiveTreeWidth = $derived(
-    props.onBranchTreeWidthChange
-      ? (props.branchTreeWidth ?? 240)
-      : localTreeWidth,
-  );
-  const effectiveDiffHeight = $derived(
-    props.onDiffHeightChange ? (props.diffHeight ?? 280) : localDiffHeight,
-  );
-  const effectiveDiffCollapsed = $derived(
-    props.onDiffCollapsedChange
-      ? (props.diffCollapsed ?? false)
-      : localDiffCollapsed,
-  );
-  const twoPaneSizes = $derived(props.twoPaneSizes ?? [58, 42]);
 
   const visibleCommits = $derived(
     props.liveFiltered
@@ -96,45 +92,32 @@
       null,
   );
 
-  function setTreeWidth(raw: number) {
-    const clamped = Math.min(
-      TREE_BOUNDS.max,
-      Math.max(TREE_BOUNDS.min, Math.round(raw)),
-    );
-    localTreeWidth = clamped;
-    props.onBranchTreeWidthChange?.(clamped);
-  }
-
-  function setDiffHeight(raw: number) {
-    const clamped = Math.min(
-      DIFF_BOUNDS.max,
-      Math.max(DIFF_BOUNDS.min, Math.round(raw)),
-    );
-    localDiffHeight = clamped;
-    props.onDiffHeightChange?.(clamped);
-  }
-
-  function setDiffCollapsed(next: boolean) {
-    localDiffCollapsed = next;
-    props.onDiffCollapsedChange?.(next);
+  function hasVisibleReaderPanel() {
+    return dock?.isVisible("diff") && diffPanelRef?.hasOpenReaderPanel();
   }
 
   function closeLayer() {
-    if (!multiColumn.current && mobileStep !== "list") {
-      mobileStep = mobileStep === "diff" ? "detail" : "list";
-      return true;
-    }
-    return false;
+    if (
+      multiColumn.current ||
+      showPicker ||
+      refDrawerOpen ||
+      !dock ||
+      dock.isVisible("list")
+    )
+      return false;
+    dock.show(dock.isVisible("diff") ? backFromDiff : "list");
+    return true;
   }
 
   function handleWindowKeydown(e: KeyboardEvent) {
-    if (
-      e.defaultPrevented ||
-      e.key !== "Escape" ||
-      diffPanelRef?.hasOpenReaderPanel()
-    )
+    if (e.defaultPrevented || e.key !== "Escape" || hasVisibleReaderPanel())
       return;
     if (closeLayer()) e.preventDefault();
+  }
+
+  function returnFromRefs() {
+    if (refDrawerOpen) refDrawerOpen = false;
+    else if (!multiColumn.current) dock?.show("list");
   }
 </script>
 
@@ -142,7 +125,6 @@
 
 {#snippet commitListSection()}
   <GitLogListPane
-    desktop={desktop.current}
     historyState={props.historyState}
     historyReason={props.historyReason}
     taskBaseline={props.taskBaseline}
@@ -161,23 +143,13 @@
     selectionNotice={props.selectionNotice}
     compareBaseMarkOid={props.compareBaseMarkOid}
     compareMode={props.compareMode}
-    {showBranchesPanel}
-    showAuthorColumn={props.showAuthorColumn ?? true}
+    showAuthorColumn={multiColumn.current}
     listScrollTop={props.listScrollTop ?? 0}
     onListScrollChange={props.onListScrollChange}
-    onOpenRefDrawer={() => (refDrawerOpen = true)}
-    onToggleBranchesPanel={() => {
-      const next = !showBranchesPanel;
-      localShowBranches = next;
-      props.onShowBranchesChange?.(next);
-    }}
-    onResetLayout={() => {
-      localTreeWidth = 240;
-      localDiffHeight = 280;
-      localDiffCollapsed = false;
-      props.onResetLayout?.();
-      paneResetKey++;
-    }}
+    onOpenRefDrawer={!desktop.current
+      ? () => (refDrawerOpen = true)
+      : undefined}
+    onResetLayout={multiColumn.current ? () => dock?.reset() : undefined}
     onRefreshHistory={props.onRefreshHistory}
     onLoadMoreHistory={props.onLoadMoreHistory}
     onScopeChange={props.onScopeChange}
@@ -191,13 +163,13 @@
     onDismissSelectionNotice={props.onDismissSelectionNotice}
     onSelectCommit={(oid) => {
       props.onSelectCommit(oid);
-      if (!multiColumn.current) mobileStep = "detail";
+      if (!multiColumn.current) dock?.show("detail");
     }}
     onMarkCompareBase={props.onMarkCompareBase}
     onStartCompare={props.onStartCompare
       ? (baseOid, targetOid) => {
           props.onStartCompare?.(baseOid, targetOid);
-          if (!multiColumn.current) mobileStep = "detail";
+          if (!multiColumn.current) dock?.show("detail");
         }
       : undefined}
     onSetTaskBaseline={props.onSetTaskBaseline}
@@ -220,10 +192,14 @@
     onCherryPickCommit={props.onCherryPickCommit}
     onRevertCommit={props.onRevertCommit}
     onCreateTagCommit={props.onCreateTagCommit}
-  />
+  >
+    {#snippet afterDetails()}
+      <div bind:this={compactFilesTarget}></div>
+    {/snippet}
+  </GitLogDetailPane>
 {/snippet}
 
-{#snippet filesPaneContent(isPhone: boolean)}
+{#snippet filesPaneContent()}
   <GitLogFilesPane
     files={resolvedParent.files}
     selectedFilePath={props.selectedCommitFilePath}
@@ -235,22 +211,23 @@
     compareMode={props.compareMode}
     onSelectFile={props.onSelectCommitFile}
     onPreviewFile={() => {
-      if (isPhone) mobileStep = "diff";
-      else if (effectiveDiffCollapsed) setDiffCollapsed(false);
+      if (!multiColumn.current)
+        backFromDiff = dock?.isVisible("files") ? "files" : "detail";
+      if (!dock?.isVisible("diff")) dock?.show("diff");
     }}
     onInspectFile={props.onInspectCommitFile}
     onSwapCompareDirection={props.onSwapCompareDirection}
     onExitCompare={props.onExitCompare
       ? () => {
           props.onExitCompare?.();
-          if (isPhone) mobileStep = "list";
+          if (!multiColumn.current) dock?.show("list");
         }
       : undefined}
     onLoadMoreCompareFiles={props.onLoadMoreCompareFiles}
   />
 {/snippet}
 
-{#snippet branchTreeContent(inDrawer: boolean)}
+{#snippet branchTreeContent()}
   <GitLogBranchTree
     branches={props.branches}
     context={props.context}
@@ -259,11 +236,11 @@
     selectedCommitOid={props.selectedCommitOid}
     onBranchFilterChange={(branch) => {
       props.onBranchFilterChange(branch);
-      if (inDrawer) refDrawerOpen = false;
+      returnFromRefs();
     }}
     onBranchAction={props.onBranchAction
       ? (kind, branch) => {
-          if (inDrawer) refDrawerOpen = false;
+          returnFromRefs();
           props.onBranchAction?.(kind, branch);
         }
       : undefined}
@@ -271,176 +248,103 @@
     onCompareWithSelected={props.onStartCompare && props.selectedCommitOid
       ? (refHead) => {
           props.onStartCompare?.(refHead, props.selectedCommitOid!);
-          if (inDrawer) refDrawerOpen = false;
-          if (!multiColumn.current) mobileStep = "detail";
+          returnFromRefs();
+          if (!multiColumn.current) dock?.show("detail");
         }
       : undefined}
     onRequestCheckout={(branch) => {
-      if (inDrawer) refDrawerOpen = false;
+      returnFromRefs();
       props.onRequestCheckout(branch);
     }}
     onOpenOccupiedWorktree={(wtId, path) => {
-      if (inDrawer) refDrawerOpen = false;
+      returnFromRefs();
       props.onOpenOccupiedWorktree(wtId, path);
     }}
   />
 {/snippet}
 
 <div class="h-full min-h-0 min-w-0">
-  {#if multiColumn.current}
-    <div class="flex h-full min-h-0 min-w-0 flex-col">
-      <div class="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-        {#if desktop.current && showBranchesPanel}
-          <div
-            class="git-branch-tree-pane h-full min-h-0 overflow-hidden"
-            style:--git-branch-tree-width={`${effectiveTreeWidth}px`}
-          >
-            {@render branchTreeContent(false)}
-          </div>
-          <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-          <div
-            class="code-nav-divider"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={m.s6_log_pane_resize_tree_aria()}
-            title={m.s6_log_pane_resize_tree_tooltip()}
-            aria-valuemin={TREE_BOUNDS.min}
-            aria-valuemax={TREE_BOUNDS.max}
-            aria-valuenow={effectiveTreeWidth}
-            tabindex="0"
-            ondblclick={() => setTreeWidth(240)}
-            onpointerdown={(e) =>
-              dragWidth(e, effectiveTreeWidth, setTreeWidth)}
-            onkeydown={(e) =>
-              keyWidth(e, effectiveTreeWidth, TREE_BOUNDS, setTreeWidth)}
-          ></div>
-        {/if}
-
-        <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
-          {#key paneResetKey}
-            <Resizable.PaneGroup
-              direction="horizontal"
-              class="h-full min-h-0 min-w-0"
-              onLayoutChange={(sizes) => {
-                if (sizes.length === 2) {
-                  props.onTwoPaneSizesChange?.([sizes[0]!, sizes[1]!]);
-                }
-              }}
-            >
-              <Resizable.Pane
-                defaultSize={twoPaneSizes[0]}
-                minSize={32}
-                class="git-pane"
-              >
-                {@render commitListSection()}
-              </Resizable.Pane>
-              <Resizable.Handle withHandle class="git-divider" />
-              <Resizable.Pane
-                defaultSize={twoPaneSizes[1]}
-                minSize={26}
-                class="git-pane"
-              >
-                <Resizable.PaneGroup
-                  direction="vertical"
-                  class="h-full min-h-0 min-w-0"
-                >
-                  <Resizable.Pane
-                    defaultSize={52}
-                    minSize={25}
-                    class="git-pane"
-                  >
-                    {@render filesPaneContent(false)}
-                  </Resizable.Pane>
-                  <Resizable.Handle withHandle class="git-divider" />
-                  <Resizable.Pane
-                    defaultSize={48}
-                    minSize={24}
-                    class="git-pane"
-                  >
-                    {@render detailPaneContent()}
-                  </Resizable.Pane>
-                </Resizable.PaneGroup>
-              </Resizable.Pane>
-            </Resizable.PaneGroup>
-          {/key}
-        </div>
-      </div>
-
-      {#if !effectiveDiffCollapsed}
-        <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-        <div
-          class="code-row-divider"
-          role="separator"
-          aria-orientation="horizontal"
-          aria-label={m.s6_log_pane_resize_diff_aria()}
-          title={m.s6_log_pane_resize_diff_tooltip()}
-          aria-valuemin={DIFF_BOUNDS.min}
-          aria-valuemax={DIFF_BOUNDS.max}
-          aria-valuenow={effectiveDiffHeight}
-          tabindex="0"
-          ondblclick={() => setDiffHeight(280)}
-          onpointerdown={(e) =>
-            dragHeight(e, effectiveDiffHeight, setDiffHeight, true)}
-          onkeydown={(e) =>
-            keyHeight(e, effectiveDiffHeight, DIFF_BOUNDS, setDiffHeight, true)}
-        ></div>
+  <DockWorkspace
+    {initial}
+    storageKey={props.storageKey ?? "git.log"}
+    compact={!multiColumn.current}
+    bind:mobilePanel
+    bind:showPicker
+    bind:this={dock}
+  >
+    <DockPanel id="refs" title={m.s6_log_pane_drawer_title()}>
+      {#if !multiColumn.current}
+        {@render backToCommitList()}
       {/if}
-
-      <div
-        class={effectiveDiffCollapsed
-          ? "shrink-0 border-t"
-          : "git-log-diff-dock min-w-0 overflow-hidden"}
-        style:--git-log-diff-height={effectiveDiffCollapsed
-          ? undefined
-          : `${effectiveDiffHeight}px`}
+      <GitCompactPanelContent
+        target={refDrawerOpen ? drawerRefTarget : undefined}
       >
-        <GitLogDiffPanel
-          bind:this={diffPanelRef}
-          logDiff={props.logDiff}
-          fallbackFile={activeFile}
-          fallbackLeftLabel={resolvedParent.selectedParent.slice(0, 7)}
-          fallbackRightLabel={selectedDetail?.shortOid ?? ""}
-          presentation="docked"
-          collapsed={effectiveDiffCollapsed}
-          onToggleCollapsed={() => setDiffCollapsed(!effectiveDiffCollapsed)}
-        />
-      </div>
-    </div>
-  {:else if mobileStep === "list"}
-    {@render commitListSection()}
-  {:else if mobileStep === "detail"}
-    <div class="flex h-full min-h-0 min-w-0 flex-col bg-background">
-      <div class="border-b bg-background px-2.5 py-1.5">
-        <Button size="sm" variant="ghost" onclick={closeLayer}>
-          <IconArrowLeft aria-hidden="true" />
-          {m.s6_back_to_commit_list()}
-        </Button>
-      </div>
-      <ScrollArea class="min-h-8 flex-1">
-        <div>
-          <div class="border-b">
-            {@render detailPaneContent()}
-          </div>
-          {@render filesPaneContent(true)}
+        <div class="h-full min-h-0 min-w-0 flex-1 overflow-hidden">
+          {@render branchTreeContent()}
         </div>
-      </ScrollArea>
-    </div>
-  {:else}
-    <GitLogDiffPanel
-      bind:this={diffPanelRef}
-      logDiff={props.logDiff}
-      fallbackFile={activeFile}
-      fallbackLeftLabel={resolvedParent.selectedParent.slice(0, 7)}
-      fallbackRightLabel={selectedDetail?.shortOid ?? ""}
-      presentation="mobile"
-      onBack={closeLayer}
-    />
-  {/if}
+      </GitCompactPanelContent>
+    </DockPanel>
+
+    <DockPanel id="list" title={m.s7_mode_tab_log()}>
+      {@render commitListSection()}
+    </DockPanel>
+
+    <DockPanel id="detail" title={m.s6_log_detail_commit_heading()}>
+      <div class="flex h-full min-h-0 min-w-0 flex-col bg-background">
+        {#if !multiColumn.current}
+          {@render backToCommitList()}
+        {/if}
+        {@render detailPaneContent()}
+      </div>
+    </DockPanel>
+
+    <DockPanel id="files" title={m.s5_files_tab()}>
+      {#snippet children(visible)}
+        {#if !multiColumn.current}
+          {@render backToCommitList()}
+        {/if}
+        <GitCompactPanelContent
+          target={!multiColumn.current && !visible
+            ? compactFilesTarget
+            : undefined}
+        >
+          <div
+            class="min-h-0 min-w-0"
+            class:border-t={!multiColumn.current && !visible}
+            class:flex-1={multiColumn.current || visible}
+          >
+            {@render filesPaneContent()}
+          </div>
+        </GitCompactPanelContent>
+      {/snippet}
+    </DockPanel>
+
+    <DockPanel id="diff" title={m.s6_log_diff_preview_placeholder()}>
+      <GitLogDiffPanel
+        bind:this={diffPanelRef}
+        logDiff={props.logDiff}
+        fallbackFile={activeFile}
+        fallbackLeftLabel={resolvedParent.selectedParent.slice(0, 7)}
+        fallbackRightLabel={selectedDetail?.shortOid ?? ""}
+        presentation={multiColumn.current ? "docked" : "mobile"}
+        onBack={!multiColumn.current ? closeLayer : undefined}
+      />
+    </DockPanel>
+  </DockWorkspace>
 </div>
 
+{#snippet backToCommitList()}
+  <div class="border-b bg-background px-2.5 py-1.5">
+    <Button size="sm" variant="ghost" onclick={() => dock?.show("list")}>
+      <IconArrowLeft aria-hidden="true" />
+      {m.s6_back_to_commit_list()}
+    </Button>
+  </div>
+{/snippet}
+
 <Drawer.Root direction="left" noBodyStyles bind:open={refDrawerOpen}>
-  <Drawer.Content class="w-80 max-w-[85vw] xl:hidden">
+  <Drawer.Content class="w-80 max-w-[85vw]">
     <Drawer.Title class="sr-only">{m.s6_log_pane_drawer_title()}</Drawer.Title>
-    {@render branchTreeContent(true)}
+    <div class="min-h-0 flex-1" bind:this={drawerRefTarget}></div>
   </Drawer.Content>
 </Drawer.Root>

@@ -20,7 +20,6 @@
   } from "./git-log-pane-types";
 
   let {
-    desktop = true,
     historyState,
     historyReason = "",
     taskBaseline = null,
@@ -29,12 +28,10 @@
     visibleCommits,
     selectedCommitOid,
     compareMode = null,
-    showBranchesPanel = true,
     showAuthorColumn = true,
     listScrollTop = 0,
     onListScrollChange,
     onOpenRefDrawer,
-    onToggleBranchesPanel,
     onResetLayout,
     onLoadMoreHistory,
     onSelectCommit,
@@ -46,7 +43,6 @@
     ...filterProps
   }: GitLogFilterFields &
     GitLogFilterCallbacks & {
-      desktop?: boolean;
       historyState: GitHistoryStatus;
       historyReason?: string;
       taskBaseline?: GitTaskBaseline | null;
@@ -55,12 +51,10 @@
       visibleCommits: readonly GitHistoryRow[];
       selectedCommitOid: string | null;
       compareMode?: GitCompareViewState | null;
-      showBranchesPanel?: boolean;
       showAuthorColumn?: boolean;
       listScrollTop?: number;
       onListScrollChange?: (top: number) => void;
       onOpenRefDrawer?: () => void;
-      onToggleBranchesPanel?: () => void;
       onResetLayout?: () => void;
       onLoadMoreHistory?: () => void;
       onSelectCommit: (oid: string) => void;
@@ -163,11 +157,8 @@
   aria-label={m.s6_log_list_section_aria()}
 >
   <GitLogFilterBar
-    {desktop}
     {...filterProps}
-    {showBranchesPanel}
     {onOpenRefDrawer}
-    {onToggleBranchesPanel}
     {onResetLayout}
     onCancelCompareMark={onMarkCompareBase
       ? () => onMarkCompareBase(null)

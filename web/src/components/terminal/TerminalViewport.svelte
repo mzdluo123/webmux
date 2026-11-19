@@ -38,6 +38,7 @@
     container = $bindable(),
     terminal: t,
     visible,
+    interactive = true,
     sizeLocked = false,
     uploads,
     quickMenu,
@@ -55,6 +56,7 @@
     terminal: ViewportTerminal;
     // Whether the terminal pane is on screen (mobile may show code instead).
     visible: boolean;
+    interactive?: boolean;
     // Keeps the PTY grid fixed and lets the host scroll past its edges.
     sizeLocked?: boolean;
     uploads?: ViewportUploads;
@@ -162,19 +164,21 @@
         >
       </div>{/if}
   </div>
-  <SoftKeys
-    {send}
-    modifiers={t.modifiers}
-    locked={t.shiftLocked}
-    {toggle}
-    {lock}
-    paste={() => {
-      void paste();
-    }}
-    {keyboard}
-  >
-    {#snippet trailing()}
-      {@render draftToggle()}{@render quickMenu("top", "icon-xs", "ghost")}
-    {/snippet}
-  </SoftKeys>
+  {#if interactive}
+    <SoftKeys
+      {send}
+      modifiers={t.modifiers}
+      locked={t.shiftLocked}
+      {toggle}
+      {lock}
+      paste={() => {
+        void paste();
+      }}
+      {keyboard}
+    >
+      {#snippet trailing()}
+        {@render draftToggle()}{@render quickMenu("top", "icon-xs", "ghost")}
+      {/snippet}
+    </SoftKeys>
+  {/if}
 </div>

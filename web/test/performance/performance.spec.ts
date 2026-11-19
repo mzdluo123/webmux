@@ -369,8 +369,8 @@ test("4x CPU: settings and a large code file stay usable and stable", async ({
   );
   await createShell(page, "Code CPU 4x", workDir);
   await toggleCode(page);
-  await expect(page.getByRole("region", { name: "代码工作区" })).toBeVisible();
-  await page.getByRole("button", { name: "large.ts", exact: true }).click();
+  const files = page.getByRole("region", { name: "文件树", exact: true });
+  await files.getByRole("button", { name: "large.ts", exact: true }).click();
   await expect(
     page.locator("[data-code-reader]:visible [data-content]"),
   ).toContainText("export const value0");

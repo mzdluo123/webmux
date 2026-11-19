@@ -299,7 +299,7 @@ test("replay and the floating button return to latest output without typing", as
   if (info.project.use.isMobile) {
     await toggleCode(page);
     await expect(
-      page.getByRole("region", { name: "代码工作区" }),
+      page.getByRole("region", { name: "文件树", exact: true }),
     ).toBeVisible();
   }
   // A controlled visibility transition keeps the healthy WebSocket: the page

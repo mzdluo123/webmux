@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as Tabs from "$lib/components/ui/tabs";
+  import GitWorkbenchFrame from "./GitWorkbenchFrame.svelte";
   import type {
     GitBranchItem,
     GitCommitOutcome,
@@ -158,10 +159,7 @@
   }
 </script>
 
-<div
-  class="git-workbench flex h-full min-h-0 min-w-0 flex-col border bg-background text-foreground"
-  data-testid="git-workbench"
->
+{#snippet workbench()}
   {#snippet operationLedger()}
     <GitOperationsPopover
       worktreePath={view.context.worktreePath}
@@ -218,7 +216,7 @@
       value={view.mode}
       onValueChange={setMode}
       orientation="horizontal"
-      class="min-h-0 min-w-0 flex-1"
+      class="min-h-0 min-w-0 flex-1 max-sm:min-h-112"
     >
       <GitWorkbenchModeTabs stashCount={view.stashes?.length ?? 0} />
 
@@ -243,6 +241,7 @@
         class="min-h-0 min-w-0 flex-1 overflow-hidden p-0"
       >
         <GitCommitPane
+          storageKey="git.fixture.commit"
           context={view.context}
           changes={view.workingChanges}
           activeChangeId={view.activeChangeId}
@@ -364,6 +363,7 @@
         class="min-h-0 min-w-0 flex-1 overflow-hidden p-0"
       >
         <GitBranchesPane
+          storageKey="git.fixture.branches"
           context={view.context}
           branches={view.branches}
           remotes={view.remotes}
@@ -386,6 +386,7 @@
         class="min-h-0 min-w-0 flex-1 overflow-hidden p-0"
       >
         <GitStashPane
+          storageKey="git.fixture.stash"
           context={view.context}
           entries={view.stashes ?? []}
           selectedStashOid={view.selectedStashOid ?? null}
@@ -416,4 +417,11 @@
     onOpenFollowUpPush={(branch, preceding) =>
       openPushDialog(branch, preceding)}
   />
+{/snippet}
+
+<div
+  class="git-workbench flex h-full min-h-0 min-w-0 flex-1 flex-col border bg-background text-foreground"
+  data-testid="git-workbench"
+>
+  <GitWorkbenchFrame children={workbench} />
 </div>

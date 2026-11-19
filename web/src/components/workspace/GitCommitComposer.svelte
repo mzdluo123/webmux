@@ -1,22 +1,9 @@
 <script lang="ts" module>
+  import type { GitWorktreeContext } from "../../contracts/git-workbench-schemas";
   import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
   import type { GitAmendDraftPrompt } from "../../hooks/workspace/git-commit-options.svelte";
 
-  export interface GitCommitComposerStateProps {
-    commitMessage: string;
-    uncertainBlocked?: boolean;
-    draftSaving?: boolean;
-    draftRevision?: number;
-    draftConflict?: GitCommitDraftConflictState | null;
-    commitAmend?: boolean;
-    commitAmendPushed?: boolean;
-    commitAuthorOverride?: string;
-    commitSignoff?: boolean;
-    commitSignoffTrailer?: string;
-    amendDraftPrompt?: GitAmendDraftPrompt | null;
-  }
-
-  export interface GitCommitComposerCallbacks {
+  export interface GitCommitComposerProps {
     onCommitMessageChange: (msg: string) => void;
     onOpenCommitPreview: (followUpPush: boolean) => void;
     onOpenPush?: () => void;
@@ -28,6 +15,22 @@
     onResolveAmendDraft?: (choice: "replace" | "merge" | "keep") => void;
     onCommitAuthorOverrideChange?: (value: string) => void;
     onToggleCommitSignoff?: (checked: boolean) => void;
+    context: GitWorktreeContext;
+    stagedCount: number;
+    conflictedCount?: number;
+    commitMessage: string;
+    readonlyMode?: boolean;
+    busy?: boolean;
+    uncertainBlocked?: boolean;
+    draftSaving?: boolean;
+    draftRevision?: number;
+    draftConflict?: GitCommitDraftConflictState | null;
+    commitAmend?: boolean;
+    commitAmendPushed?: boolean;
+    commitAuthorOverride?: string;
+    commitSignoff?: boolean;
+    commitSignoffTrailer?: string;
+    amendDraftPrompt?: GitAmendDraftPrompt | null;
   }
 </script>
 
@@ -41,7 +44,6 @@
   import { Input } from "$lib/components/ui/input";
   import { Textarea } from "$lib/components/ui/textarea";
   import { m } from "$lib/paraglide/messages.js";
-  import type { GitWorktreeContext } from "../../contracts/git-workbench-schemas";
   import { validateAuthorOverrideInput } from "../../domains/workspace/git-v2-adapter";
   import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
@@ -76,14 +78,7 @@
     onResolveAmendDraft,
     onCommitAuthorOverrideChange,
     onToggleCommitSignoff,
-  }: GitCommitComposerStateProps &
-    GitCommitComposerCallbacks & {
-      context: GitWorktreeContext;
-      stagedCount: number;
-      conflictedCount?: number;
-      readonlyMode?: boolean;
-      busy?: boolean;
-    } = $props();
+  }: GitCommitComposerProps = $props();
 
   const parsed = $derived.by(() => {
     const idx = commitMessage.indexOf("\n");

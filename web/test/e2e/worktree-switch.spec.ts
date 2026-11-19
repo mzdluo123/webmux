@@ -138,7 +138,9 @@ test("a running shell is acknowledged, keeps running and its code view follows t
   const id = await createShell(page, "Switch shell", root);
   // The code view is open on a file before the switch.
   await toggleCode(page);
-  await expect(page.getByRole("region", { name: "代码工作区" })).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "文件树", exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "notes.txt", exact: true }).click();
   await expect.poll(() => visibleCode(page)).toContain("main version");
 

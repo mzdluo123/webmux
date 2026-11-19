@@ -162,7 +162,10 @@ test("full split creation uses saved configs and keeps the launch subdirectory a
     await expect(sessionLocation(page)).toContainText(cwd);
   };
   await open();
-  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "新建会话", exact: true })
+    .getByRole("button", { name: "取消", exact: true })
+    .click();
   expect(await (await request.get("/api/sessions")).json()).toHaveLength(1);
   await open();
   await chooseLaunch(page, "Project shell");

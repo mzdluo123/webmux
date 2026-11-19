@@ -3,14 +3,9 @@
   import { MediaQuery } from "svelte/reactivity";
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import IconPlayerTrackNext from "~icons/tabler/player-track-next";
-  import IconRestore from "~icons/tabler/restore";
-  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import * as Resizable from "$lib/components/ui/resizable";
-  import {
-    SegmentedControl,
-    SegmentedControlItem,
-  } from "$lib/components/ui/segmented-control";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import { dockGroup, dockSplit } from "$lib/dock-layout";
   import { m } from "$lib/paraglide/messages.js";
   import type { GitReviewScope } from "../../contracts/git-workbench-schemas";
   import type { GitHunkAndLineMutationProps } from "../../domains/workspace/git-line-selection";
@@ -24,16 +19,23 @@
     type GitReviewProgressSummary,
   } from "../../hooks/workspace/git-review-sync.svelte";
   import type { GitStagingDiffController } from "../../hooks/workspace/git-staging-diff.svelte";
+  import DockPanel from "../shared/DockPanel.svelte";
+  import DockWorkspace from "../shared/DockWorkspace.svelte";
+  import GitCommitComposer, {
+    type GitCommitComposerProps,
+  } from "./GitCommitComposer.svelte";
+  import GitCommitReviewToolbar from "./GitCommitReviewToolbar.svelte";
+  import GitCompactPanelContent from "./GitCompactPanelContent.svelte";
   import GitLogDiffPanel from "./GitLogDiffPanel.svelte";
-  import GitPanelToolbar from "./GitPanelToolbar.svelte";
   import GitStagingDiffPanel from "./GitStagingDiffPanel.svelte";
   import GitTaskReviewPane from "./GitTaskReviewPane.svelte";
   import GitUncommittedChangesPane, {
-    type GitUncommittedChangesSharedProps,
+    type GitUncommittedChangesProps,
   } from "./GitUncommittedChangesPane.svelte";
 
   let {
     context,
+    storageKey = "git.commit",
     changes,
     activeChangeId,
     reviewedPaths,
@@ -51,10 +53,7 @@
     activeSessionCount = 0,
     exitedSessionCount = 0,
     archivedSessionCount = 0,
-    paneSizes = [40, 60],
     listScrollTop = 0,
-    onPaneSizesChange,
-    onResetLayout,
     onListScrollChange,
     onReviewScopeChange,
     onSelectChange,
@@ -63,6 +62,9 @@
     onJumpNextUnreviewed,
     onStageChange,
     onUnstageChange,
+    onStageGroup,
+    onOpenStashCreate,
+    onInspectFile,
     onStageHunk,
     onUnstageHunk,
     onStageLines,
@@ -86,9 +88,14 @@
     onReturnSession,
     onArchiveSession,
     onRemoveWorktree,
-    ...composerAndDraftProps
-  }: GitUncommittedChangesSharedProps &
+    ...composerProps
+  }: GitUncommittedChangesProps &
+    Omit<
+      GitCommitComposerProps,
+      "context" | "stagedCount" | "conflictedCount" | "readonlyMode" | "busy"
+    > &
     GitPaneScrollCallbacks & {
+      storageKey?: string;
       activeChangeId: string | null;
       reviewScope?: GitReviewScope;
       taskDiffReader?: GitDiffPanelReader;
@@ -98,8 +105,6 @@
       defaultLinePickerOpen?: boolean;
       uncommittedProgress?: GitReviewProgressSummary;
       taskProgress?: GitReviewProgressSummary;
-      paneSizes?: [number, number];
-      onPaneSizesChange?: (sizes: [number, number]) => void;
       onReviewScopeChange?: (scope: GitReviewScope) => void;
       onToggleTaskReviewed?: (path: string) => void;
       onJumpNextUnreviewed?: (scope: GitReviewScope) => string | null;
@@ -115,10 +120,27 @@
 
   const desktop = new MediaQuery("(min-width: 1280px)");
   let localReviewScope = $state<GitReviewScope>("uncommitted");
-  let mobileStep = $state<"changes" | "diff">(
+  const initial = dockSplit(
+    "horizontal",
+    dockSplit("vertical", dockGroup("changes"), dockGroup("composer"), 0.62),
+    dockGroup("diff"),
+    0.4,
+  );
+  let mobilePanel = $state(
     untrack(() => (defaultLinePickerOpen ? "diff" : "changes")),
   );
-  let paneResetKey = $state(0);
+  let dock = $state<ReturnType<typeof DockWorkspace>>();
+  let compactComposerTarget = $state<HTMLDivElement>();
+
+  const commitCounts = $derived.by(() => {
+    let staged = 0;
+    let conflicted = 0;
+    for (const change of changes) {
+      if (change.group === "staged") staged++;
+      else if (change.group === "conflicted") conflicted++;
+    }
+    return { staged, conflicted };
+  });
 
   const effectiveScope = $derived(controlledReviewScope ?? localReviewScope);
   const activeChange = $derived(
@@ -157,14 +179,14 @@
 
   function setReviewScope(next: GitReviewScope) {
     localReviewScope = next;
-    mobileStep = "changes";
+    if (!desktop.current) dock?.show("changes");
     onReviewScopeChange?.(next);
   }
 
   function handleNextUnreviewed() {
     if (onJumpNextUnreviewed) {
       if (onJumpNextUnreviewed(effectiveScope) && !desktop.current) {
-        mobileStep = "diff";
+        dock?.show("diff");
       }
       return;
     }
@@ -176,7 +198,7 @@
       );
       if (nextPath) {
         onSelectTaskFile?.(nextPath);
-        if (!desktop.current) mobileStep = "diff";
+        if (!desktop.current) dock?.show("diff");
       }
       return;
     }
@@ -187,7 +209,7 @@
     );
     if (nextChange) {
       onSelectChange(nextChange.id);
-      if (!desktop.current) mobileStep = "diff";
+      if (!desktop.current) dock?.show("diff");
     }
   }
 </script>
@@ -203,7 +225,7 @@
       {archivedSessionCount}
       onSelectFile={(path) => {
         onSelectTaskFile?.(path);
-        if (!desktop.current) mobileStep = "diff";
+        if (!desktop.current) dock?.show("diff");
       }}
       onSearchChange={onTaskSearchChange}
       onLoadMore={onLoadMoreTaskFiles}
@@ -233,7 +255,7 @@
     />
   {:else}
     <GitUncommittedChangesPane
-      {...composerAndDraftProps}
+      bind:composerTarget={compactComposerTarget}
       {context}
       {changes}
       {activeChange}
@@ -250,11 +272,14 @@
       onSwitchToTaskReview={() => setReviewScope("task")}
       onSelectChange={(id) => {
         onSelectChange(id);
-        if (!desktop.current) mobileStep = "diff";
+        if (!desktop.current) dock?.show("diff");
       }}
       {onToggleReviewed}
       {onStageChange}
       {onUnstageChange}
+      {onStageGroup}
+      {onOpenStashCreate}
+      {onInspectFile}
       {onDiscardChanges}
       {onRefreshSnapshot}
       {onOpenPush}
@@ -277,7 +302,7 @@
       fallbackRightLabel={m.s6_current_workspace()}
       backLabel={m.s6_back_to_task_changes()}
       presentation={mobile ? "mobile" : "docked"}
-      onBack={mobile ? () => (mobileStep = "changes") : undefined}
+      onBack={mobile ? () => dock?.show("changes") : undefined}
     />
   {:else}
     <section
@@ -292,7 +317,7 @@
             size="sm"
             variant="ghost"
             wrap
-            onclick={() => (mobileStep = "changes")}
+            onclick={() => dock?.show("changes")}
           >
             <IconArrowLeft aria-hidden="true" />
             {m.s6_back_to_changes()}
@@ -353,116 +378,56 @@
 {/snippet}
 
 <div class="flex h-full min-h-0 min-w-0 flex-col bg-background">
-  <GitPanelToolbar>
-    <SegmentedControl
-      wrap
-      value={effectiveScope}
-      onValueChange={(val) => {
-        if (val === "uncommitted" || val === "task") setReviewScope(val);
-      }}
-      aria-label={m.s6_review_scope_aria()}
-    >
-      <SegmentedControlItem value="uncommitted">
-        {m.s6_uncommitted_changes_tab({ count: changes.length })}
-      </SegmentedControlItem>
-      <SegmentedControlItem
-        value="task"
-        aria-label={taskReview?.status === "ready"
-          ? m.s6_task_changes_with_count({ count: taskReview.files.length })
-          : m.s6_task_changes_label()}
-        title={m.s6_task_changes_label()}
-      >
-        <span class="sm:hidden">{m.s6_task_changes_short()}</span>
-        <span class="max-sm:hidden">{m.s6_task_changes_label()}</span>
-        {#if taskReview?.status === "ready"}
-          <span>({taskReview.files.length})</span>
-        {/if}
-      </SegmentedControlItem>
-    </SegmentedControl>
+  <GitCommitReviewToolbar
+    scope={effectiveScope}
+    workingChangeCount={changes.length}
+    taskFileCount={taskReview?.status === "ready"
+      ? taskReview.files.length
+      : undefined}
+    progress={readonlyMode ? undefined : activeProgress}
+    onScopeChange={setReviewScope}
+    onNextUnreviewed={handleNextUnreviewed}
+    onResetLayout={desktop.current ? () => dock?.reset() : undefined}
+  />
 
-    <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-      {#if !readonlyMode && activeProgress.total > 0}
-        <Badge
-          variant={activeProgress.remaining === 0 ? "secondary" : "outline"}
-          data-testid="git-review-progress-badge"
-        >
-          {m.s6_reviewed_progress_badge({
-            reviewed: activeProgress.reviewed,
-            total: activeProgress.total,
-          })}
-        </Badge>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={activeProgress.remaining === 0}
-          onclick={handleNextUnreviewed}
-          aria-label={m.s6_next_unreviewed_label()}
-          title={m.s6_next_unreviewed_tooltip()}
-          data-testid="git-next-unreviewed"
-        >
-          <IconPlayerTrackNext aria-hidden="true" />
-          <span class="sm:hidden">{m.s6_next_unreviewed_short()}</span>
-          <span class="max-sm:hidden">{m.s6_next_unreviewed_label()}</span>
-        </Button>
-      {/if}
-
-      {#if desktop.current}
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label={m.s6_reset_commit_pane_layout()}
-          title={m.s6_reset_commit_pane_layout()}
-          onclick={() => {
-            onResetLayout?.();
-            paneResetKey++;
-          }}
-        >
-          <IconRestore aria-hidden="true" />
-        </Button>
-      {/if}
-    </div>
-  </GitPanelToolbar>
-
-  <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
-    {#if desktop.current}
-      {#key paneResetKey}
-        <Resizable.PaneGroup
-          direction="horizontal"
-          class="h-full min-h-0 min-w-0"
-          onLayoutChange={(sizes) => {
-            if (sizes.length === 2) {
-              onPaneSizesChange?.([sizes[0]!, sizes[1]!]);
-            }
-          }}
-        >
-          <Resizable.Pane
-            defaultSize={paneSizes[0]}
-            minSize={26}
-            class="git-pane"
-          >
-            {@render leftPaneContent()}
-          </Resizable.Pane>
-          <Resizable.Handle
-            withHandle
-            class="git-divider"
-            ondblclick={() => {
-              onResetLayout?.();
-              paneResetKey++;
-            }}
-          />
-          <Resizable.Pane
-            defaultSize={paneSizes[1]}
-            minSize={34}
-            class="git-pane"
-          >
-            {@render rightPaneContent(false)}
-          </Resizable.Pane>
-        </Resizable.PaneGroup>
-      {/key}
-    {:else if mobileStep === "changes"}
+  <DockWorkspace
+    {initial}
+    {storageKey}
+    compact={!desktop.current}
+    bind:mobilePanel
+    bind:this={dock}
+  >
+    <DockPanel id="changes" title={m.s5_changes_tab()}>
       {@render leftPaneContent()}
-    {:else}
-      {@render rightPaneContent(true)}
-    {/if}
-  </div>
+    </DockPanel>
+
+    <DockPanel id="composer" title={m.dock_git_commit_message()}>
+      {#snippet children(visible)}
+        <GitCompactPanelContent
+          target={!desktop.current && !visible
+            ? compactComposerTarget
+            : undefined}
+        >
+          <ScrollArea
+            class={!desktop.current && !visible ? "shrink-0" : "flex-1"}
+            viewportClasses="flex-1"
+          >
+            <GitCommitComposer
+              {...composerProps}
+              {context}
+              {readonlyMode}
+              stagedCount={commitCounts.staged}
+              conflictedCount={commitCounts.conflicted}
+              busy={stagingBusy}
+              {onOpenPush}
+            />
+          </ScrollArea>
+        </GitCompactPanelContent>
+      {/snippet}
+    </DockPanel>
+
+    <DockPanel id="diff" title={m.s6_log_diff_preview_placeholder()}>
+      {@render rightPaneContent(!desktop.current)}
+    </DockPanel>
+  </DockWorkspace>
 </div>

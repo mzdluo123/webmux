@@ -5,6 +5,7 @@
   import { Button } from "$lib/components/ui/button";
   import IconPictureInPictureOff from "~icons/tabler/picture-in-picture-off";
   import CodeWorkspace from "./CodeWorkspace.svelte";
+  import DockPanel from "../shared/DockPanel.svelte";
   import type { CodeHost } from "../../domains/code/code-host";
   import type {
     CodeHostState,
@@ -29,6 +30,7 @@
     reveal,
     workspaceRef,
     gitFeature: initialGitFeature,
+    docked,
   }: {
     id: string;
     visible: boolean;
@@ -41,6 +43,7 @@
     reveal?: CodeReveal;
     workspaceRef?: { repositoryId: string; worktreeId?: string } | null;
     gitFeature?: TerminalFeatures["git"];
+    docked?: { files: string; reader: string };
   } = $props();
   const gitFeature = untrack(() => initialGitFeature);
 
@@ -93,7 +96,6 @@
 
   const canPopOut = popoutAvailable();
   let workspace = $state<CodeWorkspace>();
-  let wrapper = $state<HTMLDivElement>();
   // While popped out the window's frame owns the workspace; this page keeps
   // only the latest state it reported, and remounts from it on return.
   let popout = $state<CodePopout>();
@@ -113,13 +115,13 @@
 
   async function toggle() {
     if (popout) return popout.close();
-    if (!workspace || !wrapper || popping) return;
+    const rect = workspace?.bounds();
+    if (!workspace || !rect || popping) return;
     popping = true;
     notice = "";
     const current = workspace.capture();
     // Requests this workspace already showed are part of `current`.
     const shownReveal = reveal?.key ?? 0;
-    const rect = wrapper.getBoundingClientRect();
     try {
       const opened = await popOut({
         id,
@@ -183,33 +185,27 @@
 </script>
 
 <div
-  bind:this={wrapper}
   class="flex h-full min-h-0 min-w-0 flex-col"
   inert={popping}
   aria-busy={popping}
 >
-  {#if notice}<p
-      role="alert"
-      class="shrink-0 px-2 py-1 text-sm break-all text-destructive"
-    >
-      {notice}
-    </p>{/if}
-  {#if popout}<div
-      class="flex flex-1 flex-col items-center justify-center gap-3 p-4 text-sm text-muted-foreground"
-    >
-      <p>{m.s5_code_shown_in_popout()}</p>
-      <Button variant="outline" size="sm" onclick={() => popout?.close()}
-        ><IconPictureInPictureOff
-          aria-hidden="true"
-        />{m.s5_dock_back_here()}</Button
+  {#if popout}
+    {#if docked}
+      <DockPanel id={docked.reader} title={m.s5_preview()}
+        >{@render poppedStatus()}</DockPanel
       >
-    </div>
+    {:else}
+      {@render poppedStatus()}
+    {/if}
   {:else}
     {#key generation}<CodeWorkspace
         bind:this={workspace}
         {id}
         {visible}
         {host}
+        {docked}
+        {notice}
+        inert={popping}
         initial={snapshot}
         popout={canPopOut
           ? { popped: false, toggle: () => void toggle() }
@@ -246,3 +242,14 @@
     />
   {/if}
 </div>
+
+{#snippet poppedStatus()}
+  <div
+    class="flex flex-1 flex-col items-center justify-center gap-3 p-4 text-sm text-muted-foreground"
+  >
+    <p>{m.s5_code_shown_in_popout()}</p>
+    <Button variant="outline" size="sm" onclick={() => popout?.close()}>
+      <IconPictureInPictureOff aria-hidden="true" />{m.s5_dock_back_here()}
+    </Button>
+  </div>
+{/snippet}

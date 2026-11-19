@@ -13,7 +13,6 @@
   import * as Empty from "$lib/components/ui/empty";
   import { ListButton } from "$lib/components/ui/list-button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
-  import * as Resizable from "$lib/components/ui/resizable";
   import type {
     GitStashDetail,
     GitStashEntry,
@@ -24,13 +23,17 @@
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
   import type { GitDiffPanelReader } from "../../hooks/workspace/git-log-diff.svelte";
+  import { dockGroup, dockSplit } from "$lib/dock-layout";
   import { stashFileKey } from "../../hooks/workspace/git-stash-controller.svelte";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
+  import DockPanel from "../shared/DockPanel.svelte";
+  import DockWorkspace from "../shared/DockWorkspace.svelte";
   import GitLogDiffPanel from "./GitLogDiffPanel.svelte";
   import GitPanelToolbar from "./GitPanelToolbar.svelte";
 
   let {
     context,
+    storageKey = "git.stash",
     entries,
     selectedStashOid = null,
     detail = null,
@@ -47,6 +50,7 @@
     onOpenDrop,
   }: {
     context: GitWorktreeContext;
+    storageKey?: string;
     entries: readonly GitStashEntry[];
     selectedStashOid?: string | null;
     detail?: GitStashDetail | null;
@@ -64,10 +68,15 @@
   } = $props();
 
   const desktop = new MediaQuery("(min-width: 1024px)");
-  let mobileStepOverride = $state<{
-    oid: string;
-    step: "detail" | "diff";
-  } | null>(null);
+  const initial = dockSplit(
+    "horizontal",
+    dockGroup("list"),
+    dockSplit("vertical", dockGroup("detail"), dockGroup("diff"), 0.38),
+    0.36,
+  );
+  let dock = $state<ReturnType<typeof DockWorkspace>>();
+  let mobilePanel = $state("list");
+  let mobileEntry = $state<string>();
 
   const readonlyMode = $derived(
     context.headState === "readonly" || !context.worktreePath,
@@ -75,11 +84,19 @@
   const activeEntry = $derived(
     entries.find((e) => e.oid === selectedStashOid) ?? entries[0] ?? null,
   );
-  const mobileStep = $derived<"list" | "detail" | "diff">(
-    activeEntry && mobileStepOverride?.oid === activeEntry.oid
-      ? mobileStepOverride.step
-      : "list",
-  );
+
+  $effect(() => {
+    if (mobileEntry && mobileEntry !== activeEntry?.oid) {
+      mobileEntry = undefined;
+      if (desktop.current) mobilePanel = "list";
+      else dock?.show("list");
+    }
+  });
+
+  function rememberMobileEntry(oid: string) {
+    if (!desktop.current) mobileEntry = oid;
+  }
+
   const activeDetail = $derived(
     detail && activeEntry && detail.entry.oid === activeEntry.oid
       ? detail
@@ -120,7 +137,6 @@
 {#snippet stashListSection()}
   <section
     class="flex h-full min-h-0 min-w-0 flex-col bg-background"
-    aria-label={m.s7_stash_list_aria()}
     data-testid="git-stash-list-pane"
   >
     <GitPanelToolbar>
@@ -196,10 +212,9 @@
               aria-selected={selected}
               data-stash-row={item.stashRef}
               onclick={() => {
+                rememberMobileEntry(item.oid);
                 onSelectStash(item.oid);
-                if (!desktop.current) {
-                  mobileStepOverride = { oid: item.oid, step: "detail" };
-                }
+                if (!desktop.current) dock?.show("detail");
               }}
             >
               <div class="flex min-w-0 flex-1 flex-col gap-1">
@@ -240,11 +255,7 @@
   <div class="space-y-2 border-b bg-background px-3 py-2 text-xs">
     {#if isMobile}
       <div>
-        <Button
-          size="sm"
-          variant="ghost"
-          onclick={() => (mobileStepOverride = null)}
-        >
+        <Button size="sm" variant="ghost" onclick={() => dock?.show("list")}>
           <IconArrowLeft aria-hidden="true" />
           {m.s7_stash_back_to_list()}
         </Button>
@@ -279,7 +290,10 @@
             title={readonlyMode
               ? m.s7_stash_pop_disabled_readonly()
               : m.s7_stash_pop_tooltip()}
-            onclick={() => onOpenApply(entry, "pop")}
+            onclick={() => {
+              rememberMobileEntry(entry.oid);
+              onOpenApply(entry, "pop");
+            }}
             data-testid="git-stash-pop-btn"
           >
             <IconPlayerPlay aria-hidden="true" />
@@ -305,7 +319,10 @@
             size="sm"
             variant="destructive-outline"
             wrap
-            onclick={() => onOpenDrop(entry)}
+            onclick={() => {
+              rememberMobileEntry(entry.oid);
+              onOpenDrop(entry);
+            }}
             data-testid="git-stash-drop-btn"
           >
             <IconTrash aria-hidden="true" />
@@ -317,7 +334,7 @@
   </div>
 {/snippet}
 
-{#snippet stashFilesList(isMobile: boolean)}
+{#snippet stashFilesList()}
   <ScrollArea class="min-h-8 flex-1">
     <div class="p-2">
       {#if loadingDetail && !activeDetail}
@@ -361,9 +378,7 @@
               data-untracked={file.untracked}
               onclick={() => {
                 onSelectFile(file);
-                if (isMobile && activeEntry) {
-                  mobileStepOverride = { oid: activeEntry.oid, step: "diff" };
-                }
+                if (!desktop.current) dock?.show("diff");
               }}
             >
               <Badge
@@ -407,9 +422,7 @@
     fallbackRightLabel={`${entry.stashRef} (${entry.shortOid})`}
     backLabel={isMobile ? m.s7_stash_back_to_files() : undefined}
     presentation={isMobile ? "mobile" : "docked"}
-    onBack={isMobile
-      ? () => (mobileStepOverride = { oid: entry.oid, step: "detail" })
-      : undefined}
+    onBack={isMobile ? () => dock?.show("detail") : undefined}
   />
 {/snippet}
 
@@ -417,49 +430,42 @@
   class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-background"
   data-testid="git-stash-pane"
 >
-  {#if desktop.current}
-    <Resizable.PaneGroup
-      direction="horizontal"
-      class="h-full min-h-0 min-w-0 flex-1"
-    >
-      <Resizable.Pane defaultSize={36} minSize={24} class="git-pane">
-        {@render stashListSection()}
-      </Resizable.Pane>
-      <Resizable.Handle withHandle class="git-divider" />
-      <Resizable.Pane defaultSize={64} minSize={36} class="git-pane">
-        {#if !activeEntry}
-          <div
-            class="flex h-full items-center justify-center px-6 py-8 text-center text-xs text-muted-foreground"
-          >
-            {m.s7_stash_select_prompt()}
-          </div>
-        {:else}
-          <div class="flex h-full min-h-0 min-w-0 flex-col">
-            {@render stashDetailHeader(activeEntry, false)}
-            <Resizable.PaneGroup
-              direction="vertical"
-              class="min-h-8 min-w-0 flex-1"
-            >
-              <Resizable.Pane defaultSize={38} minSize={20} class="git-pane">
-                {@render stashFilesList(false)}
-              </Resizable.Pane>
-              <Resizable.Handle withHandle class="git-divider" />
-              <Resizable.Pane defaultSize={62} minSize={28} class="git-pane">
-                {@render stashDiffPanel(activeEntry, false)}
-              </Resizable.Pane>
-            </Resizable.PaneGroup>
-          </div>
-        {/if}
-      </Resizable.Pane>
-    </Resizable.PaneGroup>
-  {:else if mobileStep === "list" || !activeEntry}
-    {@render stashListSection()}
-  {:else if mobileStep === "detail"}
-    <div class="flex h-full min-h-0 min-w-0 flex-col bg-background">
-      {@render stashDetailHeader(activeEntry, true)}
-      {@render stashFilesList(true)}
-    </div>
-  {:else}
-    {@render stashDiffPanel(activeEntry, true)}
-  {/if}
+  <DockWorkspace
+    {initial}
+    {storageKey}
+    compact={!desktop.current}
+    bind:mobilePanel
+    bind:this={dock}
+  >
+    <DockPanel id="list" title={m.s7_stash_list_aria()}>
+      {@render stashListSection()}
+    </DockPanel>
+
+    <DockPanel id="detail" title={m.dock_git_stash_details()}>
+      {#if activeEntry}
+        <div class="flex h-full min-h-0 min-w-0 flex-col bg-background">
+          {@render stashDetailHeader(activeEntry, !desktop.current)}
+          {@render stashFilesList()}
+        </div>
+      {:else}
+        {@render noStashSelected()}
+      {/if}
+    </DockPanel>
+
+    <DockPanel id="diff" title={m.s6_log_diff_preview_placeholder()}>
+      {#if activeEntry}
+        {@render stashDiffPanel(activeEntry, !desktop.current)}
+      {:else}
+        {@render noStashSelected()}
+      {/if}
+    </DockPanel>
+  </DockWorkspace>
 </div>
+
+{#snippet noStashSelected()}
+  <div
+    class="flex h-full items-center justify-center px-6 py-8 text-center text-xs text-muted-foreground"
+  >
+    {m.s7_stash_select_prompt()}
+  </div>
+{/snippet}

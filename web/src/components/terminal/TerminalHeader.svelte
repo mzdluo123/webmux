@@ -1,9 +1,11 @@
 <script lang="ts">
   import SidebarButton from "../shell/SidebarButton.svelte";
   import { findShell, shellUi } from "../../hooks/shared/shell.svelte";
-  import type { Snippet } from "svelte";
+  import { tick, type Snippet } from "svelte";
+  import { MediaQuery } from "svelte/reactivity";
   import IconArrowLeft from "~icons/tabler/arrow-left";
-  import IconPlus from "~icons/tabler/plus";
+  import IconLayout from "~icons/tabler/layout-columns";
+  import IconArrowsExchange from "~icons/tabler/arrows-exchange";
   import IconMaximize from "~icons/tabler/maximize";
   import IconMinimize from "~icons/tabler/minimize";
   import IconUpload from "~icons/tabler/upload";
@@ -26,6 +28,8 @@
   import DraftToggle from "./DraftToggle.svelte";
   import type { TerminalFeatures } from "../../features/terminal";
   import SessionSwitcherTrigger from "../shell/SessionSwitcherTrigger.svelte";
+  import { findSessionSwitcher } from "../../hooks/shared/session-switcher";
+  import SessionTitle from "./SessionTitle.svelte";
 
   interface HeaderTerminal {
     readonly info: SessionInfo | undefined;
@@ -56,7 +60,7 @@
     setSizeLocked,
     keyboardSizeHold,
     setKeyboardSizeHold,
-    codeShown = $bindable(),
+    codeShown,
     bottomToolbarShown = $bindable(),
     quickMenu,
     upload,
@@ -68,6 +72,7 @@
     showFind,
     hybrid,
     openPanels,
+    pickerOpen = false,
     chatActions,
   }: {
     features?: TerminalFeatures;
@@ -94,24 +99,22 @@
     showFind: () => void;
     hybrid?: HeaderHybrid;
     openPanels: () => void;
+    pickerOpen?: boolean;
     chatActions?: Snippet;
   } = $props();
   // A rename reaches the session list first; the list title wins here so
   // the header follows it on either side.
   const shell = findShell();
-  const title = $derived(
-    shell?.sessions.sessions.find((session) => session.id === t.info?.id)
-      ?.title ||
-      t.info?.title ||
-      m.s4_tab_terminal(),
+  const session = $derived(
+    shell?.sessions.sessions.find((session) => session.id === t.info?.id) ??
+      t.info,
   );
+  const title = $derived(session?.title || m.s4_tab_terminal());
+  const phone = new MediaQuery("(max-width: 639px)");
+  const openSwitcher = findSessionSwitcher();
+  let menuTrigger = $state<HTMLButtonElement | null>(null);
   let fileInput = $state<{ open(): void }>();
-  let panelTrigger = $state<HTMLButtonElement | null>(null);
-
-  export function focusPanels() {
-    panelTrigger?.focus();
-  }
-  let openingFind = false;
+  let skipMenuFocus = false;
   // Off the terminal view there is no PTY: terminal-only actions are hidden;
   // fullscreen, the code panel and closing the session stay.
   const terminalShown = $derived(!hybrid || hybrid.view === "terminal");
@@ -156,12 +159,11 @@
   >
     <IconArrowLeft class="size-4" aria-hidden="true" />
   </Button>
-  <SessionSwitcherTrigger size="icon-sm" />
+  <SessionSwitcherTrigger size="icon-sm" class="max-sm:hidden" />
   <!-- The title and the session's state read as one unit; the actions keep
-       their places while the title truncates. Phones put the dot first and
-       move a connection problem to a second line, so it never pushes the
-       title out. -->
-  <div class="flex min-w-8 flex-1 items-center gap-2">
+       their places while the title truncates. On phones the connection
+       label sits below the centered title without resizing its row. -->
+  <div class="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
     {#if t.info}<span
         class={`status-dot shrink-0 status-${t.info.status} sm:order-3`}
         class:status-failed={sessionStatusTone(t.info) === "destructive"}
@@ -176,28 +178,24 @@
         ><span class="status-dot invisible"></span></span
       >{/if}
     <div class="relative flex min-w-0 flex-col sm:order-1">
-      <span class="h-5 min-w-0 truncate text-sm leading-5 font-medium"
-        >{title}</span
-      >
-      <!-- Overlaid under the title, so a status change never moves it. -->
+      <SessionTitle {title} {session} agent={chatAgent?.title} />
       {#if !t.info || t.connection !== "connected"}<span
-          class="absolute top-full left-0 -mt-0.5 max-w-full truncate text-xs leading-none text-muted-foreground sm:hidden"
+          class="pointer-events-none absolute inset-x-0 top-1/2 mt-2 truncate text-xs leading-none text-muted-foreground sm:hidden"
           role="status">{connectionText}</span
         >{/if}
     </div>
     {#if features.chat && chatAgent}<span
-        class="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground sm:order-2"
+        class="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground max-sm:hidden sm:order-2"
         role="img"
         aria-label={m.s4_agent_label({ title: chatAgent.title })}
         title={m.s4_agent_label({ title: chatAgent.title })}
         data-slot="chat-agent"
-        >{#if features.chat.hasLaunchIcon(chatAgent.icon)}<features.chat.LaunchIcon
-            icon={chatAgent.icon}
-            size="sm"
-          /><span class="max-sm:hidden">{chatAgent.title}</span>{:else}<span
-            >{chatAgent.title}</span
-          >{/if}</span
-      >{/if}
+      >
+        {#if features.chat.hasLaunchIcon(chatAgent.icon)}
+          <features.chat.LaunchIcon icon={chatAgent.icon} size="sm" />
+        {/if}
+        <span>{chatAgent.title}</span>
+      </span>{/if}
     {#if !t.info || t.connection !== "connected"}<span
         class="shrink-0 text-xs whitespace-nowrap text-muted-foreground max-sm:hidden sm:order-4"
         role="status">{connectionText}</span
@@ -206,18 +204,17 @@
   <!-- Actions, left to right: where the session runs, terminal actions
        (icons), the quick commands and the panes it opens (outlined), then
        the window and the menu. -->
-  {#if features.chat}<features.chat.ViewTabs
-      hybrid={hybrid && hybrid.view !== "recovery"
-        ? {
-            side: hybrid.side,
-            target: hybrid.target,
-            switching: hybrid.view === "switching",
-            chatUnavailable: hybrid.chatUnavailable,
-            request: (to) => hybrid.request(to),
-          }
-        : undefined}
-      code={{ shown: codeShown, set: (value) => (codeShown = value) }}
-    />{/if}
+  {#if features.chat && hybrid && hybrid.view !== "recovery" && !phone.current}
+    <features.chat.ViewTabs
+      hybrid={{
+        side: hybrid.side,
+        target: hybrid.target,
+        switching: hybrid.view === "switching",
+        chatUnavailable: hybrid.chatUnavailable,
+        request: (to) => hybrid.request(to),
+      }}
+    />
+  {/if}
   {#if terminalShown && upload}
     <Button
       variant="ghost"
@@ -234,7 +231,7 @@
       bind:this={fileInput}
       {upload}
     />{/if}
-  {#if terminalShown}
+  {#if terminalShown && !codeShown}
     <div class="quick-commands-header flex items-center gap-1">
       {@render quickMenu("bottom", undefined, "ghost")}
     </div>
@@ -248,13 +245,14 @@
     />
   {/if}
   <Button
-    bind:ref={panelTrigger}
     variant="ghost"
     size="icon-touch-sm"
     aria-label={m.s4_open_panel()}
     title={m.s4_open_panel()}
-    aria-expanded={codeShown}
-    onclick={openPanels}><IconPlus class="size-4" aria-hidden="true" /></Button
+    aria-expanded={pickerOpen}
+    aria-haspopup="dialog"
+    onclick={openPanels}
+    ><IconLayout class="size-4" aria-hidden="true" /></Button
   >
   {#if fullscreen.offered}<Button
       variant="ghost"
@@ -280,6 +278,7 @@
     <DropdownMenu.Trigger>
       {#snippet child({ props })}<Button
           {...props}
+          bind:ref={menuTrigger}
           variant="ghost"
           size="icon-touch-sm"
           aria-label={terminalShown
@@ -293,15 +292,54 @@
       class={chatActions ? "min-w-48" : undefined}
       align="end"
       onCloseAutoFocus={(event) => {
-        if (openingFind) {
+        if (skipMenuFocus) {
           event.preventDefault();
-          openingFind = false;
+          skipMenuFocus = false;
         }
       }}
     >
-      <!-- Grouped by purpose. Below 640px the header keeps only the view
-           switch and this menu, so the entries of the hidden buttons live
-           here (marked sm:hidden). -->
+      {#if phone.current && features.chat && hybrid && hybrid.view !== "recovery"}
+        <DropdownMenu.RadioGroup
+          value={hybrid.target ?? hybrid.side ?? ""}
+          aria-label={m.s4_input_side()}
+          onValueChange={(to) => {
+            if (to === "chat" || to === "terminal") hybrid.request(to);
+          }}
+        >
+          <DropdownMenu.GroupHeading
+            >{m.s4_input_side()}</DropdownMenu.GroupHeading
+          >
+          <DropdownMenu.RadioItem
+            value="chat"
+            closeOnSelect
+            disabled={hybrid.view === "switching" || !!hybrid.chatUnavailable}
+            >{m.s4_tab_chat()}</DropdownMenu.RadioItem
+          >
+          {#if hybrid.chatUnavailable}
+            <DropdownMenu.Label class="wrap-anywhere">
+              {hybrid.chatUnavailable}
+            </DropdownMenu.Label>
+          {/if}
+          <DropdownMenu.RadioItem
+            value="terminal"
+            closeOnSelect
+            disabled={hybrid.view === "switching"}
+            >{m.s4_tab_terminal()}</DropdownMenu.RadioItem
+          >
+        </DropdownMenu.RadioGroup>
+        <DropdownMenu.Separator />
+      {/if}
+      {#if phone.current && openSwitcher}
+        <DropdownMenu.Item
+          onSelect={() => {
+            skipMenuFocus = true;
+            void tick().then(() => openSwitcher(menuTrigger));
+          }}
+        >
+          <IconArrowsExchange aria-hidden="true" />
+          {m.s1_quick_switch_session()}
+        </DropdownMenu.Item>
+      {/if}
       {#if fullscreen.offered}<DropdownMenu.Item
           class="sm:hidden"
           disabled={fullscreen.busy}
@@ -339,7 +377,7 @@
           <DropdownMenu.Item
             disabled={!t.canFind}
             onSelect={() => {
-              openingFind = true;
+              skipMenuFocus = true;
               showFind();
             }}><IconSearch aria-hidden="true" />{m.s4_find()}</DropdownMenu.Item
           >

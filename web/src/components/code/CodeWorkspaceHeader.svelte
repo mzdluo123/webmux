@@ -23,6 +23,7 @@
 
   let {
     navOpen = $bindable(),
+    dockNavigation,
     navStatus,
     tabs,
     context,
@@ -41,6 +42,7 @@
     onInspectGitFile,
   }: {
     navOpen: boolean;
+    dockNavigation?: { shown: boolean; show: () => void };
     navStatus: string;
     tabs: CodeWorkspaceTab[];
     context?: CodeContext;
@@ -64,29 +66,36 @@
 </script>
 
 <div class="flex shrink-0 items-stretch border-b">
-  <div class="flex shrink-0 items-center px-2 py-1">
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      class="relative"
-      aria-label={navOpen ? m.s5_collapse_nav() : m.s5_file_navigation()}
-      aria-expanded={navOpen}
-      title={navOpen
-        ? m.s5_collapse_nav()
-        : navStatus
-          ? m.s5_file_navigation_with_status({ status: navStatus })
+  {#if !dockNavigation?.shown}
+    <div class="flex shrink-0 items-center px-2 py-1">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        class="relative"
+        aria-label={!dockNavigation && navOpen
+          ? m.s5_collapse_nav()
           : m.s5_file_navigation()}
-      onclick={() => (navOpen = !navOpen)}
-      >{#if navOpen}<IconLayoutSidebarLeftCollapse
-          aria-hidden="true"
-        />{:else}<IconLayoutSidebarLeftExpand
-          aria-hidden="true"
-        />{/if}{#if navStatus && !navOpen}<span
-          class="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-warning"
-          aria-hidden="true"
-        ></span>{/if}</Button
-    >
-  </div>
+        aria-expanded={dockNavigation?.shown ?? navOpen}
+        title={!dockNavigation && navOpen
+          ? m.s5_collapse_nav()
+          : navStatus
+            ? m.s5_file_navigation_with_status({ status: navStatus })
+            : m.s5_file_navigation()}
+        onclick={() => {
+          if (dockNavigation) dockNavigation.show();
+          else navOpen = !navOpen;
+        }}
+        >{#if !dockNavigation && navOpen}<IconLayoutSidebarLeftCollapse
+            aria-hidden="true"
+          />{:else}<IconLayoutSidebarLeftExpand
+            aria-hidden="true"
+          />{/if}{#if navStatus && !navOpen}<span
+            class="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-warning"
+            aria-hidden="true"
+          ></span>{/if}</Button
+      >
+    </div>
+  {/if}
   <Tabs.List variant="line" aria-label={m.s5_file_tabs()}>
     {#snippet child({ props })}
       <div

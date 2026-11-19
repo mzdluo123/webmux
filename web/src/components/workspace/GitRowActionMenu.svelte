@@ -21,6 +21,7 @@
       <ListButton
         {...props}
         variant="file-tree-action"
+        class="max-sm:my-auto max-sm:max-h-(--control-touch-compact)"
         aria-label={label}
         title={label}
       >

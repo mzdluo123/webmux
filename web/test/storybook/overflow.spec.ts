@@ -100,6 +100,16 @@ for (const story of stories) {
         ? dialogs.first()
         : page.getByTestId("overflow-story");
       await assertRequiredButtons(controls, story);
+      if (story === "git-workbench-shell") {
+        await expect(
+          controls.getByRole("region", { name: "修改", exact: true }),
+          name,
+        ).toBeVisible();
+        await expect(
+          controls.getByRole("button", { name: "打开面板", exact: true }),
+          name,
+        ).toBeVisible();
+      }
       for (const button of await controls.getByRole("button").all()) {
         await expect.soft(button, name).toBeVisible();
         // Trial clicks already scroll and check stability. Keep an explicit

@@ -10,13 +10,7 @@
     GitPrecedingCommit,
     GitWorkbenchMode,
   } from "../contracts/git-workbench-schemas";
-  import {
-    readGitDeviceLayout,
-    resetGitDeviceLayout,
-    resolveGitDeviceClass,
-    writeGitDeviceLayout,
-    type GitDeviceLayout,
-  } from "../domains/workspace/git-workbench-memory";
+  import { resolveGitDeviceClass } from "../domains/workspace/git-workbench-memory";
   import { filterActiveWorktreeSessions } from "../domains/workspace/git-workbench-adapter";
   import {
     GIT_CONFLICT_HANDOFF_EVENT,
@@ -35,6 +29,7 @@
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import GitCommitOutcomeBanner from "../components/workspace/GitCommitOutcomeBanner.svelte";
   import GitWorkbenchPageDialogs from "../components/workspace/GitWorkbenchPageDialogs.svelte";
+  import GitWorkbenchFrame from "../components/workspace/GitWorkbenchFrame.svelte";
   import GitOperationsPopover from "../components/workspace/GitOperationsPopover.svelte";
   import GitWorkbenchTopBar from "../components/workspace/GitWorkbenchTopBar.svelte";
   import GitWorkbenchWorkspace from "../components/workspace/GitWorkbenchWorkspace.svelte";
@@ -55,23 +50,7 @@
   let viewportWidth = $state(
     typeof window !== "undefined" ? window.innerWidth : 1280,
   );
-  let layoutRevision = $state(0);
-
   const deviceClass = $derived(resolveGitDeviceClass(viewportWidth));
-  const deviceLayout = $derived.by(() => {
-    void layoutRevision;
-    return readGitDeviceLayout(deviceClass);
-  });
-
-  function updateDeviceLayout(patch: Partial<GitDeviceLayout>) {
-    writeGitDeviceLayout(deviceClass, patch);
-    layoutRevision += 1;
-  }
-
-  function handleResetDeviceLayout() {
-    resetGitDeviceLayout(deviceClass);
-    layoutRevision += 1;
-  }
 
   const controller = createGitWorkbenchController({
     onRepositoryUpdated: (repo) => shell.repositories?.replace(repo),
@@ -288,11 +267,7 @@
 
 <svelte:window bind:innerWidth={viewportWidth} />
 
-<main
-  class="git-workbench flex h-dvh min-h-0 min-w-0 flex-col bg-background text-foreground"
-  data-testid="git-workbench-page"
-  data-device-class={deviceClass}
->
+{#snippet workbench()}
   {#snippet operationLedger()}
     {#if repository}
       <GitOperationsPopover
@@ -433,10 +408,7 @@
       {returnSession}
       {commitGuard}
       {canAddRepository}
-      {deviceLayout}
       hasActiveWorktreeSession={activeWorktreeSessions.length > 0}
-      onUpdateDeviceLayout={updateDeviceLayout}
-      onResetDeviceLayout={handleResetDeviceLayout}
       onAddRepository={() => shell.addRepository()}
       onSelectRepository={switchRepository}
       onSwitchWorktree={switchWorktree}
@@ -490,4 +462,12 @@
       onFastForwardBranch={(branch) => handleUpdate(branch)}
     />
   {/if}
+{/snippet}
+
+<main
+  class="git-workbench flex h-dvh min-h-0 min-w-0 flex-col bg-background text-foreground"
+  data-testid="git-workbench-page"
+  data-device-class={deviceClass}
+>
+  <GitWorkbenchFrame children={workbench} />
 </main>

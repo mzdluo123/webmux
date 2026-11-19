@@ -126,10 +126,21 @@ test("phone viewport navigates task review files -> diff cleanly without horizon
   await taskPane
     .getByRole("option", { name: /web\/src\/git-graph-layout\.ts/ })
     .click();
-  const diffPanel = page.getByTestId("git-log-diff-panel");
+  const diffPanel = page
+    .getByRole("tabpanel", { name: "提交" })
+    .getByRole("region", { name: "历史文件差异视图" });
   await expect
     .element(diffPanel)
     .toHaveAttribute("data-diff-presentation", "mobile");
+  await expect
+    .element(diffPanel.getByText("web/src/git-graph-layout.ts"))
+    .toBeVisible();
+  await expect
+    .element(diffPanel.getByText(/GIT_GRAPH_LANE_WIDTH/))
+    .toBeVisible();
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+    window.innerWidth,
+  );
   const backBtn = diffPanel.getByRole("button", { name: "返回任务变更列表" });
   await expect.element(backBtn).toBeVisible();
   await backBtn.click();

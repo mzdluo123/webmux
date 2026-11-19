@@ -3,7 +3,7 @@
   import { Button } from "$lib/components/ui/button";
   import { m } from "$lib/paraglide/messages.js";
   import { resumeSession } from "../../domains/sessions/recoverable";
-  import type { ArchivedSession } from "../../contracts/schemas";
+  import type { ArchivedSession, SessionInfo } from "../../contracts/schemas";
   import HybridRecordHints from "./HybridRecordHints.svelte";
   import HybridResumeActions from "./HybridResumeActions.svelte";
 
@@ -17,7 +17,7 @@
   }: {
     record: ArchivedSession;
     claimAutoResume: () => boolean;
-    onresumed: () => void;
+    onresumed: (session: SessionInfo) => void;
     /** Leaves this session: the page returns home, a split closes its pane. */
     leave: () => void;
   } = $props();
@@ -56,7 +56,7 @@
       {record}
       {claimAutoResume}
       resume={resumeSession}
-      onresumed={() => onresumed()}
+      {onresumed}
       onrebuilt={rebuilt}
       disabled={busy}
       onbusy={(active) => (busy = active)}

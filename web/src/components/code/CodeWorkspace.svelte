@@ -1,6 +1,8 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
+  import DockPanel from "../shared/DockPanel.svelte";
+  import { getDock } from "../shared/dock-context";
   import { dragWidth, keyWidth } from "../../hooks/shared/splitter";
   import { onMount, untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
@@ -24,6 +26,7 @@
     locateRevealTarget,
   } from "../../domains/code/code-reveal";
   import {
+    codeReaderTitle,
     shouldCloseOverlayNav,
     type CodeTabOrigin,
     type CodeWorkspaceTab,
@@ -41,6 +44,9 @@
     popout,
     onOpenGit,
     onInspectGitFile,
+    docked,
+    notice = "",
+    inert = false,
   }: {
     id: string;
     visible: boolean;
@@ -54,13 +60,18 @@
       path: string,
       tab: "history" | "blame" | "compare",
     ) => void;
+    docked?: { files: string; reader: string };
+    notice?: string;
+    inert?: boolean;
   } = $props();
   const seed = untrack(() => initial);
+  const dock = untrack(() => (docked ? getDock() : undefined));
   const navMin = 120,
     navMax = 640;
   let navDivider = $state<HTMLDivElement>();
   let section = $state<HTMLElement>();
   let inner = $state<HTMLDivElement>();
+  let navigationHost = $state<HTMLDivElement>();
   let navigator = $state<CodeNavigator>();
   let dropStatus = $state("");
   const views = new SvelteMap<CodeWorkspaceTab, CodeDocumentView>();
@@ -72,22 +83,20 @@
     shown: () => shown,
     seed,
     closeOverlayNav: () => {
-      if (shouldCloseOverlayNav(section)) ws.s.navOpen = false;
+      if (docked) dock?.show(docked.reader);
+      else if (shouldCloseOverlayNav(section)) ws.s.navOpen = false;
     },
   });
-  const activePath = $derived(
-    ws.s.tabs.find((tab) => tab.key === ws.s.active)?.file?.document.path ?? "",
+  const activeTab = $derived(ws.s.tabs.find((tab) => tab.key === ws.s.active));
+  const activePath = $derived(activeTab?.file?.document.path ?? "");
+  const activeDocumentPath = $derived(
+    activePath || activeTab?.diff?.new.path || activeTab?.diff?.old.path || "",
   );
-  const activeGitPath = $derived.by(() => {
-    const tab = ws.s.tabs.find((t) => t.key === ws.s.active);
-    if (!tab || tab.rootKind === "artifacts") return "";
-    return (
-      tab.file?.document.path || tab.diff?.new.path || tab.diff?.old.path || ""
-    );
-  });
-  const activeMenu = $derived(
-    ws.s.tabs.find((tab) => tab.key === ws.s.active)?.menu,
+  const activeGitPath = $derived(
+    activeTab?.rootKind === "artifacts" ? "" : activeDocumentPath,
   );
+  const activeMenu = $derived(activeTab?.menu);
+  const readerTitle = $derived(codeReaderTitle(activeDocumentPath));
 
   /** The reading state of this workspace, for another instance to restore. */
   export function capture(): CodeWorkspaceSnapshot {
@@ -95,6 +104,9 @@
       (tab) => views.get(tab)?.capture() ?? $state.snapshot(tab.restore),
       () => navigator?.capture() ?? seed?.navigator,
     );
+  }
+  export function bounds() {
+    return section?.getBoundingClientRect();
   }
   function setNavWidth(width: number) {
     const limit = Math.min(navMax, (inner?.clientWidth ?? navMax) - 160);
@@ -296,79 +308,50 @@
   }
 </script>
 
-<Tabs.Root value={ws.s.active} onValueChange={ws.activate}>
-  {#snippet child({ props })}
-    <section
-      {...props}
-      bind:this={section}
-      class="code-panel relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
-      aria-label={m.s5_code_workspace()}
+{#snippet workspace(props: Record<string, unknown>)}
+  <section
+    {...props}
+    bind:this={section}
+    {inert}
+    class="code-panel relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
+    aria-label={m.s5_code_workspace()}
+  >
+    <CodeWorkspaceHeader
+      bind:navOpen={ws.s.navOpen}
+      dockNavigation={docked
+        ? {
+            show: () => dock?.show(docked!.files),
+            shown: !!dock?.rect(docked.files),
+          }
+        : undefined}
+      navStatus={ws.s.navStatus}
+      tabs={ws.s.tabs}
+      context={ws.s.context}
+      pending={ws.s.pending}
+      {popout}
+      {activeMenu}
+      {section}
+      error={notice || ws.s.error}
+      {dropStatus}
+      beginOpen={ws.beginOpen}
+      supersedeOpenOnTabKey={ws.supersedeOpenOnTabKey}
+      close={ws.close}
+      refreshAll={() => {
+        void ws.load();
+        for (const tab of ws.s.tabs) void ws.refresh(tab);
+      }}
+      inspectablePath={activeGitPath}
+      {onOpenGit}
+      {onInspectGitFile}
+    />
+    <div
+      class="code-inner flex min-h-0 flex-1 overflow-hidden"
+      style:--code-nav-width={`${ws.s.navWidth}px`}
+      bind:this={inner}
     >
-      <CodeWorkspaceHeader
-        bind:navOpen={ws.s.navOpen}
-        navStatus={ws.s.navStatus}
-        tabs={ws.s.tabs}
-        context={ws.s.context}
-        pending={ws.s.pending}
-        {popout}
-        {activeMenu}
-        {section}
-        error={ws.s.error}
-        {dropStatus}
-        beginOpen={ws.beginOpen}
-        supersedeOpenOnTabKey={ws.supersedeOpenOnTabKey}
-        close={ws.close}
-        refreshAll={() => {
-          void ws.load();
-          for (const tab of ws.s.tabs) void ws.refresh(tab);
-        }}
-        inspectablePath={activeGitPath}
-        {onOpenGit}
-        {onInspectGitFile}
-      />
-      <div
-        class="code-inner flex min-h-0 flex-1 overflow-hidden"
-        style:--code-nav-width={`${ws.s.navWidth}px`}
-        bind:this={inner}
-      >
+      {#if !docked}
         <div class="contents" class:hidden={!ws.s.navOpen}>
-          <CodeNavigator
-            bind:this={navigator}
-            restore={seed?.navigator}
-            dropHost={section}
-            bind:dropStatus
-            {id}
-            context={ws.s.context}
-            listing={ws.s.listing}
-            rootListing={ws.s.rootListing}
-            fetchDirectory={ws.fetchDirectory}
-            treeRefresh={ws.s.treeRefresh}
-            {activePath}
-            changes={ws.s.changes}
-            changesError={ws.s.changesError}
-            pending={ws.s.pending}
-            sessionCwd={host.sessionCwd}
-            reportedCwd={host.reportedCwd}
-            navStatus={ws.s.navStatus}
-            root={ws.s.root}
-            rootError={ws.s.rootError}
-            switchRoot={ws.switchRoot}
-            retryRoot={() => void ws.loadContext()}
-            reload={() => void ws.load()}
-            changed={ws.filesChanged}
-            changesEnabled={shown && !ws.s.changesError && !ws.s.navStatus}
-            bind:nav={ws.s.nav}
-            bind:query={ws.s.query}
-            bind:directory={ws.s.directory}
-            bind:includeIgnored={ws.s.includeIgnored}
-            bind:changeGroup={ws.s.changeGroup}
-            bind:changeQuery={ws.s.changeQuery}
-            bind:changeSearch={ws.s.changeSearch}
-            load={(append) => ws.load(append)}
-            openFile={(path, opaqueId) => void openFile(path, opaqueId)}
-            {locate}
-            openDiff={(change) => void openDiff(change)}
-          />
+          {@render navigation()}
           <!-- A focusable separator with aria-valuenow is an interactive widget (WAI-ARIA window splitter). -->
           <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
           <div
@@ -385,57 +368,128 @@
             onkeydown={resizeKey}
           ></div>
         </div>
-        <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          {#each ws.s.tabs as tab (tab.key)}
-            <Tabs.Content value={tab.key} tabindex={-1}>
-              {#snippet child({ props })}
-                <div {...props} class="min-h-0 flex-1 overflow-hidden">
-                  <CodeDocumentView
-                    bind:this={
-                      () => views.get(tab),
-                      (view) =>
-                        view ? views.set(tab, view) : views.delete(tab)
-                    }
-                    restore={tab.restore}
-                    {id}
-                    active={shown && ws.s.active === tab.key}
-                    file={tab.file}
-                    diff={tab.diff}
-                    status={tab.status}
-                    paste={(text) => host.paste(text)}
-                    draftEnabled={host.draftEnabled}
-                    refresh={() => void ws.refresh(tab)}
-                    contextId={tab.contextId}
-                    comparison={tab.comparison}
-                    onComparison={(value) => (tab.comparison = value)}
-                    onState={(state) => (tab.status = state)}
-                    beginOpen={ws.beginOpen}
-                    openSide={(file, intent) =>
-                      ws.install(
-                        tab,
-                        file,
-                        undefined,
-                        intent === ws.selectionSequence,
-                      )}
-                    bind:menu={tab.menu}
-                    workspace={tab.contextId === ws.s.context?.contextId
-                      ? markdownWorkspace
-                      : undefined}
-                    heading={tab.heading}
-                    onHeading={() => (tab.heading = undefined)}
-                    jump={tab.jump}
-                    onJump={() => (tab.jump = undefined)}
-                    diffAvailable={tab.rootKind !== "artifacts"}
-                  />
-                </div>
-              {/snippet}
-            </Tabs.Content>
-          {/each}
-          {#if !ws.s.tabs.length}<p class="p-4 text-sm text-muted-foreground">
-              {m.s5_workspace_empty_prompt()}
-            </p>{/if}
-        </div>
+      {/if}
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {#each ws.s.tabs as tab (tab.key)}
+          <Tabs.Content value={tab.key} tabindex={-1}>
+            {#snippet child({ props })}
+              <div {...props} class="min-h-0 flex-1 overflow-hidden">
+                <CodeDocumentView
+                  bind:this={
+                    () => views.get(tab),
+                    (view) => (view ? views.set(tab, view) : views.delete(tab))
+                  }
+                  restore={tab.restore}
+                  {id}
+                  active={shown &&
+                    ws.s.active === tab.key &&
+                    (!docked || !!dock?.rect(docked.reader))}
+                  file={tab.file}
+                  diff={tab.diff}
+                  status={tab.status}
+                  paste={(text) => host.paste(text)}
+                  draftEnabled={host.draftEnabled}
+                  refresh={() => void ws.refresh(tab)}
+                  contextId={tab.contextId}
+                  comparison={tab.comparison}
+                  onComparison={(value) => (tab.comparison = value)}
+                  onState={(state) => (tab.status = state)}
+                  beginOpen={ws.beginOpen}
+                  openSide={(file, intent) =>
+                    ws.install(
+                      tab,
+                      file,
+                      undefined,
+                      intent === ws.selectionSequence,
+                    )}
+                  bind:menu={tab.menu}
+                  workspace={tab.contextId === ws.s.context?.contextId
+                    ? markdownWorkspace
+                    : undefined}
+                  heading={tab.heading}
+                  onHeading={() => (tab.heading = undefined)}
+                  jump={tab.jump}
+                  onJump={() => (tab.jump = undefined)}
+                  diffAvailable={tab.rootKind !== "artifacts"}
+                />
+              </div>
+            {/snippet}
+          </Tabs.Content>
+        {/each}
+        {#if !ws.s.tabs.length}<p class="p-4 text-sm text-muted-foreground">
+            {m.s5_workspace_empty_prompt()}
+          </p>{/if}
       </div>
-    </section>
+    </div>
+  </section>
+{/snippet}
+
+{#snippet navigation()}
+  <CodeNavigator
+    bind:this={navigator}
+    restore={seed?.navigator}
+    dropHost={docked ? navigationHost : section}
+    bind:dropStatus
+    {id}
+    context={ws.s.context}
+    listing={ws.s.listing}
+    rootListing={ws.s.rootListing}
+    fetchDirectory={ws.fetchDirectory}
+    treeRefresh={ws.s.treeRefresh}
+    {activePath}
+    changes={ws.s.changes}
+    changesError={ws.s.changesError}
+    pending={ws.s.pending}
+    sessionCwd={host.sessionCwd}
+    reportedCwd={host.reportedCwd}
+    navStatus={ws.s.navStatus}
+    root={ws.s.root}
+    rootError={ws.s.rootError}
+    switchRoot={ws.switchRoot}
+    retryRoot={() => void ws.loadContext()}
+    reload={() => void ws.load()}
+    changed={ws.filesChanged}
+    changesEnabled={shown && !ws.s.changesError && !ws.s.navStatus}
+    bind:nav={ws.s.nav}
+    bind:query={ws.s.query}
+    bind:directory={ws.s.directory}
+    bind:includeIgnored={ws.s.includeIgnored}
+    bind:changeGroup={ws.s.changeGroup}
+    bind:changeQuery={ws.s.changeQuery}
+    bind:changeSearch={ws.s.changeSearch}
+    load={(append) => ws.load(append)}
+    openFile={(path, opaqueId) => void openFile(path, opaqueId)}
+    {locate}
+    openDiff={(change) => void openDiff(change)}
+  />
+{/snippet}
+
+<Tabs.Root value={ws.s.active} onValueChange={ws.activate}>
+  {#snippet child({ props })}
+    {#if docked}
+      <DockPanel id={docked.reader} title={readerTitle}>
+        {@render workspace(props)}
+      </DockPanel>
+      <DockPanel id={docked.files} title={m.s5_file_tree()}>
+        <div
+          class="dock-code-navigation flex min-h-0 flex-1"
+          {inert}
+          bind:this={navigationHost}
+        >
+          {@render navigation()}
+        </div>
+      </DockPanel>
+    {:else}
+      {@render workspace(props)}
+    {/if}
   {/snippet}
 </Tabs.Root>
+
+<style>
+  .dock-code-navigation :global(.code-navigation) {
+    position: static;
+    width: 100%;
+    max-width: 100%;
+    border-inline-end: 0;
+  }
+</style>

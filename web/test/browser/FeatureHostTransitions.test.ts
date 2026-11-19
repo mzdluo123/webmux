@@ -285,7 +285,7 @@ test("existing terminal recovers optional controls without replacing its owner o
   await page.getByRole("button", { name: "草稿模式", exact: true }).click();
   const draft = page.getByRole("textbox", { name: "草稿内容", exact: true });
   await draft.fill("retain this draft while services recover");
-  const owner = document.querySelector(".session-owner");
+  const owner = document.querySelector(`[data-dock-panel="${info.id}"]`);
   const emulator = document.querySelector(".xterm");
   expect(owner).not.toBeNull();
   expect(emulator).not.toBeNull();
@@ -305,12 +305,15 @@ test("existing terminal recovers optional controls without replacing its owner o
   await expect
     .element(page.getByRole("button", { name: "代码", exact: true }))
     .toBeVisible();
-  await page.getByRole("button", { name: "关闭侧栏面板", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "打开面板", exact: true })
+    .getByRole("button", { name: "取消", exact: true })
+    .click();
   for (const name of ["语音输入", "上传文件"])
     await expect
       .element(page.getByRole("button", { name, exact: true }))
       .toBeVisible();
-  expect(document.querySelector(".session-owner")).toBe(owner);
+  expect(document.querySelector(`[data-dock-panel="${info.id}"]`)).toBe(owner);
   expect(document.querySelector(".xterm")).toBe(emulator);
   expect(
     sockets.filter((socket) => socket.path === `/ws/s/${info.id}`),
@@ -325,7 +328,7 @@ test("existing terminal recovers optional controls without replacing its owner o
   expect(
     page.getByRole("button", { name: "语音输入", exact: true }).elements(),
   ).toEqual([]);
-  expect(document.querySelector(".session-owner")).toBe(owner);
+  expect(document.querySelector(`[data-dock-panel="${info.id}"]`)).toBe(owner);
 });
 
 test("saving a recognizer refreshes availability before returning to terminal and quick start", async () => {
@@ -459,7 +462,9 @@ test("relay recovery keeps the terminal, route and unsent draft without replayin
   await page.getByRole("button", { name: "草稿模式", exact: true }).click();
   const draft = page.getByRole("textbox", { name: "草稿内容", exact: true });
   await draft.fill("keep my unsent relay draft");
-  const owner = document.querySelector(".session-owner");
+  const ownerSelector = `[data-dock-panel="${info.id}"]`;
+  const owner = document.querySelector(ownerSelector);
+  expect(owner).not.toBeNull();
   const emulator = document.querySelector(".xterm");
   const commandCount = commands().length;
   const pending = Promise.withResolvers<Response>();
@@ -504,7 +509,7 @@ test("relay recovery keeps the terminal, route and unsent draft without replayin
     authenticated: false,
     reason: "reconnecting",
   });
-  expect(document.querySelector(".session-owner")).toBe(owner);
+  expect(document.querySelector(ownerSelector)).toBe(owner);
   expect(document.querySelector(".xterm")).toBe(emulator);
   pending.resolve(Response.json(authenticated));
   const resumed = await socketAt("/ws/s/aaaaaaaa", 1);
@@ -513,7 +518,7 @@ test("relay recovery keeps the terminal, route and unsent draft without replayin
   expect(location.pathname + location.search).toBe(
     "/s/aaaaaaaa?message=retained",
   );
-  expect(document.querySelector(".session-owner")).toBe(owner);
+  expect(document.querySelector(ownerSelector)).toBe(owner);
   expect(document.querySelector(".xterm")).toBe(emulator);
   expect(commands()).toHaveLength(commandCount);
 });

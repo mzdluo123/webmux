@@ -6,11 +6,13 @@ import type { Page } from "@playwright/test";
 import {
   test,
   expect,
+  chooseDockPanel,
   createShell,
   runCommand,
   expectTerminalLine,
   toggleCode,
 } from "./fixtures";
+import { codeReader, readerPanel, showFileTree } from "./code-dock";
 function git(root: string, ...args: string[]) {
   return execFileSync("git", ["-C", root, ...args], {
     env: {
@@ -22,23 +24,14 @@ function git(root: string, ...args: string[]) {
     },
   }).toString();
 }
-async function showCode(page: import("@playwright/test").Page) {
-  const code = page.getByRole("region", { name: "代码工作区" });
-  if (!(await code.isVisible())) await toggleCode(page);
-  await expect(code).toBeVisible();
-}
-async function visibleCode(page: import("@playwright/test").Page) {
+async function visibleCode(page: Page) {
   return (
-    await page
+    await codeReader(page)
       .locator(
         "[data-code-reader]:visible [data-content], .code-diff-reader:visible [data-code]",
       )
       .allTextContents()
   ).join("\n");
-}
-async function nav(page: import("@playwright/test").Page) {
-  const button = page.getByRole("button", { name: "文件导航", exact: true });
-  if (await button.isVisible()) await button.click();
 }
 // Below 640px the document bar's controls live in the code menu.
 const narrow = (page: Page) => page.viewportSize()!.width < 640;
@@ -67,8 +60,10 @@ test("read ordinary files, independent tabs, updates and insert a line without E
   await expectTerminalLine(page, "code-pty-ready");
   await page.locator(".xterm-helper-textarea").focus();
   await page.keyboard.type("printf 'reference: %s\\n' ");
-  await showCode(page);
-  await page.getByRole("button", { name: "clean.go", exact: true }).click();
+  const navigation = await showFileTree(page);
+  await navigation
+    .getByRole("button", { name: "clean.go", exact: true })
+    .click();
   await expect.poll(() => visibleCode(page)).toContain("unchanged line");
   if (info.project.use.isMobile) {
     await page
@@ -104,29 +99,33 @@ test("read ordinary files, independent tabs, updates and insert a line without E
       .tap();
     await expect(page.locator(".terminal-host")).toBeVisible();
   } else {
-    const navigation = page.getByRole("navigation", {
-      name: "文件与修改导航",
-    });
-    await page.getByRole("button", { name: "clean.go", exact: true }).click();
-    await expect(navigation).toBeVisible();
-    const divider = page.getByRole("separator", { name: "调整导航宽度" });
+    await navigation
+      .getByRole("button", { name: "clean.go", exact: true })
+      .click();
+    const divider = page
+      .getByRole("separator", { name: "调整窗格宽度", exact: true })
+      .last();
     const before = (await navigation.boundingBox())!.width;
-    await divider.focus();
-    await page.keyboard.press("Shift+ArrowRight");
+    const codeWidth = before + (await readerPanel(page).boundingBox())!.width;
+    const wider = before + codeWidth * 0.05;
+    await divider.press("ArrowRight");
     await expect
       .poll(async () => (await navigation.boundingBox())!.width)
-      .toBeCloseTo(before + 64, 0);
+      .toBeCloseTo(wider, 0);
     const box = (await divider.boundingBox())!;
-    await page.mouse.move(box.x + 2, box.y + box.height / 2);
+    const center = box.x + box.width / 2;
+    await page.mouse.move(center, box.y + box.height / 2);
     await page.mouse.down();
-    await page.mouse.move(box.x - 38, box.y + box.height / 2);
+    await page.mouse.move(center - 40, box.y + box.height / 2);
     await page.mouse.up();
     await expect
       .poll(async () => (await navigation.boundingBox())!.width)
-      .toBeCloseTo(before + 24, 0);
-    await page.getByRole("button", { name: "收起导航", exact: true }).click();
-    await expect(navigation).toHaveCount(0);
-    await page.getByRole("button", { name: "文件导航", exact: true }).click();
+      .toBeCloseTo(wider - 40, 0);
+    await navigation
+      .getByRole("button", { name: "收起「文件树」", exact: true })
+      .click();
+    await expect(navigation).toBeHidden();
+    await showFileTree(page);
     await page
       .locator("[data-code-reader]:visible [data-gutter] [data-column-number]")
       .filter({ hasText: /^2$/ })
@@ -144,9 +143,10 @@ test("read ordinary files, independent tabs, updates and insert a line without E
         await (await request.get(`/api/sessions/${id}/buffer`)).text(),
     )
     .toContain(`reference: ${join(workDir, "clean.go")}:2\r\n`);
-  await showCode(page);
-  await nav(page);
-  await page.getByRole("button", { name: "other.txt", exact: true }).click();
+  await showFileTree(page);
+  await navigation
+    .getByRole("button", { name: "other.txt", exact: true })
+    .click();
   await expect.poll(() => visibleCode(page)).toContain("independent document");
   await page.getByRole("tab", { name: /clean.go · worktree/ }).click();
   await expect.poll(() => visibleCode(page)).toContain("unchanged line");
@@ -208,9 +208,9 @@ test("touch line actions infer the reference source from the clicked line", asyn
   const id = await createShell(page, "Touch Git references", workDir);
   await page.locator(".xterm-helper-textarea").focus();
   await page.keyboard.type("printf 'old:%s\\n' ");
-  await showCode(page);
-  await page.getByRole("tab", { name: "修改", exact: true }).click();
-  await page
+  const files = await showFileTree(page);
+  await files.getByRole("tab", { name: "修改", exact: true }).click();
+  await files
     .getByRole("button", { name: "修改 code.txt", exact: true })
     .click();
   const lines = page.locator(".code-diff-reader:visible [data-line]");
@@ -232,7 +232,7 @@ test("touch line actions infer the reference source from the clicked line", asyn
     .poll(async () => (await request.get(`/api/sessions/${id}/buffer`)).text())
     .toContain(`old:${join(workDir, "code.txt")}:2（索引版本）\r\n`);
   await page.keyboard.type("printf 'new:%s\\n' ");
-  await showCode(page);
+  await chooseDockPanel(page, "预览 · code.txt");
   await lines.filter({ hasText: /^added two$/ }).tap();
   await page
     .getByRole("button", { name: "发送位置到终端" })
@@ -270,16 +270,18 @@ test("frozen Git diff, ignored navigation and complete source documents", async 
   );
   await writeFile(join(workDir, "untracked.txt"), "untracked content\n");
   await createShell(page, "Git code", workDir);
-  await showCode(page);
+  const files = await showFileTree(page);
   await expect(
-    page.getByRole("button", { name: ".env", exact: true }),
+    files.getByRole("button", { name: ".env", exact: true }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "文件导航选项", exact: true }).click();
+  await files
+    .getByRole("button", { name: "文件导航选项", exact: true })
+    .click();
   await page.getByRole("menuitemcheckbox", { name: "显示忽略项" }).click();
   await expect(
-    page.getByRole("button", { name: ".env", exact: true }),
+    files.getByRole("button", { name: ".env", exact: true }),
   ).toBeVisible();
-  await page.getByRole("tab", { name: "修改", exact: true }).click();
+  await files.getByRole("tab", { name: "修改", exact: true }).click();
   const captured = page.waitForResponse((response) =>
     new URL(response.url()).pathname.endsWith("/code/diff"),
   );
@@ -288,7 +290,7 @@ test("frozen Git diff, ignored navigation and complete source documents", async 
     if (/\/code\/snapshots\/[^/]+\/context/.test(request.url()))
       contextRequests.push(request.url());
   });
-  await page
+  await files
     .getByRole("button", { name: "修改 code.txt", exact: true })
     .first()
     .click();
@@ -338,8 +340,8 @@ test("frozen Git diff, ignored navigation and complete source documents", async 
   await page.locator("[data-code-goto-line]:visible input").press("Enter");
   await expect.poll(() => visibleCode(page)).toContain("indexed line 50");
   await expect.poll(() => visibleCode(page)).not.toContain("working line 80");
-  await nav(page);
-  await page
+  await showFileTree(page);
+  await files
     .getByRole("button", { name: "修改 code.txt", exact: true })
     .last()
     .click();
@@ -374,11 +376,13 @@ test("main and linked worktrees bind their own roots and reject cross-session sn
   git(main, "worktree", "add", "-qb", "linked", linked);
   await writeFile(join(linked, "src/clean.txt"), "linked source\n");
   const first = await createShell(page, "Main root", join(main, "src"));
-  await showCode(page);
-  await page.getByRole("button", { name: "切换路径搜索", exact: true }).click();
-  await page.getByLabel("搜索文件路径").fill("clean");
-  await page.getByRole("button", { name: "搜索路径", exact: true }).click();
-  await page
+  const files = await showFileTree(page);
+  await files
+    .getByRole("button", { name: "切换路径搜索", exact: true })
+    .click();
+  await files.getByLabel("搜索文件路径").fill("clean");
+  await files.getByRole("button", { name: "搜索路径", exact: true }).click();
+  await files
     .getByRole("button", { name: "src/clean.txt", exact: true })
     .click();
   await expect.poll(() => visibleCode(page)).toContain("main source");
@@ -392,12 +396,13 @@ test("main and linked worktrees bind their own roots and reject cross-session sn
     )
   ).json();
   const second = await createShell(page, "Linked root", join(linked, "src"));
-  // The panel stays open across sessions.
-  await expect(page.getByRole("region", { name: "代码工作区" })).toBeVisible();
-  await page.getByRole("button", { name: "切换路径搜索", exact: true }).click();
-  await page.getByLabel("搜索文件路径").fill("clean");
-  await page.getByRole("button", { name: "搜索路径", exact: true }).click();
-  await page
+  await showFileTree(page);
+  await files
+    .getByRole("button", { name: "切换路径搜索", exact: true })
+    .click();
+  await files.getByLabel("搜索文件路径").fill("clean");
+  await files.getByRole("button", { name: "搜索路径", exact: true }).click();
+  await files
     .getByRole("button", { name: "src/clean.txt", exact: false })
     .click();
   await expect.poll(() => visibleCode(page)).toContain("linked source");
@@ -431,11 +436,13 @@ test("large change lists remain browsable and late files can compare, update and
     );
   }
   const id = await createShell(page, "Large changes", workDir);
-  await showCode(page);
-  await page.getByRole("button", { name: "切换路径搜索", exact: true }).click();
-  await page.getByLabel("搜索文件路径").fill("file-1204");
-  await page.getByRole("button", { name: "搜索路径", exact: true }).click();
-  await page
+  const files = await showFileTree(page);
+  await files
+    .getByRole("button", { name: "切换路径搜索", exact: true })
+    .click();
+  await files.getByLabel("搜索文件路径").fill("file-1204");
+  await files.getByRole("button", { name: "搜索路径", exact: true }).click();
+  await files
     .getByRole("button", { name: /^bulk\/file-1204\.txt(?: \?\?)?$/ })
     .click();
   await expect.poll(() => visibleCode(page)).toContain("content 1204");
@@ -450,23 +457,23 @@ test("large change lists remain browsable and late files can compare, update and
     page.locator(".code-diff-reader:visible [data-gutter]").first(),
   ).toBeVisible();
   await expect.poll(() => visibleCode(page)).toContain("content 1204");
-  await nav(page);
-  await page.getByRole("tab", { name: "修改", exact: true }).click();
+  await showFileTree(page);
+  await files.getByRole("tab", { name: "修改", exact: true }).click();
   await expect(
     page.getByText("已加载 200 / 1205 项", { exact: true }),
   ).toBeVisible();
   expect(
-    await page
+    await files
       .getByRole("list", { name: "修改列表" })
       .getByRole("listitem")
       .count(),
   ).toBeLessThan(50);
-  await page.getByLabel("筛选修改路径").fill("file-1204");
-  await page.getByRole("button", { name: "筛选修改", exact: true }).click();
+  await files.getByLabel("筛选修改路径").fill("file-1204");
+  await files.getByRole("button", { name: "筛选修改", exact: true }).click();
   await expect(
     page.getByText("已加载 1 / 1 项", { exact: true }),
   ).toBeVisible();
-  const bulkRow = page.getByRole("button", {
+  const bulkRow = files.getByRole("button", {
     name: "未跟踪 bulk/file-1204.txt",
     exact: true,
   });
@@ -488,27 +495,27 @@ test("large change lists remain browsable and late files can compare, update and
     .filter({ visible: true })
     .click();
   await expect.poll(() => visibleCode(page)).toContain("late updated");
-  await nav(page);
-  await page.getByLabel("筛选修改路径").fill("");
-  await page.getByRole("button", { name: "筛选修改", exact: true }).click();
+  await showFileTree(page);
+  await files.getByLabel("筛选修改路径").fill("");
+  await files.getByRole("button", { name: "筛选修改", exact: true }).click();
   for (const loaded of [200, 400, 600, 800, 1000, 1200, 1205]) {
     await expect(
       page.getByText(`已加载 ${loaded} / 1205 项`, { exact: true }),
     ).toBeVisible();
     if (loaded < total)
-      await page
+      await files
         .getByRole("button", { name: "加载更多修改", exact: true })
         .click();
   }
-  const list = page.getByRole("list", { name: "修改列表" });
+  const list = files.getByRole("list", { name: "修改列表" });
   await list.evaluate((element) => {
     element.scrollTop = element.scrollHeight;
     element.dispatchEvent(new Event("scroll"));
   });
-  await page
+  expect(await list.getByRole("listitem").count()).toBeLessThan(50);
+  await files
     .getByRole("button", { name: "未跟踪 bulk/file-1204.txt", exact: true })
     .click();
-  expect(await list.getByRole("listitem").count()).toBeLessThan(50);
   const context = await (
     await request.get(`/api/sessions/${id}/code/context`)
   ).json();
@@ -587,15 +594,15 @@ test("images preview, download byte-identical, isolate SVG and compare Git sides
     if (request.url().includes("svg-leak.invalid")) leaks.push(request.url());
   });
   await createShell(page, "Image code", workDir);
-  await showCode(page);
+  const files = await showFileTree(page);
   const info = page.getByLabel("图片信息").filter({ visible: true });
   // File buttons append the Git status ("pic.png M", "photo.jpg ??").
   const file = (name: string) =>
-    page.getByRole("button", {
+    files.getByRole("button", {
       name: new RegExp(`^${name.replace(".", "\\.")}(?: |$)`),
     });
   const open = async (name: string) => {
-    await nav(page);
+    await showFileTree(page);
     await file(name).click();
   };
 
@@ -643,9 +650,9 @@ test("images preview, download byte-identical, isolate SVG and compare Git sides
   await expect.poll(() => visibleCode(page)).toContain("<script>");
   expect(leaks).toEqual([]);
 
-  await nav(page);
-  await page.getByRole("tab", { name: "修改", exact: true }).click();
-  await page
+  await showFileTree(page);
+  await files.getByRole("tab", { name: "修改", exact: true }).click();
+  await files
     .getByRole("button", { name: "修改 pic.png", exact: true })
     .first()
     .click();
@@ -699,39 +706,39 @@ test("file explorer preserves sibling branches, refreshes children and locates n
   );
   await writeFile(join(workDir, "web/App.svelte"), "app\n");
   await createShell(page, "File explorer", workDir);
-  await showCode(page);
-  await page.getByRole("button", { name: "docs", exact: true }).click();
-  await page.getByRole("button", { name: "web", exact: true }).click();
+  const files = await showFileTree(page);
+  await files.getByRole("button", { name: "docs", exact: true }).click();
+  await files.getByRole("button", { name: "web", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "architecture.md", exact: true }),
+    files.getByRole("button", { name: "architecture.md", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "App.svelte", exact: true }),
+    files.getByRole("button", { name: "App.svelte", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "README.md", exact: true }),
+    files.getByRole("button", { name: "README.md", exact: true }),
   ).toBeVisible();
   await writeFile(join(workDir, "docs/new.md"), "new document\n");
-  await page.getByRole("button", { name: "刷新文件树", exact: true }).click();
+  await files.getByRole("button", { name: "刷新文件树", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "new.md", exact: true }),
+    files.getByRole("button", { name: "new.md", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "App.svelte", exact: true }),
+    files.getByRole("button", { name: "App.svelte", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "全部折叠", exact: true }).click();
+  await files.getByRole("button", { name: "全部折叠", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "new.md", exact: true }),
+    files.getByRole("button", { name: "new.md", exact: true }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "按路径打开", exact: true }).click();
+  await files.getByRole("button", { name: "按路径打开", exact: true }).click();
   await page
     .getByRole("textbox", { name: "定位文件路径", exact: true })
     .fill("docs/guides");
   await page.getByRole("button", { name: "打开", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "setup.md", exact: true }),
+    files.getByRole("button", { name: "setup.md", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "setup.md", exact: true }).click();
+  await files.getByRole("button", { name: "setup.md", exact: true }).click();
   await expect.poll(() => visibleCode(page)).toContain("nested setup guide");
 });
 
@@ -743,8 +750,9 @@ test("explorer menu copies, renames, moves, uploads, zips and deletes inside the
   await writeFile(join(workDir, "docs/a.md"), "# a\n");
   await writeFile(join(workDir, "notes.txt"), "notes\n");
   await createShell(page, "File operations", workDir);
-  await showCode(page);
-  const row = (name: string) => page.getByRole("button", { name, exact: true });
+  const files = await showFileTree(page);
+  const row = (name: string) =>
+    files.getByRole("button", { name, exact: true });
   // Phones hold a row for the action sheet; desktops right-click for the menu.
   const mobile = !!info.project.use.isMobile;
   const actions = async (name: string) => {

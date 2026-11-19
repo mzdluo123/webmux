@@ -3,92 +3,49 @@
   import * as Resizable from "$lib/components/ui/resizable";
   import { m } from "$lib/paraglide/messages.js";
   import { terminalFindShortcut } from "../../hooks/terminal/terminal-find-shortcut";
-  import { codePanelState } from "../../hooks/code/code-panel-state";
-
-  // Resizable split of the terminal, its draft composer below it and the code
-  // panel beside it (stacked instead on narrow screens).
   let {
-    codeShown,
-    desktop,
     draftOpen,
     terminalPane,
     draftPane,
-    codePane,
     onfind,
   }: {
-    codeShown: boolean;
-    desktop: boolean;
     draftOpen: boolean;
     terminalPane: Snippet;
     draftPane: Snippet;
-    codePane: Snippet;
     onfind?: () => void;
   } = $props();
   let composerSize = $state(25);
   let terminalHeight = $state(0);
-  const codeSize = codePanelState.size();
 </script>
 
 <div
-  class="terminal-workspace"
-  class:code-shown={codeShown}
-  class:mobile-code={!desktop && codeShown}
-  class:compact={!desktop}
+  class="terminal-column"
+  bind:clientHeight={terminalHeight}
+  use:terminalFindShortcut={onfind}
 >
-  <Resizable.PaneGroup direction="horizontal">
-    <Resizable.Pane
-      defaultSize={100 - codeSize}
-      minSize={25}
-      class="terminal-pane"
-    >
-      <div
-        class="terminal-column"
-        bind:clientHeight={terminalHeight}
-        use:terminalFindShortcut={onfind}
+  <Resizable.PaneGroup direction="vertical">
+    <Resizable.Pane defaultSize={100 - composerSize} minSize={20} order={0}>
+      {@render terminalPane()}
+    </Resizable.Pane>
+    {#if draftOpen}
+      <Resizable.Handle
+        withHandle
+        class="draft-divider"
+        aria-label={m.s4_resize_draft_height()}
+      />
+      <Resizable.Pane
+        order={1}
+        defaultSize={composerSize}
+        minSize={Math.min(
+          80,
+          (160 / Math.max(1, (terminalHeight || 500) - 8)) * 100,
+        )}
+        onResize={(size) => (composerSize = size)}
+        class="draft-pane"
+        data-bottom-dock
       >
-        <Resizable.PaneGroup direction="vertical">
-          <Resizable.Pane
-            defaultSize={100 - composerSize}
-            minSize={20}
-            order={0}
-          >
-            {@render terminalPane()}
-          </Resizable.Pane>
-          {#if draftOpen}
-            <Resizable.Handle
-              withHandle
-              class="draft-divider"
-              aria-label={m.s4_resize_draft_height()}
-            />
-            <Resizable.Pane
-              order={1}
-              defaultSize={composerSize}
-              minSize={Math.min(
-                80,
-                (160 / Math.max(1, (terminalHeight || 500) - 8)) * 100,
-              )}
-              onResize={(size) => (composerSize = size)}
-              class="draft-pane"
-              data-bottom-dock
-            >
-              {@render draftPane()}
-            </Resizable.Pane>
-          {/if}
-        </Resizable.PaneGroup>
-      </div>
-    </Resizable.Pane>
-    <Resizable.Handle
-      withHandle
-      class="code-divider"
-      aria-label={m.s4_resize_terminal_code_width()}
-    />
-    <Resizable.Pane
-      defaultSize={codeSize}
-      minSize={25}
-      onResize={(size) => codePanelState.setSize(size)}
-      class="code-pane"
-    >
-      {@render codePane()}
-    </Resizable.Pane>
+        {@render draftPane()}
+      </Resizable.Pane>
+    {/if}
   </Resizable.PaneGroup>
 </div>

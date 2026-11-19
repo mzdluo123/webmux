@@ -19,6 +19,7 @@ afterEach(async () => {
     await cleanup();
     await userEvent.cleanup();
   } finally {
+    localStorage.removeItem("webmux.dock.git.fixture.log");
     await page.viewport(1280, 900);
   }
 });
@@ -414,13 +415,38 @@ test("desktop Log pane filters by branch/tag without mutating checkedOutBranch, 
   await expect.element(diffPanel.getByText("修改前")).toBeVisible();
   await expect.element(diffPanel.getByText("修改后")).toBeVisible();
 
-  // Keyboard ArrowDown selects second file, Enter expands collapsed dock without leaving docked mode.
-  await diffPanel.getByRole("button", { name: "折叠底部差异面板" }).click();
+  // The shared horizontal divider immediately above the history diff grows it.
+  const divider = page.getByRole("separator", { name: "调整窗格高度" }).first();
+  const diffHeight = diffPanel.element().getBoundingClientRect().height;
+  divider.element().focus();
+  await userEvent.keyboard("{ArrowUp}");
+  await expect
+    .poll(() => diffPanel.element().getBoundingClientRect().height)
+    .toBeGreaterThan(diffHeight);
+
+  const diffDock = page.getByRole("region", { name: "文件差异预览" });
+  await diffDock.getByRole("button", { name: "收起「文件差异预览」" }).click();
+  const restoreDiff = page.getByRole("button", {
+    name: "文件差异预览",
+    exact: true,
+  });
+  await expect.element(restoreDiff).toBeVisible();
+  await expect.element(diffPanel).not.toBeVisible();
+
+  // Keyboard highlighting keeps the dock minimized; Enter explicitly opens it.
   const firstFileOpt = filesListbox.getByRole("option", {
     name: /web\/src\/git-graph-layout\.ts/,
   });
-  await firstFileOpt.click();
+  firstFileOpt.element().focus();
   await userEvent.keyboard("{ArrowDown}");
+  await expect
+    .element(
+      filesListbox.getByRole("option", {
+        name: /web\/src\/git-graph-colors\.ts/,
+      }),
+    )
+    .toHaveAttribute("aria-selected", "true");
+  await expect.element(diffPanel).not.toBeVisible();
   await userEvent.keyboard("{Enter}");
   await expect
     .element(diffPanel.getByText("web/src/git-graph-colors.ts"))
@@ -431,6 +457,9 @@ test("desktop Log pane filters by branch/tag without mutating checkedOutBranch, 
   await expect
     .element(diffPanel)
     .toHaveAttribute("data-diff-presentation", "docked");
+  await expect
+    .element(diffPanel.getByText(/var\(--git-lane-0\)/))
+    .toBeVisible();
 
   // "当前任务" scope is now a first-class SegmentedControl item (#547).
   const scopeGroup = page.getByRole("radiogroup", { name: "提交范围" });

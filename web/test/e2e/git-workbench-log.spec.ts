@@ -479,7 +479,7 @@ test("Log view filters refs/tags without checkout (U02), paginates %P topology &
   void baseOid;
 });
 
-test("Docked log diff collapse and phone back leave open reader panels without changing selection", async ({
+test("Docked log diff minimize and phone back preserve the reader and selected file", async ({
   page,
   request,
   workDir,
@@ -495,6 +495,7 @@ test("Docked log diff collapse and phone back leave open reader panels without c
   const selectedFile = files.getByRole("option", { name: /feature-lane\.ts/ });
   await selectedFile.click();
   const diff = page.getByTestId("git-log-diff-panel");
+  const diffDock = page.locator('[data-dock-panel="diff"]');
 
   for (const readerPanel of ["文件内查找", "缩放"]) {
     await expect(diff).toHaveAttribute("data-diff-presentation", "docked");
@@ -505,8 +506,14 @@ test("Docked log diff collapse and phone back leave open reader panels without c
     await panelToggle.click();
     await expect(panelToggle).toHaveAttribute("aria-expanded", "true");
 
-    await diff.getByRole("button", { name: "折叠底部差异面板" }).click();
-    await diff.getByRole("button", { name: "展开底部差异面板" }).click();
+    await diffDock
+      .getByRole("button", { name: "收起「文件差异预览」" })
+      .click();
+    await expect(diff).toBeHidden();
+    await page
+      .getByRole("button", { name: "文件差异预览", exact: true })
+      .click();
+    await expect(panelToggle).toHaveAttribute("aria-expanded", "true");
     await expect(diff).toHaveAttribute("data-diff-presentation", "docked");
     await expect(page.getByRole("listbox", { name: "提交记录" })).toBeVisible();
     await expect(selectedFile).toHaveAttribute("aria-selected", "true");
@@ -543,6 +550,60 @@ test("Docked log diff collapse and phone back leave open reader panels without c
   await expect(page.getByRole("listbox", { name: "提交记录" })).toBeVisible();
   await expect(selectedCommit).toHaveAttribute("aria-selected", "true");
   await expect(page).toHaveURL(route);
+});
+
+test("Git mode docks restore independently and the phone selector leaves the wide Log layout untouched", async ({
+  page,
+  request,
+  workDir,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const { repo, mainWt } = await setupRichGitLogRepository(request, workDir);
+  await page.goto(`/git/${repo.id}/worktrees/${mainWt.id}?view=log`);
+
+  const modes = [
+    { mode: "历史", id: "refs", title: "引用与分支筛选" },
+    { mode: "提交", id: "composer", title: "提交信息" },
+    { mode: "分支", id: "detail", title: "分支详情" },
+    { mode: "贮藏", id: "detail", title: "贮藏详情" },
+  ];
+  const workspace = page.locator("[data-dock-workspace]:visible");
+  for (const { mode, id, title } of modes) {
+    await page.getByRole("tab", { name: mode, exact: true }).click();
+    const panel = workspace.locator(`[data-dock-panel="${id}"]`);
+    await expect(panel).toBeVisible();
+    await panel.getByRole("button", { name: `收起「${title}」` }).click();
+    await expect(panel).toBeHidden();
+  }
+
+  await page.reload();
+  for (const { mode, id, title } of modes) {
+    await page.getByRole("tab", { name: mode, exact: true }).click();
+    await expect(workspace.locator(`[data-dock-panel="${id}"]`)).toBeHidden();
+    await expect(
+      workspace.getByRole("button", { name: title, exact: true }),
+    ).toBeVisible();
+  }
+
+  await page.getByRole("tab", { name: "历史", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const refs = workspace.locator('[data-dock-panel="refs"]');
+  await expect(refs).toBeHidden();
+  const pickerTrigger = workspace.getByRole("button", {
+    name: "打开面板",
+    exact: true,
+  });
+  await expect(pickerTrigger).toHaveCount(1);
+  await pickerTrigger.click();
+  const picker = page.getByRole("dialog", { name: "打开面板" });
+  await expect(picker.getByRole("button", { name: "提交信息" })).toHaveCount(0);
+  await picker.getByRole("button", { name: "引用与分支筛选" }).click();
+  await expect(refs).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect(refs).toBeHidden();
+  await expect(
+    workspace.getByRole("button", { name: "引用与分支筛选", exact: true }),
+  ).toBeVisible();
 });
 
 test("Log previews the selected Git snapshot sides and retains binary downloads", async ({

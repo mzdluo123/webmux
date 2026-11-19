@@ -5,13 +5,8 @@
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
   import type { GitFileInspectorTab } from "../../hooks/workspace/git-file-inspector-controller.svelte";
-  import type {
-    GitCommitComposerCallbacks,
-    GitCommitComposerStateProps,
-  } from "./GitCommitComposer.svelte";
 
-  export interface GitUncommittedChangesSharedProps
-    extends GitCommitComposerStateProps, GitCommitComposerCallbacks {
+  export interface GitUncommittedChangesProps {
     context: GitWorktreeContext;
     changes: readonly GitWorkingChange[];
     reviewedPaths: readonly string[];
@@ -35,6 +30,7 @@
     ) => void;
     onRefreshSnapshot?: () => void;
     onOpenStashCreate?: (includeUntracked?: boolean) => void;
+    onOpenPush?: () => void;
     onInspectFile?: (path: string, tab: GitFileInspectorTab) => void;
     onOpenConflictResolver?: (path?: string) => void;
     onOpenWorktreeTerminal?: () => void;
@@ -63,7 +59,6 @@
     isChangeReviewed,
   } from "../../domains/workspace/git-workbench-state";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
-  import GitCommitComposer from "./GitCommitComposer.svelte";
   import GitConflictTerminalNotice from "./GitConflictTerminalNotice.svelte";
   import GitDiscardBatchBar from "./GitDiscardBatchBar.svelte";
   import GitPanelToolbar from "./GitPanelToolbar.svelte";
@@ -75,26 +70,16 @@
     changes,
     activeChange,
     reviewedPaths,
-    commitMessage,
     taskReview,
     readonlyMode = false,
     stagingBusy = false,
-    uncertainBlocked = false,
-    draftSaving = false,
-    draftRevision = 0,
-    draftConflict = null,
-    commitAmend = false,
-    commitAmendPushed = false,
-    commitAuthorOverride = "",
-    commitSignoff = false,
-    commitSignoffTrailer = "",
-    amendDraftPrompt = null,
     hasActiveWorktreeSession = false,
     activeSessionCount = 0,
     exitedSessionCount = 0,
     archivedSessionCount = 0,
     listScrollTop = 0,
     onListScrollChange,
+    composerTarget = $bindable(),
     onSwitchToTaskReview,
     onSelectChange,
     onToggleReviewed,
@@ -105,29 +90,20 @@
     onRefreshSnapshot,
     onOpenStashCreate,
     onInspectFile,
-    onCommitMessageChange,
-    onOpenCommitPreview,
     onOpenPush,
-    onCreateBranchFromHead,
-    onResolveDraftKeepLocal,
-    onResolveDraftAdoptRemote,
-    onResolveDraftMergeBoth,
-    onToggleCommitAmend,
-    onResolveAmendDraft,
-    onCommitAuthorOverrideChange,
-    onToggleCommitSignoff,
     onOpenConflictResolver,
     onOpenWorktreeTerminal,
     onNewWorktreeTerminal,
     onReturnSession,
     onArchiveSession,
     onRemoveWorktree,
-  }: GitUncommittedChangesSharedProps & {
+  }: GitUncommittedChangesProps & {
     activeChange: GitWorkingChange | null;
     readonlyMode?: boolean;
     listScrollTop?: number;
     onListScrollChange?: (top: number) => void;
     onSwitchToTaskReview?: () => void;
+    composerTarget?: HTMLDivElement;
   } = $props();
 
   let listScrollEl = $state<HTMLElement | null>(null);
@@ -293,18 +269,18 @@
     />
   {/if}
 
-  <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child option buttons. -->
+  <!-- The compact composer scrolls with the changes, outside the listbox. -->
   <ScrollArea
     bind:viewportRef={listScrollEl}
-    class="min-h-16 flex-1"
-    viewportProps={{
-      role: "listbox",
-      "aria-label": m.s7_uncommitted_listbox_aria(),
-      onkeydown: handleListKeydown,
-    }}
+    class="min-h-12 flex-1"
+    viewportProps={{ onkeydown: handleListKeydown }}
     onscroll={(e) => onListScrollChange?.(e.currentTarget.scrollTop)}
   >
-    <div class="space-y-2 p-2">
+    <div
+      class="space-y-2 p-2"
+      role="listbox"
+      aria-label={m.s7_uncommitted_listbox_aria()}
+    >
       {#if changes.length === 0 && !readonlyMode && taskReview?.status === "ready" && (taskReview.commitCount > 0 || context.ahead > 0)}
         <GitTaskDeliverySummary
           {context}
@@ -439,6 +415,7 @@
         </div>
       {/each}
     </div>
+    <div class="contents" bind:this={composerTarget}></div>
   </ScrollArea>
 
   {#if !readonlyMode && onDiscardChanges}
@@ -450,34 +427,4 @@
       onClearSelection={() => (batchSelectedIds = [])}
     />
   {/if}
-
-  <GitCommitComposer
-    {context}
-    stagedCount={grouped.staged.length}
-    conflictedCount={grouped.conflicted.length}
-    {commitMessage}
-    {readonlyMode}
-    busy={stagingBusy}
-    {uncertainBlocked}
-    {draftSaving}
-    {draftRevision}
-    {draftConflict}
-    {commitAmend}
-    {commitAmendPushed}
-    {commitAuthorOverride}
-    {commitSignoff}
-    {commitSignoffTrailer}
-    {amendDraftPrompt}
-    {onCommitMessageChange}
-    {onOpenCommitPreview}
-    {onOpenPush}
-    {onCreateBranchFromHead}
-    {onResolveDraftKeepLocal}
-    {onResolveDraftAdoptRemote}
-    {onResolveDraftMergeBoth}
-    {onToggleCommitAmend}
-    {onResolveAmendDraft}
-    {onCommitAuthorOverrideChange}
-    {onToggleCommitSignoff}
-  />
 </section>

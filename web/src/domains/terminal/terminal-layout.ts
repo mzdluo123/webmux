@@ -203,7 +203,7 @@ export function resizeSplit(
 export type PaneRect = { x: number; y: number; width: number; height: number };
 /** The visible line; the pane divider widens its hit area around it. */
 const DIVIDER_SIZE = 1;
-export type Divider = PaneRect & {
+type Divider = PaneRect & {
   id: string;
   direction: SplitDirection;
   ratio: number;
@@ -277,36 +277,4 @@ export function directionalPane(
     .filter((candidate) => candidate.forward > 0)
     .sort((a, b) => a.distance - b.distance);
   return candidates[0]?.pane.sessionId;
-}
-
-export function pointerSplitRatio(
-  event: PointerEvent,
-  workspaceBounds: DOMRect,
-  divider: Divider,
-): number | undefined {
-  const horizontal = divider.direction === "horizontal";
-  const position = horizontal
-    ? event.clientX - workspaceBounds.x - divider.parent.x
-    : event.clientY - workspaceBounds.y - divider.parent.y;
-  const extent =
-    (horizontal ? divider.parent.width : divider.parent.height) - DIVIDER_SIZE;
-  return extent > 0 ? (position - DIVIDER_SIZE / 2) / extent : undefined;
-}
-
-export function keyboardSplitRatio(
-  key: string,
-  divider: Divider,
-): number | undefined {
-  const horizontal = divider.direction === "horizontal";
-  const decrease = horizontal ? "ArrowLeft" : "ArrowUp";
-  const increase = horizontal ? "ArrowRight" : "ArrowDown";
-  if (![decrease, increase, "Home", "End", "Enter"].includes(key))
-    return undefined;
-  return key === "Home"
-    ? 0.1
-    : key === "End"
-      ? 0.9
-      : key === "Enter"
-        ? 0.5
-        : divider.ratio + (key === decrease ? -0.05 : 0.05);
 }

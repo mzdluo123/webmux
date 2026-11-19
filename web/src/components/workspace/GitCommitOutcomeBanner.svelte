@@ -18,7 +18,7 @@
 </script>
 
 <div
-  class="border-b bg-background px-3 py-2"
+  class="shrink-0 border-b bg-background px-3 py-2"
   data-testid="git-commit-outcome-banner"
 >
   <InlineNotice tone={outcome.status === "busy_locked" ? "danger" : "warning"}>
@@ -32,7 +32,9 @@
           })}
         {/if}
       </div>
-      <div class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
+      <div
+        class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5 max-sm:basis-full"
+      >
         {#if outcome.commitOid}
           <Button
             size="sm"
