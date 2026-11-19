@@ -332,7 +332,7 @@ export async function executeQuickStart(params: {
   base: string;
   commitAttachments: (items: ChatAttachment[]) => void;
   restoreAttachments: (items: ChatAttachment[]) => void;
-  onSuccess: (sessionId: string) => void;
+  onSuccess: (sessionId: string) => void | Promise<void>;
 }): Promise<CreateSessionFailure | undefined> {
   const {
     repository,
@@ -391,7 +391,7 @@ export async function executeQuickStart(params: {
         },
       });
       quickStartMemory.clearDraft();
-      onSuccess(outcome.sessionId);
+      await onSuccess(outcome.sessionId);
       return undefined;
     }
     if (outcome.failure.step === "prompt") commitAttachments(attachments);
@@ -429,7 +429,7 @@ export async function executeQuickStart(params: {
         configId: agentId,
       });
       quickStartMemory.clearDraft();
-      onSuccess(outcome.sessionId);
+      await onSuccess(outcome.sessionId);
       return undefined;
     }
     if (

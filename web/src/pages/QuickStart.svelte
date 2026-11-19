@@ -19,7 +19,7 @@
   </LazyPage>
 {:else}
   <main class="mx-auto max-w-3xl space-y-4 p-6">
-    <h1 class="text-2xl font-semibold">{m.s1_new_chat()}</h1>
+    <h1 class="text-2xl font-semibold">{m.s1_new_session()}</h1>
     <p class="text-sm text-muted-foreground">
       {m.s1_quick_start_no_workspace_desc()}
     </p>

@@ -9,30 +9,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/rainchan/webmux/internal/acp"
+	"github.com/rainchan/webmux/internal/session"
 )
 
 // maxFieldBytes caps one text field of an event (a message chunk, a tool
 // output, a summary), so one huge value cannot fill the log; longer text
 // is cut at a UTF-8 boundary and flagged where the event has a flag.
 const maxFieldBytes = 256 << 10
-
-// maxTitleBytes keeps an agent-reported title within the terminal's OSC
-// 0/2 title length: the title also becomes session metadata, which the list
-// and every page display.
-const maxTitleBytes = 510
-
-// sessionTitle trims and bounds an agent-reported session title.
-func sessionTitle(s string) string {
-	s = strings.TrimSpace(s)
-	if len(s) <= maxTitleBytes {
-		return s
-	}
-	cut := maxTitleBytes
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return s[:cut]
-}
 
 // capText returns s cut to maxFieldBytes and whether it was cut.
 func capText(s string) (string, bool) {
@@ -171,7 +154,7 @@ func (t *translator) update(u acp.Update) []Event {
 		}
 		title := ""
 		if u.Title.Value != nil {
-			title = sessionTitle(*u.Title.Value)
+			title = session.AutomaticTitle(*u.Title.Value)
 		}
 		return []Event{{Kind: EventInfo, Info: &Info{Title: &title}}}
 	case *acp.UsageUpdate:

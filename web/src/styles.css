@@ -765,3 +765,8 @@
   background: var(--background);
   box-shadow: 4px 0 10px #0002;
 }
+
+::view-transition-group(quick-start-message) {
+  animation-duration: 260ms;
+  animation-timing-function: ease-out;
+}

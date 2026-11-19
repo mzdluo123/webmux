@@ -54,7 +54,7 @@
   "s1_chat_records_unavailable_notice": "Chat history is temporarily unavailable; live sessions still work. Reload the page to restore chat features.",
   "s1_choose_upload_files": "Choose files to upload",
   "s1_chrome_git_workbench": "Git Workbench · WebMux",
-  "s1_chrome_new_chat": "New Chat · WebMux",
+  "s1_chrome_new_chat": "New Session · WebMux",
   "s1_chrome_public_access": "WebMux · Public Access",
   "s1_chrome_repo_git_workbench": "{name} · Git Workbench · WebMux",
   "s1_chrome_sessions": "WebMux · Sessions",

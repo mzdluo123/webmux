@@ -298,6 +298,8 @@
     mount: (element) => mountDockHost(element, () => surface),
     rect,
     active: (id) => !compact && activePanel === id,
+    hasMultipleVisiblePanels: () =>
+      !compact && !visibleZoom && geometry.groups.size > 1,
     select(id) {
       selected = id;
       onSelectPanel?.(id);

@@ -2,48 +2,14 @@ package hybrid
 
 import (
 	"path/filepath"
-	"strings"
-	"unicode"
-	"unicode/utf8"
+
+	"github.com/rainchan/webmux/internal/session"
 )
-
-const (
-	// maxPromptTitleRunes bounds the first-prompt title.
-	maxPromptTitleRunes = 80
-)
-
-func dropControl(s string) string {
-	return strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return -1
-		}
-		return r
-	}, strings.ToValidUTF8(s, ""))
-}
-
-// PromptTitle is the title for a first prompt: control
-// characters dropped, whitespace runs folded to one space, and at most
-// maxPromptTitleRunes runes, the last an ellipsis when cut.
-func PromptTitle(text string) string {
-	s := strings.Join(strings.Fields(dropControl(strings.Map(func(r rune) rune {
-		// Line breaks and tabs separate words; strip only other controls.
-		if unicode.IsSpace(r) {
-			return ' '
-		}
-		return r
-	}, text))), " ")
-	if utf8.RuneCountInString(s) <= maxPromptTitleRunes {
-		return s
-	}
-	runes := []rune(s)
-	return strings.TrimSpace(string(runes[:maxPromptTitleRunes-1])) + "…"
-}
 
 // observeTerminalTitle records a live terminal run's OSC 0/2 title for the
 // current agent session so switching to chat keeps it. Clearing an active
 // terminal title clears the matching session title.
-func (a *actor) observeTerminalTitle(raw string, seq uint64) {
-	title := sessionTitle(raw)
+func (a *actor) observeTerminalTitle(title string, seq uint64) {
 	if title == "" {
 		prev := a.termTitle
 		a.termTitle, a.termTitleSeq = "", 0
@@ -72,7 +38,7 @@ func (a *actor) observeTerminalTitle(raw string, seq uint64) {
 // adoptListedTitle applies a non-empty title returned by session/list for sid
 // when the live terminal run has not reported its own OSC 0/2 title.
 func (a *actor) adoptListedTitle(sid, raw string) {
-	title := sessionTitle(raw)
+	title := session.AutomaticTitle(raw)
 	if sid == "" || title == "" || a.termTitle != "" {
 		return
 	}
@@ -93,7 +59,7 @@ func (a *actor) adoptProbeTitle(sid string, ans probeAnswer) {
 		id := a.shell.Identity()
 		if a.agentSessionID != "" {
 			a.observeTerminalTitle(id.Title, id.TitleSeq)
-		} else if term := sessionTitle(id.Title); term != "" {
+		} else if term := id.Title; term != "" {
 			a.termTitle, a.termTitleSeq = term, id.TitleSeq
 			a.promptTitle = false
 			if a.title != term || a.titleSession != sid {

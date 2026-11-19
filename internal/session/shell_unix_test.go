@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -411,26 +412,28 @@ func TestOverlayTitleNamesOnlyUnnamedChatShells(t *testing.T) {
 	if err := unnamed.EndRun(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := unnamed.StartRun([]string{"/bin/sh", "-c", `printf '\033]2;tui title\007\033]2;tui title\007READY'; exec sleep 30`}); err != nil {
+	rawTitle := strings.Repeat("长", 90)
+	title := strings.Repeat("长", 79) + "…"
+	if err := unnamed.StartRun([]string{"/bin/sh", "-c", `printf '\033]2;%s\007\033]2;%s\007READY' "$1" "$1"; exec sleep 30`, "sh", rawTitle}); err != nil {
 		t.Fatal(err)
 	}
 	waitForOutput(t, unnamed, "READY")
-	if got := unnamed.Info().Title; got != "tui title" {
-		t.Fatalf("terminal OSC title %q, want \"tui title\"", got)
+	if got := unnamed.Info().Title; got != title {
+		t.Fatalf("terminal OSC title %q, want %q", got, title)
 	}
 	ident := unnamed.Identity()
-	if ident.Title != "tui title" || ident.TitleSeq != 2 {
-		t.Fatalf("identity title = %q seq %d, want \"tui title\" seq 2", ident.Title, ident.TitleSeq)
+	if ident.Title != title || ident.TitleSeq != 2 {
+		t.Fatalf("identity title = %q seq %d, want %q seq 2", ident.Title, ident.TitleSeq, title)
 	}
 	// Stale sequence does not drop a newly re-emitted identical title.
-	if rem, seq := unnamed.ClearTerminalTitleIf("tui title", 1); rem != "tui title" || seq != 2 {
-		t.Fatalf("ClearTerminalTitleIf stale seq = (%q, %d), want (\"tui title\", 2)", rem, seq)
+	if rem, seq := unnamed.ClearTerminalTitleIf(title, 1); rem != title || seq != 2 {
+		t.Fatalf("ClearTerminalTitleIf stale seq = (%q, %d), want (%q, 2)", rem, seq, title)
 	}
-	if got := unnamed.Info().Title; got != "tui title" {
-		t.Fatalf("title after non-matching ClearTerminalTitleIf %q, want \"tui title\"", got)
+	if got := unnamed.Info().Title; got != title {
+		t.Fatalf("title after non-matching ClearTerminalTitleIf %q, want %q", got, title)
 	}
 	// Matching title and sequence drops the run's OSC title back to overlay fallback.
-	if rem, seq := unnamed.ClearTerminalTitleIf("tui title", 2); rem != "" || seq != 2 {
+	if rem, seq := unnamed.ClearTerminalTitleIf(title, 2); rem != "" || seq != 2 {
 		t.Fatalf("ClearTerminalTitleIf matching seq = (%q, %d), want (\"\", 2)", rem, seq)
 	}
 	if got := unnamed.Info().Title; got != "chat title" {
