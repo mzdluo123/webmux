@@ -9,18 +9,24 @@
     SegmentedControlItem,
   } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
-  import type { Repository, SessionInfo } from "../../contracts/schemas";
+  import type {
+    ArchivedSession,
+    Repository,
+    SessionInfo,
+  } from "../../contracts/schemas";
+  import { resumesOnOpen } from "../../domains/sessions/archived";
   import {
     queueGroup,
     queueWorkspaceLocation,
     sessionsByPin,
   } from "../../domains/workspace/session-queue";
   import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
-  import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
+  import SidebarSessionRow from "./SidebarSessionRow.svelte";
   import SidebarProjectAvatar from "./SidebarProjectAvatar.svelte";
 
   let {
     sessions,
+    records,
     pinned,
     repositories,
     configIcons,
@@ -32,8 +38,10 @@
     onopen,
     onrename,
     onclose,
+    onremove,
   }: {
     sessions: readonly SessionInfo[];
+    records: readonly ArchivedSession[];
     pinned: readonly SessionInfo[];
     repositories: readonly Repository[];
     configIcons: ReadonlyMap<string, string>;
@@ -45,16 +53,25 @@
     onopen: (session: SessionInfo) => void;
     onrename: (session: SessionInfo) => void;
     onclose: (session: SessionInfo) => void;
+    onremove: (record: ArchivedSession) => void;
   } = $props();
 
   const pinnedIds = $derived(new Set(pinned.map((session) => session.id)));
   const attentionOnly = $derived(workbenchLayout.attentionOnly);
+  const dormant = $derived.by(() => {
+    const liveIds = new Set(sessions.map((session) => session.id));
+    return new Map(
+      records
+        .filter((record) => resumesOnOpen(record) && !liveIds.has(record.id))
+        .map((record) => [record.id, record]),
+    );
+  });
   let menuSessionId = $state<string | null>(null);
   const pending = $derived(
     sessions.filter((session) => queueGroup(session) === "attention"),
   );
   const visibleSessions = $derived.by(() => {
-    if (!attentionOnly) return sessions;
+    if (!attentionOnly) return [...sessions, ...dormant.values()];
     const held = sessions.find((session) => session.id === menuSessionId);
     return held && !pending.includes(held) ? [...pending, held] : pending;
   });
@@ -185,7 +202,8 @@
               session,
               group.repository,
             )}
-            <SidebarLiveSessionRow
+            {@const record = dormant.get(session.id)}
+            <SidebarSessionRow
               {session}
               {current}
               location={location.text}
@@ -198,6 +216,7 @@
               {onopen}
               {onrename}
               {onclose}
+              onremove={record ? () => onremove(record) : undefined}
               onmenuopen={(open) => {
                 if (open) menuSessionId = session.id;
                 else if (menuSessionId === session.id) menuSessionId = null;

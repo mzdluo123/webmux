@@ -2074,7 +2074,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     await tuiTurn(page, "after-restart");
   });
 
-  test("after restart pending sessions appear by default in chat history and the branch tree", async ({
+  test("after restart pending sessions appear by default in chat history and both workbench lists", async ({
     page,
     request,
     server,
@@ -2154,7 +2154,24 @@ test.describe("hybrid sessions with the fake agent", () => {
       await request.get(`/api/sessions/${terminal}`)
     ).json();
     expect(record.state).toBe("interrupted");
-    await terminalRow.click();
+
+    await useWorkbenchBranches(page, false);
+    const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
+    const project = sidebar.getByRole("list", { name: "restart-project" });
+    const projectRow = project.getByRole("button", {
+      name: /Branch restart terminal.*打开时恢复/,
+    });
+    await expect(projectRow).toBeVisible();
+    await expect(projectRow).toHaveAccessibleDescription("feature-restart");
+    const filter = sidebar.getByRole("radiogroup", { name: "会话范围" });
+    await filter.getByRole("radio", { name: "待处理", exact: true }).click();
+    await expect(projectRow).toHaveCount(0);
+    await filter.getByRole("radio", { name: "全部", exact: true }).click();
+    await expect(projectRow).toBeVisible();
+    expect(
+      (await (await request.get(`/api/sessions/${terminal}`)).json()).state,
+    ).toBe("interrupted");
+    await projectRow.click();
     await expect(page).toHaveURL(`/s/${terminal}`);
     await expectTerminalLine(page, "< echo: branch-before-restart");
   });

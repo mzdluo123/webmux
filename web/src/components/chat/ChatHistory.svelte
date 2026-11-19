@@ -54,7 +54,7 @@
   import LaunchConfigIcon from "../settings/LaunchConfigIcon.svelte";
   import RowStatus from "../shared/RowStatus.svelte";
   import SidebarSessionName from "../shell/SidebarSessionName.svelte";
-  import SidebarLiveSessionRow from "../shell/SidebarLiveSessionRow.svelte";
+  import SidebarSessionRow from "../shell/SidebarSessionRow.svelte";
   import SidebarSessionMenu from "../shell/SidebarSessionMenu.svelte";
 
   // Recent chats stay visible; manually archived or interrupted chats fold
@@ -246,7 +246,7 @@
           {@render archivedRow(entry.session, true)}
         {:else}
           {@const session = entry.session}
-          <SidebarLiveSessionRow
+          <SidebarSessionRow
             {session}
             {current}
             icon={session.agent?.icon ?? ""}

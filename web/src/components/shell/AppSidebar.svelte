@@ -29,7 +29,7 @@
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import SidebarWorkspaceTree from "./SidebarWorkspaceTree.svelte";
   import WorkbenchSidebarSessions from "./WorkbenchSidebarSessions.svelte";
-  import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
+  import SidebarSessionRow from "./SidebarSessionRow.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
   import SidebarHeader from "./SidebarHeader.svelte";
   import { featureContributions } from "../../features/registry.svelte";
@@ -350,7 +350,7 @@
           </h2>
           <ul class="space-y-0.5">
             {#each pinned as session (session.id)}
-              <SidebarLiveSessionRow
+              <SidebarSessionRow
                 {session}
                 {current}
                 icon={session.agent?.icon ??
@@ -381,6 +381,7 @@
         {:else if queue}
           <WorkbenchSidebarSessions
             sessions={live}
+            {records}
             {pinned}
             repositories={shell.repositories?.list ?? []}
             {configIcons}
@@ -401,13 +402,14 @@
             onopen={openSession}
             onrename={shell.rename}
             onclose={shell.close}
+            onremove={askRemove}
           />
         {:else if workspace && shell.repositories && !shell.sessions.loading && showWorkspaces}
           {@render workspaces()}
         {:else if !workspace || !shell.repositories}
           <ul class="space-y-0.5">
             {#each unpinned as session (session.id)}
-              <SidebarLiveSessionRow
+              <SidebarSessionRow
                 {session}
                 {current}
                 icon={session.agent?.icon ??
