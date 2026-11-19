@@ -3,7 +3,6 @@ package featureapi
 import (
 	"context"
 	"fmt"
-	"github.com/rainchan/webmux/internal/transport"
 	"io"
 	"log"
 	"net"
@@ -17,6 +16,7 @@ import (
 	"github.com/rainchan/webmux/internal/contract"
 	wire "github.com/rainchan/webmux/internal/featurewire"
 	"github.com/rainchan/webmux/internal/forward"
+	"github.com/rainchan/webmux/internal/transport"
 )
 
 const (
@@ -122,23 +122,29 @@ func (s *Server) gateway(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, target, http.StatusPermanentRedirect)
 		return
 	}
+	site := r.Header.Get("Sec-Fetch-Site")
+	foreignSite := site != "" && site != "same-origin" && site != "none"
 	// Authentication precedes the lookup, so an unauthenticated request
 	// cannot tell a forwarded port from any other.
 	if !s.forwardAuthorized(r) {
 		if isNavigation(r) {
-			http.Redirect(w, r, "/forward-auth?next="+url.QueryEscape(r.URL.RequestURI()), http.StatusSeeOther)
+			redirectForwardAuth(w, r, foreignSite)
 			return
 		}
 		gatewayText(w, http.StatusUnauthorized, "需要重新认证端口转发。请从 WebMux 打开这个地址。")
 		return
 	}
+	if !s.forwardSourceAllowed(r, site) || (foreignSite && !isNavigation(r)) {
+		gatewayText(w, http.StatusForbidden, "origin not allowed")
+		return
+	}
+	if foreignSite {
+		redirectForwardAuth(w, r, true)
+		return
+	}
 	f, life, ok := s.Forward.Lookup(port)
 	if !ok {
 		http.NotFound(w, r)
-		return
-	}
-	if isUpgrade(r) && !s.originAllowed(r) {
-		gatewayText(w, http.StatusForbidden, "origin not allowed")
 		return
 	}
 	// The server's request read timeout would cut long uploads and every
@@ -157,15 +163,32 @@ func (s *Server) gateway(w http.ResponseWriter, r *http.Request) {
 	s.gatewayProxy.ServeHTTP(w, r.WithContext(ctx))
 }
 
-func isUpgrade(r *http.Request) bool {
-	return strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
+func redirectForwardAuth(w http.ResponseWriter, r *http.Request, confirm bool) {
+	prefix := "/forward-auth?next="
+	if confirm {
+		prefix = "/forward-auth?confirm=1&next="
+	}
+	http.Redirect(w, r, prefix+url.QueryEscape(r.URL.RequestURI()), http.StatusSeeOther)
+}
+
+func (s *Server) forwardSourceAllowed(r *http.Request, site string) bool {
+	origin := r.Header.Get("Origin")
+	if origin != "" && !s.originAllowed(r) {
+		return false
+	}
+	safe := (r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions) && !strings.EqualFold(r.Header.Get("Upgrade"), "websocket")
+	return safe || origin != "" || site == "same-origin"
 }
 
 // isNavigation recognizes a browser's top-level page load. Browsers send
 // Sec-Fetch-* only to trustworthy origins (HTTPS, localhost); on plain HTTP
-// to a LAN or VPN address a page load is a GET that accepts HTML.
+// to a LAN or VPN address a page load is a GET/HEAD that accepts HTML.
 func isNavigation(r *http.Request) bool {
-	if r.Method != http.MethodGet {
+	if (r.Method != http.MethodGet && r.Method != http.MethodHead) || strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+		return false
+	}
+	switch strings.ToLower(r.Header.Get("Sec-Fetch-Dest")) {
+	case "iframe", "frame", "embed", "object":
 		return false
 	}
 	if mode := r.Header.Get("Sec-Fetch-Mode"); mode != "" {
@@ -195,13 +218,15 @@ func forwardAuthPage(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-// forwardAuthorized accepts a live forwarding credential cookie; with the
-// main token unset the gateway, like /api/, needs none.
+// forwardAuthorized accepts a live forwarding credential cookie, a same-origin
+// Relay owner context, or an open local gateway when the main token is unset.
 func (s *Server) forwardAuthorized(r *http.Request) bool {
 	if transport.IsRelayOwner(r.Context()) {
-		return true
-	}
-	if s.Config.Token == "" {
+		switch r.Header.Get("Sec-Fetch-Site") {
+		case "same-origin", "none":
+			return true
+		}
+	} else if s.Config.Token == "" {
 		return true
 	}
 	for _, c := range r.CookiesNamed(forwardCookie) {
@@ -231,7 +256,8 @@ func (s *Server) redeemForward(w http.ResponseWriter, r *http.Request) {
 		gatewayText(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if r.Header.Get("Origin") == "" || !s.originAllowed(r) {
+	site := r.Header.Get("Sec-Fetch-Site")
+	if !s.forwardSourceAllowed(r, site) || (site != "" && site != "same-origin") {
 		gatewayText(w, http.StatusForbidden, "origin not allowed")
 		return
 	}
@@ -248,11 +274,11 @@ func (s *Server) redeemForward(w http.ResponseWriter, r *http.Request) {
 	credential, err := s.Forward.Credentials().Redeem(r.PostForm.Get("code"))
 	if err != nil {
 		status := forwardRedeemStatus(err)
+		msg := "internal error"
 		if status == http.StatusUnauthorized {
-			gatewayText(w, status, "转发认证已失效，请从 WebMux 重新打开。")
-			return
+			msg = "转发认证已失效，请从 WebMux 重新打开。"
 		}
-		gatewayText(w, status, "internal error")
+		gatewayText(w, status, msg)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{

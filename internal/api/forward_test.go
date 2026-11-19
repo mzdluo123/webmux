@@ -259,6 +259,22 @@ func TestForwardRedeem(t *testing.T) {
 			t.Errorf("%s origin = %d", name, got.StatusCode)
 		}
 	}
+	for _, site := range []string{"cross-site", "same-site"} {
+		ticket := env.ticket()
+		got := env.redeem(ticket, env.path(""), func(r *http.Request) {
+			r.Header.Set("Sec-Fetch-Site", site)
+		})
+		if got.StatusCode != http.StatusForbidden || len(got.Cookies()) != 0 {
+			t.Errorf("site %s = %d", site, got.StatusCode)
+		}
+	}
+	sameOriginForm := env.redeem(env.ticket(), env.path(""), func(r *http.Request) {
+		r.Header.Del("Origin")
+		r.Header.Set("Sec-Fetch-Site", "same-origin")
+	})
+	if sameOriginForm.StatusCode != http.StatusSeeOther || len(sameOriginForm.Cookies()) == 0 {
+		t.Fatalf("same-origin form without Origin = %d", sameOriginForm.StatusCode)
+	}
 
 	// A public HTTPS entry point proxies plain HTTP: the cookie is Secure.
 	if err := env.public.Set("cloudflare", "https://abc.trycloudflare.com"); err != nil {
@@ -452,6 +468,107 @@ func TestGatewayWithoutToken(t *testing.T) {
 	env.add(env.port, nil)
 	if got := env.do(http.MethodGet, env.path(""), nil, nil).StatusCode; got != http.StatusOK {
 		t.Fatalf("tokenless gateway = %d", got)
+	}
+	if got := env.do(http.MethodPost, env.path("save"), strings.NewReader("ok"), func(r *http.Request) {
+		r.Header.Set("Origin", env.server.URL)
+	}).StatusCode; got != http.StatusOK {
+		t.Fatalf("tokenless same-origin POST = %d", got)
+	}
+	if got := env.do(http.MethodPost, env.path("save"), strings.NewReader("ok"), func(r *http.Request) {
+		r.Header.Set("Sec-Fetch-Site", "same-origin")
+	}).StatusCode; got != http.StatusOK {
+		t.Fatalf("tokenless same-origin Fetch Metadata POST = %d", got)
+	}
+
+	before := env.requests()
+	for _, tc := range []struct {
+		name   string
+		method string
+		edit   func(*http.Request)
+	}{
+		{"cross-origin POST", http.MethodPost, func(r *http.Request) { r.Header.Set("Origin", "https://evil.example") }},
+		{"missing-origin POST", http.MethodPost, nil},
+		{"cross-site form POST", http.MethodPost, func(r *http.Request) { r.Header.Set("Sec-Fetch-Site", "cross-site") }},
+		{"cross-origin GET", http.MethodGet, func(r *http.Request) { r.Header.Set("Origin", "https://evil.example") }},
+		{"cross-site subresource GET", http.MethodGet, func(r *http.Request) {
+			r.Header.Set("Sec-Fetch-Site", "cross-site")
+			r.Header.Set("Sec-Fetch-Mode", "no-cors")
+			r.Header.Set("Sec-Fetch-Dest", "script")
+		}},
+		{"cross-site iframe GET", http.MethodGet, func(r *http.Request) {
+			r.Header.Set("Sec-Fetch-Site", "cross-site")
+			r.Header.Set("Sec-Fetch-Mode", "navigate")
+			r.Header.Set("Sec-Fetch-Dest", "iframe")
+		}},
+	} {
+		if got := env.do(tc.method, env.path("x"), nil, tc.edit).StatusCode; got != http.StatusForbidden {
+			t.Errorf("%s = %d, want 403", tc.name, got)
+		}
+	}
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		res := env.do(method, env.path("app?x=1"), nil, func(r *http.Request) {
+			r.Header.Set("Sec-Fetch-Site", "cross-site")
+			r.Header.Set("Sec-Fetch-Mode", "navigate")
+			r.Header.Set("Sec-Fetch-Dest", "document")
+		})
+		want := "/forward-auth?confirm=1&next=" + url.QueryEscape(env.path("app?x=1"))
+		if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != want {
+			t.Errorf("%s cross-site navigate = %d %q, want 303 %q", method, res.StatusCode, res.Header.Get("Location"), want)
+		}
+	}
+	if env.requests() != before {
+		t.Fatal("cross-site request reached tokenless upstream")
+	}
+}
+
+func TestGatewaySameSiteSiblingPortRejected(t *testing.T) {
+	env := newGatewayEnv(t, "secret", nil)
+	env.add(env.port, nil)
+	cookie := env.cookie()
+
+	for _, tc := range []struct {
+		name   string
+		method string
+		edit   func(*http.Request)
+	}{
+		{"same-site subresource", http.MethodGet, func(r *http.Request) {
+			r.AddCookie(cookie)
+			r.Header.Set("Sec-Fetch-Site", "same-site")
+			r.Header.Set("Sec-Fetch-Mode", "cors")
+		}},
+		{"same-site iframe", http.MethodGet, func(r *http.Request) {
+			r.AddCookie(cookie)
+			r.Header.Set("Sec-Fetch-Site", "same-site")
+			r.Header.Set("Sec-Fetch-Mode", "navigate")
+			r.Header.Set("Sec-Fetch-Dest", "iframe")
+		}},
+		{"same-site POST with port origin", http.MethodPost, func(r *http.Request) {
+			r.AddCookie(cookie)
+			r.Header.Set("Origin", "http://127.0.0.1:9999")
+			r.Header.Set("Sec-Fetch-Site", "same-site")
+		}},
+		{"same-site POST without origin", http.MethodPost, func(r *http.Request) {
+			r.AddCookie(cookie)
+			r.Header.Set("Sec-Fetch-Site", "same-site")
+		}},
+	} {
+		if got := env.do(tc.method, env.path("api"), nil, tc.edit).StatusCode; got != http.StatusForbidden {
+			t.Errorf("%s = %d, want 403", tc.name, got)
+		}
+	}
+
+	res := env.do(http.MethodGet, env.path(""), nil, func(r *http.Request) {
+		r.AddCookie(cookie)
+		r.Header.Set("Sec-Fetch-Site", "same-site")
+		r.Header.Set("Sec-Fetch-Mode", "navigate")
+		r.Header.Set("Sec-Fetch-Dest", "document")
+	})
+	want := "/forward-auth?confirm=1&next=" + url.QueryEscape(env.path(""))
+	if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != want {
+		t.Fatalf("same-site top navigation = %d %q, want 303 %q", res.StatusCode, res.Header.Get("Location"), want)
+	}
+	if env.requests() != 0 {
+		t.Fatal("same-site request reached upstream")
 	}
 }
 

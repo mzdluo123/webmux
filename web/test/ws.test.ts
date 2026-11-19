@@ -11,7 +11,11 @@ import {
   setWsCompression,
   wsCompression,
 } from "../src/platform/ws-compression";
-import type { SocketConnection } from "../src/platform/ws-contracts";
+import { observeManagedStreams } from "../src/platform/ws-registry";
+import type {
+  ManagedStreamStatus,
+  SocketConnection,
+} from "../src/platform/ws-contracts";
 import {
   applyRelayAuth,
   clearRelayAuth,
@@ -327,20 +331,33 @@ describe("WebSocket compression default", () => {
 });
 
 describe("Terminal input confirmation and close codes", () => {
+  let stopObserve: (() => void) | undefined;
+  let latestStreams: ManagedStreamStatus[] = [];
+
   beforeEach(() => {
     vi.useFakeTimers();
     MockWebSocket.instances = [];
+    latestStreams = [];
     vi.stubGlobal("WebSocket", MockWebSocket);
     vi.stubGlobal("location", { protocol: "http:", host: "localhost" });
-    vi.stubGlobal("localStorage", { getItem: () => "tok" });
+    vi.stubGlobal("localStorage", {
+      getItem: () => "tok",
+      setItem: () => undefined,
+    });
     vi.stubGlobal("document", new EventTarget());
     vi.stubGlobal(
       "window",
       Object.assign(new EventTarget(), { setTimeout: globalThis.setTimeout }),
     );
+    stopObserve = observeManagedStreams((streams) => {
+      latestStreams = streams;
+    });
   });
 
   afterEach(() => {
+    stopObserve?.();
+    stopObserve = undefined;
+    resetRelayAuth();
     vi.unstubAllGlobals();
     vi.useRealTimers();
   });
@@ -392,24 +409,63 @@ describe("Terminal input confirmation and close codes", () => {
     socket.onmessage?.({
       data: frame(5, JSON.stringify({ id: "probe-0002", state: "missing" })),
     });
-    // Once confirmed, reconnect or 4409 view move does not report uncertainty.
-    socket.readyState = 3;
-    socket.onclose?.({ code: 4409 });
+    // Subsequent compression reattach (`open()`), `4409` view switch, and abnormal drop stay certain.
+    setWsCompression(true);
+    const second = MockWebSocket.instances[1]!;
+    second.onopen?.();
     expect(errors).toEqual([]);
+
+    second.readyState = 3;
+    second.onclose?.({ code: 4409 });
+    expect(errors).toEqual([]);
+
+    conn.reconnect();
+    const third = MockWebSocket.instances[2]!;
+    third.onopen?.();
+    third.readyState = 3;
+    third.onclose?.({ code: 1006 });
+    expect(errors).toEqual([]);
+    expect(latestStreams.some((s) => s.inputUncertain)).toBe(false);
+
+    setWsCompression(false);
     conn.close();
   });
 
-  it("does not report input uncertainty on clean 4410 session exit", () => {
-    const errors: string[] = [];
-    const conn = connect("/ws/s/test", vi.fn(), vi.fn(), (err) =>
-      errors.push(err),
-    );
-    const socket = MockWebSocket.instances[0]!;
-    socket.onopen?.();
-    expect(conn.send(0, new Uint8Array([4]))).toBe(true);
-    socket.readyState = 3;
-    socket.onclose?.({ code: 4410 });
-    expect(errors).toEqual([]);
+  it.each([4410, 4404] as const)(
+    "skips uncertainty on close code %i even with unacknowledged input",
+    (code) => {
+      const onError = vi.fn();
+      const conn = connect("/ws/s/test", vi.fn(), vi.fn(), onError, {
+        resume: () => true,
+      });
+      const sock = MockWebSocket.instances[0]!;
+      sock.onopen?.();
+      expect(conn.send(0, new Uint8Array([101, 120, 105, 116, 13]))).toBe(true);
+
+      sock.readyState = 3;
+      sock.onclose?.({ code });
+      expect(onError).not.toHaveBeenCalled();
+      expect(latestStreams.some((s) => s.inputUncertain)).toBe(false);
+      conn.close();
+    },
+  );
+
+  it("marks unacknowledged input uncertain on 4409 or drop and clears via clearUncertainty()", () => {
+    const onError = vi.fn();
+    const conn = connect("/ws/s/test", vi.fn(), vi.fn(), onError, {
+      resume: () => true,
+    });
+    const sock = MockWebSocket.instances[0]!;
+    sock.onopen?.();
+    expect(conn.send(0, new Uint8Array([65]))).toBe(true);
+
+    sock.readyState = 3;
+    sock.onclose?.({ code: 4409 });
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(latestStreams.some((s) => s.inputUncertain)).toBe(true);
+
+    conn.clearUncertainty();
+    expect(latestStreams.some((s) => s.inputUncertain)).toBe(false);
     conn.close();
   });
 });

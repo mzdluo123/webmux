@@ -3,12 +3,6 @@ package workspace
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"errors"
-	"io"
-	"os"
-	"path/filepath"
 	"strings"
 	"unicode/utf8"
 )
@@ -124,26 +118,18 @@ func (s *Service) inspectFileLocked(ctx context.Context, loc WorktreeLocation, h
 		}, nil
 	}
 
-	var baseBytes, targetBytes, wtRaw []byte
 	id := StageFileIdentity{Area: area, Path: relPath, OldPath: oldPath}
+	var wtScan worktreeFileScan
 
 	if area == StageAreaUnstaged {
 		id.BaseOID = idxEntry.oid
 		id.BaseMode = idxEntry.mode
-		wtMode, wtSum, raw, wtErr := s.readWorktreeFile(ctx, loc.Path, relPath, idxEntry.mode)
-		if wtErr != nil {
-			return StagingFileDiff{}, wtErr
+		wtScan, err = s.scanWorktreeFile(ctx, loc.Path, relPath, idxEntry.mode)
+		if err != nil {
+			return StagingFileDiff{}, err
 		}
-		id.TargetMode = wtMode
-		id.TargetSHA256 = wtSum
-		wtRaw = raw
-		if id.BaseOID != "" && isRegularGitMode(id.BaseMode) {
-			baseBytes, err = ReadGit(ctx, loc.Path, maxWorkspaceGitOutput, "cat-file", "blob", id.BaseOID)
-			if err != nil {
-				return StagingFileDiff{}, err
-			}
-		}
-		targetBytes = raw
+		id.TargetMode = wtScan.mode
+		id.TargetSHA256 = wtScan.sum
 	} else {
 		if oldPath != "" {
 			oldMode, oldOID, hErr := s.readHeadTreeEntry(ctx, loc.Path, headOID, oldPath)
@@ -161,29 +147,68 @@ func (s *Service) inspectFileLocked(ctx context.Context, loc WorktreeLocation, h
 		id.BaseOID = hOID
 		id.TargetMode = idxEntry.mode
 		id.TargetOID = idxEntry.oid
-		if id.BaseOID != "" && isRegularGitMode(id.BaseMode) {
-			baseBytes, err = ReadGit(ctx, loc.Path, maxWorkspaceGitOutput, "cat-file", "blob", id.BaseOID)
-			if err != nil {
-				return StagingFileDiff{}, err
-			}
-		}
-		if id.TargetOID != "" && isRegularGitMode(id.TargetMode) {
-			targetBytes, err = ReadGit(ctx, loc.Path, maxWorkspaceGitOutput, "cat-file", "blob", id.TargetOID)
-			if err != nil {
-				return StagingFileDiff{}, err
-			}
-		}
 	}
 
 	out := StagingFileDiff{
-		Identity:    id,
-		Hunks:       []StagingHunk{},
-		baseBytes:   baseBytes,
-		targetBytes: targetBytes,
-		worktreeRaw: wtRaw,
+		Identity:          id,
+		Hunks:             []StagingHunk{},
+		worktreeRaw:       wtScan.raw,
+		worktreeRawLoaded: wtScan.rawLoaded,
+		worktreeSize:      wtScan.size,
+		untrackedRepo:     wtScan.untrackedRepo,
+		replacedByDir:     wtScan.replacedByDir,
 	}
 
-	if reason, bin := s.degradeHunkReason(ctx, loc.Path, relPath, oldPath, statusHint, id, baseBytes, targetBytes); reason != "" {
+	if reason := s.degradeStructuralReason(ctx, loc.Path, relPath, oldPath, statusHint, id, wtScan); reason != "" {
+		out.HunkStageAvailable = false
+		out.DegradeReason = reason
+		return out, nil
+	}
+
+	var baseBytes, targetBytes []byte
+	var baseLoaded bool
+	exceedsHunk := wtScan.exceedsHunk
+
+	if area == StageAreaUnstaged {
+		targetBytes = wtScan.raw
+		if !exceedsHunk && id.BaseOID != "" && isRegularGitMode(id.BaseMode) {
+			var baseExceeds bool
+			baseBytes, baseLoaded, baseExceeds, err = s.readGitBlobForHunk(ctx, loc.Path, id.BaseOID)
+			if err != nil {
+				return StagingFileDiff{}, err
+			}
+			exceedsHunk = exceedsHunk || baseExceeds
+		}
+	} else {
+		if id.BaseOID != "" && isRegularGitMode(id.BaseMode) {
+			var baseExceeds bool
+			baseBytes, baseLoaded, baseExceeds, err = s.readGitBlobForHunk(ctx, loc.Path, id.BaseOID)
+			if err != nil {
+				return StagingFileDiff{}, err
+			}
+			exceedsHunk = exceedsHunk || baseExceeds
+		}
+		if !exceedsHunk && id.TargetOID != "" && isRegularGitMode(id.TargetMode) {
+			var targetExceeds bool
+			targetBytes, _, targetExceeds, err = s.readGitBlobForHunk(ctx, loc.Path, id.TargetOID)
+			if err != nil {
+				return StagingFileDiff{}, err
+			}
+			exceedsHunk = exceedsHunk || targetExceeds
+		}
+	}
+
+	out.baseBytes = baseBytes
+	out.baseBytesLoaded = baseLoaded
+	out.targetBytes = targetBytes
+
+	if exceedsHunk {
+		out.HunkStageAvailable = false
+		out.DegradeReason = "文件超过 2 MiB 文本分块上限，仅支持整文件操作"
+		return out, nil
+	}
+
+	if reason, bin := degradeContentReason(baseBytes, targetBytes); reason != "" {
 		out.Binary = bin
 		out.HunkStageAvailable = false
 		out.DegradeReason = reason
@@ -215,76 +240,29 @@ func isRegularGitMode(mode string) bool {
 	return mode == "100644" || mode == "100755"
 }
 
-func (s *Service) readWorktreeFile(ctx context.Context, rootPath, relPath, indexMode string) (mode, sum string, raw []byte, err error) {
-	root, err := os.OpenRoot(rootPath)
-	if err != nil {
-		return "", "", nil, problemf(ErrUnavailable, "无法打开工作树目录: %v", err)
-	}
-	defer func() { _ = root.Close() }()
-
-	fsRel := filepath.FromSlash(relPath)
-	info, err := root.Lstat(fsRel)
-	if errors.Is(err, os.ErrNotExist) {
-		return "", "", nil, nil
-	}
-	if err != nil {
-		return "", "", nil, problemf(ErrConflict, "无法读取工作区路径 %s: %v", relPath, err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		target, lErr := root.Readlink(fsRel)
-		if lErr != nil {
-			return "", "", nil, problemf(ErrConflict, "无法读取符号链接 %s: %v", relPath, lErr)
-		}
-		b := []byte(target)
-		digest := sha256.Sum256(b)
-		return "120000", hex.EncodeToString(digest[:]), b, nil
-	}
-	if info.IsDir() {
-		if indexMode == "160000" {
-			subOID, _ := s.resolveCommitReadOnly(ctx, filepath.Join(rootPath, fsRel), "HEAD")
-			return "160000", subOID, nil, nil
-		}
-		return "", "", nil, problemf(ErrInvalid, "路径 %s 是目录而非文件", relPath)
-	}
-	if !info.Mode().IsRegular() {
-		return "", "", nil, problemf(ErrInvalid, "路径 %s 不是普通文件", relPath)
-	}
-	f, err := root.Open(fsRel)
-	if err != nil {
-		return "", "", nil, problemf(ErrConflict, "无法读取文件 %s: %v", relPath, err)
-	}
-	defer func() { _ = f.Close() }()
-	data, err := io.ReadAll(io.LimitReader(f, maxWorkspaceGitOutput+1))
-	if err != nil {
-		return "", "", nil, problemf(ErrInternal, "读取文件 %s 失败: %v", relPath, err)
-	}
-	if len(data) > maxWorkspaceGitOutput {
-		return "", "", nil, problemf(ErrTooLarge, "文件 %s 超过大小限制", relPath)
-	}
-	gitMode := "100644"
-	if info.Mode()&0o111 != 0 {
-		gitMode = "100755"
-	}
-	digest := sha256.Sum256(data)
-	return gitMode, hex.EncodeToString(digest[:]), data, nil
-}
-
-func (s *Service) degradeHunkReason(ctx context.Context, cwd, relPath, oldPath, statusHint string, id StageFileIdentity, baseBytes, targetBytes []byte) (string, bool) {
+func (s *Service) degradeStructuralReason(ctx context.Context, cwd, relPath, oldPath, statusHint string, id StageFileIdentity, wtScan worktreeFileScan) string {
 	if oldPath != "" || strings.HasPrefix(statusHint, "R") || strings.HasPrefix(statusHint, "C") {
-		return "重命名或复制条目仅支持整文件操作", false
+		return "重命名或复制条目仅支持整文件操作"
+	}
+	if wtScan.untrackedRepo || (id.Area == StageAreaUnstaged && id.TargetMode == "160000" && id.BaseMode != "160000") {
+		return "未跟踪嵌套 Git 仓库仅展示状态，请添加为子模块或移除嵌套 .git 目录"
 	}
 	if (id.BaseMode != "" && !isRegularGitMode(id.BaseMode)) || (id.TargetMode != "" && !isRegularGitMode(id.TargetMode)) {
-		return "符号链接或子模块仅支持整文件操作", false
+		return "符号链接或子模块仅支持整文件操作"
 	}
 	if id.Area == StageAreaUnstaged && id.TargetMode == "" {
-		return "已删除文件仅支持整文件暂存", false
+		return "已删除文件仅支持整文件暂存"
 	}
 	if id.Area == StageAreaStaged && id.TargetMode == "" {
-		return "已暂存删除条目仅支持整文件取消暂存", false
+		return "已暂存删除条目仅支持整文件取消暂存"
 	}
 	if s.hasTransformAttributes(ctx, cwd, relPath) {
-		return "配置了 filter 或 working-tree-encoding 属性，仅支持整文件操作", false
+		return "配置了 filter 或 working-tree-encoding 属性，仅支持整文件操作"
 	}
+	return ""
+}
+
+func degradeContentReason(baseBytes, targetBytes []byte) (string, bool) {
 	if bytes.IndexByte(baseBytes, 0) >= 0 || bytes.IndexByte(targetBytes, 0) >= 0 {
 		return "二进制文件仅支持整文件操作", true
 	}

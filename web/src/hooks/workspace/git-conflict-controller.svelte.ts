@@ -1,4 +1,5 @@
 import { m } from "$lib/paraglide/messages.js";
+import { SvelteMap } from "svelte/reactivity";
 import { APIError } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import {
@@ -14,8 +15,11 @@ import {
 import {
   applyAllNonConflictingSegments,
   applyConflictChunkChoice,
+  cloneConflictDraftState,
   createInitialConflictDraftState,
   markAllUnresolvedAsManual,
+  normalizeConflictLineEndings,
+  serializeConflictIdentity,
   summarizeConflictDraftProgress,
   toggleNonConflictingSegment,
   type GitBaseCompareMode,
@@ -65,6 +69,11 @@ export function createGitConflictController(deps: GitConflictControllerDeps) {
   let stale = $state(false);
 
   const loadReq = new LatestRequest();
+  const actionReq = new LatestRequest();
+  const draftCache = new SvelteMap<
+    string,
+    { identityKey: string; draft: GitConflictDraftState }
+  >();
   let disposed = false;
 
   const progress = $derived.by(() =>
@@ -75,13 +84,52 @@ export function createGitConflictController(deps: GitConflictControllerDeps) {
     detail ? detail.segments.filter((s) => s.kind === "conflict") : [],
   );
 
+  function matchesTarget(
+    repoId: string,
+    wtId: string | undefined,
+    targetPath: string,
+  ): boolean {
+    return (
+      !disposed &&
+      repoId === deps.getRepoId() &&
+      wtId === deps.getWorktreeId() &&
+      activePath === targetPath
+    );
+  }
+
+  function persistActiveDraft() {
+    if (!detail || !draft) return;
+    draftCache.set(detail.path, {
+      identityKey: serializeConflictIdentity(detail.identity),
+      draft: cloneConflictDraftState(draft),
+    });
+  }
+
+  function reportFailureIfActive(
+    err: unknown,
+    reportable: boolean,
+    repoId: string,
+    wtId: string | undefined,
+    targetPath: string,
+  ): boolean {
+    if (!reportable || !matchesTarget(repoId, wtId, targetPath)) return false;
+    const parsed = parseConflictFailure(err);
+    error = parsed.message;
+    stale = parsed.stale;
+    return true;
+  }
+
   function dispose() {
     disposed = true;
     loadReq.dispose();
+    actionReq.dispose();
+    draftCache.clear();
   }
 
   function resetTarget() {
     loadReq.cancel();
+    actionReq.cancel();
+    draftCache.clear();
     open = false;
     activePath = null;
     detail = null;
@@ -95,10 +143,22 @@ export function createGitConflictController(deps: GitConflictControllerDeps) {
     stale = false;
   }
 
-  async function selectFile(path: string) {
+  async function selectFile(path: string, options?: { forceReload?: boolean }) {
     const repoId = deps.getRepoId();
     const wtId = deps.getWorktreeId();
-    if (!repoId || !wtId || !path || disposed) return;
+    if (!repoId || !wtId || !path || disposed || saving || resolving) return;
+
+    const forceReload = Boolean(options?.forceReload);
+    if (detail && draft && (!forceReload || detail.path !== path)) {
+      persistActiveDraft();
+    }
+    if (forceReload) {
+      draftCache.delete(path);
+    }
+    if (detail && detail.path !== path) {
+      detail = null;
+      draft = null;
+    }
 
     const req = loadReq.begin();
     activePath = path;
@@ -108,21 +168,18 @@ export function createGitConflictController(deps: GitConflictControllerDeps) {
     activeConflictIndex = 0;
     try {
       const res = await gitConflictDetail(repoId, wtId, path, req.signal);
-      if (
-        !req.current() ||
-        disposed ||
-        repoId !== deps.getRepoId() ||
-        wtId !== deps.getWorktreeId()
-      ) {
-        return;
-      }
+      if (!req.current() || !matchesTarget(repoId, wtId, path)) return;
       detail = res;
-      draft = createInitialConflictDraftState(res);
+      const identityKey = serializeConflictIdentity(res.identity);
+      const cached = !forceReload ? draftCache.get(res.path) : undefined;
+      if (cached && cached.identityKey === identityKey) {
+        draft = cloneConflictDraftState(cached.draft);
+      } else {
+        if (cached) draftCache.delete(res.path);
+        draft = createInitialConflictDraftState(res);
+      }
     } catch (err) {
-      if (req.reportable()) {
-        const parsed = parseConflictFailure(err);
-        error = parsed.message;
-        stale = parsed.stale;
+      if (reportFailureIfActive(err, req.reportable(), repoId, wtId, path)) {
         detail = null;
         draft = null;
       }
@@ -133,6 +190,7 @@ export function createGitConflictController(deps: GitConflictControllerDeps) {
 
   async function openResolver(preferredPath?: string) {
     open = true;
+    if (saving || resolving) return;
     error = "";
     stale = false;
     const targetPath =
@@ -151,7 +209,9 @@ export function createGitConflictController(deps: GitConflictControllerDeps) {
 
   function closeResolver() {
     if (saving || resolving) return;
+    persistActiveDraft();
     loadReq.cancel();
+    loading = false;
     open = false;
     error = "";
     stale = false;
@@ -199,54 +259,52 @@ export function createGitConflictController(deps: GitConflictControllerDeps) {
   async function saveResult() {
     const repoId = deps.getRepoId();
     const wtId = deps.getWorktreeId();
-    if (!repoId || !wtId || !detail || !draft || saving || resolving) return;
+    const targetPath = activePath;
+    if (
+      !repoId ||
+      !wtId ||
+      !targetPath ||
+      !detail ||
+      !draft ||
+      detail.path !== targetPath ||
+      saving ||
+      resolving ||
+      disposed
+    ) {
+      return;
+    }
 
+    const req = actionReq.begin();
     saving = true;
     error = "";
     stale = false;
-    const textToSave = draft.resultText;
+    const identityToSave = detail.identity;
+    const textToSave = normalizeConflictLineEndings(draft.resultText, detail);
     try {
-      const res = await gitSaveConflict(repoId, wtId, {
-        identity: detail.identity,
-        resultText: textToSave,
-      });
+      const res = await gitSaveConflict(
+        repoId,
+        wtId,
+        { identity: identityToSave, resultText: textToSave },
+        req.signal,
+      );
+      if (
+        !req.current() ||
+        !matchesTarget(repoId, wtId, targetPath) ||
+        detail === null ||
+        draft === null ||
+        detail.path !== targetPath
+      ) {
+        return;
+      }
       detail = { ...detail, identity: res.identity };
-      draft = { ...draft, savedResultText: textToSave };
+      draft = { ...draft, resultText: textToSave, savedResultText: textToSave };
+      persistActiveDraft();
       deps.onStatusBanner(m.s7_conflict_saved_to_wt({ path: res.path }));
       void deps.onRefreshStaging();
     } catch (err) {
-      const parsed = parseConflictFailure(err);
-      error = parsed.message;
-      stale = parsed.stale;
+      reportFailureIfActive(err, req.reportable(), repoId, wtId, targetPath);
     } finally {
-      saving = false;
-    }
-  }
-
-  async function handleAfterResolved(
-    resolvedPath: string,
-    nextInProgress: GitInProgressOperation,
-  ) {
-    deps.onInProgressUpdated(nextInProgress);
-    await deps.onRefreshStaging();
-    const remaining = nextInProgress.conflictedFiles;
-    if (remaining.length > 0) {
-      const nextTarget =
-        remaining.find((f) => f.path !== resolvedPath) ?? remaining[0]!;
-      deps.onStatusBanner(
-        m.s7_conflict_resolved_remaining({
-          path: resolvedPath,
-          count: String(remaining.length),
-        }),
-      );
-      await selectFile(nextTarget.path);
-    } else {
-      detail = null;
-      draft = null;
-      activePath = null;
-      deps.onStatusBanner(
-        m.s7_conflict_resolved_all_clear({ path: resolvedPath }),
-      );
+      if (req.current()) saving = false;
     }
   }
 
@@ -256,30 +314,76 @@ export function createGitConflictController(deps: GitConflictControllerDeps) {
   ) {
     const repoId = deps.getRepoId();
     const wtId = deps.getWorktreeId();
-    if (!repoId || !wtId || !detail || saving || resolving) return;
+    const targetPath = activePath;
+    if (
+      !repoId ||
+      !wtId ||
+      !targetPath ||
+      !detail ||
+      detail.path !== targetPath ||
+      saving ||
+      resolving ||
+      disposed
+    ) {
+      return;
+    }
 
+    const req = actionReq.begin();
     resolving = true;
     error = "";
     stale = false;
+    const identityToResolve = detail.identity;
+
     try {
-      const res = await gitResolveConflict(repoId, wtId, {
-        identity: detail.identity,
-        resolution,
-        resultText,
-      });
-      await handleAfterResolved(res.path, res.inProgress);
+      const res = await gitResolveConflict(
+        repoId,
+        wtId,
+        { identity: identityToResolve, resolution, resultText },
+        req.signal,
+      );
+      if (!req.current() || !matchesTarget(repoId, wtId, targetPath)) return;
+
+      draftCache.delete(targetPath);
+      draftCache.delete(res.path);
+      deps.onInProgressUpdated(res.inProgress);
+      await deps.onRefreshStaging();
+      if (!req.current() || !matchesTarget(repoId, wtId, targetPath)) return;
+
+      const remaining = res.inProgress.conflictedFiles;
+      if (remaining.length > 0) {
+        const nextTarget =
+          remaining.find((f) => f.path !== res.path) ?? remaining[0]!;
+        detail = null;
+        draft = null;
+        resolving = false;
+        deps.onStatusBanner(
+          m.s7_conflict_resolved_remaining({
+            path: res.path,
+            count: String(remaining.length),
+          }),
+        );
+        await selectFile(nextTarget.path);
+      } else {
+        detail = null;
+        draft = null;
+        activePath = null;
+        deps.onStatusBanner(
+          m.s7_conflict_resolved_all_clear({ path: res.path }),
+        );
+      }
     } catch (err) {
-      const parsed = parseConflictFailure(err);
-      error = parsed.message;
-      stale = parsed.stale;
+      reportFailureIfActive(err, req.reportable(), repoId, wtId, targetPath);
     } finally {
-      resolving = false;
+      if (req.current()) resolving = false;
     }
   }
 
   async function markAsResolved() {
-    if (!draft || !progress?.canMarkResolved) return;
-    await executeResolution("text", draft.resultText);
+    if (!detail || !draft || !progress?.canMarkResolved) return;
+    await executeResolution(
+      "text",
+      normalizeConflictLineEndings(draft.resultText, detail),
+    );
   }
 
   async function resolveVariant(
@@ -334,7 +438,9 @@ export function createGitConflictController(deps: GitConflictControllerDeps) {
     closeResolver,
     selectFile,
     reloadCurrent: () =>
-      activePath ? selectFile(activePath) : Promise.resolve(),
+      activePath
+        ? selectFile(activePath, { forceReload: true })
+        : Promise.resolve(),
     chooseChunk,
     toggleNonConflicting,
     applyAllNonConflicting,

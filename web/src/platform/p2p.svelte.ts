@@ -1,5 +1,10 @@
-import { m } from "$lib/paraglide/messages.js";
 import { api } from "./api";
+import { executeP2PEchoABTest } from "./p2p-ab-test";
+import {
+  baselineTransportPath,
+  createPeerDrainSlot,
+  isSessionHealthy,
+} from "./p2p-drain";
 import {
   isLocalOrOverlayHost,
   hasStrongP2PAdvantage,
@@ -28,6 +33,7 @@ const BACKOFF_STEPS_MS = [5_000, 15_000, 60_000];
 
 let activeEpoch = 0;
 let activeSession: NegotiatedSession | null = null;
+const drainingPeer = createPeerDrainSlot();
 let keepaliveTimer: ReturnType<typeof setInterval> | undefined;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let retryIndex = 0;
@@ -52,30 +58,50 @@ function hasForceFlag(): boolean {
   return forceMode;
 }
 
-function teardownActiveSession(notifyServer: boolean) {
+function detachActiveSession(): NegotiatedSession | null {
   clearInterval(keepaliveTimer);
   keepaliveTimer = undefined;
   const current = activeSession;
   activeSession = null;
   healthController?.abort();
   healthController = null;
-  current?.close(notifyServer);
+  return current;
 }
 
-function fallbackToBaseline(nextPhase: P2PPhase, scheduleRetry: boolean) {
+function teardownActiveSession(notifyServer: boolean) {
+  detachActiveSession()?.close(notifyServer);
+}
+
+function fallbackToBaseline(
+  nextPhase: P2PPhase,
+  scheduleRetry: boolean,
+  graceful = false,
+) {
   const wasP2P = p2pState.mode === "p2p";
+  const canDrain = graceful && wasP2P && isSessionHealthy(activeSession);
   setClientTransport(null);
   p2pState.mode = "ws";
   p2pState.phase = nextPhase;
   p2pState.reason = nextPhase;
+  p2pState.candidatePath = "unknown";
   if (wasP2P) {
     if (ownerMode) pathPolicy.reset(performance.now());
     else pathPolicy = new HybridPathPolicy();
     p2pState.switchCount++;
-    handoffLiveSockets();
   }
-  teardownActiveSession(true);
-  p2pState.candidatePath = "unknown";
+  if (canDrain) {
+    const draining = detachActiveSession();
+    if (draining) drainingPeer.begin(draining, () => p2pState.streams);
+  } else {
+    const wasDraining = drainingPeer.teardown(true);
+    teardownActiveSession(true);
+    if ((wasP2P || wasDraining) && started) {
+      handoffLiveSockets({
+        targetPath: baselineTransportPath(),
+        allowReconnect: true,
+      });
+    }
+  }
   if (scheduleRetry && started) {
     clearTimeout(retryTimer);
     const delay =
@@ -92,11 +118,11 @@ function applyServerP2PStatus(status: P2PStatus) {
   p2pState.portMapProtocol = status.portMap.protocol ?? "";
   p2pState.portMapExternalPort = status.portMap.externalPort ?? 0;
   if (!status.supported) {
-    fallbackToBaseline("unsupported", false);
+    fallbackToBaseline("unsupported", false, true);
     return;
   }
   if (!status.enabled && !ownerMode) {
-    fallbackToBaseline("disabled", false);
+    fallbackToBaseline("disabled", false, true);
   }
 }
 
@@ -176,6 +202,7 @@ async function probeDirectPeer(epoch: number, signal: AbortSignal) {
     session.close(true);
     return;
   }
+  drainingPeer.teardown(true);
   teardownActiveSession(true);
   activeSession = session;
   const sessionPath = session.path;
@@ -248,7 +275,7 @@ async function probeDirectPeer(epoch: number, signal: AbortSignal) {
         }),
       );
       if (decision === "fallback" && !forced) {
-        fallbackToBaseline("standby_hysteresis", true);
+        fallbackToBaseline("standby_hysteresis", true, true);
       } else if (
         decision === "upgrade" ||
         (forced && p2pState.mode !== "p2p")
@@ -354,6 +381,7 @@ export function startP2P() {
   disconnectStreams = observeManagedStreams((streams) => {
     p2pState.streams = streams;
     p2pState.inputUncertain = streams.some((stream) => stream.inputUncertain);
+    drainingPeer.observeStreams(streams);
   });
   if (typeof window !== "undefined") {
     window.addEventListener("online", handleNetworkChange);
@@ -396,7 +424,7 @@ export function stopP2P() {
 }
 
 function revokeP2PAccess() {
-  // Revocation closes access; it must not open replacement baseline streams.
+  // Revocation closes access; existing baseline streams are closed by auth reset.
   p2pState.mode = "ws";
   stopP2P();
   p2pState.reason = "authorization_revoked";
@@ -422,7 +450,7 @@ export function refreshP2PAfterSettingsChange(status: P2PStatus) {
   clearTimeout(retryTimer);
   applyServerP2PStatus(status);
   if (started && status.supported && (status.enabled || ownerMode)) {
-    fallbackToBaseline("idle", false);
+    fallbackToBaseline("idle", false, true);
     retryIndex = 0;
     void probeAndMaybeUpgrade(activeEpoch);
   }
@@ -432,55 +460,9 @@ export async function runP2PEchoABTest(stunServers: string[]): Promise<void> {
   if (p2pState.abTest.running) return;
   const controller = new AbortController();
   abTestController = controller;
-  p2pState.abTest = {
-    running: true,
-    error: "",
-    baselineSamples: [],
-    baselineMinMs: null,
-    baselineMedianMs: null,
-    p2pSamples: [],
-    p2pMinMs: null,
-    p2pMedianMs: null,
-    directSuccess: false,
-    candidateType: "",
-    ipFamily: "",
-  };
-
-  let tempSession: NegotiatedSession | null = null;
-  const onAbort = () => tempSession?.close(true);
-  controller.signal.addEventListener("abort", onAbort, { once: true });
   try {
-    const baseSamples = await measureBaselineHttpRtt(8, controller.signal);
-    controller.signal.throwIfAborted();
-    p2pState.abTest.baselineSamples = baseSamples;
-    p2pState.abTest.baselineMinMs = Math.min(...baseSamples);
-    p2pState.abTest.baselineMedianMs = medianSample(baseSamples);
-
-    let session = activeSession;
-    if (!session || session.control.readyState !== "open") {
-      tempSession = await negotiateDirectPeer(stunServers, controller.signal);
-      session = tempSession;
-    }
-    controller.signal.throwIfAborted();
-
-    const p2pSamples: number[] = [];
-    for (let i = 0; i < 8; i++) {
-      p2pSamples.push(await session.sendPing());
-      controller.signal.throwIfAborted();
-    }
-    p2pState.abTest.p2pSamples = p2pSamples;
-    p2pState.abTest.p2pMinMs = Math.min(...p2pSamples);
-    p2pState.abTest.p2pMedianMs = medianSample(p2pSamples);
-    p2pState.abTest.directSuccess = session.path === "webrtc-direct";
-    p2pState.abTest.candidateType = session.candidateType;
-    p2pState.abTest.ipFamily = session.ipFamily;
-  } catch (err) {
-    p2pState.abTest.error =
-      err instanceof Error ? err.message : m.s1_p2p_ab_test_failed();
+    await executeP2PEchoABTest(stunServers, activeSession, controller.signal);
   } finally {
-    controller.signal.removeEventListener("abort", onAbort);
-    abTestController = null;
-    tempSession?.close(true);
-    p2pState.abTest.running = false;
+    if (abTestController === controller) abTestController = null;
   }
 }

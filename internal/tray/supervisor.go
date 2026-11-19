@@ -355,8 +355,5 @@ func (s *Supervisor) SetSettings(settings Settings) {
 func (s *Supervisor) Quit(stop bool) {
 	reply := make(chan struct{})
 	s.send(command{kind: cmdQuit, stop: stop, reply: reply})
-	select {
-	case <-reply:
-	case <-s.done:
-	}
+	<-s.done
 }

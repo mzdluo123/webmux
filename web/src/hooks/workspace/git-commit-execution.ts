@@ -20,6 +20,13 @@ import {
   requestCommitPreviewModel,
 } from "./git-workbench-actions";
 
+function isAbortError(err: unknown): boolean {
+  return (
+    (err instanceof DOMException && err.name === "AbortError") ||
+    (err instanceof Error && err.name === "AbortError")
+  );
+}
+
 export async function runSyncCommitPreflight(options: {
   repoId: string;
   wtId: string;
@@ -72,6 +79,7 @@ export async function runOpenCommitPreview(options: {
   previewRequest?: GitCommitPreviewRequest;
   signal: AbortSignal;
   isCurrent: () => boolean;
+  isReportable?: () => boolean;
   setConfirmationId: (id: string) => void;
   getLatestView: () => GitWorkbenchViewState;
   patchView: (patch: Partial<GitWorkbenchViewState>) => void;
@@ -86,7 +94,7 @@ export async function runOpenCommitPreview(options: {
       previewRequest: options.previewRequest,
       signal: options.signal,
     });
-    if (!options.isCurrent()) return;
+    if (!options.isCurrent() || options.signal.aborted) return;
     options.setConfirmationId(res.confirmationId);
     const latest = options.getLatestView();
     options.patchView({
@@ -105,6 +113,10 @@ export async function runOpenCommitPreview(options: {
       commitPreview: res.model,
     });
   } catch (err) {
+    const reportable = options.isReportable
+      ? options.isReportable()
+      : options.isCurrent();
+    if (!reportable || options.signal.aborted || isAbortError(err)) return;
     options.patchView({
       statusBanner: m.s7_commit_preview_load_failed({
         error: errorMessage(err),
@@ -120,6 +132,7 @@ export async function runConfirmCommitFlow(options: {
   current: GitWorkbenchViewState;
   acknowledgePushedAmend?: boolean;
   signal: AbortSignal;
+  isCurrentTarget?: () => boolean;
   operations?: GitOperationsController;
   clearWebmuxStaged: () => void;
   refreshStaging: () => Promise<void>;
@@ -135,6 +148,8 @@ export async function runConfirmCommitFlow(options: {
 }) {
   const preview = options.current.commitPreview;
   if (!preview) return;
+  const stillCurrent = () =>
+    options.isCurrentTarget ? options.isCurrentTarget() : true;
 
   const clientRequestId = generateGitClientRequestId("commit");
   options.operations?.setPhase(
@@ -153,6 +168,10 @@ export async function runConfirmCommitFlow(options: {
     writeGitTargetMemory(options.repoId, options.wtId, {
       commitMessage: nextMsg,
     });
+    if (!stillCurrent()) {
+      options.onRefreshRepositories?.();
+      return;
+    }
     options.clearWebmuxStaged();
     if (shouldClearDraft) {
       options.onCommitOptionsReset?.();
@@ -167,7 +186,15 @@ export async function runConfirmCommitFlow(options: {
       options.refreshStaging(),
       shouldClearDraft ? options.onCommitDraftCleared?.() : undefined,
     ]);
+    if (!stillCurrent()) {
+      options.onRefreshRepositories?.();
+      return;
+    }
     await options.operations?.refreshOperations(options.repoId, options.wtId);
+    if (!stillCurrent()) {
+      options.onRefreshRepositories?.();
+      return;
+    }
     options.onRefreshRepositories?.();
     options.onAfterCommitRefresh?.();
 
@@ -200,6 +227,15 @@ export async function runConfirmCommitFlow(options: {
       return;
     }
 
+    if (options.signal.aborted || isAbortError(out.rawError)) {
+      if (stillCurrent()) {
+        options.patchView({
+          commitPreview: { ...preview, stale: true },
+        });
+      }
+      return;
+    }
+
     if (
       options.operations &&
       out.rawError &&
@@ -219,10 +255,11 @@ export async function runConfirmCommitFlow(options: {
           return;
         }
         if (recovered.status === "failed") {
+          if (!stillCurrent()) return;
           const failMsg =
             recovered.summary || m.s7_commit_failed_default_reason();
           options.patchView({
-            commitPreview: { ...preview, dialogError: failMsg },
+            commitPreview: { ...preview, stale: true, dialogError: failMsg },
             statusBanner: m.s7_commit_failed_banner({ error: failMsg }),
           });
           return;
@@ -230,7 +267,9 @@ export async function runConfirmCommitFlow(options: {
       }
     }
 
+    if (!stillCurrent()) return;
     await options.operations?.refreshOperations(options.repoId, options.wtId);
+    if (!stillCurrent()) return;
 
     if (out.reason === "stale") {
       options.patchView({
@@ -248,6 +287,7 @@ export async function runConfirmCommitFlow(options: {
       options.patchView({
         commitPreview: {
           ...preview,
+          stale: true,
           dialogError: m.s7_busy_outcome_with_reasons({
             summary: out.busyOutcome.summary,
             reasons: out.busyOutcome.reasons.join(m.s7_reason_sep()),
@@ -263,11 +303,14 @@ export async function runConfirmCommitFlow(options: {
     options.patchView({
       commitPreview: {
         ...preview,
+        stale: true,
         dialogError: errMsg,
       },
       statusBanner: m.s7_commit_failed_banner({ error: errMsg }),
     });
   } finally {
-    options.operations?.clearActive();
+    if (stillCurrent()) {
+      options.operations?.clearActive();
+    }
   }
 }

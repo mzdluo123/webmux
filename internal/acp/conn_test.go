@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -741,4 +742,160 @@ func TestLogsCarryNoContent(t *testing.T) {
 			t.Errorf("log lacks %q:\n%s", want, got)
 		}
 	}
+}
+
+// saturateStdin fills both the OS pipe buffer and c.out while agentIn is unread.
+func saturateStdin(t *testing.T, c *Conn) {
+	t.Helper()
+	payload := strings.Repeat("x", 32<<10)
+	for range 256 {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		err := c.Cancel(ctx, payload)
+		cancel()
+		if errors.Is(err, context.DeadlineExceeded) {
+			if len(c.out) != writeQueueSize {
+				t.Fatalf("len(c.out) = %d, want %d", len(c.out), writeQueueSize)
+			}
+			return
+		}
+		if err != nil {
+			t.Fatalf("unexpected saturate error: %v", err)
+		}
+	}
+	t.Fatal("stdin pipe and write queue did not saturate")
+}
+
+func TestStalledStdinCallDeadlineAndBoundedTurnCancel(t *testing.T) {
+	t.Run("call returns on ctx deadline when stdin and queue are full", func(t *testing.T) {
+		clientIn, agentOut, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		agentIn, clientOut, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			_ = clientIn.Close()
+			_ = agentOut.Close()
+			_ = agentIn.Close()
+			_ = clientOut.Close()
+		})
+		c := NewConn(clientIn, clientOut, Options{})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Millisecond)
+		defer cancel()
+		started := time.Now()
+		call := async(func() (struct{}, error) {
+			return struct{}{}, c.CloseSession(ctx, "s1")
+		})
+		// Read the request so call enters its response/ctx wait, then stop reading stdin.
+		br := bufio.NewReader(agentIn)
+		if _, err := br.ReadBytes('\n'); err != nil {
+			t.Fatal(err)
+		}
+		saturateStdin(t, c)
+
+		_, callErr := await(t, call)
+		if !errors.Is(callErr, context.DeadlineExceeded) {
+			t.Fatalf("CloseSession error = %v, want DeadlineExceeded", callErr)
+		}
+		if elapsed := time.Since(started); elapsed > time.Second {
+			t.Fatalf("CloseSession took %v after ctx deadline", elapsed)
+		}
+		_ = c.Close()
+		_ = agentOut.Close()
+		waitDone(t, c)
+	})
+
+	t.Run("cancelTurn disconnects within writeTimeout when stdin is stalled", func(t *testing.T) {
+		clientIn, agentOut, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		agentIn, clientOut, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			_ = clientIn.Close()
+			_ = agentOut.Close()
+			_ = agentIn.Close()
+			_ = clientOut.Close()
+		})
+		c := NewConn(clientIn, clientOut, Options{})
+		c.writeTimeout = 80 * time.Millisecond
+
+		promptCtx, cancelPrompt := context.WithCancel(context.Background())
+		call := async(func() (PromptResponse, error) {
+			return c.Prompt(promptCtx, PromptRequest{SessionID: "s1", Prompt: []ContentBlock{TextBlock("hi")}})
+		})
+		br := bufio.NewReader(agentIn)
+		if _, err := br.ReadBytes('\n'); err != nil {
+			t.Fatal(err)
+		}
+		saturateStdin(t, c)
+
+		started := time.Now()
+		cancelPrompt()
+		_, callErr := await(t, call)
+		if !errors.Is(callErr, ErrDisconnected) || !strings.Contains(callErr.Error(), "write stalled") {
+			t.Fatalf("Prompt error = %v, want ErrDisconnected write stalled", callErr)
+		}
+		if elapsed := time.Since(started); elapsed > time.Second {
+			t.Fatalf("cancelled Prompt took %v", elapsed)
+		}
+		if !errors.Is(c.Err(), ErrDisconnected) {
+			t.Fatalf("Conn.Err() = %v, want ErrDisconnected", c.Err())
+		}
+		_ = agentOut.Close()
+		waitDone(t, c)
+	})
+
+	t.Run("reply disconnects within writeTimeout when stdin is stalled", func(t *testing.T) {
+		clientIn, agentOut, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		agentIn, clientOut, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			_ = clientIn.Close()
+			_ = agentOut.Close()
+			_ = agentIn.Close()
+			_ = clientOut.Close()
+		})
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		r := newRecorder()
+		r.permission = func(context.Context, RequestPermissionRequest) (RequestPermissionResponse, error) {
+			close(entered)
+			<-release
+			return RequestPermissionResponse{Outcome: PermissionOutcome{Outcome: OutcomeCancelled}}, nil
+		}
+		c := NewConn(clientIn, clientOut, Options{Handler: r})
+		c.writeTimeout = 80 * time.Millisecond
+
+		req := `{"jsonrpc":"2.0","id":1,"method":"session/request_permission","params":{"sessionId":"s1","toolCall":{"toolCallId":"c1"},"options":[]}}` + "\n"
+		if _, err := agentOut.WriteString(req); err != nil {
+			t.Fatal(err)
+		}
+		<-entered
+		saturateStdin(t, c)
+		close(release)
+
+		deadline := time.After(time.Second)
+		for !errors.Is(c.Err(), ErrDisconnected) {
+			select {
+			case <-deadline:
+				t.Fatalf("reply did not disconnect stalled writer; Err() = %v", c.Err())
+			default:
+				time.Sleep(10 * time.Millisecond)
+			}
+		}
+		_ = agentOut.Close()
+		waitDone(t, c)
+	})
 }

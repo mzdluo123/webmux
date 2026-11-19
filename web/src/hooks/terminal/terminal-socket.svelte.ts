@@ -375,6 +375,17 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     };
   }
 
+  const dismissError = () => {
+    socket?.clearUncertainty();
+    error = inputError.clearUncertain(error);
+  };
+  // Reattaches after a hybrid 4409 switch from a fresh snapshot.
+  const reconnect = () => {
+    dismissError();
+    synced = false;
+    socket?.reconnect();
+  };
+
   return {
     get info() {
       return info;
@@ -474,18 +485,13 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     untrack(submissionId: string) {
       submissions.delete(submissionId);
     },
+    dismissError,
     // Every reset, including after exit, uses the server's safe replay path.
     resync() {
-      if (exitCode !== null) {
-        synced = false;
-        socket?.reconnect();
-      } else socket?.send(2, new Uint8Array());
+      dismissError();
+      if (exitCode === null) socket?.send(2, new Uint8Array());
+      else reconnect();
     },
-    // Reattaches after a hybrid session moved back to its terminal side
-    // (4409 closed the stream): the new run starts from a fresh snapshot.
-    reconnect() {
-      synced = false;
-      socket?.reconnect();
-    },
+    reconnect,
   };
 }

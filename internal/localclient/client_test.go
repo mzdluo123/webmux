@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -135,5 +136,81 @@ func TestUnixDialerReportsNotRunning(t *testing.T) {
 	}
 	if _, err := New(UnixDialer{}).Status(context.Background()); !errors.Is(err, ErrNotRunning) {
 		t.Fatalf("empty path: %v", err)
+	}
+}
+
+type countingConn struct {
+	net.Conn
+	once sync.Once
+	live *atomic.Int32
+}
+
+func (c *countingConn) Close() error {
+	c.once.Do(func() { c.live.Add(-1) })
+	return c.Conn.Close()
+}
+
+type countingDialer struct {
+	inner Dialer
+	live  atomic.Int32
+}
+
+func (d *countingDialer) DialContext(ctx context.Context) (net.Conn, error) {
+	raw, err := d.inner.DialContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	d.live.Add(1)
+	return &countingConn{Conn: raw, live: &d.live}, nil
+}
+
+func TestClientCloseClosesInFlightConnsAndPreventsPoolLeak(t *testing.T) {
+	inHandler := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	var once sync.Once
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET "+contract.PathStatus, func(w http.ResponseWriter, r *http.Request) {
+		once.Do(func() { close(inHandler) })
+		select {
+		case <-releaseHandler:
+		case <-r.Context().Done():
+		}
+		pid := 7
+		_ = json.NewEncoder(w).Encode(contract.StatusV1{V: 1, State: contract.StateRunning, PID: &pid})
+	})
+
+	pl := serve(t, mux)
+	dialer := &countingDialer{inner: pl}
+	client := New(dialer)
+	tr, ok := client.HTTP.Transport.(*http.Transport)
+	if !ok || tr.IdleConnTimeout != 30*time.Second {
+		t.Fatalf("transport IdleConnTimeout = %v, want 30s", tr)
+	}
+
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		_, _ = client.Status(t.Context())
+	})
+	<-inHandler
+	if got := dialer.live.Load(); got != 1 {
+		t.Fatalf("live conns = %d, want 1", got)
+	}
+
+	client.Close()
+	close(releaseHandler)
+	wg.Wait()
+
+	if got := dialer.live.Load(); got != 0 {
+		t.Fatalf("live conns after Close = %d, want 0", got)
+	}
+	if st, err := client.Status(t.Context()); err != nil || st.State != contract.StateRunning {
+		t.Fatalf("Status after Close = %+v, %v, want fresh running status", st, err)
+	}
+	client.Retire()
+	if got := dialer.live.Load(); got != 0 {
+		t.Fatalf("live conns after Retire = %d, want 0", got)
+	}
+	if _, err := client.Status(t.Context()); !errors.Is(err, net.ErrClosed) {
+		t.Fatalf("Status after Retire = %v, want net.ErrClosed", err)
 	}
 }

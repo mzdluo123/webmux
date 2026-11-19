@@ -307,11 +307,15 @@ func (s *Session) sendLocked(sub *Subscriber, m Message) {
 	}
 	size := int64(len(m.Frame))
 	// An empty queue always takes the next message, so a replay snapshot
-	// larger than the budget still reaches a new connection.
-	if queued := sub.queued.Load(); queued == 0 || queued+size <= terminalOutputQueueBytes {
+	// larger than the budget still reaches a new connection. Zero-byte
+	// control, position, status, submission and exit messages stay bounded
+	// by the channel capacity.
+	if queued := sub.queued.Load(); size == 0 || queued == 0 || queued+size <= terminalOutputQueueBytes {
 		select {
 		case sub.Out <- m:
-			sub.queued.Add(size)
+			if size > 0 {
+				sub.queued.Add(size)
+			}
 			return
 		default:
 		}

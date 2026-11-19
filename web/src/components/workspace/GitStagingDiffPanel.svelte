@@ -401,7 +401,11 @@
           <CodeDiffReader
             bind:this={readerRef}
             {fileDiff}
-            side="new"
+            side={change.status === "D" ||
+            (fileDiff.additionLines.length === 0 &&
+              fileDiff.deletionLines.length > 0)
+              ? "old"
+              : "new"}
             expired={stale}
             draftEnabled={false}
             preferredDiffStyle="split"

@@ -187,6 +187,49 @@ test("a blocked fast-forward explains why and cannot be confirmed", async () => 
   await expect.element(button("快进到上游")).toBeDisabled();
 });
 
+test("blocked fast-forward and push previews stay disabled even if confirmationId is non-empty, and editing push target invalidates preview immediately", async () => {
+  const ffSource = fakeSource({
+    fastForwardPreview: vi.fn(async () =>
+      ffPreview({
+        confirmationId: "ff-with-blocker",
+        blockers: [{ code: "diverged", message: "分支已分叉" }],
+      }),
+    ),
+  });
+  open({ kind: "fast-forward", branch: "feat/a" }, ffSource);
+  await expect
+    .element(dialog().getByRole("alert"))
+    .toMatchTextContent(/分支已分叉/);
+  await expect.element(button("快进到上游")).toBeDisabled();
+
+  await cleanup();
+
+  const nextPush = Promise.withResolvers<PushPreview>();
+  const pushPreviewFn = vi
+    .fn<BranchOperations["pushPreview"]>()
+    .mockResolvedValueOnce(pushPreview())
+    .mockReturnValueOnce(nextPush.promise);
+  const pushSource = fakeSource({ pushPreview: pushPreviewFn });
+  open({ kind: "push", branch: "feat/c", publish: true }, pushSource);
+  await expect.element(button("发布")).toBeEnabled();
+
+  const targetInput = dialog().getByRole("textbox", { name: "远端分支名" });
+  await targetInput.fill("feat/pending");
+  await expect.element(button("发布")).toBeDisabled();
+
+  nextPush.resolve(
+    pushPreview({
+      confirmationId: "push-blocked",
+      target: "feat/pending",
+      blockers: [{ code: "non_ff", message: "远端分支已存在且不可快进" }],
+    }),
+  );
+  await expect
+    .element(dialog().getByRole("alert"))
+    .toMatchTextContent(/不可快进/);
+  await expect.element(button("发布")).toBeDisabled();
+});
+
 test("a 409 previews again and confirms with the new preview", async () => {
   let previews = 0;
   const source = fakeSource({

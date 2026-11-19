@@ -244,7 +244,7 @@ func (s *Service) applySingleDiscardPlan(ctx context.Context, rootPath string, p
 
 	default:
 		// Whole-file restore/overwrite from .git/index entry (id.BaseOID, id.BaseMode).
-		if isRegularGitMode(id.BaseMode) && !s.hasTransformAttributes(ctx, rootPath, cleanPath) {
+		if isRegularGitMode(id.BaseMode) && plan.diff.baseBytesLoaded && !s.hasTransformAttributes(ctx, rootPath, cleanPath) {
 			_, err := worktreefs.WriteRegular(
 				rootPath, cleanPath, plan.diff.baseBytes,
 				id.BaseMode == "100755", true, id.TargetSHA256, maxWorkspaceGitOutput,
@@ -284,11 +284,20 @@ func (s *Service) saveDiscardRecoverySnapshot(
 		if id.TargetMode == "" || !isBackupableMode(id.TargetMode) {
 			continue
 		}
-		out, _, hErr := s.gitInputOutput(ctx, cwd, bytes.NewReader(plan.diff.worktreeRaw), nil, "hash-object", "-w", "--no-filters", "--stdin")
+		var (
+			blobOID string
+			hErr    error
+		)
+		if plan.diff.worktreeRawLoaded {
+			var out []byte
+			out, _, hErr = s.gitInputOutput(ctx, cwd, bytes.NewReader(plan.diff.worktreeRaw), nil, "hash-object", "-w", "--no-filters", "--stdin")
+			blobOID = strings.TrimSpace(string(out))
+		} else {
+			blobOID, hErr = s.streamWorktreeBlobWrite(ctx, cwd, id.Path, id.TargetSHA256, false)
+		}
 		if hErr != nil {
 			return "", "", "", hErr
 		}
-		blobOID := strings.TrimSpace(string(out))
 		if !isObjectID(blobOID) {
 			return "", "", "", problemf(ErrInternal, "保存丢弃前恢复快照失败")
 		}

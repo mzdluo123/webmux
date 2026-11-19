@@ -203,3 +203,44 @@ export function browserDraftStorage(): DraftStorage {
   sharedByHost.set(cacheKey, { area, instance });
   return instance;
 }
+
+const dynamicBrowserStorage: DraftStorage = {
+  get enabled() {
+    return browserDraftStorage().enabled;
+  },
+  setEnabled(enabled) {
+    browserDraftStorage().setEnabled(enabled);
+  },
+  load(sessionId) {
+    return browserDraftStorage().load(sessionId);
+  },
+  save(draft) {
+    return browserDraftStorage().save(draft);
+  },
+  loadScratch(sessionId) {
+    return browserDraftStorage().loadScratch(sessionId);
+  },
+  saveScratch(scratch) {
+    return browserDraftStorage().saveScratch(scratch);
+  },
+  remove(sessionId) {
+    browserDraftStorage().remove(sessionId);
+  },
+  keep(sessionIds) {
+    browserDraftStorage().keep(sessionIds);
+  },
+  clear() {
+    browserDraftStorage().clear();
+  },
+  count() {
+    return browserDraftStorage().count();
+  },
+  scratchCount() {
+    return browserDraftStorage().scratchCount();
+  },
+};
+
+// Delegates every call to the current activeHostId() storage namespace.
+export function activeBrowserDraftStorage(): DraftStorage {
+  return dynamicBrowserStorage;
+}

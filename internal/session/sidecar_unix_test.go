@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -156,5 +157,108 @@ func TestSidecarStderrIsBounded(t *testing.T) {
 	stderr := sidecar.Stderr()
 	if len(stderr) != sidecarStderrCapacity || !strings.HasSuffix(string(stderr), "END") {
 		t.Fatalf("stderr tail: %d bytes, suffix %q", len(stderr), stderr[max(0, len(stderr)-3):])
+	}
+}
+
+func TestSetsidHelper(t *testing.T) {
+	if os.Getenv("WEBMUX_TEST_SETSID") != "1" {
+		return
+	}
+	_, _ = syscall.Setsid()
+	var child *exec.Cmd
+	if os.Getenv("WEBMUX_TEST_SPAWN_UNMARKED") == "1" {
+		child = exec.Command("/bin/sleep", "60")
+		child.Env = []string{}
+		if err := child.Start(); err == nil {
+			if unmarkedFile := os.Getenv("WEBMUX_TEST_UNMARKED_PIDFILE"); unmarkedFile != "" {
+				_ = os.WriteFile(unmarkedFile, []byte(strconv.Itoa(child.Process.Pid)), 0o600)
+			}
+		}
+	}
+	if pidFile := os.Getenv("WEBMUX_TEST_PIDFILE"); pidFile != "" {
+		_ = os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0o600)
+	}
+	time.Sleep(60 * time.Second)
+}
+
+func waitForPIDFile(t *testing.T, path string) int {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if raw, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(raw))) > 0 {
+			pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+			if err == nil && pid > 0 {
+				return pid
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("pid file %s was never written", path)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func TestOutputReturnsWhenDetachedSetsidHoldsStdout(t *testing.T) {
+	t.Parallel()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pidFile := filepath.Join(t.TempDir(), "detached.pid")
+	m := shellManager(t)
+	s := createShell(t, m, nil)
+	t.Cleanup(func() {
+		if raw, readErr := os.ReadFile(pidFile); readErr == nil {
+			if pid, convErr := strconv.Atoi(strings.TrimSpace(string(raw))); convErr == nil && pid > 0 {
+				_ = syscall.Kill(pid, syscall.SIGKILL)
+			}
+		}
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	start := time.Now()
+	script := `(WEBMUX_TEST_SETSID=1 WEBMUX_TEST_PIDFILE="$1" "$2" -test.run=^TestSetsidHelper$ &) ; while [ ! -s "$1" ]; do sleep 0.01; done; printf DETACHED_OK`
+	out, code, err := s.Output(ctx, []string{"/bin/sh", "-c", script, "sh", pidFile, exe}, 1024)
+	if err != nil {
+		t.Fatalf("Output error: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Fatalf("Output took %v with inherited stdout", elapsed)
+	}
+	if string(out) != "DETACHED_OK" || code != 0 {
+		t.Fatalf("Output = %q, code %d", out, code)
+	}
+}
+
+func TestStopTerminatesDirectSetsidSidecarChild(t *testing.T) {
+	t.Parallel()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pidFile := filepath.Join(t.TempDir(), "setsid-child.pid")
+	m := shellManager(t)
+	s := createShell(t, m, nil)
+	script := `WEBMUX_TEST_SETSID=1 WEBMUX_TEST_PIDFILE="$1" "$2" -test.run=^TestSetsidHelper$ & wait`
+	sidecar, err := s.StartSidecar([]string{"/bin/sh", "-c", script, "sh", pidFile, exe}, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	childPID := waitForPIDFile(t, pidFile)
+	t.Cleanup(func() { _ = syscall.Kill(childPID, syscall.SIGKILL) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := sidecar.Stop(ctx); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for !processGone(childPID) {
+		if time.Now().After(deadline) {
+			t.Fatalf("direct setsid child %d survived sidecar.Stop", childPID)
+		}
+		reapAdopted(procpeek.Processes())
+		time.Sleep(20 * time.Millisecond)
 	}
 }

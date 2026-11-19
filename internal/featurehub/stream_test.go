@@ -103,3 +103,100 @@ func TestVoiceFinalFrameAndReaderJoin(t *testing.T) {
 	}
 	t.Fatal("missing final transcription")
 }
+
+func TestVoiceStreamUnblocksFullPipeAndInheritedStdout(t *testing.T) {
+	t.Run("full stdin pipe", func(t *testing.T) {
+		svc := voice.New(voice.Options{
+			Cmd:           []string{"/bin/sh", "-c", `printf '{"type":"ready"}\n'; exec sleep 30`},
+			Cwd:           t.TempDir(),
+			ReadyDelay:    5 * time.Millisecond,
+			FinishTimeout: 50 * time.Millisecond,
+		})
+		sess, err := svc.Start(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		conn := &testConn{input: make(chan testFrame, 64), done: make(chan struct{})}
+		chunk := bytes.Repeat([]byte{1}, 65536)
+		for range 48 {
+			conn.input <- testFrame{hub.MessageBinary, chunk}
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 150*time.Millisecond)
+		defer cancel()
+		finished := make(chan struct{})
+		go func() {
+			Voice(ctx, sess, svc.FinishTimeout(), conn)
+			close(finished)
+		}()
+		select {
+		case <-finished:
+		case <-time.After(3 * time.Second):
+			t.Fatal("featurehub.Voice deadlocked on full stdin pipe")
+		}
+	})
+
+	t.Run("stop frame not starved behind hung subprocess", func(t *testing.T) {
+		svc := voice.New(voice.Options{
+			Cmd:           []string{"/bin/sh", "-c", `printf '{"type":"ready"}\n'; exec sleep 30`},
+			Cwd:           t.TempDir(),
+			ReadyDelay:    5 * time.Millisecond,
+			FinishTimeout: 80 * time.Millisecond,
+		})
+		sess, err := svc.Start(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		conn := &testConn{input: make(chan testFrame, 16), done: make(chan struct{})}
+		chunk := bytes.Repeat([]byte{7}, 65536)
+		// Send 512 KiB (> 256 KiB) of binary PCM frames followed by {"type":"stop"}
+		// without cancelling the caller's context.
+		for range 8 {
+			conn.input <- testFrame{hub.MessageBinary, chunk}
+		}
+		conn.input <- testFrame{hub.MessageText, []byte(`{"type":"stop"}`)}
+
+		start := time.Now()
+		finished := make(chan struct{})
+		go func() {
+			Voice(t.Context(), sess, svc.FinishTimeout(), conn)
+			close(finished)
+		}()
+		select {
+		case <-finished:
+		case <-time.After(2 * time.Second):
+			t.Fatal("featurehub.Voice starved stop frame on hung subprocess")
+		}
+		if elapsed := time.Since(start); elapsed > 1500*time.Millisecond {
+			t.Fatalf("featurehub.Voice took %v, want bounded by finishTimeout", elapsed)
+		}
+		if conn.code != hub.StatusNormalClosure || conn.reason != "done" {
+			t.Fatalf("close = %d %q, want normal closure", conn.code, conn.reason)
+		}
+	})
+
+	t.Run("ready boundary and inherited stdout", func(t *testing.T) {
+		svc := voice.New(voice.Options{
+			Cmd:           []string{"/bin/sh", "-c", `(sleep 30 &) ; printf '{"type":"final","text":"stream-ok"}\n'`},
+			Cwd:           t.TempDir(),
+			ReadyDelay:    time.Millisecond,
+			FinishTimeout: time.Second,
+		})
+		for range 15 {
+			sess, err := svc.Start(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			conn := newTestConn()
+			done := make(chan struct{})
+			go func() {
+				Voice(t.Context(), sess, svc.FinishTimeout(), conn)
+				close(done)
+			}()
+			select {
+			case <-done:
+			case <-time.After(3 * time.Second):
+				t.Fatal("featurehub.Voice hung with inherited stdout")
+			}
+		}
+	})
+}

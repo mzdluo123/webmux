@@ -42,12 +42,21 @@ type startResult struct {
 // outcome on started once the actor has applied it. When the actor ended
 // first, the subtask stops the ACP process it started and reports
 // errStopped.
-func (a *actor) start(started chan<- error, initialArgv []string) {
+func (a *actor) start(started chan<- error, initialArgv []string, applied *bool) {
 	a.starting = true
 	report := func(res startResult) {
-		if !a.sync(func() { a.started(started, res) }) {
+		if !a.sync(func() {
+			if applied != nil {
+				*applied = true
+			}
+			a.started(started, res)
+		}) {
 			if res.link != nil {
 				_ = res.link.stop()
+			} else if res.err == nil {
+				ctx, cancel := context.WithTimeout(context.Background(), a.closeWait())
+				_ = a.shell.EndRun(ctx)
+				cancel()
 			}
 			started <- errStopped
 		}
@@ -58,19 +67,23 @@ func (a *actor) start(started chan<- error, initialArgv []string) {
 			argv = a.cmd.TUIArgv()
 		}
 		a.runStart = time.Now()
-		go func() {
+		a.subtask(func() {
+			if a.lifetime().Err() != nil {
+				report(startResult{err: errStopped})
+				return
+			}
 			if err := shell.StartRun(argv); err != nil {
 				report(startResult{err: fmt.Errorf("%w: 启动终端失败: %w", ErrInvalid, err)})
 				return
 			}
 			pid := shell.Identity().PID
 			report(startResult{pid: pid, process: processIdentity(pid)})
-		}()
+		})
 		return
 	}
 	a.epoch++
 	epoch := a.epoch
-	go func() { report(a.spawnACP(epoch)) }()
+	a.subtask(func() { report(a.spawnACP(epoch)) })
 }
 
 // spawnACP starts the ACP process and opens a new agent session with the
@@ -85,9 +98,10 @@ func (a *actor) spawnACP(epoch int) startResult {
 	}
 	res := startResult{link: link, init: init}
 	var err error
-	servers, scope := a.sessionMCPServers(context.Background())
+	ctx := a.lifetime()
+	servers, scope := a.sessionMCPServers(ctx)
 	link.historyScope = scope
-	res.session, err = link.conn.NewSession(context.Background(), acp.NewSessionRequest{Cwd: a.cwd, MCPServers: servers})
+	res.session, err = link.conn.NewSession(ctx, acp.NewSessionRequest{Cwd: a.cwd, MCPServers: servers})
 	if err == nil && res.session.SessionID == "" {
 		err = errors.New("agent 未返回会话 ID")
 	}
@@ -166,6 +180,9 @@ func (a *actor) discard() {
 // end stops the actor and its chat log.
 func (a *actor) end() {
 	a.stopped = true
+	if a.lifeCancel != nil {
+		a.lifeCancel()
+	}
 	a.log.end()
 	a.svc.unregister(a)
 }
@@ -321,11 +338,11 @@ func (a *actor) processGone(pid int) {
 // background and forgets its process in the record once it is gone.
 func (a *actor) stopLost(link *acpLink) {
 	pid := link.sidecar.PID()
-	go func() {
+	a.subtask(func() {
 		if link.stop() == nil {
 			a.post(func() { a.processGone(pid) })
 		}
-	}()
+	})
 }
 
 // Close implements session.Driver: a user closed the session. It is
@@ -377,33 +394,37 @@ func (a *actor) beginClose() {
 	link, shell := a.link, a.shell
 	a.link = nil
 	terminal := a.side == SideTUI && a.state == StateActive
-	go func() {
+	life := a.lifetime()
+	a.subtask(func() {
 		a.probes.Wait()
 		if turnDone != nil {
 			wait := time.NewTimer(turnEndWait)
 			select {
 			case <-turnDone:
 			case <-wait.C:
+			case <-life.Done():
 			}
 			wait.Stop()
 		}
 		gone := true
 		if link != nil {
-			if err := link.release(); err != nil {
+			if err := link.releaseWithin(life); err != nil {
 				gone = false
 				a.svc.log.Warn("hybrid agent did not stop in time", "id", a.id, "error", err)
 			}
 		}
-		if terminal && tuiBusy(shell.Info()) {
+		if terminal && tuiBusy(shell.Info()) && life.Err() == nil {
 			a.interruptKey()
 			a.waitIdle(a.svc.timing.interrupt)
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), closeTimeout)
+		ctx, cancel := context.WithTimeout(life, a.closeWait())
 		defer cancel()
 		if err := shell.EndRun(ctx); err != nil && !errors.Is(err, session.ErrNoRun) {
 			gone = false
-			a.svc.log.Warn("hybrid terminal did not stop in time", "id", a.id, "error", err)
+			if life.Err() == nil {
+				a.svc.log.Warn("hybrid terminal did not stop in time", "id", a.id, "error", err)
+			}
 		}
 		a.post(func() { a.finishClose(gone) })
-	}()
+	})
 }

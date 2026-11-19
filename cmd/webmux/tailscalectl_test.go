@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -566,4 +567,42 @@ func TestLegacyOwnershipBlocksBeforeAnyExternalMutation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTailscaleOwnershipConcurrentRace(t *testing.T) {
+	cli, _ := statefulTailscale(t)
+	dir := t.TempDir()
+	store := tailscalesettings.Open(dir, config.TailscaleConfig{Mode: "off", Provider: "auto"})
+	defer store.Close()
+	service := tailscale.New(tailscale.Options{Command: cli, Provider: "auto", IsWSL: func() bool { return false }})
+	ctl := newTailscaleController(tailscaleControllerOptions{
+		Cfg: config.TailscaleConfig{Mode: "off", Provider: "auto"}, Store: store, Service: service,
+		StateDir: dir, Public: &transport.PublicOrigins{},
+		Token: strings.Repeat("t", minTunnelTokenLength), Out: io.Discard,
+		Logger: slog.New(slog.DiscardHandler), IsWSL: func() bool { return false },
+		NetworkingMode: func(context.Context) string { return "unknown" },
+	})
+	rec := tailscaleState{
+		V: tailscaleStateVersion, Provider: "linux", DNSName: "node.tailnet.ts.net",
+		Mode: "serve", Port: 8443, Target: "http://127.0.0.1:7681", Status: "active",
+	}
+
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() {
+			for range 20 {
+				_ = ctl.openLock()
+				_ = ctl.saveRecord(rec)
+				_ = ctl.Summary()
+				_ = ctl.Status()
+				_ = ctl.deleteRecord()
+			}
+		})
+	}
+	wg.Go(func() {
+		time.Sleep(5 * time.Millisecond)
+		ctl.Close()
+	})
+	wg.Wait()
+	ctl.Close()
 }

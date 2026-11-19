@@ -275,6 +275,7 @@ func effectiveView(c serverRun, record runtime.Record, deps api.Deps, features *
 			continue
 		}
 		var err error
+		var tailscaleOwnership *statefile.Handle[tailscaleState]
 		switch description.ID {
 		case statefile.Launch:
 			err = features.launch.Unavailable()
@@ -312,25 +313,21 @@ func effectiveView(c serverRun, record runtime.Record, deps api.Deps, features *
 			_, err = deps.Settings.Snapshot()
 		case statefile.TailscaleOwnership:
 			features.tailscale.mu.Lock()
-			err = features.tailscale.storageErr
-			if err == nil && features.tailscale.ownership != nil {
-				err = features.tailscale.ownership.Err()
-			}
+			err, tailscaleOwnership = features.tailscale.storageErr, features.tailscale.ownership
 			features.tailscale.mu.Unlock()
+			if err == nil && tailscaleOwnership != nil {
+				err = tailscaleOwnership.Err()
+			}
 		}
 		health := storeHealth(c.StateDir, description.ID, err, true)
 		if description.ID == statefile.Push && features.push == nil {
 			health.Status, health.Lock = "disabled", "not_opened"
 		}
-		if description.ID == statefile.TailscaleOwnership {
-			features.tailscale.mu.Lock()
-			if features.tailscale.ownership == nil {
-				if err == nil {
-					health.Status = "not_opened"
-				}
-				health.Lock = "not_opened"
+		if description.ID == statefile.TailscaleOwnership && tailscaleOwnership == nil {
+			if err == nil {
+				health.Status = "not_opened"
 			}
-			features.tailscale.mu.Unlock()
+			health.Lock = "not_opened"
 		}
 		view.Stores = append(view.Stores, health)
 	}

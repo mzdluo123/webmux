@@ -252,8 +252,12 @@ for (const [story, shows] of [
         dialog.getByRole("button", { name: "切换", exact: true }),
         dialog.getByRole("button", { name: "取消", exact: true }),
       ]) {
-        await control.scrollIntoViewIfNeeded();
-        await expect.soft(control, name).toBeInViewport({ ratio: 0.99 });
+        await expect
+          .soft(async () => {
+            await control.scrollIntoViewIfNeeded();
+            await expect(control).toBeInViewport({ ratio: 0.99 });
+          }, name)
+          .toPass({ timeout: 5_000 });
       }
       expect.soft(failures, name).toEqual([]);
     });

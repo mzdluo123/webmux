@@ -4,17 +4,14 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"syscall"
 	"time"
 
-	"github.com/rainchan/webmux/internal/runtime"
 	"github.com/rainchan/webmux/internal/statefile"
 )
 
 // recoverAfterRestart marks active records for recovery when opened.
-// A leftover root process whose PID and start identity match is ended first, so it cannot keep writing the
-// agent session: interrupted and closed records keep the identity of a
-// process that was not confirmed gone.
+// Leftover processes matching the recorded root identity, session ID marker,
+// or descendant tree are terminated before active records become interrupted.
 func (r *records) recoverAfterRestart(now time.Time) error {
 	r.writeMu.Lock()
 	defer r.writeMu.Unlock()
@@ -30,13 +27,12 @@ func (r *records) recoverAfterRestart(now time.Time) error {
 		if rec.State != StateActive && rec.PID == 0 && rec.Process == nil {
 			continue
 		}
-		if rec.PID > 0 && rec.Process != nil {
-			if id, err := runtime.ProcessIdentity(rec.PID); err == nil && id == *rec.Process {
-				killGroup(rec.PID)
-			}
-		}
+		cleaned := cleanupRecordOrphans(rec.ID, rec.PID, rec.Process)
 		rec = rec.clone()
-		rec.PID, rec.Process = 0, nil
+		if cleaned && (rec.PID != 0 || rec.Process != nil) {
+			rec.PID, rec.Process = 0, nil
+			changed = true
+		}
 		if rec.State == StateActive {
 			at := now.UTC()
 			rec.State, rec.InterruptedAt, rec.UpdatedAt = StateInterrupted, &at, at
@@ -44,9 +40,9 @@ func (r *records) recoverAfterRestart(now time.Time) error {
 				rec.Activity = "idle"
 			}
 			rec.ResumeOnOpen = true
+			changed = true
 		}
 		next[i] = rec
-		changed = true
 	}
 	if !changed {
 		return nil
@@ -58,22 +54,6 @@ func (r *records) recoverAfterRestart(now time.Time) error {
 	}
 	r.list = next
 	return nil
-}
-
-// killGroup ends a leftover process group: SIGHUP lets agents flush their
-// session store, SIGKILL follows if the group is still there.
-func killGroup(pid int) {
-	if syscall.Kill(-pid, syscall.SIGHUP) != nil {
-		return
-	}
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if syscall.Kill(-pid, 0) != nil {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	_ = syscall.Kill(-pid, syscall.SIGKILL)
 }
 
 // close writes any pending change and releases the file lock.

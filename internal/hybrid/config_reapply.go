@@ -89,12 +89,15 @@ func (a *actor) reapply(link *acpLink, want []wanted, options []acp.ConfigOption
 		default:
 			v.ID = w.value
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), acp.RequestTimeout)
+		ctx, cancel := context.WithTimeout(a.lifetime(), acp.RequestTimeout)
 		resp, err := link.conn.SetConfigOption(ctx, acp.SetConfigOptionRequest{SessionID: link.sessionID, ConfigID: w.id, Value: v})
 		cancel()
 		if err != nil {
 			if agentprofile.ConfigErrorHandled(a.cmd.Agent, err, w.id, w.value) {
-				options[i].Current = v
+				if i >= 0 {
+					options = slices.Clone(options)
+					options[i].Current = v
+				}
 				continue
 			}
 			a.svc.log.Warn("hybrid config reapply failed", "id", a.id, "option", w.id, "error", err)

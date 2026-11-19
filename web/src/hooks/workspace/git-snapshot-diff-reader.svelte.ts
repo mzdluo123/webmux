@@ -71,6 +71,21 @@ function isBinaryDiff(file: GitCommitFile, diff: GitDiff): boolean {
   );
 }
 
+function resolveDiffStatus(
+  file: GitCommitFile,
+  diff: GitDiff,
+): GitCommitFile["status"] {
+  if (file.status === "M") {
+    if (diff.new.source === "empty" && diff.old.source !== "empty") {
+      return "D";
+    }
+    if (diff.old.source === "empty" && diff.new.source !== "empty") {
+      return "A";
+    }
+  }
+  return file.status;
+}
+
 export function createGitSnapshotDiffReader(deps: {
   getRepoId: () => string;
   getWorktreeId: () => string | undefined;
@@ -79,19 +94,23 @@ export function createGitSnapshotDiffReader(deps: {
   let state = $state.raw<GitSnapshotDiffViewState>(emptySnapshotDiffState());
   const ctxRunner = createGitContextRunner();
   const diffReq = new LatestRequest();
+  const downloadReq = new LatestRequest();
 
   function dispose() {
     diffReq.dispose();
+    downloadReq.dispose();
   }
 
   function resetTarget() {
     diffReq.cancel();
+    downloadReq.cancel();
     ctxRunner.reset();
     state = emptySnapshotDiffState();
   }
 
   function clearDiff() {
     diffReq.cancel();
+    downloadReq.cancel();
     state = emptySnapshotDiffState();
   }
 
@@ -111,6 +130,7 @@ export function createGitSnapshotDiffReader(deps: {
     const worktreeId = deps.getWorktreeId();
     if (!repoId || !options.file) {
       diffReq.cancel();
+      downloadReq.cancel();
       state = emptySnapshotDiffState();
       return;
     }
@@ -141,17 +161,26 @@ export function createGitSnapshotDiffReader(deps: {
         req.signal,
         (cid) => options.fetchDiff(cid, req.signal),
       );
-      if (!req.current() || repoId !== deps.getRepoId()) return;
+      if (
+        !req.current() ||
+        repoId !== deps.getRepoId() ||
+        worktreeId !== deps.getWorktreeId()
+      ) {
+        return;
+      }
 
       if (!diff) {
         state = { ...state, phase: "limited", reason: options.missingReason };
         return;
       }
 
+      const resolvedStatus = resolveDiffStatus(file, diff);
+
       if (isBinaryDiff(file, diff)) {
         state = {
           ...state,
           phase: "binary",
+          status: resolvedStatus,
           snapshotId: diff.snapshotId,
           rawDiff: diff,
           reason: diff.reason || m.s7_diff_binary_reason(),
@@ -163,6 +192,7 @@ export function createGitSnapshotDiffReader(deps: {
         state = {
           ...state,
           phase: "limited",
+          status: resolvedStatus,
           snapshotId: diff.snapshotId,
           rawDiff: diff,
           reason: diff.reason || m.s7_snapshot_large_or_meta_reason(),
@@ -171,12 +201,19 @@ export function createGitSnapshotDiffReader(deps: {
       }
 
       const calculated = await resolveCalculatedDiff(diff, req.signal);
-      if (!req.current() || repoId !== deps.getRepoId()) return;
+      if (
+        !req.current() ||
+        repoId !== deps.getRepoId() ||
+        worktreeId !== deps.getWorktreeId()
+      ) {
+        return;
+      }
 
       if (calculated.calculation === "ready" && calculated.fileDiff) {
         state = {
           ...state,
           phase: "ready",
+          status: resolvedStatus,
           snapshotId: diff.snapshotId,
           rawDiff: diff,
           fileDiff: calculated.fileDiff,
@@ -186,13 +223,20 @@ export function createGitSnapshotDiffReader(deps: {
         state = {
           ...state,
           phase: calculated.calculation === "error" ? "error" : "limited",
+          status: resolvedStatus,
           snapshotId: diff.snapshotId,
           rawDiff: diff,
           reason: calculated.calculationReason,
         };
       }
     } catch (err) {
-      if (!req.reportable()) return;
+      if (
+        !req.reportable() ||
+        repoId !== deps.getRepoId() ||
+        worktreeId !== deps.getWorktreeId()
+      ) {
+        return;
+      }
       state = { ...state, phase: "error", reason: errorMessage(err) };
     }
   }
@@ -217,17 +261,36 @@ export function createGitSnapshotDiffReader(deps: {
 
   async function downloadSnapshotSide(side: GitSnapshotSide) {
     const repoId = deps.getRepoId();
+    const worktreeId = deps.getWorktreeId();
     const snapshotId = state.snapshotId;
     if (!repoId || !snapshotId || state.downloadingSide) return;
 
+    const baseName =
+      (side === "before" ? state.oldPath || state.path : state.path)
+        .split("/")
+        .pop() || `snapshot-${side}`;
+    const req = downloadReq.begin();
     state = { ...state, downloadingSide: side };
-    const ctrl = new AbortController();
     try {
-      const blob = await readSnapshotSide(snapshotId, side, ctrl.signal, true);
-      const baseName =
-        (side === "before" ? state.oldPath || state.path : state.path)
-          .split("/")
-          .pop() || `snapshot-${side}`;
+      const blob = await ctxRunner.withContext(
+        repoId,
+        worktreeId,
+        req.signal,
+        (cid) =>
+          gitSnapshotRaw(
+            repoId,
+            snapshotId,
+            { side, contextId: cid, worktreeId, download: true },
+            req.signal,
+          ),
+      );
+      if (
+        !req.current() ||
+        repoId !== deps.getRepoId() ||
+        worktreeId !== deps.getWorktreeId()
+      ) {
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -235,11 +298,17 @@ export function createGitSnapshotDiffReader(deps: {
       anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) {
-      deps.onStatusBanner(
-        m.s7_snapshot_download_failed({ error: errorMessage(err) }),
-      );
+      if (
+        req.reportable() &&
+        repoId === deps.getRepoId() &&
+        worktreeId === deps.getWorktreeId()
+      ) {
+        deps.onStatusBanner(
+          m.s7_snapshot_download_failed({ error: errorMessage(err) }),
+        );
+      }
     } finally {
-      if (state.snapshotId === snapshotId) {
+      if (state.snapshotId === snapshotId && state.downloadingSide === side) {
         state = { ...state, downloadingSide: null };
       }
     }

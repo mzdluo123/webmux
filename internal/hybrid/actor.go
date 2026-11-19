@@ -58,6 +58,11 @@ type actor struct {
 	// probes counts this session's running eligibility probes; a close
 	// waits for them so the shell has no process left to remove.
 	probes sync.WaitGroup
+	// subtasks counts detached lifecycle goroutines started by this actor.
+	subtasks sync.WaitGroup
+	// lifeCtx ends when the actor stops or shuts down.
+	lifeCtx    context.Context
+	lifeCancel context.CancelFunc
 	// probeCtx ends the probes when the session closes or stops.
 	probeCtx    context.Context
 	probeCancel context.CancelFunc
@@ -194,7 +199,8 @@ func newActor(s *Service, cmd agentprofile.Command, cwd, configID string, side S
 	if policy != nil {
 		a.attentionPolicy = *policy
 	}
-	a.probeCtx, a.probeCancel = context.WithCancel(context.Background())
+	a.lifeCtx, a.lifeCancel = context.WithCancel(context.Background())
+	a.probeCtx, a.probeCancel = context.WithCancel(a.lifeCtx)
 	a.chat = ChatState{
 		Side: side, Agent: cmd.Profile.Name, Requests: []Request{}, Config: []ConfigOption{},
 		Commands: []Command{}, Queue: Queue{Items: []QueueItem{}}, Unsupported: unsupported,
@@ -208,6 +214,7 @@ func newActor(s *Service, cmd agentprofile.Command, cwd, configID string, side S
 
 func (a *actor) run() {
 	defer close(a.quit)
+	defer a.lifeCancel()
 	defer a.stopTimers()
 	defer a.stopBackgroundWatch()
 	for !a.stopped {

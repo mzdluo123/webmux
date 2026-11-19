@@ -61,7 +61,7 @@
   });
 
   async function release() {
-    if (!preview || preview.blockers.length) return;
+    if (!preview?.confirmationId || preview.blockers.length) return;
     busy = true;
     error = "";
     try {
@@ -149,7 +149,7 @@
       {onclose}
       confirm={{
         ready: preview !== null,
-        disabled: (preview?.blockers.length ?? 0) > 0,
+        disabled: !preview?.confirmationId || preview.blockers.length > 0,
         label: m.s8_release_title(),
         variant: "destructive",
         onreload: load,

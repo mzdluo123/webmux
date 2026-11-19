@@ -169,7 +169,7 @@ func (s *Service) handleOffer(ctx context.Context, in SignalInput) (SignalOutput
 	}
 	var peerCtx context.Context
 	var cancel context.CancelFunc
-	if owner != nil {
+	if owner != nil && !owner.ExpiresAt.IsZero() {
 		peerCtx, cancel = context.WithDeadline(parentCtx, owner.ExpiresAt)
 	} else {
 		peerCtx, cancel = context.WithCancel(parentCtx)

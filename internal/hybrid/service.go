@@ -70,6 +70,8 @@ type timing struct {
 	// interrupt is how long a switch waits for the terminal UI to go idle
 	// after the interrupt key before it asks the user (D21).
 	interrupt time.Duration
+	// close bounds waiting for a side's processes to stop during a switch or close.
+	close time.Duration
 	// probeDelay debounces the eligibility probe after the terminal's
 	// agent session or cwd changes.
 	probeDelay time.Duration
@@ -84,7 +86,7 @@ type timing struct {
 }
 
 var defaultTiming = timing{
-	interrupt: 10 * time.Second, probeDelay: time.Second, observe: 500 * time.Millisecond,
+	interrupt: 10 * time.Second, close: closeTimeout, probeDelay: time.Second, observe: 500 * time.Millisecond,
 	connectorRecheck: connectorRecheck, bgPoll: bgPoll,
 }
 
@@ -119,10 +121,14 @@ type Service struct {
 	// and release ref. Nil keeps them.
 	onEvicted func(context.Context, Record)
 
-	mu       sync.Mutex
-	actors   map[string]*actor
-	closed   bool
-	starting sync.WaitGroup
+	mu          sync.Mutex
+	actors      map[string]*actor
+	closed      bool
+	closeCtx    context.Context
+	closeCancel context.CancelFunc
+	closeOnce   sync.Once
+	closeDone   chan struct{}
+	starting    sync.WaitGroup
 	// recovering holds the record IDs a resume or removal is working on.
 	recovering map[string]bool
 	// writerClaims serializes lifecycle changes for each runtime identity.
@@ -146,13 +152,17 @@ func New(o Options) *Service {
 		o.Version = "dev"
 	}
 	userHome, _ := os.UserHomeDir()
+	closeCtx, closeCancel := context.WithCancel(context.Background())
 	s := &Service{
 		mcpServers: o.MCPServers, historyReader: o.HistoryReader, manager: o.Manager, records: openRecords(o.StateDir), options: openAgentOptions(o.StateDir), capacity: capacity, version: o.Version, log: log,
 		uploads: o.Uploads, userHome: userHome, agents: o.Agents,
 		nativeRoot: o.NativeRoot,
 		metadata:   make(map[string]*Metadata),
 		timing:     defaultTiming, probes: make(chan struct{}, maxProbes), actors: make(map[string]*actor),
-		recovering: make(map[string]bool),
+		closeCtx:    closeCtx,
+		closeCancel: closeCancel,
+		closeDone:   make(chan struct{}),
+		recovering:  make(map[string]bool),
 	}
 	if err := s.records.recoverAfterRestart(time.Now()); err != nil {
 		log.Warn("hybrid sessions unavailable", "error", err)
@@ -196,39 +206,52 @@ func (s *Service) beginOperation() error {
 	return nil
 }
 
-// Close stops every actor and its ACP process without changing records,
-// so a restart finds the sessions active and marks them interrupted, then
-// releases the store once the actors ended (at most shutdownJoin).
+// Close stops every actor and its ACP process, persists StateClosed for
+// sessions already closing, leaves other active sessions active for restart
+// recovery, waits within shutdownJoin for actors, probes, subtasks and
+// startup operations to finish, and then closes the persistent stores.
 // Terminal runs are left to Manager.Shutdown.
 func (s *Service) Close() {
-	s.mu.Lock()
-	s.closed = true
-	actors := make([]*actor, 0, len(s.actors))
-	for _, a := range s.actors {
-		actors = append(actors, a)
-	}
-	s.mu.Unlock()
-	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-	join, cancelJoin := context.WithTimeout(context.Background(), shutdownJoin)
-	defer cancelJoin()
-	for _, a := range actors {
-		a.post(func() { a.shutdown(ctx) })
-	}
-	for _, a := range actors {
-		select {
-		case <-a.quit:
-		case <-join.Done():
+	s.closeOnce.Do(func() {
+		defer close(s.closeDone)
+		s.mu.Lock()
+		s.closed = true
+		s.closeCancel()
+		actors := make([]*actor, 0, len(s.actors))
+		for _, a := range s.actors {
+			actors = append(actors, a)
+		}
+		s.mu.Unlock()
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		join, cancelJoin := context.WithTimeout(context.Background(), shutdownJoin)
+		defer cancelJoin()
+		for _, a := range actors {
+			a.post(func() { a.shutdown(ctx) })
+		}
+		for _, a := range actors {
+			stopped := false
 			select {
 			case <-a.quit:
-			default:
+				stopped = true
+			case <-join.Done():
+				select {
+				case <-a.quit:
+					stopped = true
+				default:
+				}
+			}
+			if !stopped || !waitGroupWithin(join, &a.probes) || !waitGroupWithin(join, &a.subtasks) {
 				s.log.Warn("hybrid session did not stop in time", "id", a.id)
 			}
 		}
-	}
-	s.starting.Wait()
-	s.records.close()
-	s.options.close()
+		if !waitGroupWithin(join, &s.starting) {
+			s.log.Warn("hybrid startup operations did not stop in time")
+		}
+		s.records.close()
+		s.options.close()
+	})
+	<-s.closeDone
 }
 
 func (s *Service) unregister(a *actor) {

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/acp"
+	"github.com/rainchan/webmux/internal/agent/kimi"
 	"github.com/rainchan/webmux/internal/agent/omp"
 	"github.com/rainchan/webmux/internal/agent/opencode"
 	"github.com/rainchan/webmux/internal/session"
@@ -22,7 +23,7 @@ import (
 
 // fast shortens the service's waits; call it before creating sessions.
 func (h *harness) fast() {
-	h.svc.timing = timing{interrupt: 300 * time.Millisecond, probeDelay: 50 * time.Millisecond, observe: 20 * time.Millisecond, connectorRecheck: 100 * time.Millisecond, bgPoll: 30 * time.Millisecond}
+	h.svc.timing = timing{interrupt: 300 * time.Millisecond, close: closeTimeout, probeDelay: 50 * time.Millisecond, observe: 20 * time.Millisecond, connectorRecheck: 100 * time.Millisecond, bgPoll: 30 * time.Millisecond}
 }
 
 func (h *harness) generation(id string) string {
@@ -979,4 +980,63 @@ func TestChatSideStaysAliveWhileIdleUntilArchived(t *testing.T) {
 	waitFor(t, "archived ACP process exit", func() bool {
 		return errors.Is(syscall.Kill(pid, 0), syscall.ESRCH)
 	})
+}
+
+func TestSwitchToChatEndRunTimeoutAbandonsWithoutRollback(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	h.svc.timing.close = 100 * time.Millisecond
+	home := t.TempDir()
+	in := h.input(kimi.Name, SideTUI, "KIMI_CODE_HOME="+home)
+	s := h.create(in)
+	id := s.Info().ID
+	origPID := s.Identity().PID
+	origGeneration := s.Info().Generation
+
+	tuiTurn(t, s, "one")
+	h.waitEligible(id)
+	sid := kimiStoredSessionID(t, h.store, "one")
+	writeKimiBinding(t, home, sid)
+	t.Cleanup(func() { _ = syscall.Kill(-origPID, syscall.SIGKILL) })
+
+	// Freeze the TUI process so SIGHUP stays pending and EndRun times out.
+	if err := syscall.Kill(origPID, syscall.SIGSTOP); err != nil {
+		t.Fatal(err)
+	}
+	_, err := h.switchTo(id, SideACP)
+	if !errors.Is(err, ErrConflict) || !strings.Contains(err.Error(), "终端未能结束") {
+		t.Fatalf("switch error = %v, want ErrConflict 终端未能结束", err)
+	}
+
+	rec := h.record(id)
+	if rec.State != StateInterrupted || rec.Activity != "switching" || rec.Side != SideTUI || rec.PID != origPID || rec.Process == nil || rec.ResumeOnOpen {
+		t.Fatalf("record after EndRun timeout = %+v, want interrupted switching keeping pid %d", rec, origPID)
+	}
+	state := h.chatState(id)
+	if state.Side != SideTUI || !strings.Contains(state.SwitchError, "未能回到原端") {
+		t.Fatalf("chat state after EndRun timeout = %+v", state)
+	}
+
+	// prepareTUIResume was skipped, so wire.jsonl retains the acp binding.
+	wireData, err := os.ReadFile(kimiSessionWire(t, home, sid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(wireData), `"environmentId":"acp:`+sid+`"`) {
+		t.Fatalf("prepareTUIResume modified wire.jsonl despite EndRun timeout: %s", wireData)
+	}
+
+	// StartRun was skipped: no new terminal generation or second TUI writer opened.
+	if gotGen := s.Info().Generation; gotGen != origGeneration && gotGen != "" {
+		t.Fatalf("StartRun launched a second terminal generation %q (orig %q)", gotGen, origGeneration)
+	}
+	tuiOpens := 0
+	for _, ev := range writerEvents(t, h.store) {
+		if ev.mode == "tui" && ev.event == "open" {
+			tuiOpens++
+		}
+	}
+	if tuiOpens != 1 {
+		t.Fatalf("tui open events = %d, want 1", tuiOpens)
+	}
 }

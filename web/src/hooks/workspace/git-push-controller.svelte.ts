@@ -14,10 +14,6 @@ import type {
   Repository,
 } from "../../contracts/schemas";
 import { branchOperations } from "../../domains/workspace/branch-operations";
-import {
-  generateGitClientRequestId,
-  isRecoverableNetworkFailure,
-} from "../../domains/workspace/git-operations-model";
 import { mapGitCommitDetailResponse } from "../../domains/workspace/git-workbench-adapter";
 import { LatestRequest } from "../shared/remote-request.svelte";
 import type { GitOperationsController } from "./git-operations-controller.svelte";
@@ -25,6 +21,10 @@ import {
   createGitPushDiffController,
   type GitPushFileDiffState,
 } from "./git-push-diff.svelte";
+import {
+  canConfirmPushPreview,
+  runConfirmPushFlow,
+} from "./git-push-execution";
 
 export type { GitPushFileDiffState };
 
@@ -64,12 +64,19 @@ export function createGitPushController(deps: GitPushControllerDeps) {
   const remotesReq = new LatestRequest();
   const detailReq = new LatestRequest();
   let targetTimer: ReturnType<typeof setTimeout> | null = null;
+  let disposed = false;
 
   const diffCtrl = createGitPushDiffController({
     getRepoId: deps.getRepoId,
     getWorktreeId: deps.getWorktreeId,
     isOpen: () => open,
   });
+
+  function isSameTarget(repoId: string, wtId: string | undefined): boolean {
+    return (
+      !disposed && repoId === deps.getRepoId() && wtId === deps.getWorktreeId()
+    );
+  }
 
   function clearTimer() {
     if (targetTimer !== null) {
@@ -79,6 +86,7 @@ export function createGitPushController(deps: GitPushControllerDeps) {
   }
 
   function dispose() {
+    disposed = true;
     clearTimer();
     previewReq.dispose();
     remotesReq.dispose();
@@ -114,8 +122,13 @@ export function createGitPushController(deps: GitPushControllerDeps) {
     detailsByOid.clear();
   }
 
+  function resetTarget() {
+    resetDialogState();
+  }
+
   async function selectCommit(oid: string, parentOverride?: string) {
     const repoId = deps.getRepoId();
+    const wtId = deps.getWorktreeId();
     if (!repoId || !oid) return;
     detailReq.cancel();
     detailLoading = false;
@@ -148,7 +161,7 @@ export function createGitPushController(deps: GitPushControllerDeps) {
         parentOverride,
         req.signal,
       );
-      if (!req.current() || !open) return;
+      if (!req.current() || !open || !isSameTarget(repoId, wtId)) return;
       const mapped = mapGitCommitDetailResponse(raw, existing);
       detailsByOid.set(oid, mapped);
       const pKey = parentOverride ?? mapped.selectedParent;
@@ -162,7 +175,7 @@ export function createGitPushController(deps: GitPushControllerDeps) {
     } catch {
       /* Commit summary stays visible even if detail fails */
     } finally {
-      if (req.current()) detailLoading = false;
+      if (req.current() && isSameTarget(repoId, wtId)) detailLoading = false;
     }
   }
 
@@ -180,6 +193,7 @@ export function createGitPushController(deps: GitPushControllerDeps) {
 
   async function refreshPreview() {
     const repoId = deps.getRepoId();
+    const wtId = deps.getWorktreeId();
     if (!repoId || !branch) return;
     const req = previewReq.begin();
     loading = true;
@@ -197,7 +211,7 @@ export function createGitPushController(deps: GitPushControllerDeps) {
           : { branch },
         req.signal,
       );
-      if (!req.current() || !open) return;
+      if (!req.current() || !open || !isSameTarget(repoId, wtId)) return;
       if (res.publish && !publishing) {
         publishing = true;
         remote = res.remote;
@@ -219,11 +233,11 @@ export function createGitPushController(deps: GitPushControllerDeps) {
         diffCtrl.reset();
       }
     } catch (err) {
-      if (!req.reportable()) return;
+      if (!req.reportable() || !open || !isSameTarget(repoId, wtId)) return;
       preview = null;
       loadError = errorMessage(err);
     } finally {
-      if (req.current()) loading = false;
+      if (req.current() && isSameTarget(repoId, wtId)) loading = false;
     }
   }
 
@@ -232,6 +246,7 @@ export function createGitPushController(deps: GitPushControllerDeps) {
     preceding?: GitPrecedingCommit | null,
   ) {
     const repoId = deps.getRepoId();
+    const wtId = deps.getWorktreeId();
     if (!repoId || !targetBranch) return;
     resetDialogState();
     open = true;
@@ -243,13 +258,19 @@ export function createGitPushController(deps: GitPushControllerDeps) {
     branchOperations
       .remotes(repoId, rReq.signal)
       .then((res) => {
-        if (rReq.current() && open) remotes = res.remotes;
+        if (rReq.current() && open && isSameTarget(repoId, wtId)) {
+          remotes = res.remotes;
+        }
       })
       .catch((err) => {
-        if (rReq.reportable() && open) remotesError = errorMessage(err);
+        if (rReq.reportable() && open && isSameTarget(repoId, wtId)) {
+          remotesError = errorMessage(err);
+        }
       })
       .finally(() => {
-        if (rReq.current()) remotesLoading = false;
+        if (rReq.current() && isSameTarget(repoId, wtId)) {
+          remotesLoading = false;
+        }
       });
 
     void refreshPreview();
@@ -291,6 +312,8 @@ export function createGitPushController(deps: GitPushControllerDeps) {
 
   function setPublishTarget(nextTarget: string) {
     if (running) return;
+    const repoId = deps.getRepoId();
+    const wtId = deps.getWorktreeId();
     const changed = target.trim() !== nextTarget.trim();
     target = nextTarget;
     if (!changed) return;
@@ -298,107 +321,47 @@ export function createGitPushController(deps: GitPushControllerDeps) {
     if (!target.trim()) return;
     targetTimer = setTimeout(() => {
       targetTimer = null;
+      if (!open || !isSameTarget(repoId, wtId)) return;
       void refreshPreview();
     }, 280);
   }
 
   async function confirmPush() {
     const repoId = deps.getRepoId();
-    const cur = preview;
-    if (
-      !repoId ||
-      !cur?.confirmationId ||
-      cur.blockers.length ||
-      running ||
-      loading
-    )
-      return;
-    if (publishing && (cur.remote !== remote || cur.target !== target.trim())) {
-      return;
-    }
-
-    running = true;
-    rejected = null;
-    conflictError = "";
     const wtId = deps.getWorktreeId();
-    const clientRequestId = generateGitClientRequestId("push");
-    const dest = `${cur.remote}/${cur.target}`;
-    deps.operations?.setPhase(
-      "running",
-      "push",
-      m.s7_push_running_phase({ dest }),
-      { clientRequestId },
-    );
-    try {
-      const result = await branchOperations.push(repoId, cur.confirmationId, {
-        clientRequestId,
-        worktreeId: wtId,
-      });
-      deps.onRepositoryUpdated?.(result.repository);
-      deps.onRefreshAfterPush?.();
-      if (result.status === "ok") {
-        const banner = precedingCommit
-          ? cur.publish
-            ? m.s7_push_committed_and_published({
-                oid: precedingCommit.shortOid,
-                dest,
-              })
-            : m.s7_push_committed_and_pushed({
-                oid: precedingCommit.shortOid,
-                dest,
-              })
-          : cur.publish
-            ? m.s7_push_published_to({ dest })
-            : m.s7_push_pushed_to({ dest });
-        resetDialogState();
-        deps.onStatusBanner(banner);
-        return;
-      }
+    const check = {
+      open,
+      repoId,
+      preview,
+      running,
+      loading,
+      hasPendingDebounce: targetTimer !== null,
+      publishing,
+      remote,
+      target,
+    };
+    if (!canConfirmPushPreview(check)) return;
 
-      rejected = result;
-      const failMsg = result.message || m.s7_push_remote_rejected();
-      deps.onStatusBanner(
-        precedingCommit
-          ? m.s7_push_failed_after_commit({
-              oid: precedingCommit.shortOid,
-              error: failMsg,
-            })
-          : m.s7_push_failed({ error: failMsg }),
-      );
-      void refreshPreview();
-    } catch (err) {
-      if (deps.operations && isRecoverableNetworkFailure(err)) {
-        const recovered = await deps.operations.recoverByClientRequest({
-          repositoryId: repoId,
-          worktreeId: wtId,
-          kind: "push",
-          clientRequestId,
-        });
-        if (recovered && recovered.status === "succeeded") {
-          deps.onRefreshAfterPush?.();
-          resetDialogState();
-          deps.onStatusBanner(
-            recovered.summary || m.s7_push_pushed_to({ dest }),
-          );
-          return;
-        }
-      }
-      const msg = errorMessage(err);
-      conflictError = msg;
-      deps.onStatusBanner(
-        precedingCommit
-          ? m.s7_push_failed_after_commit({
-              oid: precedingCommit.shortOid,
-              error: msg,
-            })
-          : m.s7_push_failed({ error: msg }),
-      );
-      void refreshPreview();
-    } finally {
-      deps.operations?.clearActive();
-      running = false;
-      void deps.operations?.refreshOperations(repoId, wtId);
-    }
+    await runConfirmPushFlow({
+      repoId,
+      wtId,
+      preview: check.preview,
+      precedingCommit,
+      isOpen: () => open,
+      isSameTarget: () => isSameTarget(repoId, wtId),
+      operations: deps.operations,
+      onRepositoryUpdated: deps.onRepositoryUpdated,
+      onRefreshAfterPush: deps.onRefreshAfterPush,
+      onStatusBanner: deps.onStatusBanner,
+      setRunning: (next) => (running = next),
+      setRejected: (next) => (rejected = next),
+      setConflictError: (next) => (conflictError = next),
+      onInvalidatePreview: () => {
+        preview = null;
+      },
+      onResetDialog: resetDialogState,
+      onRefreshPreview: () => void refreshPreview(),
+    });
   }
 
   return {
@@ -471,6 +434,7 @@ export function createGitPushController(deps: GitPushControllerDeps) {
       return diffCtrl.state;
     },
     dispose,
+    resetTarget,
     openDialog,
     closeDialog,
     refreshPreview,

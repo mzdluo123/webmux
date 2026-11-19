@@ -2,9 +2,15 @@ import { m } from "$lib/paraglide/messages.js";
 import type {
   GitConflictFileDetail,
   GitConflictKind,
-  GitConflictSegment,
   GitConflictSide,
 } from "../../contracts/schemas";
+import {
+  buildSegmentLinesMap,
+  normalizeConflictLineEndings,
+  patchConflictDraftSegments,
+} from "./git-conflict-slice";
+
+export { normalizeConflictLineEndings };
 
 export type GitConflictChunkChoice =
   | "unresolved"
@@ -22,6 +28,38 @@ export interface GitConflictDraftState {
   manualEdited: boolean;
   resultText: string;
   savedResultText: string | null;
+  segmentLines?: Record<string, string[]>;
+}
+
+export function serializeConflictIdentity(
+  identity: GitConflictFileDetail["identity"],
+): string {
+  const entries = Object.entries(identity)
+    .filter(([, value]) => value !== undefined)
+    .sort(([a], [b]) => a.localeCompare(b));
+  return JSON.stringify(entries);
+}
+
+export function cloneConflictDraftState(
+  source: GitConflictDraftState,
+): GitConflictDraftState {
+  return {
+    choices: { ...source.choices },
+    appliedNonConflicting: { ...source.appliedNonConflicting },
+    manualEdited: source.manualEdited,
+    resultText: source.resultText,
+    savedResultText: source.savedResultText,
+    ...(source.segmentLines
+      ? {
+          segmentLines: Object.fromEntries(
+            Object.entries(source.segmentLines).map(([k, lines]) => [
+              k,
+              [...lines],
+            ]),
+          ),
+        }
+      : {}),
+  };
 }
 
 export function detectTextConflictMarkers(text: string): boolean {
@@ -44,81 +82,6 @@ export function detectTextConflictMarkers(text: string): boolean {
   return false;
 }
 
-function resolvePreferredLineEnding(
-  detail: GitConflictFileDetail,
-): "\n" | "\r\n" {
-  if (
-    detail.left.lineEnding === "crlf" ||
-    detail.right.lineEnding === "crlf" ||
-    detail.base.lineEnding === "crlf"
-  ) {
-    return "\r\n";
-  }
-  return "\n";
-}
-
-function prefersTrailingNewline(detail: GitConflictFileDetail): boolean {
-  for (const candidate of [
-    detail.left.text,
-    detail.right.text,
-    detail.base.text,
-    detail.initialResultText,
-  ]) {
-    if (candidate && candidate.length > 0) {
-      return candidate.endsWith("\n");
-    }
-  }
-  return true;
-}
-
-function linesForSegmentState(
-  seg: GitConflictSegment,
-  choices: Readonly<Record<string, GitConflictChunkChoice>>,
-  appliedNonConflicting: Readonly<Record<string, boolean>>,
-): string[] {
-  switch (seg.kind) {
-    case "common":
-      return seg.baseLines;
-    case "change_left":
-      return appliedNonConflicting[seg.id] ? seg.leftLines : seg.baseLines;
-    case "change_right":
-      return appliedNonConflicting[seg.id] ? seg.rightLines : seg.baseLines;
-    case "change_both_same":
-      return appliedNonConflicting[seg.id] ? seg.leftLines : seg.baseLines;
-    case "conflict": {
-      const choice = choices[seg.id] ?? "unresolved";
-      switch (choice) {
-        case "left":
-          return seg.leftLines;
-        case "right":
-          return seg.rightLines;
-        case "both_lr":
-          return [...seg.leftLines, ...seg.rightLines];
-        case "both_rl":
-          return [...seg.rightLines, ...seg.leftLines];
-        case "unresolved":
-        case "manual":
-          return seg.baseLines;
-      }
-    }
-  }
-}
-
-function assembleConflictResultText(
-  detail: GitConflictFileDetail,
-  choices: Readonly<Record<string, GitConflictChunkChoice>>,
-  appliedNonConflicting: Readonly<Record<string, boolean>>,
-): string {
-  const eol = resolvePreferredLineEnding(detail);
-  const lines: string[] = [];
-  for (const seg of detail.segments) {
-    lines.push(...linesForSegmentState(seg, choices, appliedNonConflicting));
-  }
-  if (lines.length === 0) return "";
-  const body = lines.join(eol);
-  return prefersTrailingNewline(detail) ? `${body}${eol}` : body;
-}
-
 export function createInitialConflictDraftState(
   detail: GitConflictFileDetail,
 ): GitConflictDraftState {
@@ -139,6 +102,12 @@ export function createInitialConflictDraftState(
     }
   }
 
+  const segmentLines = buildSegmentLinesMap(
+    detail,
+    choices,
+    appliedNonConflicting,
+  );
+
   if (resumeSavedDiskDraft && detail.diskText !== undefined) {
     return {
       choices,
@@ -146,6 +115,7 @@ export function createInitialConflictDraftState(
       manualEdited: true,
       resultText: detail.diskText,
       savedResultText: detail.diskText,
+      segmentLines,
     };
   }
 
@@ -155,67 +125,8 @@ export function createInitialConflictDraftState(
     manualEdited: false,
     resultText: detail.initialResultText,
     savedResultText: null,
+    segmentLines,
   };
-}
-
-function replaceSegmentSliceInResultText(
-  detail: GitConflictFileDetail,
-  prevResultText: string,
-  prevChoices: Readonly<Record<string, GitConflictChunkChoice>>,
-  prevApplied: Readonly<Record<string, boolean>>,
-  nextChoices: Readonly<Record<string, GitConflictChunkChoice>>,
-  nextApplied: Readonly<Record<string, boolean>>,
-  manualEdited: boolean,
-): string {
-  if (!manualEdited) {
-    return assembleConflictResultText(detail, nextChoices, nextApplied);
-  }
-  // If user made manual edits, rebuild from segments when line counts still match
-  // or fall back to clean segment assembly when choosing a structured chunk action.
-  const prevAssembled = assembleConflictResultText(
-    detail,
-    prevChoices,
-    prevApplied,
-  );
-  if (prevResultText === prevAssembled) {
-    return assembleConflictResultText(detail, nextChoices, nextApplied);
-  }
-  const eol = resolvePreferredLineEnding(detail);
-  const trailing = prevResultText.endsWith("\n");
-  const rawLines = prevResultText.split(/\r?\n/);
-  if (trailing && rawLines[rawLines.length - 1] === "") {
-    rawLines.pop();
-  }
-  let cursor = 0;
-  const patched: string[] = [];
-  let offsetAligned = true;
-  for (const seg of detail.segments) {
-    const oldLines = linesForSegmentState(seg, prevChoices, prevApplied);
-    const newLines = linesForSegmentState(seg, nextChoices, nextApplied);
-    if (cursor + oldLines.length > rawLines.length) {
-      offsetAligned = false;
-      break;
-    }
-    const changed =
-      (prevChoices[seg.id] ?? "unresolved") !==
-        (nextChoices[seg.id] ?? "unresolved") ||
-      Boolean(prevApplied[seg.id]) !== Boolean(nextApplied[seg.id]);
-    if (changed) {
-      patched.push(...newLines);
-    } else {
-      patched.push(...rawLines.slice(cursor, cursor + oldLines.length));
-    }
-    cursor += oldLines.length;
-  }
-  if (!offsetAligned) {
-    return assembleConflictResultText(detail, nextChoices, nextApplied);
-  }
-  if (cursor < rawLines.length) {
-    patched.push(...rawLines.slice(cursor));
-  }
-  if (patched.length === 0) return "";
-  const joined = patched.join(eol);
-  return trailing ? `${joined}${eol}` : joined;
 }
 
 export function applyConflictChunkChoice(
@@ -225,19 +136,17 @@ export function applyConflictChunkChoice(
   choice: GitConflictChunkChoice,
 ): GitConflictDraftState {
   const nextChoices = { ...draft.choices, [segmentId]: choice };
-  const resultText = replaceSegmentSliceInResultText(
+  const patched = patchConflictDraftSegments(
     detail,
-    draft.resultText,
-    draft.choices,
-    draft.appliedNonConflicting,
+    draft,
     nextChoices,
     draft.appliedNonConflicting,
-    draft.manualEdited,
   );
   return {
     ...draft,
     choices: nextChoices,
-    resultText,
+    resultText: patched.resultText,
+    segmentLines: patched.segmentLines,
   };
 }
 
@@ -249,19 +158,17 @@ export function toggleNonConflictingSegment(
 ): GitConflictDraftState {
   const nextVal = applied ?? !draft.appliedNonConflicting[segmentId];
   const nextApplied = { ...draft.appliedNonConflicting, [segmentId]: nextVal };
-  const resultText = replaceSegmentSliceInResultText(
+  const patched = patchConflictDraftSegments(
     detail,
-    draft.resultText,
-    draft.choices,
-    draft.appliedNonConflicting,
+    draft,
     draft.choices,
     nextApplied,
-    draft.manualEdited,
   );
   return {
     ...draft,
     appliedNonConflicting: nextApplied,
-    resultText,
+    resultText: patched.resultText,
+    segmentLines: patched.segmentLines,
   };
 }
 
@@ -279,19 +186,17 @@ export function applyAllNonConflictingSegments(
       nextApplied[seg.id] = true;
     }
   }
-  const resultText = replaceSegmentSliceInResultText(
+  const patched = patchConflictDraftSegments(
     detail,
-    draft.resultText,
-    draft.choices,
-    draft.appliedNonConflicting,
+    draft,
     draft.choices,
     nextApplied,
-    draft.manualEdited,
   );
   return {
     ...draft,
     appliedNonConflicting: nextApplied,
-    resultText,
+    resultText: patched.resultText,
+    segmentLines: patched.segmentLines,
   };
 }
 
@@ -343,12 +248,15 @@ export function summarizeConflictDraftProgress(
   const hasConflictMarkers = detectTextConflictMarkers(draft.resultText);
   const hasSavedToDisk =
     draft.savedResultText !== null &&
-    draft.savedResultText === draft.resultText;
+    normalizeConflictLineEndings(draft.savedResultText, detail) ===
+      normalizeConflictLineEndings(draft.resultText, detail);
   const hasUnsavedDraftChanges =
     draft.savedResultText === null
-      ? draft.resultText !== detail.initialResultText ||
-        unresolvedConflicts < conflictSegs.length
-      : draft.savedResultText !== draft.resultText;
+      ? draft.manualEdited ||
+        draft.resultText !== detail.initialResultText ||
+        unresolvedConflicts < conflictSegs.length ||
+        pendingNonConflicting < nonConflictSegs.length
+      : !hasSavedToDisk;
 
   let markResolvedBlockedReason = "";
   if (!detail.textMergeable) {

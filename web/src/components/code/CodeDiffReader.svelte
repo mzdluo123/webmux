@@ -132,11 +132,22 @@
       { additions: 0, deletions: 0 },
     ),
   );
+  const effectiveSide = $derived<"old" | "new">(
+    side === "new" &&
+      fileDiff.additionLines.length === 0 &&
+      fileDiff.deletionLines.length > 0
+      ? "old"
+      : side === "old" &&
+          fileDiff.deletionLines.length === 0 &&
+          fileDiff.additionLines.length > 0
+        ? "new"
+        : side,
+  );
   const sourceSide = $derived<SelectionSide>(
-    side === "old" ? "deletions" : "additions",
+    effectiveSide === "old" ? "deletions" : "additions",
   );
   const sourceLines = $derived(
-    side === "old" ? fileDiff.deletionLines : fileDiff.additionLines,
+    effectiveSide === "old" ? fileDiff.deletionLines : fileDiff.additionLines,
   );
   const find = createCodeFind(
     () => sourceLines,
@@ -215,7 +226,7 @@
   function scrollToLine(line: number) {
     if (!hasChanges || !sourceLines.length) return;
     const number = Math.max(1, Math.min(sourceLines.length, line));
-    const region = findUnexpandedDiffRegion(fileDiff, side, number);
+    const region = findUnexpandedDiffRegion(fileDiff, effectiveSide, number);
     if (region !== undefined) {
       if (expired) return;
       diffInstance()?.expandHunk(region, "both", Number.POSITIVE_INFINITY);
@@ -462,7 +473,7 @@
     panel={find.panel}
     query={find.search}
     line={selected?.start ?? 1}
-    status={`${side === "old" ? m.s5_before() : m.s5_after()} · ${find.status}`}
+    status={`${effectiveSide === "old" ? m.s5_before() : m.s5_after()} · ${find.status}`}
     {...find.panelProps}
     ongoto={goto}
   />

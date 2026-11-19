@@ -117,3 +117,38 @@ func TestAuthPeerRejectsMalformedFingerprints(t *testing.T) {
 		t.Fatal("failed validation consumed valid peer authorization:", err)
 	}
 }
+
+func TestAuthPeerReleaseReclaimsQuotaAndIsIdempotent(t *testing.T) {
+	auth, control, _ := newAuthTest(t, AuthConfig{})
+	finish := finishAuthLogin(t, auth, control, 10)
+	authTestICE(t, auth, control)
+	fingerprint := "sha-256 " + strings.TrimSuffix(strings.Repeat("12:", 32), ":")
+
+	// Exceed MaxPeersPerSession (default 8) by releasing each peer after use.
+	for i := byte(1); i <= 12; i++ {
+		peerID := authTestToken(100 + i)
+		if _, err := auth.ICE(context.Background(), finish.Principal, peerID); err != nil {
+			t.Fatalf("iteration %d ICE failed: %v", i, err)
+		}
+		peer, err := auth.AuthorizePeer(finish.Principal, peerID, fingerprint)
+		if err != nil {
+			t.Fatalf("iteration %d AuthorizePeer failed: %v", i, err)
+		}
+		if peer.Release == nil {
+			t.Fatal("AuthorizePeer returned nil Release")
+		}
+		lookedUp, err := auth.LookupPeer(finish.Principal, peerID, fingerprint)
+		if err != nil || lookedUp.Release == nil {
+			t.Fatalf("iteration %d LookupPeer failed: %v", i, err)
+		}
+		peer.Release()
+		lookedUp.Release() // idempotent
+		select {
+		case <-peer.Context.Done():
+		default:
+			t.Fatalf("iteration %d Release left peer context active", i)
+		}
+		_, err = auth.LookupPeer(finish.Principal, peerID, fingerprint)
+		requireAuthCode(t, err, protocol.Unauthenticated)
+	}
+}

@@ -18,6 +18,7 @@
     readonly exitCode: number | null;
     readonly error: string;
     claim(): void;
+    dismissError?(): void;
   }
   interface NoticeUploads {
     readonly progress: UploadProgress | null;
@@ -163,8 +164,10 @@
         size="icon-sm"
         aria-label={m.s4_dismiss_notice()}
         title={m.s4_dismiss_notice()}
-        onclick={() => (dismissedError = alertText)}
-        ><IconX aria-hidden="true" /></Button
+        onclick={() => {
+          t.dismissError?.();
+          dismissedError = [error, t.error].filter(Boolean).join(" ");
+        }}><IconX aria-hidden="true" /></Button
       >
     {/snippet}
   </StripNotice>{/if}

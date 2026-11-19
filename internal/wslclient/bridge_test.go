@@ -7,11 +7,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -174,4 +178,91 @@ func TestBridgeDialerRequestsSubscriptionAndStop(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(runtime.Dir(in.state), "server.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("record after shutdown: %v", err)
 	}
+}
+
+func TestBridgeDialerCancelledEntryAndNoResidualSubprocesses(t *testing.T) {
+	var invoked atomic.Int32
+	cancelledDialer := &BridgeDialer{
+		Command: func() *exec.Cmd {
+			invoked.Add(1)
+			return exec.Command("/bin/sleep", "30")
+		},
+	}
+	cancelledCtx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := cancelledDialer.DialContext(cancelledCtx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled DialContext = %v, want context.Canceled", err)
+	}
+	if invoked.Load() != 0 {
+		t.Fatalf("cancelled DialContext invoked Command %d times", invoked.Load())
+	}
+
+	if os.Getenv(contract.SessionIDEnv) != "" {
+		t.Skip("the real parent belongs to the outer WebMux session")
+	}
+	in := newInstance(t)
+	in.start(t)
+
+	var pidsMu sync.Mutex
+	var bridgePIDs []int
+	dialer := &BridgeDialer{
+		Command: func() *exec.Cmd {
+			return in.command("bridge")
+		},
+	}
+	trackingDialer := dialerFunc(func(ctx context.Context) (*bridgeConn, error) {
+		conn, err := dialer.DialContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+		bc := conn.(*bridgeConn)
+		pidsMu.Lock()
+		bridgePIDs = append(bridgePIDs, bc.cmd.Process.Pid)
+		pidsMu.Unlock()
+		return bc, nil
+	})
+	client := localclient.New(trackingDialer)
+
+	ctx, stop := context.WithTimeout(t.Context(), 15*time.Second)
+	defer stop()
+	wsConn, err := client.DialWebSocket(ctx, "/ws/sessions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() {
+			for range 5 {
+				_, _ = client.Status(ctx)
+			}
+		})
+	}
+	time.Sleep(15 * time.Millisecond)
+	client.Close()
+	time.Sleep(15 * time.Millisecond)
+	client.Retire()
+	_ = wsConn.CloseNow()
+	wg.Wait()
+
+	pidsMu.Lock()
+	spawned := append([]int(nil), bridgePIDs...)
+	pidsMu.Unlock()
+	if len(spawned) == 0 {
+		t.Fatal("expected at least one bridge subprocess")
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for _, pid := range spawned {
+		for syscall.Kill(pid, 0) != syscall.ESRCH {
+			if time.Now().After(deadline) {
+				t.Fatalf("residual bridge subprocess %d survived Client.Retire", pid)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+type dialerFunc func(context.Context) (*bridgeConn, error)
+
+func (f dialerFunc) DialContext(ctx context.Context) (net.Conn, error) {
+	return f(ctx)
 }
