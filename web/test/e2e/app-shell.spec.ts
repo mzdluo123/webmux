@@ -306,6 +306,8 @@ test.describe("desktop sidebar", () => {
     await page.reload();
     await expectConnected(page);
     await expect(picker).toBeHidden();
+    await expect(files).toBeVisible();
+    await files.getByRole("button", { name: "note.txt", exact: true }).click();
     await expect(code).toBeVisible();
     await expect.poll(width).toBe(wide);
   });
