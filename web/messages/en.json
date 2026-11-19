@@ -2,6 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "dock_actions": "Panel actions for {title}",
   "dock_bottom": "Dock below",
+  "dock_close_pane": "Close pane",
   "dock_center": "Merge as tabs",
   "dock_chat_inactive": "Switch to Chat in the session toolbar to send messages.",
   "dock_chat_named": "Chat · {title}",

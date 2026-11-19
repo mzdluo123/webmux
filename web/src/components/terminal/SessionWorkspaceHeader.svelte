@@ -22,6 +22,7 @@
   import { keyboardSizeHold } from "../../hooks/terminal/keyboard-size-hold-preference.svelte";
   let {
     dock,
+    closePane,
     pickerOpen,
     openPanels,
     openFiles,
@@ -29,6 +30,7 @@
     onerror,
   }: {
     dock: DockWorkspace | undefined;
+    closePane: (id: string) => void;
     pickerOpen: boolean;
     openPanels: () => void;
     openFiles?: () => void;
@@ -63,7 +65,7 @@
     <IconArrowLeft class="size-4" aria-hidden="true" />
   </Button>
   <SessionSwitcherTrigger size="icon-sm" class="max-sm:hidden" />
-  <SessionPaneMenu {dock} />
+  <SessionPaneMenu {dock} {closePane} />
   {#if pane?.commands}
     <div class="flex min-w-0 items-center" data-dock-session-commands={pane.id}>
       {#key pane.id}{@render pane.commands()}{/key}

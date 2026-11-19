@@ -350,6 +350,8 @@
       <div class="session-toolbar shrink-0">
         <SessionWorkspaceHeader
           {dock}
+          closePane={(panel) =>
+            ids.includes(panel) ? close(panel) : dock?.minimize(panel)}
           pickerOpen={showPicker}
           openPanels={() => dock?.openPicker()}
           fileLabel={`${m.s5_file_tree()} · ${paneTitle(active)}`}

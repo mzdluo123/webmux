@@ -2,6 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "dock_actions": "「{title}」窗格操作",
   "dock_bottom": "停靠到下方",
+  "dock_close_pane": "关闭窗格",
   "dock_center": "合并为标签",
   "dock_chat_inactive": "在会话顶栏切换到聊天后可发送消息。",
   "dock_chat_named": "聊天 · {title}",

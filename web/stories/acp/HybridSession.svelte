@@ -461,6 +461,7 @@
   <SessionWorkspaceHeader
     {dock}
     {pickerOpen}
+    closePane={(panel) => dock?.minimize(panel)}
     openPanels={() => dock?.openPicker()}
     openFiles={openCode}
     fileLabel="文件树"

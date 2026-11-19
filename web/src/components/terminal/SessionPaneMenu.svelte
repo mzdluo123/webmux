@@ -2,6 +2,7 @@
   import IconArrowsMaximize from "~icons/tabler/arrows-maximize";
   import IconArrowsMinimize from "~icons/tabler/arrows-minimize";
   import IconChevronDown from "~icons/tabler/chevron-down";
+  import IconX from "~icons/tabler/x";
   import IconMinus from "~icons/tabler/minus";
   import { Button } from "$lib/components/ui/button";
   import * as Menu from "$lib/components/ui/dropdown-menu";
@@ -9,7 +10,11 @@
   import { m } from "$lib/paraglide/messages.js";
   import type DockWorkspace from "../shared/DockWorkspace.svelte";
 
-  let { dock }: { dock: DockWorkspace | undefined } = $props();
+  let {
+    dock,
+    closePane,
+  }: { dock: DockWorkspace | undefined; closePane: (id: string) => void } =
+    $props();
   let target = $state("");
   const pane = $derived(dock?.commandPanel(target));
   const rails = ["left", "right", "bottom"] as const;
@@ -112,7 +117,15 @@
           </Menu.SubContent>
         </Menu.Sub>
       {/if}
+      <Menu.Separator />
+      <Menu.Item
+        onSelect={() =>
+          pane?.panel.onclose ? pane.panel.onclose() : closePane(target)}
+      >
+        <IconX aria-hidden="true" />{m.dock_close_pane()}
+      </Menu.Item>
     {:else}
+      <Menu.Item disabled>{m.dock_close_pane()}</Menu.Item>
       <Menu.Item disabled>{m.dock_no_active_panel()}</Menu.Item>
     {/if}
   </Menu.Content>

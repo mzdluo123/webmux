@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createShell, expect, test } from "./fixtures";
+import { createShell, expect, openDockCommands, test } from "./fixtures";
 
 test("browse before reading and compare files without replacing the session", async ({
   page,
@@ -86,8 +86,19 @@ test("browse before reading and compare files without replacing the session", as
   await expect
     .poll(async () => (await first.boundingBox())!.y)
     .toBeGreaterThan((await second.boundingBox())!.y);
-  await first.getByRole("button", { name: /^关闭 first\.txt$/ }).click();
+  await (
+    await openDockCommands(first)
+  )
+    .getByRole("menuitem", { name: "关闭窗格", exact: true })
+    .click();
   await expect(first).toHaveCount(0);
   await expect(second).toBeVisible();
   await expect(terminal).toBeVisible();
+  await (
+    await openDockCommands(terminal)
+  )
+    .getByRole("menuitem", { name: "关闭窗格", exact: true })
+    .click();
+  await expect(terminal).toHaveCount(0);
+  expect((await page.request.get(`/api/sessions/${id}`)).ok()).toBe(true);
 });
