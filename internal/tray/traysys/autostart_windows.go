@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	runKey       = `Software\Microsoft\Windows\CurrentVersion\Run`
-	runValueName = "WebMuxTray"
+	runKey             = `Software\Microsoft\Windows\CurrentVersion\Run`
+	startupApprovedKey = `Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run`
+	runValueName       = "WebMuxTray"
 )
 
 // AutostartEnabled reports whether the login item exists and points to exe.
@@ -39,6 +40,10 @@ func SetAutostart(on bool, exe string) error {
 	}
 	if err := k.DeleteValue(runValueName); err != nil && !errors.Is(err, registry.ErrNotExist) {
 		return err
+	}
+	if sa, err := registry.OpenKey(registry.CURRENT_USER, startupApprovedKey, registry.SET_VALUE); err == nil {
+		_ = sa.DeleteValue(runValueName)
+		_ = sa.Close()
 	}
 	return nil
 }

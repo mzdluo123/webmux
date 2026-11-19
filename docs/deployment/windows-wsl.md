@@ -71,12 +71,19 @@ webmux config init
 - 安装目录中的托盘在 `quit` 等待 10 秒仍未退出时，会再被强制结束（`--kill-path` 路径匹配时）。
 - 其他位置运行的旧托盘（例如手工存放的 exe）不会被结束：安装程序提示先从菜单退出，然后点击“重试”。
 
-**卸载**：在“应用和功能”中卸载 WebMux。卸载会关闭托盘，删除程序、快捷方式、卸载项和预置的服务端；登录启动项仅在指向本次安装的托盘时删除。安装时添加过防火墙规则的，卸载会再弹出一次管理员确认并删除该规则。
+**卸载**：在“应用和功能”中卸载 WebMux，默认完成以下清理：
 
-- 保留托盘设置（`%APPDATA%\WebMux`）、托盘日志（`%LOCALAPPDATA%\WebMux`）和 WSL 中的 webmux。
-- 不停止 WebMux：正在运行的实例继续在 WSL 中运行，需要时在 WSL 中执行 `webmux stop`。
+- 关闭运行中的托盘，结束 `keepalive.json` 记录的 WSL 保活进程并删除该文件与 `%TEMP%\webmux-journal-*.log` 导出日志；
+- 递归清理服务端下载缓存（`%LOCALAPPDATA%\WebMux\downloads`）与自更新安装包缓存（`%LOCALAPPDATA%\WebMux\updates`）；
+- 先将卸载工作目录切出安装目录再删除安装目录文件、开始菜单快捷方式与卸载项，空的 `%APPDATA%\WebMux` 与 `%LOCALAPPDATA%\WebMux` 一并移除；
+- 清理本次安装路径对应的系统通知区域图标记录（`NotifyIconSettings`）与 Shell/兼容性缓存（`MuiCache`、`AppCompatFlags`），登录启动项（`Run\WebMuxTray` 与 `StartupApproved\Run\WebMuxTray`）仅在未指向其他位置托盘时删除；
+- 对当前托盘路径及安装记录中的旧路径检查转发防火墙规则：存在规则时弹出一次管理员确认并删除，无规则时不弹窗。
+- “卸载选项”页提供默认未勾选的“同时删除个人配置与本地日志（`%APPDATA%\WebMux`、`%LOCALAPPDATA%\WebMux`）”：
+  - 未勾选时保留 `tray.json` 与 `tray.log*` 供重装沿用（第三方卸载工具扫描时仍会看到这两个保留目录）；
+  - 勾选时递归删除整个 `%APPDATA%\WebMux` 与 `%LOCALAPPDATA%\WebMux` 目录。
+- 卸载保持 WSL 发行版内的 `webmux` 与配置原样，正在运行的实例继续在 WSL 中运行；需要停止或清理 WSL 侧文件时，在发行版终端执行 `webmux stop` 并按需移除 `~/.local/bin/webmux`、`~/.config/webmux`、`~/.local/state/webmux`。
 
-静默安装与卸载使用 `/S`：首次安装取默认值（含登录启动，但不添加防火墙规则）；覆盖安装沿用原安装目录，并保持登录启动项与已有防火墙规则现状。安装失败时总会恢复升级前的 `webmux-tray.exe`。退出码：
+静默安装与卸载使用 `/S`：首次安装取默认值（含登录启动，无防火墙规则改动）；覆盖安装沿用原安装目录，并保持登录启动项与已有防火墙规则现状；静默卸载默认保留个人配置与日志，追加 `/PURGE` 时一并清除 `%APPDATA%\WebMux` 与 `%LOCALAPPDATA%\WebMux`。安装失败时总会恢复升级前的 `webmux-tray.exe`。退出码：
 
 - 0：成功；
 - 2：架构不符（不写任何文件），或没有关闭任何托盘时安装失败（不启动托盘）；
@@ -86,6 +93,7 @@ webmux config init
 ```bat
 webmux-setup-windows-amd64.exe /S
 "%LOCALAPPDATA%\Programs\WebMux\uninstall.exe" /S
+"%LOCALAPPDATA%\Programs\WebMux\uninstall.exe" /S /PURGE
 ```
 
 也可以不用安装程序：把 `webmux-tray-windows-amd64.exe`（或 `-arm64.exe`）放到固定位置后双击运行。
@@ -97,6 +105,7 @@ webmux-setup-windows-amd64.exe /S
 
 - 退出码：0 表示运行中的托盘已退出，1 表示仍有托盘在运行（例如不支持该命令的旧版本），2 表示参数错误，3 表示没有运行中的托盘。
 - `--kill-path <路径>`：等待超时后结束当前用户从该路径运行的托盘，其他位置的托盘不受影响。
+- `--stop-keepalive`：确认已无托盘运行后（退出码 0 或 3），结束 `keepalive.json` 记录的 WSL 保活进程并删除该文件，供卸载程序使用。
 
 `webmux-tray.exe firewall allow|remove` 为该托盘路径添加或删除转发用的防火墙规则（名称以 `WebMux tray forwarding` 开头），供安装程序调用，也可手工运行。`remove` 可以跟一个托盘的绝对路径，删除该路径的规则，安装程序用它删除旧安装目录的规则。
 
