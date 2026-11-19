@@ -427,5 +427,4 @@
       onClearSelection={() => (batchSelectedIds = [])}
     />
   {/if}
-
 </section>

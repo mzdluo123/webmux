@@ -26,6 +26,7 @@
     locateRevealTarget,
   } from "../../domains/code/code-reveal";
   import {
+    codeReaderTitle,
     shouldCloseOverlayNav,
     type CodeTabOrigin,
     type CodeWorkspaceTab,
@@ -95,15 +96,7 @@
     activeTab?.rootKind === "artifacts" ? "" : activeDocumentPath,
   );
   const activeMenu = $derived(activeTab?.menu);
-  const readerTitle = $derived(
-    activeDocumentPath
-      ? m.dock_reader_title({
-          name: activeDocumentPath.slice(
-            activeDocumentPath.lastIndexOf("/") + 1,
-          ),
-        })
-      : m.s5_preview(),
-  );
+  const readerTitle = $derived(codeReaderTitle(activeDocumentPath));
 
   /** The reading state of this workspace, for another instance to restore. */
   export function capture(): CodeWorkspaceSnapshot {

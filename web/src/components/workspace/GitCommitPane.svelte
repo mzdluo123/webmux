@@ -92,11 +92,7 @@
   }: GitUncommittedChangesProps &
     Omit<
       GitCommitComposerProps,
-      | "context"
-      | "stagedCount"
-      | "conflictedCount"
-      | "readonlyMode"
-      | "busy"
+      "context" | "stagedCount" | "conflictedCount" | "readonlyMode" | "busy"
     > &
     GitPaneScrollCallbacks & {
       storageKey?: string;
