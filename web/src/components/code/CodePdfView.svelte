@@ -6,7 +6,6 @@
   import type { CodeDocument, CodePdfState } from "../../contracts/schemas";
   import {
     basename,
-    codeRawPath,
     formatBytes,
     rawError,
   } from "../../domains/code/code-image";
@@ -22,19 +21,17 @@
   import { Input } from "$lib/components/ui/input";
   import IconArrowAutofitWidth from "~icons/tabler/arrow-autofit-width";
   let {
-    id,
-    snapshotId,
+    source,
     document: doc,
     active = true,
     ondownloaderror,
     restore,
   }: {
-    id: string;
-    snapshotId: string;
-    document: CodeDocument;
+    source: string | ((signal: AbortSignal) => Promise<Blob>);
+    document: Pick<CodeDocument, "downloadable" | "path" | "size">;
     /** Inactive views cancel the read and parse, and start none. */
     active?: boolean;
-    ondownloaderror: (message: string, status: number) => void;
+    ondownloaderror?: (message: string, status: number) => void;
     /** A captured zoom and page position, applied once page sizes are known. */
     restore?: CodePdfState;
   } = $props();
@@ -67,13 +64,12 @@
   const visible = new SvelteSet<number>();
   const kept = new SvelteSet<number>();
   const links = new SvelteMap<number, PdfLink[]>();
-  const path = $derived(codeRawPath(id, snapshotId));
   // Only an unfinished load is cancelled by leaving the tab; a loaded or
   // failed document stays as it is for the reader's return.
   const wanted = $derived(active || phase !== "loading");
 
   $effect(() => {
-    const source = path;
+    const read = source;
     if (!wanted) return;
     const controller = new AbortController();
     const { signal } = controller;
@@ -95,7 +91,7 @@
       try {
         const [loaded, blob] = await Promise.all([
           import("../../domains/code/code-pdf"),
-          apiBlob(source, signal),
+          typeof read === "string" ? apiBlob(read, signal) : read(signal),
         ]);
         module = loaded;
         data = await blob.arrayBuffer();
@@ -317,12 +313,14 @@
       onzoomout={() => zoomTo(zoom / step)}
       onzoomin={() => zoomTo(zoom * step)}
     />
-    <CodeDownloadButton
-      {path}
-      filename={basename(doc.path)}
-      disabled={!doc.downloadable}
-      onerror={ondownloaderror}
-    />
+    {#if typeof source === "string" && ondownloaderror}
+      <CodeDownloadButton
+        path={source}
+        filename={basename(doc.path)}
+        disabled={!doc.downloadable}
+        onerror={ondownloaderror}
+      />
+    {/if}
   </div>
   {#if renderFailure}<p
       class="shrink-0 border-b px-2 py-1 text-sm text-destructive"
