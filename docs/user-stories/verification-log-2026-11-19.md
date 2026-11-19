@@ -239,3 +239,10 @@
   - 在隔离演示服务采集桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色前后对比截图及桌面交互 GIF，并在 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 视口校验 `scrollWidth <= innerWidth`。
 - 局限：
   - 验证在 Linux 本地隔离实例与无头 Chromium 中完成，未验证物理 `hover`、`any-pointer: coarse` 媒体查询、原生 Windows 托盘交互、真实公网 Relay/TURN 节点及 macOS / iOS / Android 真机浏览器。
+
+## 2026-11-19：手机工作区顶栏统一面板按钮（US-H08）
+
+- 「打开面板」与文件浏览、显示菜单共用无边框图标按钮，窄屏下三者均为 44 × 44 CSS 像素。「打开面板」保留无障碍名称、提示和展开状态。
+- `pnpm --dir web run check`、`check:test`、`lint`、`check:arch`（49 项）、Oxfmt 与 `make docs-check` 通过。
+- `pnpm --dir web exec playwright test test/e2e/compact-chrome.spec.ts test/e2e/session-pane-files.spec.ts` 在预构建的隔离服务上通过 7 项，1 项按项目条件跳过。
+- 隔离服务中使用 Chromium 核对七种视口的浅色与深色主题。页面无横向溢出，面板选择器在视口内可打开和关闭，桌面键盘焦点与鼠标悬停反馈可见。采集桌面、平板与手机顶栏的前后对比截图。触控通过模拟设备核对，未使用实体设备。

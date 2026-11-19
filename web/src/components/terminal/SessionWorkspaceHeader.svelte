@@ -80,17 +80,15 @@
       onclick={openFiles}><IconFolder aria-hidden="true" /></Button
     >{/if}
   <Button
-    variant={phone.current ? "outline" : "ghost"}
-    size={phone.current ? "sm-touch" : "icon-touch-sm"}
-    class="max-sm:min-w-0 max-sm:shrink"
+    variant="ghost"
+    size="icon-touch-sm"
     aria-label={m.s4_open_panel()}
     title={m.s4_open_panel()}
     aria-expanded={pickerOpen}
     aria-haspopup="dialog"
     onclick={openPanels}
   >
-    <IconLayout class="size-4" data-icon="inline-start" aria-hidden="true" />
-    {#if phone.current}<span class="truncate">{m.s4_open_panel()}</span>{/if}
+    <IconLayout aria-hidden="true" />
   </Button>
   {#if fullscreen.offered}<Button
       variant="ghost"
