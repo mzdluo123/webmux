@@ -82,7 +82,9 @@
     >
       {#each tabs as tab, index (tab.id)}
         {@const Icon = tab.icon ?? IconLayout}
-        <div class="flex shrink-0 items-center border-r first:border-l">
+        <div
+          class="stack-tab relative flex shrink-0 items-center self-stretch border-r first:border-l"
+        >
           <Tabs.Trigger
             value={tab.id}
             title={tab.tooltip ?? tab.title}
@@ -114,19 +116,34 @@
 
 <style>
   .stack-tabs {
+    align-self: stretch;
     min-inline-size: 0;
     overflow-x: auto;
     max-inline-size: 100%;
     scrollbar-width: thin;
   }
+  .stack-tabs :global([data-slot="tabs"]),
+  .stack-tabs :global([data-slot="tabs-list"]) {
+    block-size: 100%;
+  }
+  .stack-tabs :global([data-slot="tabs-list"]) {
+    padding-block: 0;
+  }
   .stack-tabs :global([role="tab"]) {
     max-inline-size: 12rem;
+    block-size: auto;
   }
-  .stack-tabs :global([role="tab"][aria-selected="true"]) {
-    color: var(--foreground);
+  .stack-tab :global([role="tab"])::after {
+    content: none;
   }
-  .stack-tabs :global([role="tab"][aria-selected="true"])::after {
-    bottom: 0;
+  .stack-tab:has(> :global([aria-selected="true"]))::after {
+    position: absolute;
+    inset-inline: 0.25rem;
+    inset-block-end: 0;
+    block-size: 2px;
+    border-radius: var(--radius-sm);
     background: var(--primary);
+    pointer-events: none;
+    content: "";
   }
 </style>

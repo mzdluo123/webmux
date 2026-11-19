@@ -239,3 +239,10 @@
   - 在隔离演示服务采集桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色前后对比截图及桌面交互 GIF，并在 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 视口校验 `scrollWidth <= innerWidth`。
 - 局限：
   - 验证在 Linux 本地隔离实例与无头 Chromium 中完成，未验证物理 `hover`、`any-pointer: coarse` 媒体查询、原生 Windows 托盘交互、真实公网 Relay/TURN 节点及 macOS / iOS / Android 真机浏览器。
+
+## 2026-11-19：窗格活动标签下划线（US-D14、US-I04）
+
+- 活动标签的 2 px 细线与标题栏底边对齐，横跨标题和关闭按钮，并在两侧等距内缩。标签栏出现横向滚动条时，细线位于滚动条上方。
+- `pnpm --dir web check`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`pnpm --dir web exec vp fmt --check src` 与 `make docs-check` 通过。
+- Playwright 运行 `session-pane-files.spec.ts` 和 `splits.spec.ts`，22 项通过，8 项按项目条件跳过。
+- 在有界面的 Chromium 隔离实例中核对七种视口的浅色与深色主题，验证细线位置、页面横向溢出、鼠标悬停、键盘切换、长文件名截断和标签栏横向滚动。桌面、平板和手机各采集浅色与深色前后截图。触屏使用 Chromium 模拟。
