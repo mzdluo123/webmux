@@ -9,6 +9,14 @@ export function sessionPanelIds(id: string) {
   };
 }
 
+export function panelSession(ids: readonly string[], panel: string) {
+  return ids.find(
+    (sid) =>
+      Object.values(sessionPanelIds(sid)).includes(panel) ||
+      panel.startsWith(`reader:${sid}:`),
+  );
+}
+
 export function dockSessionLabels(
   ids: readonly string[],
   titleFor: (id: string) => string,

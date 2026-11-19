@@ -26,7 +26,10 @@
     deriveQuickUnavailable,
     deriveSendUnavailable,
   } from "../../domains/terminal/session-terminal-io";
-  import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
+  import type {
+    TerminalDrafts,
+    TextInsertion,
+  } from "../../domains/terminal/terminal-draft.svelte";
   import { createSessionTerminalInput } from "../../hooks/terminal/session-terminal-input.svelte";
   import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
   import { m } from "$lib/paraglide/messages.js";
@@ -41,6 +44,7 @@
     visible,
     active,
     panels,
+    referenceTarget,
     dockSessionName,
     dockSessionNumber,
     desktop,
@@ -66,6 +70,10 @@
     visible: boolean;
     active: boolean;
     panels: ReturnType<typeof sessionPanelIds>;
+    referenceTarget?: {
+      paste: (text: string) => TextInsertion;
+      readonly draftEnabled: boolean;
+    };
     dockSessionName?: string;
     dockSessionNumber?: number;
     desktop: boolean;
@@ -121,6 +129,12 @@
     error: (message) => (error = message),
     notice: (message) => (notice = message),
   });
+  export const referenceInput = {
+    paste: (text: string) => input.insertReference(text),
+    get draftEnabled() {
+      return draft.enabled || hybrid.view === "chat";
+    },
+  };
   const sessionId = untrack(() => id);
   const uploadHandlers = createSessionUploadHandlers({
     id: sessionId,
@@ -452,8 +466,8 @@
           connection={hybrid.view === "chat"
             ? hybrid.chat.connection
             : t.connection}
-          paste={input.insertReference}
-          draftEnabled={draft.enabled || hybrid.view === "chat"}
+          paste={(text) => referenceTarget?.paste(text) ?? "failed"}
+          draftEnabled={referenceTarget?.draftEnabled ?? false}
           reveal={chrome.codeTarget}
           sessionCwd={hybrid.info?.cwd ?? ""}
           reportedCwd={hybrid.info?.reportedCwd ?? null}

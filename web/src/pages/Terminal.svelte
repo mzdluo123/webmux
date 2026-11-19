@@ -24,6 +24,7 @@
   import SessionTerminal from "../components/terminal/SessionTerminal.svelte";
   import {
     dockSessionLabels,
+    panelSession,
     sessionDockTree,
     sessionPanelIds,
   } from "../domains/terminal/session-dock";
@@ -78,6 +79,7 @@
     return () => shell?.setActivePane("");
   });
 
+  let lastInput = $state(untrack(() => active));
   let info = $state<Record<string, SessionInfo>>({});
   let connections = $state<Record<string, string>>({});
   let revisions = $state<Record<string, number>>({});
@@ -129,12 +131,6 @@
   });
   let scrollStates = $state<Record<string, ChatScrollState>>({});
   const ids = $derived(layout ? paneIds(layout) : []);
-  const panelSession = (panel: string) =>
-    ids.find(
-      (sid) =>
-        Object.values(sessionPanelIds(sid)).includes(panel) ||
-        panel.startsWith(`reader:${sid}:`),
-    );
   $effect(() => retainTerminalDrafts(drafts, ids));
   const documentScroll = $derived.by(() => {
     const firstId = ids[0];
@@ -393,12 +389,13 @@
         edgeRails
         pickerTrigger={false}
         onSelectPanel={(panel) => {
-          const session = panelSession(panel);
+          const session = panelSession(ids, panel);
           if (session) active = session;
+          if (session === panel) lastInput = panel;
         }}
       >
         {#snippet pickerActions(closePanel, panel, hide)}
-          {@const target = panel ? (panelSession(panel.id) ?? "") : active}
+          {@const target = panel ? (panelSession(ids, panel.id) ?? "") : active}
           <TerminalSplitPanel
             compact={compact.current}
             busy={splitBusy}
@@ -432,6 +429,7 @@
               {features}
               id={sessionId}
               {panels}
+              referenceTarget={terminals[lastInput]?.referenceInput}
               dockSessionName={dockSession?.name}
               dockSessionNumber={dockSession?.number}
               desktop={desktop.current}

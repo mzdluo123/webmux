@@ -19,6 +19,7 @@
   import CodeDocumentHeader from "./CodeDocumentHeader.svelte";
   import CodeDocumentBody from "./CodeDocumentBody.svelte";
   import CodeDocumentFooter from "./CodeDocumentFooter.svelte";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { codeReference } from "../../domains/code/code-reference";
   import type { MarkdownHeading } from "./CodeMarkdownPreview.svelte";
   import type { MarkdownWorkspace } from "../../domains/code/markdown-link";
@@ -172,16 +173,13 @@
   );
   // Image documents, over-limit images and either side of an image Diff.
   const imageDocument = $derived(isDocumentImage(doc, shownDiff));
-  let preview = $derived.by(() => {
-    if (
-      invalidSelection ||
-      !doc ||
-      !doc.referenceable ||
-      doc.source === "empty"
-    )
-      return "";
+  const referenceableDoc = $derived(
+    doc?.referenceable && doc.source !== "empty" ? doc : undefined,
+  );
+  const selectedLocation = $derived.by(() => {
+    if (start === undefined || invalidSelection || !referenceableDoc) return "";
     try {
-      return codeReference(doc, start, end);
+      return codeReference(referenceableDoc, start, end);
     } catch {
       return "";
     }
@@ -327,7 +325,7 @@
     invalidSelection = next.invalid;
     error = next.error;
   }
-  async function send(reference = preview) {
+  async function insertLocation(reference: string) {
     if (!reference || status !== "unchanged") return;
     error = "";
     const result = await paste(reference);
@@ -390,6 +388,25 @@
   }
 </script>
 
+{#snippet referenceMenu()}
+  {#if referenceableDoc}
+    {@const document = referenceableDoc}
+    <DropdownMenu.Item
+      disabled={status !== "unchanged"}
+      onSelect={() => void insertLocation(codeReference(document))}
+      >{m.s5_insert_file_location()}</DropdownMenu.Item
+    >
+  {/if}
+  {#if start !== undefined || invalidSelection}
+    <DropdownMenu.Item
+      onSelect={() => {
+        side = defaultSide;
+        clearSelection();
+      }}>{m.s5_clear_line_selection()}</DropdownMenu.Item
+    >
+  {/if}
+{/snippet}
+
 <div class="flex h-full min-h-0 flex-col overflow-hidden">
   <CodeDocumentHeader
     {doc}
@@ -410,6 +427,7 @@
     canSearch={controls?.panelControls.searchable ?? false}
     searchOpen={controls?.panelControls.searching ?? false}
     readerMenu={controls?.commands()}
+    {referenceMenu}
     onopenpanel={controls?.panelControls.open}
     bind:quick
     bind:menu
@@ -466,18 +484,12 @@
     {hint}
     {start}
     {end}
-    {invalidSelection}
-    {preview}
+    hasLocation={!!selectedLocation}
     {status}
-    {draftEnabled}
     {imageDocument}
     {pdfFile}
     {error}
-    onresetselection={() => {
-      side = defaultSide;
-      clearSelection();
-    }}
-    onsend={() => void send()}
+    oninsert={() => void insertLocation(selectedLocation)}
     ondownloaderror={downloadFailed}
   />
 </div>

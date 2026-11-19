@@ -1,6 +1,7 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
+  import IconPlus from "~icons/tabler/plus";
   import CodeDownloadButton from "./CodeDownloadButton.svelte";
   import { basename, codeRawPath } from "../../domains/code/code-image";
   import { sourceLabel } from "../../domains/code/code-diff-client";
@@ -16,15 +17,12 @@
     hint,
     start,
     end,
-    invalidSelection,
-    preview,
+    hasLocation,
     status,
-    draftEnabled,
     imageDocument,
     pdfFile,
     error,
-    onresetselection,
-    onsend,
+    oninsert,
     ondownloaderror,
   }: {
     id: string;
@@ -36,24 +34,14 @@
     hint: string;
     start?: number;
     end?: number;
-    invalidSelection: boolean;
-    preview: string;
+    hasLocation: boolean;
     status: string;
-    draftEnabled: boolean;
     imageDocument: boolean;
     pdfFile: boolean;
     error: string;
-    onresetselection: () => void;
-    onsend: () => void;
+    oninsert: () => void;
     ondownloaderror: (message: string, code: number) => void;
   } = $props();
-  const sendLabel = $derived.by(() => {
-    const target = draftEnabled ? m.s5_target_draft() : m.s5_target_terminal();
-    if (start === undefined) return m.s5_send_location_to({ target });
-    return end !== undefined && end !== start
-      ? m.s5_send_location_lines({ target, range: `${start}-${end}` })
-      : m.s5_send_location_line({ target, line: String(start) });
-  });
 </script>
 
 <div class="mt-auto shrink-0 space-y-1 border-t p-2">
@@ -67,16 +55,6 @@
           >{shownDiff ? " · " : ""}<span>{hint}</span></span
         >{/if}
     </p>
-    {#if start !== undefined || invalidSelection}<Button
-        variant="outline"
-        size="sm"
-        onclick={onresetselection}>{m.s5_reference_whole_file()}</Button
-      >{/if}
-    <Button
-      size="sm"
-      disabled={!preview || status !== "unchanged"}
-      onclick={onsend}>{sendLabel}</Button
-    >
     {#if doc && ((imageDocument && doc.source !== "empty") || (pdfFile && doc.kind !== "pdf"))}<CodeDownloadButton
         path={codeRawPath(id, snapshotId, rawSide)}
         filename={basename(doc.path)}
@@ -87,5 +65,20 @@
         >
           {m.s5_exceeds_download_limit()}
         </p>{/if}{/if}
+    {#if start !== undefined && hasLocation}
+      {@const label =
+        end !== undefined && end !== start
+          ? m.s5_insert_selected_lines({ range: `${start}-${end}` })
+          : m.s5_insert_selected_line({ line: String(start) })}
+      <Button
+        size="icon-sm"
+        aria-label={label}
+        title={label}
+        disabled={status !== "unchanged"}
+        onclick={oninsert}
+      >
+        <IconPlus aria-hidden="true" />
+      </Button>
+    {/if}
   </div>
 </div>

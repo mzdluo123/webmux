@@ -42,6 +42,7 @@
     canSearch = false,
     searchOpen = false,
     readerMenu,
+    referenceMenu,
     onopenpanel,
     quick = $bindable(),
     menu = $bindable(),
@@ -70,6 +71,7 @@
     canSearch?: boolean;
     searchOpen?: boolean;
     readerMenu?: Snippet;
+    referenceMenu?: Snippet;
     onopenpanel?: (panel: CodeReaderPanel) => void;
     quick?: Snippet;
     status: string;
@@ -188,6 +190,7 @@
       >{m.s8_copy_path()}</DropdownMenu.Item
     >
   {/if}
+  {@render referenceMenu?.()}
   {#if unified && onopenpanel}
     <DropdownMenu.Separator />
     <DropdownMenu.Item
