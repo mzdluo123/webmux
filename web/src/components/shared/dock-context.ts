@@ -31,6 +31,7 @@ export const [getDock, setDock] = createContext<{
   canGoBack: () => boolean;
   back: () => void;
   active: (id: string) => boolean;
+  hasMultipleVisiblePanels: () => boolean;
   select: (id: string) => void;
   ids: () => string[];
   add: (id: string, target: string, edge: DockEdge, activate?: boolean) => void;

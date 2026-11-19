@@ -2,6 +2,12 @@
 
 承接 [verification-log-2026-11-18](verification-log-2026-11-18.md)，收录 2026-11-19 起的局部核对记录；索引见 [WebMux User Stories](../user-stories.md#核对记录)。
 
+## 2026-11-19：单窗格隐藏焦点边框（US-D13、US-D14）
+
+- Playwright 运行 `splits.spec.ts`、`session-pane-files.spec.ts` 和 `git-workbench-route.spec.ts`，桌面与移动项目共 36 项通过，8 项按项目条件跳过。核对分屏焦点、放大与还原、收起、标签合并和窄屏布局。
+- 隔离 Shell 会话在 1280×900、1280×720、768×800、390×844、375×667、320×568 的明暗主题下均通过焦点边框和页面横向溢出检查。截图与放大、还原录屏使用无头 Chromium，实体触屏与真机浏览器未核对。
+- `pnpm --dir web check`、`check:test`、`lint`、`check:arch`（49 项）及 `make format-check docs-check` 通过。
+
 ## 2026-11-19：`InlineNotice` 行尾操作对齐与浮层实心表面统一（US-C01、US-L03、US-L06）
 
 - 故事编号与总数（265）保持不变，同步更新 `US-C01`、`docs/design-system.md` 与 `docs/frontend-architecture.md`：

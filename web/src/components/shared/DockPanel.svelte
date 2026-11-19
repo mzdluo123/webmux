@@ -105,6 +105,7 @@
     class="dock-panel"
     data-dock-panel={id}
     data-dock-active={dock.active(id) || undefined}
+    data-dock-multiple={dock.hasMultipleVisiblePanels() || undefined}
     aria-label={title}
     hidden={!rect}
     inert={!rect}
@@ -255,7 +256,7 @@
     background: var(--background);
   }
 
-  .dock-panel[data-dock-active]::after {
+  .dock-panel[data-dock-active][data-dock-multiple]::after {
     content: "";
     position: absolute;
     inset: 0;
