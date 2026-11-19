@@ -4,6 +4,7 @@
   import { Button } from "$lib/components/ui/button";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { Skeleton } from "$lib/components/ui/skeleton";
   import {
     SegmentedControl,
     SegmentedControlItem,
@@ -31,6 +32,7 @@
     repositories,
     configIcons,
     current,
+    loading,
     allCurrent,
     attentionCurrent,
     onfilter,
@@ -46,6 +48,7 @@
     repositories: readonly Repository[];
     configIcons: ReadonlyMap<string, string>;
     current: string;
+    loading: boolean;
     allCurrent: boolean;
     attentionCurrent: boolean;
     onfilter: (attentionOnly: boolean) => void;
@@ -137,17 +140,31 @@
     <SegmentedControlItem value="all">{m.s3_filter_all()}</SegmentedControlItem>
     <SegmentedControlItem value="attention" bind:ref={attentionFilter}>
       <span class="min-w-0 wrap-anywhere">{m.s8_sidebar_attention()}</span>
-      {#if pending.length}
+      {#if !loading && pending.length}
         <span class="shrink-0 font-mono tabular-nums">{pending.length}</span>
       {/if}
     </SegmentedControlItem>
   </SegmentedControl>
-  {#if attentionOnly && !groups.length}
+  {#if loading}
+    <div
+      role="status"
+      aria-label={m.s1_loading_sessions_aria()}
+      class="space-y-3 px-2"
+    >
+      {#each [0, 1] as project (project)}
+        <div class="space-y-2">
+          <Skeleton class="h-7 w-3/4" />
+          <Skeleton class="ms-3 h-10 w-4/5" />
+          <Skeleton class="ms-3 h-10 w-2/3" />
+        </div>
+      {/each}
+    </div>
+  {:else if attentionOnly && !groups.length}
     <p class="px-2 py-2 text-xs text-muted-foreground" role="status">
       {m.s8_queue_empty_attention()}
     </p>
   {/if}
-  {#each groups as group (group.id)}
+  {#each loading ? [] : groups as group (group.id)}
     {@const open = workbenchLayout.isProjectOpen(group.id)}
     {@const repositoryId = group.id === "direct" ? undefined : group.id}
     {@const createLabel = repositoryId

@@ -49,6 +49,7 @@
     get records() {
       return records;
     },
+    initialSettled: true,
     refresh: async () => records.map((item) => item.id),
     dispose: () => {},
   };
