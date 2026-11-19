@@ -402,13 +402,15 @@ test("scroll file list to keep bottom row visible when batch action bar mounts",
   render(Harness, { initialState: fixture });
   const listboxLoc = page.getByRole("listbox", { name: "工作树变更条目" });
   await expect.element(listboxLoc).toBeVisible();
-  const listbox = listboxLoc.element() as HTMLElement;
+  const viewport = listboxLoc
+    .element()
+    .closest<HTMLElement>('[data-slot="scroll-area-viewport"]')!;
   await document.fonts.ready;
 
-  // Scroll the file list to the bottom so the final row sits just above the composer.
-  listbox.scrollTop = listbox.scrollHeight;
-  expect(listbox.scrollTop).toBeGreaterThan(0);
-  const scrollBefore = listbox.scrollTop;
+  // Place the final row at the bottom edge before the batch bar appears.
+  viewport.scrollTop = viewport.scrollHeight;
+  expect(viewport.scrollTop).toBeGreaterThan(0);
+  const scrollBefore = viewport.scrollTop;
   const bottomCheckbox = page.getByRole("checkbox", {
     name: "选择未暂存条目 docs/extra-19.md",
   });
@@ -416,11 +418,11 @@ test("scroll file list to keep bottom row visible when batch action bar mounts",
   await bottomCheckbox.click();
   await expect.element(page.getByTestId("git-discard-batch-bar")).toBeVisible();
 
-  const listboxRect = listbox.getBoundingClientRect();
+  const viewportRect = viewport.getBoundingClientRect();
   const checkboxRect = bottomCheckbox.element().getBoundingClientRect();
-  expect(listbox.scrollTop).toBeGreaterThan(scrollBefore);
-  expect(checkboxRect.bottom).toBeLessThanOrEqual(listboxRect.bottom + 0.5);
-  expect(checkboxRect.top).toBeGreaterThanOrEqual(listboxRect.top - 0.5);
+  expect(viewport.scrollTop).toBeGreaterThan(scrollBefore);
+  expect(checkboxRect.bottom).toBeLessThanOrEqual(viewportRect.bottom + 0.5);
+  expect(checkboxRect.top).toBeGreaterThanOrEqual(viewportRect.top - 0.5);
 });
 
 test("GitDiffSelectionBar maps hunk-fallback reader lines to real file line numbers and stages, unstages, or discards selected lines", async () => {
