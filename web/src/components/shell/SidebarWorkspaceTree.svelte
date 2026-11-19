@@ -14,6 +14,7 @@
 
   let {
     sessions,
+    records,
     showScope,
     current,
     configIcons,
@@ -23,6 +24,7 @@
     onremove,
   }: {
     sessions: readonly SessionInfo[];
+    records: readonly ArchivedSession[];
     showScope: boolean;
     current: string;
     configIcons: ReadonlyMap<string, string>;
@@ -85,7 +87,7 @@
       : undefined}
     onrename={shell.rename}
     onclose={shell.close}
-    records={shell.archived?.records ?? []}
+    {records}
     {resuming}
     {onresume}
     {onremove}

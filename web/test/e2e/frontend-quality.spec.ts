@@ -47,7 +47,9 @@ test("reduced motion disables skeleton and dialog animation", async ({
   });
   try {
     await page.goto("/");
-    const skeleton = page.locator('[data-slot="skeleton"]').first();
+    const skeleton = page
+      .locator('.workspace-page [data-slot="skeleton"]')
+      .first();
     await expect(skeleton).toBeVisible();
     expect(
       await skeleton.evaluate(

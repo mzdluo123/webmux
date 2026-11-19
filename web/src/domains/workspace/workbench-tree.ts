@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { m } from "$lib/paraglide/messages.js";
-import { placeArchived, recordTitle } from "../sessions/archived";
+import {
+  placeArchived,
+  recordTitle,
+  resumesOnOpen,
+} from "../sessions/archived";
 import { homeLayout, worktreeTitle } from "./home-worktrees";
 import { isWorktreePinned } from "./worktree-pins";
 import type {
@@ -55,18 +59,28 @@ function sessionNodes(
   sessions: readonly SessionInfo[],
   parent: string,
   level: number,
+  dormant: readonly ArchivedSession[] = [],
 ): TreeNode[] {
-  return [...sessions].sort(byCreation).map((session) => ({
-    key: `s:${session.id}`,
-    level,
-    parent,
-    kind: "session",
-    label: session.title,
-    session,
-    children: [],
-    count: 0,
-    waiting: 0,
-  }));
+  const entries: { session: SessionInfo; record?: ArchivedSession }[] =
+    sessions.map((session) => ({ session }));
+  for (const record of dormant) entries.push({ session: record, record });
+  return entries
+    .sort(
+      (a, b) =>
+        byCreation(a.session, b.session) ||
+        a.session.id.localeCompare(b.session.id),
+    )
+    .map(({ session, record }) => ({
+      key: `s:${session.id}`,
+      level,
+      parent,
+      kind: record ? "archived" : "session",
+      label: record ? recordTitle(record) : session.title,
+      ...(record ? { record } : { session }),
+      children: [],
+      count: 0,
+      waiting: 0,
+    }));
 }
 
 function counted(
@@ -99,10 +113,9 @@ function archivedNodes(
 }
 
 /**
- * The workbench tree: all repositories, each registered repository with
- * the worktrees its home group shows and their live sessions, then direct
- * sessions. Worktree order is the home page's, independent of output.
- * Counts and waiting numbers cover live sessions only.
+ * The workbench tree: repositories, their shown worktrees and listed
+ * sessions, then direct sessions. Pending restart records are listed with
+ * live sessions; counts and waiting numbers cover live sessions only.
  */
 export function workbenchTree(
   repositories: readonly Repository[],
@@ -117,7 +130,7 @@ export function workbenchTree(
   const live = new Set(sessions.map((s) => s.id));
   const placement = placeArchived(
     records.filter((record) => !live.has(record.id)),
-    repositories,
+    repositories.filter((repo) => repo.availability === "available"),
   );
   const nodes: TreeNode[] = [
     counted(
@@ -140,8 +153,13 @@ export function workbenchTree(
         : repo.error || m.s8_repo_currently_unavailable();
     const children: TreeNode[] = [];
     if (!reason) {
-      for (const { tree } of homeLayout(home, repo, own, new Map(), pins)
-        .shown) {
+      const archived = placement.repositories.get(repo.id);
+      const dormant = new Map<string, ArchivedSession[]>();
+      for (const [id, records] of archived?.worktrees ?? []) {
+        const shown = records.filter(resumesOnOpen);
+        if (shown.length) dormant.set(id, shown);
+      }
+      for (const { tree } of homeLayout(home, repo, own, dormant, pins).shown) {
         const treeKey = `w:${tree.id}`;
         const inside = own.filter((s) => s.workspace?.worktreeId === tree.id);
         children.push(
@@ -158,7 +176,7 @@ export function workbenchTree(
               pinned: isWorktreePinned(pins, repo.id, tree.id),
               removable: tree.kind === "linked",
               worktree: tree,
-              children: sessionNodes(inside, treeKey, 3),
+              children: sessionNodes(inside, treeKey, 3, dormant.get(tree.id)),
             },
             inside,
           ),
@@ -167,7 +185,7 @@ export function workbenchTree(
       const missing = own.filter(
         (s) => !repo.worktrees.some((t) => t.id === s.workspace?.worktreeId),
       );
-      const kept = placement.repositories.get(repo.id)?.missing ?? [];
+      const kept = archived?.missing ?? [];
       if (missing.length || kept.length)
         children.push(
           counted(
@@ -179,8 +197,17 @@ export function workbenchTree(
               label: m.s8_unavailable_workspaces(),
               repositoryId: repo.id,
               children: [
-                ...sessionNodes(missing, `m:${repo.id}`, 3),
-                ...archivedNodes(kept, `m:${repo.id}`, 3),
+                ...sessionNodes(
+                  missing,
+                  `m:${repo.id}`,
+                  3,
+                  kept.filter(resumesOnOpen),
+                ),
+                ...archivedNodes(
+                  kept.filter((record) => !resumesOnOpen(record)),
+                  `m:${repo.id}`,
+                  3,
+                ),
               ],
             },
             missing,
@@ -215,7 +242,12 @@ export function workbenchTree(
         level: 1,
         kind: "direct",
         label: m.s8_tree_direct_sessions(),
-        children: sessionNodes(direct, "direct", 2),
+        children: sessionNodes(
+          direct,
+          "direct",
+          2,
+          placement.direct.filter(resumesOnOpen),
+        ),
       },
       direct,
     ),
@@ -230,10 +262,8 @@ const FolderMemorySchema = z.object({
 });
 export type FolderMemory = z.infer<typeof FolderMemorySchema>;
 
-/** Every expandable folder's sorted live session IDs. */
-function folderLiveSessions(
-  nodes: readonly TreeNode[],
-): Record<string, string[]> {
+/** Every expandable folder's sorted live or pending session IDs. */
+function folderSessions(nodes: readonly TreeNode[]): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   const walk = (list: readonly TreeNode[]): string[] => {
     const all: string[] = [];
@@ -242,6 +272,7 @@ function folderLiveSessions(
         all.push(node.session.id);
         continue;
       }
+      if (node.record && resumesOnOpen(node.record)) all.push(node.record.id);
       if (node.record || node.kind === "all") continue;
       const below = walk(node.children);
       out[node.key] = [...below].sort();
@@ -281,17 +312,14 @@ export function readFolderMemory(raw: string): FolderMemory {
 }
 
 /**
- * Reconciles saved folder folds with the current live sessions. Folders
- * whose live sessions changed (or were never recorded) fall back to their
- * default: open down to reachable live sessions, closed without any, and
- * "已不可用工作区" (`m:...`) always closed by default even when a session
- * is archived into it.
+ * Reconciles saved folds with the sessions listed in each folder. Changes
+ * between live and pending do not discard a manual fold when the IDs match.
  */
 export function reconcileFolderMemory(
   memory: FolderMemory,
   nodes: readonly TreeNode[],
 ): FolderMemory {
-  const sessions = folderLiveSessions(nodes);
+  const sessions = folderSessions(nodes);
   let changed = false;
   const open = { ...memory.open };
   for (const [key, ids] of Object.entries(sessions)) {
@@ -309,10 +337,9 @@ export function reconcileFolderMemory(
 }
 
 export function defaultNodeOpen(node: TreeNode): boolean {
-  if (node.kind === "missing") return false;
-  if (node.kind === "repository")
-    return node.children.some(
-      (child) => child.kind !== "missing" && child.count > 0,
-    );
-  return node.count > 0;
+  if (node.kind === "repository") return node.children.some(defaultNodeOpen);
+  return (
+    (node.kind !== "missing" && node.count > 0) ||
+    node.children.some((child) => child.record && resumesOnOpen(child.record))
+  );
 }

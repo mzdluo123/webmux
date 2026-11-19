@@ -21,7 +21,7 @@
     openSession,
     shellUi,
   } from "../../hooks/shared/shell.svelte";
-  import { queueLocation } from "../../domains/workspace/session-queue";
+  import { resumesOnOpen } from "../../domains/sessions/archived";
   import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
   import { useLayoutRowsMotion } from "../../hooks/shared/layout-rows-motion.svelte";
   import { useSidebarScrollHandoff } from "../../hooks/shared/sidebar-scroll-handoff.svelte";
@@ -29,7 +29,8 @@
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import SidebarWorkspaceTree from "./SidebarWorkspaceTree.svelte";
   import WorkbenchSidebarSessions from "./WorkbenchSidebarSessions.svelte";
-  import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
+  import SidebarSessionRow from "./SidebarSessionRow.svelte";
+  import SidebarPinnedSessions from "./SidebarPinnedSessions.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
   import SidebarHeader from "./SidebarHeader.svelte";
   import { featureContributions } from "../../features/registry.svelte";
@@ -72,6 +73,11 @@
   const queue = $derived(
     Boolean(workspace && workbenchLayout.value === "queue"),
   );
+  const queueLoading = $derived(
+    !shell.sessions.ready ||
+      shell.repositories?.initialSettled === false ||
+      shell.archived?.initialSettled === false,
+  );
   const chatHome = $derived(
     !!chat && (route.name === "quick-start" || route.name === "handoff"),
   );
@@ -86,6 +92,9 @@
     Boolean(shell.repositories?.settled || shell.repositories?.list.length),
   );
   const pinned = $derived(sessionPins.ordered(live));
+  const records = $derived(
+    shell.archived?.records.filter((record) => !pinnedIDs.has(record.id)) ?? [],
+  );
   const pinnedIDs = $derived(new Set(pinned.map((session) => session.id)));
   const unpinned = $derived(
     live.filter((session) => !pinnedIDs.has(session.id)),
@@ -164,6 +173,10 @@
     released: HybridRelease;
   } | null>(null);
   function open(record: ArchivedSession) {
+    if (resumesOnOpen(record)) {
+      openSession(record);
+      return;
+    }
     if (record.released && !workspace)
       resumeErrorFn = () => m.s1_archive_requires_workspace_feature();
     else if (record.released)
@@ -236,7 +249,7 @@
 {#snippet history()}
   {#if chat}<chat.History
       sessions={unpinned}
-      records={shell.archived?.records ?? []}
+      {records}
       {configs}
       repositories={shell.repositories?.list ?? []}
       {current}
@@ -254,6 +267,7 @@
 {#snippet workspaces()}
   <SidebarWorkspaceTree
     sessions={unpinned}
+    {records}
     showScope={route.name === "sessions"}
     {current}
     {configIcons}
@@ -349,29 +363,12 @@
   >
     <div id={navigationId} class="px-2 py-2" bind:this={navigationRows}>
       {#if pinned.length && (chatHome || !queue)}
-        <section class="mb-3 border-b pb-3" aria-label={m.s1_pinned_sessions()}>
-          <h2 class="px-3 pb-1 text-xs text-muted-foreground">
-            {m.s1_pinned()}
-          </h2>
-          <ul class="space-y-0.5">
-            {#each pinned as session (session.id)}
-              <SidebarLiveSessionRow
-                {session}
-                {current}
-                icon={session.agent?.icon ??
-                  configIcons.get(session.configId ?? "") ??
-                  ""}
-                pinned
-                location={chatHome
-                  ? queueLocation(session, shell.repositories?.list ?? [])
-                  : undefined}
-                onopen={openSession}
-                onrename={shell.rename}
-                onclose={shell.close}
-              />
-            {/each}
-          </ul>
-        </section>
+        <SidebarPinnedSessions
+          sessions={pinned}
+          {current}
+          {configIcons}
+          showLocation={chatHome}
+        />
       {/if}
 
       {#if resumeError || sessionPins.error}<p
@@ -385,7 +382,9 @@
           {@render history()}
         {:else if queue}
           <WorkbenchSidebarSessions
+            loading={queueLoading}
             sessions={live}
+            {records}
             {pinned}
             repositories={shell.repositories?.list ?? []}
             {configIcons}
@@ -406,13 +405,14 @@
             onopen={openSession}
             onrename={shell.rename}
             onclose={shell.close}
+            onremove={askRemove}
           />
         {:else if workspace && shell.repositories && !shell.sessions.loading && showWorkspaces}
           {@render workspaces()}
         {:else if !workspace || !shell.repositories}
           <ul class="space-y-0.5">
             {#each unpinned as session (session.id)}
-              <SidebarLiveSessionRow
+              <SidebarSessionRow
                 {session}
                 {current}
                 icon={session.agent?.icon ??

@@ -19,6 +19,8 @@ export interface Repositories {
   readonly list: readonly Repository[];
   /** A read finished (successfully or not) since the last refresh began. */
   readonly settled: boolean;
+  /** A read has finished; stays true during background refreshes. */
+  readonly initialSettled: boolean;
   readonly refreshing: boolean;
   /** The last read's failure; "" after a successful one. */
   readonly error: string;
@@ -57,6 +59,7 @@ export function createRepositories(): Repositories {
   // sessions while Git runs.
   let list = $state.raw<Repository[]>(homeCache.repositories() ?? []);
   let settled = $state(false);
+  let initialSettled = $state(false);
   let refreshing = $state(false);
   let error = $state("");
   let choice = $state(ChoiceSchema.safeParse(stored("homeRepository")).data);
@@ -94,6 +97,7 @@ export function createRepositories(): Repositories {
       if (!disposed && current === generation) {
         refreshing = false;
         settled = true;
+        initialSettled = true;
       }
     }
   }
@@ -146,6 +150,9 @@ export function createRepositories(): Repositories {
     },
     get settled() {
       return settled;
+    },
+    get initialSettled() {
+      return initialSettled;
     },
     get refreshing() {
       return refreshing;

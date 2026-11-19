@@ -490,11 +490,12 @@ test("retains cross-view state, isolates worktree drafts, handles query popstate
   expect(sessionsWsCount).toBe(1);
 });
 
-test("project headings show GitHub avatars and keep a fallback when they fail", async ({
+test("sidebar layouts reuse a project avatar and its fallback without extra requests", async ({
   page,
   request,
   workDir,
 }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   const { repo, mainWt, mainPath } = await setupRepoWithLinkedWorktree(
     request,
     workDir,
@@ -519,8 +520,17 @@ test("project headings show GitHub avatars and keep a fallback when they fail", 
   ).toBe(201);
 
   const url = "https://avatars.githubusercontent.com/octocat?s=48";
+  let remoteRequests = 0;
+  let avatarRequests = 0;
+  let allowAvatar = true;
+  await page.route(`**/api/repositories/${repo.id}/remotes`, async (route) => {
+    remoteRequests++;
+    await route.continue();
+  });
   await page.route(url, async (route) => {
+    avatarRequests++;
     expect(route.request().headers()).not.toHaveProperty("referer");
+    if (!allowAvatar) return route.abort();
     await route.fulfill({
       contentType: "image/gif",
       headers: { "access-control-allow-origin": "*" },
@@ -531,25 +541,54 @@ test("project headings show GitHub avatars and keep a fallback when they fail", 
     });
   });
   await page.goto("/");
-  await revealSidebar(page);
+  const drawerOpened = await revealSidebar(page);
   const heading = page
     .getByRole("region", { name: repo.name, exact: true })
     .getByRole("heading");
   const image = heading.locator("img");
   await expect(image).toBeVisible();
+  const avatar = await image.evaluate((el: HTMLImageElement) => el.currentSrc);
   await expect(image).toHaveAttribute("alt", "");
   await expect(heading).toHaveAccessibleName(`${repo.name} 1`);
   const initialBounds = await heading.boundingBox();
 
-  await page.unroute(url);
-  await page.route(url, (route) => route.abort());
-  const requestOnReload = page.waitForRequest(url);
+  await useWorkbenchBranches(page);
+  const project = page.getByRole("treeitem", {
+    name: `${repo.name}，1 个会话`,
+    exact: true,
+  });
+  const branchImage = project.locator("img");
+  await expect(branchImage).toBeVisible();
+  await expect(branchImage).toHaveAttribute("src", avatar);
+  if (drawerOpened) {
+    await page.keyboard.press("Escape");
+    await expect(branchImage).toBeHidden();
+    await revealSidebar(page);
+    await expect(branchImage).toBeVisible();
+    await expect(branchImage).toHaveAttribute("src", avatar);
+  }
+  const branchBounds = await project.boundingBox();
+  expect(remoteRequests).toBe(1);
+  expect(avatarRequests).toBe(1);
+
+  allowAvatar = false;
+  const failedAvatar = page.waitForEvent(
+    "requestfailed",
+    (req) => req.url() === url,
+  );
   await page.reload();
   await revealSidebar(page);
-  await requestOnReload;
+  await failedAvatar;
+  await expect(branchImage).toHaveCount(0);
+  await expect(project).toContainText("WE");
+  expect(await project.boundingBox()).toEqual(branchBounds);
+
+  await useWorkbenchBranches(page, false);
   await expect(image).toHaveCount(0);
   await expect(heading).toContainText("WE");
   expect(await heading.boundingBox()).toEqual(initialBounds);
+  expect(remoteRequests).toBe(2);
+  expect(avatarRequests).toBe(2);
 });
 
 test("project groups collapse independently and remember the choice", async ({

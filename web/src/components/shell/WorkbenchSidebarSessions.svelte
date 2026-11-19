@@ -4,27 +4,35 @@
   import { Button } from "$lib/components/ui/button";
   import * as Collapsible from "$lib/components/ui/collapsible";
   import { ListButton } from "$lib/components/ui/list-button";
+  import { Skeleton } from "$lib/components/ui/skeleton";
   import {
     SegmentedControl,
     SegmentedControlItem,
   } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
-  import type { Repository, SessionInfo } from "../../contracts/schemas";
+  import type {
+    ArchivedSession,
+    Repository,
+    SessionInfo,
+  } from "../../contracts/schemas";
+  import { resumesOnOpen } from "../../domains/sessions/archived";
   import {
     queueGroup,
     queueWorkspaceLocation,
     sessionsByPin,
   } from "../../domains/workspace/session-queue";
   import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
-  import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
+  import SidebarSessionRow from "./SidebarSessionRow.svelte";
   import SidebarProjectAvatar from "./SidebarProjectAvatar.svelte";
 
   let {
     sessions,
+    records,
     pinned,
     repositories,
     configIcons,
     current,
+    loading,
     allCurrent,
     attentionCurrent,
     onfilter,
@@ -32,12 +40,15 @@
     onopen,
     onrename,
     onclose,
+    onremove,
   }: {
     sessions: readonly SessionInfo[];
+    records: readonly ArchivedSession[];
     pinned: readonly SessionInfo[];
     repositories: readonly Repository[];
     configIcons: ReadonlyMap<string, string>;
     current: string;
+    loading: boolean;
     allCurrent: boolean;
     attentionCurrent: boolean;
     onfilter: (attentionOnly: boolean) => void;
@@ -45,16 +56,25 @@
     onopen: (session: SessionInfo) => void;
     onrename: (session: SessionInfo) => void;
     onclose: (session: SessionInfo) => void;
+    onremove: (record: ArchivedSession) => void;
   } = $props();
 
   const pinnedIds = $derived(new Set(pinned.map((session) => session.id)));
   const attentionOnly = $derived(workbenchLayout.attentionOnly);
+  const dormant = $derived.by(() => {
+    const liveIds = new Set(sessions.map((session) => session.id));
+    return new Map(
+      records
+        .filter((record) => resumesOnOpen(record) && !liveIds.has(record.id))
+        .map((record) => [record.id, record]),
+    );
+  });
   let menuSessionId = $state<string | null>(null);
   const pending = $derived(
     sessions.filter((session) => queueGroup(session) === "attention"),
   );
   const visibleSessions = $derived.by(() => {
-    if (!attentionOnly) return sessions;
+    if (!attentionOnly) return [...sessions, ...dormant.values()];
     const held = sessions.find((session) => session.id === menuSessionId);
     return held && !pending.includes(held) ? [...pending, held] : pending;
   });
@@ -120,17 +140,31 @@
     <SegmentedControlItem value="all">{m.s3_filter_all()}</SegmentedControlItem>
     <SegmentedControlItem value="attention" bind:ref={attentionFilter}>
       <span class="min-w-0 wrap-anywhere">{m.s8_sidebar_attention()}</span>
-      {#if pending.length}
+      {#if !loading && pending.length}
         <span class="shrink-0 font-mono tabular-nums">{pending.length}</span>
       {/if}
     </SegmentedControlItem>
   </SegmentedControl>
-  {#if attentionOnly && !groups.length}
+  {#if loading}
+    <div
+      role="status"
+      aria-label={m.s1_loading_sessions_aria()}
+      class="space-y-3 px-2"
+    >
+      {#each [0, 1] as project (project)}
+        <div class="space-y-2">
+          <Skeleton class="h-7 w-3/4" />
+          <Skeleton class="ms-3 h-10 w-4/5" />
+          <Skeleton class="ms-3 h-10 w-2/3" />
+        </div>
+      {/each}
+    </div>
+  {:else if attentionOnly && !groups.length}
     <p class="px-2 py-2 text-xs text-muted-foreground" role="status">
       {m.s8_queue_empty_attention()}
     </p>
   {/if}
-  {#each groups as group (group.id)}
+  {#each loading ? [] : groups as group (group.id)}
     {@const open = workbenchLayout.isProjectOpen(group.id)}
     {@const repositoryId = group.id === "direct" ? undefined : group.id}
     {@const createLabel = repositoryId
@@ -185,7 +219,8 @@
               session,
               group.repository,
             )}
-            <SidebarLiveSessionRow
+            {@const record = dormant.get(session.id)}
+            <SidebarSessionRow
               {session}
               {current}
               location={location.text}
@@ -198,6 +233,7 @@
               {onopen}
               {onrename}
               {onclose}
+              onremove={record ? () => onremove(record) : undefined}
               onmenuopen={(open) => {
                 if (open) menuSessionId = session.id;
                 else if (menuSessionId === session.id) menuSessionId = null;

@@ -1,7 +1,7 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
-import WorkbenchTree, {
+import {
   workbenchTree,
   type TreeNode,
 } from "../../src/components/shell/WorkbenchTree.svelte";
@@ -11,6 +11,7 @@ import type {
   SessionInfo,
   WorktreePins,
 } from "../../src/contracts/schemas";
+import WorkbenchTreeHarness from "./WorkbenchTreeHarness.svelte";
 import { chat, record, repository, session, worktree } from "./shell-fixture";
 
 afterEach(async () => {
@@ -81,7 +82,7 @@ function renderTree(
     onresume: vi.fn(),
     onremove: vi.fn(),
   };
-  render(WorkbenchTree, {
+  render(WorkbenchTreeHarness, {
     repositories: props.repositories ?? [webmux, legacy],
     sessions,
     records: [],
@@ -138,11 +139,11 @@ test("repositories hold the home page's worktrees and their sessions", async () 
     .getByRole("treeitem")
     .elements()
     .filter((el) => el.getAttribute("aria-level") === "1");
-  expect(top.map((el) => el.textContent?.trim().split(/\s/)[0])).toEqual([
-    "全部仓库",
-    "webmux",
-    "legacy-api",
-    "直接会话",
+  expect(top.map((el) => el.getAttribute("aria-label"))).toEqual([
+    "全部仓库，4 个会话",
+    "webmux，3 个会话",
+    "legacy-api（不可用）",
+    "直接会话，1 个会话",
   ]);
   // Worktrees and direct sessions with live sessions start open down to the
   // session rows, and the newer session comes first.
@@ -479,7 +480,7 @@ test("folder folds reset when live session contents change, without auto-expandi
   // When all live sessions leave a folder (e.g. archived), it collapses by
   // default and never auto-expands "已不可用工作区".
   await cleanup();
-  render(WorkbenchTree, {
+  render(WorkbenchTreeHarness, {
     repositories: [webmux, legacy],
     sessions: [],
     records: [keptRecord, inMainRecord],
@@ -625,7 +626,7 @@ test("archived records that fit no worktree make the unavailable-workspace node;
 function renderArchived(props: { current?: string; resuming?: string } = {}) {
   const onresume = vi.fn();
   const onremove = vi.fn();
-  render(WorkbenchTree, {
+  render(WorkbenchTreeHarness, {
     repositories: [webmux],
     sessions: [session({ id: "orphan01", title: "孤儿", workspace: gone })],
     records: [keptRecord, endedRecord],
@@ -793,7 +794,7 @@ test("pinned worktrees sort ahead of main, show a pin mark clear of the hover me
     branch: "wt/swift-fox",
     path: "/repos/webmux.worktrees/swift-fox",
   });
-  render(WorkbenchTree, {
+  render(WorkbenchTreeHarness, {
     repositories: [
       repository({
         worktrees: [webmux.worktrees[0]!, webmux.worktrees[1]!, fox],

@@ -139,7 +139,9 @@ test("the sidebar footer keeps the host beside its actions", async ({
   const sidebar = page.getByRole("complementary", { name: "侧栏" });
   const host = sidebar.getByRole("button", { name: /^查看主机状态：/ });
   await expect(host).toHaveAttribute("title", /在线(（.+）)?$/);
-  await expect(sidebar.getByRole("status")).toHaveText("已连接");
+  await expect(
+    sidebar.getByRole("status").filter({ hasText: /^已连接$/ }),
+  ).toBeAttached();
   await expect(host).toContainText(hostname);
   await page.evaluate(async () => {
     await document.fonts.ready;

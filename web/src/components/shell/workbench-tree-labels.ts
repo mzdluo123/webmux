@@ -46,6 +46,7 @@ export function treeNodeStateText(
 ) {
   if (node.record) {
     if (resuming === node.record.id) return m.s1_state_resuming();
+    if (status === "dormant") return rowStatusLabels.dormant;
     return node.record.released
       ? m.s1_state_released_ended()
       : m.s1_state_ended();
@@ -85,7 +86,7 @@ export function treeNodeTitle(node: TreeNode, status: RowStatus | undefined) {
   if (node.reason) {
     return m.s1_node_reason_title({ label: node.label, reason: node.reason });
   }
-  if (node.record) return recordTitleText(node.record);
+  if (node.record && status !== "dormant") return recordTitleText(node.record);
   if (status) {
     return m.s1_node_with_state({
       label: node.label,

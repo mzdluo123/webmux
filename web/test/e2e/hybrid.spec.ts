@@ -2091,7 +2091,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     });
   }
 
-  test("after a backend restart each agent resumes only when opened", async ({
+  test("after a backend restart the switcher lists agents without resuming them until opened", async ({
     page,
     request,
     server,
@@ -2117,24 +2117,147 @@ test.describe("hybrid sessions with the fake agent", () => {
     await page.goto("/");
     await server.restart();
     await page.reload();
+    await expect(
+      page.getByRole("link", { name: "E2E resume chat", exact: true }),
+    ).toBeVisible();
+    const homeSwitcher = await openSessionSwitcher(page);
+    await expect(
+      homeSwitcher.getByRole("option", {
+        name: /E2E resume terminal.*打开时恢复/,
+      }),
+    ).toBeVisible();
+    await homeSwitcher.getByRole("combobox").fill("E2E resume chat");
+    const chatOption = homeSwitcher.getByRole("option", {
+      name: /E2E resume chat.*打开时恢复/,
+    });
+    await expect(chatOption).toBeVisible();
     for (const id of [chat, terminal]) {
       const record = await (await request.get(`/api/sessions/${id}`)).json();
       expect(record.archive.resumeOnOpen).toBe(true);
     }
-    const resumedChat = await openSessionLink(page, "E2E resume chat");
-    await expectSide(resumedChat, "chat");
-    await expect(conversation(resumedChat)).toContainText("kept-in-chat");
-    await expect(conversation(resumedChat)).toContainText("echo: kept-in-chat");
+    await chatOption.click();
+    await expect(page).toHaveURL(new RegExp(`/s/${chat}$`));
+    await expectSide(page, "chat");
+    await expect(conversation(page)).toContainText("kept-in-chat");
+    await expect(conversation(page)).toContainText("echo: kept-in-chat");
 
-    await page.goto("/");
+    await page.goto("/settings");
+    const settingsSwitcher = await openSessionSwitcher(page);
+    const terminalOption = settingsSwitcher.getByRole("option", {
+      name: /E2E resume terminal.*打开时恢复/,
+    });
+    await expect(terminalOption).toBeVisible();
     expect(
       (await (await request.get(`/api/sessions/${terminal}`)).json()).state,
     ).toBe("interrupted");
-    const resumedTerminal = await openSessionLink(page, "E2E resume terminal");
-    await expectTerminalLine(resumedTerminal, "> kept-in-tui");
-    await expectTerminalLine(resumedTerminal, "< echo: kept-in-tui");
-    await expectSide(resumedTerminal, "terminal");
-    await tuiTurn(resumedTerminal, "after-restart");
+    await terminalOption.click();
+    await expect(page).toHaveURL(new RegExp(`/s/${terminal}$`));
+    await expectTerminalLine(page, "> kept-in-tui");
+    await expectTerminalLine(page, "< echo: kept-in-tui");
+    await expectSide(page, "terminal");
+    await tuiTurn(page, "after-restart");
+  });
+
+  test("after restart pending sessions appear by default in chat history and both workbench lists", async ({
+    page,
+    request,
+    server,
+    workDir,
+  }) => {
+    const repo = join(workDir, "restart-project");
+    const branch = join(workDir, "restart-branch");
+    const git = (...args: string[]) =>
+      expect(spawnSync("git", args).status).toBe(0);
+    git("init", "-b", "main", repo);
+    git(
+      "-C",
+      repo,
+      "-c",
+      "user.name=WebMux QA",
+      "-c",
+      "user.email=qa@example.invalid",
+      "commit",
+      "--allow-empty",
+      "-m",
+      "Initial",
+    );
+    git("-C", repo, "worktree", "add", "-b", "feature-restart", branch);
+    const registered = await request.post("/api/repositories", {
+      data: { path: repo },
+    });
+    expect(registered.status(), await registered.text()).toBe(201);
+    const chat = await createHybrid(request, workDir, "chat", {
+      name: "Recent restart chat",
+      agent: "claude",
+    });
+    await openHybrid(page, chat, "chat");
+    await chatTurn(page, "recent-before-restart");
+    const terminal = await createHybrid(request, branch, "terminal", {
+      name: "Branch restart terminal",
+      agent: "claude",
+    });
+    await openHybrid(page, terminal, "terminal");
+    await tuiTurn(page, "branch-before-restart");
+    await expectChatInputAvailable(page);
+    await page.goto("/new");
+    await server.restart();
+    await page.reload();
+
+    await revealSidebar(page);
+    const recent = page.getByRole("list", { name: "聊天历史", exact: true });
+    const chatRow = recent.getByRole("button", {
+      name: /Recent restart chat.*打开时恢复/,
+    });
+    await expect(chatRow).toBeVisible();
+    await expect(
+      recent.getByRole("button", {
+        name: /Branch restart terminal.*打开时恢复/,
+      }),
+    ).toBeVisible();
+    for (const id of [chat, terminal]) {
+      const record = await (await request.get(`/api/sessions/${id}`)).json();
+      expect(record.state).toBe("interrupted");
+    }
+    await chatRow.click();
+    await expect(page).toHaveURL(`/s/${chat}`);
+    await expect(conversation(page)).toContainText(
+      "echo: recent-before-restart",
+    );
+
+    await page.goto("/");
+    await useWorkbenchBranches(page);
+    const tree = page.getByRole("tree", { name: "仓库与会话" });
+    await expect(
+      tree.getByRole("treeitem", { name: /^feature-restart/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+    const terminalRow = tree.getByRole("treeitem", {
+      name: /Branch restart terminal.*打开时恢复/,
+    });
+    await expect(terminalRow).toBeVisible();
+    const record = await (
+      await request.get(`/api/sessions/${terminal}`)
+    ).json();
+    expect(record.state).toBe("interrupted");
+
+    await useWorkbenchBranches(page, false);
+    const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
+    const project = sidebar.getByRole("list", { name: "restart-project" });
+    const projectRow = project.getByRole("button", {
+      name: /Branch restart terminal.*打开时恢复/,
+    });
+    await expect(projectRow).toBeVisible();
+    await expect(projectRow).toHaveAccessibleDescription("feature-restart");
+    const filter = sidebar.getByRole("radiogroup", { name: "会话范围" });
+    await filter.getByRole("radio", { name: "待处理", exact: true }).click();
+    await expect(projectRow).toHaveCount(0);
+    await filter.getByRole("radio", { name: "全部", exact: true }).click();
+    await expect(projectRow).toBeVisible();
+    expect(
+      (await (await request.get(`/api/sessions/${terminal}`)).json()).state,
+    ).toBe("interrupted");
+    await projectRow.click();
+    await expect(page).toHaveURL(`/s/${terminal}`);
+    await expectTerminalLine(page, "< echo: branch-before-restart");
   });
 
   test("a missing conversation asks once when a dormant session is opened", async ({
