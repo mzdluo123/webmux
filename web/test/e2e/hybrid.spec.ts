@@ -885,7 +885,7 @@ test.describe("hybrid sessions with the fake agent", () => {
       scrollY: window.scrollY,
       rootOverflow: getComputedStyle(document.documentElement).overflow,
       headerTop: document
-        .querySelector(".terminal-header")!
+        .querySelector(".session-toolbar")!
         .getBoundingClientRect().top,
       dockBottom: document
         .querySelector("[data-chat-dock]")!
@@ -921,7 +921,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     await expect(jump).toBeVisible();
     const stickyBounds = await page.evaluate(() => ({
       headerTop: Math.round(
-        document.querySelector(".terminal-header")!.getBoundingClientRect().top,
+        document.querySelector(".session-toolbar")!.getBoundingClientRect().top,
       ),
       dockBottom: Math.round(
         document.querySelector("[data-chat-dock]")!.getBoundingClientRect()

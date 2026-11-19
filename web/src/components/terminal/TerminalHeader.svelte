@@ -106,9 +106,13 @@
   class="terminal-header flex min-w-0 flex-1 items-center gap-1"
   data-bottom-toolbar={toolbarMode}
 >
-  {#if !phone.current}{@render terminalMenu()}{/if}
+  {#if !phone.current}
+    <!-- Keep actions anchored while the session title is loading. -->
+    {@render terminalMenu()}
+    {@render quickCommands()}
+  {/if}
   {#if phone.current}
-    <TerminalPaneStatus terminal={t}>
+    <TerminalPaneStatus terminal={t} compact>
       {@render sessionTitle()}
     </TerminalPaneStatus>
   {:else}
@@ -143,13 +147,19 @@
       }}
     />
   {/if}
+  {#if phone.current}
+    {@render quickCommands()}
+    {@render terminalMenu()}
+  {/if}
+</div>
+
+{#snippet quickCommands()}
   {#if terminalShown && !codeShown}
     <div class="quick-commands-header flex items-center gap-1">
       {@render quickMenu("bottom", undefined, "ghost")}
     </div>
   {/if}
-  {#if phone.current}{@render terminalMenu()}{/if}
-</div>
+{/snippet}
 
 {#snippet sessionTitle()}
   <SessionTitle {title} {session} agent={chatAgent?.title} />

@@ -18,6 +18,7 @@
     onactivate,
     children,
     header,
+    titleContent,
     commands,
     icon,
     tabLabel,
@@ -29,6 +30,8 @@
     onactivate?: () => void;
     children: Snippet<[boolean]>;
     header?: Snippet;
+    // Decorate the desktop title inside its flexible slot, not beside it.
+    titleContent?: Snippet<[Snippet]>;
     commands?: Snippet;
     icon?: Component;
     tabLabel?: string;
@@ -92,6 +95,10 @@
   }
 </script>
 
+{#snippet titleLabel()}
+  {#if showTitle && !showTabs}<span class="truncate" {title}>{title}</span>{/if}
+{/snippet}
+
 <div class="dock-source">
   <section
     use:dock.mount
@@ -150,8 +157,11 @@
         class="dock-title-space"
         class:with-header={!!localHeader && !showTitle}
       >
-        {#if showTitle && !showTabs}<span class="truncate" {title}>{title}</span
-          >{/if}
+        {#if !compact && titleContent}
+          {@render titleContent(titleLabel)}
+        {:else}
+          {@render titleLabel()}
+        {/if}
       </div>
       <Menu.Root>
         <Menu.Trigger>

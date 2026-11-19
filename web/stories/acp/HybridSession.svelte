@@ -548,7 +548,9 @@
       commands={paneHeader}
       title={terminal.info?.title || (view === "chat" ? "聊天" : "终端")}
     >
-      {#snippet header()}<TerminalPaneStatus {terminal} />{/snippet}
+      {#snippet titleContent(children)}
+        <TerminalPaneStatus {terminal} {children} />
+      {/snippet}
       {#if view === "chat"}
         <div class="h-full min-h-0" use:paneEnter={true}>
           <ChatView

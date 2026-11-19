@@ -10,6 +10,9 @@ import {
   openSessionLink,
   expectTerminalLine,
   expectConnected,
+  openSessionMenu,
+  sessionPaneHeader,
+  toggleDraftMode,
   toggleCode,
   backToList,
   revealSidebar,
@@ -190,7 +193,7 @@ test("4x CPU: create, type, replay, switch, filter and open dialogs remain usabl
   await page.evaluate(() =>
     window.dispatchEvent(new Event("webmux:test-disconnect")),
   );
-  await expect(page.locator(".terminal-header").getByRole("status")).toHaveText(
+  await expect(sessionPaneHeader(page).getByRole("status")).toHaveText(
     "重连中",
   );
   await expectConnected(page);
@@ -215,11 +218,11 @@ test("4x CPU: create, type, replay, switch, filter and open dialogs remain usabl
     contentType: "application/json",
   });
   expect(inputRoundTripMs).toBeLessThan(1500);
-  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
+  await toggleDraftMode(page);
   await expect(page.locator(".terminal-composer textarea")).toBeVisible();
-  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
-  await page.getByRole("button", { name: "终端菜单", exact: true }).click();
-  await page.getByRole("menuitem", { name: "字体大小", exact: true }).click();
+  await toggleDraftMode(page);
+  const menu = await openSessionMenu(page);
+  await menu.getByRole("menuitem", { name: "字体大小", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
   await performanceReport(page, testInfo, "replay-reconnect-and-burst", {

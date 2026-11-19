@@ -29,21 +29,6 @@ async function chooseCodeMenuItem(name: string) {
   await page.getByRole("menuitem", { name, exact: true }).click();
 }
 const inserted = () => page.getByLabelText("Inserted reference");
-// The rendered text once it has stayed the same for three animation frames:
-// layout changes reach the virtualizer through a ResizeObserver and then a
-// queued frame, so two frames are the minimum and one more is margin.
-async function settledCode() {
-  let text = code();
-  for (let stable = 0; stable < 3;) {
-    const { promise, resolve } = Promise.withResolvers<number>();
-    requestAnimationFrame(resolve);
-    await promise;
-    const next = code();
-    stable = next === text ? stable + 1 : 0;
-    text = next;
-  }
-  return text;
-}
 
 afterEach(async () => {
   await cleanup();
@@ -133,22 +118,45 @@ test("diff keeps line numbers visible without inheriting obsolete display prefer
 test("expired snapshots retain content and disable mouse and keyboard expansion", async () => {
   render(Harness);
   await expect.poll(code, { timeout: 10000 }).toContain("changed revision 1");
-  const expand = page.getByRole("button", { name: /展开 30 行/ }).first();
-  await expect.element(expand).toHaveAttribute("aria-disabled", "false");
-  shadow()!.querySelector<HTMLElement>("[data-expand-button]")!.focus();
+  const expandTop = page.getByRole("button", {
+    name: "向下展开 30 行",
+    exact: true,
+  });
+  await expect.element(expandTop).toHaveAttribute("aria-disabled", "false");
+  (expandTop.element() as HTMLElement).focus();
   await userEvent.keyboard("{Enter}");
   await expect.poll(code).toContain("ordinary line 20");
   await gutter("addition", 50).click();
+  await expect.element(insertSelection()).toBeEnabled();
   await page.getByRole("button", { name: "Expire snapshot" }).click();
-  await expect.element(expand).toHaveAttribute("aria-disabled", "true");
-  // Expiring adds a status line that shortens the viewer; the virtualizer
-  // re-renders for the new height on a later animation frame. Take the
-  // baseline only after that, so the click is the only remaining cause.
-  const before = await settledCode();
-  await page
-    .elementLocator(shadow()!.querySelector("[data-unmodified-lines]")!)
-    .click();
-  expect(code()).toBe(before);
+  const expandBottom = page.getByRole("button", {
+    name: "向上展开 30 行",
+    exact: true,
+  });
+  const foldedBottom = page.getByText("67 行未修改", { exact: true });
+  await expect.element(expandBottom).toHaveAttribute("aria-disabled", "true");
+  await expect.element(expandBottom).toHaveAttribute("tabindex", "-1");
+  await expect.element(foldedBottom).toBeVisible();
+
+  async function expectStillFolded() {
+    // A click can scroll the virtualizer even when it cannot expand context.
+    // Wait for the render, then assert the range rather than the visible rows.
+    for (let frame = 0; frame < 2; frame++) {
+      const { promise, resolve } = Promise.withResolvers<number>();
+      requestAnimationFrame(resolve);
+      await promise;
+    }
+    await expect.element(foldedBottom).toBeVisible();
+  }
+
+  await foldedBottom.click();
+  await expectStillFolded();
+  const button = expandBottom.element() as HTMLElement;
+  button.focus({ preventScroll: true });
+  expect(shadow()?.activeElement).toBe(button);
+  await userEvent.keyboard("{Enter}");
+  await expectStillFolded();
+  expect(code()).toContain("changed revision 1");
   await expect.element(insertSelection()).toBeDisabled();
 });
 

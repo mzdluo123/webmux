@@ -11,7 +11,6 @@ import {
   openDockCommands,
   runCommand,
   expectTerminalLine,
-  toggleCode,
 } from "./fixtures";
 import { codeReader, openCodeMenu, showFileTree } from "./code-dock";
 function git(root: string, ...args: string[]) {
@@ -129,7 +128,6 @@ test("read ordinary files, independent tabs, updates and insert a line without E
       .filter({ hasText: /^2$/ })
       .click();
     await insertLocation(2).click();
-    await toggleCode(page);
   }
   const buffer = await (await request.get(`/api/sessions/${id}/buffer`)).text();
   expect(buffer).not.toContain(`reference: ${join(workDir, "clean.go")}:2\r\n`);

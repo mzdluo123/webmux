@@ -390,7 +390,7 @@ test.describe("phone drawer", () => {
       await page.setViewportSize(size);
       const id = await shell(request, "demo-agent", { cwd: workDir });
       await page.goto(`/s/${id}`);
-      const header = page.locator(".terminal-header").first();
+      const header = page.locator(".session-toolbar");
       await expect(header).toBeVisible();
       expect((await header.boundingBox())!.height).toBeLessThanOrEqual(48);
       expect(

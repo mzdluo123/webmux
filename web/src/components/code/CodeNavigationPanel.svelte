@@ -29,6 +29,7 @@
 <style>
   .dock-code-navigation :global(.code-navigation) {
     position: static;
+    flex: 1 1 0%;
     width: 100%;
     max-width: 100%;
     border-inline-end: 0;

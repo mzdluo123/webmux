@@ -291,7 +291,9 @@
   {onactivate}
   commands={paneHeader}
 >
-  {#snippet header()}<TerminalPaneStatus terminal={headerTerminal} />{/snippet}
+  {#snippet titleContent(children)}
+    <TerminalPaneStatus terminal={headerTerminal} {children} />
+  {/snippet}
   {#snippet children(visible)}
     {#if features.files && uploads}<features.files.Input
         bind:this={fileInput}

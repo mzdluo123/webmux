@@ -18,7 +18,7 @@ import {
   uploadAction,
   backToList,
 } from "./fixtures";
-import { codeReader, showFileTree } from "./code-dock";
+import { codeReader, openCodeMenu, showFileTree } from "./code-dock";
 
 const draft = (page: Page) =>
   page.getByRole("textbox", {
@@ -158,9 +158,9 @@ test("code references and uploaded paths join the same draft without PTY input",
   await files
     .getByRole("button", { name: "reference.txt", exact: true })
     .click();
+  await openCodeMenu(codeReader(page));
   await page
-    .getByRole("button", { name: /位置.*草稿/ })
-    .filter({ visible: true })
+    .getByRole("menuitem", { name: "插入文件位置", exact: true })
     .click();
   await expect(draft(page)).toHaveValue(
     `Please inspect ${join(workDir, "reference.txt")} `,
@@ -225,14 +225,14 @@ test("draft splits the terminal column while the side panel stays full height", 
   const handle = page.getByRole("separator", { name: "调整草稿面板高度" });
   const panel = page.getByRole("region", { name: "终端输入草稿" });
   const original = (await panel.boundingBox())!;
+  await handle.hover();
   const grip = (await handle.boundingBox())!;
-  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
   await page.mouse.down();
   await page.mouse.move(grip.x + grip.width / 2, grip.y - 80, { steps: 8 });
   await page.mouse.up();
-  expect((await panel.boundingBox())!.height).toBeGreaterThan(
-    original.height + 50,
-  );
+  await expect
+    .poll(async () => (await panel.boundingBox())!.height)
+    .toBeGreaterThan(original.height + 50);
   const shrunk = (await terminal.boundingBox())!;
   const enlarged = (await panel.boundingBox())!;
   expect(shrunk.height).toBeLessThan(before!.height - 50);

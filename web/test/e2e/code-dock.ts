@@ -1,5 +1,5 @@
 import type { FrameLocator, Locator, Page } from "@playwright/test";
-import { expect, toggleCode } from "./fixtures";
+import { expect, narrowSessionHeader, toggleCode } from "./fixtures";
 
 export const fileTree = (page: Page) =>
   page.getByRole("region", { name: "文件树", exact: true });
@@ -12,7 +12,7 @@ export async function openCodeMenu(scope: Page | FrameLocator | Locator) {
   if (
     "page" in scope &&
     "getAttribute" in scope &&
-    !(await scope.getByRole("button", button).isVisible())
+    !narrowSessionHeader(scope.page())
   ) {
     await scope.locator(".dock-title-space").click();
     await scope

@@ -8,6 +8,7 @@
 
   let {
     terminal,
+    compact = false,
     children,
   }: {
     terminal: {
@@ -15,7 +16,8 @@
       readonly connection: Connection;
       readonly exitCode: number | null;
     };
-    children?: Snippet;
+    compact?: boolean;
+    children: Snippet;
   } = $props();
 
   const showConnection = $derived(
@@ -36,16 +38,12 @@
   );
 </script>
 
-<div
-  class={[
-    "flex items-center gap-1",
-    children ? "min-w-0 flex-1" : "shrink-0 ps-2",
-  ]}
->
+<div class="flex min-w-0 flex-1 items-center gap-1">
   {#if terminal.info}
-    {@const label = terminal.exitCode !== null
-      ? connectionText
-      : `${sessionStatusText(terminal.info)} · ${connectionText}`}
+    {@const label =
+      terminal.exitCode !== null
+        ? connectionText
+        : `${sessionStatusText(terminal.info)} · ${connectionText}`}
     <span
       class={`status-dot shrink-0 status-${terminal.info.status}`}
       class:status-failed={sessionStatusTone(terminal.info) === "destructive"}
@@ -55,12 +53,10 @@
       aria-label={label}
       title={label}
     ></span>
-  {:else if children}
-    <span class="shrink-0" aria-hidden="true"
-      ><span class="status-dot invisible"></span></span
-    >
+  {:else}
+    <span class="status-dot invisible" aria-hidden="true"></span>
   {/if}
-  {#if children}
+  {#if compact}
     <div class="relative flex min-w-0 flex-col">
       {@render children()}
       {#if showConnection}<span
@@ -68,8 +64,11 @@
           role="status">{connectionText}</span
         >{/if}
     </div>
-  {:else if showConnection}<span
-      class="shrink-0 text-xs whitespace-nowrap text-muted-foreground"
-      role="status">{connectionText}</span
-    >{/if}
+  {:else}
+    {@render children()}
+    {#if showConnection}<span
+        class="shrink-0 text-xs whitespace-nowrap text-muted-foreground"
+        role="status">{connectionText}</span
+      >{/if}
+  {/if}
 </div>

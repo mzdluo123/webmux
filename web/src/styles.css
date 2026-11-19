@@ -265,6 +265,12 @@
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
     env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
+@media (max-width: 639px) {
+  /* Session commands occupy both the workspace bar and the touch pane title. */
+  body:has(.terminal-page) [data-slot="attention-toasts"] {
+    top: calc(env(safe-area-inset-top) + 3rem + var(--control-touch));
+  }
+}
 /* A narrow single-pane chat view in a browser tab flows with the document so
    mobile browsers collapse their URL and toolbar chrome as the transcript
    scrolls; focusing an input removes this attribute and returns to the fixed

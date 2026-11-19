@@ -140,7 +140,9 @@ test("the code panel pops out into a framed window and both ways keeps its readi
   );
   await createShell(page, "Popout state", workDir);
   const files = await showFileTree(page);
-  const panel = codeReader(page);
+  const workspace = codeReader(page).getByRole("region", {
+    name: "代码工作区",
+  });
 
   // A long file scrolled to line 200 with lines 195-198 selected.
   await files.getByRole("button", { name: "long.txt", exact: true }).click();
@@ -174,7 +176,7 @@ test("the code panel pops out into a framed window and both ways keeps its readi
   const pip = await opened;
   const frame = frameOf(pip);
   await expect(page.getByText("代码已在独立窗口中显示")).toBeVisible();
-  await expect(panel).toHaveCount(0);
+  await expect(workspace).toHaveCount(0);
   const popped = frame.getByRole("region", { name: "代码工作区" });
   await expect(popped).toBeVisible();
   // The frame fills the window.
@@ -256,7 +258,7 @@ test("the code panel pops out into a framed window and both ways keeps its readi
   expect(poppedTop).toBeGreaterThan(top);
   await closeFrom(pip);
   await expect(page.getByText("代码已在独立窗口中显示")).toHaveCount(0);
-  await expect(panel).toBeVisible();
+  await expect(workspace).toBeVisible();
   await expect(page.getByRole("tab", { name: /^long\.txt/ })).toHaveAttribute(
     "aria-selected",
     "true",
@@ -531,6 +533,8 @@ test("without Picture-in-Picture a desktop browser pops out into an ordinary pop
     frame.locator("[data-code-reader]:visible [data-content]"),
   ).toContainText("popup document");
   await expect(frame.locator("[data-code-reader]:visible")).toBeVisible();
+  // A narrow popup restores the navigator as an overlay above the gutter.
+  await frame.getByRole("button", { name: "收起导航", exact: true }).click();
   await gutter(frame, 2).click();
   await expect(sendButton(frame, "2")).toBeEnabled();
 
