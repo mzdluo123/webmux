@@ -24,12 +24,16 @@
   } from "$lib/dock-layout";
   import { store, stored } from "../../platform/storage";
   import { mountDockHost, setDock, type DockEntry } from "./dock-context";
+  import DockEdgeRail from "./DockEdgeRail.svelte";
+  import { useDockPeek } from "../../hooks/shared/dock-peek.svelte";
+  import type { DockRail } from "$lib/dock-layout";
   import DockSplitter from "./DockDivider.svelte";
 
   let {
     initial,
     storageKey,
     migrate,
+    edgeRails = false,
     compact = false,
     flow = false,
     mobilePanel = $bindable(""),
@@ -41,6 +45,7 @@
   }: {
     initial: DockNode;
     storageKey: string;
+    edgeRails?: boolean;
     migrate?: () => ReturnType<typeof restoreDock>;
     compact?: boolean;
     flow?: boolean;
@@ -59,6 +64,14 @@
   });
   let node = $state.raw<DockNode | undefined>(saved?.node);
   let hidden = $state.raw<string[]>(saved?.hidden ?? []);
+  let rails = $state<Record<string, DockRail>>(saved?.rails ?? {});
+  const side = (id: string): DockRail =>
+    rails[id] ??
+    (id.startsWith("files:")
+      ? "left"
+      : id.startsWith("reader:")
+        ? "right"
+        : "bottom");
   let zoom = $state("");
   let surface = $state<HTMLDivElement>();
   let dragging = $state<string>();
@@ -88,6 +101,11 @@
   const minimized = $derived(
     hidden.map((id) => entries.get(id)).filter((entry) => entry !== undefined),
   );
+  const peek = useDockPeek(
+    () => edgeRails && !compact,
+    (id) => available.has(id) && hidden.includes(id),
+    side,
+  );
   const preview = $derived.by(() => {
     if (!hint) return undefined;
     const box = geometry.groups.get(hint.target)?.rect;
@@ -100,11 +118,23 @@
   });
 
   $effect(() => {
-    store(key, node ? JSON.stringify({ version: 1, node, hidden }) : null);
+    store(
+      key,
+      node
+        ? JSON.stringify({
+            version: 1,
+            node,
+            hidden,
+            rails: edgeRails ? rails : undefined,
+          })
+        : null,
+    );
   });
 
   export function rect(id: string): DockRect | undefined {
     if (compact) return mobile === id ? full : undefined;
+    const overlay = peek.rect(id);
+    if (overlay) return overlay;
     if (visibleZoom) return visibleZoom === id ? full : undefined;
     return geometry.groups.get(id)?.rect;
   }
@@ -118,6 +148,7 @@
   }
 
   export function show(id: string) {
+    peek.close();
     if (compact) {
       if (mobile && mobile !== id)
         history = [...history.filter((value) => value !== mobile), mobile];
@@ -142,6 +173,7 @@
   }
 
   export function remove(id: string) {
+    delete rails[id];
     node = dockRemove(node ?? tree, id);
     hidden = hidden.filter((value) => value !== id);
     mobileHidden = mobileHidden.filter((value) => value !== id);
@@ -151,6 +183,8 @@
   }
 
   export function reset() {
+    rails = {};
+    peek.close();
     node = undefined;
     hidden = [];
     zoom = "";
@@ -160,7 +194,7 @@
     if (!compact && isVisible(id)) zoom = visibleZoom === id ? "" : id;
   }
 
-  function minimize(id: string) {
+  function minimize(id: string, destination?: DockRail) {
     if (compact) {
       mobileHidden = [...mobileHidden.filter((value) => value !== id), id];
       mobilePanel =
@@ -174,6 +208,8 @@
       );
       if (!mobilePanel) showPicker = true;
     } else {
+      if (destination) rails[id] = destination;
+      peek.close();
       node = tree;
       hidden = [...hidden.filter((value) => value !== id), id];
       if (zoom === id) zoom = "";
@@ -251,6 +287,8 @@
     compact: () => compact,
     zoomed: (id) => visibleZoom === id,
     show,
+    edgeRails: () => edgeRails,
+    peeked: (id) => !!peek.rect(id),
     minimize,
     toggleZoom,
     move,
@@ -281,7 +319,7 @@
   data-dock-workspace
   data-dock-flow={flow || undefined}
 >
-  {#if pickerTrigger || (!compact && minimized.length)}
+  {#if pickerTrigger || (!edgeRails && !compact && minimized.length)}
     <div class="dock-shelf">
       {#if pickerTrigger}
         <Button size="sm-touch" variant="ghost" onclick={openPicker}>
@@ -289,7 +327,7 @@
           {m.s4_open_panel()}
         </Button>
       {/if}
-      {#if !compact}
+      {#if !edgeRails && !compact}
         {#each minimized as entry (entry.id)}
           <Button size="sm" variant="ghost" onclick={() => show(entry.id)}>
             {entry.title}
@@ -299,32 +337,53 @@
     </div>
   {/if}
   <div
-    class="relative flex min-h-0 min-w-0 flex-1 flex-col"
-    bind:this={surface}
+    class={edgeRails && !compact ? "flex min-h-0 min-w-0 flex-1" : "contents"}
   >
-    {#if !compact && !visibleZoom}
-      {#each geometry.dividers as divider (divider.path)}
-        <DockSplitter
-          {divider}
-          bounds={() => surface?.getBoundingClientRect()}
-          resize={(ratio) => (node = dockResize(tree, divider.path, ratio))}
-        />
-      {/each}
-    {/if}
-    {#if preview && !compact}
-      <div
-        class="dock-preview"
-        data-dock-preview
-        aria-hidden="true"
-        style:--dock-x={`${preview.x * 100}%`}
-        style:--dock-y={`${preview.y * 100}%`}
-        style:--dock-w={`${preview.width * 100}%`}
-        style:--dock-h={`${preview.height * 100}%`}
-      ></div>
-    {/if}
+    {@render rail("left")}
+    <div
+      class="relative flex min-h-0 min-w-0 flex-1 flex-col"
+      bind:this={surface}
+    >
+      {#if !compact && !visibleZoom}
+        {#each geometry.dividers as divider (divider.path)}
+          <DockSplitter
+            {divider}
+            bounds={() => surface?.getBoundingClientRect()}
+            resize={(ratio) => (node = dockResize(tree, divider.path, ratio))}
+          />
+        {/each}
+      {/if}
+      {#if preview && !compact}
+        <div
+          class="dock-preview"
+          data-dock-preview
+          aria-hidden="true"
+          style:--dock-x={`${preview.x * 100}%`}
+          style:--dock-y={`${preview.y * 100}%`}
+          style:--dock-w={`${preview.width * 100}%`}
+          style:--dock-h={`${preview.height * 100}%`}
+        ></div>
+      {/if}
+    </div>
+    {@render rail("right")}
   </div>
+  {@render rail("bottom")}
   {@render children()}
 </div>
+
+{#snippet rail(position: DockRail)}
+  {#if edgeRails && !compact}
+    <DockEdgeRail
+      side={position}
+      entries={minimized.filter((entry) => side(entry.id) === position)}
+      peek={peek.id}
+      toggle={(id, source) => {
+        peek.toggle(id, source);
+        if (peek.id) onSelectPanel?.(id);
+      }}
+    />
+  {/if}
+{/snippet}
 
 {#snippet choices()}
   <div class="min-h-0 space-y-1 overflow-y-auto px-3 pb-3">

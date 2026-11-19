@@ -18,8 +18,6 @@
   import { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
   import { bottomToolbar } from "../../hooks/terminal/bottom-toolbar-preference.svelte";
   import { keyboardSizeHold } from "../../hooks/terminal/keyboard-size-hold-preference.svelte";
-  import { terminalFont } from "../../hooks/terminal/terminal-font-preference.svelte";
-  import TerminalFontDialog from "./TerminalFontDialog.svelte";
   let {
     pickerOpen,
     openPanels,
@@ -37,7 +35,6 @@
   const openSwitcher = findSessionSwitcher();
   const fullscreen = useFullscreen((message) => onerror(message));
   let menuTrigger = $state<HTMLButtonElement | null>(null);
-  let fontOpen = $state(false);
 </script>
 
 <header
@@ -70,15 +67,17 @@
       onclick={openFiles}><IconFolder aria-hidden="true" /></Button
     >{/if}
   <Button
-    variant="ghost"
-    size="icon-touch-sm"
+    variant={phone.current ? "outline" : "ghost"}
+    size={phone.current ? "sm-touch" : "icon-touch-sm"}
     aria-label={m.s4_open_panel()}
     title={m.s4_open_panel()}
     aria-expanded={pickerOpen}
     aria-haspopup="dialog"
     onclick={openPanels}
-    ><IconLayout class="size-4" aria-hidden="true" /></Button
   >
+    <IconLayout class="size-4" aria-hidden="true" />
+    {#if phone.current}{m.s4_open_panel()}{/if}
+  </Button>
   {#if fullscreen.offered}<Button
       variant="ghost"
       size="icon-sm"
@@ -132,9 +131,6 @@
           {fullscreen.active ? m.s4_exit_fullscreen() : m.s4_enter_fullscreen()}
         </DropdownMenu.Item>
       {/if}
-      <DropdownMenu.Item onSelect={() => (fontOpen = true)}
-        >{m.s4_font_size()}</DropdownMenu.Item
-      >
       <DropdownMenu.CheckboxItem
         checked={keyboardSizeHold.enabled}
         onCheckedChange={(value) => (keyboardSizeHold.enabled = value === true)}
@@ -150,12 +146,3 @@
     </DropdownMenu.Content>
   </DropdownMenu.Root>
 </header>
-<TerminalFontDialog
-  bind:open={fontOpen}
-  fontSize={terminalFont.size}
-  setFontSize={terminalFont.set}
-  onCloseAutoFocus={(e) => {
-    e.preventDefault();
-    menuTrigger?.focus();
-  }}
-/>

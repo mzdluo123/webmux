@@ -5,6 +5,7 @@
   import IconBack from "~icons/tabler/arrow-left";
   import IconDots from "~icons/tabler/dots";
   import IconMinus from "~icons/tabler/minus";
+  import IconPin from "~icons/tabler/pin";
   import { Button } from "$lib/components/ui/button";
   import * as Menu from "$lib/components/ui/dropdown-menu";
   import { m } from "$lib/paraglide/messages.js";
@@ -28,9 +29,23 @@
   const dock = getDock();
   const rect = $derived(dock.rect(id));
   const tabs = $derived(dock.tabs(id));
-  const targets = $derived(dock.targets(id));
   const compact = $derived(dock.compact());
   const zoomed = $derived(dock.zoomed(id));
+  const edgeRails = $derived(dock.edgeRails());
+  const peeked = $derived(dock.peeked(id));
+  const canMove = $derived(!compact && !zoomed && !peeked);
+  const targets = $derived(canMove ? dock.targets(id) : undefined);
+  const showTabs = $derived(canMove && tabs.length > 1);
+  const zoomLabel = $derived(
+    peeked
+      ? m.dock_pin({ title })
+      : zoomed
+        ? m.dock_restore({ title })
+        : m.dock_maximize({ title }),
+  );
+  const menuLabel = $derived(
+    edgeRails ? m.dock_actions({ title }) : m.dock_move({ title }),
+  );
   $effect(() =>
     dock.register({
       id,
@@ -61,6 +76,7 @@
     use:dock.mount
     class="dock-panel"
     data-dock-panel={id}
+    data-dock-peek={peeked || undefined}
     aria-label={title}
     hidden={!rect}
     inert={!rect}
@@ -68,8 +84,8 @@
     style:--dock-y={rect ? `${rect.y * 100}%` : undefined}
     style:--dock-w={rect ? `${rect.width * 100}%` : undefined}
     style:--dock-h={rect ? `${rect.height * 100}%` : undefined}
-    ondragover={(event) => dock.dragOver(event, id)}
-    ondrop={(event) => dock.drop(event, id)}
+    ondragover={peeked ? undefined : (event) => dock.dragOver(event, id)}
+    ondrop={peeked ? undefined : (event) => dock.drop(event, id)}
     onpointerdowncapture={() => {
       dock.select(id);
       onactivate?.();
@@ -89,7 +105,7 @@
           onclick={dock.back}><IconBack aria-hidden="true" /></Button
         >
       {/if}
-      {#if !compact && tabs.length > 1 && !zoomed}
+      {#if showTabs}
         <div
           class="flex min-w-0 max-w-full overflow-x-auto"
           role="group"
@@ -112,19 +128,17 @@
         class="dock-title-space"
         class:with-header={!!header}
         role="presentation"
-        draggable={!compact && !zoomed}
-        ondblclick={() => dock.toggleZoom(id)}
+        draggable={canMove}
+        ondblclick={peeked ? undefined : () => dock.toggleZoom(id)}
         ondragstart={(event) => {
-          if (!event.dataTransfer) return;
+          if (!canMove || !event.dataTransfer) return;
           event.dataTransfer.effectAllowed = "move";
           event.dataTransfer.setData("text/plain", title);
           dock.drag(id);
         }}
         ondragend={() => dock.drag(undefined)}
       >
-        {#if !header && (compact || tabs.length < 2 || zoomed)}<span
-            class="truncate"
-            {title}>{title}</span
+        {#if !header && !showTabs}<span class="truncate" {title}>{title}</span
           >{/if}
       </div>
       {#if !compact}
@@ -132,17 +146,17 @@
           variant="ghost"
           size="icon-sm"
           type="button"
-          aria-label={zoomed
-            ? m.dock_restore({ title })
-            : m.dock_maximize({ title })}
-          title={zoomed
-            ? m.dock_restore({ title })
-            : m.dock_maximize({ title })}
-          onclick={() => dock.toggleZoom(id)}
+          aria-label={zoomLabel}
+          title={zoomLabel}
+          onclick={() => (peeked ? dock.show(id) : dock.toggleZoom(id))}
         >
-          {#if zoomed}<IconArrowsMinimize
-              aria-hidden="true"
-            />{:else}<IconArrowsMaximize aria-hidden="true" />{/if}
+          {#if peeked}
+            <IconPin aria-hidden="true" />
+          {:else if zoomed}
+            <IconArrowsMinimize aria-hidden="true" />
+          {:else}
+            <IconArrowsMaximize aria-hidden="true" />
+          {/if}
         </Button>
       {/if}
       <Button
@@ -155,7 +169,7 @@
       >
         <IconMinus aria-hidden="true" />
       </Button>
-      {#if !compact && !zoomed && targets.length}
+      {#if !compact && !peeked && (edgeRails || targets?.length)}
         <Menu.Root>
           <Menu.Trigger>
             {#snippet child({ props })}
@@ -164,14 +178,26 @@
                 data-dock-actions
                 variant="ghost"
                 size="icon-sm"
-                aria-label={m.dock_move({ title })}
-                title={m.dock_move({ title })}
+                aria-label={menuLabel}
+                title={menuLabel}
               >
                 <IconDots aria-hidden="true" />
               </Button>
             {/snippet}
           </Menu.Trigger>
           <Menu.Content align="end">
+            {#if edgeRails}
+              <Menu.Item onSelect={() => dock.minimize(id, "left")}
+                >{m.dock_minimize_left()}</Menu.Item
+              >
+              <Menu.Item onSelect={() => dock.minimize(id, "right")}
+                >{m.dock_minimize_right()}</Menu.Item
+              >
+              <Menu.Item onSelect={() => dock.minimize(id, "bottom")}
+                >{m.dock_minimize_bottom()}</Menu.Item
+              >
+              {#if targets?.length}<Menu.Separator />{/if}
+            {/if}
             {#each targets as target (target.id)}
               <Menu.Sub>
                 <Menu.SubTrigger>{target.title}</Menu.SubTrigger>
@@ -210,6 +236,10 @@
     min-inline-size: 0;
     min-block-size: 0;
     background: var(--background);
+  }
+
+  .dock-panel[data-dock-peek] {
+    z-index: 30;
   }
 
   .dock-panel[hidden] {

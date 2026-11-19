@@ -31,7 +31,7 @@ async function ready(pane: Locator) {
   await expect(pane.locator(".xterm")).toBeAttached();
 }
 
-test("docking and minimizing a running terminal retain the emulator, layout and output", async ({
+test("docking, peeking and pinning retain a running terminal and its layout", async ({
   page,
   workDir,
 }, testInfo) => {
@@ -63,21 +63,79 @@ test("docking and minimizing a running terminal retain the emulator, layout and 
   await root
     .getByRole("button", { name: `还原「${name}」布局`, exact: true })
     .click();
-  expect(await root.boundingBox()).toEqual(placed);
+  await expect.poll(() => root.boundingBox()).toEqual(placed);
+  const bottomTab = page.locator(
+    `[data-dock-rail="bottom"] [data-dock-tab="${secondId}"]`,
+  );
+  const rightTab = page.locator(
+    `[data-dock-rail="right"] [data-dock-tab="${secondId}"]`,
+  );
+  const pin = root.getByRole("button", {
+    name: `固定「${name}」`,
+    exact: true,
+  });
   await root
     .getByRole("button", { name: `收起「${name}」`, exact: true })
     .click();
   await expect(root).toBeHidden();
-  await page.getByRole("button", { name, exact: true }).click();
+  await expect(bottomTab).toHaveAccessibleName(name);
+  await bottomTab.click();
+  await expect(root).toHaveAttribute("data-dock-peek", "true");
   await expect(second.locator(".xterm-rows")).toContainText("DOCK_COMPLETE");
   expect(await emulator!.evaluate((element) => element.isConnected)).toBe(true);
+  await bottomTab.click();
+  await expect(root).toBeHidden();
+  await bottomTab.click();
+  await pin.click();
+  await expect(bottomTab).toHaveCount(0);
+  await expect.poll(() => root.boundingBox()).toEqual(placed);
+
+  await root
+    .getByRole("button", { name: `「${name}」窗格操作`, exact: true })
+    .click();
+  await page.getByRole("menuitem", { name: "收起到右侧", exact: true }).click();
+  await expect(root).toBeHidden();
+  await expect(bottomTab).toHaveCount(0);
+  await expect(rightTab).toHaveAttribute("aria-expanded", "false");
+  const minimizedAnchor = await anchor.boundingBox();
+  await rightTab.click();
+  await expect(rightTab).toHaveAttribute("aria-expanded", "true");
+  await expect(root).toHaveAttribute("data-dock-peek", "true");
+  await expect.poll(() => anchor.boundingBox()).toEqual(minimizedAnchor);
+  await pin.focus();
+  await page.keyboard.press("Escape");
+  await expect(root).toBeHidden();
+  await expect(rightTab).toBeFocused();
+
+  await rightTab.click();
+  await expect(root).toHaveAttribute("data-dock-peek", "true");
+  await anchor.click({ position: { x: 8, y: 8 } });
+  await expect(root).toBeHidden();
+  await expect(rightTab).toHaveAttribute("aria-expanded", "false");
+
+  await rightTab.click();
+  await expect(root).toHaveAttribute("data-dock-peek", "true");
+  await page.reload();
+  await expect(rightTab).toHaveAttribute("aria-expanded", "false");
+  await expect(root).toBeHidden();
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(rightTab).toHaveCount(0);
   await chooseDockPanel(page, name);
   await expect(root).toBeVisible();
   await expect(anchor).toBeHidden();
   await expect(second.locator(".xterm-helper-textarea")).not.toBeFocused();
   await page.setViewportSize({ width: 1440, height: 900 });
-  expect(await root.boundingBox()).toEqual(placed);
+  await expect(rightTab).toBeVisible();
+  await expect(root).toBeHidden();
+  await rightTab.click();
+  await pin.click();
+  await expect(rightTab).toHaveCount(0);
+  await expect.poll(() => root.boundingBox()).toEqual(placed);
+
+  await page.reload();
+  await expect(root).toBeVisible();
+  await expect(rightTab).toHaveCount(0);
+  await expect.poll(() => root.boundingBox()).toEqual(placed);
 });
 
 test("nested splits preserve terminal state, isolate input and restore layout", async ({

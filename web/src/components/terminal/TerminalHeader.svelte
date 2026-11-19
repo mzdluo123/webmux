@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { terminalFont } from "../../hooks/terminal/terminal-font-preference.svelte";
+  import TerminalFontDialog from "./TerminalFontDialog.svelte";
   import { findShell } from "../../hooks/shared/shell.svelte";
   import { type Snippet } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
@@ -88,6 +90,8 @@
   const title = $derived(session?.title || m.s4_tab_terminal());
   const phone = new MediaQuery("(max-width: 639px)");
   let fileInput = $state<{ open(): void }>();
+  let menuTrigger = $state<HTMLButtonElement | null>(null);
+  let fontOpen = $state(false);
   let skipMenuFocus = false;
   const terminalShown = $derived(!hybrid || hybrid.view === "terminal");
   // The chat view names the agent it talks to beside the session title.
@@ -205,6 +209,7 @@
           {...props}
           variant="ghost"
           size="icon-touch-sm"
+          bind:ref={menuTrigger}
           aria-label={terminalShown
             ? m.s4_terminal_menu()
             : m.s4_session_menu()}
@@ -313,6 +318,12 @@
           <DropdownMenu.GroupHeading
             >{m.s4_menu_group_display()}</DropdownMenu.GroupHeading
           >
+          <DropdownMenu.Item
+            onSelect={() => {
+              skipMenuFocus = true;
+              fontOpen = true;
+            }}>{m.s4_font_size()}</DropdownMenu.Item
+          >
           <DropdownMenu.CheckboxItem
             checked={sizeLocked}
             onCheckedChange={(value) => setSizeLocked(value === true)}
@@ -339,3 +350,13 @@
     </DropdownMenu.Content>
   </DropdownMenu.Root>
 </header>
+
+<TerminalFontDialog
+  bind:open={fontOpen}
+  fontSize={terminalFont.size}
+  setFontSize={terminalFont.set}
+  onCloseAutoFocus={(e) => {
+    e.preventDefault();
+    menuTrigger?.focus();
+  }}
+/>

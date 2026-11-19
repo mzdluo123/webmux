@@ -1,5 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
+  "dock_actions": "「{title}」窗格操作",
   "dock_bottom": "停靠到下方",
   "dock_center": "合并为标签",
   "dock_chat_inactive": "在会话顶栏切换到聊天后可发送消息。",
@@ -11,7 +12,11 @@
   "dock_left": "停靠到左侧",
   "dock_maximize": "放大「{title}」",
   "dock_minimize": "收起「{title}」",
+  "dock_minimize_bottom": "收起到底部",
+  "dock_minimize_left": "收起到左侧",
+  "dock_minimize_right": "收起到右侧",
   "dock_move": "移动「{title}」",
+  "dock_pin": "固定「{title}」",
   "dock_reader_title": "预览 · {name}",
   "dock_restore": "还原「{title}」布局",
   "dock_right": "停靠到右侧",

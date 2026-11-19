@@ -401,7 +401,7 @@ test("desktop shows the entry beside the draft button until the toolbar is force
   await expectTerminalLine(page, "desk-ok");
   await expect(page.locator(".xterm-helper-textarea")).toBeFocused();
 
-  await page.getByRole("button", { name: "终端菜单", exact: true }).click();
+  await page.getByRole("button", { name: "显示", exact: true }).click();
   await page.getByRole("menuitemcheckbox", { name: "显示底部工具栏" }).click();
   await page.keyboard.press("Escape");
   await expect(bar).toBeVisible();

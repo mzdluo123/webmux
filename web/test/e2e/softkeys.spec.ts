@@ -225,7 +225,7 @@ test("touch tablets with a fine primary pointer only raise the keyboard from the
   await cdp.detach();
   await expect(input).not.toBeFocused();
 
-  await page.getByRole("button", { name: "显示", exact: true }).tap();
+  await page.getByRole("button", { name: "终端菜单", exact: true }).tap();
   await page.getByRole("menuitem", { name: "字体大小", exact: true }).tap();
   const dialog = page.getByRole("dialog", { name: "字体大小" });
   await expect(dialog).toBeVisible();

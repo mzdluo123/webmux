@@ -230,10 +230,15 @@ const treeSchema: z.ZodType<DockNode> = z.lazy(() =>
     }),
   ]),
 );
+export type DockRail = "left" | "right" | "bottom";
 const layoutSchema = z.object({
   version: z.literal(1),
   node: treeSchema,
   hidden: z.array(z.string()),
+  rails: z
+    .record(z.string(), z.enum(["left", "right", "bottom"]))
+    .optional()
+    .catch(undefined),
 });
 
 export function restoreDock(value: string | null | undefined) {
@@ -244,6 +249,7 @@ export function restoreDock(value: string | null | undefined) {
     const ids = dockIds(result.data.node);
     if (ids.length !== new Set(ids).size) return undefined;
     return {
+      ...(result.data.rails && { rails: result.data.rails }),
       node: result.data.node,
       hidden: result.data.hidden.filter((id) => ids.includes(id)),
     };

@@ -387,6 +387,7 @@
         compact={compact.current}
         bind:mobilePanel
         bind:showPicker
+        edgeRails
         pickerTrigger={false}
         onSelectPanel={(panel) => {
           const sessionId = ids.find(

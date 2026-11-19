@@ -42,10 +42,11 @@ for (const clipboard of ["allowed", "denied", "unavailable"] as const) {
       .getByRole("button", { name: "左右分屏 · 新建 Shell", exact: true })
       .click();
     const background = page.locator(".split-terminal").nth(1);
-    await expect(page.locator(".terminal-header .status-dot")).toHaveAttribute(
-      "aria-label",
-      /已连接/,
-    );
+    await expect(
+      page.locator(
+        '[data-dock-panel]:has(.split-terminal[data-active="true"]) .terminal-header .status-dot',
+      ),
+    ).toHaveAttribute("aria-label", /已连接/);
     const gate = join(workDir, "copy-ready");
     const text = `pending-${clipboard}`;
     const payload = Buffer.from(text).toString("base64");

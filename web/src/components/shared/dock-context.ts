@@ -1,5 +1,5 @@
 import { createContext, tick } from "svelte";
-import type { DockEdge, DockRect } from "$lib/dock-layout";
+import type { DockEdge, DockRail, DockRect } from "$lib/dock-layout";
 
 export type DockEntry = { id: string; title: string };
 
@@ -31,7 +31,9 @@ export const [getDock, setDock] = createContext<{
   compact: () => boolean;
   zoomed: (id: string) => boolean;
   show: (id: string) => void;
-  minimize: (id: string) => void;
+  edgeRails: () => boolean;
+  peeked: (id: string) => boolean;
+  minimize: (id: string, side?: DockRail) => void;
   toggleZoom: (id: string) => void;
   move: (id: string, target: string, edge: DockEdge) => void;
   drag: (id: string | undefined) => void;
