@@ -2074,6 +2074,91 @@ test.describe("hybrid sessions with the fake agent", () => {
     await tuiTurn(page, "after-restart");
   });
 
+  test("after restart pending sessions appear by default in chat history and the branch tree", async ({
+    page,
+    request,
+    server,
+    workDir,
+  }) => {
+    const repo = join(workDir, "restart-project");
+    const branch = join(workDir, "restart-branch");
+    const git = (...args: string[]) =>
+      expect(spawnSync("git", args).status).toBe(0);
+    git("init", "-b", "main", repo);
+    git(
+      "-C",
+      repo,
+      "-c",
+      "user.name=WebMux QA",
+      "-c",
+      "user.email=qa@example.invalid",
+      "commit",
+      "--allow-empty",
+      "-m",
+      "Initial",
+    );
+    git("-C", repo, "worktree", "add", "-b", "feature-restart", branch);
+    const registered = await request.post("/api/repositories", {
+      data: { path: repo },
+    });
+    expect(registered.status(), await registered.text()).toBe(201);
+    const chat = await createHybrid(request, workDir, "chat", {
+      name: "Recent restart chat",
+      agent: "claude",
+    });
+    await openHybrid(page, chat, "chat");
+    await chatTurn(page, "recent-before-restart");
+    const terminal = await createHybrid(request, branch, "terminal", {
+      name: "Branch restart terminal",
+      agent: "claude",
+    });
+    await openHybrid(page, terminal, "terminal");
+    await tuiTurn(page, "branch-before-restart");
+    await expectChatInputAvailable(page);
+    await page.goto("/new");
+    await server.restart();
+    await page.reload();
+
+    await revealSidebar(page);
+    const recent = page.getByRole("list", { name: "聊天历史", exact: true });
+    const chatRow = recent.getByRole("button", {
+      name: /Recent restart chat.*打开时恢复/,
+    });
+    await expect(chatRow).toBeVisible();
+    await expect(
+      recent.getByRole("button", {
+        name: /Branch restart terminal.*打开时恢复/,
+      }),
+    ).toBeVisible();
+    for (const id of [chat, terminal]) {
+      const record = await (await request.get(`/api/sessions/${id}`)).json();
+      expect(record.state).toBe("interrupted");
+    }
+    await chatRow.click();
+    await expect(page).toHaveURL(`/s/${chat}`);
+    await expect(conversation(page)).toContainText(
+      "echo: recent-before-restart",
+    );
+
+    await page.goto("/");
+    await useWorkbenchBranches(page);
+    const tree = page.getByRole("tree", { name: "仓库与会话" });
+    await expect(
+      tree.getByRole("treeitem", { name: /^feature-restart/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+    const terminalRow = tree.getByRole("treeitem", {
+      name: /Branch restart terminal.*打开时恢复/,
+    });
+    await expect(terminalRow).toBeVisible();
+    const record = await (
+      await request.get(`/api/sessions/${terminal}`)
+    ).json();
+    expect(record.state).toBe("interrupted");
+    await terminalRow.click();
+    await expect(page).toHaveURL(`/s/${terminal}`);
+    await expectTerminalLine(page, "< echo: branch-before-restart");
+  });
+
   test("a missing conversation asks once when a dormant session is opened", async ({
     page,
     request,

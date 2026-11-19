@@ -22,6 +22,7 @@
   import { homeWorktrees } from "../../domains/workspace/home-worktrees.svelte";
   import { worktreePins } from "../../domains/workspace/worktree-pins.svelte";
   import { rowStatus } from "../../domains/sessions/session-status";
+  import { resumesOnOpen } from "../../domains/sessions/archived";
   import {
     defaultNodeOpen,
     readFolderMemory,
@@ -169,8 +170,7 @@
   function isOpen(node: TreeNode) {
     if (!node.children.length || node.reason) return false;
     if (forced.includes(node.key)) return true;
-    // Folders with reachable live sessions start open down to the session rows;
-    // folders without live sessions and unavailable workspaces start closed.
+    // Default folds reveal live and waiting-to-resume sessions.
     return effective.open[node.key] ?? defaultNodeOpen(node);
   }
   function setOpen(node: TreeNode, open: boolean) {
@@ -238,8 +238,8 @@
     if (next) void focusRow(next.key);
   }
   function isCurrent(node: TreeNode) {
-    if (node.kind === "session") return node.session?.id === current;
-    if (node.kind === "archived") return node.record?.id === current;
+    if (node.session || node.record)
+      return (node.session?.id ?? node.record?.id) === current;
     if (current || node.kind === "missing") return false;
     if (node.kind === "worktree")
       return scope === node.repositoryId && worktree === node.worktreeId;
@@ -314,16 +314,20 @@
   {@const status = node.session
     ? rowStatus(node.session)
     : node.record
-      ? "ended"
+      ? resumesOnOpen(node.record)
+        ? "dormant"
+        : "ended"
       : undefined}
   {@const stateText = treeNodeStateText(node, resuming, status)}
   {@const open = isOpen(node)}
   {@const upstream = notableUpstream(node)}
   {@const mainWorktree = node.worktree?.kind === "main"}
+  {@const sessionId =
+    node.session?.id ?? (status === "dormant" ? node.record?.id : undefined)}
   <li
     role="none"
-    data-sidebar-session-id={node.session?.id}
-    data-layout-row={node.session ? undefined : node.key}
+    data-sidebar-session-id={sessionId}
+    data-layout-row={sessionId ? undefined : node.key}
     class={`flex items-center ${node.level === 3 ? "pl-8" : node.level === 2 ? "pl-4" : ""}`}
   >
     {#if node.kind !== "session"}{@render chevron(node)}{:else}<span

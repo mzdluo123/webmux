@@ -12,6 +12,7 @@
   import type { Repositories } from "../../hooks/workspace/repositories.svelte";
   import type { SessionList } from "../../hooks/sessions/session-list.svelte";
   import type { Archived } from "../../hooks/sessions/archived.svelte";
+  import { resumesOnOpen } from "../../domains/sessions/archived";
   import {
     SessionInfoSchema,
     type ChatMessageMatch,
@@ -111,8 +112,7 @@
   const dormant = $derived(
     ((source ? source.archived : archivedSnapshot)?.records ?? []).filter(
       (record) =>
-        record.archive.resumeOnOpen &&
-        !record.released &&
+        resumesOnOpen(record) &&
         !sessions?.some((session) => session.id === record.id),
     ),
   );

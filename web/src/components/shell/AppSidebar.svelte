@@ -21,6 +21,7 @@
     shellUi,
   } from "../../hooks/shared/shell.svelte";
   import { queueLocation } from "../../domains/workspace/session-queue";
+  import { resumesOnOpen } from "../../domains/sessions/archived";
   import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
   import { useLayoutRowsMotion } from "../../hooks/shared/layout-rows-motion.svelte";
   import { useSidebarScrollHandoff } from "../../hooks/shared/sidebar-scroll-handoff.svelte";
@@ -85,6 +86,9 @@
     Boolean(shell.repositories?.settled || shell.repositories?.list.length),
   );
   const pinned = $derived(sessionPins.ordered(live));
+  const records = $derived(
+    shell.archived?.records.filter((record) => !pinnedIDs.has(record.id)) ?? [],
+  );
   const pinnedIDs = $derived(new Set(pinned.map((session) => session.id)));
   const unpinned = $derived(
     live.filter((session) => !pinnedIDs.has(session.id)),
@@ -163,6 +167,10 @@
     released: HybridRelease;
   } | null>(null);
   function open(record: ArchivedSession) {
+    if (resumesOnOpen(record)) {
+      openSession(record);
+      return;
+    }
     if (record.released && !workspace)
       resumeErrorFn = () => m.s1_archive_requires_workspace_feature();
     else if (record.released)
@@ -235,7 +243,7 @@
 {#snippet history()}
   {#if chat}<chat.History
       sessions={unpinned}
-      records={shell.archived?.records ?? []}
+      {records}
       {configs}
       repositories={shell.repositories?.list ?? []}
       {current}
@@ -253,6 +261,7 @@
 {#snippet workspaces()}
   <SidebarWorkspaceTree
     sessions={unpinned}
+    {records}
     showScope={route.name === "sessions"}
     {current}
     {configIcons}

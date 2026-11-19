@@ -68,6 +68,11 @@ export function recordTitle(record: ArchivedSession) {
   return record.title || record.agent.name;
 }
 
+/** A restart record that can open directly without rebuilding a worktree. */
+export function resumesOnOpen(record: ArchivedSession): boolean {
+  return record.archive.resumeOnOpen === true && !record.released;
+}
+
 function trimmed(path: string) {
   return path.length > 1 ? path.replace(/\/+$/, "") : path;
 }

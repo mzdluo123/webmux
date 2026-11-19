@@ -9,6 +9,7 @@
   import HybridCandidatePicker from "./HybridCandidatePicker.svelte";
   import RebuildWorktreeDialog from "../workspace/RebuildWorktreeDialog.svelte";
   import { errorMessage } from "../../platform/error";
+  import { resumesOnOpen } from "../../domains/sessions/archived";
   import type {
     ResumeChoice,
     ResumeOutcome,
@@ -111,8 +112,7 @@
   }
 
   onMount(() => {
-    if (record.archive.resumeOnOpen && !record.released && claimAutoResume?.())
-      void run(record.view);
+    if (resumesOnOpen(record) && claimAutoResume?.()) void run(record.view);
   });
 
   function confirmPending() {
