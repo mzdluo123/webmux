@@ -1,7 +1,6 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
-import WorkbenchTree from "../../src/components/shell/WorkbenchTree.svelte";
 import GitWorkbenchTopBar from "../../src/components/workspace/GitWorkbenchTopBar.svelte";
 import WorkspaceActions from "../../src/components/workspace/WorkspaceActions.svelte";
 import GitWorktreeGuardState from "../../src/components/workspace/GitWorktreeGuardState.svelte";
@@ -13,6 +12,7 @@ import { emptyGitViewState } from "../../src/hooks/workspace/git-workbench-actio
 import { createGitWorkbenchSubControllers } from "../../src/hooks/workspace/git-workbench-subcontrollers.svelte";
 import CodeWorkspaceHeaderHarness from "./CodeWorkspaceHeaderHarness.svelte";
 import GitWorkbenchTopBarHarness from "./GitWorkbenchTopBarHarness.svelte";
+import WorkbenchTreeHarness from "./WorkbenchTreeHarness.svelte";
 import { repository, session, worktree } from "./shell-fixture";
 
 afterEach(async () => {
@@ -58,7 +58,7 @@ test("repository menu and repository panel expose Git workbench entry when avail
     worktrees: [],
   });
 
-  render(WorkbenchTree, {
+  render(WorkbenchTreeHarness, {
     repositories: [repoAvail, repoBroken],
     sessions: [],
     records: [],

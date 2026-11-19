@@ -31,6 +31,7 @@
     type Shell,
   } from "../../hooks/shared/shell.svelte";
   import { dragWidth, keyWidth } from "../../hooks/shared/splitter";
+  import { provideSidebarProjectAvatars } from "../../hooks/shared/sidebar-project-avatars";
   import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
   import type { RelayReconnection } from "../../platform/relay-auth.svelte";
   import CoreShellDialogs from "./CoreShellDialogs.svelte";
@@ -236,6 +237,7 @@
     },
   };
   setShell(shell);
+  provideSidebarProjectAvatars();
   onDestroy(() => {
     resources.dispose();
     // Leaving the shell (settings) must not reopen the drawer on return.
