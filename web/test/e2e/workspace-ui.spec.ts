@@ -123,9 +123,8 @@ test("the sidebar footer keeps the host beside its actions", async ({
         words.right,
         status.getBoundingClientRect().right,
       );
-      // The status sits inside the host button; the actions follow that.
-      const action =
-        status.parentElement!.nextElementSibling!.getBoundingClientRect();
+      const actions = status.parentElement!.nextElementSibling!;
+      const action = actions.firstElementChild!.getBoundingClientRect();
       return {
         gap: action.left - visibleEnd,
         offset: Math.abs(
@@ -137,15 +136,11 @@ test("the sidebar footer keeps the host beside its actions", async ({
       };
     });
   await page.goto("/");
-  const footer = page
-    .getByRole("complementary", { name: "侧栏" })
-    .getByRole("status");
-  await expect(
-    page
-      .getByRole("complementary", { name: "侧栏" })
-      .getByRole("button", { name: /^查看主机状态：/ }),
-  ).toHaveAttribute("title", /在线(（.+）)?$/);
-  await expect(footer).toContainText(hostname);
+  const sidebar = page.getByRole("complementary", { name: "侧栏" });
+  const host = sidebar.getByRole("button", { name: /^查看主机状态：/ });
+  await expect(host).toHaveAttribute("title", /在线(（.+）)?$/);
+  await expect(sidebar.getByRole("status")).toHaveText("已连接");
+  await expect(host).toContainText(hostname);
   await page.evaluate(async () => {
     await document.fonts.ready;
   });
@@ -156,7 +151,7 @@ test("the sidebar footer keeps the host beside its actions", async ({
   // A long hostname is shortened in place, never pushed under the actions.
   hostname = "build-server-with-a-very-long-hostname.internal.example";
   await page.goto("/");
-  await expect(footer).toContainText("build-server");
+  await expect(host).toContainText("build-server");
   const long = await geometry();
   expect(long.clipped).toBe(true);
   expect(long.gap).toBeGreaterThanOrEqual(0);

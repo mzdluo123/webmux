@@ -28,7 +28,6 @@ export interface SessionTerminalStageProps {
   headerTerminal: ReturnType<typeof createHeaderTerminalView>;
   fullscreen: ReturnType<typeof useFullscreen>;
   codeShown: boolean;
-  forceSoftKeys: boolean;
   documentScroll: boolean;
   chatVisible: boolean;
   hybrid: HybridSession;
@@ -63,8 +62,6 @@ export interface SessionTerminalStageProps {
   keyboardSizeHold: boolean;
   setKeyboardSizeHold: (value: boolean) => void;
   keyboardHeld: boolean;
-  touchGamepad: boolean;
-  setTouchGamepad: (value: boolean) => void;
   findOpen: boolean;
   showFind: () => void;
   closeFind: () => void;

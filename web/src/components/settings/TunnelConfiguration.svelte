@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { usePanelMotion } from "../../hooks/shared/dock-motion.svelte";
   import { untrack } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import IconEye from "~icons/tabler/eye";
@@ -26,6 +27,11 @@
   let token = $state("");
   let revealed = $state(false);
   let attempted = $state(false);
+  let panels = $state<HTMLDivElement | null>(null);
+  usePanelMotion(
+    () => panels,
+    () => mode,
+  );
   const normalizedHost = $derived(hostname.toLowerCase().replace(/\.+$/, ""));
   const hostnameValid = $derived(
     normalizedHost.length > 0 &&
@@ -70,74 +76,76 @@
         <Tabs.Trigger value="quick">Quick Tunnel</Tabs.Trigger>
         <Tabs.Trigger value="named">Named Tunnel</Tabs.Trigger>
       </Tabs.List>
-      <Tabs.Content value="quick" class="space-y-2 pt-3">
-        <p class="text-sm text-muted-foreground">
-          {m.s2_tunnel_quick_desc()}
-        </p>
-        {#if current.tokenConfigured}<p class="text-sm text-warning">
-            {m.s2_tunnel_quick_warn_clear()}
-          </p>{/if}
-      </Tabs.Content>
-      <Tabs.Content value="named" class="space-y-4 pt-3">
-        <p class="text-sm text-muted-foreground">
-          {m.s2_tunnel_named_desc()}
-        </p>
-        <div class="grid gap-2">
-          <Label for="tunnel-hostname">{m.s2_tunnel_hostname_label()}</Label>
-          <Input
-            id="tunnel-hostname"
-            bind:value={hostname}
-            placeholder="term.example.com"
-            autocomplete="off"
-            autocapitalize="off"
-            spellcheck={false}
-            aria-invalid={!!hostnameError && (attempted || !!hostname)}
-            aria-describedby="tunnel-hostname-help"
-          />
-          <p id="tunnel-hostname-help" class="text-xs text-muted-foreground">
-            {(attempted || hostname) && hostnameError
-              ? hostnameError
-              : m.s2_tunnel_hostname_help()}
+      <div bind:this={panels}>
+        <Tabs.Content value="quick" class="space-y-2 pt-3">
+          <p class="text-sm text-muted-foreground">
+            {m.s2_tunnel_quick_desc()}
           </p>
-        </div>
-        <div class="grid gap-2">
-          <Label for="tunnel-token">{m.s2_tunnel_token_label()}</Label>
-          <div class="flex items-center gap-2">
+          {#if current.tokenConfigured}<p class="text-sm text-warning">
+              {m.s2_tunnel_quick_warn_clear()}
+            </p>{/if}
+        </Tabs.Content>
+        <Tabs.Content value="named" class="space-y-4 pt-3">
+          <p class="text-sm text-muted-foreground">
+            {m.s2_tunnel_named_desc()}
+          </p>
+          <div class="grid gap-2">
+            <Label for="tunnel-hostname">{m.s2_tunnel_hostname_label()}</Label>
             <Input
-              id="tunnel-token"
-              type={revealed ? "text" : "password"}
-              bind:value={token}
-              autocomplete="new-password"
+              id="tunnel-hostname"
+              bind:value={hostname}
+              placeholder="term.example.com"
+              autocomplete="off"
               autocapitalize="off"
               spellcheck={false}
-              placeholder={current.tokenConfigured
-                ? m.s2_tunnel_token_ph_configured()
-                : m.s2_tunnel_token_ph_empty()}
-              aria-invalid={attempted && !!tokenError}
-              aria-describedby="tunnel-token-help"
+              aria-invalid={!!hostnameError && (attempted || !!hostname)}
+              aria-describedby="tunnel-hostname-help"
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              aria-label={revealed
-                ? m.s2_tunnel_token_hide()
-                : m.s2_tunnel_token_show()}
-              title={revealed
-                ? m.s2_tunnel_token_hide()
-                : m.s2_tunnel_token_show()}
-              onclick={() => (revealed = !revealed)}
-            >
-              {#if revealed}<IconEyeOff aria-hidden="true" />{:else}<IconEye
-                  aria-hidden="true"
-                />{/if}
-            </Button>
+            <p id="tunnel-hostname-help" class="text-xs text-muted-foreground">
+              {(attempted || hostname) && hostnameError
+                ? hostnameError
+                : m.s2_tunnel_hostname_help()}
+            </p>
           </div>
-          <p id="tunnel-token-help" class="text-xs text-muted-foreground">
-            {attempted && tokenError ? tokenError : m.s2_tunnel_token_help()}
-          </p>
-        </div>
-      </Tabs.Content>
+          <div class="grid gap-2">
+            <Label for="tunnel-token">{m.s2_tunnel_token_label()}</Label>
+            <div class="flex items-center gap-2">
+              <Input
+                id="tunnel-token"
+                type={revealed ? "text" : "password"}
+                bind:value={token}
+                autocomplete="new-password"
+                autocapitalize="off"
+                spellcheck={false}
+                placeholder={current.tokenConfigured
+                  ? m.s2_tunnel_token_ph_configured()
+                  : m.s2_tunnel_token_ph_empty()}
+                aria-invalid={attempted && !!tokenError}
+                aria-describedby="tunnel-token-help"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label={revealed
+                  ? m.s2_tunnel_token_hide()
+                  : m.s2_tunnel_token_show()}
+                title={revealed
+                  ? m.s2_tunnel_token_hide()
+                  : m.s2_tunnel_token_show()}
+                onclick={() => (revealed = !revealed)}
+              >
+                {#if revealed}<IconEyeOff aria-hidden="true" />{:else}<IconEye
+                    aria-hidden="true"
+                  />{/if}
+              </Button>
+            </div>
+            <p id="tunnel-token-help" class="text-xs text-muted-foreground">
+              {attempted && tokenError ? tokenError : m.s2_tunnel_token_help()}
+            </p>
+          </div>
+        </Tabs.Content>
+      </div>
     </Tabs.Root>
     <Button type="submit">{m.s2_save_and_apply()}</Button>
   </fieldset>

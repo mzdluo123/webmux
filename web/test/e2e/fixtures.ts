@@ -123,7 +123,6 @@ async function resetSettings(
   const prefs = await response.json();
   const changes: Record<string, null> = {
     sessionPins: null,
-    forceSoftKeys: null,
   };
   if (enabled.has("code")) {
     changes.preview = null;

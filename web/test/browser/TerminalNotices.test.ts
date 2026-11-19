@@ -218,6 +218,30 @@ test("more than two ports collapse into one strip that opens the dialog", async 
   expect(showForwards).toHaveBeenCalledOnce();
 });
 
+test("a later lower port keeps displayed forwarding actions in their slots", async () => {
+  seedForwards([]);
+  const showForwards = vi.fn();
+  const view = await notices({
+    session: "late-port",
+    listening: ports(5173, 9229),
+    showForwards,
+  });
+  const first = page.getByRole("button", { name: "转发并打开" }).first();
+  await expect.element(first).toBeVisible();
+  const button = first.element() as HTMLButtonElement;
+  button.focus();
+  const bounds = button.getBoundingClientRect();
+
+  await view.rerender({ listening: ports(3000, 5173, 9229) });
+  await expect.element(page.getByText("另有 1 个端口")).toBeVisible();
+  await expect.element(prompt(3000)).not.toBeInTheDocument();
+  expect(first.element()).toBe(button);
+  expect(button.getBoundingClientRect()).toEqual(bounds);
+  await expect.element(first).toHaveFocus();
+  await page.getByRole("button", { name: "查看全部" }).click();
+  expect(showForwards).toHaveBeenCalledOnce();
+});
+
 test("ports from 30000 up are ignored by default and prompted when the setting is turned off", async () => {
   await seedSettings();
   seedForwards([]);
@@ -240,4 +264,26 @@ test("disabled forwarding contributes no prompt or request for listening ports",
   await notices({ features: {}, session: "core-only", listening: ports(5173) });
   await expect.element(prompt(5173)).not.toBeInTheDocument();
   expect(fetch).not.toHaveBeenCalled();
+});
+
+test("suppresses the upload strip while the terminal viewport renders its floating progress card", async () => {
+  const cancel = vi.fn();
+  const uploads = {
+    progress: {
+      name: "demo.png",
+      index: 1,
+      total: 1,
+      percent: 65,
+      waiting: false,
+    },
+    cancel,
+  };
+  const view = await notices({ uploads, hideUploadProgress: true });
+  const bar = page.getByRole("progressbar", { name: "文件上传进度" });
+  await expect.element(bar).not.toBeInTheDocument();
+
+  await view.rerender({ uploads, hideUploadProgress: false });
+  await expect.element(bar).toBeVisible();
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  expect(cancel).toHaveBeenCalledOnce();
 });

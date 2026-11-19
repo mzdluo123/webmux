@@ -13,6 +13,7 @@ import {
   initializeTheme,
   themePreference,
 } from "../../src/hooks/settings/theme";
+import { bottomToolbar } from "../../src/hooks/terminal/bottom-toolbar-preference.svelte";
 import {
   clearHostStorage,
   setActiveHostId,
@@ -28,6 +29,7 @@ beforeEach(() => {
   localStorage.clear();
   initializeTheme();
   themePreference.refresh();
+  bottomToolbar.refresh();
   return enableCreationFeatures(FeatureIDSchema.options);
 });
 
@@ -43,6 +45,7 @@ afterEach(async () => {
   setActiveHostId(null);
   localStorage.clear();
   themePreference.refresh();
+  bottomToolbar.refresh();
   await page.viewport(1024, 900);
 });
 
@@ -116,6 +119,48 @@ for (const width of [1280, 393]) {
     await expect.poll(current).toBe("#quick-commands");
   });
 }
+
+test.each(["access", "preview"])(
+  "keeps the %s section visible across the settings navigation breakpoint",
+  async (section) => {
+    await page.viewport(1024, 800);
+    await openSettings();
+    const nav = page.getByRole("navigation", { name: "设置分区" });
+    await expect.element(nav).toBeVisible();
+    const link = nav
+      .element()
+      .querySelector<HTMLAnchorElement>(`a[href="#${section}"]`)!;
+    const target = document.getElementById(section)!;
+    const input = page.getByRole("spinbutton", {
+      name: "显示行数",
+      exact: true,
+    });
+    await input.fill("");
+    link.click();
+    await expect.poll(() => document.activeElement?.id).toBe(section);
+    const current = () =>
+      nav.element().querySelector("a[data-active]")?.getAttribute("href");
+    await expect.poll(current).toBe(`#${section}`);
+
+    for (const width of [1023, 1024, 390, 1280, 1023]) {
+      await page.viewport(width, 800);
+      if (width < 1024) {
+        await expect
+          .poll(() => {
+            const top = target.getBoundingClientRect().top;
+            return (
+              top + 1 >= nav.element().getBoundingClientRect().bottom &&
+              top < innerHeight
+            );
+          })
+          .toBe(true);
+      }
+      await expect.poll(current).toBe(`#${section}`);
+      expect(document.activeElement).toBe(target);
+      await expect.element(input).toHaveValue(null);
+    }
+  },
+);
 
 test("standalone navigation follows the measured header height", async () => {
   await page.viewport(393, 851);
@@ -246,8 +291,8 @@ test("core settings navigation and sections exclude every disabled provider", as
     .toBeVisible();
 });
 
-test("core preference saves do not submit or erase inactive feature preferences", async () => {
-  await enableCreationFeatures([]);
+test("local and active feature preference saves do not submit or erase inactive feature preferences", async () => {
+  await enableCreationFeatures(["forward"]);
   const values = {
     ...emptySettings,
     ignoreHighPorts: false,
@@ -283,19 +328,26 @@ test("core preference saves do not submit or erase inactive feature preferences"
   expect(document.documentElement.classList.contains("dark")).toBe(true);
   expect(patches).toEqual([]);
 
-  await page.getByRole("switch", { name: "始终显示底部工具栏" }).click();
+  await page.getByRole("switch", { name: "显示底部工具栏" }).click();
+  expect(localStorage.getItem("webmux.bottomToolbar")).toBe("1");
+  expect(bottomToolbar.shown).toBe(true);
+  expect(patches).toEqual([]);
+
+  await page
+    .getByRole("switch", { name: "忽略 30000 及以上端口的转发提示" })
+    .click();
   await vi.waitFor(() => expect(patches).toHaveLength(1));
   expect(patches).toEqual([
-    { baseRevision: 0, changes: { forceSoftKeys: true } },
+    { baseRevision: 0, changes: { ignoreHighPorts: null } },
   ]);
   expect(settings.values.codeReader).toEqual(values.codeReader);
-  expect(settings.values.ignoreHighPorts).toBe(false);
+  expect(settings.values.ignoreHighPorts).toBeNull();
   expect(
     page.getByRole("switch", { name: "代码行号" }).elements(),
   ).toHaveLength(0);
 });
 
-test("theme stays device-local, works offline, and syncs across same-browser windows", async () => {
+test("theme and bottom toolbar stay device-local, work offline, and sync across same-browser windows", async () => {
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof fetch>(async () =>
@@ -307,16 +359,22 @@ test("theme stays device-local, works offline, and syncs across same-browser win
   render(Settings);
 
   const group = page.getByRole("radiogroup", { name: "主题", exact: true });
+  const toolbarSwitch = page.getByRole("switch", { name: "显示底部工具栏" });
   await expect.element(group).toBeVisible();
+  await expect.element(toolbarSwitch).toBeEnabled();
   await group.getByRole("radio", { name: "深色", exact: true }).click();
+  await toolbarSwitch.click();
   expect(localStorage.getItem("webmux.theme")).toBe("dark");
+  expect(localStorage.getItem("webmux.bottomToolbar")).toBe("1");
   expect(document.documentElement.classList.contains("dark")).toBe(true);
+  expect(bottomToolbar.shown).toBe(true);
 
   setActiveHostId("remote-a");
   store("token", "ephemeral");
   clearHostStorage("remote-a");
   expect(stored("token")).toBe("");
   expect(stored("theme")).toBe("dark");
+  expect(stored("bottomToolbar")).toBe("1");
   setActiveHostId(null);
 
   localStorage.setItem("webmux.theme", "light");
@@ -327,21 +385,37 @@ test("theme stays device-local, works offline, and syncs across same-browser win
       storageArea: localStorage,
     }),
   );
+  localStorage.setItem("webmux.bottomToolbar", "0");
+  window.dispatchEvent(
+    new StorageEvent("storage", {
+      key: "webmux.bottomToolbar",
+      newValue: "0",
+      storageArea: localStorage,
+    }),
+  );
   expect(document.documentElement.classList.contains("dark")).toBe(false);
+  expect(bottomToolbar.mode).toBe("hidden");
   await expect
     .element(group.getByRole("radio", { name: "浅色", exact: true }))
     .toHaveAttribute("aria-checked", "true");
+  await expect.element(toolbarSwitch).toHaveAttribute("aria-checked", "false");
 
   await group.getByRole("radio", { name: "跟随系统", exact: true }).click();
+  await page.getByRole("button", { name: "恢复默认工具栏" }).click();
   expect(localStorage.getItem("webmux.theme")).toBeNull();
+  expect(localStorage.getItem("webmux.bottomToolbar")).toBeNull();
   expect(themePreference.value).toBe("system");
+  expect(bottomToolbar.mode).toBe("auto");
 
   vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
     throw new DOMException("quota exceeded", "QuotaExceededError");
   });
   await group.getByRole("radio", { name: "深色", exact: true }).click();
+  await toolbarSwitch.click();
   expect(localStorage.getItem("webmux.theme")).toBeNull();
+  expect(localStorage.getItem("webmux.bottomToolbar")).toBeNull();
   expect(themePreference.value).toBe("dark");
+  expect(bottomToolbar.shown).toBe(true);
   expect(document.documentElement.classList.contains("dark")).toBe(true);
 
   await cleanup();
@@ -352,6 +426,9 @@ test("theme stays device-local, works offline, and syncs across same-browser win
         .getByRole("radiogroup", { name: "主题", exact: true })
         .getByRole("radio", { name: "深色", exact: true }),
     )
+    .toHaveAttribute("aria-checked", "true");
+  await expect
+    .element(page.getByRole("switch", { name: "显示底部工具栏" }))
     .toHaveAttribute("aria-checked", "true");
   expect(document.documentElement.classList.contains("dark")).toBe(true);
 });

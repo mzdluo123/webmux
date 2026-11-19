@@ -476,6 +476,7 @@
       bind:forwarding
       excluded={ids}
       feedSessions={feed.sessions}
+      oncancelchoose={() => void focus(active)}
       onselect={(sessionId, direction) => {
         void add(sessionId, direction);
       }}

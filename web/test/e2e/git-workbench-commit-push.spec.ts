@@ -237,7 +237,7 @@ test("aborts Push when pre-commit hook rewrites tree (A05), reports two-step fai
   await expect(page.getByTestId("git-commit-outcome-banner")).toContainText(
     "needs_review",
   );
-  await expect(page.getByText(/推送确认 · main/)).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "推送确认" })).toHaveCount(0);
   await rm(hookPath);
 
   // Now stage clean.ts and run Commit & Push -> matched -> auto-opens Push dialog with 3 outgoing commits!

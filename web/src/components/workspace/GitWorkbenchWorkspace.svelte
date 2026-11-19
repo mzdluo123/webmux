@@ -228,16 +228,6 @@
               tab,
               rev: controller.view.selectedCommitOid ?? undefined,
             })}
-          onAddReworkItem={writableWorktree
-            ? (input, opts) => {
-                controller.rework.addItem(input, opts);
-                if (opts?.openSheet) {
-                  controller.rework.syncDefaultSessionSelection(
-                    activeWorktreeSessions,
-                  );
-                }
-              }
-            : undefined}
           {onRequestCheckout}
           onOpenOccupiedWorktree={(wtId) => onSwitchWorktree(wtId)}
         />
@@ -288,8 +278,6 @@
             activeDiffStaleReason={controller.staging.activeDiffStaleReason}
             uncommittedProgress={controller.reviews.uncommittedProgress}
             taskProgress={controller.reviews.taskProgress}
-            liveWorktreeIdentityForPath={(path) =>
-              controller.reviews.liveWorktreeIdentityForPath(path)}
             {hasActiveWorktreeSession}
             activeSessionCount={activeWorktreeSessions.length}
             exitedSessionCount={exitedWorktreeSessions.length}
@@ -304,14 +292,6 @@
               void controller.toggleTaskReviewed(path)}
             onJumpNextUnreviewed={(scope) =>
               controller.jumpNextUnreviewed(scope)}
-            onAddReworkItem={(input, opts) => {
-              controller.rework.addItem(input, opts);
-              if (opts?.openSheet) {
-                controller.rework.syncDefaultSessionSelection(
-                  activeWorktreeSessions,
-                );
-              }
-            }}
             onStageChange={(id) => void controller.stageOrUnstage("stage", id)}
             onUnstageChange={(id) =>
               void controller.stageOrUnstage("unstage", id)}
@@ -343,8 +323,6 @@
               controller.commitDraft.resolveAdoptRemote()}
             onResolveDraftMergeBoth={() =>
               void controller.commitDraft.resolveMergeBoth()}
-            onRequestCommitAssist={() =>
-              controller.rework.openCommitAssistSheet(activeWorktreeSessions)}
             onToggleCommitAmend={(checked) =>
               void controller.commitOptions.toggleAmend(checked)}
             onResolveAmendDraft={(choice) =>

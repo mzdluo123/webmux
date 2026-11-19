@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick, untrack } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconArrowLeft from "~icons/tabler/arrow-left";
@@ -81,6 +82,41 @@
   const detail = $derived(
     conflict ? conflict.detail : localResolved ? null : fixtureDetail,
   );
+  let desktopEditor = $state<HTMLTextAreaElement | null>(null);
+  let mobileEditor = $state<HTMLTextAreaElement | null>(null);
+  let previousDesktop: boolean | undefined;
+
+  $effect.pre(() => {
+    const nextDesktop = desktop.current;
+    const previous = previousDesktop;
+    previousDesktop = nextDesktop;
+    if (previous === undefined || previous === nextDesktop) return;
+    untrack(() => {
+      const editor = previous ? desktopEditor : mobileEditor;
+      if (!editor) return;
+      const { selectionStart, selectionEnd, selectionDirection, scrollTop } =
+        editor;
+      const focused = editor === document.activeElement;
+      const file = detail?.path;
+      void tick().then(() => {
+        const current = nextDesktop ? desktopEditor : mobileEditor;
+        if (
+          !current ||
+          desktop.current !== nextDesktop ||
+          detail?.path !== file
+        )
+          return;
+        if (focused) current.focus({ preventScroll: true });
+        current.setSelectionRange(
+          selectionStart,
+          selectionEnd,
+          selectionDirection,
+        );
+        current.scrollTop = scrollTop;
+      });
+    });
+  });
+
   const draft = $derived(conflict ? conflict.draft : localDraft);
   const progress = $derived(
     conflict
@@ -422,6 +458,7 @@
   {:else if draft && progress}
     {#if desktop.current}
       <GitConflictTextPane
+        bind:resultEditor={desktopEditor}
         {detail}
         {draft}
         {progress}
@@ -434,6 +471,7 @@
       />
     {:else}
       <GitConflictMobilePane
+        bind:resultEditor={mobileEditor}
         {detail}
         {draft}
         {progress}

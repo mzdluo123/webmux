@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import IconDeviceGamepad2 from "~icons/tabler/device-gamepad-2";
+  import IconCopy from "~icons/tabler/copy";
+  import IconX from "~icons/tabler/x";
   import {
     Button,
     type ButtonSize,
@@ -47,10 +48,9 @@
     lock,
     paste,
     keyboard,
-    touchGamepad = false,
-    setTouchGamepad,
     findOpen = false,
     findBar,
+    uploadProgress,
   }: {
     container?: HTMLDivElement;
     terminal: ViewportTerminal;
@@ -68,22 +68,10 @@
     lock: (key: "shift") => void;
     paste: () => Promise<void>;
     keyboard: () => void;
-    touchGamepad?: boolean;
-    setTouchGamepad: (value: boolean) => void;
     findOpen?: boolean;
     findBar?: Snippet;
+    uploadProgress?: Snippet;
   } = $props();
-
-  const gamepadAvailable = $derived(
-    t.controlling === true &&
-      t.connection !== "missing" &&
-      (t.exitCode === null || t.exitCode === undefined) &&
-      visible,
-  );
-  const gamepadActive = $derived(touchGamepad && gamepadAvailable);
-  const gamepadToggleLabel = $derived(
-    gamepadActive ? m.s4_collapse_gamepad() : m.s4_expand_gamepad(),
-  );
 
   // Keep the hint off touch screens, including hybrids whose secondary pointer
   // is coarse, and mirror the platform's actual copy shortcut.
@@ -91,21 +79,6 @@
   const shortcutHint =
     !hasTouchInput() && matchMedia("(pointer: fine)").matches;
 </script>
-
-{#snippet gamepadToggle()}
-  <Button
-    variant="ghost"
-    size="icon-sm"
-    aria-label={gamepadToggleLabel}
-    title={gamepadToggleLabel}
-    aria-expanded={gamepadActive}
-    disabled={!gamepadAvailable}
-    onmousedown={(event) => event.preventDefault()}
-    onclick={() => setTouchGamepad(!touchGamepad)}
-  >
-    <IconDeviceGamepad2 aria-hidden="true" />
-  </Button>
-{/snippet}
 
 <div class="terminal-column">
   <div class="terminal-area">
@@ -116,6 +89,7 @@
       bind:this={container}
     ></div>
     {@render findBar?.()}
+    {@render uploadProgress?.()}
     {#if uploads?.dragging}
       <div
         class="pointer-events-none absolute inset-0 z-20 flex items-center justify-center border-2 border-dashed border-primary bg-background/90"
@@ -126,23 +100,53 @@
         </p>
       </div>
     {/if}
-    {#if t.selection && !findOpen}
-      <div
-        class="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-md border bg-popover p-1 shadow-md"
-        role="toolbar"
-        aria-label={m.s4_terminal_selection_aria()}
-      >
-        <Button
-          size="sm"
-          aria-keyshortcuts={mac ? "Meta+C" : "Control+C"}
-          onclick={() => t.copySelection()}>{m.s4_copy_selection()}</Button
-        >
-        {#if shortcutHint}<kbd class="border px-1" aria-hidden="true"
-            >{mac ? "⌘C" : "Ctrl+C"}</kbd
-          >{/if}
-        <Button variant="ghost" size="sm" onclick={() => t.clearSelection()}
-          >{m.s4_clear_selection()}</Button
-        >
+    {#if visible}
+      <div class="terminal-controls pointer-events-none absolute inset-0 z-10">
+        {#if !t.atBottom && !t.restoring}
+          <div
+            class="terminal-jump pointer-events-auto absolute bottom-3 left-1/2 -translate-x-1/2"
+          >
+            <JumpToLatestButton
+              labelClass="terminal-control-label"
+              onclick={() => t.scrollToBottom()}
+            />
+          </div>
+        {/if}
+        {#if t.selection && !findOpen}
+          <div
+            class="terminal-selection pointer-events-auto absolute right-2 top-2 flex items-center gap-1 rounded-md border bg-popover p-1 shadow-md"
+            role="toolbar"
+            aria-label={m.s4_terminal_selection_aria()}
+          >
+            <Button
+              size="sm"
+              aria-label={m.s4_copy_selection()}
+              title={m.s4_copy_selection()}
+              aria-keyshortcuts={mac ? "Meta+C" : "Control+C"}
+              onclick={() => t.copySelection()}
+            >
+              <IconCopy class="terminal-control-icon" aria-hidden="true" />
+              <span class="terminal-control-label">{m.s4_copy_selection()}</span
+              >
+            </Button>
+            {#if shortcutHint}<kbd
+                class="terminal-control-label border px-1"
+                aria-hidden="true">{mac ? "⌘C" : "Ctrl+C"}</kbd
+              >{/if}
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={m.s4_clear_selection()}
+              title={m.s4_clear_selection()}
+              onclick={() => t.clearSelection()}
+            >
+              <IconX class="terminal-control-icon" aria-hidden="true" />
+              <span class="terminal-control-label"
+                >{m.s4_clear_selection()}</span
+              >
+            </Button>
+          </div>
+        {/if}
       </div>
     {/if}
     {#if t.restoring && t.connection !== "missing"}<div
@@ -159,18 +163,12 @@
           >{m.s4_restoring_ellipsis()}</span
         >
       </div>{/if}
-    {#if !t.atBottom && !t.restoring && visible}<JumpToLatestButton
-        class="absolute bottom-3 left-1/2 z-10 -translate-x-1/2"
-        onclick={() => t.scrollToBottom()}
-      />{/if}
   </div>
   {#if interactive}
     <SoftKeys
       {send}
       modifiers={t.modifiers}
       locked={t.shiftLocked}
-      gamepad={gamepadActive}
-      {gamepadToggle}
       {toggle}
       {lock}
       paste={() => {
@@ -179,7 +177,7 @@
       {keyboard}
     >
       {#snippet trailing()}
-        {@render draftToggle()}{@render quickMenu("top", "icon-sm", "ghost")}
+        {@render draftToggle()}{@render quickMenu("top", "icon-xs", "ghost")}
       {/snippet}
     </SoftKeys>
   {/if}

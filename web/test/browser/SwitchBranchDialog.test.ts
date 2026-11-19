@@ -354,3 +354,49 @@ test("detaching lists the current history", async () => {
     expect.any(AbortSignal),
   );
 });
+
+test("a failed preview can retry in place and show blockers without moving confirmation", async () => {
+  const first = Promise.withResolvers<SwitchPreview>();
+  const second = Promise.withResolvers<SwitchPreview>();
+  const attempts = [first.promise, second.promise];
+  const { source } = setup(() => attempts.shift()!);
+  await choose("feat/a");
+  await expect.poll(() => source.preview.mock.calls.length).toBe(1);
+
+  function anchor() {
+    const button = switchButton().element().getBoundingClientRect();
+    const form = dialog()
+      .element()
+      .querySelector("form")!
+      .getBoundingClientRect();
+    return [
+      Math.round(button.left - form.left),
+      Math.round(button.top - form.top),
+    ];
+  }
+
+  const loadingAnchor = anchor();
+  await expect.element(switchButton()).toBeDisabled();
+  first.reject(new Error("预览暂不可用"));
+  await expect
+    .element(dialog().getByRole("alert"))
+    .toMatchTextContent(/预览暂不可用/);
+  expect(anchor()).toEqual(loadingAnchor);
+
+  await dialog().getByRole("button", { name: "重新读取预览" }).click();
+  await expect.poll(() => source.preview.mock.calls.length).toBe(2);
+  expect(anchor()).toEqual(loadingAnchor);
+  second.resolve(
+    previewOf(
+      { kind: "local", branch: "feat/a" },
+      {
+        blockers: [{ code: "changes", message: "有未提交的修改" }],
+      },
+    ),
+  );
+  await expect
+    .element(dialog().getByRole("alert"))
+    .toMatchTextContent(/有未提交的修改/);
+  await expect.element(switchButton()).toBeDisabled();
+  expect(anchor()).toEqual(loadingAnchor);
+});

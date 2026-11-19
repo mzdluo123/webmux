@@ -229,14 +229,6 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
     return paths.includes(`task:${path}`) || paths.includes(path);
   }
 
-  function liveWorktreeIdentityForPath(path: string): string | undefined {
-    const uncom = uncommittedBySlot.get(reviewSlotKey("unstaged", path));
-    if (uncom?.targetIdentity) return uncom.targetIdentity;
-    const task = taskByPath.get(path);
-    if (task?.targetIdentity) return task.targetIdentity;
-    return undefined;
-  }
-
   async function toggleUncommittedReview(change: GitWorkingChange) {
     if (change.group === "conflicted") return;
     const repoId = bindings.getRepoId();
@@ -406,7 +398,6 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
     refreshAll,
     isUncommittedReviewed,
     isTaskFileReviewed,
-    liveWorktreeIdentityForPath,
     toggleUncommittedReview,
     toggleTaskFileReview,
     jumpToNextUnreviewed,

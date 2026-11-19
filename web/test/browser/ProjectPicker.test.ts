@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
+import { tick } from "svelte";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import ProjectPicker from "../../src/components/workspace/ProjectPicker.svelte";
+import { createProjectSources } from "../../src/hooks/workspace/project-sources.svelte";
 import type { Project } from "../../src/contracts/schemas";
 
 vi.mock("../../src/platform/feature-host.svelte", () => ({
@@ -167,6 +169,197 @@ test("GitHub configuration failure stays readable and other sources remain acces
     .toBeVisible();
 });
 
+test("editing the GitHub query immediately withdraws the previous options", async () => {
+  const fetchMock = vi.mocked(window.fetch);
+  const fetchProject = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (input, init) => {
+    const url = new URL(String(input), location.href);
+    if (url.pathname !== "/api/projects/github")
+      return fetchProject(input, init);
+    const query = url.searchParams.get("query") || "old";
+    return Response.json({
+      available: true,
+      reason: "",
+      login: "audit",
+      repositories: [
+        {
+          fullName: `audit/${query}`,
+          description: "",
+          private: false,
+          cloneUrl: `https://github.com/audit/${query}.git`,
+        },
+      ],
+      page: 1,
+      hasMore: false,
+    });
+  });
+  mount();
+  await source("GitHub 仓库");
+  await expect
+    .element(page.getByRole("option", { name: /audit\/old/ }))
+    .toBeVisible();
+  const search = page.getByRole("combobox");
+  const input = search.element() as HTMLInputElement;
+  input.value = "new";
+  input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+  await tick();
+  expect(document.querySelector('[role="option"]')).toBeNull();
+  input.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+  );
+  expect(document.body.textContent).not.toContain(
+    "https://github.com/audit/old.git",
+  );
+  await expect
+    .element(page.getByRole("option", { name: /audit\/new/ }))
+    .toBeVisible();
+});
+
+test("editing GitHub query immediately aborts in-flight fetch and keeps debounce pending", async () => {
+  const signals: AbortSignal[] = [];
+  const pageTwoGate = Promise.withResolvers<Response>();
+  const reloadGate = Promise.withResolvers<Response>();
+  let blockPageTwo = false;
+  let blockReload = false;
+  const makeResponse = (query: string, pageNum: number) =>
+    Response.json({
+      available: true,
+      reason: "",
+      login: "audit",
+      repositories: [
+        {
+          fullName: `audit/${query || "default"}-p${pageNum}`,
+          description: "",
+          private: false,
+          cloneUrl: `https://github.com/audit/${query || "default"}-p${pageNum}.git`,
+        },
+      ],
+      page: pageNum,
+      hasMore: true,
+    });
+  const fetchMock = vi.mocked(window.fetch);
+  const fetchProject = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (input, init) => {
+    const url = new URL(String(input), location.href);
+    if (url.pathname !== "/api/projects/github")
+      return fetchProject(input, init);
+    if (init?.signal) signals.push(init.signal);
+    const query = url.searchParams.get("query") ?? "";
+    const pageNum = Number(url.searchParams.get("page") ?? "1");
+    if (pageNum === 2 && blockPageTwo) return pageTwoGate.promise;
+    if (pageNum === 1 && blockReload) return reloadGate.promise;
+    return makeResponse(query, pageNum);
+  });
+  mount();
+  await source("GitHub 仓库");
+  await expect
+    .element(page.getByRole("option", { name: /audit\/default-p1/ }))
+    .toBeVisible();
+
+  blockPageTwo = true;
+  await page.getByRole("button", { name: "下一页", exact: true }).click();
+  await expect.poll(() => signals.length).toBe(2);
+  const pageTwoSignal = signals[1]!;
+  expect(pageTwoSignal.aborted).toBe(false);
+
+  blockReload = true;
+  const input = page.getByRole("combobox").element() as HTMLInputElement;
+  input.value = "x";
+  input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+  await tick();
+  expect(pageTwoSignal.aborted).toBe(true);
+
+  // Backspacing to "" within the 250ms debounce window keeps loading active.
+  input.value = "";
+  input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+  await tick();
+  expect(document.querySelector('[role="option"]')).toBeNull();
+  await expect
+    .element(page.getByRole("status"))
+    .toHaveTextContent("正在查询 GitHub…");
+
+  await expect.poll(() => signals.length).toBe(3);
+  reloadGate.resolve(makeResponse("", 1));
+  await expect
+    .element(page.getByRole("option", { name: /audit\/default-p1/ }))
+    .toBeVisible();
+});
+
+test("GitHub refresh error renders destructive alert even when repositories are available", async () => {
+  const base = createProjectSources(onselect);
+  let failRefresh = false;
+  const controller: typeof base = {
+    get projects() {
+      return base.projects;
+    },
+    get loading() {
+      return base.loading;
+    },
+    get busy() {
+      return base.busy;
+    },
+    get error() {
+      return base.error;
+    },
+    get github() {
+      return {
+        available: true,
+        reason: "",
+        login: "audit",
+        repositories: [
+          {
+            fullName: "audit/webmux",
+            description: "",
+            private: false,
+            cloneUrl: "https://github.com/audit/webmux.git",
+          },
+        ],
+        page: 1,
+        hasMore: false,
+      };
+    },
+    githubLoading: false,
+    githubQuery: "",
+    githubError: "",
+    get operation() {
+      return base.operation;
+    },
+    get pending() {
+      return base.pending;
+    },
+    load: () => base.load(),
+    select: (p, path) => base.select(p, path),
+    open: (path) => base.open(path),
+    create: (parent, name, git) => base.create(parent, name, git),
+    clone: (url, path, src) => base.clone(url, path, src),
+    resume: () => base.resume(),
+    retryRegistration: () => base.retryRegistration(),
+    clearClone: () => base.clearClone(),
+    cancelGitHubSearch: () => base.cancelGitHubSearch(),
+    searchGitHub: async () => {
+      if (failRefresh) throw new Error("刷新鉴权令牌失败");
+    },
+    dispose: () => base.dispose(),
+  };
+  render(ProjectPicker, {
+    defaultCwd: "/projects",
+    recent: [],
+    controller,
+    initialStep: "github",
+    onselect,
+  });
+  await expect
+    .element(page.getByRole("option", { name: /audit\/webmux/ }))
+    .toBeVisible();
+
+  failRefresh = true;
+  await page.getByRole("button", { name: "刷新仓库", exact: true }).click();
+  const alert = page.getByRole("alert");
+  await expect.element(alert).toHaveTextContent("刷新鉴权令牌失败");
+  expect(alert.element().className).toContain("text-destructive");
+  base.dispose();
+});
+
 test("browser reopening polls the admitted clone without another POST", async () => {
   mount();
   await source("Git URL");
@@ -248,4 +441,101 @@ test("remote URL suggests a destination but preserves an edited target", async (
   await target.click();
   await expect.element(target).toHaveValue("/projects/custom-target");
   expect(requests.some((request) => request.method === "POST")).toBe(false);
+});
+
+test("preserves body spacing on projects step and keeps command list untransformed on step change", async () => {
+  mount();
+  const addBtn = page.getByRole("button", { name: "添加项目…", exact: true });
+  await expect.element(addBtn).toBeVisible();
+  const searchBox = page
+    .getByRole("combobox", { name: "搜索项目", exact: true })
+    .element() as HTMLElement;
+  const commandRoot = searchBox.closest("[data-slot='command']") as HTMLElement;
+  const buttonEl = addBtn.element() as HTMLElement;
+  const gap =
+    buttonEl.getBoundingClientRect().top -
+    commandRoot.getBoundingClientRect().bottom;
+  expect(gap).toBeGreaterThanOrEqual(15);
+  expect(gap).toBeLessThanOrEqual(17);
+  await addBtn.click();
+  await expect
+    .element(page.getByRole("combobox", { name: "搜索项目来源", exact: true }))
+    .toBeVisible();
+  expect(commandRoot.style.transform).toBe("");
+});
+
+test("keeps stopTracking start-aligned, retains focus during registration retry, and restores input focus on stopTracking", async () => {
+  const registerGate = Promise.withResolvers<void>();
+  const fetchMock = vi.mocked(window.fetch);
+  const fetchProject = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (input, init) => {
+    const url = new URL(String(input), location.href);
+    if (url.pathname.endsWith("/register") && init?.method === "POST") {
+      await registerGate.promise;
+    }
+    return fetchProject(input, init);
+  });
+
+  localStorage.setItem(
+    "webmux.pendingProjectClone",
+    JSON.stringify({
+      requestId: "recover-focus",
+      url: "https://example.invalid/repo.git",
+      path: "/projects/cloned",
+      operationId: id,
+    }),
+  );
+  cloneState = "running";
+  await mount();
+
+  const stopBtn = page.getByRole("button", {
+    name: "暂不跟踪此克隆",
+    exact: true,
+  });
+  await expect.element(stopBtn).toBeVisible();
+  expect(
+    stopBtn.element().parentElement?.querySelector(".invisible"),
+  ).toBeNull();
+  const initialBox = stopBtn.element().getBoundingClientRect();
+
+  // Transition to registration_failed on next poll or re-mount: test retry focus retention and stopBtn coordinates.
+  await cleanup();
+  localStorage.setItem(
+    "webmux.pendingProjectClone",
+    JSON.stringify({
+      requestId: "recover-focus",
+      url: "https://example.invalid/repo.git",
+      path: "/projects/cloned",
+      operationId: id,
+    }),
+  );
+  cloneState = "registration_failed";
+  await mount();
+
+  const stopWithRetry = page.getByRole("button", {
+    name: "暂不跟踪此克隆",
+    exact: true,
+  });
+  const retryBtn = page.getByRole("button", {
+    name: "重试项目登记",
+    exact: true,
+  });
+  await expect.element(retryBtn).toBeVisible();
+  const retryRowBox = stopWithRetry.element().getBoundingClientRect();
+  expect(Math.round(retryRowBox.left)).toBe(Math.round(initialBox.left));
+
+  (retryBtn.element() as HTMLButtonElement).focus();
+  (retryBtn.element() as HTMLButtonElement).click();
+  await expect.element(retryBtn).toHaveAttribute("aria-disabled", "true");
+  await expect.element(retryBtn).toHaveFocus();
+
+  // Finish retry with registration_failed still set so we can also test stopTracking focus restoration.
+  registerGate.resolve();
+  await expect.element(retryBtn).toHaveAttribute("aria-disabled", "false");
+  await stopWithRetry.click();
+
+  await expect.element(stopWithRetry).not.toBeInTheDocument();
+  await expect
+    .element(page.getByRole("combobox", { name: "搜索项目", exact: true }))
+    .toHaveFocus();
 });

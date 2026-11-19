@@ -67,6 +67,7 @@
   const dock = untrack(() => (docked ? getDock() : undefined));
   const navMin = 120,
     navMax = 640;
+  let navDivider = $state<HTMLDivElement>();
   let section = $state<HTMLElement>();
   let inner = $state<HTMLDivElement>();
   let navigationHost = $state<HTMLDivElement>();
@@ -119,11 +120,70 @@
     ws.s.navWidth = Math.round(Math.max(navMin, Math.min(limit, width)));
   }
   function resizeStart(event: PointerEvent) {
-    dragWidth(event, ws.s.navWidth, setNavWidth);
+    dragWidth(event, renderedNavWidth(), setNavWidth);
   }
   function resizeKey(event: KeyboardEvent) {
-    keyWidth(event, ws.s.navWidth, { min: navMin, max: navMax }, setNavWidth);
+    keyWidth(
+      event,
+      renderedNavWidth(),
+      { min: navMin, max: navMax },
+      setNavWidth,
+    );
   }
+  $effect(() => {
+    const divider = navDivider;
+    const container = inner;
+    if (!divider || !container) return;
+
+    let ownedFocus = document.activeElement === divider;
+    let overlayFocus: HTMLElement | undefined;
+    function remember() {
+      ownedFocus = true;
+    }
+    const clear = (event: FocusEvent) => {
+      if (event.relatedTarget || divider.getClientRects().length)
+        ownedFocus = false;
+    };
+    const update = () => {
+      if (divider.getClientRects().length) {
+        if (overlayFocus && document.activeElement === overlayFocus)
+          divider.focus({ preventScroll: true });
+        overlayFocus = undefined;
+      } else if (
+        ownedFocus &&
+        (document.activeElement === divider ||
+          document.activeElement === document.body)
+      ) {
+        const tab = container.querySelector<HTMLElement>(
+          '.code-navigation [role="tab"][aria-selected="true"]',
+        );
+        if (tab?.getClientRects().length) {
+          overlayFocus = tab;
+          tab.focus({ preventScroll: true });
+        }
+        ownedFocus = false;
+      }
+    };
+    const resize = new ResizeObserver(update);
+    resize.observe(container);
+    window.addEventListener("resize", update);
+    divider.addEventListener("focus", remember);
+    divider.addEventListener("blur", clear);
+    return () => {
+      resize.disconnect();
+      window.removeEventListener("resize", update);
+      divider.removeEventListener("focus", remember);
+      divider.removeEventListener("blur", clear);
+    };
+  });
+
+  function renderedNavWidth() {
+    return (
+      inner?.querySelector(".code-navigation")?.getBoundingClientRect().width ||
+      ws.s.navWidth
+    );
+  }
+
   async function locate(input: string) {
     if (!ws.s.context) return;
     await show(
@@ -302,6 +362,7 @@
           <!-- A focusable separator with aria-valuenow is an interactive widget (WAI-ARIA window splitter). -->
           <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
           <div
+            bind:this={navDivider}
             class="code-nav-divider"
             role="separator"
             aria-orientation="vertical"

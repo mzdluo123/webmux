@@ -3,7 +3,6 @@
   import { navigate } from "../../platform/api";
   import { useTerminal } from "../../hooks/terminal/terminal.svelte";
   import { keyboardSizeHold } from "../../hooks/terminal/keyboard-size-hold-preference.svelte";
-  import { touchGamepad } from "../../hooks/terminal/touch-gamepad-preference.svelte";
   import {
     createSessionUploadHandlers,
     useSessionTerminalChrome,
@@ -23,10 +22,6 @@
   import SessionTerminalStage from "./SessionTerminalStage.svelte";
   import { getDock } from "../shared/dock-context";
   import type { sessionPanelIds } from "../../domains/terminal/session-dock";
-  import {
-    settings,
-    changeSettings,
-  } from "../../domains/settings/settings.svelte";
   import {
     createHeaderTerminalView,
     deriveChatUploadUnavailable,
@@ -114,7 +109,6 @@
   let closing = $state(false);
   let settingsOpen = $state(false);
   let scratchOpen = $state(false);
-  const forceSoftKeys = $derived(settings.values.forceSoftKeys ?? false);
   let mounted = false;
   let seenHybrid = false;
   let codePanel = $state<CodePanelComponent>();
@@ -404,9 +398,6 @@
     {openPanels}
     {onactivate}
     {chatActions}
-    bind:forceSoftKeys={
-      () => forceSoftKeys, (value) => changeSettings({ forceSoftKeys: value })
-    }
     {id}
     {headerTerminal}
     {fullscreen}
@@ -443,8 +434,6 @@
     keyboardSizeHold={keyboardSizeHold.enabled}
     setKeyboardSizeHold={(value) => (keyboardSizeHold.enabled = value)}
     keyboardHeld={chrome.keyboardHeld}
-    touchGamepad={touchGamepad.enabled}
-    setTouchGamepad={(value) => (touchGamepad.enabled = value)}
     findOpen={chrome.findOpen}
     {showFind}
     closeFind={chrome.closeFind}

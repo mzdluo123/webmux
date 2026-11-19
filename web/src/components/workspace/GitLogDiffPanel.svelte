@@ -1,21 +1,13 @@
 <script lang="ts">
-  import type { SelectedLineRange } from "@pierre/diffs";
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { m } from "$lib/paraglide/messages.js";
   import GitFileStatusIcon from "../shared/GitFileStatusIcon.svelte";
   import type { GitCommitFile } from "../../contracts/git-workbench-schemas";
-  import {
-    type ActiveDiffReworkSelection,
-    createReworkDraftItem,
-    extractDiffRangeSnippet,
-    resolveSnapshotVersionDescriptor,
-  } from "../../domains/workspace/git-rework-model";
   import type { GitDiffPanelReader } from "../../hooks/workspace/git-log-diff.svelte";
   import { createOfflineHunkDiffState } from "../../hooks/workspace/git-offline-diff.svelte";
   import CodeDiffReader from "../code/CodeDiffReader.svelte";
-  import GitDiffSelectionBar from "./GitDiffSelectionBar.svelte";
   import GitLogDiffFallbackView from "./GitLogDiffFallbackView.svelte";
   import GitPanelToolbar from "./GitPanelToolbar.svelte";
 
@@ -26,9 +18,6 @@
     fallbackRightLabel = "",
     backLabel: rawBackLabel,
     presentation = "docked",
-    isTaskScope = false,
-    liveWorktreeIdentity,
-    onAddReworkItem,
     onBack,
   }: {
     logDiff?: GitDiffPanelReader;
@@ -37,22 +26,12 @@
     fallbackRightLabel?: string;
     backLabel?: string;
     presentation?: "docked" | "mobile";
-    isTaskScope?: boolean;
-    liveWorktreeIdentity?: string;
-    onAddReworkItem?: (
-      input: Parameters<typeof createReworkDraftItem>[0],
-      options?: { openSheet?: boolean },
-    ) => void;
     onBack?: () => void;
   } = $props();
 
   const backLabel = $derived(rawBackLabel ?? m.s6_back_to_commit_detail());
 
   let readerRef = $state<ReturnType<typeof CodeDiffReader>>();
-  let selectionSlot = $state.raw<{
-    key: string;
-    range: SelectedLineRange | null;
-  } | null>(null);
   const offline = createOfflineHunkDiffState();
 
   export function hasOpenReaderPanel(): boolean {
@@ -102,41 +81,6 @@
   const effectiveDiffStyle = $derived(
     presentation === "mobile" ? "unified" : "split",
   );
-
-  const selectionKey = $derived(`${leftEndpoint}:${rightEndpoint}:${filePath}`);
-  const selectedRange = $derived(
-    selectionSlot?.key === selectionKey ? selectionSlot.range : null,
-  );
-
-  const resolvedSelection = $derived.by<ActiveDiffReworkSelection | null>(
-    () => {
-      if (!onAddReworkItem || !activeFileDiff || !selectedRange || !filePath) {
-        return null;
-      }
-      const extracted = extractDiffRangeSnippet(activeFileDiff, selectedRange);
-      if (!extracted) return null;
-      const desc = resolveSnapshotVersionDescriptor({
-        isTaskScope,
-        side: extracted.side,
-        leftLabel: leftEndpoint,
-        rightLabel: rightEndpoint,
-        baseOid: logDiff?.state.baseOid ?? "",
-        targetOid: logDiff?.state.targetOid ?? "",
-        liveWorktreeIdentity,
-      });
-      return {
-        path: filePath,
-        oldPath: oldFilePath || undefined,
-        ...extracted,
-        ...desc,
-      };
-    },
-  );
-
-  function clearLogSelection() {
-    selectionSlot = null;
-    readerRef?.clearLineAction();
-  }
 </script>
 
 {#snippet fileIdentitySummary()}
@@ -196,12 +140,6 @@
     </GitPanelToolbar>
   {/if}
 
-  <GitDiffSelectionBar
-    selection={resolvedSelection}
-    {onAddReworkItem}
-    onClear={clearLogSelection}
-  />
-
   <div class="code-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
     {#if phase === "ready" && activeFileDiff && filePath}
       {#key activeFileDiff.cacheKey ?? `${leftEndpoint}:${rightEndpoint}:${filePath}`}
@@ -212,9 +150,7 @@
           expired={false}
           draftEnabled={false}
           preferredDiffStyle={effectiveDiffStyle}
-          onselect={(range) => {
-            selectionSlot = range ? { key: selectionKey, range } : null;
-          }}
+          onselect={() => {}}
         />
       {/key}
     {:else}

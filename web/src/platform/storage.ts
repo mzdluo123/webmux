@@ -22,7 +22,7 @@ export const deviceScopedKeys: ReadonlySet<string> = new Set([
   "fontSize",
   "codeFontSize",
   "keyboardSizeHold",
-  "touchGamepad",
+  "bottomToolbar",
   "voiceInput",
 ]);
 

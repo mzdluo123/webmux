@@ -327,7 +327,6 @@
         fallbackLeftLabel={resolvedParent.selectedParent.slice(0, 7)}
         fallbackRightLabel={selectedDetail?.shortOid ?? ""}
         presentation={multiColumn.current ? "docked" : "mobile"}
-        onAddReworkItem={props.onAddReworkItem}
         onBack={!multiColumn.current ? closeLayer : undefined}
       />
     </DockPanel>

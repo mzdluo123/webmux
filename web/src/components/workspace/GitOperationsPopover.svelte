@@ -129,7 +129,10 @@
           data-testid="git-operations-popover-trigger"
         >
           {#if hasActivePhase}
-            <IconLoader2 class="animate-spin text-info" aria-hidden="true" />
+            <IconLoader2
+              class="animate-spin text-info motion-reduce:animate-none"
+              aria-hidden="true"
+            />
             <span
               class="max-w-40 truncate sm:max-w-56"
               role="status"
@@ -143,7 +146,10 @@
             {:else if latestOp.status === "needs_review" || latestOp.status === "uncertain"}
               <IconAlertTriangle class="text-warning" aria-hidden="true" />
             {:else}
-              <IconLoader2 class="animate-spin text-info" aria-hidden="true" />
+              <IconLoader2
+                class="animate-spin text-info motion-reduce:animate-none"
+                aria-hidden="true"
+              />
             {/if}
             <span
               class="max-w-44 truncate sm:max-w-56"
@@ -173,51 +179,50 @@
       side="bottom"
       align="end"
       collisionPadding={8}
-      class="w-[min(92vw,30rem)] p-0"
+      class="max-h-[min(26rem,var(--bits-popover-content-available-height))] w-[min(92vw,30rem)] gap-0 overflow-hidden p-0"
       data-testid="git-operations-popover"
     >
-      <ScrollArea
-        viewportClasses="max-h-(--bits-popover-content-available-height)"
-      >
-        <div class="p-3">
-          <div class="flex items-center justify-between gap-2">
-            <div class="min-w-0">
-              <p class="text-xs font-semibold text-foreground">
-                {m.s6_ops_recent_heading()}
-              </p>
-              <p class="truncate font-mono text-xs text-muted-foreground">
-                {worktreePath ?? m.s6_ops_repo_global()}
-                {#if lastFetchedAt}
-                  {m.s6_ops_last_fetched({
-                    time: formatShortTime(lastFetchedAt),
-                  })}
-                {/if}
-              </p>
-            </div>
-            {#if onRefreshOperations}
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                aria-label={m.s6_ops_refresh_aria()}
-                title={m.s6_ops_refresh_aria()}
-                onclick={onRefreshOperations}
-              >
-                <IconRefresh aria-hidden="true" />
-              </Button>
-            {/if}
+      <div class="shrink-0 space-y-2 border-b px-3 pt-3 pb-2">
+        <div class="flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <p class="text-xs font-semibold text-foreground">
+              {m.s6_ops_recent_heading()}
+            </p>
+            <p class="truncate font-mono text-xs text-muted-foreground">
+              {worktreePath ?? m.s6_ops_repo_global()}
+              {#if lastFetchedAt}
+                {m.s6_ops_last_fetched({
+                  time: formatShortTime(lastFetchedAt),
+                })}
+              {/if}
+            </p>
           </div>
+          {#if onRefreshOperations}
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label={m.s6_ops_refresh_aria()}
+              title={m.s6_ops_refresh_aria()}
+              onclick={onRefreshOperations}
+            >
+              <IconRefresh aria-hidden="true" />
+            </Button>
+          {/if}
+        </div>
 
+        <ScrollArea viewportClasses="max-h-16">
           {#if activeOperation && activeOperation.phase !== "idle"}
             <div
-              class="flex items-center gap-2 rounded-md border bg-background px-2.5 py-2 text-xs"
+              class="flex min-w-0 items-start gap-2 text-xs"
               data-testid="git-active-operation-card"
+              role="status"
             >
               <IconLoader2
-                class="size-4 shrink-0 animate-spin text-info"
+                class="size-4 shrink-0 animate-spin text-info motion-reduce:animate-none"
                 aria-hidden="true"
               />
               <div class="min-w-0 flex-1">
-                <p class="font-medium text-foreground">
+                <p class="font-medium wrap-anywhere text-foreground">
                   {m.s6_ops_active_summary({
                     phase: activePhaseLabel,
                     summary: activeOperation.summary,
@@ -232,8 +237,23 @@
                 {/if}
               </div>
             </div>
+          {:else}
+            <div role="status">
+              {#if latestOp}
+                <Badge variant={statusBadgeVariant(latestOp.status)}>
+                  {gitOperationKindLabel(latestOp.kind)} · {gitOperationStatusLabel(
+                    latestOp.status,
+                  )}
+                </Badge>
+              {:else}
+                <p class="text-xs text-muted-foreground">{m.s6_ops_ready()}</p>
+              {/if}
+            </div>
           {/if}
-
+        </ScrollArea>
+      </div>
+      <ScrollArea class="min-h-0">
+        <div class="space-y-3 p-3">
           {#if operations.length === 0}
             <p class="py-3 text-center text-xs text-muted-foreground">
               {m.s6_ops_empty()}

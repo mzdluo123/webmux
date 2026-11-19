@@ -87,7 +87,9 @@
     data-testid="terminal-host"
     style="position: fixed; left: 0; top: 0; width: 400px; height: 750px"
   ></div>
-  <div style="position: fixed; left: 0; top: 0; width: 400px">
+  <div
+    style="position: fixed; left: 0; top: 0; width: 400px; height: 750px; pointer-events: none"
+  >
     <TerminalFindBar
       bind:this={findPanel}
       open={findOpen}

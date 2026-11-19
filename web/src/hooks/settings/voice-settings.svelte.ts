@@ -16,8 +16,6 @@ export interface VoiceSettingsState {
   busy: boolean;
   error: string;
   notice: string;
-  // Bumps when the form must re-read the server values.
-  editVersion: number;
 }
 
 export function useVoiceSettings() {
@@ -26,7 +24,6 @@ export function useVoiceSettings() {
     busy: false,
     error: "",
     notice: "",
-    editVersion: 0,
   });
   let mounted = true;
 
@@ -44,7 +41,6 @@ export function useVoiceSettings() {
       if (!mounted) return false;
       state.view = next;
       state.error = "";
-      state.editVersion++;
       return true;
     } catch (cause) {
       if (mounted) state.error = errorMessage(cause);

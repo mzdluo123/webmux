@@ -3,6 +3,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { api } from "../../platform/api";
   import {
     ChatSupportSchema,
@@ -26,18 +27,22 @@
     hybrid: boolean;
     disabled?: boolean;
   } = $props();
-  let support = $state<ChatSupport | null>(null);
-  let supportFor = "";
-  const reason = $derived(chatSupportReason(support));
+  let probe = $state<{ command: string; support: ChatSupport }>();
   const supportCmd = $derived(cmd ? JSON.stringify(cmd) : "");
+  const savedCmd = $derived(config ? JSON.stringify(config.cmd) : "");
+  const support = $derived(
+    supportCmd && supportCmd === savedCmd
+      ? (config?.chatSupport ?? null)
+      : probe?.command === supportCmd
+        ? probe.support
+        : null,
+  );
+  const reason = $derived(chatSupportReason(support));
 
-  $effect.pre(() => {
-    support = config?.chatSupport ?? null;
-    supportFor = config ? JSON.stringify(config.cmd) : "";
-  });
   $effect(() => {
-    if (!supportCmd || supportCmd === supportFor) return;
+    if (!supportCmd || supportCmd === savedCmd) return;
     const asked = supportCmd;
+    if (untrack(() => probe?.command) === asked) return;
     const command = untrack(() => cmd);
     if (!command) return;
     const controller = new AbortController();
@@ -50,8 +55,8 @@
         controller.signal,
       )
         .then((result) => {
-          support = result;
-          supportFor = asked;
+          if (!controller.signal.aborted && asked === supportCmd)
+            probe = { command: asked, support: result };
         })
         .catch(() => {
           // Saving remains authoritative when the support probe is unavailable.
@@ -74,18 +79,25 @@
     />
     <Label for="launch-config-hybrid">{m.s2_hybrid_mode_label()}</Label>
   </div>
-  <p id="launch-config-hybrid-help" class="text-xs text-muted-foreground">
-    {#if reason}{reason}{:else}{support
-        ? m.s2_hybrid_help_supported({
-            agents: support.supportedAgents.join(m.s2_list_sep()),
-          })
-        : m.s2_hybrid_help()}{/if}
-  </p>
-  {#if support?.supported && support.connector}
-    <ConnectorInstallHint
-      connector={support.connector}
-      message={connectorNoticeText(support.connector)}
-      tone="info"
-    />
-  {/if}
+  <ScrollArea class="max-h-36">
+    <p
+      id="launch-config-hybrid-help"
+      role="status"
+      class="text-xs text-muted-foreground wrap-anywhere"
+    >
+      {#if reason}{reason}{:else}{support
+          ? m.s2_hybrid_help_supported({
+              agents: support.supportedAgents.join(m.s2_list_sep()),
+            })
+          : m.s2_hybrid_help()}{/if}
+    </p>
+    {#if support?.supported && support.connector}
+      <ConnectorInstallHint
+        connector={support.connector}
+        message={connectorNoticeText(support.connector)}
+        tone="info"
+        class="mt-2"
+      />
+    {/if}
+  </ScrollArea>
 </div>

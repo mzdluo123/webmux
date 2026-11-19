@@ -121,3 +121,107 @@ test("captured diff state restores selection, expansion, search and position", a
     )
     .toContain("修改后 · 1 / 2");
 });
+
+test("a narrower diff column clamps its scroll without moving the longer column", async () => {
+  const short = "short old line ".repeat(9);
+  const long = "much longer new line ".repeat(17);
+  const result = computeDiff(`${short}\n`, `${long}\n`);
+  if (result.kind !== "ready") throw new Error(result.reason);
+  const fileDiff = { ...result.fileDiff, name: "wide.txt" } as FileDiffMetadata;
+  const view = await render(Harness, { fileDiff, width: 900 });
+  const columns = () => [
+    ...(shadow()?.querySelectorAll<HTMLElement>("[data-code]") ?? []),
+  ];
+  const limit = (element: HTMLElement) =>
+    element.scrollWidth - element.clientWidth;
+  await expect.poll(() => columns().length).toBe(2);
+  await expect.poll(() => limit(columns()[1]!)).toBeGreaterThan(0);
+  const offset = limit(columns()[1]!);
+  columns()[1]!.scrollLeft = offset;
+  await expect.poll(() => columns()[0]?.scrollLeft).toBe(limit(columns()[0]!));
+  expect(columns()[1]!.scrollLeft).toBe(offset);
+
+  await view.rerender({ width: 650 });
+  await expect.poll(() => columns().length).toBe(1);
+  await expect.poll(() => columns()[0]?.scrollLeft).toBe(limit(columns()[0]!));
+  await view.rerender({ width: 900 });
+  await expect.poll(() => columns().length).toBe(2);
+  await expect.poll(() => columns()[1]?.scrollLeft).toBe(offset);
+});
+
+test("diff panel sits above horizontal scrollbar and keeps a bottom selected line visible", async () => {
+  const oldLines = [`header ${"w".repeat(180)}`, "tail"];
+  const newLines = [
+    oldLines[0]!,
+    ...Array.from({ length: 35 }, (_, i) => `added line ${i + 1}`),
+    oldLines[1]!,
+  ];
+  const result = computeDiff(
+    oldLines.join("\n") + "\n",
+    newLines.join("\n") + "\n",
+  );
+  if (result.kind !== "ready") throw new Error(result.reason);
+  const fileDiff = {
+    ...result.fileDiff,
+    name: "bottom.txt",
+  } as FileDiffMetadata;
+  render(Harness, { fileDiff, width: 650 });
+
+  const host = document.querySelector<HTMLElement>(".code-diff-reader")!;
+  const scrollbar = () =>
+    document.querySelector<HTMLElement>("[data-code-scrollbar]");
+  await expect
+    .poll(() => row(5)?.textContent ?? "", { timeout: 10000 })
+    .toContain("added line 4");
+  await document.fonts.ready;
+  await expect
+    .poll(() => scrollbar()?.classList.contains("hidden") ?? true)
+    .toBe(false);
+
+  const closedBox = host.getBoundingClientRect();
+  const visibleAdditions = [
+    ...(shadow()?.querySelectorAll<HTMLElement>(
+      '[data-line][data-line-type="change-addition"]',
+    ) ?? []),
+  ]
+    .map((el) => ({
+      line: Number(el.dataset.line),
+      rect: el.getBoundingClientRect(),
+    }))
+    .filter(
+      ({ line, rect }) =>
+        Number.isInteger(line) &&
+        rect.top >= closedBox.top &&
+        rect.bottom <= closedBox.bottom,
+    );
+  const bottomTarget = visibleAdditions.at(-1)!;
+  expect(bottomTarget).toBeDefined();
+  await page
+    .elementLocator(
+      shadow()!.querySelector(
+        `[data-line-type="change-addition"][data-column-number="${bottomTarget.line}"]`,
+      )!,
+    )
+    .click();
+  const beforeScrollTop = host.scrollTop;
+  const beforeRowBottom = row(bottomTarget.line)!.getBoundingClientRect()
+    .bottom;
+
+  await page.getByRole("button", { name: "文件内查找" }).click();
+  await expect
+    .element(page.getByRole("textbox", { name: "查找" }))
+    .toHaveFocus();
+
+  const searchPanel =
+    document.querySelector<HTMLElement>("[data-code-search]")!.parentElement!;
+  const openBox = host.getBoundingClientRect();
+  const panelRect = searchPanel.getBoundingClientRect();
+  const barRect = scrollbar()!.getBoundingClientRect();
+  expect(panelRect.top).toBeGreaterThanOrEqual(openBox.bottom - 1);
+  expect(barRect.top).toBeGreaterThanOrEqual(panelRect.bottom - 1);
+  expect(beforeRowBottom).toBeGreaterThan(openBox.bottom);
+  expect(host.scrollTop).toBeGreaterThan(beforeScrollTop);
+  const afterRowRect = row(bottomTarget.line)!.getBoundingClientRect();
+  expect(afterRowRect.top).toBeGreaterThanOrEqual(openBox.top - 0.5);
+  expect(afterRowRect.bottom).toBeLessThanOrEqual(openBox.bottom + 0.5);
+});

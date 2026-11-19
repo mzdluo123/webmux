@@ -3,6 +3,7 @@
   import DockPanel from "../shared/DockPanel.svelte";
   import { mountDockHost } from "../shared/dock-context";
   import { paneEnter } from "../../hooks/shared/pane-enter";
+  import { bottomToolbar } from "../../hooks/terminal/bottom-toolbar-preference.svelte";
   import { m } from "$lib/paraglide/messages.js";
   import DraftToggle from "./DraftToggle.svelte";
   import TerminalFindBar from "./TerminalFindBar.svelte";
@@ -29,7 +30,6 @@
     headerTerminal,
     fullscreen,
     codeShown,
-    forceSoftKeys = $bindable(),
     documentScroll,
     chatVisible,
     hybrid,
@@ -64,8 +64,6 @@
     keyboardSizeHold,
     setKeyboardSizeHold,
     keyboardHeld,
-    touchGamepad,
-    setTouchGamepad,
     findOpen,
     showFind,
     closeFind,
@@ -206,6 +204,7 @@
 {/snippet}
 {#snippet draftToggle()}
   <DraftToggle
+    size="icon-xs"
     class="sm:hidden"
     {draft}
     {draftSaved}
@@ -228,7 +227,7 @@
     <div
       use:mountToolbar
       class="session-terminal"
-      class:force-soft-keys={forceSoftKeys}
+      data-bottom-toolbar={bottomToolbar.mode}
     >
       <TerminalHeader
         {features}
@@ -246,7 +245,9 @@
         {keyboardSizeHold}
         {setKeyboardSizeHold}
         {codeShown}
-        bind:forceSoftKeys
+        bind:bottomToolbarShown={
+          () => bottomToolbar.shown, (value) => bottomToolbar.set(value)
+        }
         {quickMenu}
         upload={uploads?.uploadFiles}
         {toggleDraft}
@@ -276,6 +277,7 @@
       {leave}
       {terminal}
       {uploads}
+      hideUploadProgress={terminalShown}
       {features}
       {draft}
       {draftSaved}
@@ -314,7 +316,7 @@
   {#snippet children(visible)}
     <div
       class="session-terminal split-terminal relative flex min-h-0 flex-1 flex-col overflow-hidden"
-      class:force-soft-keys={forceSoftKeys}
+      data-bottom-toolbar={bottomToolbar.mode}
       data-session-id={id}
       data-visible={visible}
       data-active={active}
@@ -348,8 +350,6 @@
       visible={terminalVisible}
       interactive={terminalShown}
       sizeLocked={sizeLocked || keyboardHeld}
-      {touchGamepad}
-      {setTouchGamepad}
       {findOpen}
       {uploads}
       {quickMenu}
@@ -373,6 +373,14 @@
           {terminal}
           onclose={closeFind}
         />
+      {/snippet}
+      {#snippet uploadProgress()}
+        {#if terminalShown && features.files && uploads?.progress}<features.files.Progress
+            variant="floating"
+            offset={findOpen}
+            progress={uploads.progress}
+            cancel={() => uploads?.cancel()}
+          />{/if}
       {/snippet}
     </TerminalViewport>
   </div>

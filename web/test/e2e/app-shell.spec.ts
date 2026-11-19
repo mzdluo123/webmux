@@ -8,6 +8,7 @@ import {
   expectConnected,
   openSessionSwitcher,
   revealSidebar,
+  useWorkbenchBranches,
   workspaceLayoutTest as test,
   toggleCode,
 } from "./fixtures";
@@ -307,6 +308,63 @@ test.describe("desktop sidebar", () => {
 });
 
 test.describe("phone drawer", () => {
+  test("the drawer keeps the same visible row when the scrolling container changes", async ({
+    page,
+    request,
+    workDir,
+  }) => {
+    for (let i = 0; i < 26; i++) {
+      const response = await request.post("/api/sessions", {
+        data: {
+          name: "Audit row " + i,
+          cwd: workDir,
+          cmd: ["/bin/sh", "-c", "sleep 60"],
+        },
+      });
+      expect(response.ok()).toBeTruthy();
+    }
+    await page.setViewportSize({ width: 390, height: 667 });
+    await page.goto("/");
+    await useWorkbenchBranches(page, false);
+    const drawer = page.getByRole("dialog", { name: "导航", exact: true });
+    await expect(drawer).toBeVisible();
+    const row = drawer.getByRole("button", { name: /^Audit row 13\b/ });
+    await row.scrollIntoViewIfNeeded();
+    await expect(row).toBeInViewport();
+    const state = () =>
+      row.evaluate((n) => {
+        const sidebar = n.closest(".sidebar-drawer") as HTMLElement;
+        const list = n.closest(
+          '[data-slot="scroll-area-viewport"]',
+        ) as HTMLElement;
+        const rect = n.getBoundingClientRect();
+        return {
+          top: rect.top,
+          height: rect.height,
+          root: sidebar.scrollTop,
+          list: list.scrollTop,
+        };
+      });
+    const result = [await state()];
+    for (const height of [600, 667]) {
+      await page.setViewportSize({ width: 390, height });
+      await page.evaluate(
+        () =>
+          new Promise((r) =>
+            requestAnimationFrame(() => requestAnimationFrame(r)),
+          ),
+      );
+      result.push(await state());
+    }
+    expect(result.map(({ root, list }) => root + list)).toEqual([
+      result[0]!.list,
+      result[0]!.list,
+      result[0]!.list,
+    ]);
+    for (const sample of result)
+      expect(sample.top).toBeCloseTo(result[0]!.top, 0);
+  });
+
   test.skip(({ isMobile }) => !isMobile, "the phone drawer");
 
   for (const size of [

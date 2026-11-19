@@ -68,7 +68,8 @@ Relay 有效期上限由签发端限制、接收端仅检查绝对到期时间�
 
 | 文件                                                                              | 分组               |
 | --------------------------------------------------------------------------------- | ------------------ |
-| [连接、认证与启动会话](user-stories/access-and-sessions/connection-and-launch.md) | A–B                |
+| [连接、认证与访问边界](user-stories/access-and-sessions/connection-and-launch.md) | A                  |
+| [创建会话与选择启动位置](user-stories/access-and-sessions/launch.md)              | B                  |
 | [会话总览、搜索与提醒](user-stories/access-and-sessions/workspace.md)             | C                  |
 | [终端、输入与移动端](user-stories/terminal.md)                                    | D–E、G–H           |
 | [草稿编写、保存与发送确认](user-stories/terminal/drafts.md)                       | F                  |
@@ -103,3 +104,4 @@ Relay 有效期上限由签发端限制、接收端仅检查绝对到期时间�
 | [verification-log-2026-11-15](user-stories/verification-log-2026-11-15.md)                             | 2026-11-15 起                     |
 | [verification-log-2026-11-17](user-stories/verification-log-2026-11-17.md)                             | 2026-11-17 至 2026-11-18          |
 | [verification-log-2026-11-18](user-stories/verification-log-2026-11-18.md)                             | 2026-11-18 起                     |
+| [verification-log-2026-11-19](user-stories/verification-log-2026-11-19.md)                             | 2026-11-19 起                     |

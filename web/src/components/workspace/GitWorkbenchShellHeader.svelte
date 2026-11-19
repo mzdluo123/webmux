@@ -3,7 +3,6 @@
   import type { Snippet } from "svelte";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconFolder from "~icons/tabler/folder";
-  import IconMessageForward from "~icons/tabler/message-forward";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import type {
@@ -20,10 +19,8 @@
     branchFilter,
     compareBaseOid,
     readonlyMode,
-    reworkCount = 0,
     onSelectAllBranches,
     onBranchAction,
-    onOpenRework,
     onOpenPush,
   }: {
     operations?: Snippet;
@@ -32,13 +29,11 @@
     branchFilter: string | null;
     compareBaseOid: string | null;
     readonlyMode: boolean;
-    reworkCount?: number;
     onSelectAllBranches: () => void;
     onBranchAction: (
       kind: GitSharedBranchActionKind,
       branch: GitBranchItem,
     ) => void;
-    onOpenRework?: () => void;
     onOpenPush: () => void;
   } = $props();
 </script>
@@ -114,17 +109,6 @@
 
   <div class="flex min-w-0 max-w-full flex-wrap items-center gap-2">
     {@render operations?.()}
-    {#if onOpenRework && !readonlyMode && reworkCount > 0}
-      <Button
-        size="sm"
-        variant="outline"
-        onclick={onOpenRework}
-        data-testid="git-shell-open-rework-button"
-      >
-        <IconMessageForward aria-hidden="true" />
-        {m.s7_shell_header_rework_btn({ count: reworkCount })}
-      </Button>
-    {/if}
     <Button
       size="sm"
       variant="outline"

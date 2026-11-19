@@ -70,6 +70,9 @@
     const first = visibleFiles[0];
     return first ? first.newPath || first.oldPath : null;
   });
+  const inspectPath = $derived(
+    loading || compareMode?.loading || compareMode?.error ? null : activePath,
+  );
 
   function fileKey(file: GitCommitFile): string {
     return file.newPath || file.oldPath;
@@ -173,11 +176,12 @@
         {/if}
       </span>
       <div class="flex shrink-0 items-center gap-1">
-        {#if activePath && onInspectFile}
+        {#if onInspectFile && (compareMode || inspectPath)}
           <Button
             size="sm"
             variant="ghost"
-            onclick={() => activePath && onInspectFile(activePath, "history")}
+            disabled={!inspectPath}
+            onclick={() => inspectPath && onInspectFile(inspectPath, "history")}
             data-testid="git-log-file-history-btn"
           >
             <IconHistory aria-hidden="true" />
@@ -186,7 +190,8 @@
           <Button
             size="sm"
             variant="ghost"
-            onclick={() => activePath && onInspectFile(activePath, "blame")}
+            disabled={!inspectPath}
+            onclick={() => inspectPath && onInspectFile(inspectPath, "blame")}
             data-testid="git-log-file-blame-btn"
           >
             <IconFileSearch aria-hidden="true" />
@@ -196,7 +201,7 @@
       </div>
     </div>
 
-    {#if sourceFiles.length > 0 || fileQuery}
+    {#if compareMode || sourceFiles.length > 0 || fileQuery}
       <Input
         size="sm"
         mono
@@ -211,7 +216,7 @@
   <!-- Interactive listbox delegates ArrowUp/ArrowDown/Enter across child option buttons. -->
   <ScrollArea
     bind:viewportRef={listEl}
-    class="min-h-8 flex-1"
+    class={`min-h-8 flex-1 ${compareMode ? "max-sm:h-[min(35dvh,16rem)] max-sm:flex-none" : ""}`}
     viewportProps={{
       role: "listbox",
       "aria-label": m.s6_log_files_listbox_aria(),
