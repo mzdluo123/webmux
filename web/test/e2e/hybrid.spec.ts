@@ -1677,11 +1677,7 @@ test.describe("hybrid sessions with the fake agent", () => {
       details.getByText("Agent：omp", { exact: true }),
     ).toBeVisible();
     await page.keyboard.press("Escape");
-    await header.getByRole("button", { name: "会话菜单", exact: true }).click();
-    await expect(
-      page.getByRole("menuitemradio", { name: "聊天" }),
-    ).toBeChecked();
-    await page.keyboard.press("Escape");
+    await expectSessionInputSide(page, "chat");
     await page.setViewportSize(viewport);
 
     await chatTurn(page, "name it /title");

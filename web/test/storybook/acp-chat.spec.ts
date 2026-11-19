@@ -299,7 +299,7 @@ for (const [story, role, control] of stories) {
       await checkEachLayout(
         page,
         async ({ name, viewport }) => {
-          const compactInput = role === "tab" && viewport.width < 640;
+          const compactInput = role === "tab" && viewport.width < 768;
           if (compactInput) {
             await page
               .getByRole("button", { name: /^(终端|会话)菜单$/ })
