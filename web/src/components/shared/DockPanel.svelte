@@ -5,7 +5,6 @@
   import IconBack from "~icons/tabler/arrow-left";
   import IconDots from "~icons/tabler/dots-vertical";
   import IconMinus from "~icons/tabler/minus";
-  import IconPin from "~icons/tabler/pin";
   import { Button } from "$lib/components/ui/button";
   import * as Menu from "$lib/components/ui/dropdown-menu";
   import { m } from "$lib/paraglide/messages.js";
@@ -39,16 +38,11 @@
   const showTitle = $derived(commands ? !compact : !header);
   const zoomed = $derived(dock.zoomed(id));
   const edgeRails = $derived(dock.edgeRails());
-  const peeked = $derived(dock.peeked(id));
-  const canMove = $derived(!compact && !zoomed && !peeked);
+  const canMove = $derived(!compact && !zoomed);
   const targets = $derived(canMove ? dock.targets(id) : undefined);
-  const showTabs = $derived(!compact && !peeked && tabs.length > 1);
+  const showTabs = $derived(!compact && tabs.length > 1);
   const zoomLabel = $derived(
-    peeked
-      ? m.dock_pin({ title })
-      : zoomed
-        ? m.dock_restore({ title })
-        : m.dock_maximize({ title }),
+    zoomed ? m.dock_restore({ title }) : m.dock_maximize({ title }),
   );
   const menuLabel = $derived(m.dock_actions({ title }));
   $effect(() =>
@@ -84,7 +78,6 @@
     class="dock-panel"
     data-dock-panel={id}
     data-dock-active={dock.active(id) || undefined}
-    data-dock-peek={peeked || undefined}
     aria-label={title}
     hidden={!rect}
     inert={!rect}
@@ -107,7 +100,6 @@
       draggable={canMove}
       ondblclick={(event) => {
         if (
-          !peeked &&
           event.target instanceof Element &&
           !event.target.closest("button, input, a, [role=tab]")
         )
@@ -159,11 +151,8 @@
         <Menu.Content align="end" class="w-56">
           <Menu.Label>{title}</Menu.Label>
           {#if !compact}
-            <Menu.Item
-              onSelect={() => (peeked ? dock.show(id) : dock.toggleZoom(id))}
-            >
-              {#if peeked}<IconPin aria-hidden="true" />
-              {:else if zoomed}<IconArrowsMinimize aria-hidden="true" />
+            <Menu.Item onSelect={() => dock.toggleZoom(id)}>
+              {#if zoomed}<IconArrowsMinimize aria-hidden="true" />
               {:else}<IconArrowsMaximize aria-hidden="true" />{/if}
               {zoomLabel}
             </Menu.Item>
@@ -172,7 +161,7 @@
               >{m.dock_minimize({ title })}</Menu.Item
             >
           {/if}
-          {#if !compact && !peeked && edgeRails}
+          {#if !compact && edgeRails}
             <Menu.Item onSelect={() => dock.minimize(id, "left")}
               >{m.dock_minimize_left()}</Menu.Item
             >
@@ -241,10 +230,6 @@
     z-index: 10;
     pointer-events: none;
     border: 2px solid var(--primary);
-  }
-
-  .dock-panel[data-dock-peek] {
-    z-index: 30;
   }
 
   .dock-panel[hidden] {

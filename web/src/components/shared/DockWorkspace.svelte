@@ -25,7 +25,6 @@
   import { mountDockHost, setDock, type DockEntry } from "./dock-context";
   import DockDragLayer from "./DockDragLayer.svelte";
   import DockEdgeRail from "./DockEdgeRail.svelte";
-  import { useDockPeek } from "../../hooks/shared/dock-peek.svelte";
   import type { DockRail } from "$lib/dock-layout";
   import DockSplitter from "./DockDivider.svelte";
 
@@ -104,11 +103,6 @@
   const minimized = $derived(
     hidden.map((id) => entries.get(id)).filter((entry) => entry !== undefined),
   );
-  const peek = useDockPeek(
-    () => edgeRails && !compact,
-    (id) => available.has(id) && hidden.includes(id),
-    side,
-  );
 
   $effect(() => {
     store(
@@ -126,15 +120,12 @@
 
   export function rect(id: string): DockRect | undefined {
     if (compact) return mobile === id ? full : undefined;
-    const overlay = peek.rect(id);
-    if (overlay) return overlay;
     if (visibleZoom) return visibleZoom === id ? full : undefined;
     return geometry.groups.get(id)?.rect;
   }
 
   const activePanel = $derived(
-    peek.id ||
-      visibleZoom ||
+    visibleZoom ||
       (geometry.groups.has(selected)
         ? selected
         : geometry.groups.keys().next().value),
@@ -150,10 +141,9 @@
   export function commandPanel(id: string) {
     const panel = entries.get(id);
     if (!edgeRails || compact || !panel || !rect(id)) return;
-    const peeked = !!peek.rect(id);
     const zoomed = visibleZoom === id;
-    const destinations = peeked || zoomed ? [] : targets(id);
-    return { panel, peeked, zoomed, targets: destinations };
+    const destinations = zoomed ? [] : targets(id);
+    return { panel, zoomed, targets: destinations };
   }
 
   export function isVisible(id: string) {
@@ -166,7 +156,6 @@
 
   export function show(id: string) {
     selected = id;
-    peek.close();
     if (compact) {
       if (mobile && mobile !== id)
         history = [...history.filter((value) => value !== mobile), mobile];
@@ -206,7 +195,6 @@
 
   export function reset() {
     rails = {};
-    peek.close();
     node = undefined;
     hidden = [];
     zoom = "";
@@ -235,7 +223,6 @@
       if (edgeRails && mobile) onSelectPanel?.(mobile);
     } else {
       if (destination) rails[id] = destination;
-      peek.close();
       node = tree;
       hidden = [...hidden.filter((value) => value !== id), id];
       if (zoom === id) zoom = "";
@@ -303,7 +290,6 @@
     zoomed: (id) => visibleZoom === id,
     show,
     edgeRails: () => edgeRails,
-    peeked: (id) => !!peek.rect(id),
     minimize,
     toggleZoom,
     move,
@@ -396,11 +382,7 @@
     <DockEdgeRail
       side={position}
       entries={minimized.filter((entry) => side(entry.id) === position)}
-      peek={peek.id}
-      toggle={(id, source) => {
-        peek.toggle(id, source);
-        if (peek.id) onSelectPanel?.(id);
-      }}
+      restore={show}
     />
   {/if}
 {/snippet}

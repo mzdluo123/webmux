@@ -5,13 +5,11 @@
   let {
     side,
     entries,
-    peek,
-    toggle,
+    restore,
   }: {
     side: DockRail;
     entries: DockEntry[];
-    peek: string;
-    toggle: (id: string, source: HTMLElement) => void;
+    restore: (id: string) => void;
   } = $props();
 </script>
 
@@ -22,9 +20,8 @@
         size="sm"
         variant="ghost"
         data-dock-tab={entry.id}
-        aria-expanded={peek === entry.id}
         title={entry.title}
-        onclick={(event) => toggle(entry.id, event.currentTarget)}
+        onclick={() => restore(entry.id)}
       >
         <span class="truncate">{entry.title}</span>
       </Button>

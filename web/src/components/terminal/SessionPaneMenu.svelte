@@ -3,7 +3,6 @@
   import IconArrowsMinimize from "~icons/tabler/arrows-minimize";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import IconMinus from "~icons/tabler/minus";
-  import IconPin from "~icons/tabler/pin";
   import { Button } from "$lib/components/ui/button";
   import * as Menu from "$lib/components/ui/dropdown-menu";
   import { dockEdges, type DockEdge, type DockRail } from "$lib/dock-layout";
@@ -29,8 +28,7 @@
 
   function toggle() {
     if (!dock || !pane) return;
-    if (pane.peeked) dock.show(target);
-    else dock.toggleZoom(target);
+    dock.toggleZoom(target);
   }
 
   function minimize(rail?: DockRail) {
@@ -70,10 +68,7 @@
       </Menu.Label>
       <Menu.Separator />
       <Menu.Item onSelect={toggle}>
-        {#if pane.peeked}
-          <IconPin aria-hidden="true" />
-          <span class="min-w-0 wrap-anywhere">{m.dock_pin({ title })}</span>
-        {:else if pane.zoomed}
+        {#if pane.zoomed}
           <IconArrowsMinimize aria-hidden="true" />
           <span class="min-w-0 wrap-anywhere">{m.dock_restore({ title })}</span>
         {:else}
@@ -86,18 +81,16 @@
         <IconMinus aria-hidden="true" />
         <span class="min-w-0 wrap-anywhere">{m.dock_minimize({ title })}</span>
       </Menu.Item>
-      {#if !pane.peeked}
-        <Menu.Sub>
-          <Menu.SubTrigger>{m.dock_minimize_to_rail()}</Menu.SubTrigger>
-          <Menu.SubContent collisionPadding={8}>
-            {#each rails as rail (rail)}
-              <Menu.Item onSelect={() => minimize(rail)}
-                >{railLabel[rail]()}</Menu.Item
-              >
-            {/each}
-          </Menu.SubContent>
-        </Menu.Sub>
-      {/if}
+      <Menu.Sub>
+        <Menu.SubTrigger>{m.dock_minimize_to_rail()}</Menu.SubTrigger>
+        <Menu.SubContent collisionPadding={8}>
+          {#each rails as rail (rail)}
+            <Menu.Item onSelect={() => minimize(rail)}
+              >{railLabel[rail]()}</Menu.Item
+            >
+          {/each}
+        </Menu.SubContent>
+      </Menu.Sub>
       {#if pane.targets.length}
         <Menu.Sub>
           <Menu.SubTrigger>{m.dock_move_or_merge()}</Menu.SubTrigger>

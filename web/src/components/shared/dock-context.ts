@@ -33,7 +33,6 @@ export const [getDock, setDock] = createContext<{
   zoomed: (id: string) => boolean;
   show: (id: string) => void;
   edgeRails: () => boolean;
-  peeked: (id: string) => boolean;
   minimize: (id: string, side?: DockRail) => void;
   toggleZoom: (id: string) => void;
   move: (id: string, target: string, edge: DockEdge) => void;
