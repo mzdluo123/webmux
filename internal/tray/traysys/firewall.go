@@ -303,9 +303,12 @@ func EvaluateFirewall(rule FirewallRule, localRules, policyRules []string, profi
 		}
 		key := strings.ToLower(p.Name)
 		s := selectors[key]
-		if coversTCP && p.Action == "block" && p.Profiles&privateDomain != 0 {
-			if key == "" || strings.TrimSpace(key) == "all" {
-				st.ManualLocalBlock = true // netsh reserves name=all as a wildcard.
+		if p.Action == "block" && (p.Protocol == "" || tcpRule) && p.Profiles&privateDomain != 0 {
+			if !p.Active {
+				continue
+			}
+			if trimmed := strings.TrimSpace(key); trimmed == "" || trimmed == "all" {
+				st.ManualLocalBlock = true // netsh rejects blank names and reserves name=all as a wildcard.
 			} else {
 				s.block = p.Name
 				s.anyProtocol = s.anyProtocol || !tcpRule
