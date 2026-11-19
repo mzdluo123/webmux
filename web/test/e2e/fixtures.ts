@@ -542,8 +542,8 @@ export async function openSessionSwitcher(page: Page) {
 type InputSide = "chat" | "terminal";
 
 async function sessionInputChoices(page: Page) {
-  const narrow = narrowSessionHeader(page);
-  const scope = narrow
+  const compact = (page.viewportSize()?.width ?? 1280) < 768;
+  const scope = compact
     ? (await openSessionMenu(page)).getByRole("group", {
         name: "输入端",
         exact: true,
@@ -552,14 +552,14 @@ async function sessionInputChoices(page: Page) {
   return {
     option: (side: InputSide) =>
       scope.getByRole(
-        narrow ? "menuitemradio" : "tab",
-        side === "chat" && !narrow
+        compact ? "menuitemradio" : "tab",
+        side === "chat" && !compact
           ? { name: /^聊天(?:（.+）)?$/ }
           : { name: side === "chat" ? "聊天" : "终端", exact: true },
       ),
-    state: narrow ? "aria-checked" : "aria-selected",
+    state: compact ? "aria-checked" : "aria-selected",
     close: async () => {
-      if (narrow) {
+      if (compact) {
         await page.keyboard.press("Escape");
         await expect(scope).toBeHidden();
       }

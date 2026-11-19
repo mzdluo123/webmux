@@ -83,6 +83,7 @@
   );
   const title = $derived(session?.title || m.s4_tab_terminal());
   const phone = new MediaQuery("(max-width: 639px)");
+  const compactActions = new MediaQuery("(width < 48rem)");
   let menuTrigger = $state<HTMLButtonElement | null>(null);
   let fontOpen = $state(false);
   let skipMenuFocus = false;
@@ -106,7 +107,7 @@
   class="terminal-header flex min-w-0 flex-1 items-center gap-1"
   data-bottom-toolbar={toolbarMode}
 >
-  {#if !phone.current}
+  {#if !compactActions.current}
     <!-- Keep actions anchored while the session title is loading. -->
     {@render terminalMenu()}
     {@render quickCommands()}
@@ -122,7 +123,7 @@
       </div>
       {#if features.chat && chatAgent}
         <span
-          class="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
+          class="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground md:inline-flex"
           role="img"
           aria-label={m.s4_agent_label({ title: chatAgent.title })}
           title={m.s4_agent_label({ title: chatAgent.title })}
@@ -136,7 +137,7 @@
       {/if}
     </div>
   {/if}
-  {#if features.chat && hybrid && hybrid.view !== "recovery" && !phone.current}
+  {#if features.chat && hybrid && hybrid.view !== "recovery" && !compactActions.current}
     <features.chat.ViewTabs
       hybrid={{
         side: hybrid.side,
@@ -147,7 +148,7 @@
       }}
     />
   {/if}
-  {#if phone.current}
+  {#if compactActions.current}
     {@render quickCommands()}
     {@render terminalMenu()}
   {/if}
@@ -171,12 +172,12 @@
       {#snippet child({ props })}<Button
           {...props}
           variant="ghost"
-          size={phone.current ? "icon-touch-sm" : "sm"}
+          size={compactActions.current ? "icon-touch-sm" : "sm"}
           bind:ref={menuTrigger}
           aria-label={menuLabel}
           title={menuLabel}
         >
-          {#if phone.current}⋯{:else}
+          {#if compactActions.current}⋯{:else}
             {terminalShown ? m.s4_tab_terminal() : m.s4_menu_group_session()}
             <IconChevronDown aria-hidden="true" />
           {/if}
@@ -184,7 +185,7 @@
     </DropdownMenu.Trigger>
     <DropdownMenu.Content
       class={chatActions ? "min-w-48" : undefined}
-      align={phone.current ? "end" : "start"}
+      align={compactActions.current ? "end" : "start"}
       onCloseAutoFocus={(event) => {
         if (skipMenuFocus) {
           event.preventDefault();
@@ -192,7 +193,7 @@
         }
       }}
     >
-      {#if phone.current && features.chat && hybrid && hybrid.view !== "recovery"}
+      {#if compactActions.current && features.chat && hybrid && hybrid.view !== "recovery"}
         <DropdownMenu.RadioGroup
           value={hybrid.target ?? hybrid.side ?? ""}
           aria-label={m.s4_input_side()}

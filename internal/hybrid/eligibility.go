@@ -366,7 +366,7 @@ func (a *actor) listed(ctx context.Context, t target, since time.Time) probeAnsw
 		if i < 0 {
 			return probeAnswer{}
 		}
-		return probeAnswer{listed: true, title: sessionTitle(sessions[i].Title)}
+		return probeAnswer{listed: true, title: sessions[i].Title}
 	}
 	var recent []Candidate
 	for _, c := range candidates(sessions) {

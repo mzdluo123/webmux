@@ -1,7 +1,6 @@
 import { createShell, expect, sessionHeader, test } from "./fixtures";
 
-const longTitle =
-  "Dock layout review: keep the full session name available on a narrow phone";
+const longTitle = "新建会话页面与动画方案".repeat(7);
 
 test("the session title opens its full name and renames the current session", async ({
   page,
@@ -12,15 +11,14 @@ test("the session title opens its full name and renames the current session", as
   await createShell(page, longTitle, workDir);
   const header = sessionHeader(page);
   const title = header.getByRole("button", { name: longTitle, exact: true });
-  if (phone) {
-    await expect
-      .poll(() =>
-        title
-          .locator("span")
-          .evaluate((node) => node.scrollWidth > node.clientWidth),
-      )
-      .toBe(true);
-  }
+  await page.evaluate(() => document.fonts.ready);
+  await expect
+    .poll(() =>
+      title
+        .locator("span")
+        .evaluate((node) => node.scrollWidth > node.clientWidth),
+    )
+    .toBe(true);
   await title.click();
   const details = page.getByRole("dialog", { name: "会话名称", exact: true });
   await expect(details.getByText(longTitle, { exact: true })).toBeVisible();
@@ -35,6 +33,11 @@ test("the session title opens its full name and renames the current session", as
     exact: true,
   });
   await expect(renamed).toBeFocused();
+  expect(
+    await renamed
+      .locator("span")
+      .evaluate((node) => node.scrollWidth <= node.clientWidth),
+  ).toBe(true);
   await page.reload();
   await expect(renamed).toBeVisible();
 });
