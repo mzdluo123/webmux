@@ -511,3 +511,46 @@ test("a split preserves hybrid chat and terminal switching beside a shell", asyn
     "yes",
   );
 });
+
+test("same-name panes preserve the upload owner after focus moves", async ({
+  page,
+  request,
+  workDir,
+}, info) => {
+  test.skip(!!info.project.use.isMobile, "Simultaneous pane controls");
+  const id = await createShell(page, "Review", workDir);
+  const response = await request.post("/api/sessions", {
+    data: {
+      name: "Review",
+      cwd: workDir,
+      cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+    },
+  });
+  expect(response.status()).toBe(201);
+  const other = (await response.json()).session.id;
+  await openSplitPanel(page);
+  await page.getByRole("button", { name: "加入已有会话…" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /^Review \// })
+    .click();
+  const first = page.locator(`[data-dock-panel="${id}"]`),
+    second = page.locator(`[data-dock-panel="${other}"]`);
+  await expect(first).toHaveAccessibleName("Review · 1");
+  await expect(second).toHaveAccessibleName("Review · 2");
+  const chooser = page.waitForEvent("filechooser");
+  await first.getByRole("button", { name: "上传文件", exact: true }).click();
+  const picker = await chooser;
+  await second.locator(".xterm-helper-textarea").focus();
+  const upload = page.waitForResponse((r) => r.url().endsWith("/upload"));
+  await picker.setFiles({
+    name: "owned.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("first pane"),
+  });
+  const result = await upload;
+  expect(result.status()).toBe(201);
+  expect((await result.json()).path).toContain(`/${id}/uploads/`);
+  await expect(first.locator(".xterm-rows")).toContainText("owned.txt");
+  await expect(second.locator(".xterm-rows")).not.toContainText("owned.txt");
+});
