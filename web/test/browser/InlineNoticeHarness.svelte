@@ -8,6 +8,7 @@
     surface = "inline",
     showAction = true,
     actionSlot = true,
+    actionLabels = ["关闭"],
     onaction = () => {},
   }: {
     text?: string;
@@ -15,6 +16,7 @@
     surface?: "inline" | "floating";
     showAction?: boolean;
     actionSlot?: boolean;
+    actionLabels?: string[];
     onaction?: () => void;
   } = $props();
 </script>
@@ -24,7 +26,11 @@
     <span data-testid="notice-copy">{text}</span>
     {#snippet actions()}
       {#if showAction}
-        <Button variant="outline" size="sm" onclick={onaction}>关闭</Button>
+        {#each actionLabels as label (label)}
+          <Button variant="outline" size="sm" wrap onclick={onaction}
+            >{label}</Button
+          >
+        {/each}
       {/if}
     {/snippet}
   </InlineNotice>

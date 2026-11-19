@@ -91,7 +91,12 @@
   role={tone === "danger" ? "alert" : "status"}
   class={cn(noticeVariants({ tone, size, surface }), className)}
 >
-  <div class={["flex min-w-0 flex-1 items-start gap-2", actions && "basis-32"]}>
+  <div
+    class={[
+      "flex min-w-0 grow items-start gap-2",
+      actions ? "basis-[max(11rem,60%)]" : "basis-0",
+    ]}
+  >
     <span class="flex h-[1.625em] shrink-0 items-center" aria-hidden="true">
       {#if tone === "danger" || tone === "warning"}
         <IconAlertTriangle class="size-4" />

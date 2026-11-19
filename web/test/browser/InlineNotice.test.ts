@@ -85,3 +85,47 @@ test("floating surface uses an opaque background while inline keeps translucent 
   const floatingBg = getComputedStyle(floatingEl).backgroundColor;
   expect(floatingBg).not.toContain("/");
 });
+
+test("multi-button actions wrap below copy on medium widths while a single short action stays inline on 320px", async () => {
+  await page.viewport(560, 800);
+  render(Harness, {
+    text: "当前工作树存在未解决的合并冲突，部分复杂冲突可在工作树终端中处理。",
+    actionLabels: ["打开冲突解决器", "打开工作树终端", "新建工作树终端"],
+  });
+  await document.fonts.ready;
+
+  const mediumEl = page.getByRole("alert").element();
+  const mediumCopyGroup = mediumEl.firstElementChild as HTMLElement;
+  const mediumActions = mediumEl.querySelector(
+    '[data-slot="inline-notice-actions"]',
+  )!;
+  const mediumCopyRect = mediumCopyGroup.getBoundingClientRect();
+  const mediumActionsRect = mediumActions.getBoundingClientRect();
+
+  expect(mediumEl.scrollWidth).toBeLessThanOrEqual(mediumEl.clientWidth);
+  expect(mediumCopyRect.width).toBeGreaterThan(mediumEl.clientWidth * 0.75);
+  expect(mediumActionsRect.top).toBeGreaterThanOrEqual(
+    mediumCopyRect.bottom - 1,
+  );
+  await cleanup();
+
+  await page.viewport(320, 568);
+  render(Harness, {
+    surface: "floating",
+    actionLabels: ["关闭"],
+  });
+  await document.fonts.ready;
+
+  const narrowEl = page.getByRole("alert").element();
+  const narrowCopyGroup = narrowEl.firstElementChild as HTMLElement;
+  const narrowActions = narrowEl.querySelector(
+    '[data-slot="inline-notice-actions"]',
+  )!;
+  const narrowCopyRect = narrowCopyGroup.getBoundingClientRect();
+  const narrowActionsRect = narrowActions.getBoundingClientRect();
+
+  expect(narrowEl.scrollWidth).toBeLessThanOrEqual(narrowEl.clientWidth);
+  expect(narrowActionsRect.left).toBeGreaterThanOrEqual(
+    narrowCopyRect.right - 1,
+  );
+});
