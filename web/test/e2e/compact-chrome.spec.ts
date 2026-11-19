@@ -85,8 +85,21 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
     exact: true,
   });
   const label = title.getByText("demo-agent", { exact: true });
+  const toolbar = page.locator(".session-toolbar");
+  const panels = toolbar.getByRole("button", { name: "打开面板", exact: true });
+  const files = toolbar.getByRole("button", { name: /^文件树 · / });
+  const display = toolbar.getByRole("button", { name: "显示", exact: true });
+  await expect(panels).toHaveAttribute("title", "打开面板");
   for (const width of [393, 320]) {
     await page.setViewportSize({ width, height: 851 });
+    await expectOneRow(toolbar.locator("header"));
+    for (const button of [files, panels, display]) {
+      await expect(button).toBeVisible();
+      expect(await button.boundingBox()).toMatchObject({
+        width: 44,
+        height: 44,
+      });
+    }
     for (const codeOpen of [false, true]) {
       if (codeOpen) {
         await expect(fileTree(page)).toBeVisible();
