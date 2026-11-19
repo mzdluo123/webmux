@@ -13,12 +13,14 @@
     HomeWorktrees,
     Repository,
     SessionInfo,
+    WorktreePins,
   } from "../../contracts/schemas";
   import {
     homeLayout,
     setPinned,
   } from "../../domains/workspace/home-worktrees";
   import { homeWorktrees } from "../../domains/workspace/home-worktrees.svelte";
+  import { worktreePins } from "../../domains/workspace/worktree-pins.svelte";
   import { rowStatus } from "../../domains/sessions/session-status";
   import {
     defaultNodeOpen,
@@ -45,6 +47,7 @@
   import { underRowAction } from "../../hooks/shared/sidebar-row";
   import { switchableWorktree } from "../../domains/workspace/worktree-sync";
   import MainWorktreeMark from "../workspace/MainWorktreeMark.svelte";
+  import PinnedWorktreeMark from "../workspace/PinnedWorktreeMark.svelte";
   import UpstreamStatus from "../workspace/UpstreamStatus.svelte";
   import SidebarRepositoryMenu from "./SidebarRepositoryMenu.svelte";
   import SidebarRowMenu from "./SidebarRowMenu.svelte";
@@ -54,6 +57,7 @@
     treeNodeAriaLabel,
     treeNodeStateText,
     treeNodeTitle,
+    treeWorktreePinMenuProps,
   } from "./workbench-tree-labels";
   import WorktreeMenuItems from "../workspace/WorktreeMenuItems.svelte";
 
@@ -64,6 +68,7 @@
     records,
     resuming = "",
     home,
+    pins = worktreePins.value,
     scope,
     worktree,
     current,
@@ -79,6 +84,8 @@
     onworktreedetails,
     onremoveworktree,
     onswitchbranch,
+    ontoggletoppin,
+    onmovetoppin,
     onbranchoperation,
     onopengit,
     onrename,
@@ -91,6 +98,7 @@
     records: readonly ArchivedSession[];
     resuming?: string;
     home: HomeWorktrees;
+    pins?: WorktreePins;
     /** The home view shown ("all", "direct" or a repository ID); "" elsewhere. */
     scope: string;
     worktree: string;
@@ -107,6 +115,12 @@
     onworktreedetails: (repositoryId: string, worktreeId: string) => void;
     onremoveworktree: (repositoryId: string, worktreeId: string) => void;
     onswitchbranch: (repositoryId: string, worktreeId: string) => void;
+    ontoggletoppin?: (repositoryId: string, worktreeId: string) => void;
+    onmovetoppin?: (
+      repositoryId: string,
+      worktreeId: string,
+      offset: -1 | 1,
+    ) => void;
     onbranchoperation?: (
       repositoryId: string,
       operation: BranchOperation,
@@ -123,7 +137,7 @@
   } = $props();
 
   const fullTree = $derived(
-    workbenchTree(repositories, sessions, home, records),
+    workbenchTree(repositories, sessions, home, records, pins),
   );
   let saved = $state<FolderMemory>(
     readFolderMemory(stored("workbenchTree", "{}")),
@@ -355,6 +369,7 @@
             >{node.label}</span
           >
           {#if mainWorktree}<MainWorktreeMark />{/if}
+          {#if node.pinned}<PinnedWorktreeMark />{/if}
         </span>
         {#if upstream}<span class="flex shrink-0 items-center gap-1"
             ><UpstreamStatus state={upstream} indicator /></span
@@ -379,7 +394,7 @@
             node,
             (node.kind === "repository" && !node.reason && canCreate) ||
               node.kind === "worktree",
-            !!upstream || mainWorktree,
+            !!upstream || mainWorktree || !!node.pinned,
           )}{/if}
       </ListButton>
       {#if node.kind === "repository" && canCreate}
@@ -423,6 +438,16 @@
                 homeWorktrees.save(
                   setPinned(home, repo, [worktreeId], !pinned),
                 ))}
+            {...treeWorktreePinMenuProps({
+              repositories,
+              sessions,
+              home,
+              pins,
+              repositoryId,
+              worktreeId,
+              ontoggle: ontoggletoppin,
+              onmove: onmovetoppin,
+            })}
             onoperation={onbranchoperation &&
               ((operation) => onbranchoperation(repositoryId, operation))}
             ongit={onopengit && (() => onopengit(repositoryId, worktreeId))}

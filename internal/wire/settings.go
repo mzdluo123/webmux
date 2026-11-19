@@ -11,6 +11,7 @@ import (
 func SettingsValues(v settings.Values) contract.SettingsValues {
 	out := contract.SettingsValues{
 		HomeWorktrees:   v.HomeWorktrees,
+		WorktreePins:    v.WorktreePins,
 		SessionPins:     v.SessionPins,
 		IgnoreHighPorts: v.IgnoreHighPorts,
 	}
@@ -46,13 +47,13 @@ func SettingsChanges(p contract.SettingsPatch) (settings.Changes, error) {
 	}
 	// A changed compound value is complete; omitted nested fields must not
 	// silently become Go zero values (notably command.enter and preview.skip).
-	shapes := map[string]any{"preview": v.Preview, "codeReader": v.CodeReader, "quickCommands": v.QuickCommands, "homeWorktrees": v.HomeWorktrees, "sessionPins": v.SessionPins, "ignoreHighPorts": v.IgnoreHighPorts}
+	shapes := map[string]any{"preview": v.Preview, "codeReader": v.CodeReader, "quickCommands": v.QuickCommands, "homeWorktrees": v.HomeWorktrees, "worktreePins": v.WorktreePins, "sessionPins": v.SessionPins, "ignoreHighPorts": v.IgnoreHighPorts}
 	for key, raw := range p.Changes {
 		if err := jsonutil.Required(raw, shapes[key]); err != nil {
 			return settings.Changes{}, settings.ErrInvalid
 		}
 	}
-	c := settings.Changes{Fields: map[string]bool{}, Values: settings.Values{IgnoreHighPorts: v.IgnoreHighPorts, HomeWorktrees: v.HomeWorktrees, SessionPins: v.SessionPins}}
+	c := settings.Changes{Fields: map[string]bool{}, Values: settings.Values{IgnoreHighPorts: v.IgnoreHighPorts, HomeWorktrees: v.HomeWorktrees, WorktreePins: v.WorktreePins, SessionPins: v.SessionPins}}
 	for k := range p.Changes {
 		c.Fields[k] = true
 	}
@@ -77,7 +78,7 @@ func SettingsEvent(e settings.Event) contract.SettingsEvent {
 		return contract.SettingsEvent{Type: "settings", Settings: &s}
 	}
 	v := SettingsValues(e.Changes.Values)
-	all := map[string]any{"preview": v.Preview, "codeReader": v.CodeReader, "quickCommands": v.QuickCommands, "homeWorktrees": v.HomeWorktrees, "sessionPins": v.SessionPins, "ignoreHighPorts": v.IgnoreHighPorts}
+	all := map[string]any{"preview": v.Preview, "codeReader": v.CodeReader, "quickCommands": v.QuickCommands, "homeWorktrees": v.HomeWorktrees, "worktreePins": v.WorktreePins, "sessionPins": v.SessionPins, "ignoreHighPorts": v.IgnoreHighPorts}
 	changes := map[string]any{}
 	for k := range e.Changes.Fields {
 		changes[k] = all[k]

@@ -9,7 +9,8 @@
       "ignoreHighPorts": null,
       "preview": null,
       "quickCommands": null,
-      "sessionPins": null
+      "sessionPins": null,
+      "worktreePins": null
     }
   }
 }

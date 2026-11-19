@@ -28,7 +28,7 @@ func main() {
 			fmt.Println(version)
 			return
 		case "quit":
-			os.Exit(traysys.QuitCommand(os.Args[2:]))
+			os.Exit(traysys.QuitCommand(os.Args[2:], stopKeepalive))
 		case "firewall":
 			os.Exit(traysys.FirewallCommand(os.Args[2:]))
 		}
@@ -73,12 +73,7 @@ func run() error {
 	stdlog.SetOutput(log) // fyne.io/systray reports errors through package log
 
 	runner := tray.ExecRunner{}
-	keepalive := &tray.Keepalive{
-		Runner:   runner,
-		Path:     filepath.Join(localAppData, "WebMux", "keepalive.json"),
-		Identify: traysys.Identify,
-		Kill:     traysys.Kill,
-	}
+	keepalive := openKeepalive(localAppData, runner)
 	environ := os.Environ()
 	newService := func(s tray.Settings) *tray.WSLService {
 		return &tray.WSLService{
@@ -116,11 +111,63 @@ func run() error {
 		LaunchInstaller:  traysys.LaunchInstaller,
 		AutostartEnabled: traysys.AutostartEnabled,
 		SetAutostart:     traysys.SetAutostart,
-		OpenURL:          traysys.OpenURL,
-		OpenInNotepad:    traysys.OpenInNotepad,
-		WSLPath:          traysys.WSLPath,
-		UpdatesDir:       filepath.Join(localAppData, "WebMux", "updates"),
-		Releases:         func(ch update.Channel) tray.ReleaseClient { return update.Client{Channel: ch} },
+		InspectFirewall:  inspectFirewall,
+		ApplyFirewall: func(path string, allow, clearBlocks bool) tray.FirewallApplyResult {
+			return tray.FirewallApplyResult(traysys.ApplyFirewall(path, allow, clearBlocks))
+		},
+		AdapterCategories: adapterCategories,
+		OpenURL:           traysys.OpenURL,
+		OpenInNotepad:     traysys.OpenInNotepad,
+		WSLPath:           traysys.WSLPath,
+		UpdatesDir:        filepath.Join(localAppData, "WebMux", "updates"),
+		Releases:          func(ch update.Channel) tray.ReleaseClient { return update.Client{Channel: ch} },
 	})
 	return nil
+}
+
+func openKeepalive(localAppData string, runner tray.Runner) *tray.Keepalive {
+	return &tray.Keepalive{
+		Runner:   runner,
+		Path:     filepath.Join(localAppData, "WebMux", "keepalive.json"),
+		Identify: traysys.Identify,
+		Kill:     traysys.Kill,
+	}
+}
+
+func stopKeepalive() error {
+	localAppData, err := windows.KnownFolderPath(windows.FOLDERID_LocalAppData, 0)
+	if err != nil {
+		return err
+	}
+	return openKeepalive(localAppData, tray.ExecRunner{}).Stop()
+}
+
+func inspectFirewall(exe string) tray.FirewallCheck {
+	st, err := traysys.InspectFirewall(exe)
+	if err != nil {
+		return tray.FirewallCheck{Checked: true, Err: err.Error()}
+	}
+	return tray.FirewallCheck{
+		Checked:              true,
+		RulePresent:          st.RulePresent,
+		RuleValid:            st.RuleValid,
+		AllowedPrivateDomain: st.AllowedPrivateDomain,
+		LocalBlocks:          st.LocalBlockNames,
+		ManualLocalBlock:     st.ManualLocalBlock,
+		PolicyBlocked:        st.PolicyBlocked,
+		DomainShielded:       st.Profiles.Domain.BlockAllInbound,
+		PrivateShielded:      st.Profiles.Private.BlockAllInbound,
+	}
+}
+
+func adapterCategories() map[string]tray.NetworkCategory {
+	raw := traysys.AdapterCategories()
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make(map[string]tray.NetworkCategory, len(raw))
+	for name, cat := range raw {
+		out[name] = tray.NetworkCategory(cat)
+	}
+	return out
 }

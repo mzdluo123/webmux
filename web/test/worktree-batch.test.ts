@@ -12,6 +12,7 @@ import {
   filterWorktreeBatchEntries,
   groupBatchPreviewItems,
   lockedStaleReason,
+  selectableSafeEntries,
   staleRegistrations,
 } from "../src/domains/workspace/worktree-batch";
 
@@ -235,5 +236,28 @@ describe("worktreeBatch", () => {
     expect(entries.find((e) => e.tree.id === "locked-gone")?.reason).toBe(
       lockedStaleReason(),
     );
+  });
+
+  test("sorts pinned worktrees first and skips them in select-all-safe while keeping safe category", () => {
+    const pinnedClean = makeTree("pinned-clean");
+    const repo = makeRepo([main, unpinnedClean, pinnedClean]);
+    const entries = buildWorktreeBatchEntries(
+      repo,
+      { repo1: ["main", "pinned-clean"] },
+      [],
+      [],
+      { repo1: ["pinned-clean"] },
+    );
+    expect(entries.map((e) => e.tree.id)).toEqual([
+      "pinned-clean",
+      "main",
+      "clean-idle",
+    ]);
+    const pinnedEntry = entries[0]!;
+    expect(pinnedEntry.topPinned).toBe(true);
+    expect(pinnedEntry.category).toBe("safe");
+    expect(selectableSafeEntries(entries).map((e) => e.tree.id)).toEqual([
+      "clean-idle",
+    ]);
   });
 });

@@ -5,7 +5,7 @@ import {
   SessionIdSchema,
   WorkspaceCapabilitySchema,
 } from "./session-schemas";
-import { HomeWorktreesSchema } from "./workspace-schemas";
+import { HomeWorktreesSchema, WorktreePinsSchema } from "./workspace-schemas";
 
 const TunnelInfoSchema = z.object({
   enabled: z.boolean(),
@@ -272,6 +272,23 @@ export const SessionPinsSchema = z
   .max(50)
   .refine((ids) => new Set(ids).size === ids.length);
 
+function validWorktreeMap(
+  value: Record<string, string[]>,
+  maxTotal: number,
+): boolean {
+  const entries = Object.entries(value);
+  return (
+    entries.length <= 200 &&
+    entries.reduce((n, [, ids]) => n + ids.length, 0) <= maxTotal &&
+    entries.every(
+      ([id, ids]) =>
+        id.length <= 128 &&
+        ids.every((x) => x.length <= 128) &&
+        new Set(ids).size === ids.length,
+    )
+  );
+}
+
 // User preferences shared by every authenticated client of this server.
 export const SettingsValuesSchema = z.strictObject({
   preview: PreviewSettingsSchema.nullable(),
@@ -282,19 +299,14 @@ export const SettingsValuesSchema = z.strictObject({
     })
     .nullable(),
   quickCommands: QuickCommandsSchema.nullable(),
-  homeWorktrees: HomeWorktreesSchema.refine((value) => {
-    const entries = Object.entries(value);
-    return (
-      entries.length <= 200 &&
-      entries.reduce((n, [, ids]) => n + ids.length, 0) <= 2000 &&
-      entries.every(
-        ([id, ids]) =>
-          id.length <= 128 &&
-          ids.every((x) => x.length <= 128) &&
-          new Set(ids).size === ids.length,
-      )
-    );
-  }).nullable(),
+  homeWorktrees: HomeWorktreesSchema.refine((value) =>
+    validWorktreeMap(value, 2000),
+  ).nullable(),
+  worktreePins: WorktreePinsSchema.refine((value) =>
+    validWorktreeMap(value, 1000),
+  )
+    .nullable()
+    .optional(),
   sessionPins: SessionPinsSchema.nullable().optional(),
   ignoreHighPorts: z.boolean().nullable(),
 });

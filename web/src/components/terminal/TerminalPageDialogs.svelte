@@ -182,6 +182,7 @@
           void shell?.repositories?.refresh(true);
         }}
         onworktreeremoved={(tree) => {
+          features.workspace?.worktreePins.remove(tree.repositoryId, [tree.id]);
           repositories = repositories.map((repo) =>
             repo.id === tree.repositoryId
               ? {

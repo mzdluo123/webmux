@@ -66,6 +66,12 @@ type Options struct {
 	AutostartEnabled func(exe string) bool
 	// SetAutostart enables or disables login autostart for Executable.
 	SetAutostart func(on bool, exe string) error
+	// InspectFirewall reads the Windows Defender Firewall status for exe without administrator rights.
+	InspectFirewall func(exe string) tray.FirewallCheck
+	// ApplyFirewall adds/repairs or removes the Windows Defender Firewall rule for exe.
+	ApplyFirewall func(exe string, allow, clearBlocks bool) tray.FirewallApplyResult
+	// AdapterCategories maps Windows interface names to "public", "private", or "domain".
+	AdapterCategories func() map[string]tray.NetworkCategory
 	// OpenURL opens an http(s) URL in the default browser.
 	OpenURL func(url string) error
 	// OpenInNotepad opens a Windows path in Notepad.
@@ -95,7 +101,8 @@ type App struct {
 	hwnd     windows.HWND
 	prevProc atomic.Uintptr
 
-	applyMu sync.Mutex // serializes settings changes and their dialogs
+	applyMu    sync.Mutex // serializes settings changes and their dialogs
+	firewallMu sync.Mutex // serializes firewall dialogs and UAC elevation
 
 	mu           sync.Mutex
 	settings     tray.Settings
@@ -354,7 +361,10 @@ func (a *App) update() {
 	netMode := a.netMode
 	a.mu.Unlock()
 	if !v.noWSL && netMode != "" {
-		v.plan = tray.PlanForward(netMode, snap, windowsInterfaces())
+		v.plan = tray.PlanForward(netMode, snap, a.windowsInterfaces(snap.LANEnabled()))
+		if snap.LANEnabled() && v.plan.Needed {
+			v.firewall = a.inspectFirewall()
+		}
 	}
 	a.reconcileForward(snap, v)
 	v.forwarding = a.relays.listening()

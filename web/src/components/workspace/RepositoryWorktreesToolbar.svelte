@@ -13,6 +13,7 @@
     query = $bindable(""),
     statusFilter = $bindable<WorktreeBatchFilter>("all"),
     counts,
+    selectableSafeCount = counts.safe,
     selectedCount,
     totalCount,
     staleCount,
@@ -27,6 +28,7 @@
     query: string;
     statusFilter: WorktreeBatchFilter;
     counts: { all: number; safe: number; blocked: number; protected: number };
+    selectableSafeCount?: number;
     selectedCount: number;
     totalCount: number;
     staleCount: number;
@@ -94,10 +96,10 @@
           variant="outline"
           size="sm"
           class="min-h-9 sm:min-h-8"
-          disabled={busy || counts.safe === 0}
+          disabled={busy || selectableSafeCount === 0}
           onclick={onselectallsafe}
         >
-          {m.s8_wt_select_all_safe({ count: String(counts.safe) })}
+          {m.s8_wt_select_all_safe({ count: String(selectableSafeCount) })}
         </Button>
         <Button
           type="button"

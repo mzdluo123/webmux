@@ -19,6 +19,13 @@
     hidden = false,
     pinned,
     ontogglepin,
+    topPinned,
+    topPinDisabled,
+    ontoggletoppin,
+    canMoveTopPinUp,
+    canMoveTopPinDown,
+    onmovetoppinup,
+    onmovetoppindown,
     onswitch,
     onremove,
     worktree,
@@ -58,7 +65,7 @@
   aria-haspopup="dialog"
   onclick={ondetails}><IconInfoCircle aria-hidden="true" /></Button
 >
-{#if onremove || ontogglepin || onswitch || syncable || ongit || committable}
+{#if onremove || ontogglepin || ontoggletoppin || onswitch || syncable || ongit || committable}
   <DropdownMenu.Root bind:open={menuOpen}>
     <DropdownMenu.Trigger>
       {#snippet child({ props })}
@@ -77,6 +84,13 @@
         {onswitch}
         {pinned}
         {ontogglepin}
+        {topPinned}
+        {topPinDisabled}
+        {ontoggletoppin}
+        {canMoveTopPinUp}
+        {canMoveTopPinDown}
+        {onmovetoppinup}
+        {onmovetoppindown}
         {onremove}
         {worktree}
         {onoperation}

@@ -2,12 +2,14 @@ import { z } from "zod";
 import { m } from "$lib/paraglide/messages.js";
 import { placeArchived, recordTitle } from "../sessions/archived";
 import { homeLayout, worktreeTitle } from "./home-worktrees";
+import { isWorktreePinned } from "./worktree-pins";
 import type {
   ArchivedSession,
   HomeWorktrees,
   Repository,
   SessionInfo,
   Worktree,
+  WorktreePins,
 } from "../../contracts/schemas";
 import { rowStatus } from "../sessions/session-status";
 
@@ -33,6 +35,8 @@ export type TreeNode = {
   path?: string;
   /** The worktree of a worktree row, for its upstream indicator. */
   worktree?: Worktree;
+  /** Whether a worktree row is pinned to the top of its repository. */
+  pinned?: boolean;
   /** A linked worktree, which the row's menu can remove. */
   removable?: boolean;
   /** Why a repository is unavailable; "" when it is fine. */
@@ -105,6 +109,7 @@ export function workbenchTree(
   sessions: readonly SessionInfo[],
   home: HomeWorktrees,
   records: readonly ArchivedSession[],
+  pins: WorktreePins = {},
 ): TreeNode[] {
   // The archived records that fit no existing worktree, such as those of
   // a removed or released one, sit under their repository's unavailable
@@ -135,7 +140,8 @@ export function workbenchTree(
         : repo.error || m.s8_repo_currently_unavailable();
     const children: TreeNode[] = [];
     if (!reason) {
-      for (const { tree } of homeLayout(home, repo, own).shown) {
+      for (const { tree } of homeLayout(home, repo, own, new Map(), pins)
+        .shown) {
         const treeKey = `w:${tree.id}`;
         const inside = own.filter((s) => s.workspace?.worktreeId === tree.id);
         children.push(
@@ -149,6 +155,7 @@ export function workbenchTree(
               repositoryId: repo.id,
               worktreeId: tree.id,
               path: tree.path,
+              pinned: isWorktreePinned(pins, repo.id, tree.id),
               removable: tree.kind === "linked",
               worktree: tree,
               children: sessionNodes(inside, treeKey, 3),

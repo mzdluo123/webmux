@@ -6,7 +6,11 @@ import WorkbenchTree, {
   type TreeNode,
 } from "../../src/components/shell/WorkbenchTree.svelte";
 import type { BranchOperation } from "../../src/domains/workspace/branch-actions";
-import type { Repository, SessionInfo } from "../../src/contracts/schemas";
+import type {
+  Repository,
+  SessionInfo,
+  WorktreePins,
+} from "../../src/contracts/schemas";
 import { chat, record, repository, session, worktree } from "./shell-fixture";
 
 afterEach(async () => {
@@ -51,6 +55,13 @@ function renderTree(
     scope: string;
     canCreate: boolean;
     repositories: Repository[];
+    pins: WorktreePins;
+    ontoggletoppin: (repositoryId: string, worktreeId: string) => void;
+    onmovetoppin: (
+      repositoryId: string,
+      worktreeId: string,
+      offset: -1 | 1,
+    ) => void;
     onbranchoperation: (
       repositoryId: string,
       operation: BranchOperation,
@@ -76,10 +87,13 @@ function renderTree(
     records: [],
     // Both worktrees are on the home page.
     home: { repo1: ["main", "otter"] },
+    pins: props.pins,
     scope: props.scope ?? "",
     current: props.current ?? "",
     canCreate: props.canCreate ?? true,
     configIcons: new Map(),
+    ontoggletoppin: props.ontoggletoppin,
+    onmovetoppin: props.onmovetoppin,
     onbranchoperation: props.onbranchoperation,
     ...handlers,
   });
@@ -235,7 +249,13 @@ test("a linked worktree's menu offers its details, a branch switch and removal",
       .getByRole("menuitem")
       .elements()
       .map((el) => el.textContent?.trim()),
-  ).toEqual(["工作树详情…", "切换分支…", "从主页移除", "删除 worktree…"]);
+  ).toEqual([
+    "工作树详情…",
+    "切换分支…",
+    "置顶工作树",
+    "从主页移除",
+    "删除 worktree…",
+  ]);
   await page.getByRole("menuitem", { name: "删除 worktree…" }).click();
   expect(handlers.onremoveworktree).toHaveBeenCalledWith("repo1", "otter");
 
@@ -301,7 +321,7 @@ test("the main worktree row carries a home icon clear of its hover menu and its 
       .getByRole("menuitem")
       .elements()
       .map((el) => el.textContent?.trim()),
-  ).toEqual(["工作树详情…", "切换分支…", "从主页移除"]);
+  ).toEqual(["工作树详情…", "切换分支…", "置顶工作树", "从主页移除"]);
   await page.getByRole("menuitem", { name: "工作树详情…" }).click();
   expect(handlers.onworktreedetails).toHaveBeenCalledWith("repo1", "main");
 });
@@ -732,10 +752,20 @@ test("a worktree's menu offers its branch's sync actions by state", async () => 
       .elements()
       .map((el) => el.textContent?.trim());
   for (const [name, expected] of [
-    ["main", ["工作树详情…", "切换分支…", "快进到上游", "从主页移除"]],
+    [
+      "main",
+      ["工作树详情…", "切换分支…", "快进到上游", "置顶工作树", "从主页移除"],
+    ],
     [
       "wt/brisk-otter",
-      ["工作树详情…", "切换分支…", "推送…", "从主页移除", "删除 worktree…"],
+      [
+        "工作树详情…",
+        "切换分支…",
+        "推送…",
+        "置顶工作树",
+        "从主页移除",
+        "删除 worktree…",
+      ],
     ],
   ] as const) {
     await tree()
@@ -752,4 +782,81 @@ test("a worktree's menu offers its branch's sync actions by state", async () => 
     kind: "fast-forward",
     branch: "main",
   });
+});
+
+test("pinned worktrees sort ahead of main, show a pin mark clear of the hover menu, and offer pin reordering", async () => {
+  const ontoggletoppin = vi.fn();
+  const onmovetoppin = vi.fn();
+  const fox = worktree({
+    id: "fox",
+    kind: "linked",
+    branch: "wt/swift-fox",
+    path: "/repos/webmux.worktrees/swift-fox",
+  });
+  render(WorkbenchTree, {
+    repositories: [
+      repository({
+        worktrees: [webmux.worktrees[0]!, webmux.worktrees[1]!, fox],
+      }),
+    ],
+    sessions: [],
+    records: [],
+    home: { repo1: ["main", "otter", "fox"] },
+    pins: { repo1: ["fox", "otter"] },
+    scope: "",
+    worktree: "",
+    current: "",
+    canCreate: true,
+    configIcons: new Map(),
+    ontoggletoppin,
+    onmovetoppin,
+    onscope: vi.fn(),
+    onopen: vi.fn(),
+    onnewworktree: vi.fn(),
+    onhomeworktrees: vi.fn(),
+    onmanageworktrees: vi.fn(),
+    onrepositorydetails: vi.fn(),
+    onworktreedetails: vi.fn(),
+    onremoveworktree: vi.fn(),
+    onswitchbranch: vi.fn(),
+    onrename: vi.fn(),
+    onclose: vi.fn(),
+    onresume: vi.fn(),
+    onremove: vi.fn(),
+  });
+  await tree().getByRole("button", { name: "展开webmux" }).click();
+  const rows = () =>
+    tree()
+      .getByRole("treeitem")
+      .elements()
+      .map((el) => el.getAttribute("aria-label"));
+  expect(rows()).toEqual([
+    "全部仓库",
+    "webmux",
+    "wt/swift-fox，已置顶",
+    "wt/brisk-otter，已置顶",
+    "main，主工作区",
+    "直接会话",
+  ]);
+  const foxRow = item("wt/swift-fox");
+  const mark = foxRow
+    .element()
+    .querySelector<HTMLElement>("[data-pinned-worktree]");
+  expect(mark).not.toBeNull();
+  expect(mark!.getAttribute("title")).toBe("已置顶");
+  const menu = tree().getByRole("button", { name: "工作树操作：wt/swift-fox" });
+  await menu.hover();
+  expect(mark!.getBoundingClientRect().right).toBeLessThanOrEqual(
+    menu.element().getBoundingClientRect().left,
+  );
+  await menu.click();
+  await expect
+    .element(page.getByRole("menuitem", { name: "上移置顶" }))
+    .toBeDisabled();
+  await page.getByRole("menuitem", { name: "下移置顶" }).click();
+  expect(onmovetoppin).toHaveBeenCalledWith("repo1", "fox", 1);
+
+  await menu.click();
+  await page.getByRole("menuitem", { name: "取消置顶" }).click();
+  expect(ontoggletoppin).toHaveBeenCalledWith("repo1", "fox");
 });

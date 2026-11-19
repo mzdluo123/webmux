@@ -65,7 +65,7 @@ export async function lookupSessionRecord(
 }
 
 export type ResumeChoice = {
-  /** Picks another agent session after the recorded one went missing. */
+  /** Picks an agent session from missing or ambiguous recovery candidates. */
   agentSessionId?: string;
   /** Accepts resuming after the launch config (and its env) was deleted. */
   confirmWithoutEnv?: boolean;
@@ -93,7 +93,10 @@ export async function resumeSession(
     return { status: "resumed", session };
   } catch (err) {
     const conflict = sessionConflict(err);
-    if (conflict?.reason === "session_missing")
+    if (
+      conflict?.reason === "session_missing" ||
+      conflict?.reason === "session_ambiguous"
+    )
       return {
         status: "candidates",
         message: conflict.error,

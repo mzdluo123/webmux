@@ -26,6 +26,7 @@
   } from "../domains/sessions/archived";
   import SessionListEmpty from "../components/sessions/SessionListEmpty.svelte";
   import { homeWorktrees } from "../domains/workspace/home-worktrees.svelte";
+  import { worktreePins } from "../domains/workspace/worktree-pins.svelte";
   import { setPinned } from "../domains/workspace/home-worktrees";
   import {
     deriveRepositoryExpanded,
@@ -290,6 +291,13 @@
               ? m.s1_all_repositories()
               : scopeLabel}
           mainWorktree={selectedWorktree?.kind === "main"}
+          pinnedWorktree={Boolean(
+            selectedWorktree &&
+            worktreePins.has(
+              selectedWorktree.repositoryId,
+              selectedWorktree.id,
+            ),
+          )}
           {loading}
           {filtering}
           visibleCount={attentionOnly
@@ -471,7 +479,10 @@
   <SessionListRemovalDialog
     worktree={target}
     record={targetRecord}
-    onremoved={() => void removeAfterWorktree(targetRecord)}
+    onremoved={() => {
+      worktreePins.remove(target.repositoryId, [target.id]);
+      void removeAfterWorktree(targetRecord);
+    }}
     onchange={refreshWorktrees}
     onclose={closeRemoveWorktree}
   />

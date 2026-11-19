@@ -1,4 +1,8 @@
-import type { SettingsValues, QuickCommand } from "../../contracts/schemas";
+import {
+  MAX_WORKTREE_PINS_PER_REPO,
+  type SettingsValues,
+  type QuickCommand,
+} from "../../contracts/schemas";
 import { parseQuickCommands } from "./quick-commands";
 
 export const defaultPreview = { lines: 10, skip: 1 };
@@ -11,6 +15,7 @@ export const emptySettings: SettingsValues = {
   codeReader: null,
   quickCommands: null,
   homeWorktrees: null,
+  worktreePins: null,
   sessionPins: null,
   ignoreHighPorts: null,
 };
@@ -119,6 +124,26 @@ export function settingsIntent(
         desired.sessionPins,
         latest.sessionPins ?? [],
       );
+    }
+    if (desired.worktreePins !== undefined && desired.worktreePins !== null) {
+      const merged = { ...latest.worktreePins };
+      const old = original.worktreePins ?? {};
+      for (const key of new Set([
+        ...Object.keys(old),
+        ...Object.keys(desired.worktreePins),
+      ])) {
+        const beforeList = old[key] ?? [];
+        const afterList = desired.worktreePins[key] ?? [];
+        if (JSON.stringify(beforeList) === JSON.stringify(afterList)) continue;
+        const rebased = pinsIntent(
+          beforeList,
+          afterList,
+          merged[key] ?? [],
+        ).slice(0, MAX_WORKTREE_PINS_PER_REPO);
+        if (rebased.length > 0) merged[key] = rebased;
+        else delete merged[key];
+      }
+      result.worktreePins = merged;
     }
     if (desired.homeWorktrees !== undefined && desired.homeWorktrees !== null) {
       const merged = { ...latest.homeWorktrees };

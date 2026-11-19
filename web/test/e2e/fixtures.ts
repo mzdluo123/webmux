@@ -129,7 +129,10 @@ async function resetSettings(
     changes.codeReader = null;
   }
   if (enabled.has("quick-commands")) changes.quickCommands = null;
-  if (enabled.has("workspace")) changes.homeWorktrees = null;
+  if (enabled.has("workspace")) {
+    changes.homeWorktrees = null;
+    changes.worktreePins = null;
+  }
   if (enabled.has("forward")) changes.ignoreHighPorts = null;
   expect(
     (

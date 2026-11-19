@@ -16,6 +16,7 @@
     type RepositoryArchive,
   } from "../../domains/sessions/archived";
   import { homeWorktrees } from "../../domains/workspace/home-worktrees.svelte";
+  import { worktreePins } from "../../domains/workspace/worktree-pins.svelte";
   import {
     homeLayout,
     worktreeTitle,
@@ -112,11 +113,24 @@
     shownArchive(repositoryRecords(archived)).length > 0,
   );
   const renderLayout = $derived(
-    homeLayout(homeWorktrees.value, repo, sessions, archived.worktrees),
+    homeLayout(
+      homeWorktrees.value,
+      repo,
+      sessions,
+      archived.worktrees,
+      worktreePins.value,
+    ),
   );
+  const shownTrees = $derived(renderLayout.shown.map((item) => item.tree));
   const layout = $derived(
     visibleIds
-      ? homeLayout(homeWorktrees.value, repo, visible, archived.worktrees)
+      ? homeLayout(
+          homeWorktrees.value,
+          repo,
+          visible,
+          archived.worktrees,
+          worktreePins.value,
+        )
       : renderLayout,
   );
 </script>
@@ -189,6 +203,7 @@
             {now}
             {pinned}
             ontogglepin={() => ontogglepin(tree.id, !pinned)}
+            {...worktreePins.menuProps(repo, tree.id, shownTrees)}
             {onclose}
             onstart={() => onstart(tree.id)}
             onremove={tree.kind === "linked" ? () => onremove(tree) : undefined}

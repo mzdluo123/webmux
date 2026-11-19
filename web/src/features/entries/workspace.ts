@@ -23,6 +23,7 @@ export function loadRepositories(signal: AbortSignal) {
 export { createRepositories } from "../../hooks/workspace/repositories.svelte";
 export { unknownWorkspaces } from "../../hooks/sessions/session-list";
 export { homeWorktrees } from "../../domains/workspace/home-worktrees.svelte";
+export { worktreePins } from "../../domains/workspace/worktree-pins.svelte";
 export { default as Tree } from "../../components/shell/WorkbenchTree.svelte";
 export { default as Dialogs } from "../../components/shell/AppShellDialogs.svelte";
 export const pages = {

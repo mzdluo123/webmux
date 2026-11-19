@@ -49,6 +49,7 @@
     repositories={shell.repositories.list}
     {sessions}
     home={workspace.homeWorktrees.value}
+    pins={workspace.worktreePins.value}
     scope={showScope ? (shell.repositories.choice ?? "all") : ""}
     worktree={showScope ? (shell.repositories.worktree ?? "") : ""}
     {current}
