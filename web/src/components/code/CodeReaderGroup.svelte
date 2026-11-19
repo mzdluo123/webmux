@@ -1,49 +1,48 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import * as Tabs from "$lib/components/ui/tabs";
+  import IconFile from "~icons/tabler/file";
+  import IconDiff from "~icons/tabler/git-compare";
+  import { m } from "$lib/paraglide/messages.js";
   import DockPanel from "../shared/DockPanel.svelte";
-  import {
-    codeReaderTitle,
-    type CodeWorkspaceTab,
-  } from "../../domains/code/code-workspace";
+  import type { CodeWorkspaceTab } from "../../domains/code/code-workspace";
 
   let {
     panel,
+    title,
     doc,
-    activate,
+    onclose,
     onactivate,
     header,
     commands,
     children,
   }: {
-    panel?: string;
-    doc?: CodeWorkspaceTab;
-    activate: (key: string) => void;
+    panel: string;
+    title: string;
+    doc: CodeWorkspaceTab;
+    onclose: () => void;
     onactivate: () => void;
     header: Snippet;
     commands: Snippet;
-    children: Snippet<[Record<string, unknown>]>;
+    children: Snippet;
   } = $props();
+  const file = $derived(doc.file?.document ?? doc.diff?.new);
+  const source = $derived(
+    doc.rootKind === "artifacts"
+      ? m.s5_artifacts_folder()
+      : (doc.diff?.change.group ?? file?.source),
+  );
 </script>
 
-<Tabs.Root value={doc?.key ?? ""} onValueChange={activate}>
-  {#snippet child({ props })}
-    {#if panel}
-      <DockPanel
-        id={panel}
-        hostProps={props}
-        title={codeReaderTitle(
-          doc?.file?.document.path ?? doc?.diff?.new.path ?? "",
-        )}
-        {onactivate}
-        {header}
-        {commands}
-        headerOwnsTitle
-      >
-        {@render children({})}
-      </DockPanel>
-    {:else}
-      {@render children(props)}
-    {/if}
-  {/snippet}
-</Tabs.Root>
+<DockPanel
+  id={panel}
+  {title}
+  {onclose}
+  {onactivate}
+  {commands}
+  {header}
+  icon={doc.diff ? IconDiff : IconFile}
+  tabLabel={`${file?.path} · ${source}${doc.status !== "unchanged" ? " ●" : ""}`}
+  tooltip={file?.absolutePath}
+>
+  {@render children()}
+</DockPanel>

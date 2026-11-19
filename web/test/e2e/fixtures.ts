@@ -743,7 +743,7 @@ export async function closePanelPicker(scope: Locator | Page) {
 export async function toggleCode(scope: Locator | Page) {
   const page = "viewportSize" in scope ? scope : scope.page();
   const files = page.getByRole("region", { name: "文件树", exact: true });
-  const reader = page.getByRole("region", { name: /^预览(?: · .+)?$/ });
+  const reader = page.locator('[data-dock-panel^="reader:"]:visible').first();
   if ((await files.isVisible()) || (await reader.isVisible())) {
     if (narrowSessionHeader(page)) {
       const picker = await openPanelPicker(scope);
@@ -761,7 +761,7 @@ export async function toggleCode(scope: Locator | Page) {
         await (
           await openDockCommands(reader)
         )
-          .getByRole("menuitem", { name: /^收起(?:「预览(?: · .+)?」)?$/ })
+          .getByRole("menuitem", { name: /^收起(?:「.+」)?$/ })
           .click();
     }
   } else {

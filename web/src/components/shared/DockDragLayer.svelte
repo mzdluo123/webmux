@@ -31,12 +31,20 @@
   type Destination = { target?: string; edge: DockEdge };
   let destination = $state.raw<Destination>();
   const workspace = $derived(
-    groups.size > 1 || (groups.get(id)?.ids.length ?? 0) > 1,
+    groups.size > 1 || (groups.values().next().value?.ids.length ?? 0) > 1,
   );
   const next = $derived.by(() => {
     if (!destination) return;
     const { edge, target } = destination;
-    if (target !== undefined) return dockMove(tree, id, target, edge);
+    if (target !== undefined) {
+      // The visible representative of a stack may be the tab being dragged.
+      const anchor =
+        target === id
+          ? groups.get(id)?.ids.find((other) => other !== id)
+          : target;
+      if (!anchor || (target === id && edge === "center")) return;
+      return dockMove(tree, id, anchor, edge);
+    }
     const rest = dockRemove(tree, id);
     const pane = dockGroup(id);
     const first = edge === "left" || edge === "top";
@@ -75,9 +83,9 @@
     // marker still addresses the group for which that cross was rendered.
     if (edge && marker?.dataset.guideScope === "pane" && destination?.target)
       return { edge, target: destination.target };
-    for (const [target, { rect }] of groups) {
+    for (const [target, { rect, ids }] of groups) {
       if (
-        target !== id &&
+        (target !== id || ids.length > 1) &&
         x >= rect.x &&
         x < rect.x + rect.width &&
         y >= rect.y &&

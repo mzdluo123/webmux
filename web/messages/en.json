@@ -19,7 +19,6 @@
   "dock_move": "Move {title}",
   "dock_move_or_merge": "Move or merge",
   "dock_no_active_panel": "No active pane",
-  "dock_reader_title": "Preview · {name}",
   "dock_restore": "Restore {title} layout",
   "dock_right": "Dock to the right",
   "dock_tabs": "Docked tabs",

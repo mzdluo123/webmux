@@ -1,29 +1,29 @@
-import type { CodeWorkspaceTab } from "./code-workspace";
+import type { CodeWorkspaceSnapshot } from "../../contracts/schemas";
 
-export function groupDocuments(
-  tabs: CodeWorkspaceTab[],
-  assignment: Record<string, number> | undefined,
-  showEmpty: boolean,
-) {
-  const groups = new Map<number, CodeWorkspaceTab[]>();
-  for (const tab of tabs) {
-    const group = assignment?.[tab.key] ?? 0;
-    const list = groups.get(group);
-    if (list) list.push(tab);
-    else groups.set(group, [tab]);
+/** Keep the selected document in each legacy group's original dock slot. */
+export function restoreReaderPanels(seed?: CodeWorkspaceSnapshot) {
+  const active = seed?.active ?? "";
+  const groups = new Map<number, string[]>();
+  for (const { key } of seed?.tabs ?? []) {
+    const id = seed?.readerGroups?.[key] ?? 0;
+    const group = groups.get(id);
+    if (group) group.push(key);
+    else groups.set(id, [key]);
   }
-  if (!groups.size && showEmpty) groups.set(0, []);
-  return groups;
-}
-
-export function selectedDocument(
-  tabs: CodeWorkspaceTab[],
-  active: string,
-  previous?: string,
-) {
-  return (
-    tabs.find((tab) => tab.key === active) ??
-    tabs.find((tab) => tab.key === previous) ??
-    tabs[0]
-  );
+  let next = Math.max(0, ...groups.keys());
+  const slots = new Map<string, number>();
+  const anchors = new Map<number, number>();
+  for (const [id, keys] of groups) {
+    const preferred = keys.includes(active)
+      ? active
+      : seed?.readerSelections?.[id];
+    const selected =
+      preferred && keys.includes(preferred) ? preferred : keys[0];
+    for (const key of keys) {
+      const slot = key === selected ? id : ++next;
+      slots.set(key, slot);
+      if (slot !== id) anchors.set(slot, id);
+    }
+  }
+  return { slots, anchors, next };
 }

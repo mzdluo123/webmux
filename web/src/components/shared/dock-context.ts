@@ -1,7 +1,16 @@
-import { createContext, tick, type Snippet } from "svelte";
+import { createContext, tick, type Component, type Snippet } from "svelte";
 import type { DockEdge, DockRail, DockRect } from "$lib/dock-layout";
 
-export type DockEntry = { id: string; title: string; commands?: Snippet };
+export type DockEntry = {
+  id: string;
+  title: string;
+  icon?: Component;
+  tabLabel?: string;
+  tooltip?: string;
+  onclose?: () => void;
+  commands?: Snippet;
+  onactivate?: () => void;
+};
 
 // The source anchors stay in their owning component. Move only the panel's
 // single host element, then remove it when the source action is destroyed.
@@ -23,7 +32,8 @@ export const [getDock, setDock] = createContext<{
   back: () => void;
   active: (id: string) => boolean;
   select: (id: string) => void;
-  add: (id: string, target: string, edge: DockEdge) => void;
+  ids: () => string[];
+  add: (id: string, target: string, edge: DockEdge, activate?: boolean) => void;
   remove: (id: string) => void;
   mount: (node: HTMLElement) => { destroy: () => void };
   rect: (id: string) => DockRect | undefined;

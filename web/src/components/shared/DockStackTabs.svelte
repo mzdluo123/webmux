@@ -1,4 +1,5 @@
 <script lang="ts">
+  import IconLayout from "~icons/tabler/layout";
   import IconX from "~icons/tabler/x";
   import { ListButton } from "$lib/components/ui/list-button";
   import { getDock } from "./dock-context";
@@ -11,8 +12,15 @@
     id,
     tabs,
     show,
-  }: { id: string; tabs: DockEntry[]; show: (id: string) => void } = $props();
+    canMove,
+  }: {
+    id: string;
+    tabs: DockEntry[];
+    canMove: boolean;
+    show: (id: string) => void;
+  } = $props();
   const dock = getDock();
+  let activationMode = $state<"manual" | "automatic">("automatic");
   let strip = $state<HTMLElement>();
   function reveal(node: HTMLElement) {
     const selected = node.querySelector<HTMLElement>('[aria-selected="true"]');
@@ -32,10 +40,12 @@
   });
   async function closeTab(target: string, index: number) {
     const next = target === id ? (tabs[index + 1] ?? tabs[index - 1])?.id : id;
-    if (!next) return;
-    if (next !== id) show(next);
-    dock.minimize(target);
-    await focusTab(next);
+    const entry = tabs[index];
+    if (!entry) return;
+    if (next && next !== id) show(next);
+    if (entry.onclose) entry.onclose();
+    else dock.minimize(target);
+    if (next) await focusTab(next);
   }
   function switchTo(key: string) {
     show(key);
@@ -55,16 +65,39 @@
   }
 </script>
 
-<div class="stack-tabs" bind:this={strip} data-dock-stack>
-  <Tabs.Root value={id} onValueChange={switchTo}>
-    <Tabs.List variant="line" aria-label={m.dock_tabs()}>
+<div
+  class="stack-tabs"
+  bind:this={strip}
+  data-dock-stack
+  role="presentation"
+  onpointerdowncapture={() => (activationMode = "manual")}
+  onkeydowncapture={() => (activationMode = "automatic")}
+>
+  <Tabs.Root {activationMode} value={id} onValueChange={switchTo}>
+    <Tabs.List
+      variant="line"
+      aria-label={tabs.every((entry) => entry.onclose)
+        ? m.s5_file_tabs()
+        : m.dock_tabs()}
+    >
       {#each tabs as tab, index (tab.id)}
+        {@const Icon = tab.icon ?? IconLayout}
         <div class="flex shrink-0 items-center border-r first:border-l">
           <Tabs.Trigger
             value={tab.id}
-            title={tab.title}
+            title={tab.tooltip ?? tab.title}
+            aria-label={tab.tabLabel ?? tab.title}
+            draggable={canMove}
+            ondragstart={(event) => {
+              if (!canMove || !event.dataTransfer) return;
+              event.stopPropagation();
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", tab.title);
+              dock.drag(tab.id);
+            }}
             aria-controls={`dock-content-${tab.id}`}
-            ><span class="truncate">{tab.title}</span></Tabs.Trigger
+            ><Icon aria-hidden="true" /><span class="truncate">{tab.title}</span
+            ></Tabs.Trigger
           >
           <ListButton
             variant="tab-close"

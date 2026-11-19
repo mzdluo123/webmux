@@ -4,8 +4,7 @@
   import IconCheck from "~icons/tabler/check";
   import IconLayout from "~icons/tabler/layout-columns";
   import { Button } from "$lib/components/ui/button";
-  import * as Dialog from "$lib/components/ui/dialog";
-  import * as Drawer from "$lib/components/ui/drawer";
+  import DockPickerOverlay from "./DockPickerOverlay.svelte";
   import { ListButton } from "$lib/components/ui/list-button";
   import { m } from "$lib/paraglide/messages.js";
   import {
@@ -150,8 +149,19 @@
     return !!rect(id);
   }
 
+  export function isAnyVisible(matches: (id: string) => boolean) {
+    if (compact) return !!mobile && matches(mobile);
+    if (visibleZoom) return matches(visibleZoom);
+    for (const id of geometry.groups.keys()) if (matches(id)) return true;
+    return false;
+  }
+
   export function hasPanel(id: string) {
     return entries.has(id);
+  }
+
+  export function ids() {
+    return dockIds(tree);
   }
 
   export function show(id: string) {
@@ -169,6 +179,7 @@
       if (hidden.includes(id)) hidden = hidden.filter((value) => value !== id);
       if (zoom !== id) zoom = keepZoom ? id : "";
     }
+    entries.get(id)?.onactivate?.();
     onSelectPanel?.(id);
   }
 
@@ -177,10 +188,11 @@
     target: string,
     edge: DockEdge,
     useDefault = false,
+    activate = true,
   ) {
-    selected = id;
-    if (!useDefault || node) node = dockMove(tree, id, target, edge);
-    if (compact) show(id);
+    if (activate) selected = id;
+    if (!useDefault || node) node = dockMove(tree, id, target, edge, activate);
+    if (activate && compact) show(id);
   }
 
   export function remove(id: string) {
@@ -190,7 +202,14 @@
     mobileHidden = mobileHidden.filter((value) => value !== id);
     history = history.filter((value) => value !== id);
     if (zoom === id) zoom = "";
-    if (mobilePanel === id) mobilePanel = "";
+    if (mobilePanel === id) {
+      mobilePanel = previous ?? "";
+      history = history.filter((value) => value !== mobilePanel);
+      if (compact && mobilePanel) {
+        entries.get(mobilePanel)?.onactivate?.();
+        onSelectPanel?.(mobilePanel);
+      }
+    }
   }
 
   export function reset() {
@@ -220,7 +239,10 @@
         pickerPanel = undefined;
         showPicker = true;
       }
-      if (edgeRails && mobile) onSelectPanel?.(mobile);
+      if (edgeRails && mobile) {
+        entries.get(mobile)?.onactivate?.();
+        onSelectPanel?.(mobile);
+      }
     } else {
       if (destination) rails[id] = destination;
       node = tree;
@@ -264,6 +286,7 @@
       const id = previous;
       history = history.slice(0, history.lastIndexOf(id));
       mobilePanel = id;
+      entries.get(id)?.onactivate?.();
       onSelectPanel?.(id);
     },
     register(entry) {
@@ -279,12 +302,23 @@
       selected = id;
       onSelectPanel?.(id);
     },
-    add,
+    ids,
+    add: (id, target, edge, activate) => add(id, target, edge, false, activate),
     remove,
-    tabs: (id) =>
-      (geometry.groups.get(id)?.ids ?? [])
+    tabs: (id) => {
+      let group = geometry.groups.get(id);
+      if (compact && mobile === id && !group) {
+        for (const other of geometry.groups.values())
+          if (other.ids.includes(id)) {
+            group = other;
+            break;
+          }
+      }
+      return (group?.ids ?? (compact && mobile === id ? [id] : []))
+        .filter((key) => !compact || !mobileHidden.includes(key))
         .map((key) => entries.get(key))
-        .filter((entry) => entry !== undefined),
+        .filter((entry) => entry !== undefined);
+    },
     targets,
     compact: () => compact,
     zoomed: (id) => visibleZoom === id,
@@ -367,7 +401,7 @@
           finish={(next) => {
             if (next && dragging) {
               node = next;
-              if (hidden.includes(dragging)) show(dragging);
+              show(dragging);
             }
             dragging = undefined;
           }}
@@ -417,43 +451,16 @@
   </div>
 {/snippet}
 
-{#if !compact && !pickerTrigger}
-  <Dialog.Root bind:open={showPicker}
-    ><Dialog.Content
-      onCloseAutoFocus={(event) => {
-        if (!pickerOrigin?.isConnected) return;
-        event.preventDefault();
-        pickerOrigin.focus();
-        pickerOrigin = null;
-      }}
-      ><Dialog.Header
-        ><Dialog.Title>{m.s4_open_panel()}</Dialog.Title></Dialog.Header
-      >{@render choices()}<Dialog.Footer
-        ><Button variant="outline" onclick={closePicker}>{m.s1_cancel()}</Button
-        ></Dialog.Footer
-      ></Dialog.Content
-    ></Dialog.Root
-  >
-{:else}
-  <Drawer.Root bind:open={showPicker}>
-    <Drawer.Content
-      onCloseAutoFocus={(event) => {
-        if (!pickerOrigin?.isConnected) return;
-        event.preventDefault();
-        pickerOrigin.focus();
-        pickerOrigin = null;
-      }}
-    >
-      <Drawer.Header>
-        <Drawer.Title>{m.s4_open_panel()}</Drawer.Title>
-      </Drawer.Header>
-      {@render choices()}
-      <Drawer.Footer>
-        <Button variant="outline" onclick={closePicker}>{m.s1_cancel()}</Button>
-      </Drawer.Footer>
-    </Drawer.Content>
-  </Drawer.Root>
-{/if}
+<DockPickerOverlay
+  bind:open={showPicker}
+  dialog={!compact && !pickerTrigger}
+  onreturnfocus={(event) => {
+    if (!pickerOrigin?.isConnected) return;
+    event.preventDefault();
+    pickerOrigin.focus();
+    pickerOrigin = null;
+  }}>{@render choices()}</DockPickerOverlay
+>
 
 <style>
   [data-dock-flow="true"] {

@@ -196,8 +196,7 @@ test("code references and uploaded paths join the same draft without PTY input",
   await expect
     .poll(() => readFile(received, "utf8"))
     .toBe(`\x1b[200~${expected}\x1b[201~\r`);
-  if (info.project.use.isMobile)
-    await chooseDockPanel(page, "预览 · reference.txt");
+  if (info.project.use.isMobile) await chooseDockPanel(page, "reference.txt");
   await expect(codeReader(page)).toBeVisible();
   await expect(draft(page)).toBeHidden();
   if (info.project.use.isMobile) await chooseDockPanelById(page, id);
@@ -205,8 +204,7 @@ test("code references and uploaded paths join the same draft without PTY input",
   await expectDraftMode(page, false);
   await toggleDraftMode(page);
   await expect(draft(page)).toHaveValue("");
-  if (info.project.use.isMobile)
-    await chooseDockPanel(page, "预览 · reference.txt");
+  if (info.project.use.isMobile) await chooseDockPanel(page, "reference.txt");
   await info.attach("composer-code.png", {
     body: await page.screenshot(),
     contentType: "image/png",
@@ -275,15 +273,14 @@ test("draft splits the terminal column while the side panel stays full height", 
   }
   await toggleDraftMode(page);
   if (info.project.use.isMobile) {
-    await chooseDockPanel(page, "预览 · panel.txt");
+    await chooseDockPanel(page, "panel.txt");
     expect(await code.boundingBox()).toEqual(codeBounds);
     await chooseDockPanelById(page, id);
   } else {
     expect(await code.boundingBox()).toEqual(codeBounds);
   }
   await toggleDraftMode(page);
-  if (info.project.use.isMobile)
-    await chooseDockPanel(page, "预览 · panel.txt");
+  if (info.project.use.isMobile) await chooseDockPanel(page, "panel.txt");
   expect(await code.boundingBox()).toEqual(codeBounds);
   if (info.project.use.isMobile) await chooseDockPanelById(page, id);
   await expect(draft(page)).toHaveValue("Keep this draft");

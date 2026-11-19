@@ -93,54 +93,56 @@
       >
     </div>
   {/if}
-  <Tabs.List variant="line" aria-label={m.s5_file_tabs()}>
-    {#snippet child({ props })}
-      <div
-        {...props}
-        class="flex min-w-0 flex-1 overflow-x-auto scrollbar-thin"
-      >
-        {#each tabs as tab (tab.key)}
-          {@const path = tab.file?.document.path ?? tab.diff?.new.path ?? ""}
-          {@const meta = `${tab.rootKind === "artifacts" ? m.s5_artifacts_folder() : tab.diff ? tab.diff.change.group : tab.file?.document.source}${tab.status !== "unchanged" ? " ●" : ""}`}
-          {@const image = [
-            tab.file?.document.mediaType,
-            tab.diff?.new.mediaType,
-            tab.diff?.old.mediaType,
-          ].some((type) => type?.startsWith("image/"))}
-          <div class="flex shrink-0 items-center border-r first:border-l">
-            <Tabs.Trigger
-              value={tab.key}
-              aria-label={`${path} · ${meta}`}
-              title={tab.file?.document.absolutePath ??
-                tab.diff?.new.absolutePath ??
-                path}
-              onclick={beginOpen}
-              onkeydown={supersedeOpenOnTabKey}
-            >
-              {#snippet child({ props })}
-                <ListButton {...props} class={undefined} variant="tab"
-                  >{#if image}<IconPhoto
-                      class="mr-1 inline size-3.5 align-[-0.125em]"
-                      aria-hidden="true"
-                    />{/if}<span class="truncate"
-                    >{labels.get(tab.key)}{tab.status !== "unchanged"
-                      ? " ●"
-                      : ""}</span
-                  ></ListButton
-                >
-              {/snippet}
-            </Tabs.Trigger>
-            <ListButton
-              variant="tab-close"
-              aria-label={m.s5_close_tab({ path })}
-              title={m.s5_close_tab({ path })}
-              onclick={() => close(tab.key)}
-              ><IconX aria-hidden="true" /></ListButton
-            >
-          </div>{/each}
-      </div>
-    {/snippet}
-  </Tabs.List>
+  {#if !dockNavigation || tabs.length}
+    <Tabs.List variant="line" aria-label={m.s5_file_tabs()}>
+      {#snippet child({ props })}
+        <div
+          {...props}
+          class="flex min-w-0 flex-1 overflow-x-auto scrollbar-thin"
+        >
+          {#each tabs as tab (tab.key)}
+            {@const path = tab.file?.document.path ?? tab.diff?.new.path ?? ""}
+            {@const meta = `${tab.rootKind === "artifacts" ? m.s5_artifacts_folder() : tab.diff ? tab.diff.change.group : tab.file?.document.source}${tab.status !== "unchanged" ? " ●" : ""}`}
+            {@const image = [
+              tab.file?.document.mediaType,
+              tab.diff?.new.mediaType,
+              tab.diff?.old.mediaType,
+            ].some((type) => type?.startsWith("image/"))}
+            <div class="flex shrink-0 items-center border-r first:border-l">
+              <Tabs.Trigger
+                value={tab.key}
+                aria-label={`${path} · ${meta}`}
+                title={tab.file?.document.absolutePath ??
+                  tab.diff?.new.absolutePath ??
+                  path}
+                onclick={beginOpen}
+                onkeydown={supersedeOpenOnTabKey}
+              >
+                {#snippet child({ props })}
+                  <ListButton {...props} class={undefined} variant="tab"
+                    >{#if image}<IconPhoto
+                        class="mr-1 inline size-3.5 align-[-0.125em]"
+                        aria-hidden="true"
+                      />{/if}<span class="truncate"
+                      >{labels.get(tab.key)}{tab.status !== "unchanged"
+                        ? " ●"
+                        : ""}</span
+                    ></ListButton
+                  >
+                {/snippet}
+              </Tabs.Trigger>
+              <ListButton
+                variant="tab-close"
+                aria-label={m.s5_close_tab({ path })}
+                title={m.s5_close_tab({ path })}
+                onclick={() => close(tab.key)}
+                ><IconX aria-hidden="true" /></ListButton
+              >
+            </div>{/each}
+        </div>
+      {/snippet}
+    </Tabs.List>
+  {/if}
 {/snippet}
 
 {#snippet commands()}
@@ -203,7 +205,10 @@
 {#if part === "commands"}
   {@render commands()}
 {:else}
-  <div class="reader-strip flex min-w-0 items-center">
+  <div
+    class="reader-strip flex min-w-0 items-center"
+    class:docked-tools={!!dockNavigation && !tabs.length}
+  >
     {@render tabStrip()}
     {#if part === "all"}{@render commands()}{/if}
   </div>
@@ -218,10 +223,18 @@
     flex: none;
     block-size: var(--control-default);
   }
+  .reader-strip.docked-tools {
+    flex: none;
+    container-type: normal;
+  }
   .quick-actions {
     display: none;
   }
   @container reader-strip (min-width: 26rem) {
+    .reader-strip.docked-tools {
+      flex: none;
+      container-type: normal;
+    }
     .quick-actions {
       display: flex;
     }

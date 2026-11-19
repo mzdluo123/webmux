@@ -112,6 +112,15 @@
   let seenHybrid = false;
   let codePanel = $state<CodePanelComponent>();
   const dock = getDock();
+  const codeVisible = () =>
+    !!dock.rect(panels.files) ||
+    dock
+      .ids()
+      .some(
+        (panel) =>
+          (panel === panels.reader || panel.startsWith(`${panels.reader}:`)) &&
+          !!dock.rect(panel),
+      );
   let codeLoaded = $state(false);
   const input = createSessionTerminalInput({
     draft,
@@ -158,8 +167,7 @@
     isActiveAndVisible: () => active && visible,
     isTerminalView: () => hybrid.view === "terminal",
     isTerminalVisible: terminalVisible,
-    isCodeVisible: () =>
-      !!dock.rect(panels.files) || !!dock.rect(panels.reader),
+    isCodeVisible: codeVisible,
     isDesktop: () => desktop,
     focusFindBar: () => stage?.focusFind(),
     focusComposer: () => chrome.restoreInputFocus(),
@@ -178,11 +186,7 @@
     onscrollstate: (state) => onscrollstate?.(state),
   });
   $effect(() => {
-    if (availableFeatures.code && chrome.codeShown) {
-      codeLoaded = true;
-      const reveal = chrome.codeTarget;
-      if (reveal) untrack(() => dock.show(panels.reader));
-    }
+    if (availableFeatures.code && chrome.codeShown) codeLoaded = true;
   });
   $effect(() => {
     if (terminalVisible()) {
@@ -387,8 +391,7 @@
     bind:this={stage}
     bind:container
     bind:notice
-    codeShown={dock.compact() &&
-      (!!dock.rect(panels.files) || !!dock.rect(panels.reader))}
+    codeShown={dock.compact() && codeVisible()}
     {active}
     {panels}
     {dockSessionName}
@@ -461,7 +464,7 @@
           bind:this={codePanel}
           {id}
           gitFeature={availableFeatures.git}
-          visible={!!dock.rect(panels.files) || !!dock.rect(panels.reader)}
+          visible={codeVisible()}
           docked={{ files: panels.files, reader: panels.reader }}
           connection={hybrid.view === "chat"
             ? hybrid.chat.connection

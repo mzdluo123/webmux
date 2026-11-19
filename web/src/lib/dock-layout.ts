@@ -79,17 +79,28 @@ export function dockMove(
   id: string,
   target: string,
   edge: DockEdge,
+  activate = true,
 ): DockNode {
   if (id === target) return node;
   if (!dockIds(node).includes(target)) {
     const ids = dockIds(node);
     if (!ids.length) return dockGroup(id);
-    return dockMove(node, id, ids.find((key) => key !== id) ?? id, edge);
+    return dockMove(
+      node,
+      id,
+      ids.find((key) => key !== id) ?? id,
+      edge,
+      activate,
+    );
   }
   return updateGroups(dockRemove(node, id), (group) => {
     if (!group.ids.includes(target)) return group;
     if (edge === "center")
-      return { ...group, ids: [...group.ids, id], active: id };
+      return {
+        ...group,
+        ids: [...group.ids, id],
+        active: activate ? id : group.active,
+      };
     const first = edge === "left" || edge === "top";
     return dockSplit(
       edge === "left" || edge === "right" ? "horizontal" : "vertical",

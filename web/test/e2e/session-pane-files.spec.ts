@@ -11,7 +11,7 @@ test("browse before reading and compare files without replacing the session", as
       writeFile(join(workDir, name), `Contents of ${name}`),
     ),
   );
-  await createShell(page, "File review", workDir);
+  const id = await createShell(page, "File review", workDir);
   const sessionHeight = (await page
     .locator("[data-dock-panel]:visible > .dock-title")
     .boundingBox())!.height;
@@ -34,9 +34,7 @@ test("browse before reading and compare files without replacing the session", as
     await expect(
       picker.getByRole("button", { name: /左右分屏|上下分屏/ }),
     ).toHaveCount(0);
-    await picker
-      .getByRole("button", { name: /^收起「预览 · first\.txt」$/ })
-      .click();
+    await picker.getByRole("button", { name: /^收起「first\.txt」$/ }).click();
     await expect(tree).toBeVisible();
     await tree.getByRole("button", { name: "返回", exact: true }).click();
     await expect(page.locator(".split-terminal")).toBeVisible();
@@ -50,8 +48,10 @@ test("browse before reading and compare files without replacing the session", as
     "Contents of first.txt",
   );
   await strip.getByRole("button", { name: /second\.txt/ }).click();
-  await expect(strip.getByRole("tab")).toHaveCount(1);
-  await expect(strip.getByRole("tab")).toHaveText("first.txt");
+  await expect(readers).toContainText("Contents of first.txt");
+  await expect(page.locator('[data-dock-panel^="reader:"]')).toHaveCount(1);
+  await tree.getByRole("button", { name: "second.txt", exact: true }).click();
+  await readers.getByRole("tab", { name: /^first\.txt/ }).click();
   await tree
     .getByRole("button", { name: /second\.txt/ })
     .first()
@@ -64,5 +64,30 @@ test("browse before reading and compare files without replacing the session", as
   await expect(
     readers.filter({ hasText: "Contents of second.txt" }),
   ).toBeVisible();
-  await expect(page.locator(".split-terminal")).toBeVisible();
+  const terminal = page.locator(`[data-dock-panel="${id}"]`);
+  const first = readers.filter({ hasText: "Contents of first.txt" });
+  const second = readers.filter({ hasText: "Contents of second.txt" });
+  await first.locator(".dock-title-space").dragTo(terminal);
+  const stack = page.locator("[data-dock-panel]:visible [data-dock-stack]");
+  const file = stack.getByRole("tab", { name: /^first\.txt/ });
+  const shell = stack.getByRole("tab", { name: "File review", exact: true });
+  await expect(first.locator(".dock-title").getByRole("tab")).toHaveCount(2);
+  await expect(file.locator("svg")).toHaveCount(1);
+  await expect(shell.locator("svg")).toHaveCount(1);
+  await shell.click();
+  await expect(terminal.locator(".xterm")).toBeVisible();
+  // Drag the background file, leaving the selected shell where it is.
+  const box = (await second.boundingBox())!;
+  await file.dragTo(second, {
+    targetPosition: { x: box.width / 2, y: box.height - 8 },
+  });
+  await expect(terminal.locator(".xterm")).toBeVisible();
+  await expect(first).toBeVisible();
+  await expect
+    .poll(async () => (await first.boundingBox())!.y)
+    .toBeGreaterThan((await second.boundingBox())!.y);
+  await first.getByRole("button", { name: /^关闭 first\.txt$/ }).click();
+  await expect(first).toHaveCount(0);
+  await expect(second).toBeVisible();
+  await expect(terminal).toBeVisible();
 });

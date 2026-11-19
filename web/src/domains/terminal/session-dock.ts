@@ -9,12 +9,17 @@ export function sessionPanelIds(id: string) {
   };
 }
 
-export function panelSession(ids: readonly string[], panel: string) {
-  return ids.find(
-    (sid) =>
-      Object.values(sessionPanelIds(sid)).includes(panel) ||
-      panel.startsWith(`reader:${sid}:`),
+export function ownsSessionPanel(id: string, panel: string) {
+  return (
+    panel === id ||
+    panel === `files:${id}` ||
+    panel === `reader:${id}` ||
+    panel.startsWith(`reader:${id}:`)
   );
+}
+
+export function panelSession(ids: readonly string[], panel: string) {
+  return ids.find((id) => ownsSessionPanel(id, panel));
 }
 
 export function dockSessionLabels(

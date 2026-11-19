@@ -19,7 +19,6 @@
   "dock_move": "移动「{title}」",
   "dock_move_or_merge": "移动或合并",
   "dock_no_active_panel": "没有活动窗格",
-  "dock_reader_title": "预览 · {name}",
   "dock_restore": "还原「{title}」布局",
   "dock_right": "停靠到右侧",
   "dock_tabs": "停靠标签",

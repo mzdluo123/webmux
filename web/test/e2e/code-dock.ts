@@ -5,7 +5,7 @@ export const fileTree = (page: Page) =>
   page.getByRole("region", { name: "文件树", exact: true });
 
 export const codeReader = (page: Page) =>
-  page.locator('[data-dock-panel^="reader:"]');
+  page.locator('[data-dock-panel^="reader:"]:visible');
 
 export async function openCodeMenu(scope: Page | FrameLocator | Locator) {
   const button = { name: "代码菜单", exact: true };

@@ -24,6 +24,7 @@
   import SessionTerminal from "../components/terminal/SessionTerminal.svelte";
   import {
     dockSessionLabels,
+    ownsSessionPanel,
     panelSession,
     sessionDockTree,
     sessionPanelIds,
@@ -245,8 +246,8 @@
     if (!layout || !ids.includes(sessionId)) return;
     const next = removePane(layout, sessionId);
     const previous = ids.indexOf(sessionId);
-    for (const panel of Object.values(sessionPanelIds(sessionId)))
-      dock?.remove(panel);
+    for (const panel of dock?.ids() ?? [])
+      if (ownsSessionPanel(sessionId, panel)) dock?.remove(panel);
     layout = next;
     if (!next) {
       active = "";
@@ -420,9 +421,6 @@
         {#each ids as sessionId (sessionId)}
           {@const panels = sessionPanelIds(sessionId)}
           {@const dockSession = dockSessions.get(sessionId)}
-          {@const visible =
-            !!dock &&
-            Object.values(panels).some((panel) => dock?.isVisible(panel))}
           {#key `${sessionId}:${revisions[sessionId] ?? 0}`}
             <SessionTerminal
               bind:this={terminals[sessionId]}
@@ -439,7 +437,9 @@
               }}
               {drafts}
               {onUploadNotice}
-              {visible}
+              visible={dock?.isAnyVisible((panel) =>
+                ownsSessionPanel(sessionId, panel),
+              ) ?? false}
               {keyboardDismissed}
               keyboardVisibility={() => viewport.keyboard}
               viewportHeight={() => viewport.height}

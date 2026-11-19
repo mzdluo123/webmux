@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+  import type { Component, Snippet } from "svelte";
   import IconArrowsMaximize from "~icons/tabler/arrows-maximize";
   import IconArrowsMinimize from "~icons/tabler/arrows-minimize";
   import IconBack from "~icons/tabler/arrow-left";
@@ -19,8 +19,10 @@
     children,
     header,
     commands,
-    headerOwnsTitle = false,
-    hostProps,
+    icon,
+    tabLabel,
+    tooltip,
+    onclose,
   }: {
     id: string;
     title: string;
@@ -28,8 +30,10 @@
     children: Snippet<[boolean]>;
     header?: Snippet;
     commands?: Snippet;
-    headerOwnsTitle?: boolean;
-    hostProps?: Record<string, unknown>;
+    icon?: Component;
+    tabLabel?: string;
+    tooltip?: string;
+    onclose?: () => void;
   } = $props();
 
   const dock = getDock();
@@ -37,16 +41,16 @@
   const tabs = $derived(dock.tabs(id));
   const compact = $derived(dock.compact());
   const localHeader = $derived(
-    compact && commands && !headerOwnsTitle ? commands : header,
+    compact && commands && !onclose ? commands : header,
   );
-  const showTitle = $derived(
-    !headerOwnsTitle && (commands ? !compact : !header),
-  );
+  const showTitle = $derived(!onclose && (commands ? !compact : !header));
   const zoomed = $derived(dock.zoomed(id));
   const edgeRails = $derived(dock.edgeRails());
   const canMove = $derived(!compact && !zoomed);
   const targets = $derived(canMove ? dock.targets(id) : undefined);
-  const showTabs = $derived(!compact && tabs.length > 1);
+  const showTabs = $derived(
+    (!compact && tabs.length > 1) || (!!onclose && !!tabs.length),
+  );
   const zoomLabel = $derived(
     zoomed ? m.dock_restore({ title }) : m.dock_maximize({ title }),
   );
@@ -55,6 +59,17 @@
     dock.register({
       id,
       commands,
+      onactivate,
+      onclose,
+      get icon() {
+        return icon;
+      },
+      get tabLabel() {
+        return tabLabel;
+      },
+      get tooltip() {
+        return tooltip;
+      },
       get title() {
         return title;
       },
@@ -79,7 +94,6 @@
 
 <div class="dock-source">
   <section
-    {...hostProps}
     use:dock.mount
     class="dock-panel"
     data-dock-panel={id}
@@ -129,7 +143,7 @@
         >
       {/if}
       {#if showTabs}
-        <DockStackTabs {id} {tabs} show={dock.show} />
+        <DockStackTabs {id} {tabs} {canMove} show={dock.show} />
       {/if}
       {@render localHeader?.()}
       <div

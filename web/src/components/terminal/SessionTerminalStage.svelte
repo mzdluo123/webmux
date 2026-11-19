@@ -1,4 +1,6 @@
 <script lang="ts">
+  import IconChat from "~icons/tabler/message";
+  import IconTerminal from "~icons/tabler/terminal";
   import type { ButtonSize, ButtonVariant } from "$lib/components/ui/button";
   import DockPanel from "../shared/DockPanel.svelte";
   import { paneEnter } from "../../hooks/shared/pane-enter";
@@ -286,6 +288,7 @@
 <DockPanel
   id={panels.terminal}
   title={paneTitle}
+  icon={hybrid.view === "chat" ? IconChat : IconTerminal}
   {onactivate}
   commands={paneHeader}
 >

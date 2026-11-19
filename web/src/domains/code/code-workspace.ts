@@ -42,12 +42,6 @@ export type CodeWorkspaceTab = {
 
 export type CodeTabOrigin = Pick<CodeWorkspaceTab, "contextId" | "rootKind">;
 
-export function codeReaderTitle(path: string): string {
-  return path
-    ? m.dock_reader_title({ name: path.slice(path.lastIndexOf("/") + 1) })
-    : m.s5_preview();
-}
-
 export function aborted(e: unknown) {
   return e instanceof DOMException && e.name === "AbortError";
 }
