@@ -233,41 +233,45 @@
 
   {#if refsChanged && onRefreshHistory}
     <InlineNotice tone="info">
-      <span class="mr-2">{m.s6_filter_refs_changed_notice()}</span>
-      <Button size="sm" variant="outline" onclick={onRefreshHistory}>
-        {m.s6_filter_refresh_btn()}
-      </Button>
+      {m.s6_filter_refs_changed_notice()}
+      {#snippet actions()}
+        <Button size="sm" variant="outline" onclick={onRefreshHistory}>
+          {m.s6_filter_refresh_btn()}
+        </Button>
+      {/snippet}
     </InlineNotice>
   {/if}
 
   {#if selectionNotice}
     <InlineNotice tone="warning">
-      <span class="mr-2">{selectionNotice.message}</span>
-      {#if selectionNotice.canJumpHead && onJumpToHead}
-        <Button size="sm" variant="outline" onclick={onJumpToHead}>
-          {m.s6_filter_jump_to_head()}
-        </Button>
-      {/if}
-      {#if onDismissSelectionNotice}
-        <Button size="sm" variant="ghost" onclick={onDismissSelectionNotice}>
-          {m.s6_close()}
-        </Button>
-      {/if}
+      {selectionNotice.message}
+      {#snippet actions()}
+        {#if selectionNotice.canJumpHead && onJumpToHead}
+          <Button size="sm" variant="outline" onclick={onJumpToHead}>
+            {m.s6_filter_jump_to_head()}
+          </Button>
+        {/if}
+        {#if onDismissSelectionNotice}
+          <Button size="sm" variant="ghost" onclick={onDismissSelectionNotice}>
+            {m.s6_close()}
+          </Button>
+        {/if}
+      {/snippet}
     </InlineNotice>
   {/if}
 
   {#if compareBaseMarkOid}
     <InlineNotice tone="info">
-      <span class="mr-2">
-        {m.s6_filter_compare_mark_before()}<code class="font-mono"
-          >{compareBaseMarkOid.slice(0, 7)}</code
-        >{m.s6_filter_compare_mark_after()}
-      </span>
-      {#if onCancelCompareMark}
-        <Button size="sm" variant="ghost" onclick={onCancelCompareMark}>
-          {m.s6_cancel()}
-        </Button>
-      {/if}
+      {m.s6_filter_compare_mark_before()}<code class="font-mono"
+        >{compareBaseMarkOid.slice(0, 7)}</code
+      >{m.s6_filter_compare_mark_after()}
+      {#snippet actions()}
+        {#if onCancelCompareMark}
+          <Button size="sm" variant="ghost" onclick={onCancelCompareMark}>
+            {m.s6_cancel()}
+          </Button>
+        {/if}
+      {/snippet}
     </InlineNotice>
   {/if}
 </div>

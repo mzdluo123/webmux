@@ -270,10 +270,8 @@
 
     {#if model.headState === "detached"}
       <InlineNotice tone="warning">
-        <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <span class="min-w-0">
-            {m.s6_commit_preview_detached_notice()}
-          </span>
+        {m.s6_commit_preview_detached_notice()}
+        {#snippet actions()}
           {#if onCreateBranchFromHead}
             <Button
               size="sm"
@@ -288,7 +286,7 @@
               {m.s6_commit_preview_create_branch_btn()}
             </Button>
           {/if}
-        </div>
+        {/snippet}
       </InlineNotice>
     {/if}
 
@@ -423,16 +421,16 @@
     <div class="space-y-2">
       {#if model.stale || model.dialogError}
         <InlineNotice tone={model.stale ? "warning" : "danger"} size="compact">
-          <div class="flex min-w-0 flex-wrap items-center gap-2">
-            <ScrollArea
-              class="min-w-0 flex-1"
-              viewportClasses="max-h-[min(4rem,12dvh)] overscroll-contain"
-              viewportProps={{ tabindex: 0 }}
-            >
-              <p class="wrap-anywhere pr-2">
-                {model.dialogError || m.s6_commit_preview_stale_fallback()}
-              </p>
-            </ScrollArea>
+          <ScrollArea
+            class="min-w-0 flex-1"
+            viewportClasses="max-h-[min(4rem,12dvh)] overscroll-contain"
+            viewportProps={{ tabindex: 0 }}
+          >
+            <p class="wrap-anywhere pr-2">
+              {model.dialogError || m.s6_commit_preview_stale_fallback()}
+            </p>
+          </ScrollArea>
+          {#snippet actions()}
             {#if model.stale && onRefreshPreview}
               <Button
                 size="sm"
@@ -445,7 +443,7 @@
                 {m.s6_commit_preview_regenerate_btn()}
               </Button>
             {/if}
-          </div>
+          {/snippet}
         </InlineNotice>
       {/if}
 

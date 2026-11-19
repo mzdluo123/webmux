@@ -135,14 +135,15 @@
 {:else if mode === "dock"}
   {#if chat?.authRequired}
     <InlineNotice tone="danger" size="compact">
-      <span class="flex flex-wrap items-center gap-2"
-        >{m.s3_agent_login_required()}<Button
+      {m.s3_agent_login_required()}
+      {#snippet actions()}
+        <Button
           size="sm"
           variant="outline"
           disabled={!!unavailable}
           onclick={onterminal}>{m.s3_switch_to_terminal_login()}</Button
-        ></span
-      >
+        >
+      {/snippet}
     </InlineNotice>
   {/if}
   {#if error || chat?.connectorMissing}

@@ -299,17 +299,15 @@
   {#if stale}
     <div class="shrink-0 border-b bg-background px-3 py-2">
       <InlineNotice tone="warning">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <span>
-            {staleReason || m.s6_staging_stale_fallback()}
-          </span>
+        {staleReason || m.s6_staging_stale_fallback()}
+        {#snippet actions()}
           {#if onRefreshSnapshot}
             <Button size="sm" variant="outline" onclick={onRefreshSnapshot}>
               <IconRefresh aria-hidden="true" />
               {m.s6_staging_refresh_snapshot()}
             </Button>
           {/if}
-        </div>
+        {/snippet}
       </InlineNotice>
     </div>
   {/if}

@@ -373,20 +373,19 @@
 
       {#if launchPresetError}
         <InlineNotice tone="danger">
-          <p>
-            {activePresets.length === 0
-              ? m.s2_launch_presets_unavailable({ error: launchPresetError })
-              : m.s2_launch_presets_restore_err({ error: launchPresetError })}
-          </p>
-          {#if activePresets.length === 0}
-            <Button
-              variant="outline"
-              size="sm"
-              class="mt-2"
-              onclick={() => void loadLaunchPresets()}
-              >{m.s2_launch_presets_reload()}</Button
-            >
-          {/if}
+          {activePresets.length === 0
+            ? m.s2_launch_presets_unavailable({ error: launchPresetError })
+            : m.s2_launch_presets_restore_err({ error: launchPresetError })}
+          {#snippet actions()}
+            {#if activePresets.length === 0}
+              <Button
+                variant="outline"
+                size="sm"
+                onclick={() => void loadLaunchPresets()}
+                >{m.s2_launch_presets_reload()}</Button
+              >
+            {/if}
+          {/snippet}
         </InlineNotice>
       {/if}
 

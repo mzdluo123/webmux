@@ -72,8 +72,8 @@
 
     {#if staleRejected}
       <InlineNotice tone="warning">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <span>{m.s6_discard_stale_rejected()}</span>
+        {m.s6_discard_stale_rejected()}
+        {#snippet actions()}
           {#if onRefreshAfterStale}
             <Button
               size="sm"
@@ -86,7 +86,7 @@
               {m.s6_discard_refresh_stale_btn()}
             </Button>
           {/if}
-        </div>
+        {/snippet}
       </InlineNotice>
     {/if}
 

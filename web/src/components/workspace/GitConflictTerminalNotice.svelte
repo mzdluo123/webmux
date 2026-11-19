@@ -33,44 +33,42 @@
 
 <div class="border-b bg-background px-3 py-2">
   <InlineNotice tone="danger">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <span>{message}</span>
-      <div class="flex flex-wrap items-center gap-1.5">
-        {#if onOpenConflictResolver}
-          <Button
-            size="sm"
-            variant="default"
-            wrap
-            onclick={onOpenConflictResolver}
-            data-testid="git-notice-open-conflict-resolver-btn"
-          >
-            <IconArrowsSplit2 aria-hidden="true" />
-            {m.s6_open_conflict_resolver()}
-          </Button>
-        {/if}
-        {#if hasActiveWorktreeSession && onOpenWorktreeTerminal}
-          <Button
-            size="sm"
-            variant="outline"
-            wrap
-            onclick={onOpenWorktreeTerminal}
-          >
-            <IconTerminal2 aria-hidden="true" />
-            {openLabel}
-          </Button>
-        {/if}
-        {#if onNewWorktreeTerminal}
-          <Button
-            size="sm"
-            variant="outline"
-            wrap
-            onclick={onNewWorktreeTerminal}
-          >
-            <IconTerminal2 aria-hidden="true" />
-            {newLabel}
-          </Button>
-        {/if}
-      </div>
-    </div>
+    {message}
+    {#snippet actions()}
+      {#if onOpenConflictResolver}
+        <Button
+          size="sm"
+          variant="default"
+          wrap
+          onclick={onOpenConflictResolver}
+          data-testid="git-notice-open-conflict-resolver-btn"
+        >
+          <IconArrowsSplit2 aria-hidden="true" />
+          {m.s6_open_conflict_resolver()}
+        </Button>
+      {/if}
+      {#if hasActiveWorktreeSession && onOpenWorktreeTerminal}
+        <Button
+          size="sm"
+          variant="outline"
+          wrap
+          onclick={onOpenWorktreeTerminal}
+        >
+          <IconTerminal2 aria-hidden="true" />
+          {openLabel}
+        </Button>
+      {/if}
+      {#if onNewWorktreeTerminal}
+        <Button
+          size="sm"
+          variant="outline"
+          wrap
+          onclick={onNewWorktreeTerminal}
+        >
+          <IconTerminal2 aria-hidden="true" />
+          {newLabel}
+        </Button>
+      {/if}
+    {/snippet}
   </InlineNotice>
 </div>

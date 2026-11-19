@@ -599,6 +599,16 @@
       <InlineNotice tone="danger"
         >无法访问工作区。请检查目录是否存在，然后重新选择路径。</InlineNotice
       >
+      <InlineNotice tone="danger" surface="floating">
+        仓库详情加载失败，请刷新页面后重试。
+        {#snippet actions()}
+          <Button
+            variant="outline"
+            size="sm"
+            onclick={() => (notice = "已关闭加载失败提示")}>关闭</Button
+          >
+        {/snippet}
+      </InlineNotice>
       <InlineNotice size="compact">紧凑提示使用组件的统一尺寸。</InlineNotice>
       <StripNotice tone="warning" label="连接提示">
         连接已断开，正在重连。

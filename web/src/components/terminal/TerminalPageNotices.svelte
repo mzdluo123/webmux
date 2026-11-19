@@ -18,25 +18,23 @@
 
 {#if featureErrors?.length}
   <InlineNotice tone="warning">
-    <div class="flex items-center justify-between gap-2">
-      <span
-        >{m.s4_feature_load_partial_warning({
-          errors: featureErrors.join(m.s4_list_semicolon_sep()),
-        })}</span
-      >
+    {m.s4_feature_load_partial_warning({
+      errors: featureErrors.join(m.s4_list_semicolon_sep()),
+    })}
+    {#snippet actions()}
       <Button variant="outline" size="sm" onclick={reloadPage}
         >{m.s4_reload_page()}</Button
       >
-    </div>
+    {/snippet}
   </InlineNotice>
 {/if}
 {#if error}
   <InlineNotice tone="danger">
-    <div class="flex items-center justify-between gap-2">
-      <span>{error}</span>
+    {error}
+    {#snippet actions()}
       <Button variant="ghost" size="sm" onclick={dismissError}
         >{m.s4_close()}</Button
       >
-    </div>
+    {/snippet}
   </InlineNotice>
 {/if}

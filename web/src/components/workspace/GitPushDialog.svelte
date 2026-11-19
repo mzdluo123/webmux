@@ -209,8 +209,8 @@
 
     {#if push?.loadError}
       <InlineNotice tone="danger">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <span>{m.s6_push_load_error({ error: push.loadError })}</span>
+        {m.s6_push_load_error({ error: push.loadError })}
+        {#snippet actions()}
           <Button
             size="sm"
             variant="outline"
@@ -218,7 +218,7 @@
           >
             {m.s6_push_retry_btn()}
           </Button>
-        </div>
+        {/snippet}
       </InlineNotice>
     {/if}
 

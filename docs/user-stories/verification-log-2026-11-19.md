@@ -2,6 +2,20 @@
 
 承接 [verification-log-2026-11-18](verification-log-2026-11-18.md)，收录 2026-11-19 起的局部核对记录；索引见 [WebMux User Stories](../user-stories.md#核对记录)。
 
+## 2026-11-19：`InlineNotice` 行尾操作对齐与浮层实心表面统一（US-C01、US-L03、US-L06）
+
+- 故事编号与总数（265）保持不变，同步更新 `US-C01`、`docs/design-system.md` 与 `docs/frontend-architecture.md`：
+  - `InlineNotice` 新增可选 `actions` 插槽与 `surface="inline" | "floating"` 变体：状态图标高度锁定首行行高（`1.625em`），单行时图标、正文与按钮中心对齐，多行时图标固定在首行，空 `actions` 容器自动隐藏；
+  - 带操作插槽时正文列采用 `basis-[max(11rem,60%)]`，在 320px 单按钮场景保持同行排列，多按钮中等宽度下整组换行至下一行；
+  - `surface="floating"` 采用 `bg-popover` 与阴影的不透明卡片表面；`LazyDialog.svelte`、`FeatureLoadNotices.svelte` 与 `App.svelte` 底部固定提示切换至该变体；
+  - 全仓 15 个带行尾按钮的 `InlineNotice` 调用文件统一迁移至 `actions` 插槽，并补充 `DesignSystem.svelte` 反馈示例与 `InlineNotice.test.ts` 几何测试。
+- 已执行验证：
+  - 静态与文档门禁：`make format-check docs-check persistence-check`、`pnpm --dir web check`、`check:test`、`check:storybook`、`lint`、`check:arch`（49 项）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make go-lint`（0 issues）通过；
+  - 单元与浏览器组件测试：`pnpm --dir web test:unit`（91 个文件共 1306 项），Vitest 浏览器套件 `InlineNotice.test.ts`、`SessionListNotices.test.ts`、`LaunchConfigsSettings.test.ts`、`GitWorkbenchCommitPush.test.ts`、`GitWorkbench.test.ts`（5 个文件共 26 项）通过；
+  - Storybook 与端到端测试：Storybook `contracts.spec.ts`、`design-system.spec.ts`、`overflow.spec.ts`（63 项）及 Playwright E2E `page-stability.spec.ts`、`workspace-discovery.spec.ts`（26 项）通过；
+  - 隔离实例视觉核对：覆盖 `1280×900`、`1280×720`、`768×800`、`667×375`、`390×844`、`375×667`、`320×568` 七种视口的明暗主题，均满足 `scrollWidth <= innerWidth` 且浮层完整位于视口内，并生成桌面、平板、手机前后对比截图。
+- 局限：无头 Linux Chromium 的 `hover` 与 `any-pointer: coarse` 默认未激活，真实鼠标悬停、实体触屏及 macOS / iOS / Android 真机浏览器未验证。
+
 ## 2026-11-19：工作树置顶多仓库隔离与删除/释放自动收敛修复（US-J29）
 
 - 故事编号与总数（265）保持不变，修复 `US-J29` 多仓库与删除收敛边界并同步更新 `docs/protocol/settings.md`、`docs/user-stories/code-and-worktrees/worktrees/lifecycle.md`：
