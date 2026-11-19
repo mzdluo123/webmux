@@ -45,7 +45,8 @@ type SignalHandler struct {
 	// cli-agent event or OSC 7501 report; only the signal fields that report
 	// carried are set. It runs alongside, never instead of, the handlers
 	// above, and the fields must not influence attention or status.
-	Identity func(Identity)
+	Identity     func(Identity)
+	primaryAttrs func()
 }
 
 // OSCScanner is incremental and bounded, including across split ST terminators.
@@ -64,6 +65,8 @@ const (
 	scanOSCEscape
 	scanString
 	scanStringEscape
+	scanCSI
+	scanCSIZero
 )
 
 func (s *OSCScanner) Feed(p []byte, h *SignalHandler) {
@@ -80,6 +83,8 @@ func (s *OSCScanner) Feed(p []byte, h *SignalHandler) {
 			}
 		case scanEscape:
 			switch b {
+			case '[':
+				s.state = scanCSI
 			case ']':
 				s.state = scanOSC
 				s.buf = s.buf[:0]
@@ -93,6 +98,25 @@ func (s *OSCScanner) Feed(p []byte, h *SignalHandler) {
 				}
 			case 27:
 			case 7:
+				s.state = scanGround
+				if h.Bell != nil {
+					h.Bell()
+				}
+			default:
+				s.state = scanGround
+			}
+		case scanCSI, scanCSIZero:
+			switch {
+			case b == 'c':
+				s.state = scanGround
+				if h.primaryAttrs != nil {
+					h.primaryAttrs()
+				}
+			case b == '0' && s.state == scanCSI:
+				s.state = scanCSIZero
+			case b == 27:
+				s.state = scanEscape
+			case b == 7:
 				s.state = scanGround
 				if h.Bell != nil {
 					h.Bell()

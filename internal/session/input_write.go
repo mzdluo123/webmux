@@ -163,21 +163,39 @@ func (s *Session) writeGated(ctx context.Context, r *run, origin inputOrigin, p 
 }
 
 const (
-	// maxPendingReplies bounds session-written query replies awaiting the gate;
-	// queries beyond it get no reply.
-	maxPendingReplies = 4
+	// Allow a burst of startup probes (e.g. a DA1 fence after each capability
+	// query) while bounding replies waiting for the PTY input gate.
+	maxPendingReplies = 16
 	// programStatusReply answers the OSC 7501 capability query.
 	programStatusReply = "\x1b]7501;?:states=idle,working,done,blocked,error:kinds=permission,question,auth\x1b\\"
 )
 
-// queueProbeReplyLocked queues the OSC 7501 reply. It runs in the read path
-// before the query is published, so every client input sent in response to
-// that output is written after the reply.
+var (
+	programStatusReplyBytes = []byte(programStatusReply)
+	primaryAttrsReply       = []byte("\x1b[?1;2c") // Same baseline DA1 as xterm.js.
+)
+
+// A program may use DA1 to close a probe for a browser-specific capability.
+// Close those probes as they happen before the first client; querying colours
+// still needs the attached terminal. Never derive replies from replay.
+func (s *Session) queueInitialPrimaryAttrsLocked() {
+	if s.run != nil && !s.run.attached {
+		s.queueReplyLocked(primaryAttrsReply)
+	}
+}
+
+// queueProbeReplyLocked answers an OSC 7501 query in the live read path.
 func (s *Session) queueProbeReplyLocked() {
+	s.queueReplyLocked(programStatusReplyBytes)
+}
+
+// queueReplyLocked runs before the query is published, so client input sent
+// in response to that output is written after the queued reply.
+func (s *Session) queueReplyLocked(reply []byte) {
 	if len(s.replies) >= maxPendingReplies {
 		return
 	}
-	s.replies = append(s.replies, []byte(programStatusReply))
+	s.replies = append(s.replies, reply)
 	select {
 	case s.run.replyWake <- struct{}{}:
 	default:

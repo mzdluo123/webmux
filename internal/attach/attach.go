@@ -427,11 +427,11 @@ func (a *attachment) pumpOutput(ctx context.Context) readResult {
 		var out []byte
 		switch frame[0] {
 		case frameOutput:
-			out = a.statusProbes.filter(frame[1:])
+			out = a.statusProbes.filter(frame[1:], false)
 		case frameSnapshot:
 			// A full replay: reset the terminal first, as xterm.js does.
 			a.statusProbes.reset()
-			out = append([]byte("\x1bc"), a.statusProbes.filter(frame[1:])...)
+			out = append([]byte("\x1bc"), a.statusProbes.filter(frame[1:], true)...)
 		case frameExit:
 			var body contract.ExitFrame
 			_ = json.Unmarshal(frame[1:], &body)

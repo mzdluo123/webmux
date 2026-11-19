@@ -36,6 +36,7 @@ func (s *Session) AttachClient(o AttachOptions) (*Subscriber, error) {
 			s.broadcastLocked(s.controlLocked())
 		}
 	}
+	s.run.attached = true
 	s.subs[sub] = struct{}{}
 	s.replayLocked(sub, o.Resume, nil)
 	return sub, nil

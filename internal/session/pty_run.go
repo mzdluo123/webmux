@@ -35,6 +35,8 @@ type run struct {
 	cleanupDone chan struct{}
 	repliesDone chan struct{}
 	closeOnce   sync.Once
+	// attached is set under Session.mu after this run gets its first client.
+	attached bool
 	// moved and killed are owned by Session.mu. moved: EndRun ends the run
 	// for a switch, so subscribers get Moved instead of an exit. killed: the
 	// run ended through Session.Close, which is not a natural exit.
