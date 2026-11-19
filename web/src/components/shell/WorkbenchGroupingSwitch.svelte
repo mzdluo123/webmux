@@ -30,16 +30,14 @@
     aria-label={m.s8_sidebar_by_conversation()}
     title={m.s8_sidebar_by_conversation()}
   >
-    <IconMessages class="size-3" data-grouping-icon aria-hidden="true" />
-    <span data-grouping-label>{m.s8_sidebar_grouping_sessions()}</span>
+    <IconMessages aria-hidden="true" />
   </SegmentedControlItem>
   <SegmentedControlItem
     value="branch"
     aria-label={m.s8_sidebar_by_branch()}
     title={m.s8_sidebar_by_branch()}
   >
-    <IconGitBranch class="size-3" data-grouping-icon aria-hidden="true" />
-    <span data-grouping-label>{m.s8_sidebar_grouping_branch()}</span>
+    <IconGitBranch aria-hidden="true" />
   </SegmentedControlItem>
   <span
     data-slot="grouping-indicator"

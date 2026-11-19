@@ -24,102 +24,60 @@
   } = $props();
 </script>
 
-<div class="sidebar-header-frame">
-  <div
-    class="sidebar-header flex items-center pt-2 pb-1"
-    class:drawer={!!onclose}
-  >
-    {#if oncollapse}
-      <Button
-        class="shrink-0"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={m.s1_collapse_sidebar()}
-        title={m.s1_collapse_sidebar()}
-        onclick={oncollapse}
-        ><IconLayoutSidebarLeftCollapse aria-hidden="true" /></Button
-      >
-    {/if}
-    <span class="brand flex-1" role="img" aria-label="WebMux" title="WebMux">
-      <Brand />
-    </span>
-    {#if onGroupingChange}
-      <div class="grouping">
-        <WorkbenchGroupingSwitch
-          {byBranch}
-          {controls}
-          onchange={onGroupingChange}
-        />
-      </div>
-    {/if}
-    {#if showSessionSwitcher}
-      <div class="ms-[8px] shrink-0">
-        <SessionSwitcherTrigger size="icon-sm" />
-      </div>
-    {/if}
-    {#if onclose}
-      <Button
-        class="ms-[8px] shrink-0"
-        variant="ghost"
-        size="icon-touch-sm"
-        data-sidebar-close
-        aria-label={m.s1_close_sidebar()}
-        title={m.s1_close_sidebar()}
-        onclick={onclose}><IconX aria-hidden="true" /></Button
-      >
-    {/if}
-  </div>
+<div
+  class="sidebar-header flex items-center pt-2 pb-1"
+  class:drawer={!!onclose}
+>
+  {#if oncollapse}
+    <Button
+      class="shrink-0"
+      variant="ghost"
+      size="icon-sm"
+      aria-label={m.s1_collapse_sidebar()}
+      title={m.s1_collapse_sidebar()}
+      onclick={oncollapse}
+      ><IconLayoutSidebarLeftCollapse aria-hidden="true" /></Button
+    >
+  {/if}
+  <span class="brand flex-1" role="img" aria-label="WebMux" title="WebMux">
+    <Brand />
+  </span>
+  {#if onGroupingChange}
+    <div class="shrink-0">
+      <WorkbenchGroupingSwitch
+        {byBranch}
+        {controls}
+        onchange={onGroupingChange}
+      />
+    </div>
+  {/if}
+  {#if showSessionSwitcher}
+    <div class="ms-[8px] shrink-0">
+      <SessionSwitcherTrigger size="icon-sm" />
+    </div>
+  {/if}
+  {#if onclose}
+    <Button
+      class="ms-[8px] shrink-0"
+      variant="ghost"
+      size="icon-touch-sm"
+      data-sidebar-close
+      aria-label={m.s1_close_sidebar()}
+      title={m.s1_close_sidebar()}
+      onclick={onclose}><IconX aria-hidden="true" /></Button
+    >
+  {/if}
 </div>
 
 <style>
-  .sidebar-header-frame {
-    container: sidebar-header / inline-size;
-  }
-
   .sidebar-header {
     --control-sm: 32px;
     --control-touch: 32px;
     padding-inline: var(--sidebar-gutter);
-    flex-wrap: wrap;
-    row-gap: 4px;
   }
 
   .drawer {
     --control-touch: 44px;
-  }
-
-  .grouping {
-    --grouping-inline-padding: 8px;
-    --grouping-icon-gap: 4px;
-    display: flex;
-    flex: none;
-    max-inline-size: 100%;
-    justify-content: flex-end;
-  }
-
-  /* Reserve room for the brand, adjacent actions and both padded choices. */
-  @container sidebar-header (width < calc(168px + 5rem)) {
-    .sidebar-header:not(.drawer) :global([data-grouping-label]) {
-      display: none;
-    }
-  }
-
-  @container sidebar-header (width < calc(136px + 5rem)) {
-    .drawer :global([data-grouping-label]) {
-      display: none;
-    }
-  }
-
-  @container sidebar-header (width < calc(176px + 8rem)) {
-    .sidebar-header:lang(en):not(.drawer) :global([data-grouping-label]) {
-      display: none;
-    }
-  }
-
-  @container sidebar-header (width < calc(144px + 8rem)) {
-    .drawer:lang(en) :global([data-grouping-label]) {
-      display: none;
-    }
   }
 
   .brand {

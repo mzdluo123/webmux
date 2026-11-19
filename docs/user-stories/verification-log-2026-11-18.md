@@ -117,6 +117,12 @@
 - 运行 `pnpm --dir web exec vp test run --config vitest.browser.config.ts test/browser/AppShell.test.ts` 验证条件入口、空收件箱焦点移交、筛选栏等宽排布与主机状态单行传输路径。
 - 隔离后端运行 `pnpm --dir web exec playwright test test/e2e/attention.spec.ts test/e2e/workbench-session-queue.spec.ts` 覆盖末项焦点与侧栏菜单。已在 Linux Chromium 验证。
 
+## 侧栏分组切换使用纯图标（US-C16）
+
+- 侧栏与抽屉的分组切换在各宽度下均显示图标，保留悬停提示、方向键切换和触控尺寸。
+- `pnpm --dir web exec playwright test app-shell.spec.ts sidebar-grouping-evidence.spec.ts` 的定向子集：25 项通过，5 项按设备项目跳过。覆盖 100%、150%、200% 字号、320px 触控切换和减少动态效果。
+- 临时视觉用例在隔离工作台核对 7 个视口的明暗主题、页面横向溢出、抽屉边界及键盘焦点。悬停核对命中状态与提示属性；未验证系统提示的实际绘制或物理触屏。
+
 ## 异步会话切换结果（US-C18）
 
 - 三端 Chromium 复现空结果与聊天命中之间的输入框位移，桌面差值 168px。修复后桌面结果区保持 400px，手机保持 422px，键盘选中项仍可滚动进入视口。Esc 恢复原输入、焦点和文字选区。
