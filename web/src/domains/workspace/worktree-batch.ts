@@ -1,6 +1,7 @@
 import { m } from "$lib/paraglide/messages.js";
 import { placeArchived } from "../sessions/archived";
 import { homeLayout, worktreeTitle } from "./home-worktrees";
+import { isWorktreePinned } from "./worktree-pins";
 import type {
   ArchivedSession,
   HomeWorktrees,
@@ -8,6 +9,7 @@ import type {
   Repository,
   SessionInfo,
   Worktree,
+  WorktreePins,
 } from "../../contracts/schemas";
 
 type WorktreeBatchCategory = "safe" | "blocked" | "protected";
@@ -21,6 +23,7 @@ export interface WorktreeBatchEntry {
   title: string;
   category: WorktreeBatchCategory;
   pinned: boolean;
+  topPinned: boolean;
   activeSessionCount: number;
   exitedSessionCount: number;
   archivedCount: number;
@@ -105,20 +108,27 @@ function classifyWorktree(
 }
 
 /**
- * Builds all worktrees of `repo` in stable order (main first, then by path),
- * regardless of whether they are pinned to the home page.
+ * Builds all worktrees of `repo` in stable order (pinned first, then main,
+ * then by path), regardless of whether they are added to the home page.
  */
 export function buildWorktreeBatchEntries(
   repo: Repository,
   home: HomeWorktrees,
   sessions: readonly SessionInfo[],
   archived: readonly ArchivedSession[],
+  pins: WorktreePins = {},
 ): WorktreeBatchEntry[] {
   const repoSessions = sessions.filter((s) => s.state === "active");
   const placement = placeArchived([...archived], [repo]).repositories.get(
     repo.id,
   );
-  const layout = homeLayout(home, repo, repoSessions, placement?.worktrees);
+  const layout = homeLayout(
+    home,
+    repo,
+    repoSessions,
+    placement?.worktrees,
+    pins,
+  );
   const pinnedIds = new Set(
     layout.shown.filter((item) => item.pinned).map((item) => item.tree.id),
   );
@@ -143,12 +153,25 @@ export function buildWorktreeBatchEntries(
       title: worktreeTitle(tree),
       category,
       pinned: pinnedIds.has(tree.id),
+      topPinned: isWorktreePinned(pins, repo.id, tree.id),
       activeSessionCount,
       exitedSessionCount,
       archivedCount,
       reason,
     };
   });
+}
+
+/**
+ * Clean idle worktrees selected by "选中全部可安全清理": skips pinned worktrees
+ * while leaving them manually checkable in the list.
+ */
+export function selectableSafeEntries(
+  entries: readonly WorktreeBatchEntry[],
+): WorktreeBatchEntry[] {
+  return entries.filter(
+    (entry) => entry.category === "safe" && !entry.topPinned,
+  );
 }
 
 export function countWorktreeBatchCategories(

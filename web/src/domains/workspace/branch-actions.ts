@@ -28,8 +28,17 @@ export interface BranchActions {
 
 export interface WorktreeMenuActionProps {
   onswitch?: () => void;
+  /** Whether this worktree is added to the home page (`homeWorktrees`). */
   pinned?: boolean;
   ontogglepin?: () => void;
+  /** Whether this worktree is pinned to the top of its repository (`worktreePins`). */
+  topPinned?: boolean;
+  topPinDisabled?: boolean;
+  ontoggletoppin?: () => void;
+  canMoveTopPinUp?: boolean;
+  canMoveTopPinDown?: boolean;
+  onmovetoppinup?: () => void;
+  onmovetoppindown?: () => void;
   onremove?: () => void;
   /** With `onoperation`, adds its branch's sync actions to the menu. */
   worktree?: Worktree;

@@ -2,6 +2,7 @@
   import type { BranchOperation } from "../../domains/workspace/branch-actions";
   import { requestConflictResolverHandoff } from "../../domains/workspace/git-conflict-handoff";
   import { homeWorktrees } from "../../domains/workspace/home-worktrees.svelte";
+  import { worktreePins } from "../../domains/workspace/worktree-pins.svelte";
   import {
     homeLayout,
     setPinned,
@@ -126,7 +127,12 @@
     {#snippet children(page)}<page.default
         worktree={target.worktree}
         forgetRecords={target.forgetRecords ?? []}
-        onremoved={target.onremoved}
+        onremoved={() => {
+          worktreePins.remove(target.worktree.repositoryId, [
+            target.worktree.id,
+          ]);
+          target.onremoved?.();
+        }}
         onhide={hideFromHome(target.worktree)}
         onchange={onrefreshworktrees}
         onclose={() => (removingWorktree = null)}
@@ -147,6 +153,7 @@
         sessions={shell.sessions.sessions}
         records={shell.archived?.records ?? []}
         home={homeWorktrees.value}
+        pins={worktreePins.value}
         ontoggle={(worktreeId, pinned) =>
           homeWorktrees.save(
             setPinned(homeWorktrees.value, currentRepo, [worktreeId], pinned),
@@ -175,6 +182,7 @@
         sessions={shell.sessions.sessions}
         records={shell.archived?.records ?? []}
         home={homeWorktrees.value}
+        pins={worktreePins.value}
         refreshing={shell.repositories?.refreshing ?? false}
         refreshError={shell.repositories?.error ?? m.s1_workspace_unavailable()}
         registryReady={shell.setup.value.registryReady}
@@ -187,6 +195,7 @@
           homeWorktrees.save(
             setPinned(homeWorktrees.value, currentRepo, removedIds, false),
           );
+          worktreePins.remove(currentRepo.id, removedIds);
         }}
         onchange={onrefreshworktrees}
         onrefresh={() => void shell.repositories?.refresh(true)}
@@ -278,6 +287,7 @@
   repository={unregistering}
   bind:open={unregisterOpen}
   onchange={async () => {
+    if (unregistering) worktreePins.removeRepository(unregistering.id);
     await shell.repositories?.refresh(true);
   }}
 />

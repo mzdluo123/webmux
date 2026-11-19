@@ -15,11 +15,14 @@
   import ChatSelect from "../chat/ChatSelect.svelte";
   import QuietTrigger from "../chat/QuietTrigger.svelte";
   import BranchCommandList from "../workspace/BranchCommandList.svelte";
+  import PinnedWorktreeMark from "../workspace/PinnedWorktreeMark.svelte";
   import { errorMessage } from "../../platform/error";
   import {
     selectableWorktree,
     worktreeLabel,
   } from "../../domains/sessions/new-session-defaults";
+  import { isWorktreePinned } from "../../domains/workspace/worktree-pins";
+  import { worktreePins } from "../../domains/workspace/worktree-pins.svelte";
   import {
     resolveQuickStartBranches,
     resolveQuickStartWorktree,
@@ -108,7 +111,7 @@
   const remoteBranches = $derived(resolvedBranches.remoteBranches);
   const baseName = $derived(resolvedBranches.baseName);
   const resolvedWorktree = $derived(
-    resolveQuickStartWorktree(repository, worktreeChoice),
+    resolveQuickStartWorktree(repository, worktreeChoice, worktreePins.value),
   );
   const worktrees = $derived(resolvedWorktree.worktrees);
   const defaultWorktree = $derived(resolvedWorktree.defaultWorktree);
@@ -277,6 +280,9 @@
                     ? tree.path
                     : tree.error || m.s3_worktree_unavailable()}
                 />
+                {#if repository && isWorktreePinned(worktreePins.value, repository.id, tree.id)}<PinnedWorktreeMark
+                    srLabel
+                  />{/if}
               </Command.Item>
             {/each}
           </Command.List>

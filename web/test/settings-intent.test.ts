@@ -96,6 +96,24 @@ describe("preference conflict replay", () => {
         .sessionPins,
     ).toEqual(["b", "a", "d", "c"]);
   });
+  test("rebases per-repository worktree pins across concurrent changes", () => {
+    const before = {
+      ...emptySettings,
+      worktreePins: { r1: ["a", "b"], r2: ["x"] },
+    };
+    const latest = {
+      ...before,
+      worktreePins: { r1: ["remote", "a", "b"], r2: ["x"], r3: ["z"] },
+    };
+    expect(
+      settingsIntent(before, {
+        worktreePins: { r1: ["new", "b", "a"], r2: [] },
+      })(latest).worktreePins,
+    ).toEqual({
+      r1: ["new", "remote", "b", "a"],
+      r3: ["z"],
+    });
+  });
   test("validates null, empty collections and bounded revisions", () => {
     const snapshot = { revision: 0, updatedAt: "", values: emptySettings };
     expect(SettingsSnapshotSchema.safeParse(snapshot).success).toBe(true);

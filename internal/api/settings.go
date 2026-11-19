@@ -73,7 +73,7 @@ func settingsOwner(field string) string {
 		return "code"
 	case "quickCommands":
 		return "quick-commands"
-	case "homeWorktrees":
+	case "homeWorktrees", "worktreePins":
 		return "workspace"
 	case "ignoreHighPorts":
 		return "forward"

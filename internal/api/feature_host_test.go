@@ -118,7 +118,7 @@ func TestInactiveFeatureSettingsRemainStoredButNotWritable(t *testing.T) {
 		t.Fatal(err)
 	}
 	handler := New(deps)
-	for _, field := range []string{"quickCommands", "preview", "codeReader", "homeWorktrees", "ignoreHighPorts"} {
+	for _, field := range []string{"quickCommands", "preview", "codeReader", "homeWorktrees", "worktreePins", "ignoreHighPorts"} {
 		request := httptest.NewRequest(http.MethodPatch, "http://webmux/api/settings", strings.NewReader(`{"baseRevision":1,"changes":{"`+field+`":null}}`))
 		request.Header.Set("Authorization", "Bearer core-secret")
 		response := httptest.NewRecorder()

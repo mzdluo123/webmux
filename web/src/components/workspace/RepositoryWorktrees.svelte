@@ -17,15 +17,18 @@
     type HomeWorktrees,
     type Repository,
     type SessionInfo,
+    type WorktreePins,
   } from "../../contracts/schemas";
   import {
     buildWorktreeBatchEntries,
     countWorktreeBatchCategories,
     filterWorktreeBatchEntries,
     groupBatchPreviewItems,
+    selectableSafeEntries,
     staleRegistrations,
     type WorktreeBatchFilter,
   } from "../../domains/workspace/worktree-batch";
+  import { worktreePins } from "../../domains/workspace/worktree-pins.svelte";
   import { Button } from "$lib/components/ui/button";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import ManageWorktreesPreview from "./ManageWorktreesPreview.svelte";
@@ -44,6 +47,7 @@
     sessions,
     archived,
     home,
+    pins = worktreePins.value,
     busy = $bindable(false),
     onopen,
     onswitch,
@@ -56,6 +60,7 @@
     sessions: readonly SessionInfo[];
     archived: readonly ArchivedSession[];
     home: HomeWorktrees;
+    pins?: WorktreePins;
     /** A preview or removal request is in flight. */
     busy?: boolean;
     /** Opens a worktree's details inside the panel. */
@@ -123,9 +128,10 @@
   }
 
   const entries = $derived(
-    buildWorktreeBatchEntries(repository, home, sessions, archived),
+    buildWorktreeBatchEntries(repository, home, sessions, archived, pins),
   );
   const counts = $derived(countWorktreeBatchCategories(entries));
+  const selectableSafe = $derived(selectableSafeEntries(entries));
   const stale = $derived(
     staleRegistrations(entries)
       .slice(0, MAX_BATCH_WORKTREES)
@@ -209,8 +215,7 @@
     error = "";
     selected.clear();
     let count = 0;
-    for (const entry of entries) {
-      if (entry.category !== "safe") continue;
+    for (const entry of selectableSafe) {
       if (count >= MAX_BATCH_WORKTREES) {
         error = m.s8_batch_err_capped_safe({
           max: String(MAX_BATCH_WORKTREES),
@@ -327,6 +332,7 @@
       bind:query
       bind:statusFilter
       {counts}
+      selectableSafeCount={selectableSafe.length}
       selectedCount={selectedIds.length}
       totalCount={entries.length}
       staleCount={stale.length}
@@ -344,6 +350,7 @@
     {#if done}<InlineNotice tone="success">{done}</InlineNotice>{/if}
 
     <ManageWorktreesSelectList
+      {repository}
       {stage}
       {entries}
       {filteredEntries}

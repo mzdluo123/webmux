@@ -87,6 +87,18 @@ describe("homeLayout", () => {
   test("an explicit empty choice hides the main worktree too", () => {
     expect(homeLayout({ r1: [] }, repo(trees), []).shown).toEqual([]);
   });
+
+  test("places pinned worktrees ahead of main in saved order", () => {
+    const layout = homeLayout(
+      { r1: ["main", "a", "b"] },
+      repo(trees),
+      [],
+      new Map(),
+      { r1: ["b", "a"] },
+    );
+    expect(layout.trees.map((t) => t.id)).toEqual(["b", "a", "main"]);
+    expect(shownIds(layout)).toEqual(["b:true", "a:true", "main:true"]);
+  });
 });
 
 describe("setPinned", () => {

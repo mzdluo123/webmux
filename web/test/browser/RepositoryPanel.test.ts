@@ -16,6 +16,7 @@ import type {
   SessionInfo,
   SwitchPreview,
   Worktree,
+  WorktreePins,
 } from "../../src/contracts/schemas";
 import type { RepositoryTab } from "../../src/hooks/shared/shell.svelte";
 import {
@@ -169,6 +170,7 @@ function renderPanel(
     repository: Repository;
     sessions: SessionInfo[];
     records: ArchivedSession[];
+    pins: WorktreePins;
     initialTab: RepositoryTab;
     refreshing: boolean;
     refreshError: string;
@@ -323,7 +325,9 @@ test("a worktree row's menu offers details, a branch switch and branch actions b
     .getByRole("button", { name: "工作树操作：wt/clean-feature" })
     .click();
   // Without an upstream the branch can also be published.
-  await expect.poll(items).toEqual(["工作树详情…", "切换分支…", "发布分支…"]);
+  await expect
+    .poll(items)
+    .toEqual(["工作树详情…", "切换分支…", "发布分支…", "置顶工作树"]);
   await userEvent.keyboard("{Escape}");
   await expect.poll(items).toEqual([]);
   // A diverged or synced branch offers no sync action.
@@ -331,7 +335,9 @@ test("a worktree row's menu offers details, a branch switch and branch actions b
     await dialog()
       .getByRole("button", { name: `工作树操作：${name}` })
       .click();
-    await expect.poll(items).toEqual(["工作树详情…", "切换分支…"]);
+    await expect
+      .poll(items)
+      .toEqual(["工作树详情…", "切换分支…", "置顶工作树"]);
     await userEvent.keyboard("{Escape}");
     await expect.poll(items).toEqual([]);
   }
@@ -1418,4 +1424,70 @@ test("switching tabs keeps tab panels untransformed and entering a subview settl
     .toBeVisible();
   expect(panels.style.height).toBe("");
   expect(panels.style.overflow).toBe("");
+});
+
+test("pinned worktrees appear first in batch management and HomeWorktreeDialog, and select-all-safe skips them while keeping manual selection", async () => {
+  const secondClean = worktree({
+    id: "clean2",
+    repositoryId: "repo1",
+    kind: "linked",
+    branch: "wt/pinned-agent",
+    path: "/repos/webmux.worktrees/pinned-agent",
+    head: "d".repeat(40),
+  });
+  renderPanel({
+    initialTab: "worktrees",
+    repository: { ...repo, worktrees: [mainTree, unpinnedClean, secondClean] },
+    pins: { repo1: ["clean2"] },
+  });
+  const list = dialog().getByRole("list", { name: "仓库工作树列表" });
+  const rowTitles = () =>
+    Array.from(list.element().querySelectorAll("li")).map((li) =>
+      li.querySelector("button span.font-medium")?.textContent?.trim(),
+    );
+  expect(rowTitles()).toEqual(["wt/pinned-agent", "main", "wt/clean-feature"]);
+  await expect.element(list.getByText("已置顶")).toBeVisible();
+
+  await dialog().getByRole("button", { name: "批量清理" }).click();
+  // Both clean1 and clean2 are safe (counts.safe === 2), while select-all-safe only selects the 1 unpinned safe entry.
+  const selectAllBtn = dialog().getByRole("button", {
+    name: "选中全部可安全清理（1）",
+  });
+  await expect.element(selectAllBtn).toBeVisible();
+  await selectAllBtn.click();
+
+  const pinnedCheckbox = dialog().getByRole("checkbox", {
+    name: "wt/pinned-agent",
+  });
+  const unpinnedCheckbox = dialog().getByRole("checkbox", {
+    name: "wt/clean-feature",
+  });
+  await expect.element(pinnedCheckbox).not.toBeChecked();
+  await expect.element(unpinnedCheckbox).toBeChecked();
+
+  // Manual checking remains enabled on pinned safe worktrees.
+  await pinnedCheckbox.click();
+  await expect.element(pinnedCheckbox).toBeChecked();
+
+  await cleanup();
+
+  const ontoggle = vi.fn();
+  render(HomeWorktreeDialog, {
+    repository: { ...repo, worktrees: [mainTree, unpinnedClean, secondClean] },
+    sessions: [],
+    records: [],
+    home: { repo1: ["main", "clean1", "clean2"] },
+    pins: { repo1: ["clean2"] },
+    ontoggle,
+    onclose: vi.fn(),
+  });
+  const homeDialog = page.getByRole("dialog");
+  await expect.element(homeDialog).toBeVisible();
+  const options = () =>
+    homeDialog
+      .getByRole("option")
+      .elements()
+      .map((el) => el.getAttribute("aria-label"));
+  expect(options()).toEqual(["wt/pinned-agent", "main", "wt/clean-feature"]);
+  await expect.element(homeDialog.getByText("已置顶")).toBeVisible();
 });

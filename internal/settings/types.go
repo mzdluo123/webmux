@@ -38,6 +38,7 @@ type Values struct {
 	CodeReader    *CodeReader         `json:"codeReader"`
 	QuickCommands *[]Command          `json:"quickCommands"`
 	HomeWorktrees map[string][]string `json:"homeWorktrees"`
+	WorktreePins  map[string][]string `json:"worktreePins,omitempty"`
 	SessionPins   []string            `json:"sessionPins,omitempty"`
 	// IgnoreHighPorts suppresses automatic port-forwarding prompts and
 	// detected-port rows for ports 30000 and above when nil or true;
@@ -99,7 +100,12 @@ func validate(f storedFile) error {
 	return validateValues(f.Values)
 }
 
-const maxSessionPins = 50
+const (
+	maxSessionPins         = 50
+	maxWorktreePinRepos    = 200
+	maxWorktreePinsPerRepo = 50
+	maxWorktreePinsTotal   = 1000
+)
 
 var sessionPinID = regexp.MustCompile(`^[a-z2-7]{8}$`)
 
@@ -132,12 +138,19 @@ func validateValues(v Values) error {
 			ids[c.ID] = true
 		}
 	}
-	if len(v.HomeWorktrees) > 200 {
+	if err := validateWorktreeMap(v.HomeWorktrees, 200, 1000, 2000); err != nil {
+		return err
+	}
+	return validateWorktreeMap(v.WorktreePins, maxWorktreePinRepos, maxWorktreePinsPerRepo, maxWorktreePinsTotal)
+}
+
+func validateWorktreeMap(m map[string][]string, maxRepos, maxPerRepo, maxTotal int) error {
+	if len(m) > maxRepos {
 		return ErrInvalid
 	}
 	total := 0
-	for id, list := range v.HomeWorktrees {
-		if id == "" || !validText(id, 128) || list == nil || len(list) > 1000 {
+	for id, list := range m {
+		if id == "" || !validText(id, 128) || list == nil || len(list) > maxPerRepo {
 			return ErrInvalid
 		}
 		total += len(list)
@@ -149,11 +162,12 @@ func validateValues(v Values) error {
 			seen[wid] = true
 		}
 	}
-	if total > 2000 {
+	if total > maxTotal {
 		return ErrInvalid
 	}
 	return nil
 }
+
 func normalize(v Values) Values {
 	v = cloneValues(v)
 	if v.QuickCommands != nil {
@@ -161,6 +175,16 @@ func normalize(v Values) Values {
 			c := &(*v.QuickCommands)[i]
 			c.Name = strings.TrimSpace(c.Name)
 			c.Command = normalizeText(c.Command)
+		}
+	}
+	if v.WorktreePins != nil {
+		for k, list := range v.WorktreePins {
+			if list != nil && len(list) == 0 {
+				delete(v.WorktreePins, k)
+			}
+		}
+		if len(v.WorktreePins) == 0 {
+			v.WorktreePins = nil
 		}
 	}
 	return v
@@ -187,14 +211,26 @@ func cloneValues(v Values) Values {
 		v.QuickCommands = &list
 	}
 	if v.HomeWorktrees != nil {
-		m := map[string][]string{}
-		for k, list := range v.HomeWorktrees {
-			m[k] = append([]string{}, list...)
-		}
-		v.HomeWorktrees = m
+		v.HomeWorktrees = cloneStringSliceMap(v.HomeWorktrees)
+	}
+	if v.WorktreePins != nil {
+		v.WorktreePins = cloneStringSliceMap(v.WorktreePins)
 	}
 	return v
 }
+
+func cloneStringSliceMap(in map[string][]string) map[string][]string {
+	m := make(map[string][]string, len(in))
+	for k, list := range in {
+		if list == nil {
+			m[k] = nil
+			continue
+		}
+		m[k] = append([]string{}, list...)
+	}
+	return m
+}
+
 func clone(s Snapshot) Snapshot { s.Values = cloneValues(s.Values); return s }
 func apply(v Values, c Changes) (Values, error) {
 	if len(c.Fields) == 0 {
@@ -210,6 +246,8 @@ func apply(v Values, c Changes) (Values, error) {
 			v.QuickCommands = c.Values.QuickCommands
 		case "homeWorktrees":
 			v.HomeWorktrees = c.Values.HomeWorktrees
+		case "worktreePins":
+			v.WorktreePins = c.Values.WorktreePins
 		case "sessionPins":
 			v.SessionPins = c.Values.SessionPins
 		case "ignoreHighPorts":

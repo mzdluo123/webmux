@@ -16,6 +16,13 @@
     onswitch,
     pinned,
     ontogglepin,
+    topPinned,
+    topPinDisabled = false,
+    ontoggletoppin,
+    canMoveTopPinUp = false,
+    canMoveTopPinDown = false,
+    onmovetoppinup,
+    onmovetoppindown,
     onremove,
     worktree,
     onoperation,
@@ -44,6 +51,19 @@
     target={worktree}
     {onoperation}
   />{/if}
+{#if ontoggletoppin}<DropdownMenu.Item
+    disabled={topPinDisabled}
+    onSelect={ontoggletoppin}
+    >{topPinned
+      ? m.s8_menu_unpin_worktree()
+      : m.s8_menu_pin_worktree()}</DropdownMenu.Item
+  >{#if topPinned}{#if onmovetoppinup}<DropdownMenu.Item
+        disabled={!canMoveTopPinUp}
+        onSelect={onmovetoppinup}>{m.s1_move_pin_up()}</DropdownMenu.Item
+      >{/if}{#if onmovetoppindown}<DropdownMenu.Item
+        disabled={!canMoveTopPinDown}
+        onSelect={onmovetoppindown}>{m.s1_move_pin_down()}</DropdownMenu.Item
+      >{/if}{/if}{/if}
 {#if ontogglepin}<DropdownMenu.Item onSelect={ontogglepin}
     >{pinned
       ? m.s8_menu_remove_from_home()
