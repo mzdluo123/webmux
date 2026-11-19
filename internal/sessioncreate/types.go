@@ -50,6 +50,7 @@ func (e *UpstreamConfirmationError) Unwrap() error { return ErrUpstreamConfirmat
 type NewWorktree struct {
 	RepositoryID, Mode, Branch, Base, Path string
 	UpstreamChoice                         *UpstreamChoice
+	LatestUpstream                         bool
 }
 type Input struct {
 	ClientRequestID, Cwd             string
