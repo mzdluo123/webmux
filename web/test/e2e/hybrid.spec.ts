@@ -409,7 +409,11 @@ test("changing the first hybrid view preserves the adjacent shell and document g
   const reader = page.locator(`[data-dock-panel="reader:${id}"]`);
   await expect(reader).toContainText("stable position");
   const before = await Promise.all([shell.boundingBox(), reader.boundingBox()]);
-  await anchor.getByRole("tab", { name: "终端", exact: true }).click();
+  await anchor.locator(".dock-title-space").click();
+  await page
+    .locator(".session-toolbar")
+    .getByRole("tab", { name: "终端", exact: true })
+    .click();
   await expect(anchor.locator(".xterm")).toBeVisible();
   expect(
     await Promise.all([shell.boundingBox(), reader.boundingBox()]),
@@ -421,9 +425,11 @@ test("changing the first hybrid view preserves the adjacent shell and document g
   await expect
     .poll(() => page.evaluate(() => !!document.fullscreenElement))
     .toBe(true);
-  await anchor.getByRole("button", { name: /^放大/ }).click();
+  await anchor.locator("[data-dock-actions]").click();
+  await page.getByRole("menuitem", { name: /^放大/ }).click();
   await expect(shell).toBeHidden();
-  await anchor.getByRole("button", { name: /^还原/ }).click();
+  await anchor.locator("[data-dock-actions]").click();
+  await page.getByRole("menuitem", { name: /^还原/ }).click();
   await expect(shell).toBeVisible();
   expect(await page.evaluate(() => !!document.fullscreenElement)).toBe(true);
   await page

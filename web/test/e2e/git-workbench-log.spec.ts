@@ -572,6 +572,14 @@ test("Git mode docks restore independently and the phone selector leaves the wid
     await page.getByRole("tab", { name: mode, exact: true }).click();
     const panel = workspace.locator(`[data-dock-panel="${id}"]`);
     await expect(panel).toBeVisible();
+    await panel.locator("[data-dock-actions]").click();
+    await page
+      .getByRole("menuitem", { name: `放大「${title}」`, exact: true })
+      .click();
+    await panel.locator("[data-dock-actions]").click();
+    await page
+      .getByRole("menuitem", { name: `还原「${title}」布局`, exact: true })
+      .click();
     await panel.getByRole("button", { name: `收起「${title}」` }).click();
     await expect(panel).toBeHidden();
   }

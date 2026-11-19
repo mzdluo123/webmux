@@ -300,7 +300,6 @@
         .filter((entry) => entry !== undefined),
     targets,
     compact: () => compact,
-    centralCommands: () => edgeRails,
     zoomed: (id) => visibleZoom === id,
     show,
     edgeRails: () => edgeRails,
