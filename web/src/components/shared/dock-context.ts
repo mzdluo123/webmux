@@ -21,6 +21,7 @@ export const [getDock, setDock] = createContext<{
   register: (entry: DockEntry) => () => void;
   canGoBack: () => boolean;
   back: () => void;
+  active: (id: string) => boolean;
   select: (id: string) => void;
   add: (id: string, target: string, edge: DockEdge) => void;
   remove: (id: string) => void;

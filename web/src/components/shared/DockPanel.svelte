@@ -76,6 +76,7 @@
     use:dock.mount
     class="dock-panel"
     data-dock-panel={id}
+    data-dock-active={dock.active(id) || undefined}
     data-dock-peek={peeked || undefined}
     aria-label={title}
     hidden={!rect}
@@ -240,6 +241,15 @@
     min-inline-size: 0;
     min-block-size: 0;
     background: var(--background);
+  }
+
+  .dock-panel[data-dock-active]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+    border: 2px solid var(--primary);
   }
 
   .dock-panel[data-dock-peek] {

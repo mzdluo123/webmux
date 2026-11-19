@@ -72,6 +72,7 @@
       : id.startsWith("reader:")
         ? "right"
         : "bottom");
+  let selected = $state("");
   let zoom = $state("");
   let surface = $state<HTMLDivElement>();
   let dragging = $state<string>();
@@ -128,6 +129,14 @@
     return geometry.groups.get(id)?.rect;
   }
 
+  const activePanel = $derived(
+    peek.id ||
+      visibleZoom ||
+      (geometry.groups.has(selected)
+        ? selected
+        : geometry.groups.keys().next().value),
+  );
+
   export function isVisible(id: string) {
     return !!rect(id);
   }
@@ -137,6 +146,7 @@
   }
 
   export function show(id: string) {
+    selected = id;
     peek.close();
     if (compact) {
       if (mobile && mobile !== id)
@@ -157,6 +167,7 @@
     edge: DockEdge,
     useDefault = false,
   ) {
+    selected = id;
     if (!useDefault || node) node = dockMove(tree, id, target, edge);
     if (compact) show(id);
   }
@@ -242,7 +253,11 @@
     },
     mount: (element) => mountDockHost(element, () => surface),
     rect,
-    select: (id) => onSelectPanel?.(id),
+    active: (id) => !compact && activePanel === id,
+    select(id) {
+      selected = id;
+      onSelectPanel?.(id);
+    },
     add,
     remove,
     tabs: (id) =>

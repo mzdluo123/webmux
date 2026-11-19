@@ -289,7 +289,7 @@
     {@render paneNotices()}
     {#if hybrid.view === "chat"}{@render chatPane()}{/if}
     <div
-      class="session-terminal split-terminal relative flex min-h-0 flex-1 flex-col overflow-hidden"
+      class="session-terminal split-terminal relative flex min-h-0 flex-1 flex-col"
       class:hidden={hybrid.view === "chat"}
       data-bottom-toolbar={bottomToolbar.mode}
       data-session-id={id}

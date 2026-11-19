@@ -590,9 +590,8 @@
   min-height: 0;
   background: var(--terminal-background);
 }
-.split-terminal:focus-within {
-  outline: 1px solid var(--ring);
-  outline-offset: -1px;
+.split-terminal {
+  overflow: hidden;
 }
 [data-dock-panel],
 [data-dock-preview] {

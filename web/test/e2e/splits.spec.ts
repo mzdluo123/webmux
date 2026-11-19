@@ -138,6 +138,115 @@ test("docking, peeking and pinning retain a running terminal and its layout", as
   await expect.poll(() => root.boundingBox()).toEqual(placed);
 });
 
+test("desktop drag guides dock against a pane or the whole workspace", async ({
+  page,
+  workDir,
+}, testInfo) => {
+  test.skip(!!testInfo.project.use.isMobile, "Wide docking surface");
+  const id = await createShell(page, "Dock target", workDir);
+  const terminals = page.locator(".split-terminal");
+  await split(page.locator(`[data-session-id="${id}"]`), "左右");
+  await expect(terminals).toHaveCount(2);
+  const neighborId = await terminals.nth(1).getAttribute("data-session-id");
+  await split(terminals.nth(1), "上下");
+  await expect(terminals).toHaveCount(3);
+  const sourceId = await terminals.nth(2).getAttribute("data-session-id");
+
+  const panel = (panelId: string | null) =>
+    page.locator(`[data-dock-panel="${panelId}"]`);
+  const target = panel(id);
+  const neighbor = panel(neighborId);
+  const source = panel(sourceId);
+  const panes = [target, neighbor, source];
+  await expect(page.locator("[data-dock-panel]:visible")).toHaveCount(3);
+
+  const preview = page.locator("[data-dock-preview]");
+  const paneGuides = page.locator("[data-guide-scope=pane]");
+  const workspaceGuides = page.locator("[data-guide-scope=workspace]");
+  const decorations = page.locator("[data-guide-scope], [data-dock-preview]");
+  const innerTop = page.locator("[data-guide-scope=pane][data-guide-edge=top]");
+  const outerLeft = page.locator(
+    "[data-guide-scope=workspace][data-guide-edge=left]",
+  );
+  const outerRight = page.locator(
+    "[data-guide-scope=workspace][data-guide-edge=right]",
+  );
+  async function dragOver(locator: Locator) {
+    const { x, y, width, height } = (await locator.boundingBox())!;
+    // The move that starts a native drag can send dragenter before dragover.
+    await page.mouse.move(x + width / 2, y + height / 2);
+    await page.mouse.move(x + width / 2, y + height / 2);
+  }
+  async function startDrag() {
+    await source.locator("[draggable=true] .status-dot").hover();
+    await page.mouse.down();
+    await dragOver(source);
+  }
+
+  await startDrag();
+  await expect(workspaceGuides).toHaveCount(4);
+  await expect(paneGuides).toHaveCount(0);
+  await expect(preview).toHaveCount(0);
+
+  await dragOver(target);
+  await expect(paneGuides).toHaveCount(5);
+  const targetBox = (await target.boundingBox())!;
+  const center = (await page
+    .locator("[data-guide-scope=pane][data-guide-edge=center]")
+    .boundingBox())!;
+  expect(center.x + center.width / 2).toBeCloseTo(
+    targetBox.x + targetBox.width / 2,
+    0,
+  );
+  expect(center.y + center.height / 2).toBeCloseTo(
+    targetBox.y + targetBox.height / 2,
+    0,
+  );
+  await dragOver(innerTop);
+  await expect(innerTop).toHaveClass(/\bactive\b/);
+  await expect(preview).toBeVisible();
+  const innerBox = (await preview.boundingBox())!;
+  expect(innerBox.x).toBe(targetBox.x);
+  expect(innerBox.y).toBe(targetBox.y);
+  expect(innerBox.width).toBe(targetBox.width);
+  expect(innerBox.height).toBeLessThan(targetBox.height);
+  await page.mouse.up();
+  await expect(decorations).toHaveCount(0);
+  await expect.poll(() => source.boundingBox()).toEqual(innerBox);
+  expect((await target.boundingBox())!.y).toBeCloseTo(
+    innerBox.y + innerBox.height,
+    0,
+  );
+
+  await startDrag();
+  await dragOver(outerLeft);
+  await expect(outerLeft).toHaveClass(/\bactive\b/);
+  await expect(preview).toBeVisible();
+  const outerBox = (await preview.boundingBox())!;
+  const neighborBox = (await neighbor.boundingBox())!;
+  expect(outerBox.x).toBe(targetBox.x);
+  expect(outerBox.y).toBe(neighborBox.y);
+  expect(outerBox.height).toBe(neighborBox.height);
+  expect(outerBox.height).toBeGreaterThan(innerBox.height);
+  await page.mouse.up();
+  await expect(decorations).toHaveCount(0);
+  await expect.poll(() => source.boundingBox()).toEqual(outerBox);
+  const placed = await Promise.all(panes.map((pane) => pane.boundingBox()));
+  expect(placed[0]!.x).toBeCloseTo(outerBox.x + outerBox.width, 0);
+  expect(placed[1]!.x).toBeGreaterThan(placed[0]!.x);
+
+  await startDrag();
+  await dragOver(outerRight);
+  await expect(outerRight).toHaveClass(/\bactive\b/);
+  await expect(preview).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(decorations).toHaveCount(0);
+  await page.mouse.up();
+  await expect
+    .poll(() => Promise.all(panes.map((pane) => pane.boundingBox())))
+    .toEqual(placed);
+});
+
 test("nested splits preserve terminal state, isolate input and restore layout", async ({
   page,
   request,
