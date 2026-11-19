@@ -21,7 +21,7 @@
     failure,
     shell,
   }: {
-    missing: "" | "agent" | "repository";
+    missing: "" | "agent" | "agent-uninstalled" | "repository";
     targetMode: QuickStartTargetMode;
     branchError?: string;
     repository?: Repository;
@@ -39,11 +39,17 @@
     <span class="mr-auto">
       {missing === "agent"
         ? m.s3_qs_missing_hybrid_config()
-        : m.s3_qs_missing_repository()}
+        : missing === "agent-uninstalled"
+          ? m.s3_qs_all_hybrid_uninstalled()
+          : m.s3_qs_missing_repository()}
     </span>
     {#if missing === "agent"}
       <Button variant="outline" size="sm-touch" href="/settings#launch-configs"
         >{m.s3_qs_new_launch_config()}</Button
+      >
+    {:else if missing === "agent-uninstalled"}
+      <Button variant="outline" size="sm-touch" href="/settings#launch-configs"
+        >{m.s3_qs_view_launch_configs()}</Button
       >
     {:else}
       <Button variant="outline" size="sm-touch" onclick={shell.addRepository}

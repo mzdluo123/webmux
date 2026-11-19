@@ -2,6 +2,10 @@
   import { paneEnter } from "../../src/hooks/shared/pane-enter";
   import { onDestroy, untrack } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
+  import type {
+    ButtonSize,
+    ButtonVariant,
+  } from "../../src/lib/components/ui/button";
   import ChatView from "../../src/components/chat/ChatView.svelte";
   import SwitchChoiceDialog from "../../src/components/chat/SwitchChoiceDialog.svelte";
   import SwitchProgress from "../../src/components/chat/SwitchProgress.svelte";
@@ -435,22 +439,32 @@
     busy: false,
     toggle: async () => {},
   };
+  let bottomToolbarShown = $state(false);
 </script>
 
-{#snippet quickMenu(side: "top" | "bottom")}
+{#snippet quickMenu(
+  side: "top" | "bottom",
+  size?: ButtonSize,
+  variant?: ButtonVariant,
+)}
   <QuickCommandMenu
     commands={[]}
     target="terminal"
     unavailable=""
     disabled={false}
     {side}
+    {size}
+    {variant}
     run={() => {}}
     manage={() => {}}
     onCloseAutoFocus={() => {}}
   />
 {/snippet}
 
-<main class="terminal-page">
+<main
+  class="terminal-page"
+  data-bottom-toolbar={bottomToolbarShown ? "shown" : "auto"}
+>
   <TerminalHeader
     bind:this={header}
     features={{ chat: chatFeature, files: filesFeature }}
@@ -465,7 +479,7 @@
     keyboardSizeHold={true}
     setKeyboardSizeHold={() => {}}
     bind:codeShown
-    forceSoftKeys={false}
+    bind:bottomToolbarShown
     {quickMenu}
     upload={async () => {}}
     toggleDraft={() => {}}
@@ -556,7 +570,11 @@
             paste={() => {}}
             keyboard={() => {}}
           >
-            {#snippet trailing()}{@render quickMenu("top")}{/snippet}
+            {#snippet trailing()}{@render quickMenu(
+                "top",
+                "icon-xs",
+                "ghost",
+              )}{/snippet}
           </SoftKeys>
         </div>
       {/if}
