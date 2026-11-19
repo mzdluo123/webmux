@@ -54,6 +54,7 @@
     notices,
     hints,
     leading,
+    status,
     accessories,
     below,
   }: {
@@ -82,6 +83,8 @@
     hints?: Snippet;
     /** Left of the toolbar row, e.g. attach and the options. */
     leading?: Snippet<[ComposerContext]>;
+    /** Status control kept beside send in the one-line mobile bar. */
+    status?: Snippet;
     /** Right of the toolbar row, before send, e.g. voice and commands. */
     accessories?: Snippet<[ComposerContext]>;
     /** Under the card. */
@@ -179,6 +182,7 @@
       >
         {@render leading?.(context)}
       </div>
+      {@render status?.()}
       <span
         class={["flex items-center gap-1", compact && "composer-mobile:hidden"]}
       >
