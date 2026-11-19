@@ -2,6 +2,7 @@
   import { onDestroy, untrack, type Snippet } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import IconLayoutSidebarLeftExpand from "~icons/tabler/layout-sidebar-left-expand";
+  import IconMessagePlus from "~icons/tabler/message-plus";
   import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
   import * as Drawer from "$lib/components/ui/drawer";
@@ -20,6 +21,7 @@
     Worktree,
   } from "../../contracts/schemas";
   import {
+    openPage,
     openSession,
     setShell,
     shellUi,
@@ -348,6 +350,18 @@
       title={m.s1_new_session()}
       onclick={() => shell.start()}><IconPlus aria-hidden="true" /></Button
     >
+    {#if contributions.chat}
+      <Button
+        variant="ghost"
+        size="icon-touch"
+        aria-label={m.s1_new_chat()}
+        title={m.s1_new_chat()}
+        aria-current={route.name === "quick-start" ? "true" : undefined}
+        onclick={() => openPage("/new")}
+      >
+        <IconMessagePlus aria-hidden="true" />
+      </Button>
+    {/if}
     {#if route.name === "sessions" && workspace}
       <SessionSwitcherTrigger size="icon-touch" />
     {/if}

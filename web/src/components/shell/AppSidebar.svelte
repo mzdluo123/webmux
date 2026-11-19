@@ -1,4 +1,5 @@
 <script lang="ts">
+  import IconMessagePlus from "~icons/tabler/message-plus";
   import IconPlus from "~icons/tabler/plus";
   import IconRefresh from "~icons/tabler/refresh";
   import { Button } from "$lib/components/ui/button";
@@ -293,32 +294,45 @@
         }
       : undefined}
   />
-  <div class="sidebar-actions flex items-center gap-1.5 pt-1">
-    <Button
-      variant="outline"
-      size="sm-touch"
-      class="min-w-0 flex-1"
-      onclick={() => shell.start()}
-    >
-      <IconPlus aria-hidden="true" />{m.s1_new_session()}
-    </Button>
-    {#if !chatHome && workspace && shell.repositories}
+  <div class="sidebar-actions flex flex-col gap-1.5 pt-1">
+    <div class="flex items-center gap-1.5">
       <Button
         variant="outline"
-        size="icon-touch"
-        aria-label={m.s1_refresh_workspaces()}
-        title={shell.repositories.refreshing
-          ? m.s1_refreshing_workspaces()
-          : m.s1_refresh_workspaces()}
-        aria-busy={shell.repositories.refreshing}
-        onclick={() => void shell.repositories?.refresh(true)}
+        size="sm-touch"
+        class="min-w-0 flex-1"
+        onclick={() => shell.start()}
       >
-        <IconRefresh
-          class={shell.repositories.refreshing
-            ? "animate-spin motion-reduce:animate-none"
-            : ""}
-          aria-hidden="true"
-        />
+        <IconPlus aria-hidden="true" />{m.s1_new_session()}
+      </Button>
+      {#if !chatHome && workspace && shell.repositories}
+        <Button
+          variant="outline"
+          size="icon-touch"
+          aria-label={m.s1_refresh_workspaces()}
+          title={shell.repositories.refreshing
+            ? m.s1_refreshing_workspaces()
+            : m.s1_refresh_workspaces()}
+          aria-busy={shell.repositories.refreshing}
+          onclick={() => void shell.repositories?.refresh(true)}
+        >
+          <IconRefresh
+            class={shell.repositories.refreshing
+              ? "animate-spin motion-reduce:animate-none"
+              : ""}
+            aria-hidden="true"
+          />
+        </Button>
+      {/if}
+    </div>
+    {#if chat}
+      <Button
+        variant="ghost"
+        size="sm-touch"
+        class="w-full justify-start"
+        aria-current={route.name === "quick-start" ? "true" : undefined}
+        onclick={() => openPage("/new")}
+      >
+        <IconMessagePlus aria-hidden="true" />{m.s1_new_chat()}
       </Button>
     {/if}
   </div>
