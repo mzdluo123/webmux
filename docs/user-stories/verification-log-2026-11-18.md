@@ -104,6 +104,12 @@
   - `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`make go-lint`（0 issues）、`go vet ./...`、`GOOS=darwin go vet ./...` 与 `make format-check` 通过；
   - Playwright E2E `agent-tools.spec.ts`、`relay-settings.spec.ts` 与 `worktrees.spec.ts`（直接目录创建降级）共 10 项通过。
 
+## 2026-11-19：手机单行聊天输入框的上下文用量（US-Q05）
+
+- `pnpm --dir web exec vp test run --config vitest.browser.config.ts test/browser/ChatView.test.ts` 中按用量与工具栏筛选运行的 4 项通过，覆盖 320×568 下从编辑态收回单行后打开用量明细。
+- `pnpm --dir web check`、`pnpm --dir web lint`、`pnpm --dir web check:arch` 与源码格式检查通过。
+- 临时 Vitest Chromium 界面探针在 7 个视口的浅色与深色主题验证明细打开、Escape 关闭与视口边界；未在真机上验证。
+
 ## 侧栏会话通知与待处理筛选（US-C06、US-C17）
 
 - 侧栏「会话通知」仅在存在待处理、已暂缓事项或收件箱已打开时挂载；处理完最后一项后按 Esc 关闭空收件箱，焦点移回侧栏导航。「全部」与「待处理」保持 1:1 等宽排布，无待处理项时省略空计数占位并居中显示标签，有匹配时以等宽数字显示数量。

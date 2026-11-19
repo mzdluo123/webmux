@@ -34,6 +34,11 @@ interface GitSnapshotDiffViewState {
 
 export interface GitDiffPanelReader {
   readonly state: GitSnapshotDiffViewState;
+  readSnapshotSide: (
+    snapshotId: string,
+    side: GitSnapshotSide,
+    signal: AbortSignal,
+  ) => Promise<Blob>;
   downloadSnapshotSide: (side: GitSnapshotSide) => Promise<void>;
   retryActiveDiff: () => void;
 }
@@ -192,27 +197,33 @@ export function createGitSnapshotDiffReader(deps: {
     }
   }
 
-  async function downloadSnapshotSide(side: GitSnapshotSide) {
+  function readSnapshotSide(
+    snapshotId: string,
+    side: GitSnapshotSide,
+    signal: AbortSignal,
+    download = false,
+  ) {
     const repoId = deps.getRepoId();
     const worktreeId = deps.getWorktreeId();
+    return ctxRunner.withContext(repoId, worktreeId, signal, (contextId) =>
+      gitSnapshotRaw(
+        repoId,
+        snapshotId,
+        { side, contextId, worktreeId, download },
+        signal,
+      ),
+    );
+  }
+
+  async function downloadSnapshotSide(side: GitSnapshotSide) {
+    const repoId = deps.getRepoId();
     const snapshotId = state.snapshotId;
     if (!repoId || !snapshotId || state.downloadingSide) return;
 
     state = { ...state, downloadingSide: side };
     const ctrl = new AbortController();
     try {
-      const blob = await ctxRunner.withContext(
-        repoId,
-        worktreeId,
-        ctrl.signal,
-        (cid) =>
-          gitSnapshotRaw(
-            repoId,
-            snapshotId,
-            { side, contextId: cid, worktreeId, download: true },
-            ctrl.signal,
-          ),
-      );
+      const blob = await readSnapshotSide(snapshotId, side, ctrl.signal, true);
       const baseName =
         (side === "before" ? state.oldPath || state.path : state.path)
           .split("/")
@@ -244,6 +255,7 @@ export function createGitSnapshotDiffReader(deps: {
     seedContextId: ctxRunner.seed,
     withContext: ctxRunner.withContext,
     loadFetchedDiff,
+    readSnapshotSide,
     downloadSnapshotSide,
   };
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
   import CodeImageView from "../../src/components/code/CodeImageView.svelte";
+  import { codeRawPath } from "../../src/domains/code/code-image";
   import type {
     CodeDocument,
     CodeImageState,
@@ -25,8 +26,7 @@
 >
   <CodeImageView
     bind:this={view}
-    id="session"
-    snapshotId="snap-1"
+    source={codeRawPath("session", "snap-1")}
     document={doc}
     {restore}
   />

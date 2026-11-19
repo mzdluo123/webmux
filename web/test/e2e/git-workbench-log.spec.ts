@@ -4,6 +4,7 @@ import { mkdir, readFile, stat, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { APIRequestContext } from "@playwright/test";
 import { expect, test } from "./fixtures";
+import { pdfFixture } from "../fixtures/pdf";
 
 function git(
   root: string,
@@ -602,5 +603,112 @@ test("Git mode docks restore independently and the phone selector leaves the wid
   await expect(refs).toBeHidden();
   await expect(
     workspace.getByRole("button", { name: "引用与分支筛选", exact: true }),
+  ).toBeVisible();
+});
+
+test("Log previews the selected Git snapshot sides and retains binary downloads", async ({
+  page,
+  request,
+  workDir,
+}, testInfo) => {
+  git(workDir, ["init", "-b", "main"]);
+  const image = join(workDir, "asset.bmp");
+  // Uncompressed 24-bit BMP with a distinct color and width in each version.
+  function bitmap(width: number, color: number[]) {
+    const height = 80;
+    const data = Buffer.alloc(54 + width * height * 3);
+    data.write("BM");
+    data.writeUInt32LE(data.length, 2);
+    data.writeUInt32LE(54, 10);
+    data.writeUInt32LE(40, 14);
+    data.writeUInt32LE(width, 18);
+    data.writeUInt32LE(height, 22);
+    data.writeUInt16LE(1, 26);
+    data.writeUInt16LE(24, 28);
+    data.fill(Buffer.from(color), 54);
+    return data;
+  }
+  await writeFile(image, bitmap(160, [175, 120, 42]));
+  git(workDir, ["add", "."]);
+  git(workDir, ["commit", "-m", "original asset"]);
+  await writeFile(image, bitmap(240, [90, 142, 28]));
+  await writeFile(join(workDir, "manual.pdf"), pdfFixture());
+  await writeFile(join(workDir, "opaque.bin"), Buffer.from([0, 255]));
+  git(workDir, ["add", "."]);
+  git(workDir, ["commit", "-m", "update assets"]);
+  // The after preview must use the committed blob, not the live worktree.
+  await writeFile(image, bitmap(320, [20, 32, 180]));
+
+  const registration = await request.post("/api/repositories", {
+    data: { path: workDir },
+  });
+  expect(registration.status(), await registration.text()).toBe(201);
+  const repo = await registration.json();
+  const worktree = repo.worktrees.find(
+    (wt: { kind: string }) => wt.kind === "main",
+  );
+  const phone = (page.viewportSize()?.width ?? 1280) < 640;
+  if (!phone) await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(`/git/${repo.id}/worktrees/${worktree.id}?view=log`);
+  await page.getByRole("option", { name: /update assets/ }).click();
+  const files = page.getByRole("listbox", { name: "提交变更文件" });
+  const diff = page.getByTestId("git-log-diff-panel");
+  const open = (name: RegExp) => files.getByRole("option", { name }).click();
+  const back = async () => {
+    if (phone) await diff.getByRole("button", { name: "返回提交详情" }).click();
+  };
+
+  await open(/asset\.bmp/);
+  const images = diff.getByRole("img", { name: "asset.bmp" });
+  await expect(images).toHaveCount(2);
+  await expect
+    .poll(() =>
+      images.evaluateAll((nodes) =>
+        nodes.map((node) => (node as HTMLImageElement).naturalWidth),
+      ),
+    )
+    .toEqual([160, 240]);
+  const downloadBefore = diff.getByRole("button", { name: "下载变更前文件" });
+  await downloadBefore.focus();
+  await expect(downloadBefore).toBeFocused();
+  await expect(
+    diff.getByRole("button", { name: "下载变更后文件" }),
+  ).toBeVisible();
+  for (const viewport of phone
+    ? [
+        { width: 320, height: 568 },
+        { width: 375, height: 667 },
+        { width: 390, height: 844 },
+      ]
+    : [
+        { width: 1280, height: 720 },
+        { width: 768, height: 1024 },
+      ]) {
+    await page.setViewportSize(viewport);
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(viewport.width);
+    for (const colorScheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme });
+      await testInfo.attach(`binary-preview-${viewport.width}-${colorScheme}`, {
+        body: await page.screenshot(),
+        contentType: "image/png",
+      });
+    }
+  }
+  await back();
+
+  await open(/manual\.pdf/);
+  await expect(diff.getByRole("group", { name: "PDF 预览" })).toHaveCount(1);
+  await expect(diff.locator(".textLayer")).toContainText("Page 1");
+  await expect(
+    diff.getByRole("button", { name: "下载变更前文件" }),
+  ).toHaveCount(0);
+  await back();
+
+  await open(/opaque\.bin/);
+  await expect(diff).toContainText(/二进制|非文本或受限内容不能显示行差异/);
+  await expect(
+    diff.getByRole("button", { name: "下载变更后文件" }),
   ).toBeVisible();
 });

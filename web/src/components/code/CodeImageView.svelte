@@ -6,7 +6,6 @@
   import type { CodeDocument, CodeImageState } from "../../contracts/schemas";
   import {
     basename,
-    codeRawPath,
     formatBytes,
     imageFormat,
     rawError,
@@ -15,18 +14,13 @@
   import IconAspectRatio from "~icons/tabler/aspect-ratio";
   import CodeZoomStepButtons from "./CodeZoomStepButtons.svelte";
   let {
-    id,
-    snapshotId,
-    side,
+    source,
     document: doc,
     onerror,
     restore,
   }: {
-    id: string;
-    snapshotId: string;
-    // Required for Diff snapshots; file snapshots omit it.
-    side?: "old" | "new";
-    document: CodeDocument;
+    source: string | ((signal: AbortSignal) => Promise<Blob>);
+    document: Pick<CodeDocument, "mediaType" | "path" | "size">;
     // Lets the parent react to a failed preview, e.g. SVG falls back to source.
     onerror?: (message: string) => void;
     // A captured zoom and pan, applied once the image and viewport sizes are
@@ -92,8 +86,8 @@
     place();
   }
   $effect(() => {
-    const path = codeRawPath(id, snapshotId, side);
     const mediaType = doc.mediaType;
+    const read = source;
     const controller = new AbortController();
     let url = "";
     untrack(() => {
@@ -102,7 +96,11 @@
       message = "";
       natural = { width: 0, height: 0 };
     });
-    void apiBlob(path, controller.signal)
+    void (
+      typeof read === "string"
+        ? apiBlob(read, controller.signal)
+        : read(controller.signal)
+    )
       .then((blob) => {
         if (controller.signal.aborted) return;
         // An <img> renders SVG only with its media type; slicing is a view.

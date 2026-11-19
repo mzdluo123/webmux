@@ -8,7 +8,11 @@
   } from "../../contracts/schemas";
   import type { MarkdownWorkspace } from "../../domains/code/markdown-link";
   import type { PreviewFormat } from "../../domains/code/code-preview";
-  import { formatBytes, imageFormat } from "../../domains/code/code-image";
+  import {
+    codeRawPath,
+    formatBytes,
+    imageFormat,
+  } from "../../domains/code/code-image";
   import { Button } from "$lib/components/ui/button";
   import CodeDiffReader from "./CodeDiffReader.svelte";
   import CodeReader from "./CodeReader.svelte";
@@ -192,9 +196,7 @@
 {:else if imagePreview && doc}
   {#key `${snapshotId}:${rawSide ?? ""}`}<CodeImageView
       bind:this={imageView}
-      {id}
-      {snapshotId}
-      side={rawSide}
+      source={codeRawPath(id, snapshotId, rawSide)}
       document={doc}
       onerror={onpreviewfailed}
       restore={restoreFor("image")}
@@ -202,8 +204,7 @@
 {:else if doc?.kind === "pdf" && pdfFile}
   {#key snapshotId}<CodePdfView
       bind:this={pdfView}
-      {id}
-      {snapshotId}
+      source={codeRawPath(id, snapshotId)}
       document={doc}
       {active}
       {ondownloaderror}

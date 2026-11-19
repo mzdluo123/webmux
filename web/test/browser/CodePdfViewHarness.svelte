@@ -1,5 +1,6 @@
 <script lang="ts">
   import CodePdfView from "../../src/components/code/CodePdfView.svelte";
+  import { codeRawPath } from "../../src/domains/code/code-image";
   import type { CodeDocument, CodePdfState } from "../../src/contracts/schemas";
   let {
     document: doc,
@@ -22,8 +23,7 @@
 >
   <CodePdfView
     bind:this={view}
-    id="session"
-    snapshotId="snap-1"
+    source={codeRawPath("session", "snap-1")}
     document={doc}
     {restore}
     ondownloaderror={() => {}}

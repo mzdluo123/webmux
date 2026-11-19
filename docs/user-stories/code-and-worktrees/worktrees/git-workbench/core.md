@@ -66,6 +66,7 @@
   - Pierre `CodeDiffReader` 复用、任意两版本比较与异步竞态隔离：
     - 文件差异预览复用 Pierre `CodeDiffReader`。桌面与平板采用双栏（`Split`）；`< 640px` 手机视口或 `< 480px` 窄容器回退为单列（`Unified`）。保留语法高亮 worker、文件内查找、行号跳转、自动换行、字号缩放，以及二进制和超预算快照的原始文件下载；
     - 差异面板对加载中、二进制、超预算、纯元数据变更与错误重试态给出中文内嵌反馈；收起或恢复差异面板、切换文件时保持原提交选中与列表滚动位置；
+    - 二进制差异面板按修改前、修改后标注 Git 快照中的图片与 PDF。仅展示存在的版本，并保留各版本可用的下载入口；没有可预览的版本时显示说明；
     - 提交行与引用行菜单支持“设为比较起点 / 与起点比较 / 与当前选中提交比较”，只读拉取 `baseOid → targetOid` 变更文件列表与逐文件差异，支持一键“交换方向”与“退出比较”，全程不执行 `git checkout`、不触碰 `.git/index`、不自动触发 `git fetch`；
     - 提交详情、父节点切换、单文件差异与两版本比较均绑定 `LatestRequest` 与 `AbortController`，快速连续切换时丢弃过期响应，绝不覆盖当前选中状态；
     - 两版本比较中变更文件的筛选框和工具栏保持位置，加载、错误与无结果反馈在文件列表内显示。交换方向后保留仍可定位的所选文件，包括反向重命名；
@@ -151,6 +152,7 @@
   - 文件差异预览：[差异面板](../../../../../web/src/components/workspace/GitLogDiffPanel.svelte)、[Pierre 阅读器](../../../../../web/src/components/code/CodeDiffReader.svelte)；
   - 单测与组件测试：[收藏与深链单测](../../../../../web/test/git-log-controller.test.ts)、[竞态与分页浏览器单测](../../../../../web/test/browser/GitLogController.test.ts)、[工作台组件测试](../../../../../web/test/browser/GitWorkbench.test.ts)；
   - 端到端验证：[历史视图 E2E](../../../../../web/test/e2e/git-workbench-log.spec.ts)。
+  - 快照预览验证：`pnpm --dir web test:e2e git-workbench-log.spec.ts -g 'Log previews'` 在桌面与手机 Chromium 项目通过，核对图片前后版本、仅有修改后版本的 PDF 与不可预览文件的下载入口。
 - Git 工作台提交暂存、三处共享分支动作与宽幅推送确认：
   - 服务端暂存与推送：[推送预览提交列表](../../../../../internal/workspace/push.go)、[Hunk 补丁解析](../../../../../internal/workspace/hunk.go)、[索引暂存写入](../../../../../internal/workspace/staging_write.go)、[推送测试](../../../../../internal/workspace/push_test.go)；
   - 服务端提交复核：[提交预览](../../../../../internal/workspace/commit_preview.go)、[提交执行复核](../../../../../internal/workspace/commit_execute.go)；
