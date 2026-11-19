@@ -113,6 +113,23 @@ describe("preference conflict replay", () => {
       r1: ["new", "remote", "b", "a"],
       r3: ["z"],
     });
+
+    // Global 200-repo and 1000-total bounds hold across concurrent additions.
+    const crowded: Record<string, string[]> = {};
+    for (let i = 0; i < 20; i++) {
+      crowded[`repo-${i}`] = Array.from({ length: 50 }, (_, j) => `wt-${j}`);
+    }
+    const rebasedCrowded = settingsIntent(
+      { ...emptySettings, worktreePins: {} },
+      { worktreePins: { "repo-local": ["wt-priority"] } },
+    )({ ...emptySettings, worktreePins: crowded }).worktreePins!;
+    expect(rebasedCrowded["repo-local"]).toEqual(["wt-priority"]);
+    const totalIds = Object.values(rebasedCrowded).reduce(
+      (sum, ids) => sum + ids.length,
+      0,
+    );
+    expect(totalIds).toBeLessThanOrEqual(1000);
+    expect(Object.keys(rebasedCrowded).length).toBeLessThanOrEqual(200);
   });
   test("validates null, empty collections and bounded revisions", () => {
     const snapshot = { revision: 0, updatedAt: "", values: emptySettings };

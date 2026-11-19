@@ -115,7 +115,9 @@ export const HomeWorktreesSchema = z.record(
 );
 export type HomeWorktrees = z.infer<typeof HomeWorktreesSchema>;
 
+export const MAX_WORKTREE_PIN_REPOS = 200;
 export const MAX_WORKTREE_PINS_PER_REPO = 50;
+export const MAX_WORKTREE_PINS_TOTAL = 1000;
 // Server-synchronized per-repository pinned worktree order.
 export const WorktreePinsSchema = z.record(
   z.string().min(1),

@@ -351,6 +351,7 @@
 
     <ManageWorktreesSelectList
       {repository}
+      {pins}
       {stage}
       {entries}
       {filteredEntries}

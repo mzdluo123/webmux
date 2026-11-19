@@ -1,6 +1,8 @@
 import { describe, expect, test, vi } from "vite-plus/test";
 import {
+  MAX_WORKTREE_PIN_REPOS,
   MAX_WORKTREE_PINS_PER_REPO,
+  MAX_WORKTREE_PINS_TOTAL,
   type Repository,
   type Worktree,
 } from "../src/contracts/schemas";
@@ -153,6 +155,45 @@ describe("worktreePins", () => {
       wtC,
     ]);
     expect(movedOverHidden.r1).toEqual(["03", "01", "02"]);
+  });
+
+  test("preserves sibling repositories' pins during toggle and move, and enforces global repo/total caps", () => {
+    const repo1 = makeRepo([main, wtA, wtB]);
+    const multi = { r1: ["01", "stale"], r2: ["other-wt"] };
+    const toggled = toggleWorktreePin(multi, repo1, "02");
+    expect(toggled).toEqual({
+      pins: { r1: ["02", "01"], r2: ["other-wt"] },
+      pinned: true,
+    });
+
+    const moved = moveWorktreePin(toggled.pins, repo1, "02", 1);
+    expect(moved).toEqual({ r1: ["01", "02"], r2: ["other-wt"] });
+
+    // Global repository cap (200 repos): new repo cannot add a pin, existing repo still can unpin.
+    const maxReposPins = Object.fromEntries(
+      Array.from({ length: MAX_WORKTREE_PIN_REPOS }, (_, i) => [
+        `repo-${i}`,
+        ["wt-0"],
+      ]),
+    );
+    expect(isRepoWorktreePinsFull(maxReposPins, repo1)).toBe(true);
+    expect(toggleWorktreePin(maxReposPins, repo1, "01")).toEqual({
+      pins: maxReposPins,
+      pinned: false,
+    });
+
+    // Global total cap (1000 pins across 20 repos).
+    const maxTotalPins = Object.fromEntries(
+      Array.from({ length: 20 }, (_, i) => [
+        `repo-${i}`,
+        Array.from({ length: MAX_WORKTREE_PINS_PER_REPO }, (_, j) => `wt-${j}`),
+      ]),
+    );
+    expect(Object.values(maxTotalPins).flat().length).toBe(
+      MAX_WORKTREE_PINS_TOTAL,
+    );
+    expect(isRepoWorktreePinsFull(maxTotalPins, repo1)).toBe(true);
+    expect(toggleWorktreePin(maxTotalPins, repo1, "01").pinned).toBe(false);
   });
 
   test("prunes missing repositories and deleted worktrees while keeping unhealthy snapshots", () => {

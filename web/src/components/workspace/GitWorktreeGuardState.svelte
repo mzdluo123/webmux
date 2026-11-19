@@ -12,6 +12,12 @@
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { Repository, Worktree } from "../../contracts/schemas";
   import { worktreeTitle } from "../../domains/workspace/home-worktrees";
+  import {
+    isWorktreePinned,
+    sortRepositoryWorktrees,
+  } from "../../domains/workspace/worktree-pins";
+  import { worktreePins } from "../../domains/workspace/worktree-pins.svelte";
+  import PinnedWorktreeMark from "./PinnedWorktreeMark.svelte";
 
   let {
     kind,
@@ -45,8 +51,13 @@
   } = $props();
 
   const writableWorktrees = $derived(
-    (repository?.worktrees ?? []).filter(
-      (wt) => wt.available && !wt.prunable && !wt.locked && wt.kind !== "bare",
+    sortRepositoryWorktrees(
+      (repository?.worktrees ?? []).filter(
+        (wt) =>
+          wt.available && !wt.prunable && !wt.locked && wt.kind !== "bare",
+      ),
+      worktreePins.value,
+      repository?.id,
     ),
   );
 </script>
@@ -60,6 +71,9 @@
         >
           {worktreeTitle(wt)}
         </span>
+        {#if repository && isWorktreePinned(worktreePins.value, repository.id, wt.id)}
+          <PinnedWorktreeMark srLabel />
+        {/if}
         {#if showDirty && wt.dirty}
           <Badge variant="warning">{m.s7_guard_dirty_badge()}</Badge>
         {/if}

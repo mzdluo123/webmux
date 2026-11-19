@@ -242,6 +242,88 @@ func TestKnownWorktreesBaselineAutoPinRetryAndManagedCreate(t *testing.T) {
 	mu.Unlock()
 }
 
+func TestWorktreePinsConvergeOnRefreshAndUnregister(t *testing.T) {
+	stateDir := t.TempDir()
+	root := initRepo(t)
+	s, _ := testService(t, stateDir, root)
+	defer s.Close()
+
+	var mu sync.Mutex
+	pins := map[string][]string{}
+	s.UseWorktreePins(
+		func(repoID string, liveIDs []string) error {
+			mu.Lock()
+			defer mu.Unlock()
+			live := map[string]bool{}
+			for _, id := range liveIDs {
+				live[id] = true
+			}
+			pins[repoID] = slices.DeleteFunc(slices.Clone(pins[repoID]), func(id string) bool { return !live[id] })
+			if len(pins[repoID]) == 0 {
+				delete(pins, repoID)
+			}
+			return nil
+		},
+		func(repoID string) error {
+			mu.Lock()
+			defer mu.Unlock()
+			delete(pins, repoID)
+			return nil
+		},
+	)
+
+	reg := registerTest(t, s, root)
+	wt1Path := filepath.Join(t.TempDir(), "wt-pin-1")
+	wt2Path := filepath.Join(t.TempDir(), "wt-pin-2")
+	gitTest(t, root, "worktree", "add", "-b", "feat/pin-1", wt1Path)
+	gitTest(t, root, "worktree", "add", "-b", "feat/pin-2", wt2Path)
+
+	refreshed, err := s.Refresh(context.Background(), reg.ID)
+	if err != nil {
+		t.Fatalf("Refresh: %v", err)
+	}
+	var wt1ID, wt2ID string
+	for _, wt := range refreshed.Worktrees {
+		switch wt.Path {
+		case canonicalPath(t, wt1Path):
+			wt1ID = wt.ID
+		case canonicalPath(t, wt2Path):
+			wt2ID = wt.ID
+		}
+	}
+	if wt1ID == "" || wt2ID == "" {
+		t.Fatalf("missing worktree IDs: %+v", refreshed.Worktrees)
+	}
+
+	mu.Lock()
+	pins[reg.ID] = []string{wt2ID, wt1ID}
+	pins["other-repo"] = []string{"keep"}
+	mu.Unlock()
+
+	// Removing wt1 externally converges reg.ID's pins on refresh without touching sibling repos.
+	gitTest(t, root, "worktree", "remove", wt1Path)
+	if _, err := s.Refresh(context.Background(), reg.ID); err != nil {
+		t.Fatalf("Refresh after remove: %v", err)
+	}
+	mu.Lock()
+	if !slices.Equal(pins[reg.ID], []string{wt2ID}) || !slices.Equal(pins["other-repo"], []string{"keep"}) {
+		t.Fatalf("unexpected pins after remove: %+v", pins)
+	}
+	mu.Unlock()
+
+	// Unregistering reg.ID drops its entry immediately.
+	if err := s.Unregister(reg.ID); err != nil {
+		t.Fatalf("Unregister: %v", err)
+	}
+	mu.Lock()
+	_, hasReg := pins[reg.ID]
+	otherKept := slices.Equal(pins["other-repo"], []string{"keep"})
+	mu.Unlock()
+	if hasReg || !otherKept {
+		t.Fatalf("unexpected pins after unregister: %+v", pins)
+	}
+}
+
 func canonicalPath(t *testing.T, p string) string {
 	t.Helper()
 	resolved, err := filepath.EvalSymlinks(p)

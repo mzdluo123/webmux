@@ -101,6 +101,7 @@ func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Mana
 		p.workspace = workspace.New(c.StateDir, m, p.launch, c.DefaultCwd)
 		if preferences != nil {
 			p.workspace.UseHomeWorktrees(preferences.PinHomeWorktrees)
+			p.workspace.UseWorktreePins(preferences.RetainWorktreePins, preferences.DropRepositoryWorktreePins)
 		}
 		if p.chat != nil {
 			p.workspace.UseHybrid(p.chat)

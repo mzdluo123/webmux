@@ -24,11 +24,13 @@
     worktree,
     onclose,
     onchange,
+    onreleased,
   }: {
     worktree: Worktree;
     onclose: () => void;
     /** The worktree or its records may have changed. */
     onchange: () => void;
+    onreleased?: () => void;
   } = $props();
   const formId = $props.id();
   let preview = $state<ReleasePreview | null>(null);
@@ -64,6 +66,7 @@
     error = "";
     try {
       await releaseWorktree(worktree, preview.confirmationId);
+      onreleased?.();
       onclose();
     } catch (err) {
       error = m.s8_release_failed_retry({ error: errorMessage(err) });

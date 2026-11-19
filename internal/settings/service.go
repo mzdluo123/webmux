@@ -164,6 +164,49 @@ func (s *Service) PinHomeWorktrees(repoID, mainWorktreeID string, added []string
 	return err
 }
 
+// RetainWorktreePins removes worktree IDs absent from liveIDs in repoID's
+// worktreePins entry and publishes a revision only when stale IDs are dropped.
+func (s *Service) RetainWorktreePins(repoID string, liveIDs []string) error {
+	if s == nil {
+		return ErrUnavailable
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.unavailable(); err != nil {
+		return err
+	}
+	existing := s.current.Values.WorktreePins[repoID]
+	if len(existing) == 0 {
+		return nil
+	}
+	live := make(map[string]bool, len(liveIDs))
+	for _, id := range liveIDs {
+		live[id] = true
+	}
+	kept := make([]string, 0, len(existing))
+	for _, id := range existing {
+		if live[id] {
+			kept = append(kept, id)
+		}
+	}
+	if len(kept) == len(existing) {
+		return nil
+	}
+	next := cloneStringSliceMap(s.current.Values.WorktreePins)
+	if len(kept) > 0 {
+		next[repoID] = kept
+	} else {
+		delete(next, repoID)
+	}
+	_, err := s.patchLocked(Changes{Fields: map[string]bool{"worktreePins": true}, Values: Values{WorktreePins: next}}, nil)
+	return err
+}
+
+// DropRepositoryWorktreePins deletes repoID's worktreePins entry when present.
+func (s *Service) DropRepositoryWorktreePins(repoID string) error {
+	return s.RetainWorktreePins(repoID, nil)
+}
+
 func retainSessionPins(pins []string, keep func(string) bool) []string {
 	return slices.DeleteFunc(slices.Clone(pins), func(id string) bool { return !keep(id) })
 }
