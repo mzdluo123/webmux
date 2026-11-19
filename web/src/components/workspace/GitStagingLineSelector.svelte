@@ -10,7 +10,10 @@
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { m } from "$lib/paraglide/messages.js";
   import type { GitWorkingChange } from "../../contracts/git-workbench-schemas";
-  import type { GitLineSelection } from "../../contracts/schemas";
+  import type {
+    CodeDiffReaderState,
+    GitLineSelection,
+  } from "../../contracts/schemas";
   import {
     changedLineIndicesInHunk,
     countSelectedLines,
@@ -54,6 +57,41 @@
     ) => void;
   } = $props();
 
+  type LineAnchor = NonNullable<CodeDiffReaderState["top"]>;
+  let viewport = $state<HTMLElement | null>(null);
+
+  export function captureAnchor(): LineAnchor | undefined {
+    if (!viewport) return;
+    const edge = viewport.getBoundingClientRect().top;
+    for (const row of viewport.querySelectorAll<HTMLElement>(
+      "[data-line-old], [data-line-new]",
+    )) {
+      if (row.getBoundingClientRect().bottom <= edge + 0.5) continue;
+      if (row.dataset.lineNew) {
+        return { line: Number(row.dataset.lineNew), side: "additions" };
+      }
+      return { line: Number(row.dataset.lineOld), side: "deletions" };
+    }
+  }
+
+  export function scrollToAnchor(anchor: LineAnchor) {
+    if (!viewport) return;
+    const key = anchor.side === "deletions" ? "lineOld" : "lineNew";
+    const rows = Array.from(
+      viewport.querySelectorAll<HTMLElement>(
+        anchor.side === "deletions" ? "[data-line-old]" : "[data-line-new]",
+      ),
+    );
+    const target =
+      rows.find((row) => Number(row.dataset[key]) >= anchor.line) ??
+      rows.at(-1);
+    if (target) {
+      viewport.scrollTop +=
+        target.getBoundingClientRect().top -
+        viewport.getBoundingClientRect().top;
+    }
+  }
+
   let selectionByChange = $state<{
     changeId: string;
     map: HunkLineSelectionMap;
@@ -71,6 +109,15 @@
 
   const selections = $derived(toGitLineSelections(selectionMap, hunks));
   const selectedCount = $derived(countSelectedLines(selections));
+  const clearDisabled = $derived(selectedCount === 0 || busy);
+  const countDigits = $derived(
+    String(
+      hunks.reduce(
+        (total, hunk) => total + changedLineIndicesInHunk(hunk).length,
+        0,
+      ),
+    ).length,
+  );
 
   function clearSelection() {
     selectionByChange = { changeId, map: {}, anchorByHunk: {} };
@@ -120,6 +167,17 @@
   }
 </script>
 
+{#snippet countLabel(reservedLabel: string, label: string)}
+  <span class="inline-grid min-w-0 tabular-nums">
+    <span class="invisible col-start-1 row-start-1" aria-hidden="true">
+      {reservedLabel}
+    </span>
+    <span class="col-start-1 row-start-1">
+      {label}
+    </span>
+  </span>
+{/snippet}
+
 <section
   class="flex min-h-44 min-w-0 flex-1 flex-col overflow-hidden bg-background"
   aria-label={m.s6_line_selector_aria()}
@@ -131,7 +189,10 @@
   >
     <div class="flex min-w-0 flex-wrap items-center gap-1.5">
       <Badge variant={selectedCount > 0 ? "info" : "outline"}>
-        {m.s6_line_selector_selected_count({ count: String(selectedCount) })}
+        {@render countLabel(
+          m.s6_line_selector_selected_count({ count: "8".repeat(countDigits) }),
+          m.s6_line_selector_selected_count({ count: String(selectedCount) }),
+        )}
       </Badge>
       <span class="text-muted-foreground">
         {m.s6_line_selector_hint()}
@@ -139,18 +200,20 @@
     </div>
 
     <div class="flex min-w-0 flex-wrap items-center gap-1">
-      {#if selectedCount > 0}
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={busy}
-          onclick={clearSelection}
-          data-testid="git-line-clear-btn"
-        >
-          <IconX aria-hidden="true" />
-          {m.s6_line_selector_clear()}
-        </Button>
-      {/if}
+      <Button
+        size="sm"
+        variant="ghost"
+        aria-disabled={clearDisabled || undefined}
+        tabindex={clearDisabled ? -1 : undefined}
+        onclick={() => {
+          if (clearDisabled) return;
+          clearSelection();
+        }}
+        data-testid="git-line-clear-btn"
+      >
+        <IconX aria-hidden="true" />
+        {m.s6_line_selector_clear()}
+      </Button>
 
       {#if canDiscardLines && onDiscardLines}
         <Button
@@ -162,7 +225,10 @@
           data-testid="git-line-discard-btn"
         >
           <IconTrash aria-hidden="true" />
-          {m.s6_discard_selected_lines({ count: String(selectedCount) })}
+          {@render countLabel(
+            m.s6_discard_selected_lines({ count: "8".repeat(countDigits) }),
+            m.s6_discard_selected_lines({ count: String(selectedCount) }),
+          )}
         </Button>
       {/if}
 
@@ -176,7 +242,10 @@
           data-testid="git-line-stage-btn"
         >
           <IconPlus aria-hidden="true" />
-          {m.s6_stage_selected_lines({ count: String(selectedCount) })}
+          {@render countLabel(
+            m.s6_stage_selected_lines({ count: "8".repeat(countDigits) }),
+            m.s6_stage_selected_lines({ count: String(selectedCount) }),
+          )}
         </Button>
       {:else if stageMode === "unstage"}
         <Button
@@ -188,13 +257,16 @@
           data-testid="git-line-unstage-btn"
         >
           <IconMinus aria-hidden="true" />
-          {m.s6_unstage_selected_lines({ count: String(selectedCount) })}
+          {@render countLabel(
+            m.s6_unstage_selected_lines({ count: "8".repeat(countDigits) }),
+            m.s6_unstage_selected_lines({ count: String(selectedCount) }),
+          )}
         </Button>
       {/if}
     </div>
   </div>
 
-  <ScrollArea class="min-h-8 flex-1">
+  <ScrollArea bind:viewportRef={viewport} class="min-h-8 flex-1">
     <div class="space-y-2 p-2">
       {#each hunks as hunk, hIdx (hunk.id)}
         {@const changedAll = changedLineIndicesInHunk(hunk)}
@@ -264,6 +336,8 @@
                 <div
                   class="flex min-w-0 items-start gap-2 px-2 py-1 hover:bg-muted/40"
                   data-line-kind={line.kind}
+                  data-line-old={line.oldLine}
+                  data-line-new={line.newLine}
                   data-line-selected={isChecked}
                   data-line-index={lIdx}
                 >
@@ -312,6 +386,8 @@
                 <div
                   class="flex min-w-0 items-start gap-2 px-2 py-0.5 text-muted-foreground"
                   data-line-kind="context"
+                  data-line-old={line.oldLine}
+                  data-line-new={line.newLine}
                 >
                   <span class="w-4 shrink-0" aria-hidden="true"></span>
                   <span

@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -72,14 +73,29 @@ func parseSubmission(p []byte) (*submission, bool) {
 	return &item, true
 }
 
-// Buffer short input bursts; overflow disconnects a slow connection.
-const terminalInputQueueCapacity = 16
+// Buffer input bursts while the PTY writer drains; overflow disconnects a
+// connection whose backlog exceeds either message slots or queued bytes.
+const (
+	terminalInputQueueCapacity = 256
+	terminalInputQueueBytes    = 2 << 20
+)
 
 type input struct {
 	data   []byte
 	reply  bool
 	submit *submission
 	query  []string
+}
+
+func (in input) bytes() int64 {
+	n := int64(len(in.data))
+	if in.submit != nil {
+		n += int64(len(in.submit.body)) + int64(len(in.submit.submit))
+	}
+	for _, id := range in.query {
+		n += int64(len(id))
+	}
+	return n
 }
 
 // jsonFrame encodes a JSON control frame. Its value is a contract type,
@@ -162,6 +178,7 @@ func Attach(ctx context.Context, s *session.Session, c MessageConn, o session.At
 	c.SetReadLimit(1024 * 1024)
 	readerDone := make(chan struct{})
 	inputDone := make(chan struct{})
+	var queuedBytes atomic.Int64
 	inputs := make(chan input, terminalInputQueueCapacity)
 	go func() {
 		defer close(inputDone)
@@ -171,6 +188,7 @@ func Attach(ctx context.Context, s *session.Session, c MessageConn, o session.At
 			case <-ctx.Done():
 				return
 			case item := <-inputs:
+				queuedBytes.Add(-item.bytes())
 				if item.query != nil {
 					// A correlated missing status fences earlier PTY writes on
 					// this input lane without claiming terminal control.
@@ -191,11 +209,19 @@ func Attach(ctx context.Context, s *session.Session, c MessageConn, o session.At
 		}
 	}()
 	enqueue := func(item input) bool {
+		size := item.bytes()
+		if queuedBytes.Add(size) > terminalInputQueueBytes {
+			queuedBytes.Add(-size)
+			cancel()
+			return false
+		}
 		select {
 		case inputs <- item:
 			return true
 		case <-ctx.Done():
+			queuedBytes.Add(-size)
 		default:
+			queuedBytes.Add(-size)
 			cancel()
 		}
 		return false

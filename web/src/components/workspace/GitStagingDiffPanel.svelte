@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { tick, untrack } from "svelte";
   import type { SelectedLineRange } from "@pierre/diffs";
   import IconRefresh from "~icons/tabler/refresh";
   import { Button } from "$lib/components/ui/button";
@@ -13,13 +13,6 @@
     mapDiffRangeToLineSelections,
     type GitHunkAndLineMutationProps,
   } from "../../domains/workspace/git-line-selection";
-  import {
-    type ActiveDiffReworkSelection,
-    buildHunkReworkItemInput,
-    createReworkDraftItem,
-    extractDiffRangeSnippet,
-    resolveStagingVersionDescriptor,
-  } from "../../domains/workspace/git-rework-model";
   import { createOfflineHunkDiffState } from "../../hooks/workspace/git-offline-diff.svelte";
   import type { GitStagingDiffController } from "../../hooks/workspace/git-staging-diff.svelte";
   import CodeDiffReader from "../code/CodeDiffReader.svelte";
@@ -40,7 +33,6 @@
     staleReason = "",
     hasActiveWorktreeSession = false,
     defaultLinePickerOpen = false,
-    liveWorktreeIdentity,
     onStageChange,
     onUnstageChange,
     onStageHunk,
@@ -50,7 +42,6 @@
     onDiscardFile,
     onDiscardHunk,
     onDiscardLines,
-    onAddReworkItem,
     onRefreshSnapshot,
     onOpenConflictResolver,
     onOpenWorktreeTerminal,
@@ -65,28 +56,28 @@
     staleReason?: string;
     hasActiveWorktreeSession?: boolean;
     defaultLinePickerOpen?: boolean;
-    liveWorktreeIdentity?: string;
     onStageChange: (changeId: string) => void;
     onUnstageChange: (changeId: string) => void;
     onDiscardFile?: (changeId: string, path: string) => void;
-    onAddReworkItem?: (
-      input: Parameters<typeof createReworkDraftItem>[0],
-      options?: { openSheet?: boolean },
-    ) => void;
     onRefreshSnapshot?: () => void;
     onOpenConflictResolver?: (path?: string) => void;
     onOpenWorktreeTerminal?: () => void;
     onNewWorktreeTerminal?: () => void;
   } & GitHunkAndLineMutationProps = $props();
 
+  type LineAnchor = NonNullable<CodeDiffReaderState["top"]>;
   let readerRef = $state<ReturnType<typeof CodeDiffReader>>();
+  let lineSelector = $state<ReturnType<typeof GitStagingLineSelector>>();
+  let beforePicker:
+    | { file: typeof fileDiff; state: CodeDiffReaderState }
+    | undefined;
   let linePickerOpen = $state(untrack(() => defaultLinePickerOpen));
   let navState = $state<{
     changeId: string;
     hunkIndex: number;
     jumpSeq: number;
-    jumpTarget: CodeDiffReaderState["top"];
-  }>({ changeId: "", hunkIndex: 0, jumpSeq: 0, jumpTarget: undefined });
+    restore?: CodeDiffReaderState;
+  }>({ changeId: "", hunkIndex: 0, jumpSeq: 0 });
   let selectionSlot = $state.raw<{
     changeId: string;
     range: SelectedLineRange | null;
@@ -97,8 +88,8 @@
   const jumpSeq = $derived(
     navState.changeId === change.id ? navState.jumpSeq : 0,
   );
-  const jumpTarget = $derived(
-    navState.changeId === change.id ? navState.jumpTarget : undefined,
+  const readerRestore = $derived(
+    navState.changeId === change.id ? navState.restore : undefined,
   );
   const selectedRange = $derived(
     selectionSlot?.changeId === change.id ? selectionSlot.range : null,
@@ -163,30 +154,48 @@
       (change.group === "unstaged" || change.group === "untracked") &&
       Boolean(onDiscardFile),
   );
+  function lineNumbers(side: LineAnchor["side"]): number[] {
+    return change.hunks.flatMap((hunk) =>
+      hunk.lines.flatMap((line) => {
+        const number = side === "deletions" ? line.oldLine : line.newLine;
+        return number == null ? [] : [number];
+      }),
+    );
+  }
+
+  // The hunk-only fallback joins the patch lines into compact files.
+  function mapReaderAnchor(anchor: LineAnchor | undefined, toReader: boolean) {
+    if (!anchor || stagingDiff?.state.rawDiff) return anchor;
+    const numbers = lineNumbers(anchor.side);
+    const line = toReader
+      ? numbers.indexOf(anchor.line) + 1
+      : numbers[anchor.line - 1];
+    return line ? { line, side: anchor.side } : undefined;
+  }
+
+  const mappedSelectedRange = $derived.by<SelectedLineRange | null>(() => {
+    if (!selectedRange) return null;
+    if (selectedRange.endSide && selectedRange.endSide !== selectedRange.side) {
+      return null;
+    }
+    const side: LineAnchor["side"] =
+      selectedRange.side === "deletions" ? "deletions" : "additions";
+    const start = mapReaderAnchor(
+      { line: Math.min(selectedRange.start, selectedRange.end), side },
+      false,
+    );
+    const end = mapReaderAnchor(
+      { line: Math.max(selectedRange.start, selectedRange.end), side },
+      false,
+    );
+    if (!start || !end) return null;
+    return { side, start: start.line, end: end.line };
+  });
+
   const readerLineSelections = $derived(
     canStageLines
-      ? mapDiffRangeToLineSelections(change.hunks, selectedRange)
+      ? mapDiffRangeToLineSelections(change.hunks, mappedSelectedRange)
       : [],
-  );
-
-  const resolvedSelection = $derived.by<ActiveDiffReworkSelection | null>(
-    () => {
-      if (!onAddReworkItem || !fileDiff || !selectedRange) return null;
-      const extracted = extractDiffRangeSnippet(fileDiff, selectedRange);
-      if (!extracted) return null;
-      const desc = resolveStagingVersionDescriptor({
-        group: change.group,
-        side: extracted.side,
-        headOid: context.headOid,
-        liveWorktreeIdentity,
-      });
-      return {
-        path: change.path,
-        oldPath: change.oldPath,
-        ...extracted,
-        ...desc,
-      };
-    },
   );
 
   function clearStagingSelection() {
@@ -194,34 +203,76 @@
     readerRef?.clearLineAction();
   }
 
-  function addHunkToRework(hunk: GitWorkingChange["hunks"][number]) {
-    if (!onAddReworkItem) return;
-    onAddReworkItem(
-      buildHunkReworkItemInput({
-        change,
-        hunk,
-        headOid: context.headOid,
-        liveWorktreeIdentity,
-      }),
-    );
+  function hunkStart(index: number): LineAnchor | undefined {
+    const hunk = change.hunks[index];
+    if (!hunk) return;
+    return hunk.newLines > 0
+      ? { line: Math.max(1, hunk.newStart), side: "additions" }
+      : { line: Math.max(1, hunk.oldStart), side: "deletions" };
+  }
+
+  function restoreFrom(top: LineAnchor | undefined): CodeDiffReaderState {
+    return {
+      selected: null,
+      expanded: [],
+      search: {
+        search: "",
+        caseSensitive: false,
+        regexp: false,
+        wholeWord: false,
+      },
+      top,
+    };
   }
 
   function jumpToHunk(nextIdx: number) {
-    if (change.hunks.length === 0) return;
-    const clamped = Math.max(0, Math.min(change.hunks.length - 1, nextIdx));
-    const hunk = change.hunks[clamped];
-    if (!hunk) return;
-    const line =
-      hunk.newLines > 0
-        ? Math.max(1, hunk.newStart)
-        : Math.max(1, hunk.oldStart);
-    const side = hunk.newLines > 0 ? "additions" : "deletions";
+    const index = Math.max(0, Math.min(change.hunks.length - 1, nextIdx));
+    const anchor = hunkStart(index);
+    if (!anchor) return;
+    lineSelector?.scrollToAnchor(anchor);
     navState = {
       changeId: change.id,
-      hunkIndex: clamped,
+      hunkIndex: index,
       jumpSeq: jumpSeq + 1,
-      jumpTarget: { line, side },
+      restore: restoreFrom(mapReaderAnchor(anchor, true)),
     };
+  }
+
+  async function toggleLinePicker() {
+    if (linePickerOpen) {
+      const anchor = lineSelector?.captureAnchor();
+      const top = mapReaderAnchor(anchor, true);
+      const saved =
+        beforePicker?.file === fileDiff ? beforePicker?.state : undefined;
+      const index = anchor
+        ? change.hunks.findIndex((hunk) => {
+            const [start, count] =
+              anchor.side === "deletions"
+                ? [hunk.oldStart, hunk.oldLines]
+                : [hunk.newStart, hunk.newLines];
+            return anchor.line >= start && anchor.line < start + count;
+          })
+        : -1;
+      navState = {
+        changeId: change.id,
+        hunkIndex: index >= 0 ? index : hunkIndex,
+        jumpSeq,
+        restore: { ...(saved ?? restoreFrom(top)), top: top ?? saved?.top },
+      };
+      beforePicker = undefined;
+      linePickerOpen = false;
+      return;
+    }
+
+    const state = readerRef?.capture();
+    beforePicker = state && { file: fileDiff, state };
+    const anchor = mapReaderAnchor(state?.top, false) ?? hunkStart(hunkIndex);
+    const changeId = change.id;
+    linePickerOpen = true;
+    await tick();
+    if (linePickerOpen && changeId === change.id && anchor) {
+      lineSelector?.scrollToAnchor(anchor);
+    }
   }
 </script>
 
@@ -239,7 +290,7 @@
     {busy}
     {stale}
     onJumpToHunk={jumpToHunk}
-    onToggleLinePicker={() => (linePickerOpen = !linePickerOpen)}
+    onToggleLinePicker={() => void toggleLinePicker()}
     {onDiscardFile}
     {onStageChange}
     {onUnstageChange}
@@ -294,9 +345,7 @@
       {stageMode}
       {busy}
       {stale}
-      canAddRework={Boolean(onAddReworkItem && !readonlyMode)}
       onJumpToHunk={jumpToHunk}
-      onAddHunkToRework={addHunkToRework}
       {onStageHunk}
       {onUnstageHunk}
       onDiscardHunk={change.group === "unstaged" ? onDiscardHunk : undefined}
@@ -305,7 +354,8 @@
 
   {#if !(linePickerOpen && canStageLines)}
     <GitDiffSelectionBar
-      selection={resolvedSelection}
+      path={change.path}
+      range={mappedSelectedRange}
       {stageMode}
       lineSelections={readerLineSelections}
       {busy}
@@ -319,23 +369,25 @@
       onDiscardSelectedLines={change.group === "unstaged" && onDiscardLines
         ? (sel) => onDiscardLines(change.id, sel)
         : undefined}
-      {onAddReworkItem}
       onClear={clearStagingSelection}
     />
   {/if}
 
   {#if linePickerOpen && canStageLines}
-    <GitStagingLineSelector
-      changeId={change.id}
-      hunks={change.hunks}
-      {stageMode}
-      canDiscardLines={change.group === "unstaged" && Boolean(onDiscardLines)}
-      {busy}
-      {stale}
-      {onStageLines}
-      {onUnstageLines}
-      {onDiscardLines}
-    />
+    {#key change.id}
+      <GitStagingLineSelector
+        bind:this={lineSelector}
+        changeId={change.id}
+        hunks={change.hunks}
+        {stageMode}
+        canDiscardLines={change.group === "unstaged" && Boolean(onDiscardLines)}
+        {busy}
+        {stale}
+        {onStageLines}
+        {onUnstageLines}
+        {onDiscardLines}
+      />
+    {/key}
   {:else}
     <div
       class="code-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
@@ -353,19 +405,7 @@
             expired={stale}
             draftEnabled={false}
             preferredDiffStyle="split"
-            restore={jumpTarget
-              ? {
-                  selected: null,
-                  expanded: [],
-                  search: {
-                    search: "",
-                    caseSensitive: false,
-                    regexp: false,
-                    wholeWord: false,
-                  },
-                  top: jumpTarget,
-                }
-              : undefined}
+            restore={readerRestore}
             onselect={(range) => {
               selectionSlot = range ? { changeId: change.id, range } : null;
             }}

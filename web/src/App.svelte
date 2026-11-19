@@ -75,8 +75,6 @@
   } from "./features/registry.svelte";
   import { watchFeatureHostRefresh } from "./features/host-refresh";
   import { onActiveHostChange } from "./platform/storage";
-  import { useDeviceShell } from "./hooks/shared/device-shell.svelte";
-  import { tvInput } from "./hooks/shared/tv-input.svelte";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { clearRelayAuth, resetRelayAuth } from "./platform/relay-auth";
   import {
@@ -91,7 +89,6 @@
   import { createAppLinkHandler } from "./app/app-link-navigation";
   import { m } from "$lib/paraglide/messages.js";
 
-  useDeviceShell();
   const focusRoute = useRouteFocus();
 
   const drafts = createTerminalDrafts({ storage: browserDraftStorage() });
@@ -338,14 +335,6 @@
 </script>
 
 <AppOverlays {ready} bind:uploadNotice />
-
-{#if tvInput.message}
-  <div
-    class="pointer-events-none fixed inset-x-6 top-6 z-[100] mx-auto w-fit max-w-[calc(100%-3rem)] rounded-lg bg-background shadow-lg"
-  >
-    <InlineNotice>{tvInput.message}</InlineNotice>
-  </div>
-{/if}
 
 <RelayAccessOverlay
   checking={reconnect.checking}

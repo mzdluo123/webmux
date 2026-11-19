@@ -14,6 +14,7 @@
   import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import BranchCommitList from "./BranchCommitList.svelte";
   import GitOperationSessionAck from "./GitOperationSessionAck.svelte";
+  import GitReviewBody from "./GitReviewBody.svelte";
   import PreviewIssues from "./PreviewIssues.svelte";
 
   export interface GitDivergenceDialogProps {
@@ -67,22 +68,23 @@
 
 <ResponsiveDialog
   title={gitDivergenceTitleLabel(effectiveKind)}
-  description={preview
-    ? preview.directionSummary
-    : m.s6_divergence_loading_desc()}
-  drawerDescription={m.s6_divergence_drawer_desc()}
+  description={m.s6_divergence_drawer_desc()}
   drawerFullScreen
+  pinDrawerHeader
   truncateDrawerTitle
   busy={submitting}
   class="sm:max-w-[min(680px,calc(100vw-2rem))]"
   onclose={onClose}
 >
-  <div class="min-w-0 space-y-3" data-testid="git-divergence-preview-dialog">
+  <GitReviewBody
+    testId="git-divergence-preview-dialog"
+    resetScrollOn={dialogError}
+  >
     {#if dialogError}
       <InlineNotice tone="danger">{dialogError}</InlineNotice>
     {/if}
 
-    {#if loading && !preview}
+    {#if loading && !preview && !dialogError}
       <p class="py-4 text-xs text-muted-foreground" role="status">
         {m.s6_divergence_loading_body()}
       </p>
@@ -194,8 +196,12 @@
         {onAcknowledgeSessionsChange}
       />
     {/if}
+  </GitReviewBody>
 
-    <div class="flex flex-wrap justify-end gap-2 pt-1">
+  {#snippet footer()}
+    <div
+      class="grid grid-cols-[auto_minmax(0,15rem)] items-end justify-end gap-2 pt-1"
+    >
       <Button variant="outline" disabled={submitting} onclick={onClose}>
         {m.s6_cancel()}
       </Button>
@@ -213,5 +219,5 @@
         {/if}
       </Button>
     </div>
-  </div>
+  {/snippet}
 </ResponsiveDialog>

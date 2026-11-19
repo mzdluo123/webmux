@@ -11,6 +11,7 @@ import {
 } from "../../domains/terminal/terminal-search";
 import { terminalFont } from "./terminal-font-preference.svelte";
 import {
+  isPointerHoverReport,
   modifiedInput,
   type Modifiers,
 } from "../../domains/terminal/terminal-keys";
@@ -263,7 +264,9 @@ export function useTerminal(
         userInput,
         clipboard,
         onData: (data, user) => {
-          if (user) send(data);
+          if (user && !pasting && isPointerHoverReport(data))
+            stream.sendHover(data);
+          else if (user) send(data);
           else stream.sendReply(data);
         },
       });
@@ -319,11 +322,6 @@ export function useTerminal(
   return {
     get emulator() {
       return terminal;
-    },
-    scrollLines(lines) {
-      if (!Number.isFinite(lines)) return;
-      terminal?.scrollLines(Math.trunc(lines));
-      updateBottom(true);
     },
     resizeGrid(cols, rows) {
       if (!resizeTerminalGrid(terminal, stream.controlling, cols, rows))

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/statefile"
 )
@@ -109,19 +110,19 @@ func TestDisabledFeatureConfigurationDoesNotInspectCorruptStores(t *testing.T) {
 		count++
 	}
 	path := filepath.Join(root, "config.toml")
-	body := fmt.Sprintf("state_dir = %q\nlisten = '127.0.0.1:0'\ntoken = 'short-but-local'\n[features]\nenabled = []\n[tunnel]\nenabled = true\n[tailscale]\nmode = 'serve'\n[mcp]\nenabled = true\n", state)
+	body := fmt.Sprintf("state_dir = %q\nlisten = '127.0.0.1:0'\ntoken = 'short-but-local'\n[tunnel]\nenabled = true\n[tailscale]\nmode = 'serve'\n[mcp]\nenabled = true\n", state)
 	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := loadConfig([]string{"--config", path})
+	cfg, err := config.Load(path, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cfg.closeSettings()
-	if cfg.TunnelSettings != nil || cfg.TailscaleSettings != nil || cfg.P2PSettings != nil {
-		t.Fatal("configuration opened a disabled feature store")
+	cfg.Features = config.FeatureConfig{Enabled: []string{}}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
 	}
-	view := configuredView(path, cfg.Config)
+	view := configuredView(path, cfg)
 	encoded, err := json.Marshal(view)
 	if err != nil {
 		t.Fatal(err)

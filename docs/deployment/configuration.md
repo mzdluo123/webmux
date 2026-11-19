@@ -17,7 +17,7 @@
 | `state_dir`          | `$XDG_STATE_HOME/webmux` | 服务端状态目录，见 [状态目录](#状态目录)             |
 
 - 配置只在启动时读取；修改后需重启服务。
-- 新生成配置默认启用`launch`、`workspace`、`code`、`files`、`chat`、`mcp`。其他功能可在 [内置功能选择](#内置功能选择) 中开启。
+- 全部 13 项内置功能默认随服务启动，配置文件已关闭 `[features]` 开关（见 [内置功能选择](#内置功能选择)）。
 - `webmux status` 的 `drift` 会列出已修改但尚未通过重启生效的 `listen`、`token`。
 
 ## 生成与加载配置
@@ -82,42 +82,29 @@ JSON 输出契约见 [控制面 JSON 契约](../protocol/control-json.md#控制�
 
 ## 内置功能选择
 
-`[features].enabled` 决定启动哪些随二进制发布的全栈内置功能，不下载第三方代码、不提供市场、热加载或进程沙箱。修改后重启服务，现有 PTY 会话随重启结束。
+随二进制发布的全部 13 项内置功能在生产运行时固定全部启用，不下载第三方代码，无插件市场、热加载或进程沙箱。配置文件不再提供 `[features]` 开关；内置模块边界与 `GET /api/capabilities` 保留用于运行环境可用性发现及内部功能隔离测试。
 
-```toml
-[features]
-enabled = ["launch", "workspace", "code", "files", "chat", "mcp"] # 新生成配置的默认值
-# 保存启动配置与 ACP 聊天；依赖必须显式列出
-# enabled = ["launch", "files", "chat"]
-# 仓库/worktree 管理与 Git 工作台
-# enabled = ["workspace", "code"]
-```
+| ID               | 包含的功能                                                  |
+| ---------------- | ----------------------------------------------------------- |
+| `launch`         | 保存、编辑启动配置与首次预设                                |
+| `workspace`      | 仓库登记、worktree 管理与位置协调                           |
+| `code`           | 会话代码树、Diff 与根内文件操作                             |
+| `files`          | 目录补全、mkdir、会话/暂存上传与交互产物                    |
+| `chat`           | ACP 混合会话、恢复、历史与交接（与 `launch`、`files` 协同） |
+| `notifications`  | Web Push；终端状态与注意力识别属核心                        |
+| `quick-commands` | 快捷指令与模板展开                                          |
+| `voice`          | 外部语音识别设置与音频流                                    |
+| `forward`        | 监听端口发现与 HTTP 转发网关                                |
+| `cloudflare`     | Cloudflare Tunnel 控制与网页设置                            |
+| `tailscale`      | Tailscale 检测与 Serve/Funnel 托管                          |
+| `p2p`            | WebRTC DataChannel 直连                                     |
+| `mcp`            | MCP 控制入口；网络 `/mcp` 另需 `[mcp].enabled=true`         |
 
-| ID               | 启用的功能                                                     |
-| ---------------- | -------------------------------------------------------------- |
-| `launch`         | 保存、编辑启动配置与首次预设                                   |
-| `workspace`      | 仓库登记、worktree 管理与位置协调                              |
-| `code`           | 会话代码树、Diff 与根内文件操作                                |
-| `files`          | 目录补全、mkdir、会话/暂存上传与交互产物                       |
-| `chat`           | ACP 混合会话、恢复、历史与交接；必须同时列出 `launch`、`files` |
-| `notifications`  | Web Push；终端状态与注意力识别仍属核心                         |
-| `quick-commands` | 快捷指令与模板展开                                             |
-| `voice`          | 外部语音识别设置与音频流                                       |
-| `forward`        | 监听端口发现与 HTTP 转发网关                                   |
-| `cloudflare`     | Cloudflare Tunnel 控制与网页设置                               |
-| `tailscale`      | Tailscale 检测与 Serve/Funnel 托管                             |
-| `p2p`            | WebRTC DataChannel 直连                                        |
-| `mcp`            | MCP 控制入口；网络 `/mcp` 另需 `[mcp].enabled=true`            |
-
-- **旧配置兼容**：省略整个 `[features]` 或省略 `enabled`，保留上表固定的 13 项旧版选择；不是“未来新增项也自动启用”。显式 `[]` 才是核心模式。
-- **VR 功能移除**：`immersive` 已不再是有效功能 ID。旧配置若显式列出该项，启动前需从 `features.enabled` 删除；未列出该项的配置无需调整。
-- **改名迁移**：启动时自动将旧 `[plugins]` 改为 `[features]`，保留原有功能选择（含空数组）。原文备份到配置路径加 `.pre-features.bak`；配置重新编码，原注释保留在备份中。
-- 新旧两表并存时启动报错，原文件保持不变；`config show` / `validate` 保持只读，旧表仍提示迁移。已有新格式配置不重写。
-- 未知 ID、重复 ID、缺失依赖会在启动前报错，不自动补齐。`workspace` 不依赖 `code`，但 Git 工作台须显式同时选择两者。
-- 核心模式仍可创建自定义 argv/cwd 会话、附着、输入、控制、回放与修改核心偏好；没有启动配置、仓库、上传等功能入口或后台任务。
-- 禁用功能不打开、播种、迁移、清扫或删除所属数据；重新选择并重启后可读取旧数据。inactive 偏好保留但不可通过 API 修改。
-- **选择不等于可用**：外部命令、平台、存储与业务开关仍可能让功能不可用。用 [能力发现](../protocol.md#能力发现) 查询当前实例，不用 health/status 猜测。
-- Relay 配对、设置与 WSS 基线属于核心，不是 `features.enabled` ID；直连/TURN 优化需要选择 `p2p`，缺失时不加载 P2P 实现。
+- **旧配置兼容**：已有 `config.toml` 中遗留的 `[features]`（含 `enabled = []` 或已移除的 `immersive`）与早期 `[plugins]` 表在读取时直接忽略，原文件保持原样、不生成 `.pre-features.bak`，启动后统一启用上表全部 13 项功能。
+- **启用模块与运行可用性**：模块随进程装配后，具体能力仍取决于外部命令（如 `git`、`tailscale`、ACP 连接器）、存储锁与各业务独立开关：
+  - 二级开关包括 `[mcp].enabled`、`[tunnel].enabled`、`[tailscale].mode`、`[voice].cmd`、`[p2p].enabled` 与 `[push].enabled`。
+  - 通过 [能力发现](../protocol.md#能力发现) 查询当前实例状态。
+- Relay 配对、设置与 WSS 基线属于核心；直连/TURN 优化由 `p2p` 提供（`nop2p` 构建裁剪时不启用）。
 
 ## 配置项
 

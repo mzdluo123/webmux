@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 
@@ -124,8 +123,7 @@ func TestConfigInit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantFeatures := []string{"launch", "workspace", "code", "files", "chat", "mcp"}
-	if !slices.Equal(c.Features.Enabled, wantFeatures) || c.MCP.Enabled {
+	if bytes.Contains(first, []byte("[features]")) || c.Features.Enabled != nil || c.MCP.Enabled {
 		t.Fatalf("generated features = %v, network MCP enabled = %t", c.Features.Enabled, c.MCP.Enabled)
 	}
 

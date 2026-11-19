@@ -808,3 +808,69 @@ test("mounted terminal stays non-editable until replay is ready and never replay
   await userEvent.keyboard("printf");
   expect(inputText(socket)).toBe("printf");
 });
+
+test("DEC 1003 pointer hover stays on the reply lane without claiming control, consuming modifiers, or marking input uncertain", async () => {
+  observeGlyphPixels(true);
+  const { socket, api } = await openTerminalApi();
+  // Enable agy's all-motion SGR mouse tracking alongside startup queries.
+  socket.receive(
+    0,
+    "\x1b[?1049h\x1b[?1003h\x1b[?1006h\x1b[?2026$p\x1b]11;?\x07",
+  );
+  await expect
+    .poll(() => framesOf(socket, 6).some((reply) => reply.includes("2026")))
+    .toBe(true);
+  socket.sent = [];
+
+  api.toggleModifier("ctrl");
+  const screen = host().querySelector<HTMLElement>(".xterm-screen")!;
+  const rect = screen.getBoundingClientRect();
+  for (let step = 1; step <= 8; step++) {
+    screen.dispatchEvent(
+      new MouseEvent("mousemove", {
+        clientX: rect.left + step * 24,
+        clientY: rect.top + 32,
+        bubbles: true,
+      }),
+    );
+  }
+  await expect
+    .poll(() =>
+      framesOf(socket, 6).filter((reply) => reply.startsWith("\x1b[<35;")),
+    )
+    .not.toEqual([]);
+  // Hover never enters FrameInput, consumes sticky modifiers, or triggers probe.
+  expect(framesOf(socket, 0)).toEqual([]);
+  expect(framesOf(socket, 4)).toEqual([]);
+  expect(api.modifiers.ctrl).toBe(true);
+  api.resetModifiers();
+
+  // Observers never emit hover reports or claim terminal control on mousemove.
+  socket.receive(
+    6,
+    JSON.stringify({
+      controller: {
+        clientId: "other-device",
+        label: "laptop",
+        since: new Date().toISOString(),
+      },
+      cols: 80,
+      rows: 24,
+      colorSchemeReports: false,
+    }),
+  );
+  socket.sent = [];
+  screen.dispatchEvent(
+    new MouseEvent("mousemove", {
+      clientX: rect.left + 60,
+      clientY: rect.top + 64,
+      bubbles: true,
+    }),
+  );
+  await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+  expect(socket.sent).toEqual([]);
+
+  // Dropping after hover-only traffic never reports unconfirmed user input.
+  socket.drop();
+  expect(api.error).toBe("");
+});

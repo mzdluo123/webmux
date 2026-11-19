@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vite-plus/test";
 import {
   createTerminalKeyRepeat,
+  isPointerHoverReport,
   modifiedInput,
   terminalKeys,
 } from "../src/domains/terminal/terminal-keys";
@@ -116,4 +117,34 @@ test("shared held keys send once, switch direction once, and stop on release", (
   } finally {
     vi.useRealTimers();
   }
+});
+
+describe("SGR pointer hover detection", () => {
+  test.each([
+    "\x1b[<35;1;1M",
+    "\x1b[<35;120;48M",
+    "\x1b[<39;10;20M",
+    "\x1b[<43;10;20M",
+    "\x1b[<51;10;20M",
+    "\x1b[<63;800;600M",
+  ])("identifies no-button pointer motion %j", (sequence) => {
+    expect(isPointerHoverReport(sequence)).toBe(true);
+  });
+
+  test.each([
+    "\x1b[<0;10;20M",
+    "\x1b[<0;10;20m",
+    "\x1b[<35;10;20m",
+    "\x1b[<32;10;20M",
+    "\x1b[<33;10;20M",
+    "\x1b[<34;10;20M",
+    "\x1b[<64;10;20M",
+    "\x1b[<65;10;20M",
+    "\x1b[<163;10;20M",
+    "\x1b[1;2R",
+    "\x1b[<35;10M",
+    "agy\r",
+  ])("keeps clicks, drags, wheel and keys out of hover %j", (sequence) => {
+    expect(isPointerHoverReport(sequence)).toBe(false);
+  });
 });

@@ -935,3 +935,127 @@ test("narrow screens start compact and expand the composer when focused", async 
     await page.viewport(1024, 900);
   }
 });
+
+test("desktop startup toolbar aligns flush to the right edge at rest and mobile sheet omits blank loading space", async () => {
+  const pending = Promise.withResolvers<Response>();
+  respond(/^POST \/api\/launch-configs\/\w+\/options$/, (request) =>
+    request.path === "/api/launch-configs/cfgcodex/options"
+      ? pending.promise
+      : Response.json([effort]),
+  );
+  const { input, toolbar } = await open();
+  const row = toolbar.element();
+  const lastControl = toolbar.getByRole("button", { name: "思考：中" });
+  await expect.element(lastControl).toBeEnabled();
+  const restingHeight = row.getBoundingClientRect().height;
+  expect(
+    row.getBoundingClientRect().right -
+      lastControl.element().getBoundingClientRect().right,
+  ).toBeLessThanOrEqual(8);
+  expect(toolbar.getByRole("status").elements()).toHaveLength(0);
+
+  await toolbar.getByRole("button", { name: "Agent：Claude Code" }).click();
+  await page.getByRole("menuitemradio", { name: /Codex/ }).click();
+  await userEvent.keyboard("{Escape}");
+  await expect
+    .element(toolbar.getByRole("status"))
+    .toHaveTextContent("正在读取配置…");
+  expect(
+    Math.abs(row.getBoundingClientRect().height - restingHeight),
+  ).toBeLessThanOrEqual(1);
+
+  pending.resolve(Response.json([effort]));
+  await expect
+    .element(toolbar.getByRole("button", { name: "Agent：Codex" }))
+    .toBeEnabled();
+  expect(toolbar.getByRole("status").elements()).toHaveLength(0);
+  expect(
+    row.getBoundingClientRect().right -
+      lastControl.element().getBoundingClientRect().right,
+  ).toBeLessThanOrEqual(8);
+
+  await page.viewport(390, 844);
+  try {
+    await input.click();
+    await page.getByRole("button", { name: "会话选项", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "会话选项", exact: true });
+    expect(sheet.getByRole("status").elements()).toHaveLength(0);
+    const closeBtn = sheet
+      .getByRole("button", { name: "关闭选项", exact: true })
+      .element();
+    const headerRow = closeBtn.parentElement!;
+    const permissionBtn = sheet
+      .getByRole("button", { name: "权限", exact: true })
+      .element();
+    expect(
+      permissionBtn.getBoundingClientRect().top -
+        headerRow.getBoundingClientRect().bottom,
+    ).toBeLessThanOrEqual(12);
+    await userEvent.keyboard("{Escape}");
+  } finally {
+    await page.viewport(1024, 900);
+  }
+});
+
+test("hides uninstalled hybrid agents in quick start and defaults to the installed agent", async () => {
+  respond(/^GET \/api\/launch-configs$/, () =>
+    Response.json([
+      launchConfig({ id: "cfgclaud", name: "Claude Code", cmd: ["claude"] }),
+      launchConfig({
+        id: "cfgcodex",
+        name: "Codex",
+        icon: "codex",
+        cmd: ["codex"],
+      }),
+    ]),
+  );
+  respond(/^GET \/api\/agent-tools$/, () =>
+    Response.json({
+      checkedAt: "2026-04-15T08:30:00Z",
+      shell: "/bin/bash",
+      tools: [
+        {
+          id: "claudecode",
+          title: "Claude Code",
+          icon: "claudecode",
+          kind: "hybrid",
+          installed: false,
+          executable: "claude",
+          executables: ["claude"],
+          updateStatus: "not_installed",
+        },
+        {
+          id: "codex",
+          title: "Codex CLI",
+          icon: "codex",
+          kind: "hybrid",
+          installed: true,
+          executable: "codex",
+          executables: ["codex"],
+          path: "/usr/local/bin/codex",
+          installedVersion: "0.165.0",
+          updateStatus: "unchecked",
+        },
+      ],
+    }),
+  );
+
+  render(ShellHarness, { drafts: createTerminalDrafts() });
+  const socket = await socketAt("/ws/sessions");
+  socket.frame({ type: "snapshot", sessions: [], forwards: [] } as never);
+
+  const toolbar = page.getByRole("toolbar", { name: "启动选项", exact: true });
+  const agentTrigger = toolbar.getByRole("button", {
+    name: "Agent：Codex",
+    exact: true,
+  });
+  await expect.element(agentTrigger).toBeVisible();
+  await agentTrigger.click();
+  await expect
+    .element(page.getByRole("menuitemradio", { name: /Codex/ }))
+    .toBeVisible();
+  expect(
+    page.getByRole("menuitemradio", { name: /Claude Code/ }).elements(),
+  ).toHaveLength(0);
+  await userEvent.keyboard("{Escape}");
+});

@@ -39,15 +39,10 @@
   import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import { session, now } from "./fixtures";
   import type { SessionInfo } from "../src/contracts/schemas";
-  import { untrack } from "svelte";
-  import { tvMode } from "../src/hooks/shared/tv-mode.svelte";
-  import { useTvNavigation } from "../src/hooks/shared/tv-navigation.svelte";
 
   let {
     section = "foundations",
-    tv = false,
   }: {
-    tv?: boolean;
     section?:
       | "foundations"
       | "actions"
@@ -57,14 +52,6 @@
       | "overlays"
       | "sessions";
   } = $props();
-  useTvNavigation(() => false);
-  $effect(() => {
-    const previous = untrack(() => tvMode.enabled);
-    tvMode.enabled = tv;
-    return () => {
-      tvMode.enabled = previous;
-    };
-  });
   let notice = $state("");
   let dialogOpen = $state(false);
   let confirmOpen = $state(false);
@@ -73,6 +60,7 @@
   let wrapping = $state(true);
   let name = $state("检查构建");
   let repository = $state("webmux");
+  let note = $state("");
   let pickerOpen = $state(false);
   let model = $state("sonnet");
   let byBranch = $state(false);
@@ -346,7 +334,7 @@
           ><IconSettings aria-hidden="true" /></Button
         >
         <Button disabled>不可用</Button>
-        <Button disabled aria-busy="true">正在保存…</Button>
+        <Button aria-disabled="true" aria-busy="true">正在保存…</Button>
         <Button variant="success" wrap
           >改为在新工作树打开（窄屏大字号时换行）</Button
         >
@@ -576,7 +564,10 @@
         </PickerField>
         <AdvancedSection title="高级选项" summary="使用默认配置">
           <Label for="example-note">备注</Label>
-          <Input id="example-note" placeholder="可选备注" />
+          <Input id="example-note" bind:value={note} placeholder="可选备注" />
+          {#if note.length > 80}
+            <p class="text-sm text-destructive">备注最多可填 80 个字符。</p>
+          {/if}
         </AdvancedSection>
         <KeyValueSummary
           rows={[

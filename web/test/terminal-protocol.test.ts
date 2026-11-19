@@ -1,5 +1,6 @@
-import { describe, expect, test } from "vite-plus/test";
+import { describe, expect, test, vi } from "vite-plus/test";
 import {
+  createHoverCoalescer,
   deviceLabel,
   encodeSubmission,
   newSubmissionId,
@@ -92,4 +93,38 @@ test("a reload keeps the tab identity, while a duplicated tab takes a new one", 
   data.set("webmux.clientId", "bad id");
   data.delete("webmux.clientLive");
   expect(resolveClientId(storage, generate)).toBe("c-generated-3");
+});
+
+test("hover coalescer keeps only the latest report per frame and flushes in order", () => {
+  let scheduled: FrameRequestCallback | undefined;
+  let nextId = 0;
+  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+    scheduled = cb;
+    return ++nextId;
+  });
+  vi.stubGlobal("cancelAnimationFrame", () => {
+    scheduled = undefined;
+  });
+  try {
+    const delivered: string[] = [];
+    const hover = createHoverCoalescer((report) => delivered.push(report));
+    hover.schedule("\x1b[<35;1;1M");
+    hover.schedule("\x1b[<35;5;2M");
+    hover.schedule("\x1b[<35;9;4M");
+    expect(delivered).toEqual([]);
+    scheduled?.(16);
+    expect(delivered).toEqual(["\x1b[<35;9;4M"]);
+
+    hover.schedule("\x1b[<35;12;6M");
+    hover.flush();
+    expect(delivered).toEqual(["\x1b[<35;9;4M", "\x1b[<35;12;6M"]);
+    expect(scheduled).toBeUndefined();
+
+    hover.schedule("\x1b[<35;15;8M");
+    hover.cancel();
+    expect(scheduled).toBeUndefined();
+    expect(delivered).toHaveLength(2);
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

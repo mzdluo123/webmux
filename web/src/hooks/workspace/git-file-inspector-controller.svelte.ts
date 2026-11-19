@@ -177,11 +177,11 @@ export function createGitFileInspectorController(deps: GitFileInspectorDeps) {
     if (!repoId || !filePath || disposed) return;
     if (reset) {
       historyLoading = true;
-      historyError = "";
     } else {
       if (!historyNextCursor || historyLoadingMore) return;
       historyLoadingMore = true;
     }
+    historyError = "";
     const req = historyReq.begin();
     try {
       const page = await gitFileHistory(

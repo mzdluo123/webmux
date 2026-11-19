@@ -22,12 +22,11 @@ WebMux 把服务器上的 CLI agent 或 Shell 会话跑在后台，你可以随�
 | 知道 agent 什么时候在等我                        | [需要你介入的提醒](usage/attention.md)               |
 | 用终端：回放、多设备控制、查找、分屏、草稿       | [终端使用](usage/terminal.md)                        |
 | 在终端旁看文件、审 Diff、把行号发给 agent        | [代码工作区](usage/code.md)                          |
-| 浏览提交图、逐块暂存提交、审任务净变更与交回返工 | [Git 工作台](usage/git-workbench.md)                 |
+| 浏览提交图、逐块暂存提交、审任务净变更与多端同步 | [Git 工作台](usage/git-workbench.md)                 |
 | 管理仓库、新建或删除 worktree、释放空间          | [仓库与 worktree](usage/worktrees.md)                |
 | 在本机终端里 `run` / `attach`，或在 Windows 用   | [从本机终端使用](usage/command-line.md)              |
 | 让脚本或 agent 控制 WebMux                       | [用脚本和 agent 控制 WebMux](usage/shell-control.md) |
 | 在手机上输入、用软键栏和手势                     | [移动端使用](usage/mobile.md)                        |
-| 在头显或电视浏览器操作                           | [头显与 TV 浏览器](usage/headset-and-tv.md)          |
 | 预览服务器上的开发服务器                         | [端口转发预览](usage/port-forwarding.md)             |
 | 让会话行显示 shell 当前目录                      | [Shell 目录报告](usage/shell-directory.md)           |
 | 接入某个 CLI agent                               | [CLI agent 接入](cli-agents.md)                      |

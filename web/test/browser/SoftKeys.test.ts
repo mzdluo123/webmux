@@ -22,9 +22,13 @@ test("soft keys keep the focused input by canceling mousedown, not pointerdown",
   const pointer = new PointerEvent("pointerdown", {
     bubbles: true,
     cancelable: true,
+    isPrimary: true,
   });
   arrow.dispatchEvent(pointer);
   expect(pointer.defaultPrevented).toBe(false);
+  arrow.dispatchEvent(
+    new PointerEvent("pointerup", { bubbles: true, isPrimary: true }),
+  );
 
   const mouse = new MouseEvent("mousedown", {
     bubbles: true,
@@ -38,7 +42,7 @@ test("soft keys keep the focused input by canceling mousedown, not pointerdown",
   expect(send).toHaveBeenCalledWith("\x1b[A");
 });
 
-test("symbol keys send their literal characters", async () => {
+test("Fn switches the single key row between primary keys and extended symbols, navigation, and shortcuts", async () => {
   const send = vi.fn();
   const { container } = await render(SoftKeys, {
     send,
@@ -47,15 +51,70 @@ test("symbol keys send their literal characters", async () => {
     paste: () => {},
     keyboard: () => {},
   });
-  const buttons = [...container.querySelectorAll("button")];
+
+  const rowLabels = () =>
+    [...container.querySelectorAll(".soft-row button")]
+      .map((button) => button.textContent?.trim())
+      .filter(Boolean);
+
+  const fnButton = [...container.querySelectorAll(".soft-leading button")].find(
+    (node) => node.textContent === "Fn",
+  )!;
+  expect(fnButton).toBeTruthy();
+  expect(fnButton.getAttribute("aria-pressed")).toBe("false");
+
+  // Default layer holds core RDP terminal keys only.
+  expect(rowLabels()).toEqual([
+    "Esc",
+    "Tab",
+    "↵",
+    "Ctrl",
+    "Alt",
+    "Shift",
+    "↑",
+    "↓",
+    "←",
+    "→",
+  ]);
+  const enterButton = [...container.querySelectorAll(".soft-row button")].find(
+    (node) => node.textContent === "↵",
+  )!;
+  enterButton.click();
+  expect(send).toHaveBeenCalledWith("\r");
+
+  // Switching Fn reveals symbols, navigation keys, and Ctrl combinations in-place.
+  fnButton.click();
+  await expect.poll(() => fnButton.getAttribute("aria-pressed")).toBe("true");
+  expect(rowLabels()).toEqual([
+    "/",
+    "@",
+    "#",
+    "!",
+    "Home",
+    "End",
+    "PgUp",
+    "PgDn",
+    "Ctrl+C",
+    "Ctrl+D",
+    "Ctrl+Z",
+    "Ctrl+L",
+    "Ctrl+R",
+  ]);
 
   for (const symbol of ["/", "@", "#", "!"]) {
-    const button = buttons.find((node) => node.textContent === symbol);
-    expect(button).toBeTruthy();
+    const button = [...container.querySelectorAll(".soft-row button")].find(
+      (node) => node.textContent === symbol,
+    )!;
     send.mockClear();
-    button!.click();
+    button.click();
     expect(send).toHaveBeenCalledWith(symbol);
   }
+
+  // Toggling Fn off returns to the primary layer.
+  fnButton.click();
+  await expect.poll(() => fnButton.getAttribute("aria-pressed")).toBe("false");
+  expect(rowLabels()).toContain("Esc");
+  expect(rowLabels()).not.toContain("Ctrl+R");
 });
 
 test("Shift taps toggle once while a long press locks it", async () => {
@@ -140,66 +199,74 @@ test("a locked Shift shows its state and unlock hint", async () => {
   expect(shift!.getAttribute("aria-pressed")).toBe("true");
 });
 
-test("soft keys include Enter and deduplicate gamepad keys when gamepad mode is active", async () => {
+test("arrow keys repeat while held stationary and cancel on horizontal scroll drag", async () => {
   const send = vi.fn();
-  const view = await render(SoftKeys, {
+  const { container } = await render(SoftKeys, {
     send,
     modifiers: { ctrl: false, alt: false, shift: false },
-    gamepad: false,
     toggle: () => {},
     paste: () => {},
     keyboard: () => {},
   });
+  const left = [...container.querySelectorAll(".soft-row button")].find(
+    (button) => button.textContent === "←",
+  )!;
 
-  const labels = () =>
-    [...view.container.querySelectorAll(".soft-row button")]
-      .map((button) => button.textContent?.trim())
-      .filter(Boolean);
+  // Stationary hold triggers repeat and suppresses the release click.
+  left.dispatchEvent(
+    new PointerEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      isPrimary: true,
+      pointerId: 1,
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+    }),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 720));
+  const repeatedCount = send.mock.calls.length;
+  expect(repeatedCount).toBeGreaterThanOrEqual(2);
+  expect(send).toHaveBeenLastCalledWith("\x1b[D");
+  left.dispatchEvent(
+    new PointerEvent("pointerup", {
+      bubbles: true,
+      isPrimary: true,
+      pointerId: 1,
+    }),
+  );
+  left.click();
+  expect(send).toHaveBeenCalledTimes(repeatedCount);
 
-  expect(labels()).toContain("↵");
-  expect(labels()).toContain("Esc");
-  expect(labels()).toContain("Tab");
-  expect(labels()).toContain("Ctrl");
-  expect(labels()).toContain("↑");
-  expect(labels()).toContain("Ctrl+C");
-  expect(view.container.querySelector('[aria-label="终端摇杆"]')).toBeNull();
-
-  const enterButton = [
-    ...view.container.querySelectorAll(".soft-row button"),
-  ].find((button) => button.textContent === "↵")!;
-  enterButton.click();
-  expect(send).toHaveBeenCalledWith("\r");
-
-  await view.rerender({
-    send,
-    modifiers: { ctrl: false, alt: false, shift: false },
-    gamepad: true,
-    toggle: () => {},
-    paste: () => {},
-    keyboard: () => {},
-  });
-
-  expect(
-    view.container.querySelector('.soft-keys > [aria-label="终端摇杆"]'),
-  ).not.toBeNull();
-
-  for (const removed of ["Esc", "Tab", "↵", "↑", "↓", "←", "→", "Ctrl+C"]) {
-    expect(labels()).not.toContain(removed);
-  }
-  for (const kept of [
-    "/",
-    "Ctrl",
-    "Alt",
-    "Shift",
-    "Home",
-    "End",
-    "PgUp",
-    "PgDn",
-    "Ctrl+D",
-    "Ctrl+Z",
-    "Ctrl+L",
-    "Ctrl+R",
-  ]) {
-    expect(labels()).toContain(kept);
-  }
+  // Dragging past threshold cancels the hold so scrolling emits nothing.
+  send.mockClear();
+  left.dispatchEvent(
+    new PointerEvent("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+      isPrimary: true,
+      pointerId: 2,
+      button: 0,
+      clientX: 100,
+      clientY: 100,
+    }),
+  );
+  left.dispatchEvent(
+    new PointerEvent("pointermove", {
+      bubbles: true,
+      isPrimary: true,
+      pointerId: 2,
+      clientX: 125,
+      clientY: 100,
+    }),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  left.dispatchEvent(
+    new PointerEvent("pointercancel", {
+      bubbles: true,
+      isPrimary: true,
+      pointerId: 2,
+    }),
+  );
+  expect(send).not.toHaveBeenCalled();
 });

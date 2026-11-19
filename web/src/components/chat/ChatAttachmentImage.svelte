@@ -55,15 +55,29 @@
   });
 </script>
 
-{#if src}
+{#snippet thumbnail(className: string)}
   <img
     {src}
     alt={attachment.name ?? attachment.path}
-    class={size === "chip"
-      ? "size-8 shrink-0 rounded-sm border bg-background object-cover"
-      : "max-h-24 max-w-36 shrink-0 rounded-sm border bg-background object-cover"}
+    class={className}
     onerror={() => (failed = true)}
   />
+{/snippet}
+
+{#if size === "bubble"}
+  <span
+    class="relative grid h-24 w-36 min-w-0 place-items-center overflow-hidden rounded-sm border bg-background"
+  >
+    {#if src}
+      {@render thumbnail("absolute inset-0 size-full object-contain")}
+    {:else}
+      <IconPhoto class="size-3.5 text-muted-foreground" aria-hidden="true" />
+    {/if}
+  </span>
+{:else if src}
+  {@render thumbnail(
+    "size-8 shrink-0 rounded-sm border bg-background object-cover",
+  )}
 {:else}
   <IconPhoto class="size-3.5 shrink-0" aria-hidden="true" />
 {/if}

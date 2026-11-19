@@ -333,7 +333,7 @@ for (const context of [false, true])
   });
 
 queueTest(
-  "project plus opens a scoped session form even in collapsed or empty projects",
+  "project rows show only active projects and indent their sessions",
   async ({ page, request, workDir }) => {
     const active = await register(request, join(workDir, "active-project"));
     const empty = await register(request, join(workDir, "empty-project"));
@@ -350,11 +350,22 @@ queueTest(
     expect(seeded.status()).toBe(201);
     await page.goto("/");
     await revealSidebar(page);
+    const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
+    const emptyGroup = sidebar.getByRole("region", {
+      name: "empty-project",
+      exact: true,
+    });
+    await expect(emptyGroup).toHaveCount(0);
 
     const heading = page.getByRole("button", {
       name: "active-project 1",
       exact: true,
     });
+    const session = sidebar.getByRole("button", { name: /^Running task/ });
+    await expect(session).toBeVisible();
+    const headingBox = await heading.boundingBox();
+    const sessionBox = await session.boundingBox();
+    expect(sessionBox!.x).toBeGreaterThan(headingBox!.x);
     await heading.press("Space");
     await expect(heading).toHaveAttribute("aria-expanded", "false");
     await page
@@ -369,18 +380,18 @@ queueTest(
     await revealSidebar(page);
     await expect(heading).toHaveAttribute("aria-expanded", "false");
 
-    await page
-      .getByRole("button", { name: "在empty-project新建会话", exact: true })
+    await sidebar
+      .getByRole("button", { name: "新建会话", exact: true })
       .click();
-    await expect(
-      dialog.getByText("empty-project", { exact: true }),
-    ).toBeVisible();
+    await chooseSessionProject(page, "empty-project");
     await expect(sessionLocation(page)).toContainText("主工作区 · main");
     await useCustomCommand(page, "/bin/sh -i");
     await dialog
       .getByRole("button", { name: "创建并进入 →", exact: true })
       .click();
     await expect(page).toHaveURL(/\/s\/[a-z0-9]+$/);
+    await revealSidebar(page);
+    await expect(emptyGroup).toBeVisible();
     const sessions = await (await request.get("/api/sessions")).json();
     expect(sessions).toEqual(
       expect.arrayContaining([

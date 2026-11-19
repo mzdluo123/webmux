@@ -57,10 +57,6 @@ export const CommitDraftConflict409: Story = {
   args: { scenario: "commit-draft-conflict" },
 };
 
-export const ReworkSessionHandoff: Story = {
-  args: { scenario: "rework-session-handoff" },
-};
-
 export const ConflictThreeWayText: Story = {
   args: { scenario: "conflict-three-way-text" },
 };

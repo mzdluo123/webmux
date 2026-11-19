@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import type { QuickCommand } from "../../contracts/schemas";
   import {
@@ -42,7 +43,12 @@
   let deleting = $state<QuickCommand>();
   let presetBusy = $state(false);
   let presetError = $state("");
+  let lastAddedId = $state<string>();
+  let locateButton = $state<HTMLButtonElement | null>(null);
   const full = $derived(quickCommands.list.length >= QUICK_COMMANDS_LIMIT);
+  const lastAdded = $derived(
+    quickCommands.list.find((item) => item.id === lastAddedId),
+  );
 
   function edit(cmd?: QuickCommand) {
     editing = cmd;
@@ -59,6 +65,7 @@
         ? list.map((item) => (item.id === cmd.id ? cmd : item))
         : [...list, cmd],
     );
+    if (!exists) lastAddedId = cmd.id;
     return "";
   }
 
@@ -67,11 +74,22 @@
     presetError = "";
     try {
       await saveQuickCommands([...quickCommands.list, ...presets]);
+      lastAddedId = presets[0]?.id;
     } catch (err) {
       presetError = errorMessage(err);
     } finally {
       presetBusy = false;
     }
+    await tick();
+    if (document.activeElement === document.body)
+      locateButton?.focus({ preventScroll: true });
+  }
+
+  function locateAdded() {
+    if (!lastAdded) return;
+    const target = document.getElementById(`quick-command-${lastAdded.id}`);
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ block: "nearest" });
   }
 
   function move(index: number, offset: -1 | 1) {
@@ -84,14 +102,6 @@
     void saveQuickCommands(list).catch(() => undefined);
   }
 </script>
-
-{#snippet presetMenu()}
-  <QuickCommandPresetMenu
-    commands={quickCommands.list}
-    busy={!settings.ready || presetBusy}
-    onadd={(presets) => void addPresets(presets)}
-  />
-{/snippet}
 
 <Card.Root flat id="quick-commands" class="scroll-mt-4">
   <Card.Header>
@@ -108,6 +118,38 @@
     >
   </Card.Header>
   <Card.Content class="space-y-4">
+    <div class="flex flex-wrap items-center gap-2">
+      <Button
+        variant="outline"
+        disabled={!settings.ready || full}
+        onclick={() => edit()}
+        ><IconPlus aria-hidden="true" />{m.s2_qc_add_title()}</Button
+      >
+      <QuickCommandPresetMenu
+        commands={quickCommands.list}
+        busy={!settings.ready || presetBusy}
+        onadd={(presets) => void addPresets(presets)}
+      />
+      <span class="text-xs text-muted-foreground" aria-live="polite"
+        >{m.s2_qc_limit_short({
+          limit: String(QUICK_COMMANDS_LIMIT),
+          count: String(quickCommands.list.length),
+        })}</span
+      >
+    </div>
+    <div class="min-h-(--control-sm)" aria-live="polite">
+      {#if lastAdded}
+        <Button
+          bind:ref={locateButton}
+          variant="link"
+          size="sm"
+          wrap
+          data-quick-command-locate
+          onclick={locateAdded}
+          >{m.s2_qc_locate_added({ name: commandLabel(lastAdded) })}</Button
+        >
+      {/if}
+    </div>
     {#if quickCommands.list.length === 0}
       <Empty.Root variant="outline">
         <Empty.Header>
@@ -117,14 +159,6 @@
           <Empty.Title>{m.s2_qc_empty_title()}</Empty.Title>
           <Empty.Description>{m.s2_qc_empty_desc()}</Empty.Description>
         </Empty.Header>
-        <Empty.Content>
-          <div class="flex flex-wrap items-center justify-center gap-2">
-            <Button disabled={!settings.ready} onclick={() => edit()}
-              ><IconPlus aria-hidden="true" />{m.s2_qc_add_title()}</Button
-            >
-            {@render presetMenu()}
-          </div>
-        </Empty.Content>
       </Empty.Root>
     {:else}
       <Item.Group variant="divided" aria-label={m.s2_qc_list_aria()}>
@@ -132,6 +166,7 @@
           {@const label = commandLabel(cmd)}
           <Item.Root variant="divided" size="flush" class="min-h-14">
             <ListButton
+              id={`quick-command-${cmd.id}`}
               variant="content"
               class="flex min-w-0 flex-1 items-center"
               aria-label={m.s2_edit_item({ name: label })}
@@ -184,20 +219,6 @@
           </Item.Root>
         {/each}
       </Item.Group>
-      <div class="flex flex-wrap items-center gap-2">
-        <Button
-          variant="outline"
-          disabled={!settings.ready || full}
-          onclick={() => edit()}
-          ><IconPlus aria-hidden="true" />{m.s2_qc_add_title()}</Button
-        >
-        {@render presetMenu()}
-        {#if full}<span class="text-xs text-muted-foreground"
-            >{m.s2_qc_limit_short({
-              limit: String(QUICK_COMMANDS_LIMIT),
-            })}</span
-          >{/if}
-      </div>
     {/if}
     {#if presetError}
       <InlineNotice tone="danger">

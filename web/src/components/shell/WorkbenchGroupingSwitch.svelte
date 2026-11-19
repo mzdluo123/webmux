@@ -31,7 +31,7 @@
     title={m.s8_sidebar_by_conversation()}
   >
     <IconMessages class="size-3" data-grouping-icon aria-hidden="true" />
-    {m.s8_sidebar_grouping_sessions()}
+    <span data-grouping-label>{m.s8_sidebar_grouping_sessions()}</span>
   </SegmentedControlItem>
   <SegmentedControlItem
     value="branch"
@@ -39,7 +39,7 @@
     title={m.s8_sidebar_by_branch()}
   >
     <IconGitBranch class="size-3" data-grouping-icon aria-hidden="true" />
-    {m.s8_sidebar_grouping_branch()}
+    <span data-grouping-label>{m.s8_sidebar_grouping_branch()}</span>
   </SegmentedControlItem>
   <span
     data-slot="grouping-indicator"

@@ -8,7 +8,6 @@
   import type { TimelineEntry } from "../../domains/chat/chat-model";
   import { errorMessage } from "../../platform/error";
   import { useTextareaDraft } from "../../hooks/terminal/textarea-draft.svelte";
-  import { tvMode } from "../../hooks/shared/tv-mode.svelte";
   import type { ChatUploads } from "../../hooks/shared/upload.svelte";
   import type {
     ChatCommand,
@@ -65,6 +64,8 @@
   } = $props();
 
   let textarea = $state<HTMLTextAreaElement | null>(null);
+  let commandList = $state<HTMLDivElement | null>(null);
+  const commandListId = $props.id();
   let card = $state<ComposerCard>();
   let sending = $state(false);
   const selection = useTextareaDraft(
@@ -106,24 +107,21 @@
   const menuOpen = $derived(
     !disabled && matches.length > 0 && menuDismissed !== draft.text,
   );
-  $effect(() => {
-    if (!tvMode.enabled) return;
-    const dismiss = (event: Event) => {
-      if (
-        event instanceof CustomEvent &&
-        !event.defaultPrevented &&
-        event.detail === "capture" &&
-        menuOpen &&
-        document.activeElement === textarea
-      ) {
-        event.preventDefault();
-        menuDismissed = draft.text;
-      }
-    };
-    window.addEventListener("webmux:tv-back", dismiss);
-    return () => window.removeEventListener("webmux:tv-back", dismiss);
-  });
   const active = $derived(Math.min(highlighted, matches.length - 1));
+
+  $effect(() => {
+    const list = commandList;
+    const index = active;
+    if (!list || !matches[index]) return;
+    const row = list.children[index];
+    if (!row) return;
+    const top = list.getBoundingClientRect().top + list.clientTop;
+    const bottom = top + list.clientHeight;
+    const option = row.getBoundingClientRect();
+    if (option.top < top || option.height > list.clientHeight)
+      list.scrollTop += option.top - top;
+    else if (option.bottom > bottom) list.scrollTop += option.bottom - bottom;
+  });
 
   async function submit(mode: "auto" | "steer") {
     const text = draft.text.trim();
@@ -308,9 +306,11 @@
         onclick: () => submit("auto"),
       }}
   textareaProps={{
-    "aria-controls": menuOpen ? "chat-commands" : undefined,
+    "aria-controls": menuOpen ? commandListId : undefined,
+    "aria-activedescendant": menuOpen
+      ? `${commandListId}-${active}`
+      : undefined,
     "aria-expanded": menuOpen,
-    "data-tv-native-keys": "",
     ...selection.selectionProps,
     onkeydown: keydown,
   }}
@@ -327,23 +327,26 @@
   {#snippet menu()}
     {#if menuOpen}
       <div
-        id="chat-commands"
-        class="max-h-52 overflow-y-auto border-b p-1"
+        bind:this={commandList}
+        id={commandListId}
+        class="max-h-[min(13rem,28dvh)] overflow-y-auto overscroll-contain border-b p-1"
         role="listbox"
         aria-label={m.s3_composer_commands_label()}
       >
         {#each matches as command, i (command.name)}
           <ListButton
             variant="suggestion"
+            id={`${commandListId}-${i}`}
             role="option"
             aria-selected={i === active}
+            tabindex={-1}
             class="flex w-full min-w-0 flex-wrap items-baseline"
             onmousedown={(event) => event.preventDefault()}
             onclick={() => pick(command)}
           >
             <span class="shrink-0 font-mono text-sm">/{command.name}</span>
             {#if command.hint}<span
-                class="min-w-0 break-words text-muted-foreground"
+                class="min-w-0 wrap-anywhere text-muted-foreground"
                 >&lt;{command.hint}&gt;</span
               >{/if}
             <span class="ml-auto min-w-0 truncate text-muted-foreground"

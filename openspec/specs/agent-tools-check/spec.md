@@ -92,17 +92,20 @@
 - **WHEN** 某混合 Agent 本地已安装版本低于其档案声明的 `verifiedVersion`
 - **THEN** 响应携带 `belowVerified: true` 与 `verifiedVersion`，供客户端展示兼容性提示
 
-### Requirement: Web 设置页 Agent 工具常驻卡片
+### Requirement: Web 设置页启动配置与 Agent 工具融合呈现
 
-Web 设置页（`/settings`）SHALL 在启用 `launch` 时紧邻「启动配置」下方提供唯一的「Agent 工具」（`#agent-tools`）常驻分区与导航项，不在应用侧栏或终端顶栏放置常驻更新徽标：
+Web 设置页（`/settings`）SHALL 在启用 `launch` 时将本机 Agent 工具状态融合进唯一的「启动配置」（`#launch-configs`）常驻分区与导航项，访问旧锚点 `#agent-tools` SHALL 自动定位至 `#launch-configs`，不在应用侧栏或终端顶栏放置常驻更新徽标：
 
-- 卡片首次打开时 SHALL 仅请求本机状态并保持骨架占位零布局跳动；
-- 默认展开已安装工具（含附属 ACP 适配器状态、版本号、更新状态及可一键复制的升级或安装命令），底部使用可折叠区域收纳未安装工具。
+- 卡片首次打开时 SHALL 仅请求本机状态并保持占位稳定；
+- 顶部工具栏 SHALL 汇总已安装计数、可更新计数、扫描时间，并提供重新扫描与按需「检查更新」操作；
+- 主列表 SHALL 将已安装工具的版本号、解析路径、更新状态、一键复制升级命令及附属 ACP 适配器子卡片直接合入对应启动配置行（无对应启动配置的已安装工具作为独立行展示），底部使用可折叠区域统一收纳本机未安装的 Agent 启动配置与未安装工具。
 
-#### Scenario: 展示已安装工具、缺失适配器与折叠未安装项
+#### Scenario: 展示已安装配置行内融合状态、缺失适配器与折叠未安装项
 
-- **WHEN** 用户打开 `/settings#agent-tools`，本机已安装 Claude Code（有可用更新）与 Codex CLI（缺少 `codex-acp`），其余工具未安装
-- **THEN** 卡片顶部显示已安装与可更新计数及「检查更新」主按钮；主列表展示上述两项、更新提示、`codex-acp` 未安装警告与复制命令按钮；其余未安装工具默认收起在底部折叠项中
+- **WHEN** 用户打开 `/settings#launch-configs`（或 `/settings#agent-tools`），本机已安装 Claude Code（有可用更新）与 Codex CLI（缺少 `codex-acp`），其余预设工具未安装
+- **THEN** 设置导航仅显示单一「启动配置」入口，卡片顶部显示已安装与可更新计数及「检查更新」按钮
+- **AND** 主列表中 Claude Code 与 Codex CLI 启动配置行直接展示各自版本号、更新提示、`codex-acp` 未安装子卡片与复制命令入口
+- **AND** 未安装的 Agent 启动配置与其余未安装工具默认收起在底部折叠项中，保留编辑、删除与复制安装命令操作
 
 #### Scenario: 窄屏与多主题下无横向溢出
 

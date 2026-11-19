@@ -25,8 +25,6 @@
   <GitWorkbenchShell
     bind:view
     initialDraftConflict={extras.initialDraftConflict}
-    initialReworkItems={extras.initialReworkItems}
     simulatedActiveSessions={extras.simulatedActiveSessions}
-    initialReworkOpen={extras.initialReworkOpen}
   />
 </main>

@@ -26,8 +26,6 @@
   import DraftToggle from "./DraftToggle.svelte";
   import type { TerminalFeatures } from "../../features/terminal";
   import SessionSwitcherTrigger from "../shell/SessionSwitcherTrigger.svelte";
-  import { tvMode } from "../../hooks/shared/tv-mode.svelte";
-  import TerminalDisplayControls from "./TerminalDisplayControls.svelte";
 
   interface HeaderTerminal {
     readonly info: SessionInfo | undefined;
@@ -59,7 +57,7 @@
     keyboardSizeHold,
     setKeyboardSizeHold,
     codeShown = $bindable(),
-    forceSoftKeys = $bindable(),
+    bottomToolbarShown = $bindable(),
     quickMenu,
     upload,
     toggleDraft,
@@ -71,7 +69,6 @@
     hybrid,
     openPanels,
     chatActions,
-    keyboard,
   }: {
     features?: TerminalFeatures;
     terminal: HeaderTerminal;
@@ -85,10 +82,8 @@
     keyboardSizeHold: boolean;
     setKeyboardSizeHold: (value: boolean) => void;
     codeShown: boolean;
-    forceSoftKeys: boolean;
-    quickMenu: Snippet<
-      ["top" | "bottom", ButtonSize?, ButtonVariant?, boolean?]
-    >;
+    bottomToolbarShown: boolean;
+    quickMenu: Snippet<["top" | "bottom", ButtonSize?, ButtonVariant?]>;
     upload?: (files: File[]) => Promise<void>;
     toggleDraft: () => void;
     showScratch: () => void;
@@ -100,7 +95,6 @@
     hybrid?: HeaderHybrid;
     openPanels: () => void;
     chatActions?: Snippet;
-    keyboard?: () => void;
   } = $props();
   // A rename reaches the session list first; the list title wins here so
   // the header follows it on either side.
@@ -143,7 +137,6 @@
 </script>
 
 <header
-  data-tv-terminal-toolbar
   class="app-header terminal-header flex h-(--app-header-height) shrink-0 items-center gap-2 border-b bg-card px-1 sm:px-2"
 >
   <!-- Phones open the sidebar drawer here (a home-screen app has no back
@@ -225,7 +218,7 @@
         : undefined}
       code={{ shown: codeShown, set: (value) => (codeShown = value) }}
     />{/if}
-  {#if terminalShown && !tvMode.enabled && upload}
+  {#if terminalShown && upload}
     <Button
       variant="ghost"
       size="icon-sm"
@@ -241,7 +234,7 @@
       bind:this={fileInput}
       {upload}
     />{/if}
-  {#if terminalShown && !tvMode.enabled}
+  {#if terminalShown}
     <div class="quick-commands-header flex items-center gap-1">
       {@render quickMenu("bottom", undefined, "ghost")}
     </div>
@@ -263,7 +256,7 @@
     aria-expanded={codeShown}
     onclick={openPanels}><IconPlus class="size-4" aria-hidden="true" /></Button
   >
-  {#if fullscreen.offered && !tvMode.enabled}<Button
+  {#if fullscreen.offered}<Button
       variant="ghost"
       size="icon-sm"
       class="max-sm:hidden"
@@ -283,7 +276,6 @@
       {#if fullscreen.active}<IconMinimize class="size-4" aria-hidden="true" />
       {:else}<IconMaximize class="size-4" aria-hidden="true" />{/if}
     </Button>{/if}
-  <TerminalDisplayControls keyboard={terminalShown ? keyboard : undefined} />
   <DropdownMenu.Root>
     <DropdownMenu.Trigger>
       {#snippet child({ props })}<Button
@@ -310,13 +302,8 @@
       <!-- Grouped by purpose. Below 640px the header keeps only the view
            switch and this menu, so the entries of the hidden buttons live
            here (marked sm:hidden). -->
-      <TerminalDisplayControls menu />
-      {#if tvMode.enabled && terminalShown}
-        {@render quickMenu("bottom", "sm", "ghost", true)}
-      {/if}
-      <DropdownMenu.Separator />
       {#if fullscreen.offered}<DropdownMenu.Item
-          class={tvMode.enabled ? undefined : "sm:hidden"}
+          class="sm:hidden"
           disabled={fullscreen.busy}
           onSelect={() => {
             void fullscreen.toggle();
@@ -338,7 +325,7 @@
             >{m.s4_menu_group_session()}</DropdownMenu.GroupHeading
           >
           <DropdownMenu.CheckboxItem
-            class={tvMode.enabled ? undefined : "sm:hidden"}
+            class="sm:hidden"
             closeOnSelect
             checked={draft.enabled}
             disabled={t.connection === "missing"}
@@ -363,7 +350,7 @@
           >
           {#if upload}
             <DropdownMenu.Item
-              class={tvMode.enabled ? undefined : "sm:hidden"}
+              class="sm:hidden"
               disabled={uploadDisabled}
               onSelect={() => fileInput?.open()}
               >{m.s4_upload_files()}</DropdownMenu.Item
@@ -402,7 +389,7 @@
           >
             {m.s4_hold_size_on_keyboard()}
           </DropdownMenu.CheckboxItem>
-          <DropdownMenu.CheckboxItem bind:checked={forceSoftKeys}>
+          <DropdownMenu.CheckboxItem bind:checked={bottomToolbarShown}>
             {m.s4_force_soft_keys()}
           </DropdownMenu.CheckboxItem>
         </DropdownMenu.Group>
