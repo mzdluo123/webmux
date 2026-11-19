@@ -31,19 +31,17 @@
     scrollFileToColumn,
   } from "../../domains/code/code-reader-dom";
   import type { CodeReaderState } from "../../contracts/schemas";
-  import { Button } from "$lib/components/ui/button";
+  import CodeReaderToolbar from "./CodeReaderToolbar.svelte";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import CodeHorizontalScrollbar from "./CodeHorizontalScrollbar.svelte";
   import CodeReaderPanels from "./CodeReaderPanels.svelte";
-  import IconListNumbers from "~icons/tabler/list-numbers";
-  import IconNumber from "~icons/tabler/number";
-  import IconSearch from "~icons/tabler/search";
-  import IconZoomIn from "~icons/tabler/zoom-in";
 
   let {
     text,
     path,
     onselect,
     active = true,
+    unified = false,
     restoreLine = 1,
     restore,
     draftEnabled = false,
@@ -54,6 +52,7 @@
     onselect: (start: number, end: number) => void;
     // A hidden tab cannot measure itself; the position is recorded as it hides.
     active?: boolean;
+    unified?: boolean;
     restoreLine?: number;
     // A captured reading state, applied once the reader has layout; it takes
     // precedence over `restoreLine`.
@@ -116,6 +115,12 @@
       choose(line, line);
     },
   );
+
+  export const panelControls = find.controls;
+
+  export function commands() {
+    return readerCommands;
+  }
 
   function lineNumber(value: number) {
     return Math.max(1, Math.min(lines.length, value));
@@ -412,49 +417,26 @@
   });
 </script>
 
+{#snippet readerCommands()}
+  <DropdownMenu.CheckboxItem
+    checked={showGutter}
+    onCheckedChange={toggleGutter}
+    closeOnSelect>{m.s5_show_line_numbers()}</DropdownMenu.CheckboxItem
+  >
+{/snippet}
+
 <div
   bind:this={root}
   class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
 >
-  <div class="flex shrink-0 items-center gap-1 border-b px-1 py-0.5">
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label={m.s5_find_in_file()}
-      aria-expanded={find.panel === "search"}
-      aria-keyshortcuts="Control+f Meta+f"
-      title={m.s5_find_in_file_shortcut()}
-      onclick={() => void find.actions.openPanel("search")}
-      ><IconSearch aria-hidden="true" /></Button
-    >
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label={m.s5_goto_line_btn()}
-      aria-expanded={find.panel === "goto"}
-      aria-keyshortcuts="Control+Alt+g Meta+Alt+g"
-      title={m.s5_goto_line_shortcut()}
-      onclick={() => void find.actions.openPanel("goto")}
-      ><IconListNumbers aria-hidden="true" /></Button
-    >
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label={m.s5_zoom()}
-      aria-expanded={find.panel === "zoom"}
-      title={m.s5_zoom()}
-      onclick={() => void find.actions.openPanel("zoom")}
-      ><IconZoomIn aria-hidden="true" /></Button
-    >
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label={m.s5_show_line_numbers()}
-      title={showGutter ? m.s5_hide_line_numbers() : m.s5_show_line_numbers()}
-      aria-pressed={showGutter}
-      onclick={toggleGutter}><IconNumber aria-hidden="true" /></Button
-    >
-  </div>
+  {#if !unified}
+    <CodeReaderToolbar
+      panel={find.panel}
+      open={find.actions.openPanel}
+      pressed={showGutter}
+      toggle={toggleGutter}
+    />
+  {/if}
   <div class="relative min-h-0 min-w-0 flex-1">
     <div
       bind:this={host}
@@ -463,10 +445,11 @@
       aria-label={m.s5_readonly_code()}
       style:--diffs-font-size={`${codeFont.size}px`}
       style:--diffs-line-height={`${codeFont.lineHeight}px`}
-      class="code-reader h-full overflow-x-hidden overflow-y-auto overscroll-contain outline-none contain-strict [overflow-anchor:none]"
+      class="code-reader h-full overflow-x-hidden overflow-y-auto overscroll-contain outline-none contain-strict [overflow-anchor:none] [scrollbar-width:none]"
     ></div>
   </div>
   <CodeReaderPanels
+    searchAtTop={unified}
     panel={find.panel}
     query={find.search}
     line={selected?.start ?? line()}

@@ -99,6 +99,7 @@
   // While popped out the window's frame owns the workspace; this page keeps
   // only the latest state it reported, and remounts from it on return.
   let popout = $state<CodePopout>();
+  let poppedPanel = $state("");
   export function isPoppedOut() {
     return !!popout;
   }
@@ -120,6 +121,8 @@
     popping = true;
     notice = "";
     const current = workspace.capture();
+    const slot = current.readerGroups?.[current.active];
+    if (docked) poppedPanel = slot ? `${docked.reader}:${slot}` : docked.reader;
     // Requests this workspace already showed are part of `current`.
     const shownReveal = reveal?.key ?? 0;
     try {
@@ -191,7 +194,7 @@
 >
   {#if popout}
     {#if docked}
-      <DockPanel id={docked.reader} title={m.s5_preview()}
+      <DockPanel id={poppedPanel} title={m.s5_preview()}
         >{@render poppedStatus()}</DockPanel
       >
     {:else}
@@ -207,6 +210,7 @@
         {notice}
         inert={popping}
         initial={snapshot}
+        focusRestored={generation > 0}
         popout={canPopOut
           ? { popped: false, toggle: () => void toggle() }
           : undefined}

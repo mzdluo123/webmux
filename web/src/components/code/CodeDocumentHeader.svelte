@@ -10,6 +10,10 @@
     SegmentedControlItem,
   } from "$lib/components/ui/segmented-control";
   import IconChevronDown from "~icons/tabler/chevron-down";
+  import IconPhoto from "~icons/tabler/photo";
+  import IconSearch from "~icons/tabler/search";
+  import type { CodeReaderPanel } from "../../domains/code/code-reader-controls";
+  import { copyText } from "../../platform/clipboard";
   import type { CodeDiff, CodeFile } from "../../contracts/schemas";
   import type { MarkdownHeading } from "./CodeMarkdownPreview.svelte";
   import { formatBytes } from "../../domains/code/code-image";
@@ -34,6 +38,13 @@
     svgView,
     svgNotice,
     status,
+    unified = false,
+    canSearch = false,
+    searchOpen = false,
+    readerMenu,
+    referenceMenu,
+    onopenpanel,
+    quick = $bindable(),
     menu = $bindable(),
     oncompare,
     onshowformat,
@@ -56,6 +67,13 @@
     svgFile: boolean;
     svgView: "preview" | "source";
     svgNotice: string;
+    unified?: boolean;
+    canSearch?: boolean;
+    searchOpen?: boolean;
+    readerMenu?: Snippet;
+    referenceMenu?: Snippet;
+    onopenpanel?: (panel: CodeReaderPanel) => void;
+    quick?: Snippet;
     status: string;
     menu?: Snippet;
     oncompare: () => void;
@@ -87,12 +105,27 @@
   const renamed = $derived(
     !!shownDiff && shownDiff.change.oldPath !== shownDiff.change.newPath,
   );
+  const quickPreviewActive = $derived(
+    svgFile ? svgView === "preview" : formatPreview,
+  );
+  const quickPreviewLabel = $derived(
+    quickPreviewActive ? m.s5_back_to_source() : m.s5_preview(),
+  );
+  function togglePreview() {
+    const next = quickPreviewActive ? "source" : "preview";
+    if (svgFile) onshowsvg(next);
+    else onshowformat(next);
+  }
+  function openPanelFromMenu(panel: CodeReaderPanel) {
+    const open = onopenpanel;
+    // Let the dropdown release its focus scope before focusing the panel.
+    if (open) requestAnimationFrame(() => open(panel));
+  }
   const unreadable = $derived(
     shownDiff?.kind === "metadata" ||
       (doc?.kind !== "text" && doc?.kind !== "image" && doc?.kind !== "pdf"),
   );
-  // Notices stay visible on narrow screens, where the rest of the document
-  // bar moves into the code menu.
+  // Reading notices remain visible when commands move into the code menu.
   const notices = $derived(
     !!imageChange || status !== "unchanged" || unreadable || !!svgNotice,
   );
@@ -101,8 +134,34 @@
 
   onMount(() => {
     menu = documentMenu;
+    if (unified) quick = quickCommands;
   });
 </script>
+
+{#snippet quickCommands()}
+  {#if canSearch}
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      aria-label={m.s5_find_in_file()}
+      aria-expanded={searchOpen}
+      aria-keyshortcuts="Control+f Meta+f"
+      title={m.s5_find_in_file_shortcut()}
+      onclick={() => onopenpanel?.("search")}
+      ><IconSearch aria-hidden="true" /></Button
+    >
+  {/if}
+  {#if formatFile || svgFile}
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      aria-label={quickPreviewLabel}
+      aria-pressed={quickPreviewActive}
+      title={quickPreviewLabel}
+      onclick={togglePreview}><IconPhoto aria-hidden="true" /></Button
+    >
+  {/if}
+{/snippet}
 
 <!-- Markdown headings, indented by level, scroll the preview when chosen. -->
 {#snippet outlineItems()}
@@ -115,7 +174,7 @@
   {/each}
 {/snippet}
 
-<!-- Narrow screens move the document bar into the code panel's menu. -->
+<!-- The workspace renders this beside the selected file tab. -->
 {#snippet documentMenu()}
   <DropdownMenu.Label variant="title" class="break-all">
     {doc?.absolutePath}
@@ -125,6 +184,33 @@
       >
     {/if}
   </DropdownMenu.Label>
+  {#if unified && doc?.absolutePath}
+    {@const path = doc.absolutePath}
+    <DropdownMenu.Item onSelect={() => void copyText(path)}
+      >{m.s8_copy_path()}</DropdownMenu.Item
+    >
+  {/if}
+  {@render referenceMenu?.()}
+  {#if unified && onopenpanel}
+    <DropdownMenu.Separator />
+    <DropdownMenu.Item
+      disabled={!canSearch}
+      aria-keyshortcuts="Control+f Meta+f"
+      onSelect={() => openPanelFromMenu("search")}
+      >{m.s5_find_in_file()}</DropdownMenu.Item
+    >
+    <DropdownMenu.Item
+      disabled={!canSearch}
+      aria-keyshortcuts="Control+Alt+g Meta+Alt+g"
+      onSelect={() => openPanelFromMenu("goto")}
+      >{m.s5_goto_line_btn()}</DropdownMenu.Item
+    >
+    <DropdownMenu.Item onSelect={() => openPanelFromMenu("zoom")}
+      >{m.s5_zoom()}</DropdownMenu.Item
+    >
+    {@render readerMenu?.()}
+    <DropdownMenu.Separator />
+  {/if}
   {#if file && diffAvailable}
     <DropdownMenu.Item
       disabled={busy}
@@ -219,12 +305,7 @@
   {/if}
 {/snippet}
 
-<div
-  class={[
-    "shrink-0 space-y-1 border-b px-2 py-1 text-xs",
-    !notices && "max-sm:hidden",
-  ]}
->
+{#snippet standaloneBar()}
   <div class="flex items-center gap-2 max-sm:hidden">
     <p
       class="min-w-0 flex-1 truncate text-left text-muted-foreground [direction:rtl]"
@@ -308,28 +389,39 @@
   {#if renamed}<p class="break-all max-sm:hidden">
       {shownDiff?.change.oldPath} → {shownDiff?.change.newPath}
     </p>{/if}
-  {#if imageChange && shownDiff}<p>
-      <span class="font-medium">{imageChange}</span> ·
-      <span aria-label={m.s5_size_change()}
-        >{sideSize(shownDiff.old)} → {sideSize(shownDiff.new)}</span
-      >
-    </p>{/if}
-  {#if status !== "unchanged"}<p role="status">
-      {m.s5_stale_keep_old_content({
-        reason:
-          status === "updated"
-            ? m.s5_status_updated()
-            : status === "missing"
-              ? m.s5_status_missing()
-              : status === "expired"
-                ? m.s5_status_expired()
-                : m.s5_check_failed_status_unknown(),
-      })}<Button variant="outline" size="sm" onclick={onrefresh}
-        >{m.s5_refresh_document()}</Button
-      >
-    </p>{/if}
-  {#if unreadable}<p>
-      {shownDiff?.reason || doc?.reason}
-    </p>{/if}
-  {#if svgNotice}<p role="status">{svgNotice}</p>{/if}
-</div>
+{/snippet}
+
+{#if !unified || notices}
+  <div
+    class={[
+      "shrink-0 space-y-1 border-b px-2 py-1 text-xs",
+      !notices && "max-sm:hidden",
+    ]}
+  >
+    {#if !unified}{@render standaloneBar()}{/if}
+    {#if imageChange && shownDiff}<p>
+        <span class="font-medium">{imageChange}</span> ·
+        <span aria-label={m.s5_size_change()}
+          >{sideSize(shownDiff.old)} → {sideSize(shownDiff.new)}</span
+        >
+      </p>{/if}
+    {#if status !== "unchanged"}<p role="status">
+        {m.s5_stale_keep_old_content({
+          reason:
+            status === "updated"
+              ? m.s5_status_updated()
+              : status === "missing"
+                ? m.s5_status_missing()
+                : status === "expired"
+                  ? m.s5_status_expired()
+                  : m.s5_check_failed_status_unknown(),
+        })}<Button variant="outline" size="sm" onclick={onrefresh}
+          >{m.s5_refresh_document()}</Button
+        >
+      </p>{/if}
+    {#if unreadable}<p>
+        {shownDiff?.reason || doc?.reason}
+      </p>{/if}
+    {#if svgNotice}<p role="status">{svgNotice}</p>{/if}
+  </div>
+{/if}

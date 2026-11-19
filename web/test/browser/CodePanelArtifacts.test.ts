@@ -176,7 +176,7 @@ test("the artifacts root ensures the folder first, hides changes and keeps tabs 
   await page.getByRole("button", { name: "report.md", exact: true }).click();
   await expect
     .element(page.getByRole("tab", { name: "report.md · 临时文件夹" }))
-    .toHaveAttribute("title", "临时文件夹 · report.md");
+    .toHaveAttribute("title", `${folder}/report.md`);
 
   await rootTab("工作区").click();
   await expect

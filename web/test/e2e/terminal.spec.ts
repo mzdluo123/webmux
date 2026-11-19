@@ -7,7 +7,7 @@ import {
   runCommand,
   expectTerminalLine,
   expectConnected,
-  toggleCode,
+  toggleDraftMode,
   backToList,
 } from "./fixtures";
 
@@ -415,8 +415,7 @@ test("terminal find searches real output without input or resize, copies and ret
   const grid = await page.locator(".xterm-screen").boundingBox();
   const baseline = frames.length;
   if (testInfo.project.use.isMobile) {
-    // The shared menu also works while the narrow layout shows code instead.
-    await toggleCode(page);
+    // Find belongs to the visible terminal pane.
     await page.getByRole("button", { name: "终端菜单" }).click();
     await page.getByRole("menuitem", { name: "查找", exact: true }).click();
   } else {
@@ -499,7 +498,7 @@ test("draft shortcut does not modify or submit the draft", async ({
   await createShell(page, "Draft find isolation", workDir);
   await runCommand(page, "printf '%s%s\\n' 'DRAFT_' 'FIND_TARGET'");
   await expectTerminalLine(page, "DRAFT_FIND_TARGET");
-  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
+  await toggleDraftMode(page);
   const draft = page.locator(".draft-pane textarea").first();
   await draft.fill("keep my unsent draft");
   await draft.press("Control+Shift+F");

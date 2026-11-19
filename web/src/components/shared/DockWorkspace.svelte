@@ -4,12 +4,11 @@
   import IconCheck from "~icons/tabler/check";
   import IconLayout from "~icons/tabler/layout-columns";
   import { Button } from "$lib/components/ui/button";
-  import * as Drawer from "$lib/components/ui/drawer";
+  import DockPickerOverlay from "./DockPickerOverlay.svelte";
   import { ListButton } from "$lib/components/ui/list-button";
   import { m } from "$lib/paraglide/messages.js";
   import {
     dockActivate,
-    dockDropEdge,
     dockFill,
     dockGeometry,
     dockIds,
@@ -23,11 +22,16 @@
   } from "$lib/dock-layout";
   import { store, stored } from "../../platform/storage";
   import { mountDockHost, setDock, type DockEntry } from "./dock-context";
+  import DockDragLayer from "./DockDragLayer.svelte";
+  import DockEdgeRail from "./DockEdgeRail.svelte";
+  import type { DockRail } from "$lib/dock-layout";
   import DockSplitter from "./DockDivider.svelte";
 
   let {
     initial,
     storageKey,
+    migrate,
+    edgeRails = false,
     compact = false,
     flow = false,
     mobilePanel = $bindable(""),
@@ -39,27 +43,43 @@
   }: {
     initial: DockNode;
     storageKey: string;
+    edgeRails?: boolean;
+    migrate?: () => ReturnType<typeof restoreDock>;
     compact?: boolean;
     flow?: boolean;
     mobilePanel?: string;
     showPicker?: boolean;
     pickerTrigger?: boolean;
-    pickerActions?: Snippet<[() => void]>;
+    pickerActions?: Snippet<
+      [() => void, DockEntry | undefined, (() => void) | undefined]
+    >;
     onSelectPanel?: (id: string) => void;
     children: Snippet;
   } = $props();
 
   const key = untrack(() => `dock.${storageKey}`);
-  const saved = restoreDock(stored(key));
+  const saved = untrack(() => {
+    const raw = stored(key);
+    return raw ? restoreDock(raw) : migrate?.();
+  });
   let node = $state.raw<DockNode | undefined>(saved?.node);
   let hidden = $state.raw<string[]>(saved?.hidden ?? []);
+  let rails = $state<Record<string, DockRail>>(saved?.rails ?? {});
+  const side = (id: string): DockRail =>
+    rails[id] ??
+    (id.startsWith("files:")
+      ? "left"
+      : id.startsWith("reader:")
+        ? "right"
+        : "bottom");
+  let selected = $state("");
   let zoom = $state("");
   let surface = $state<HTMLDivElement>();
   let dragging = $state<string>();
-  let hint = $state<{ target: string; edge: DockEdge }>();
   let history = $state.raw<string[]>([]);
   let mobileHidden = $state.raw<string[]>([]);
   let pickerOrigin: HTMLElement | null = null;
+  let pickerPanel = $state.raw<DockEntry>();
   const entries = new SvelteMap<string, DockEntry>();
   let pickerEntries = $state.raw<DockEntry[]>([]);
   // A picker action can register panels while the drawer is sliding away.
@@ -82,19 +102,19 @@
   const minimized = $derived(
     hidden.map((id) => entries.get(id)).filter((entry) => entry !== undefined),
   );
-  const preview = $derived.by(() => {
-    if (!hint) return undefined;
-    const box = geometry.groups.get(hint.target)?.rect;
-    if (!box || hint.edge === "center") return box;
-    if (hint.edge === "left") return { ...box, width: box.width / 2 };
-    if (hint.edge === "right")
-      return { ...box, x: box.x + box.width / 2, width: box.width / 2 };
-    if (hint.edge === "top") return { ...box, height: box.height / 2 };
-    return { ...box, y: box.y + box.height / 2, height: box.height / 2 };
-  });
 
   $effect(() => {
-    store(key, node ? JSON.stringify({ version: 1, node, hidden }) : null);
+    store(
+      key,
+      node
+        ? JSON.stringify({
+            version: 1,
+            node,
+            hidden,
+            rails: edgeRails ? rails : undefined,
+          })
+        : null,
+    );
   });
 
   export function rect(id: string): DockRect | undefined {
@@ -103,26 +123,64 @@
     return geometry.groups.get(id)?.rect;
   }
 
+  const activePanel = $derived(
+    visibleZoom ||
+      (geometry.groups.has(selected)
+        ? selected
+        : geometry.groups.keys().next().value),
+  );
+
+  export function commandTarget() {
+    return activePanel ?? "";
+  }
+
+  export function activeCommands() {
+    return !compact && activePanel ? entries.get(activePanel) : undefined;
+  }
+  export function commandPanel(id: string) {
+    const panel = entries.get(id);
+    if (!edgeRails || compact || !panel || !rect(id)) return;
+    const zoomed = visibleZoom === id;
+    const destinations = zoomed ? [] : targets(id);
+    return { panel, zoomed, targets: destinations };
+  }
+
   export function isVisible(id: string) {
     return !!rect(id);
+  }
+
+  export function isAnyVisible(matches: (id: string) => boolean) {
+    if (compact) return !!mobile && matches(mobile);
+    if (visibleZoom) return matches(visibleZoom);
+    for (const id of geometry.groups.keys()) if (matches(id)) return true;
+    return false;
   }
 
   export function hasPanel(id: string) {
     return entries.has(id);
   }
 
+  export function ids() {
+    return dockIds(tree);
+  }
+
   export function show(id: string) {
+    selected = id;
     if (compact) {
       if (mobile && mobile !== id)
         history = [...history.filter((value) => value !== mobile), mobile];
       mobileHidden = mobileHidden.filter((value) => value !== id);
       mobilePanel = id;
     } else {
+      const keepZoom =
+        edgeRails && geometry.groups.get(visibleZoom)?.ids.includes(id);
       const activated = dockActivate(tree, id);
       if (activated !== tree) node = activated;
       if (hidden.includes(id)) hidden = hidden.filter((value) => value !== id);
-      if (zoom !== id) zoom = "";
+      if (zoom !== id) zoom = keepZoom ? id : "";
     }
+    entries.get(id)?.onactivate?.();
+    onSelectPanel?.(id);
   }
 
   export function add(
@@ -130,21 +188,32 @@
     target: string,
     edge: DockEdge,
     useDefault = false,
+    activate = true,
   ) {
-    if (!useDefault || node) node = dockMove(tree, id, target, edge);
-    if (compact) show(id);
+    if (activate) selected = id;
+    if (!useDefault || node) node = dockMove(tree, id, target, edge, activate);
+    if (activate && compact) show(id);
   }
 
   export function remove(id: string) {
+    delete rails[id];
     node = dockRemove(node ?? tree, id);
     hidden = hidden.filter((value) => value !== id);
     mobileHidden = mobileHidden.filter((value) => value !== id);
     history = history.filter((value) => value !== id);
     if (zoom === id) zoom = "";
-    if (mobilePanel === id) mobilePanel = "";
+    if (mobilePanel === id) {
+      mobilePanel = previous ?? "";
+      history = history.filter((value) => value !== mobilePanel);
+      if (compact && mobilePanel) {
+        entries.get(mobilePanel)?.onactivate?.();
+        onSelectPanel?.(mobilePanel);
+      }
+    }
   }
 
   export function reset() {
+    rails = {};
     node = undefined;
     hidden = [];
     zoom = "";
@@ -154,7 +223,7 @@
     if (!compact && isVisible(id)) zoom = visibleZoom === id ? "" : id;
   }
 
-  function minimize(id: string) {
+  export function minimize(id: string, destination?: DockRail) {
     if (compact) {
       mobileHidden = [...mobileHidden.filter((value) => value !== id), id];
       mobilePanel =
@@ -166,34 +235,26 @@
       history = history.filter(
         (value) => value !== id && value !== mobilePanel,
       );
-      if (!mobilePanel) showPicker = true;
+      if (!mobilePanel && (!edgeRails || !mobile)) {
+        pickerPanel = undefined;
+        showPicker = true;
+      }
+      if (edgeRails && mobile) {
+        entries.get(mobile)?.onactivate?.();
+        onSelectPanel?.(mobile);
+      }
     } else {
+      if (destination) rails[id] = destination;
       node = tree;
       hidden = [...hidden.filter((value) => value !== id), id];
       if (zoom === id) zoom = "";
     }
   }
 
-  function drag(id: string | undefined) {
-    dragging = id;
-    hint = undefined;
-  }
-
-  function dragOver(event: DragEvent, target: string) {
-    if (!dragging || dragging === target || !event.dataTransfer) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    const edge = dockDropEdge(
-      (event.clientX - box.left) / box.width,
-      (event.clientY - box.top) / box.height,
-    );
-    if (hint?.target !== target || hint.edge !== edge) hint = { target, edge };
-  }
-
-  function move(id: string, target: string, edge: DockEdge) {
+  export function move(id: string, target: string, edge: DockEdge) {
     add(id, target, edge);
     zoom = "";
+    if (edgeRails) return;
     void tick().then(() =>
       surface
         ?.querySelector<HTMLElement>(
@@ -203,7 +264,31 @@
     );
   }
 
+  function targets(id: string) {
+    return [...geometry.groups].flatMap(([key, group]) => {
+      const target = key === id ? group.ids.find((value) => value !== id) : key;
+      const entry = target ? entries.get(target) : undefined;
+      return entry ? [entry] : [];
+    });
+  }
+
+  const previous = $derived.by(() => {
+    for (let i = history.length - 1; i >= 0; i--) {
+      const id = history[i]!;
+      if (id !== mobile && available.has(id) && !mobileHidden.includes(id))
+        return id;
+    }
+  });
   setDock({
+    canGoBack: () => compact && !!previous,
+    back() {
+      if (!previous) return;
+      const id = previous;
+      history = history.slice(0, history.lastIndexOf(id));
+      mobilePanel = id;
+      entries.get(id)?.onactivate?.();
+      onSelectPanel?.(id);
+    },
     register(entry) {
       entries.set(entry.id, entry);
       return () => {
@@ -212,34 +297,43 @@
     },
     mount: (element) => mountDockHost(element, () => surface),
     rect,
-    tabs: (id) =>
-      (geometry.groups.get(id)?.ids ?? [])
+    active: (id) => !compact && activePanel === id,
+    select(id) {
+      selected = id;
+      onSelectPanel?.(id);
+    },
+    ids,
+    add: (id, target, edge, activate) => add(id, target, edge, false, activate),
+    remove,
+    tabs: (id) => {
+      let group = geometry.groups.get(id);
+      if (compact && mobile === id && !group) {
+        for (const other of geometry.groups.values())
+          if (other.ids.includes(id)) {
+            group = other;
+            break;
+          }
+      }
+      return (group?.ids ?? (compact && mobile === id ? [id] : []))
+        .filter((key) => !compact || !mobileHidden.includes(key))
         .map((key) => entries.get(key))
-        .filter((entry) => entry !== undefined),
-    targets: (id) =>
-      [...geometry.groups].flatMap(([key, group]) => {
-        const target =
-          key === id ? group.ids.find((value) => value !== id) : key;
-        const entry = target ? entries.get(target) : undefined;
-        return entry ? [entry] : [];
-      }),
+        .filter((entry) => entry !== undefined);
+    },
+    targets,
     compact: () => compact,
     zoomed: (id) => visibleZoom === id,
     show,
+    edgeRails: () => edgeRails,
     minimize,
     toggleZoom,
     move,
-    drag,
-    dragOver,
-    drop(event, target) {
-      dragOver(event, target);
-      if (dragging && hint?.target === target && dragging !== target)
-        move(dragging, target, hint.edge);
-      drag(undefined);
-    },
+    drag: (id) => (dragging = id),
   });
 
   export function openPicker() {
+    if (showPicker) return;
+    pickerPanel =
+      compact && edgeRails && mobile ? entries.get(mobile) : undefined;
     pickerOrigin =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
@@ -249,6 +343,13 @@
   function closePicker() {
     showPicker = false;
   }
+
+  function hidePickedPanel() {
+    const id = pickerPanel?.id;
+    if (!compact || !id || mobile !== id) return;
+    closePicker();
+    minimize(id);
+  }
 </script>
 
 <div
@@ -256,7 +357,7 @@
   data-dock-workspace
   data-dock-flow={flow || undefined}
 >
-  {#if pickerTrigger || (!compact && minimized.length)}
+  {#if pickerTrigger || (!edgeRails && !compact && minimized.length)}
     <div class="dock-shelf">
       {#if pickerTrigger}
         <Button size="sm-touch" variant="ghost" onclick={openPicker}>
@@ -264,7 +365,7 @@
           {m.s4_open_panel()}
         </Button>
       {/if}
-      {#if !compact}
+      {#if !edgeRails && !compact}
         {#each minimized as entry (entry.id)}
           <Button size="sm" variant="ghost" onclick={() => show(entry.id)}>
             {entry.title}
@@ -274,68 +375,92 @@
     </div>
   {/if}
   <div
-    class="relative flex min-h-0 min-w-0 flex-1 flex-col"
-    bind:this={surface}
+    class={edgeRails && !compact ? "flex min-h-0 min-w-0 flex-1" : "contents"}
   >
-    {#if !compact && !visibleZoom}
-      {#each geometry.dividers as divider (divider.path)}
-        <DockSplitter
-          {divider}
-          bounds={() => surface?.getBoundingClientRect()}
-          resize={(ratio) => (node = dockResize(tree, divider.path, ratio))}
+    {@render rail("left")}
+    <div
+      class="relative flex min-h-0 min-w-0 flex-1 flex-col"
+      bind:this={surface}
+    >
+      {#if !compact && !visibleZoom}
+        {#each geometry.dividers as divider (divider.path)}
+          <DockSplitter
+            {divider}
+            bounds={() => surface?.getBoundingClientRect()}
+            resize={(ratio) => (node = dockResize(tree, divider.path, ratio))}
+          />
+        {/each}
+      {/if}
+      {#if dragging && !compact}
+        <DockDragLayer
+          id={dragging}
+          {tree}
+          groups={geometry.groups}
+          {available}
+          {hidden}
+          finish={(next) => {
+            if (next && dragging) {
+              node = next;
+              show(dragging);
+            }
+            dragging = undefined;
+          }}
         />
-      {/each}
-    {/if}
-    {#if preview && !compact}
-      <div
-        class="dock-preview"
-        data-dock-preview
-        aria-hidden="true"
-        style:--dock-x={`${preview.x * 100}%`}
-        style:--dock-y={`${preview.y * 100}%`}
-        style:--dock-w={`${preview.width * 100}%`}
-        style:--dock-h={`${preview.height * 100}%`}
-      ></div>
-    {/if}
+      {/if}
+    </div>
+    {@render rail("right")}
   </div>
+  {@render rail("bottom")}
   {@render children()}
 </div>
 
-<Drawer.Root bind:open={showPicker}>
-  <Drawer.Content
-    onCloseAutoFocus={(event) => {
-      if (!pickerOrigin?.isConnected) return;
-      event.preventDefault();
-      pickerOrigin.focus();
-      pickerOrigin = null;
-    }}
-  >
-    <Drawer.Header>
-      <Drawer.Title>{m.s4_open_panel()}</Drawer.Title>
-    </Drawer.Header>
-    <div class="min-h-0 space-y-1 overflow-y-auto px-3 pb-3">
-      {#each pickerEntries as entry (entry.id)}
-        <ListButton
-          variant="action-sheet"
-          data-dock-picker={entry.id}
-          aria-current={isVisible(entry.id) ? "true" : undefined}
-          onclick={() => {
-            show(entry.id);
-            onSelectPanel?.(entry.id);
-            closePicker();
-          }}
-        >
-          <span class="min-w-0 flex-1">{entry.title}</span>
-          {#if isVisible(entry.id)}<IconCheck aria-hidden="true" />{/if}
-        </ListButton>
-      {/each}
-      {@render pickerActions?.(closePicker)}
-    </div>
-    <Drawer.Footer>
-      <Button variant="outline" onclick={closePicker}>{m.s1_cancel()}</Button>
-    </Drawer.Footer>
-  </Drawer.Content>
-</Drawer.Root>
+{#snippet rail(position: DockRail)}
+  {#if edgeRails && !compact}
+    <DockEdgeRail
+      side={position}
+      entries={minimized.filter((entry) => side(entry.id) === position)}
+      restore={show}
+      drag={(id) => (dragging = id)}
+    />
+  {/if}
+{/snippet}
+
+{#snippet choices()}
+  <div class="min-h-0 space-y-1 overflow-y-auto px-3 pb-3">
+    {#each pickerEntries as entry (entry.id)}
+      <ListButton
+        variant="action-sheet"
+        data-dock-picker={entry.id}
+        aria-current={isVisible(entry.id) ? "true" : undefined}
+        onclick={() => {
+          show(entry.id);
+          closePicker();
+        }}
+      >
+        <span class="min-w-0 flex-1">{entry.title}</span>
+        {#if isVisible(entry.id)}<IconCheck aria-hidden="true" />{/if}
+      </ListButton>
+    {/each}
+    {@render pickerActions?.(
+      closePicker,
+      compact ? pickerPanel : undefined,
+      compact && pickerPanel && (!showPicker || mobile === pickerPanel.id)
+        ? hidePickedPanel
+        : undefined,
+    )}
+  </div>
+{/snippet}
+
+<DockPickerOverlay
+  bind:open={showPicker}
+  dialog={!compact && !pickerTrigger}
+  onreturnfocus={(event) => {
+    if (!pickerOrigin?.isConnected) return;
+    event.preventDefault();
+    pickerOrigin.focus();
+    pickerOrigin = null;
+  }}>{@render choices()}</DockPickerOverlay
+>
 
 <style>
   [data-dock-flow="true"] {
@@ -361,11 +486,5 @@
     align-items: center;
     overflow-x: auto;
     border-block-end: 1px solid var(--border);
-  }
-  .dock-preview {
-    pointer-events: none;
-    z-index: 20;
-    border: 1px solid var(--primary);
-    background: color-mix(in oklab, var(--primary) 20%, transparent);
   }
 </style>

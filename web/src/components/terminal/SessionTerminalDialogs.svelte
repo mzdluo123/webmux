@@ -14,7 +14,6 @@
   import ScratchPanel from "./ScratchPanel.svelte";
   import { m } from "$lib/paraglide/messages.js";
   import TerminalCopyDialog from "./TerminalCopyDialog.svelte";
-  import TerminalFontDialog from "./TerminalFontDialog.svelte";
   import TerminalPasteDialog from "./TerminalPasteDialog.svelte";
 
   let {
@@ -24,15 +23,12 @@
     drafts,
     hybrid,
     chrome,
-    fontSize,
-    setFontSize,
     filePaste,
     insertText,
     focusTerminal,
     scratchSaved,
     onremoved,
     onarchived,
-    settingsOpen = $bindable(),
     closing = $bindable(),
     scratchOpen = $bindable(),
   }: {
@@ -42,15 +38,12 @@
     drafts: TerminalDrafts;
     hybrid: HybridSession;
     chrome: ReturnType<typeof useSessionTerminalChrome>;
-    fontSize: number;
-    setFontSize: (size: number) => void;
     filePaste: (event: ClipboardEvent) => boolean;
     insertText: (text: string, operation?: DraftOperation) => TextInsertion;
     focusTerminal: (event: Event) => void;
     scratchSaved: string;
     onremoved: () => void;
     onarchived: () => void;
-    settingsOpen: boolean;
     closing: boolean;
     scratchOpen: boolean;
   } = $props();
@@ -91,12 +84,6 @@
     <span class="block">{m.s4_open_link_warning()}</span>
   </span>
 </ConfirmDialog>
-<TerminalFontDialog
-  bind:open={settingsOpen}
-  {fontSize}
-  {setFontSize}
-  onCloseAutoFocus={focusTerminal}
-/>
 {#if closing && hybrid.info}<CloseSessionDialog
     session={hybrid.info}
     onclose={() => {

@@ -294,6 +294,8 @@ const CodeWorkspaceSnapshotSchema = z.object({
   navOpen: z.boolean(),
   navWidth: z.number(),
   active: z.string(),
+  readerGroups: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  readerSelections: z.record(z.string(), z.string()).optional(),
   tabs: z
     .array(
       z.object({

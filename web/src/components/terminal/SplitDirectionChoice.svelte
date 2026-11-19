@@ -18,7 +18,7 @@
   }
   aria-label={m.s4_split_direction()}
   size="form"
-  class="w-full"
+  class="w-full max-sm:hidden"
 >
   <SegmentedControlItem value="horizontal"
     >{m.s4_split_horizontal()}</SegmentedControlItem

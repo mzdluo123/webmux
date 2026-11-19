@@ -175,14 +175,40 @@ test("worktree menu offers Git workbench entry and only shows commit action when
   expect(onCommitDirty).toHaveBeenCalledTimes(1);
 });
 
-test("session code workspace header renders '在 Git 中查看' button with accessible label", async () => {
+test("session code workspace keeps Git navigation and all file inspectors in the code menu", async () => {
   const onOpenGit = vi.fn();
-  render(CodeWorkspaceHeaderHarness, { onOpenGit });
+  const onInspectGitFile = vi.fn();
+  const inspectablePath = "src/app.ts";
+  render(CodeWorkspaceHeaderHarness, {
+    inspectablePath,
+    onOpenGit,
+    onInspectGitFile,
+  });
 
-  const btn = page.getByRole("button", { name: "在 Git 中查看" });
-  await expect.element(btn).toBeVisible();
-  await expect.element(btn).toHaveAttribute("title", "在 Git 中查看");
-  await userEvent.click(btn);
+  const menuTrigger = page.getByRole("button", {
+    name: "代码菜单",
+    exact: true,
+  });
+  await expect.element(menuTrigger).toHaveAttribute("title", "代码菜单");
+  await expect
+    .element(page.getByRole("button", { name: "在 Git 中查看", exact: true }))
+    .not.toBeInTheDocument();
+
+  for (const [name, tab] of [
+    ["文件历史 (--follow)", "history"],
+    ["逐行溯源 (Blame)", "blame"],
+    ["与分支/提交比较", "compare"],
+  ]) {
+    await menuTrigger.click();
+    await page.getByRole("menuitem", { name, exact: true }).click();
+    expect(onInspectGitFile).toHaveBeenLastCalledWith(inspectablePath, tab);
+  }
+  expect(onInspectGitFile).toHaveBeenCalledTimes(3);
+
+  await menuTrigger.click();
+  await page
+    .getByRole("menuitem", { name: "在 Git 中查看", exact: true })
+    .click();
   expect(onOpenGit).toHaveBeenCalledTimes(1);
 });
 

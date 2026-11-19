@@ -2,7 +2,6 @@
   import { onMount, tick, untrack, type Snippet } from "svelte";
   import { navigate } from "../../platform/api";
   import { useTerminal } from "../../hooks/terminal/terminal.svelte";
-  import { keyboardSizeHold } from "../../hooks/terminal/keyboard-size-hold-preference.svelte";
   import {
     createSessionUploadHandlers,
     useSessionTerminalChrome,
@@ -13,7 +12,6 @@
     availableTerminalFeatures,
     type TerminalFeatures,
   } from "../../features/terminal";
-  import { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
   import type { ChatScrollState } from "../../platform/capabilities";
   import { shellUi } from "../../hooks/shared/shell.svelte";
   import type { QuickCommand, SessionInfo } from "../../contracts/schemas";
@@ -28,7 +26,10 @@
     deriveQuickUnavailable,
     deriveSendUnavailable,
   } from "../../domains/terminal/session-terminal-io";
-  import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
+  import type {
+    TerminalDrafts,
+    TextInsertion,
+  } from "../../domains/terminal/terminal-draft.svelte";
   import { createSessionTerminalInput } from "../../hooks/terminal/session-terminal-input.svelte";
   import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
   import { m } from "$lib/paraglide/messages.js";
@@ -43,12 +44,10 @@
     visible,
     active,
     panels,
+    referenceTarget,
     dockSessionName,
     dockSessionNumber,
-    toolbar,
     desktop,
-    pickerOpen,
-    openPanels,
     onactivate,
     keyboardDismissed,
     keyboardVisibility,
@@ -71,12 +70,13 @@
     visible: boolean;
     active: boolean;
     panels: ReturnType<typeof sessionPanelIds>;
+    referenceTarget?: {
+      paste: (text: string) => TextInsertion;
+      readonly draftEnabled: boolean;
+    };
     dockSessionName?: string;
     dockSessionNumber?: number;
-    toolbar: HTMLDivElement | undefined;
     desktop: boolean;
-    pickerOpen: boolean;
-    openPanels: () => void;
     onactivate: () => void;
     keyboardDismissed: () => boolean;
     keyboardVisibility: () => KeyboardVisibility;
@@ -107,12 +107,20 @@
   let error = $state("");
   let notice = $state("");
   let closing = $state(false);
-  let settingsOpen = $state(false);
   let scratchOpen = $state(false);
   let mounted = false;
   let seenHybrid = false;
   let codePanel = $state<CodePanelComponent>();
   const dock = getDock();
+  const codeVisible = () =>
+    !!dock.rect(panels.files) ||
+    dock
+      .ids()
+      .some(
+        (panel) =>
+          (panel === panels.reader || panel.startsWith(`${panels.reader}:`)) &&
+          !!dock.rect(panel),
+      );
   let codeLoaded = $state(false);
   const input = createSessionTerminalInput({
     draft,
@@ -130,6 +138,12 @@
     error: (message) => (error = message),
     notice: (message) => (notice = message),
   });
+  export const referenceInput = {
+    paste: (text: string) => input.insertReference(text),
+    get draftEnabled() {
+      return draft.enabled || hybrid.view === "chat";
+    },
+  };
   const sessionId = untrack(() => id);
   const uploadHandlers = createSessionUploadHandlers({
     id: sessionId,
@@ -153,8 +167,7 @@
     isActiveAndVisible: () => active && visible,
     isTerminalView: () => hybrid.view === "terminal",
     isTerminalVisible: terminalVisible,
-    isCodeVisible: () =>
-      !!dock.rect(panels.files) || !!dock.rect(panels.reader),
+    isCodeVisible: codeVisible,
     isDesktop: () => desktop,
     focusFindBar: () => stage?.focusFind(),
     focusComposer: () => chrome.restoreInputFocus(),
@@ -173,11 +186,7 @@
     onscrollstate: (state) => onscrollstate?.(state),
   });
   $effect(() => {
-    if (availableFeatures.code && chrome.codeShown) {
-      codeLoaded = true;
-      const reveal = chrome.codeTarget;
-      if (reveal) untrack(() => dock.show(panels.reader));
-    }
+    if (availableFeatures.code && chrome.codeShown) codeLoaded = true;
   });
   $effect(() => {
     if (terminalVisible()) {
@@ -206,7 +215,7 @@
       return;
     }
     revealOnReady = false;
-    dock.show(hybrid.view === "chat" ? panels.chat : panels.terminal);
+    dock.show(panels.terminal);
   }
 
   function showFind() {
@@ -219,7 +228,6 @@
     chrome.codeShown = true;
     codeLoaded = true;
     dock.show(panels.files);
-    if (!dock.compact()) dock.show(panels.reader);
   }
 
   export function focus() {
@@ -227,7 +235,7 @@
   }
   export function revealChat() {
     revealOnReady = false;
-    dock.show(panels.chat);
+    dock.show(panels.terminal);
   }
   export function send(input: string) {
     t.send(input);
@@ -315,7 +323,6 @@
     uploadHandlers.draftBridge,
     () => !!availableFeatures.files,
   );
-  const fullscreen = useFullscreen((message) => (error = message));
   $effect(() => {
     const record = hybrid.recoverable;
     if (hybrid.known) seenHybrid = true;
@@ -351,7 +358,7 @@
       sourceId={availableFeatures.chat
         ? (hybrid.info?.id ?? hybrid.recoverable?.id)
         : undefined}
-      root={toolbar}
+      menuRoot={() => stage?.menuRoot()}
       children={terminalStage}
     />
   {:else}
@@ -367,15 +374,12 @@
     {drafts}
     {hybrid}
     {chrome}
-    fontSize={t.fontSize}
-    setFontSize={t.setFontSize}
     filePaste={(event) => uploads?.filePaste(event) ?? false}
     insertText={input.insertText}
     {focusTerminal}
     scratchSaved={input.scratchSaved}
     {onremoved}
     {onarchived}
-    bind:settingsOpen
     bind:closing
     bind:scratchOpen
   />
@@ -387,22 +391,17 @@
     bind:this={stage}
     bind:container
     bind:notice
-    codeShown={dock.compact() &&
-      (!!dock.rect(panels.files) || !!dock.rect(panels.reader))}
-    {toolbar}
+    codeShown={dock.compact() && codeVisible()}
     {active}
     {panels}
     {dockSessionName}
     {dockSessionNumber}
-    {pickerOpen}
-    {openPanels}
     {onactivate}
     {chatActions}
     {id}
     {headerTerminal}
-    {fullscreen}
     {documentScroll}
-    chatVisible={active && !!dock.rect(panels.chat)}
+    chatVisible={hybrid.view === "chat" && !!dock.rect(panels.terminal)}
     {hybrid}
     terminal={t}
     uploads={availableFeatures.files ? uploads : undefined}
@@ -420,7 +419,6 @@
     copyPending={chrome.copyPending}
     dismissCopy={() => (chrome.pendingCopy = null)}
     {showScratch}
-    showFontSize={() => (settingsOpen = true)}
     closeSession={() => (closing = true)}
     {closing}
     {reopen}
@@ -431,8 +429,6 @@
     terminalVisible={terminalVisible()}
     sizeLocked={chrome.sizeLocked}
     setSizeLocked={chrome.setSizeLocked}
-    keyboardSizeHold={keyboardSizeHold.enabled}
-    setKeyboardSizeHold={(value) => (keyboardSizeHold.enabled = value)}
     keyboardHeld={chrome.keyboardHeld}
     findOpen={chrome.findOpen}
     {showFind}
@@ -468,13 +464,13 @@
           bind:this={codePanel}
           {id}
           gitFeature={availableFeatures.git}
-          visible={!!dock.rect(panels.files) || !!dock.rect(panels.reader)}
+          visible={codeVisible()}
           docked={{ files: panels.files, reader: panels.reader }}
           connection={hybrid.view === "chat"
             ? hybrid.chat.connection
             : t.connection}
-          paste={input.insertReference}
-          draftEnabled={draft.enabled || hybrid.view === "chat"}
+          paste={(text) => referenceTarget?.paste(text) ?? "failed"}
+          draftEnabled={referenceTarget?.draftEnabled ?? false}
           reveal={chrome.codeTarget}
           sessionCwd={hybrid.info?.cwd ?? ""}
           reportedCwd={hybrid.info?.reportedCwd ?? null}

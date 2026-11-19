@@ -10,6 +10,7 @@ import {
   test,
   toggleCode,
 } from "./fixtures";
+import { codeReader, openCodeMenu } from "./code-dock";
 
 function git(
   root: string,
@@ -567,7 +568,7 @@ test("inspects --follow file history across rename, line-level Blame with parent
   await expect(inspector).toHaveCount(0);
   await expect(page).toHaveURL(/view=log/);
 
-  // 2. Verify Session Code workspace header entry (`code-git-file-inspector-trigger`)
+  // Open the same inspector from the session’s active document.
   await createShell(page, "Blame shell", mainPath);
   await runCommand(page, "printf 'blame-shell-ready\\n'");
   await expectTerminalLine(page, "blame-shell-ready");
@@ -576,10 +577,7 @@ test("inspects --follow file history across rename, line-level Blame with parent
     page.getByRole("region", { name: "文件树", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: /^core-service\.ts(?: |$)/ }).click();
-  await expect(
-    page.getByTestId("code-git-file-inspector-trigger"),
-  ).toBeVisible();
-  await page.getByTestId("code-git-file-inspector-trigger").click();
+  await openCodeMenu(codeReader(page));
   await page.getByRole("menuitem", { name: "逐行溯源 (Blame)" }).click();
   await expect(page.getByTestId("git-file-inspector-dialog")).toBeVisible();
   await expect(page.getByTestId("git-blame-view")).toContainText(

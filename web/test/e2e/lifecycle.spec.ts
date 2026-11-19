@@ -10,6 +10,7 @@ import {
   expectTerminalLine,
   expectConnected,
   holdTerminalFont,
+  sessionPaneHeader,
   toggleCode,
   backToList,
 } from "./fixtures";
@@ -350,8 +351,8 @@ test("replay and the floating button return to latest output without typing", as
     await expectTerminalLine(page, marker);
   }
   await runCommand(page, "exit");
-  await expect(page.locator(".terminal-header").getByRole("status")).toHaveText(
-    "已退出",
+  await expect(sessionPaneHeader(page).getByRole("status")).toHaveText(
+    /^已退出 · 退出码 /,
   );
   await scrollBack();
   await page.getByRole("button", { name: "终端菜单", exact: true }).click();
@@ -367,12 +368,13 @@ test("shell exit reports its real code and remains removable", async ({
 }) => {
   const id = await createShell(page, "E2E exit code", workDir);
   await runCommand(page, "exit 7");
-  await expect(
-    page.getByText("进程已退出（code 7）", { exact: true }),
-  ).toBeVisible();
+  await expect(sessionPaneHeader(page).getByRole("status")).toHaveText(
+    "已退出 · 退出码 7",
+  );
   const exited = await request.get(`/api/sessions/${id}`);
   expect(await exited.json()).toMatchObject({ status: "exited", exitCode: 7 });
-  await page.getByRole("button", { name: "移除会话", exact: true }).click();
+  await page.getByRole("button", { name: "终端菜单", exact: true }).click();
+  await page.getByRole("menuitem", { name: "移除会话", exact: true }).click();
   await page
     .getByRole("alertdialog")
     .getByRole("button", { name: "确认移除", exact: true })

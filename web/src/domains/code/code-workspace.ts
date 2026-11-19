@@ -29,8 +29,9 @@ export type CodeWorkspaceTab = {
   status: string;
   sequence: number;
   comparison?: CodeDiff;
-  // Narrow-screen menu content supplied by the tab's document view.
+  // Commands supplied by the mounted document view.
   menu?: Snippet;
+  quick?: Snippet;
   // A heading a Markdown link asked to show once the file is previewed.
   heading?: { slug: string; key: number };
   // A line or file view a code link asked to show in the file tab.
@@ -40,12 +41,6 @@ export type CodeWorkspaceTab = {
 };
 
 export type CodeTabOrigin = Pick<CodeWorkspaceTab, "contextId" | "rootKind">;
-
-export function codeReaderTitle(path: string): string {
-  return path
-    ? m.dock_reader_title({ name: path.slice(path.lastIndexOf("/") + 1) })
-    : m.s5_preview();
-}
 
 export function aborted(e: unknown) {
   return e instanceof DOMException && e.name === "AbortError";

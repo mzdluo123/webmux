@@ -8,11 +8,11 @@
   import IconGitFork from "~icons/tabler/git-fork";
   let {
     sourceId,
-    root,
+    menuRoot,
     children,
   }: {
     sourceId: string | undefined;
-    root: HTMLElement | undefined;
+    menuRoot: () => HTMLElement | undefined;
     children: Snippet<[Snippet | undefined]>;
   } = $props();
   let open = $state(false);
@@ -42,7 +42,7 @@
       onclose={() => {
         open = false;
         void tick().then(() =>
-          root
+          menuRoot()
             ?.querySelector<HTMLButtonElement>(
               `[aria-label="${m.s3_session_menu()}"], [aria-label="${m.s3_terminal_menu()}"], [aria-label="Session menu" i], [aria-label="Terminal menu" i]`,
             )

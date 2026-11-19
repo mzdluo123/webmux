@@ -136,7 +136,10 @@ afterEach(async () => {
 
 async function openReadmePreview() {
   await page.getByRole("button", { name: "README.md", exact: true }).click();
-  await page.getByRole("button", { name: "预览", exact: true }).click();
+  await page.getByRole("button", { name: "代码菜单", exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: "预览 Markdown", exact: true })
+    .click();
   await expect
     .element(page.getByRole("heading", { name: "项目" }))
     .toBeVisible();
