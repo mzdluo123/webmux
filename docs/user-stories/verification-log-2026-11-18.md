@@ -147,3 +147,9 @@
 
 - `make e2e-runtime` 构建成功。`playwright test test/e2e/quick-start.spec.ts -g 'one send creates'` 的桌面和手机 Chromium 用例通过，覆盖侧栏进入、手机抽屉关闭、桌面窄栏键盘进入、发送首条任务、归档与恢复。
 - 隔离 Chromium 核对 7 个视口的明暗主题、长输入与页面横向溢出、桌面键盘焦点和悬停命中；录制 390×844 手机模拟从侧栏打开底部输入框、发送并收到测试 Agent 回复。未在真机上验证。
+
+## 会话标题长度与窄屏布局（US-B07、US-C15、US-H08、US-Q02）
+
+- `go test -race ./internal/session ./internal/hybrid ./internal/sessioncreate ./internal/workspace ./internal/archtest` 通过，覆盖 Unicode 标题边界、首条用户指令、终端 OSC 和 ACP 标题更新。
+- `playwright test test/e2e/session-header.spec.ts test/e2e/compact-chrome.spec.ts test/e2e/hybrid.spec.ts -g 'the session title|an unnamed chat session|compact'` 在隔离服务上通过 9 项。手机项目按条件跳过 1 项桌面专属用例。
+- 隔离 Chromium 核对 8 个视口的明暗主题。标题文字最多占 192px，667×375 和 640×480 下保留可见文字；页面无横向溢出，标题详情保持在视口内。验证了键盘打开和关闭及鼠标悬停命中，未在实体触屏设备上验证。

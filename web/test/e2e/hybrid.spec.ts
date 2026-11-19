@@ -1653,8 +1653,37 @@ test.describe("hybrid sessions with the fake agent", () => {
     const title = async () =>
       (await (await request.get(`/api/sessions/${id}`)).json()).title;
     await openHybrid(page, id, "chat");
-    await chatTurn(page, "fix the   login redirect");
-    await expect.poll(title).toBe("fix the login redirect");
+    const task = "修复".repeat(40);
+    const expectedTitle = `请 ${task.slice(0, 77)}…`;
+    await chatTurn(page, `请   ${task}`);
+    await expect.poll(title).toBe(expectedTitle);
+
+    const viewport = page.viewportSize()!;
+    await page.setViewportSize({ width: 667, height: 375 });
+    await page.evaluate(() => document.fonts.ready);
+    const header = sessionHeader(page);
+    const trigger = header.getByRole("button", {
+      name: expectedTitle,
+      exact: true,
+    });
+    await expect
+      .poll(() =>
+        trigger.locator("span").evaluate((label) => label.clientWidth),
+      )
+      .toBeGreaterThan(24);
+    await trigger.click();
+    const details = page.getByRole("dialog", { name: "会话名称", exact: true });
+    await expect(
+      details.getByText("Agent：omp", { exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await header.getByRole("button", { name: "会话菜单", exact: true }).click();
+    await expect(
+      page.getByRole("menuitemradio", { name: "聊天" }),
+    ).toBeChecked();
+    await page.keyboard.press("Escape");
+    await page.setViewportSize(viewport);
+
     await chatTurn(page, "name it /title");
     await expect.poll(title).toBe("fake title");
 

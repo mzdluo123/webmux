@@ -11,8 +11,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/rainchan/webmux/internal/pathutil"
 	"github.com/rainchan/webmux/internal/session"
@@ -242,7 +240,7 @@ func (s *Service) prepare(ctx context.Context, in Input) (plan, error) {
 	if in.ExpandPrompt {
 		title = strings.NewReplacer("{{dir}}", "", "{{webmux}}", "").Replace(title)
 	}
-	p.title = promptTitle(title)
+	p.title = session.AutomaticTitle(title)
 	cwd := p.location.Cwd
 	if cwd == "" {
 		cwd = in.Cwd
@@ -447,24 +445,6 @@ func (s *Service) compose(id string, in Input, p plan) (string, error) {
 	}
 	return text, nil
 }
-func promptTitle(text string) string {
-	text = strings.Map(func(r rune) rune {
-		if unicode.IsSpace(r) {
-			return ' '
-		}
-		if unicode.IsControl(r) {
-			return -1
-		}
-		return r
-	}, strings.ToValidUTF8(text, ""))
-	text = strings.Join(strings.Fields(text), " ")
-	if utf8.RuneCountInString(text) <= 80 {
-		return text
-	}
-	runes := []rune(text)
-	return strings.TrimSpace(string(runes[:79])) + "…"
-}
-
 func (s *Service) sendTerminalPrompt(item *session.Session, text string) error {
 	s.mu.Lock()
 	if s.closed {

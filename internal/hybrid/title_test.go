@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/rainchan/webmux/internal/agent/omp"
@@ -14,21 +13,6 @@ import (
 func waitTitle(t *testing.T, s *session.Session, want string) {
 	t.Helper()
 	waitFor(t, "title "+want, func() bool { return s.Info().Title == want })
-}
-
-func TestPromptTitle(t *testing.T) {
-	long := strings.Repeat("长", 100)
-	for _, tc := range []struct{ give, want string }{
-		{"  帮我 修复\n登录页的\t重定向问题 ", "帮我 修复 登录页的 重定向问题"},
-		{"a\x1b[31mb\x07", "a[31mb"},
-		{" \n\t", ""},
-		{long, strings.Repeat("长", 79) + "…"},
-		{strings.Repeat("长", 80), strings.Repeat("长", 80)},
-	} {
-		if got := PromptTitle(tc.give); got != tc.want {
-			t.Errorf("PromptTitle(%q) = %q, want %q", tc.give, got, tc.want)
-		}
-	}
 }
 
 func TestFirstPromptTitle(t *testing.T) {

@@ -46,7 +46,7 @@
     {title}
   >
     <IconChevronDown data-icon="inline-start" aria-hidden="true" />
-    <span class="min-w-0 truncate">{title}</span>
+    <span class="min-w-0 max-w-48 truncate">{title}</span>
   </Button>
 {/snippet}
 
@@ -91,6 +91,11 @@
     >
       <ScrollArea class="min-h-0">
         <p class="wrap-anywhere">{title}</p>
+        {#if agent}
+          <p class="wrap-anywhere text-muted-foreground md:hidden">
+            {m.s4_agent_label({ title: agent })}
+          </p>
+        {/if}
       </ScrollArea>
       <div class="shrink-0">{@render renameAction()}</div>
     </Popover.Content>
