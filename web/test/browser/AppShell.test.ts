@@ -119,13 +119,11 @@ test("the collapsed rail keeps the expand and primary actions, not the mode swit
     .toBeVisible();
 });
 
-test("the sidebar's new-session action opens the shared dialog", async () => {
+test("the sidebar's new-session action opens quick start", async () => {
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot();
   await sidebar().getByRole("button", { name: "新建会话" }).click();
-  await expect
-    .element(page.getByRole("dialog", { name: "新建会话" }))
-    .toBeVisible();
+  expect(location.pathname).toBe("/new");
 });
 
 test("opening any session keeps its return context", () => {
