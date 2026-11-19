@@ -174,6 +174,13 @@ test("edge tabs restore the original dock layout and keep it restored", async ({
 
   await page.reload();
   await expectRestored();
+  await root.getByRole("button", { name: /^收起「/ }).click();
+  const target = (await anchor.boundingBox())!;
+  await tab.dragTo(anchor, { targetPosition: { x: 10, y: target.height / 2 } });
+  await expect(tab).toHaveCount(0);
+  await expect
+    .poll(async () => (await root.boundingBox())!.x)
+    .toBeLessThan((await anchor.boundingBox())!.x);
 });
 
 test("stacked panes reveal the selected tab and keep keyboard focus across switches", async ({

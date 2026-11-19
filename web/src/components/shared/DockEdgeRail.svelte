@@ -6,10 +6,12 @@
     side,
     entries,
     restore,
+    drag,
   }: {
     side: DockRail;
     entries: DockEntry[];
     restore: (id: string) => void;
+    drag: (id?: string) => void;
   } = $props();
 </script>
 
@@ -21,6 +23,14 @@
         variant="ghost"
         data-dock-tab={entry.id}
         title={entry.title}
+        draggable="true"
+        ondragstart={(event) => {
+          if (!event.dataTransfer) return;
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", entry.title);
+          drag(entry.id);
+        }}
+        ondragend={() => drag()}
         onclick={() => restore(entry.id)}
       >
         <span class="truncate">{entry.title}</span>

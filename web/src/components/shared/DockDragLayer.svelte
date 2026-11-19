@@ -47,7 +47,12 @@
     );
   });
   const preview = $derived(
-    next && dockGeometry(next, available, new Set(hidden)).groups.get(id)?.rect,
+    next &&
+      dockGeometry(
+        next,
+        available,
+        new Set(hidden.filter((key) => key !== id)),
+      ).groups.get(id)?.rect,
   );
 
   function locate(event: DragEvent) {

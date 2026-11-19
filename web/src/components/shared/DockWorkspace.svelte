@@ -365,7 +365,10 @@
           {available}
           {hidden}
           finish={(next) => {
-            if (next) node = next;
+            if (next && dragging) {
+              node = next;
+              if (hidden.includes(dragging)) show(dragging);
+            }
             dragging = undefined;
           }}
         />
@@ -383,6 +386,7 @@
       side={position}
       entries={minimized.filter((entry) => side(entry.id) === position)}
       restore={show}
+      drag={(id) => (dragging = id)}
     />
   {/if}
 {/snippet}
