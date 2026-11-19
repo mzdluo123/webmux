@@ -273,12 +273,10 @@ export function useHybrid(
     const controller = new AbortController();
     recordController = controller;
     const epoch = ++recordEpoch;
-    // Runtime removal can precede the archive commit. Never reuse its
-    // cached recovery record after a later canonical invalidation.
-    // Keep an open recovery prompt mounted during the canonical read. A failed
-    // launch removes its temporary shell and the user may still need to pick
-    // an agent conversation. A 404, live session or failed read clears it.
-    if (!record?.archive.resumeOnOpen) record = undefined;
+    // Runtime removal can precede the archive commit. Keep the current
+    // recovery prompt mounted during the canonical read: a failed launch
+    // removes its temporary shell and the user may still need to pick an
+    // agent conversation. The result clears a 404, live session or failed read.
     lookup = "none";
     lookupSessionRecord(id, controller.signal).then(
       (result) => {
