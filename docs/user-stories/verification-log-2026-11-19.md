@@ -252,3 +252,10 @@
 - `pnpm --dir web run check`、`check:test`、`lint`、`check:arch`（49 项）、Oxfmt 与 `make docs-check` 通过。
 - `pnpm --dir web exec playwright test test/e2e/compact-chrome.spec.ts test/e2e/session-pane-files.spec.ts` 在预构建的隔离服务上通过 7 项，1 项按项目条件跳过。
 - 隔离服务中使用 Chromium 核对七种视口的浅色与深色主题。页面无横向溢出，面板选择器在视口内可打开和关闭，桌面键盘焦点与鼠标悬停反馈可见。采集桌面、平板与手机顶栏的前后对比截图。触控通过模拟设备核对，未使用实体设备。
+
+## 2026-11-19：窗格活动标签下划线（US-D14、US-I04）
+
+- 活动标签的 2 px 细线与标题栏底边对齐，横跨标题和关闭按钮，并在两侧等距内缩。标签栏出现横向滚动条时，细线位于滚动条上方。
+- `pnpm --dir web check`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`pnpm --dir web exec vp fmt --check src` 与 `make docs-check` 通过。
+- Playwright 运行 `session-pane-files.spec.ts` 和 `splits.spec.ts`，22 项通过，8 项按项目条件跳过。
+- 在有界面的 Chromium 隔离实例中核对七种视口的浅色与深色主题，验证细线位置、页面横向溢出、鼠标悬停、键盘切换、长文件名截断和标签栏横向滚动。桌面、平板和手机各采集浅色与深色前后截图。触屏使用 Chromium 模拟。
