@@ -86,7 +86,13 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
   const repo = await repository(request, root, "先读 AGENTS.md");
   await hybridConfig(request, "Claude Code");
 
-  await page.goto("/new");
+  await page.goto("/");
+  const navigation = await sidebar(page);
+  await navigation.getByRole("button", { name: "新聊天", exact: true }).click();
+  await expect(page).toHaveURL(/\/new$/);
+  await expect(
+    page.getByRole("dialog", { name: "导航", exact: true }),
+  ).toBeHidden();
 
   const toolbar = page.getByRole("toolbar", { name: "仓库与分支" });
   const input = page.getByRole("textbox", { name: "任务描述" });
@@ -185,7 +191,17 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
     page.getByRole("region", { name: /的已归档会话$/ }).first(),
   ).toBeVisible();
   // The legacy quick-start archive can still resume the same chat.
-  await page.goto("/new");
+  if (phone(page)) {
+    await page.goto("/new");
+  } else {
+    await page.getByRole("button", { name: "收起侧栏", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "窄栏导航", exact: true })
+      .getByRole("button", { name: "新聊天", exact: true })
+      .press("Enter");
+    await expect(page).toHaveURL(/\/new$/);
+    await expect(input).toBeVisible();
+  }
   const nav3 = await sidebar(page);
   await nav3.getByRole("button", { name: /^已归档/ }).click();
   await nav3

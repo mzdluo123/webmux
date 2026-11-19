@@ -142,3 +142,8 @@
 - 320px 视口在 200% 字号下可打开并滚动详情，重连状态即时更新。P2P 和 Relay 数据由夹具注入了客户端状态。
 - 连接播报使用简短状态文本。修正重复重连文案后，隔离后端的 `workspace-discovery.spec.ts -g 'a disconnected session list reconnects'` 在桌面与手机 Chromium 均通过。
 - `workspace-ui.spec.ts` 在主机状态按钮中核对长短主机名和首个操作的几何，并单独核对状态区域。与 `workspace-discovery.spec.ts` 合计 16 通过，2 个桌面专属用例在手机项目跳过。
+
+## 快速开始入口（US-C16、US-Q19）
+
+- `make e2e-runtime` 构建成功。`playwright test test/e2e/quick-start.spec.ts -g 'one send creates'` 的桌面和手机 Chromium 用例通过，覆盖侧栏进入、手机抽屉关闭、桌面窄栏键盘进入、发送首条任务、归档与恢复。
+- 隔离 Chromium 核对 7 个视口的明暗主题、长输入与页面横向溢出、桌面键盘焦点和悬停命中；录制 390×844 手机模拟从侧栏打开底部输入框、发送并收到测试 Agent 回复。未在真机上验证。
