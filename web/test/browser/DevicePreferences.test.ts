@@ -19,7 +19,7 @@ test.each([
   (raw, defaultOn, defaultOff) => {
     vi.spyOn(Storage.prototype, "getItem").mockReturnValue(raw);
     expect(deviceToggle("voiceInput", true).enabled).toBe(defaultOn);
-    expect(deviceToggle("touchGamepad", false).enabled).toBe(defaultOff);
+    expect(deviceToggle("wsCompression", false).enabled).toBe(defaultOff);
   },
 );
 

@@ -19,6 +19,10 @@
     triggerLabel,
   }: { sessions: readonly SessionInfo[]; triggerLabel?: string } = $props();
   let open = $state(false);
+  let container = $state<HTMLDivElement | null>(null);
+  let sidebarNav: HTMLElement | null = null;
+  let suppressSidebarFallback = false;
+
   const alerts = $derived(
     sessions
       .flatMap((session) => {
@@ -44,11 +48,30 @@
       ),
   );
   const pending = $derived(alerts.filter((item) => !item.deferred).length);
+
+  function focusSidebarFallback(nav: HTMLElement | null) {
+    if (!nav?.isConnected) return false;
+    const target =
+      nav.querySelector<HTMLElement>(
+        '[role="radiogroup"] [role="radio"][tabindex="0"]:not([disabled])',
+      ) ??
+      nav.querySelector<HTMLElement>(
+        'button:not([disabled]):not([tabindex="-1"]), a[href]:not([tabindex="-1"])',
+      );
+    target?.focus({ preventScroll: true });
+    return Boolean(target);
+  }
+
+  function handleOpenChange(next: boolean) {
+    sidebarNav = container?.closest("nav") ?? sidebarNav;
+    if (next) suppressSidebarFallback = false;
+    open = next;
+  }
 </script>
 
-{#if alerts.length || open}
-  <div class="px-2 pt-1">
-    <Popover.Root bind:open>
+{#if alerts.length > 0 || open}
+  <div bind:this={container} class="px-2 pt-1">
+    <Popover.Root {open} onOpenChange={handleOpenChange}>
       <Popover.Trigger>
         {#snippet child({ props })}
           <Button
@@ -57,7 +80,10 @@
             size="sm-touch"
             class="w-full justify-start"
           >
-            <IconBell aria-hidden="true" />{triggerLabel ?? m.s2_inbox_title()}
+            <IconBell aria-hidden="true" />
+            <span class="min-w-0 truncate"
+              >{triggerLabel ?? m.s2_inbox_title()}</span
+            >
             {#if pending}<Badge variant="warning" class="ml-auto"
                 >{pending}</Badge
               >{/if}
@@ -70,6 +96,16 @@
         role="dialog"
         aria-label={m.s2_inbox_title()}
         class="flex max-h-(--bits-popover-content-available-height) w-[min(21rem,calc(100vw-1.5rem))] flex-col overflow-hidden"
+        onInteractOutside={() => {
+          suppressSidebarFallback = true;
+        }}
+        onCloseAutoFocus={(event) => {
+          const skip = suppressSidebarFallback;
+          suppressSidebarFallback = false;
+          if (!skip && !alerts.length && focusSidebarFallback(sidebarNav)) {
+            event.preventDefault();
+          }
+        }}
       >
         <Popover.Header>
           <Popover.Title>{m.s2_inbox_title()}</Popover.Title>
@@ -87,6 +123,7 @@
                   class="min-w-0 flex-1 justify-start"
                   title={alert.title}
                   onclick={() => {
+                    suppressSidebarFallback = true;
                     open = false;
                     openSession(session);
                   }}

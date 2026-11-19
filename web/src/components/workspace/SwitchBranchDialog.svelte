@@ -3,6 +3,7 @@
   import { worktreeTitle } from "../../domains/workspace/home-worktrees";
   import type { WorktreePreset } from "../../domains/sessions/worktree-preset";
   import type { Repository, Worktree } from "../../contracts/schemas";
+  import { Button } from "$lib/components/ui/button";
   import { ResponsiveDialog } from "$lib/components/ui/responsive-dialog";
   import SwitchBranch, { type SwitchSource } from "./SwitchBranch.svelte";
 
@@ -39,7 +40,9 @@
     onopenconflict?: (tree: Worktree, path?: string) => void;
     onclose: () => void;
   } = $props();
+  const formId = $props.id();
   let busy = $state(false);
+  let switchView = $state<SwitchBranch>();
 </script>
 
 <ResponsiveDialog
@@ -47,10 +50,15 @@
   description={m.s8_switch_dialog_desc()}
   drawerDescription={m.s8_switch_dialog_drawer_desc()}
   truncateDrawerTitle
+  pinDrawerHeader
+  drawerFullScreen
+  class="h-[min(90dvh,36rem)]"
   {busy}
   {onclose}
 >
   <SwitchBranch
+    bind:this={switchView}
+    {formId}
     {repository}
     {worktree}
     {initialBranch}
@@ -76,4 +84,18 @@
       : undefined}
     oncancel={onclose}
   />
+  {#snippet footer()}
+    <div class="flex flex-wrap justify-end gap-2 border-t pt-3">
+      <Button type="button" variant="outline" disabled={busy} onclick={onclose}>
+        {m.s8_cancel()}
+      </Button>
+      <Button
+        type="submit"
+        form={formId}
+        disabled={!(switchView?.isSwitchReady() ?? false)}
+      >
+        {busy ? m.s8_switching() : m.s8_switch_btn()}
+      </Button>
+    </div>
+  {/snippet}
 </ResponsiveDialog>

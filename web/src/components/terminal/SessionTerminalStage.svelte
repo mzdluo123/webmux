@@ -24,7 +24,6 @@
   import TerminalWorkspace from "./TerminalWorkspace.svelte";
   import type { createHeaderTerminalView } from "../../domains/terminal/session-terminal-io";
   import type { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
-  import { useTvTerminalBack } from "../../hooks/terminal/tv-terminal-back.svelte";
   import type { TerminalFeatures } from "../../features/terminal";
   import type ChatViewComponent from "../chat/ChatView.svelte";
   import SessionPanelDock from "./SessionPanelDock.svelte";
@@ -38,7 +37,7 @@
     fullscreen,
     codeShown = $bindable(),
     panelView = $bindable("code"),
-    forceSoftKeys = $bindable(),
+    bottomToolbarShown = $bindable(),
     desktop,
     documentScroll,
     chatVisible,
@@ -74,8 +73,6 @@
     keyboardSizeHold,
     setKeyboardSizeHold,
     keyboardHeld,
-    touchGamepad,
-    setTouchGamepad,
     findOpen,
     showFind,
     closeFind,
@@ -107,7 +104,7 @@
     fullscreen: ReturnType<typeof useFullscreen>;
     codeShown: boolean;
     panelView: "picker" | "code" | "split";
-    forceSoftKeys: boolean;
+    bottomToolbarShown: boolean;
     desktop: boolean;
     documentScroll: boolean;
     chatVisible: boolean;
@@ -143,8 +140,6 @@
     keyboardSizeHold: boolean;
     setKeyboardSizeHold: (value: boolean) => void;
     keyboardHeld: boolean;
-    touchGamepad: boolean;
-    setTouchGamepad: (value: boolean) => void;
     findOpen: boolean;
     showFind: () => void;
     closeFind: () => void;
@@ -183,13 +178,6 @@
     codeShown = false;
     header?.focusPanels();
   }
-
-  useTvTerminalBack({
-    host: () => container,
-    codeShown: () => codeShown,
-    closeCode: closePanel,
-    leave: () => leave(),
-  });
 
   export function focusFind() {
     findPanel?.focus();
@@ -252,10 +240,9 @@
   side: "top" | "bottom",
   size?: ButtonSize,
   variant?: ButtonVariant,
-  submenu?: boolean,
 )}
   <!-- In the terminal view the microphone lives in the draft box only. -->
-  {#if voiceEnabled && hybrid.view === "chat" && !submenu}
+  {#if voiceEnabled && hybrid.view === "chat"}
     {@render voiceButton(side, size, variant)}
   {/if}
   {#if features.quickCommands}<features.quickCommands.Menu
@@ -272,7 +259,6 @@
       {side}
       {size}
       {variant}
-      {submenu}
       run={runQuickCommand}
       manage={manageQuickCommands}
       onCloseAutoFocus={focusTerminal}
@@ -281,6 +267,7 @@
 {#snippet draftToggle()}
   <DraftToggle
     class="sm:hidden"
+    size="icon-xs"
     {draft}
     {draftSaved}
     {scratchSaved}
@@ -301,7 +288,6 @@
   bind:this={header}
   {features}
   {chatActions}
-  keyboard={holdBegin}
   {openPanels}
   terminal={headerTerminal}
   {fullscreen}
@@ -314,7 +300,7 @@
   {keyboardSizeHold}
   {setKeyboardSizeHold}
   bind:codeShown
-  bind:forceSoftKeys
+  bind:bottomToolbarShown
   {quickMenu}
   upload={uploads?.uploadFiles}
   {toggleDraft}
@@ -359,6 +345,7 @@
           {leave}
           {terminal}
           {uploads}
+          hideUploadProgress={terminalShown}
           {features}
           {draft}
           {draftSaved}
@@ -399,13 +386,8 @@
         <TerminalViewport
           bind:container
           {terminal}
-          focusTerminal={() => terminal.focus()}
-          scroll={(lines) => terminal.scrollLines(lines)}
-          sendControl={(input) => terminal.send(input)}
           visible={terminalVisible}
           sizeLocked={sizeLocked || keyboardHeld}
-          {touchGamepad}
-          {setTouchGamepad}
           {findOpen}
           {uploads}
           {quickMenu}
@@ -429,6 +411,14 @@
               {terminal}
               onclose={closeFind}
             />
+          {/snippet}
+          {#snippet uploadProgress()}
+            {#if terminalShown && features.files && uploads?.progress}<features.files.Progress
+                variant="floating"
+                offset={findOpen}
+                progress={uploads.progress}
+                cancel={() => uploads?.cancel()}
+              />{/if}
           {/snippet}
         </TerminalViewport>
       </div>

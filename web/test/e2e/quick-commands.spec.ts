@@ -402,9 +402,7 @@ test("desktop shows the entry beside the draft button until the toolbar is force
   await expect(page.locator(".xterm-helper-textarea")).toBeFocused();
 
   await page.getByRole("button", { name: "终端菜单", exact: true }).click();
-  await page
-    .getByRole("menuitemcheckbox", { name: "强制显示底部工具栏" })
-    .click();
+  await page.getByRole("menuitemcheckbox", { name: "显示底部工具栏" }).click();
   await page.keyboard.press("Escape");
   await expect(bar).toBeVisible();
   await expect(entry).toBeHidden();

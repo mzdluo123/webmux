@@ -1,5 +1,4 @@
 import { onMount } from "svelte";
-import { headsetMode } from "./headset-mode.svelte";
 
 export type KeyboardVisibility = "visible" | "hidden" | "unknown";
 
@@ -18,10 +17,6 @@ export function useViewport(locked: () => boolean = () => true) {
   let keyboardDismissed = $state(false);
   let previousOverflow = "";
   let applyLock = $state<(lock: boolean) => void>();
-  let update = $state<(headset: boolean) => void>();
-  $effect(() => {
-    update?.(headsetMode.enabled);
-  });
   $effect(() => {
     applyLock?.(locked());
   });
@@ -61,22 +56,6 @@ export function useViewport(locked: () => boolean = () => true) {
         } else if ((viewport?.scale ?? 1) > 1.01) {
           // Pinch zoom also shrinks the visual viewport, but not by an IME.
           keyboardState = "unknown";
-        } else if (
-          headsetMode.enabled &&
-          !sawKeyboard &&
-          !(
-            document.activeElement instanceof HTMLInputElement ||
-            document.activeElement instanceof HTMLTextAreaElement ||
-            (document.activeElement instanceof HTMLElement &&
-              document.activeElement.isContentEditable)
-          )
-        ) {
-          // Headset windows resize independently of a keyboard, including at
-          // the same width. Only an explicitly focused editable can start a
-          // keyboard cycle. Once observed, keep tracking through blur and the
-          // closing animation so a held PTY grid releases only after settling.
-          closedHeight = next;
-          keyboardState = "hidden";
         } else {
           if (next > closedHeight) closedHeight = next;
           const shrink = closedHeight - next;
@@ -99,7 +78,6 @@ export function useViewport(locked: () => boolean = () => true) {
         if (keyboardState !== keyboard) keyboard = keyboardState;
       });
     };
-    update = apply;
     applyLock = (nextLock) => {
       if (nextLock === lockRoot) return;
       lockRoot = nextLock;
@@ -129,22 +107,20 @@ export function useViewport(locked: () => boolean = () => true) {
     const hidden = () => {
       if (document.hidden) end();
     };
+    apply();
     viewport?.addEventListener("resize", apply);
     viewport?.addEventListener("scroll", apply);
     window.addEventListener("resize", apply);
-    document.addEventListener("focusin", apply, true);
     document.addEventListener("compositionstart", start, true);
     document.addEventListener("compositionend", end, true);
     document.addEventListener("focusout", end, true);
     document.addEventListener("visibilitychange", hidden);
     return () => {
       cancelAnimationFrame(frame);
-      update = undefined;
       root.style.overflow = previousOverflow;
       viewport?.removeEventListener("resize", apply);
       viewport?.removeEventListener("scroll", apply);
       window.removeEventListener("resize", apply);
-      document.removeEventListener("focusin", apply, true);
       document.removeEventListener("compositionstart", start, true);
       document.removeEventListener("compositionend", end, true);
       document.removeEventListener("focusout", end, true);

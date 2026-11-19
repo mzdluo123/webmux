@@ -13,6 +13,7 @@
     location,
     docked,
     open,
+    moving = false,
     opener,
     onclose,
     onrestored,
@@ -21,6 +22,7 @@
     location: string;
     docked: boolean;
     open: boolean;
+    moving?: boolean;
     opener: HTMLElement | null;
     onclose: () => void;
     onrestored: () => void;
@@ -93,8 +95,9 @@
 {/snippet}
 
 {#if docked}
-  {#if open && session}
+  {#if (open || moving) && session}
     <aside
+      inert={!open}
       class="sticky top-4 self-start rounded-lg border bg-card p-4"
       aria-label={m.s8_queue_preview({ title: session.title })}
     >

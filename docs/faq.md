@@ -5,11 +5,10 @@
 ## 常见问题
 
 <details>
-<summary><b>新安装为什么只有终端，没有聊天、启动配置或仓库入口？</b></summary>
+<summary><b>为什么某些聊天、仓库或远程入口显示不可用？</b></summary>
 
-新生成配置显式 `features.enabled=[]`，只启用 PTY 核心。按 [内置功能选择](deployment/configuration.md#内置功能选择) 加上所需 ID 并重启。
-聊天须同时选择 `chat`、`launch`、`files`；仓库需要 `workspace`，Git 工作台另需 `code`。缺省选择的旧配置保留固定 13 项旧版功能。
-禁用不是删除数据，也不是网页实时开关。实例健康不代表每项能力可用；查 [能力发现](protocol.md#能力发现)，再检查外部命令、连接器和业务设置。
+全部 13 项内置模块随服务默认启用（旧配置遗留的 `[features]` 或 `[plugins]` 段会被忽略，见 [内置功能选择](deployment/configuration.md#内置功能选择)）。
+实例健康仅代表进程存活；具体能力仍取决于外部命令（如 `git`、`tailscale`、ACP 连接器）、存储锁与各自业务开关。查 [能力发现](protocol.md#能力发现)，再检查外部命令、连接器和业务设置。
 
 </details>
 

@@ -1,3 +1,4 @@
+import { tick } from "svelte";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
@@ -9,6 +10,8 @@ import {
   GitWorkingChangeSchema,
   GitWorktreeContextSchema,
 } from "../../src/contracts/git-workbench-schemas";
+import GitLogListPane from "../../src/components/workspace/GitLogListPane.svelte";
+import GitUncommittedChangesPane from "../../src/components/workspace/GitUncommittedChangesPane.svelte";
 import Harness from "./GitWorkbenchHarness.svelte";
 
 afterEach(async () => {
@@ -530,7 +533,11 @@ test("Commit pane separates reading/reviewed/staged states, stages single hunk, 
   // Confirm step 1 (commit matched) -> transitions into Push preview dialog!
   await page.getByRole("button", { name: "确认提交并继续预览推送" }).click();
   await expect
-    .element(page.getByText(/推送确认 · main → origin\/main/))
+    .element(
+      page
+        .getByRole("dialog", { name: "推送确认" })
+        .getByText("origin/main", { exact: true }),
+    )
     .toBeVisible();
 });
 
@@ -622,5 +629,303 @@ test("commit graph SVGs touch edge-to-edge without vertical gaps across wrapped 
     }
 
     await cleanup();
+  }
+});
+
+test("GitLogListPane retains reading scroll position across cursor append and status notices and guards aria-disabled pagination", async () => {
+  await page.viewport(390, 844);
+  const makeRow = (index: number) => {
+    const hex = (index + 1).toString(16).padStart(40, "0");
+    const parentHex = (index + 2).toString(16).padStart(40, "0");
+    return GitHistoryRowSchema.parse({
+      oid: hex,
+      shortOid: hex.slice(0, 7),
+      parents: [parentHex],
+      lane: 0,
+      activeLanes: [0],
+      edges: [
+        {
+          fromLane: 0,
+          toLane: 0,
+          targetOid: parentHex,
+          kind: "direct",
+        },
+      ],
+      directParentsMissing: false,
+      subject: `commit row ${index + 1}`,
+      authorName: "Alice",
+      authorEmail: "alice@example.com",
+      authorAt: "2026-04-12T08:00:00Z",
+      committerName: "Alice",
+      committerEmail: "alice@example.com",
+      committerAt: "2026-04-12T08:00:00Z",
+      refs: [],
+      changedPaths: [],
+      branches: ["main"],
+    });
+  };
+
+  const firstPage = Array.from({ length: 20 }, (_, i) => makeRow(i));
+  const secondPage = Array.from({ length: 30 }, (_, i) => makeRow(i));
+  let savedScrollTop = 0;
+  const onListScrollChange = vi.fn((top: number) => {
+    savedScrollTop = top;
+  });
+  const onLoadMoreHistory = vi.fn();
+
+  const baseProps = {
+    desktop: false,
+    historyState: "ready" as const,
+    nextCursor: "cur-2",
+    historyLoadingMore: false,
+    visibleCommits: firstPage,
+    selectedCommitOid: firstPage[0]!.oid,
+    listScrollTop: 0,
+    scope: "all" as const,
+    branchFilter: null,
+    searchQuery: "",
+    authorFilter: "",
+    sinceFilter: "",
+    untilFilter: "",
+    pathFilter: "",
+    refsChanged: false,
+    selectionNotice: null,
+    compareBaseMarkOid: null,
+    onListScrollChange,
+    onLoadMoreHistory,
+    onSelectCommit: () => {},
+    onScopeChange: () => {},
+    onSearchChange: () => {},
+    onPathFilterChange: () => {},
+  };
+
+  const view = await render(GitLogListPane, baseProps);
+  view.container.style.height = "320px";
+  view.container.style.width = "390px";
+
+  const listbox = page.getByRole("listbox", { name: "提交记录" });
+  await expect.element(listbox).toBeVisible();
+  const listboxEl = listbox.element() as HTMLElement;
+  await expect
+    .poll(() => listboxEl.scrollHeight > listboxEl.clientHeight)
+    .toBe(true);
+
+  listboxEl.scrollTop = 180;
+  listboxEl.dispatchEvent(new Event("scroll"));
+  expect(savedScrollTop).toBe(180);
+
+  const loadMoreBtn = page.getByRole("button", { name: /加载更多/ });
+  const loadMoreEl = loadMoreBtn.element() as HTMLButtonElement;
+  loadMoreEl.focus({ preventScroll: true });
+  expect(document.activeElement).toBe(loadMoreEl);
+  expect(loadMoreEl.getAttribute("tabindex")).toBeNull();
+
+  loadMoreEl.click();
+  expect(onLoadMoreHistory).toHaveBeenCalledTimes(1);
+
+  await view.rerender({
+    ...baseProps,
+    historyLoadingMore: true,
+    listScrollTop: savedScrollTop,
+  });
+
+  const loadingBtn = page.getByRole("button", { name: /正在加载/ });
+  const loadingEl = loadingBtn.element() as HTMLButtonElement;
+  expect(document.activeElement).toBe(loadingEl);
+  await expect.element(loadingBtn).toHaveAttribute("aria-disabled", "true");
+  await expect.element(loadingBtn).toHaveAttribute("tabindex", "-1");
+
+  // Guard blocks duplicate click and keyboard activation while loading.
+  loadingEl.click();
+  await userEvent.keyboard("{Enter}");
+  expect(onLoadMoreHistory).toHaveBeenCalledTimes(1);
+
+  // Appending cursor page preserves reading position and transfers focus when exhausted.
+  await view.rerender({
+    ...baseProps,
+    visibleCommits: secondPage,
+    nextCursor: "",
+    historyLoadingMore: false,
+    listScrollTop: savedScrollTop,
+  });
+
+  await expect.poll(() => Math.round(listboxEl.scrollTop)).toBe(180);
+  expect(document.activeElement).toBe(listboxEl);
+
+  // Status notice preserves saved scroll position and restores it on return.
+  onListScrollChange.mockClear();
+  await view.rerender({
+    ...baseProps,
+    historyState: "no_task_baseline",
+    scope: "task",
+    visibleCommits: [],
+    nextCursor: "",
+    listScrollTop: savedScrollTop,
+  });
+  listboxEl.scrollTop = 0;
+  listboxEl.dispatchEvent(new Event("scroll"));
+  expect(onListScrollChange).not.toHaveBeenCalled();
+
+  await view.rerender({
+    ...baseProps,
+    historyState: "ready",
+    scope: "all",
+    visibleCommits: secondPage,
+    nextCursor: "",
+    listScrollTop: savedScrollTop,
+  });
+  await expect.poll(() => Math.round(listboxEl.scrollTop)).toBe(180);
+});
+
+test("GitUncommittedChangesPane folds all four change groups uniformly, marks closing rows inert, unmounts settled rows, and skips animation on refresh", async () => {
+  await page.viewport(1280, 900);
+  const fixture = createFixtureState("commit");
+  const allGroupChanges = [
+    GitWorkingChangeSchema.parse({
+      id: "conflicted:conflict.ts",
+      path: "web/src/conflict.ts",
+      group: "conflicted",
+      status: "U",
+      hunkStageAvailable: false,
+      hunks: [],
+    }),
+    ...fixture.workingChanges,
+    GitWorkingChangeSchema.parse({
+      id: "untracked:notes.md",
+      path: "docs/notes.md",
+      group: "untracked",
+      status: "?",
+      hunkStageAvailable: false,
+      hunks: [],
+    }),
+  ];
+  const onSelectChange = vi.fn();
+  const baseProps = {
+    context: fixture.context,
+    changes: allGroupChanges,
+    activeChange: allGroupChanges[1]!,
+    reviewedPaths: [],
+    commitMessage: "",
+    onSelectChange,
+    onToggleReviewed: () => {},
+    onStageChange: () => {},
+    onUnstageChange: () => {},
+    onCommitMessageChange: () => {},
+    onOpenCommitPreview: () => {},
+    onOpenPush: () => {},
+    onCreateBranchFromHead: () => {},
+    onResolveDraftKeepLocal: () => {},
+    onResolveDraftAdoptRemote: () => {},
+    onResolveDraftMergeBoth: () => {},
+    onToggleCommitAmend: () => {},
+    onResolveAmendDraft: () => {},
+    onCommitAuthorOverrideChange: () => {},
+    onToggleCommitSignoff: () => {},
+  };
+
+  const view = await render(GitUncommittedChangesPane, { props: baseProps });
+  view.container.style.height = "640px";
+  view.container.style.width = "420px";
+
+  const groups = ["conflicted", "staged", "unstaged", "untracked"] as const;
+  for (const group of groups) {
+    const section = document.querySelector<HTMLElement>(
+      `[data-change-section="${group}"]`,
+    )!;
+    const trigger = section.querySelector<HTMLButtonElement>(
+      '[data-slot="collapsible-trigger"]',
+    )!;
+    const panel = trigger.closest('[data-slot="collapsible"]')!
+      .lastElementChild as HTMLDivElement;
+
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(
+      section.querySelectorAll("[data-working-change-row]").length,
+    ).toBeGreaterThan(0);
+
+    // Collapsing marks panel inert immediately, animates height, and unmounts rows once settled.
+    trigger.click();
+    await tick();
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(panel.inert).toBe(true);
+    await expect.poll(() => panel.getAnimations().length).toBeGreaterThan(0);
+    await expect
+      .poll(() => section.querySelectorAll("[data-working-change-row]").length)
+      .toBe(0);
+
+    // Expanding mounts rows and animates height back open across every group.
+    trigger.click();
+    await tick();
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    expect(panel.inert).toBe(false);
+    await expect.poll(() => panel.getAnimations().length).toBeGreaterThan(0);
+    await expect.poll(() => panel.getAnimations().length).toBe(0);
+    expect(
+      section.querySelectorAll("[data-working-change-row]").length,
+    ).toBeGreaterThan(0);
+  }
+
+  // While the first group is mid-collapse, Home jumps immediately to the next open group's row.
+  const conflictedSec = document.querySelector<HTMLElement>(
+    '[data-change-section="conflicted"]',
+  )!;
+  conflictedSec
+    .querySelector<HTMLButtonElement>('[data-slot="collapsible-trigger"]')!
+    .click();
+  await tick();
+  const unstagedRow = document.querySelector<HTMLButtonElement>(
+    '[data-change-section="unstaged"] [data-working-change-row]',
+  )!;
+  unstagedRow.focus();
+  await userEvent.keyboard("{Home}");
+  expect(onSelectChange).toHaveBeenLastCalledWith("staged:cli.go");
+  await expect
+    .poll(
+      () => conflictedSec.querySelectorAll("[data-working-change-row]").length,
+    )
+    .toBe(0);
+
+  // Rapid mid-collapse click reverses back open without dropping the rows.
+  const stagedSec = document.querySelector<HTMLElement>(
+    '[data-change-section="staged"]',
+  )!;
+  const stagedTrigger = stagedSec.querySelector<HTMLButtonElement>(
+    '[data-slot="collapsible-trigger"]',
+  )!;
+  const stagedPanel = stagedTrigger.closest('[data-slot="collapsible"]')!
+    .lastElementChild as HTMLDivElement;
+  stagedTrigger.click();
+  await expect
+    .poll(() => stagedPanel.getAnimations().length)
+    .toBeGreaterThan(0);
+  stagedTrigger.click();
+  await tick();
+  expect(stagedTrigger.getAttribute("aria-expanded")).toBe("true");
+  expect(stagedPanel.inert).toBe(false);
+  await expect.poll(() => stagedPanel.getAnimations().length).toBe(0);
+  expect(
+    stagedSec.querySelectorAll("[data-working-change-row]").length,
+  ).toBeGreaterThan(0);
+
+  // Background refresh updates file list without starting disclosure animations.
+  const refreshedChanges = [
+    ...allGroupChanges,
+    GitWorkingChangeSchema.parse({
+      id: "untracked:second.md",
+      path: "docs/second.md",
+      group: "untracked",
+      status: "?",
+      hunkStageAvailable: false,
+      hunks: [],
+    }),
+  ];
+  await view.rerender({ ...baseProps, changes: refreshedChanges });
+  await expect
+    .element(page.getByRole("option", { name: /docs\/second\.md/ }))
+    .toBeVisible();
+  for (const el of document.querySelectorAll<HTMLElement>(
+    '[data-slot="collapsible"] > div:last-child',
+  )) {
+    expect(el.getAnimations()).toHaveLength(0);
   }
 });

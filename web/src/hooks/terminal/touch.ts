@@ -1,5 +1,4 @@
 import type { Terminal } from "@xterm/xterm";
-import { headsetMode } from "../shared/headset-mode.svelte";
 
 type TouchPoint = { x: number; y: number };
 
@@ -249,8 +248,7 @@ export function attachTouchGestures(
   };
   // Some Android browsers still deliver the compatibility mousedown after a
   // canceled touch pointerdown. Chromium marks it via sourceCapabilities;
-  // others fall back to the recent native touch. Outside the explicit headset
-  // presentation, a real mouse keeps focusing xterm for hardware-keyboard users.
+  // others fall back to the recent native touch.
   const mouseDown = (event: MouseEvent) => {
     if (disposed || event.button !== 0) return;
     const source = (
@@ -261,10 +259,7 @@ export function attachTouchGestures(
     const touchDerived = source
       ? source.firesTouchEvents === true
       : performance.now() - lastTouch < 700;
-    // Controllers can produce ordinary mouse events. In the explicit headset
-    // presentation, selecting output must not raise the system keyboard; the
-    // keyboard entry still focuses the same xterm textarea for keys and IME.
-    if (!touchDerived && !headsetMode.enabled) return;
+    if (!touchDerived) return;
     releaseDismissedKeyboard();
     event.preventDefault();
     event.stopPropagation();

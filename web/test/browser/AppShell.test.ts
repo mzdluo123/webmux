@@ -802,3 +802,81 @@ test("workbench sidebar offers a workspace refresh button and follows /ws/reposi
     .element(sidebar().getByText("feat/ext-sync").first())
     .toBeVisible();
 });
+
+test("sidebar hides idle inbox, balances scope radios, hands focus back on empty inbox Escape, and keeps non-Relay transport single-line", async () => {
+  history.replaceState(null, "", "/");
+  render(ShellHarness, { drafts: createTerminalDrafts() });
+  const socket = await snapshot([
+    session({ id: "shellbbb", title: "日常任务" }),
+  ]);
+
+  await sidebar().getByRole("radio", { name: "按会话" }).click();
+
+  const scope = sidebar().getByRole("radiogroup", { name: "会话范围" });
+  const allRadio = scope.getByRole("radio", { name: "全部", exact: true });
+  const pendingRadio = scope.getByRole("radio", {
+    name: "待处理",
+    exact: true,
+  });
+  await expect.element(allRadio).toBeVisible();
+  await expect.element(pendingRadio).toBeVisible();
+  expect(
+    Math.abs(
+      allRadio.element().getBoundingClientRect().width -
+        pendingRadio.element().getBoundingClientRect().width,
+    ),
+  ).toBeLessThanOrEqual(2);
+
+  // Idle state renders no inbox row above the scope controls.
+  const inboxTrigger = () =>
+    sidebar().getByRole("button", { name: /^会话通知/ });
+  expect(inboxTrigger().elements()).toEqual([]);
+
+  // Non-Relay host status keeps WebSocket single-line without an invisible Relay spacer.
+  await sidebar()
+    .getByRole("button", { name: /^查看主机状态：/ })
+    .click();
+  const hostDialog = page.getByRole("dialog", { name: "主机状态详情" });
+  await expect.element(hostDialog).toBeVisible();
+  const wsSpan = hostDialog
+    .getByText("WebSocket", { exact: true })
+    .element() as HTMLElement;
+  expect(wsSpan.parentElement?.querySelector(".invisible")).toBeNull();
+  await userEvent.keyboard("{Escape}");
+
+  // Raise urgent attention, open inbox, clear attention, and verify Escape focus handoff.
+  socket.frame({
+    type: "updated",
+    session: session({
+      id: "shellbbb",
+      title: "日常任务",
+      status: "waiting",
+      attention: {
+        kind: "permission",
+        source: "agent",
+        since: "2026-11-05T12:00:00Z",
+      },
+    }),
+  } as never);
+
+  await expect.element(inboxTrigger()).toBeVisible();
+  await inboxTrigger().click();
+  const inbox = page.getByRole("dialog", { name: "待我处理", exact: true });
+  await expect.element(inbox).toBeVisible();
+
+  socket.frame({
+    type: "updated",
+    session: session({
+      id: "shellbbb",
+      title: "日常任务",
+      status: "running",
+    }),
+  } as never);
+  await expect
+    .element(inbox.getByText("当前没有等待处理的会话。"))
+    .toBeVisible();
+
+  await userEvent.keyboard("{Escape}");
+  await expect.poll(() => inboxTrigger().elements().length).toBe(0);
+  expect(sidebar().element().contains(document.activeElement)).toBe(true);
+});

@@ -25,11 +25,11 @@
 - [terminal-quick-commands](../openspec/specs/terminal-quick-commands/spec.md)：在设置中保存并一键发送常用命令
 - [terminal-session-cli](../openspec/specs/terminal-session-cli/spec.md)：`webmux run|attach|ls|open` 本机终端附着
 - [session-launch-environment](../openspec/specs/session-launch-environment/spec.md)：会话启动时的进程环境约定
-- [launch-configs](../openspec/specs/launch-configs/spec.md)：服务器持久化的启动配置（名称 + argv + 环境变量）
+- [launch-configs](../openspec/specs/launch-configs/spec.md)：服务器持久化的启动配置（名称 + argv + 环境变量）与设置页融合呈现
+- [launch-config-shell-and-hybrid](../openspec/specs/launch-config-shell-and-hybrid/spec.md)：启动配置的混合模式开关、`chatSupport` 判定、交互式启动文件包装与默认 Shell
 - [agent-tools-check](../openspec/specs/agent-tools-check/spec.md)：本机已安装 CLI agent 与 ACP 连接器的路径、版本检测及按需更新检查
 - [session-artifacts](../openspec/specs/session-artifacts/spec.md)：会话产物目录
 - [terminal-keyboard-size-hold](../openspec/specs/terminal-keyboard-size-hold/spec.md)：触屏唤起软键盘时暂时保持 PTY 行列不变
-- [terminal-touch-gamepad](../openspec/specs/terminal-touch-gamepad/spec.md)：触屏与调试可用的半透明浮动摇杆、高频虚拟键及底栏去重
 - [terminal-notice-overlay](../openspec/specs/terminal-notice-overlay/spec.md)：终端顶部状态提示悬浮显示，不触发 resize
 - [websocket-compression](../openspec/specs/websocket-compression/spec.md)：手机与平板默认启用、可按设备覆盖的 WebSocket 压缩
 - [terminal-file-download](../openspec/specs/terminal-file-download/spec.md)：终端文件下载协议与浏览器保存
@@ -170,8 +170,3 @@
 - [controller-service-layering](../openspec/specs/controller-service-layering/spec.md)：后端 Controller 与 Service 分层
 - [frontend-architecture-guard](../openspec/specs/frontend-architecture-guard/spec.md)：前端架构检查入口
 - [hub-message-conn](../openspec/specs/hub-message-conn/spec.md)：Hub 消息连接与生命周期
-
-## 头显与电视
-
-- [headset-browser-support](../openspec/specs/headset-browser-support/spec.md)：头显浏览器的二维工作区适配
-- [tv-browser-support](../openspec/specs/tv-browser-support/spec.md)：电视浏览器的大屏和遥控器操作

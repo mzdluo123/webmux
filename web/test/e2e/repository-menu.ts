@@ -45,21 +45,15 @@ export async function repositoryMenu(
   );
 }
 
-/**
- * Picks an item of the "全部仓库" row's "⋯" menu in the sidebar tree, where
- * registry-level actions like "添加仓库…" live.
- */
-export async function allRepositoriesMenu(page: Page, item: string) {
-  await sidebarMenu(page, /^仓库操作：全部仓库$/, item);
+export function addRepositoryButton(page: Page) {
+  return page
+    .getByRole("navigation", { name: "导航", exact: true })
+    .getByRole("button", { name: "添加仓库", exact: true });
 }
 
-/**
- * Opens the "全部仓库" row's "⋯" menu without picking an item, so a case can
- * assert an item's disabled state. Returns whether the phone drawer had to
- * be opened; an Escape closes the menu, another closes that drawer.
- */
-export async function openAllRepositoriesMenu(page: Page) {
-  return await openSidebarMenu(page, /^仓库操作：全部仓库$/);
+export async function openAddRepository(page: Page) {
+  await revealSidebar(page);
+  await addRepositoryButton(page).click();
 }
 
 /**

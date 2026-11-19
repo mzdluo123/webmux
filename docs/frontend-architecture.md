@@ -86,7 +86,6 @@ pnpm --dir web check:arch    # 全部架构检查；make check 与 CI 也会运�
 
 ### 设备模式边界
 
-- `hooks/shared/` 拥有 TV/头显显式开关、设备偏好和 TV 导航生命周期；`platform/spatial-navigation.ts` 只计算几何候选。根属性由应用外壳设置，呈现使用共享设计系统令牌，不由设备 UA 推断业务模式。
 - 复合控件用 `data-tv-native-keys` 保留自己的键盘协议；聊天内联菜单在 `webmux:tv-back` 的 capture 阶段，仅消费自己拥有焦点时的返回，再由根导航释放编辑。
 - `hooks/terminal/terminal.svelte.ts` 的 `TerminalController` 保有唯一 xterm emulator、输入路由与 socket；视图切换保留解析模型和连接。
 - `Terminal.svelte` 按会话键挂载 2D 窗格；`TerminalSessionHost` 在分屏与视图状态变化时保留原 `SessionTerminal`。
@@ -128,13 +127,13 @@ Git 工作台分栏使用 `git-pane` 与 `git-divider` 布局钩子类，只在�
 | ------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Button`            | `variant="quiet"`                                           | 平时弱化、悬停时恢复前景色的 ghost 按钮                                                                                                                                                         |
 | `Button`            | `variant="mode"`                                            | 侧栏模式按钮，选中线由模式组统一绘制和移动                                                                                                                                                      |
-| `Button`            | `variant="hud"`                                             | 软键栏内摇杆与虚拟按键的高对比度表面（低不透明度边框与表面）                                                                                                                                    |
 | `Button`            | `variant="success"`                                         | 对话框中更安全的替代操作（如“仅从主页隐藏”），绿色填充，放在右下角                                                                                                                              |
 | `Button`            | `variant="destructive-outline"`                             | 文字形式的危险次要操作（如“删除全部快捷指令”）：红色描边与文字，无填充                                                                                                                          |
 | `Card`              | `flat`                                                      | 设置页各分区：手机上去掉边框与底色，只留标题与内容                                                                                                                                              |
 | `Item`              | `variant="divided"`                                         | 设置页的扁平列表行，行与行之间用细线分隔                                                                                                                                                        |
 | `ItemGroup`         | `variant="divided"`                                         | 与 `Item variant="divided"` 配套：列表项之间不留间隙，细线紧贴行边                                                                                                                              |
 | `Button`            | `aria-pressed` / `aria-expanded` / `aria-current="true"`    | outline、ghost、quiet 在开关按下、展开或当前项时显示前景色描边；不再提供填充的 `secondary`                                                                                                      |
+| `Button`            | `aria-disabled`                                             | 异步操作保留焦点时呈现半透明、屏蔽指针并跳过按下位移；调用方拦截重复激活并按需设 `tabindex={-1}`                                                                                                |
 | `Button`            | `raised`                                                    | 浮在终端或代码上的按钮（边框加阴影）                                                                                                                                                            |
 | `Button`            | `wrap`                                                      | 较长的文字按钮（如“改为在新工作树打开”）在窄屏大字号下换行而不溢出；平时高度不变                                                                                                                |
 | `Button`            | `size="icon-touch"` / `size="sm-touch"`                     | 窄屏（小于 `sm`）44px 触控尺寸，`sm` 以上恢复常规尺寸                                                                                                                                           |
@@ -153,6 +152,7 @@ Git 工作台分栏使用 `git-pane` 与 `git-divider` 布局钩子类，只在�
 | `SegmentedControl`  | `size` 选 `form` / `navigation` / `header`，`wrap`          | 基于 RadioGroup 的下划线分段控件，三个尺寸分别用于表单、侧栏筛选、标题行内的紧凑切换。窄屏可用 `wrap` 换行。                                                                                    |
 | `RadioGroup`        | —                                                           | 每个选项都带说明文字的单选（如新建会话的起始端）；传 `aria-label` 作为名称，边框标出当前项                                                                                                      |
 | `Checkbox`          | —                                                           | 复选框，配合 `Label` 使用                                                                                                                                                                       |
+| `Collapsible`       | `MotionRoot`、`useManualDisclosureMotion`                   | 手动开合时测量并过渡高度，折叠完成前保留内容挂载与 `inert`，筛选揭示或减少动态效果时直接结算                                                                                                    |
 | `ListButton`        | `row` / `text` / `content` / `option` / `tab` / `tab-close` | 列表、标签栏与卡片中的可点击区域。它不带控件尺寸，虚拟列表的固定行高不受影响；独立的操作按钮仍用 `Button`                                                                                       |
 | `ListButton`        | `navigation` / `navigation-action` / `file-tree-overlay`    | 侧栏导航行：`aria-pressed` 标记选中的筛选，`aria-current="page"` 标记当前页面；后两者用于带行尾操作按钮的侧栏行，见表下说明                                                                     |
 | `ListButton`        | `variant="navigation-compact-action"`                       | 工作台侧栏的两行会话记录，使用紧凑行距；触控设备保留 44px 的最小高度。                                                                                                                          |

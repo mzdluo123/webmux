@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import IconDeviceGamepad2 from "~icons/tabler/device-gamepad-2";
+  import IconCopy from "~icons/tabler/copy";
+  import IconX from "~icons/tabler/x";
   import {
     Button,
     type ButtonSize,
@@ -9,14 +10,10 @@
   import JumpToLatestButton from "../shared/JumpToLatestButton.svelte";
   import SoftKeys from "./SoftKeys.svelte";
   import { m } from "$lib/paraglide/messages.js";
-  import {
-    terminalKeys,
-    type Modifiers,
-  } from "../../domains/terminal/terminal-keys";
+  import type { Modifiers } from "../../domains/terminal/terminal-keys";
   import type { UploadProgress } from "../../hooks/shared/upload.svelte";
   import type { Connection } from "../../platform/ws-contracts";
   import { hasTouchInput } from "../../platform/touch-input";
-  import { tvMode } from "../../hooks/shared/tv-mode.svelte";
 
   interface ViewportTerminal {
     readonly selection: string;
@@ -50,13 +47,9 @@
     lock,
     paste,
     keyboard,
-    touchGamepad = false,
-    setTouchGamepad,
     findOpen = false,
     findBar,
-    focusTerminal,
-    scroll,
-    sendControl,
+    uploadProgress,
   }: {
     container?: HTMLDivElement;
     terminal: ViewportTerminal;
@@ -73,134 +66,19 @@
     lock: (key: "shift") => void;
     paste: () => Promise<void>;
     keyboard: () => void;
-    touchGamepad?: boolean;
-    setTouchGamepad: (value: boolean) => void;
     findOpen?: boolean;
     findBar?: Snippet;
-    focusTerminal?: () => void;
-    scroll?: (lines: number) => void;
-    sendControl?: (input: string) => void;
+    uploadProgress?: Snippet;
   } = $props();
-
-  const gamepadAvailable = $derived(
-    t.controlling === true &&
-      t.connection !== "missing" &&
-      (t.exitCode === null || t.exitCode === undefined) &&
-      visible,
-  );
-  const gamepadActive = $derived(touchGamepad && gamepadAvailable);
-  const gamepadToggleLabel = $derived(
-    gamepadActive ? m.s4_collapse_gamepad() : m.s4_expand_gamepad(),
-  );
 
   // Keep the hint off touch screens, including hybrids whose secondary pointer
   // is coarse, and mirror the platform's actual copy shortcut.
   const mac = /Mac/.test(navigator.platform);
   const shortcutHint =
     !hasTouchInput() && matchMedia("(pointer: fine)").matches;
-
-  let captured = $state(false);
-  let inputButton = $state<HTMLButtonElement | null>(null);
-  $effect(() => {
-    if (!tvMode.enabled || !visible || !container) {
-      captured = false;
-      return;
-    }
-    const host = container;
-    function release(event: Event) {
-      if (
-        event.defaultPrevented ||
-        (event as CustomEvent).detail !== "capture" ||
-        !captured
-      )
-        return;
-      event.preventDefault();
-      captured = false;
-      const header = Array.from(
-        host
-          .closest(".session-terminal")
-          ?.querySelectorAll<HTMLElement>(
-            "[data-tv-terminal-toolbar] button:not(:disabled)",
-          ) ?? [],
-      ).find((button) => button.getClientRects().length > 0);
-      (header ?? inputButton)?.focus();
-    }
-    function guard(event: FocusEvent) {
-      if (!(event.target instanceof Element)) return;
-      if (host.contains(event.target)) {
-        if (!captured && event.target.closest(".xterm")) inputButton?.focus();
-      } else {
-        captured = false;
-      }
-    }
-    window.addEventListener("webmux:tv-back", release);
-    document.addEventListener("focusin", guard);
-    if (host.contains(document.activeElement)) inputButton?.focus();
-    return () => {
-      window.removeEventListener("webmux:tv-back", release);
-      document.removeEventListener("focusin", guard);
-    };
-  });
-  function capture() {
-    captured = true;
-    focusTerminal?.();
-  }
-  function terminalKey(input: string) {
-    (sendControl ?? send)(input);
-    capture();
-  }
 </script>
 
-{#snippet gamepadToggle()}
-  <Button
-    variant="ghost"
-    size="icon-sm"
-    aria-label={gamepadToggleLabel}
-    title={gamepadToggleLabel}
-    aria-expanded={gamepadActive}
-    disabled={!gamepadAvailable}
-    onmousedown={(event) => event.preventDefault()}
-    onclick={() => setTouchGamepad(!touchGamepad)}
-  >
-    <IconDeviceGamepad2 aria-hidden="true" />
-  </Button>
-{/snippet}
-
-<div class="terminal-column" data-tv-captured={tvMode.enabled && captured}>
-  {#if tvMode.enabled && visible}
-    <div
-      class="flex shrink-0 flex-wrap items-center gap-2 border-b px-2 py-1"
-      role="toolbar"
-      aria-label={m.s4_tv_terminal_input_aria()}
-    >
-      <Button
-        bind:ref={inputButton}
-        variant="outline"
-        aria-pressed={captured}
-        onclick={capture}>{m.s4_terminal_input_btn()}</Button
-      >
-      <span class="text-sm text-muted-foreground"
-        >{captured
-          ? m.s4_tv_input_active_hint()
-          : m.s4_tv_nav_active_hint()}</span
-      >
-      <Button variant="outline" onclick={() => terminalKey(terminalKeys.escape)}
-        >Esc</Button
-      >
-      <Button
-        variant="outline"
-        onclick={() => terminalKey(terminalKeys.interrupt)}>Ctrl+C</Button
-      >
-      {#if scroll}
-        <Button variant="ghost" onclick={() => scroll?.(-12)}
-          >{m.s4_scroll_up()}</Button
-        >
-        <Button variant="ghost" onclick={() => scroll?.(12)}
-          >{m.s4_scroll_down()}</Button
-        >
-      {/if}
-    </div>
-  {/if}
+<div class="terminal-column">
   <div class="terminal-area">
     <div
       class="terminal-host"
@@ -209,6 +87,7 @@
       bind:this={container}
     ></div>
     {@render findBar?.()}
+    {@render uploadProgress?.()}
     {#if uploads?.dragging}
       <div
         class="pointer-events-none absolute inset-0 z-20 flex items-center justify-center border-2 border-dashed border-primary bg-background/90"
@@ -219,23 +98,53 @@
         </p>
       </div>
     {/if}
-    {#if t.selection && !findOpen}
-      <div
-        class="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-md border bg-popover p-1 shadow-md"
-        role="toolbar"
-        aria-label={m.s4_terminal_selection_aria()}
-      >
-        <Button
-          size="sm"
-          aria-keyshortcuts={mac ? "Meta+C" : "Control+C"}
-          onclick={() => t.copySelection()}>{m.s4_copy_selection()}</Button
-        >
-        {#if shortcutHint}<kbd class="border px-1" aria-hidden="true"
-            >{mac ? "⌘C" : "Ctrl+C"}</kbd
-          >{/if}
-        <Button variant="ghost" size="sm" onclick={() => t.clearSelection()}
-          >{m.s4_clear_selection()}</Button
-        >
+    {#if visible}
+      <div class="terminal-controls pointer-events-none absolute inset-0 z-10">
+        {#if !t.atBottom && !t.restoring}
+          <div
+            class="terminal-jump pointer-events-auto absolute bottom-3 left-1/2 -translate-x-1/2"
+          >
+            <JumpToLatestButton
+              labelClass="terminal-control-label"
+              onclick={() => t.scrollToBottom()}
+            />
+          </div>
+        {/if}
+        {#if t.selection && !findOpen}
+          <div
+            class="terminal-selection pointer-events-auto absolute right-2 top-2 flex items-center gap-1 rounded-md border bg-popover p-1 shadow-md"
+            role="toolbar"
+            aria-label={m.s4_terminal_selection_aria()}
+          >
+            <Button
+              size="sm"
+              aria-label={m.s4_copy_selection()}
+              title={m.s4_copy_selection()}
+              aria-keyshortcuts={mac ? "Meta+C" : "Control+C"}
+              onclick={() => t.copySelection()}
+            >
+              <IconCopy class="terminal-control-icon" aria-hidden="true" />
+              <span class="terminal-control-label">{m.s4_copy_selection()}</span
+              >
+            </Button>
+            {#if shortcutHint}<kbd
+                class="terminal-control-label border px-1"
+                aria-hidden="true">{mac ? "⌘C" : "Ctrl+C"}</kbd
+              >{/if}
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={m.s4_clear_selection()}
+              title={m.s4_clear_selection()}
+              onclick={() => t.clearSelection()}
+            >
+              <IconX class="terminal-control-icon" aria-hidden="true" />
+              <span class="terminal-control-label"
+                >{m.s4_clear_selection()}</span
+              >
+            </Button>
+          </div>
+        {/if}
       </div>
     {/if}
     {#if t.restoring && t.connection !== "missing"}<div
@@ -252,17 +161,11 @@
           >{m.s4_restoring_ellipsis()}</span
         >
       </div>{/if}
-    {#if !t.atBottom && !t.restoring && visible}<JumpToLatestButton
-        class="absolute bottom-3 left-1/2 z-10 -translate-x-1/2"
-        onclick={() => t.scrollToBottom()}
-      />{/if}
   </div>
   <SoftKeys
     {send}
     modifiers={t.modifiers}
     locked={t.shiftLocked}
-    gamepad={gamepadActive}
-    {gamepadToggle}
     {toggle}
     {lock}
     paste={() => {
@@ -271,7 +174,7 @@
     {keyboard}
   >
     {#snippet trailing()}
-      {@render draftToggle()}{@render quickMenu("top", "icon-sm", "ghost")}
+      {@render draftToggle()}{@render quickMenu("top", "icon-xs", "ghost")}
     {/snippet}
   </SoftKeys>
 </div>

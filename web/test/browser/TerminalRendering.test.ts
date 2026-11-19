@@ -332,3 +332,82 @@ test("keys in a sibling code pane do not open terminal find", async () => {
   await expect.element(field()).not.toBeInTheDocument();
   expect(inputText(socket)).toBe("");
 });
+
+test("find bar stays compact when empty, exposes a single status region, and keeps focus across replay", async () => {
+  const { term, api, socket } = await setup();
+  socket.receive(1, "needle one\r\nneedle two\r\n");
+  await expect.poll(() => api.restoring).toBe(false);
+
+  await openFind();
+  const form = document.querySelector<HTMLElement>(
+    'form[role="search"][aria-label="查找终端输出"]',
+  )!;
+  expect(form.querySelectorAll('[role="status"]')).toHaveLength(0);
+  const compactHeight = form.getBoundingClientRect().height;
+
+  await field().fill("needle");
+  await expect.element(results()).toHaveTextContent("1/2");
+  expect(form.querySelectorAll('[role="status"]')).toHaveLength(1);
+  const activeHeight = form.getBoundingClientRect().height;
+  expect(activeHeight).toBeGreaterThan(compactHeight);
+
+  // Focus an enabled toggle button: replay start and completion preserve its focus.
+  const caseButton = page.getByRole("button", { name: "区分大小写" });
+  (caseButton.element() as HTMLElement).focus();
+  await expect.element(caseButton).toHaveFocus();
+
+  const originalWrite = term.write.bind(term);
+  let finishReplay: (() => void) | undefined;
+  const writes = vi
+    .spyOn(term, "write")
+    .mockImplementation((data, callback) => {
+      if (
+        data instanceof Uint8Array &&
+        new TextDecoder().decode(data).includes("needle")
+      )
+        originalWrite(data, () => {
+          finishReplay = callback;
+        });
+      else originalWrite(data, callback);
+    });
+
+  socket.receive(1, "needle after replay\r\n");
+  await expect.element(results()).toHaveTextContent("正在回放，暂不能查找");
+  expect(form.querySelectorAll('[role="status"]')).toHaveLength(1);
+  await expect.element(caseButton).toHaveFocus();
+
+  await expect.poll(() => finishReplay).toBeDefined();
+  finishReplay!();
+  finishReplay = undefined;
+  await expect.poll(() => api.restoring).toBe(false);
+  await expect
+    .element(results())
+    .toHaveTextContent("回放完成，按 Enter 重新查找");
+  expect(form.querySelectorAll('[role="status"]')).toHaveLength(1);
+  expect(form.getBoundingClientRect().height).toBe(activeHeight);
+  await expect.element(caseButton).toHaveFocus();
+
+  // Re-run search, focus Next match button, then replay: focus stays inside find bar on input.
+  await field().click();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(results()).toHaveTextContent("1/1");
+  const nextButton = page.getByRole("button", { name: "下一个匹配" });
+  (nextButton.element() as HTMLElement).focus();
+  await expect.element(nextButton).toHaveFocus();
+
+  socket.receive(1, "needle second replay\r\n");
+  await expect.element(nextButton).toBeDisabled();
+  await expect.element(field()).toHaveFocus();
+  await expect.poll(() => finishReplay).toBeDefined();
+  finishReplay!();
+  writes.mockRestore();
+  await expect.poll(() => api.restoring).toBe(false);
+  await expect.element(field()).toHaveFocus();
+  await expect
+    .element(results())
+    .toHaveTextContent("回放完成，按 Enter 重新查找");
+
+  await field().fill("");
+  expect(form.querySelectorAll('[role="status"]')).toHaveLength(0);
+  expect(form.getBoundingClientRect().height).toBe(compactHeight);
+});

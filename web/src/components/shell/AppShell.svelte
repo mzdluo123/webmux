@@ -365,6 +365,10 @@
         hostname={setup.value.hostname}
         setupSettled={setup.settled}
         {reconnection}
+        onaddrepository={workspace && repositories
+          ? shell.addRepository
+          : undefined}
+        canAddRepository={setup.value.gitReady && setup.value.registryReady}
         onforward={shell.forward}
       />
     </div>

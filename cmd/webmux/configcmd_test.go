@@ -119,6 +119,14 @@ func TestConfigInit(t *testing.T) {
 		t.Fatal("generated configuration does not validate")
 	}
 
+	c, err := config.Load(path, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(first, []byte("[features]")) || c.Features.Enabled != nil || c.MCP.Enabled {
+		t.Fatalf("generated features = %v, network MCP enabled = %t", c.Features.Enabled, c.MCP.Enabled)
+	}
+
 	_, stderr, code = runConfig(t, "init", "--config", path)
 	if after, _ := os.ReadFile(path); code != 1 || !strings.Contains(stderr, "--force") || !bytes.Equal(after, first) {
 		t.Fatalf("existing file: %d %q", code, stderr)

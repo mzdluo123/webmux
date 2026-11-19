@@ -1,5 +1,4 @@
 <script lang="ts">
-  import IconMessagePlus from "~icons/tabler/message-plus";
   import IconMinus from "~icons/tabler/minus";
   import IconPlus from "~icons/tabler/plus";
   import IconTrash from "~icons/tabler/trash";
@@ -18,9 +17,7 @@
     stageMode,
     busy,
     stale,
-    canAddRework,
     onJumpToHunk,
-    onAddHunkToRework,
     onStageHunk,
     onUnstageHunk,
     onDiscardHunk,
@@ -31,9 +28,7 @@
     stageMode: "stage" | "unstage" | "none";
     busy: boolean;
     stale: boolean;
-    canAddRework: boolean;
     onJumpToHunk: (index: number) => void;
-    onAddHunkToRework?: (hunk: GitChangeHunk) => void;
     onStageHunk: (changeId: string, hunkId: string) => void;
     onUnstageHunk: (changeId: string, hunkId: string) => void;
     onDiscardHunk?: (changeId: string, hunkId: string) => void;
@@ -80,17 +75,6 @@
             </ListButton>
           </div>
           <div class="flex min-w-0 flex-wrap items-center gap-1">
-            {#if canAddRework && onAddHunkToRework}
-              <Button
-                size="sm"
-                variant="ghost"
-                onclick={() => onAddHunkToRework(hunk)}
-                data-testid="git-hunk-add-rework"
-              >
-                <IconMessagePlus aria-hidden="true" />
-                {m.s6_hunk_add_comment()}
-              </Button>
-            {/if}
             {#if stageMode === "stage"}
               {#if onDiscardHunk}
                 <Button

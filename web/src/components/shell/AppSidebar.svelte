@@ -23,6 +23,7 @@
   import { queueLocation } from "../../domains/workspace/session-queue";
   import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
   import { useLayoutRowsMotion } from "../../hooks/shared/layout-rows-motion.svelte";
+  import { useSidebarScrollHandoff } from "../../hooks/shared/sidebar-scroll-handoff.svelte";
   import { paneEnter } from "../../hooks/shared/pane-enter";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import SidebarWorkspaceTree from "./SidebarWorkspaceTree.svelte";
@@ -210,6 +211,14 @@
       destroy: animation.destroy,
     };
   }
+  let drawer = $state<HTMLElement | null>(null);
+  let navigationViewport = $state<HTMLElement | null>(null);
+
+  useSidebarScrollHandoff(
+    () => (onclose ? drawer : null),
+    () => navigationViewport,
+  );
+
   function filterQueue(attention: boolean) {
     shell.repositories?.select("all");
     workbenchLayout.attentionOnly = attention;
@@ -255,6 +264,7 @@
 {/snippet}
 
 <nav
+  bind:this={drawer}
   class="flex h-full min-h-0 flex-col"
   class:sidebar-drawer={Boolean(onclose)}
   aria-label={m.s1_navigation()}
@@ -319,6 +329,7 @@
       triggerLabel={workspace ? m.s8_queue_notifications() : undefined}
     />{/if}
   <ScrollArea
+    bind:viewportRef={navigationViewport}
     type="hover"
     class="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]]:overscroll-contain [&_[data-slot=scroll-area-viewport]>div]:!block"
   >
@@ -408,6 +419,10 @@
     hostname={setup.hostname}
     setupSettled={shell.setup.settled}
     {reconnection}
+    onaddrepository={workspace && shell.repositories
+      ? shell.addRepository
+      : undefined}
+    canAddRepository={setup.gitReady && setup.registryReady}
     onforward={shell.forward}
   />
 </nav>

@@ -6,21 +6,39 @@
   import IconExternalLink from "~icons/tabler/external-link";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import * as Item from "$lib/components/ui/item";
-  import LaunchConfigIcon from "./LaunchConfigIcon.svelte";
+  import { ListButton } from "$lib/components/ui/list-button";
+  import {
+    launchConfigIcon,
+    launchConfigSummary,
+  } from "../../domains/settings/launch-configs";
   import { copyText } from "../../platform/clipboard";
   import type {
     AgentConnectorStatus,
     AgentToolStatus,
     AgentUpdateStatus,
+    LaunchConfigSummary,
   } from "../../contracts/schemas";
+  import LaunchConfigIcon from "./LaunchConfigIcon.svelte";
+  import SettingsRowMenu from "./SettingsRowMenu.svelte";
 
   let {
+    config,
     tool,
+    showToolDetails = true,
     compact = false,
+    settingsReady = true,
+    onedit,
+    ondelete,
   }: {
-    tool: AgentToolStatus;
+    config?: LaunchConfigSummary;
+    tool?: AgentToolStatus;
+    showToolDetails?: boolean;
     compact?: boolean;
+    settingsReady?: boolean;
+    onedit?: () => void;
+    ondelete?: () => void;
   } = $props();
 
   let copiedKey = $state<string | null>(null);
@@ -93,12 +111,25 @@
     }
   }
 
+  const iconKey = $derived(
+    config ? launchConfigIcon(config) : (tool?.icon ?? "terminal"),
+  );
   const showToolCode = $derived(
-    compact
-      ? Boolean(tool.installCommand)
-      : !tool.installed ||
+    Boolean(
+      tool &&
+      showToolDetails &&
+      (compact
+        ? Boolean(tool.installCommand)
+        : !tool.installed ||
           tool.updateStatus === "update_available" ||
-          Boolean(tool.belowVerified),
+          Boolean(tool.belowVerified)),
+    ),
+  );
+  const showConnector = $derived(
+    Boolean(tool && showToolDetails && !compact && tool.connector),
+  );
+  const hasToolBadges = $derived(
+    Boolean(tool && (showToolDetails || !tool.installed)),
   );
 
   onDestroy(() => {
@@ -142,7 +173,7 @@
 )}
   <Button
     variant="ghost"
-    size="icon-touch-sm"
+    size="icon"
     aria-label={copyActionLabel(key, title, isUpgrade)}
     title={copyActionLabel(key, title, isUpgrade)}
     onclick={() => void handleCopy(key, command)}
@@ -155,6 +186,20 @@
   </Button>
 {/snippet}
 
+{#snippet docsIconButton(title: string, docsUrl: string)}
+  <Button
+    variant="ghost"
+    size="icon"
+    href={docsUrl}
+    target="_blank"
+    rel="noreferrer noopener"
+    aria-label={m.agent_tools_docs_aria({ title })}
+    title={m.agent_tools_docs_aria({ title })}
+  >
+    <IconExternalLink aria-hidden="true" />
+  </Button>
+{/snippet}
+
 {#snippet commandInline(
   key: string,
   title: string,
@@ -163,7 +208,7 @@
 )}
   {@const action = primaryCommand(entry)}
   {#if action && showCodePill}
-    <div class="mt-1.5 flex min-w-0 items-center gap-1.5">
+    <div class="flex min-w-0 items-center gap-1.5">
       <code
         title={action.command}
         class="min-w-0 flex-1 truncate rounded-sm bg-muted px-2 py-1 font-mono text-xs text-foreground select-all"
@@ -174,146 +219,222 @@
   {/if}
 {/snippet}
 
-{#snippet rowTrailingActions(
-  key: string,
-  title: string,
-  entry: AgentToolStatus | AgentConnectorStatus,
-  hasCodePill: boolean,
-)}
-  {@const action = primaryCommand(entry)}
-  <div class="flex shrink-0 items-center gap-0.5">
-    {#if action && !hasCodePill}
-      {@render copyIconButton(key, title, action.command, action.isUpgrade)}
+{#snippet toolMetaBadges(entry: AgentToolStatus)}
+  {#if compact}
+    <span class="font-mono text-xs text-muted-foreground"
+      >{entry.executable}</span
+    >
+  {/if}
+  {#if !config}
+    <Badge variant="outline"
+      >{entry.kind === "hybrid"
+        ? m.agent_tools_kind_hybrid()
+        : m.agent_tools_kind_terminal()}</Badge
+    >
+  {/if}
+  {#if entry.installed}
+    <span class="font-mono text-xs text-foreground"
+      >{entry.installedVersion || m.agent_tools_version_unknown()}</span
+    >
+    {@render statusDisplay(entry)}
+    {#if entry.connector && !entry.connector.installed}
+      <Badge variant="warning">{m.agent_tools_connector_missing_badge()}</Badge>
     {/if}
-    {#if entry.docsUrl}
-      <Button
-        variant="ghost"
-        size="icon-touch-sm"
-        href={entry.docsUrl}
-        target="_blank"
-        rel="noreferrer noopener"
-        aria-label={m.agent_tools_docs_aria({ title })}
-        title={m.agent_tools_docs_aria({ title })}
+  {:else if config}
+    <Badge variant="outline">{m.s2_launch_hidden_uninstalled()}</Badge>
+  {:else if !compact}
+    <Badge variant="warning">{m.agent_tools_status_not_installed()}</Badge>
+  {/if}
+{/snippet}
+
+{#snippet connectorCard(parentId: string, conn: AgentConnectorStatus)}
+  {@const showConnCode =
+    !conn.installed ||
+    conn.updateStatus === "update_available" ||
+    Boolean(conn.belowVerified)}
+  {@const connAction = primaryCommand(conn)}
+  <div
+    class="rounded-md border border-border/70 bg-muted/30 px-2.5 py-2 space-y-1.5"
+  >
+    <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
+      <div class="flex min-w-0 flex-wrap items-center gap-2">
+        <span class="text-xs font-medium text-foreground wrap-anywhere"
+          >{m.agent_tools_connector_label({
+            executable: conn.executable,
+          })}</span
+        >
+        {#if conn.installed}
+          <span class="font-mono text-xs text-foreground"
+            >{conn.installedVersion || m.agent_tools_version_unknown()}</span
+          >
+          {@render statusDisplay(conn)}
+        {:else}
+          <Badge variant="warning">{m.agent_tools_status_not_installed()}</Badge
+          >
+        {/if}
+      </div>
+      <div class="flex shrink-0 items-center gap-0.5">
+        {#if connAction && !showConnCode}
+          {@render copyIconButton(
+            `conn:${parentId}`,
+            conn.title,
+            connAction.command,
+            connAction.isUpgrade,
+          )}
+        {/if}
+        {#if conn.docsUrl}
+          {@render docsIconButton(conn.title, conn.docsUrl)}
+        {/if}
+      </div>
+    </div>
+    {#if conn.path}
+      <p
+        title={conn.path}
+        class="truncate font-mono text-xs text-muted-foreground"
       >
-        <IconExternalLink aria-hidden="true" />
-      </Button>
+        {conn.path}
+      </p>
     {/if}
+    {@render commandInline(`conn:${parentId}`, conn.title, conn, showConnCode)}
   </div>
 {/snippet}
 
-<Item.Root variant="divided">
-  <div class="min-w-0 flex-1 space-y-1.5">
-    <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
-      <div class="flex min-w-0 flex-wrap items-center gap-2">
-        <span
-          class={compact
-            ? "grid size-8 shrink-0 place-items-center rounded-md bg-muted/60 opacity-75"
-            : "grid size-8 shrink-0 place-items-center rounded-md bg-muted/60"}
-        >
-          <LaunchConfigIcon icon={tool.icon ?? "terminal"} size="sm" />
-        </span>
-        <span class="text-sm font-medium text-foreground">{tool.title}</span>
-        {#if compact}
-          <span class="font-mono text-xs text-muted-foreground"
-            >{tool.executable}</span
+<Item.Root variant="divided" size="flush" class="min-h-14">
+  {#if config}
+    {@const toolAction = tool && showToolDetails ? primaryCommand(tool) : null}
+    <div
+      class={hasToolBadges
+        ? "grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1.5 py-2.5 sm:grid-cols-[minmax(11rem,1fr)_minmax(0,auto)_auto]"
+        : "grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 py-2.5"}
+    >
+      <ListButton
+        variant="content"
+        class="flex min-w-0 items-center"
+        aria-label={m.s2_edit_item({ name: config.name })}
+        onclick={onedit}
+      >
+        <span class="flex min-w-0 flex-1 items-center gap-3">
+          <span
+            class={compact
+              ? "grid size-9 shrink-0 place-items-center rounded-md bg-muted/60 opacity-75"
+              : "grid size-9 shrink-0 place-items-center rounded-md bg-muted/60"}
           >
-        {/if}
-        <Badge variant="outline"
-          >{tool.kind === "hybrid"
-            ? m.agent_tools_kind_hybrid()
-            : m.agent_tools_kind_terminal()}</Badge
-        >
-        {#if !compact}
-          {#if tool.installed}
-            <span class="font-mono text-xs text-foreground"
-              >{tool.installedVersion || m.agent_tools_version_unknown()}</span
+            <LaunchConfigIcon icon={iconKey} />
+          </span>
+          <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span class="truncate text-sm font-medium text-foreground"
+              >{config.name}</span
             >
-          {:else}
-            <Badge variant="warning"
-              >{m.agent_tools_status_not_installed()}</Badge
+            <span
+              class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
             >
-          {/if}
-          {@render statusDisplay(tool)}
-          {#if tool.installed && tool.connector && !tool.connector.installed}
-            <Badge variant="warning"
-              >{m.agent_tools_connector_missing_badge()}</Badge
-            >
-          {/if}
-        {/if}
-      </div>
-      {@render rowTrailingActions(
-        `tool:${tool.id}`,
-        tool.title,
-        tool,
-        showToolCode,
-      )}
-    </div>
-
-    <div class="min-w-0 space-y-1.5 sm:pl-10">
-      {#if !compact && tool.path}
-        <p
-          title={tool.path}
-          class="truncate font-mono text-xs text-muted-foreground"
-        >
-          {tool.path}
-        </p>
-      {/if}
-
-      {@render commandInline(`tool:${tool.id}`, tool.title, tool, showToolCode)}
-
-      {#if !compact && tool.connector}
-        {@const conn = tool.connector}
-        {@const showConnCode =
-          !conn.installed ||
-          conn.updateStatus === "update_available" ||
-          Boolean(conn.belowVerified)}
-        <div
-          class="mt-2 rounded-md border border-border/70 bg-muted/30 px-2.5 py-2"
-        >
-          <div
-            class="flex min-w-0 flex-wrap items-center justify-between gap-2"
-          >
-            <div class="flex min-w-0 flex-wrap items-center gap-2">
-              <span class="text-xs font-medium text-foreground wrap-anywhere"
-                >{m.agent_tools_connector_label({
-                  executable: conn.executable,
-                })}</span
+              <span class="min-w-0 truncate">{launchConfigSummary(config)}</span
               >
-              {#if conn.installed}
-                <span class="font-mono text-xs text-foreground"
-                  >{conn.installedVersion ||
-                    m.agent_tools_version_unknown()}</span
-                >
-                {@render statusDisplay(conn)}
-              {:else}
-                <Badge variant="warning"
-                  >{m.agent_tools_status_not_installed()}</Badge
+              {#if !compact && showToolDetails && tool?.path}
+                <span aria-hidden="true" class="shrink-0">·</span>
+                <span
+                  title={tool.path}
+                  class="min-w-0 flex-1 truncate font-mono">{tool.path}</span
                 >
               {/if}
-            </div>
-            {@render rowTrailingActions(
-              `conn:${tool.id}`,
-              conn.title,
-              conn,
-              showConnCode,
-            )}
-          </div>
-          {#if conn.path}
-            <p
-              title={conn.path}
-              class="mt-1 truncate font-mono text-xs text-muted-foreground"
-            >
-              {conn.path}
-            </p>
-          {/if}
-          {@render commandInline(
-            `conn:${tool.id}`,
-            conn.title,
-            conn,
-            showConnCode,
+            </span>
+          </span>
+        </span>
+      </ListButton>
+      <div class="flex shrink-0 items-center gap-0.5 sm:order-3">
+        {#if tool && toolAction && !showToolCode}
+          {@render copyIconButton(
+            `tool:${tool.id}`,
+            tool.title,
+            toolAction.command,
+            toolAction.isUpgrade,
           )}
+        {/if}
+        <SettingsRowMenu
+          label={config.name}
+          disabled={!settingsReady}
+          {ondelete}
+        >
+          {#if tool?.docsUrl}
+            {@const docsUrl = tool.docsUrl}
+            {@const docsTitle = tool.title}
+            <DropdownMenu.Item
+              onSelect={() => {
+                window.open(docsUrl, "_blank", "noopener,noreferrer");
+              }}
+            >
+              <IconExternalLink aria-hidden="true" />
+              {m.agent_tools_docs_aria({ title: docsTitle })}
+            </DropdownMenu.Item>
+          {/if}
+        </SettingsRowMenu>
+      </div>
+      {#if tool && hasToolBadges}
+        <div
+          class="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:order-2 sm:col-span-1 sm:justify-end"
+        >
+          {#if showToolDetails}
+            {@render toolMetaBadges(tool)}
+          {:else if !tool.installed}
+            <Badge variant="outline">{m.s2_launch_hidden_uninstalled()}</Badge>
+          {/if}
         </div>
       {/if}
     </div>
-  </div>
+  {:else if tool}
+    {@const toolAction = primaryCommand(tool)}
+    <div
+      class="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1.5 py-2.5 sm:grid-cols-[minmax(11rem,1fr)_minmax(0,auto)_auto]"
+    >
+      <div class="flex min-w-0 items-center gap-3">
+        <span
+          class={compact
+            ? "grid size-9 shrink-0 place-items-center rounded-md bg-muted/60 opacity-75"
+            : "grid size-9 shrink-0 place-items-center rounded-md bg-muted/60"}
+        >
+          <LaunchConfigIcon icon={iconKey} />
+        </span>
+        <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span class="truncate text-sm font-medium text-foreground"
+            >{tool.title}</span
+          >
+          {#if !compact && tool.path}
+            <p
+              title={tool.path}
+              class="truncate font-mono text-xs text-muted-foreground"
+            >
+              {tool.path}
+            </p>
+          {/if}
+        </div>
+      </div>
+      <div class="flex shrink-0 items-center gap-0.5 sm:order-3">
+        {#if toolAction && !showToolCode}
+          {@render copyIconButton(
+            `tool:${tool.id}`,
+            tool.title,
+            toolAction.command,
+            toolAction.isUpgrade,
+          )}
+        {/if}
+        {#if tool.docsUrl}
+          {@render docsIconButton(tool.title, tool.docsUrl)}
+        {/if}
+      </div>
+      <div
+        class="col-span-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:order-2 sm:col-span-1 sm:justify-end"
+      >
+        {@render toolMetaBadges(tool)}
+      </div>
+    </div>
+  {/if}
+
+  {#if tool && (showToolCode || showConnector)}
+    <div class="w-full min-w-0 space-y-2 pb-2.5 sm:pl-12">
+      {@render commandInline(`tool:${tool.id}`, tool.title, tool, showToolCode)}
+      {#if showConnector && tool.connector}
+        {@render connectorCard(tool.id, tool.connector)}
+      {/if}
+    </div>
+  {/if}
 </Item.Root>

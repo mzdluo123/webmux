@@ -8,20 +8,23 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/rainchan/webmux/internal/builtin"
 )
 
-func TestFeatureSelectionMissingAndExplicitEmpty(t *testing.T) {
+func TestLoadIgnoresLegacyFeaturesAndPluginsSections(t *testing.T) {
 	tests := []struct {
-		name       string
-		give       string
-		wantNil    bool
-		wantSource string
-		wantCode   bool
+		name string
+		give string
 	}{
-		{name: "omitted", give: "", wantNil: true, wantSource: "default", wantCode: true},
-		{name: "empty table", give: "[features]\n", wantNil: true, wantSource: "default", wantCode: true},
-		{name: "explicit core", give: "[features]\nenabled = []\n", wantSource: "toml"},
-		{name: "single feature", give: "[features]\nenabled = ['code']\n", wantSource: "toml", wantCode: true},
+		{name: "omitted", give: ""},
+		{name: "empty features table", give: "[features]\n"},
+		{name: "legacy empty features", give: "[features]\nenabled = []\n"},
+		{name: "legacy subset features", give: "[features]\nenabled = ['code']\n"},
+		{name: "legacy retired feature id", give: "[features]\nenabled = ['immersive']\n"},
+		{name: "legacy plugins table", give: "[plugins]\nenabled = []\n"},
+		{name: "legacy plugins dotted key", give: "plugins.enabled = []\n"},
+		{name: "both legacy tables", give: "[plugins]\nenabled = []\n[features]\nenabled = ['code']\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -33,48 +36,16 @@ func TestFeatureSelectionMissingAndExplicitEmpty(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for range 2 {
-				if err := c.Validate(); err != nil {
-					t.Fatal(err)
-				}
-				if (c.Features.Enabled == nil) != tt.wantNil {
-					t.Fatalf("selection nil = %v, want %v", c.Features.Enabled == nil, tt.wantNil)
-				}
-				if c.Features.Has("code") != tt.wantCode {
-					t.Fatalf("code enabled = %v, want %v", c.Features.Has("code"), tt.wantCode)
-				}
-			}
-			field := Fields(c)["features.enabled"]
-			ids, ok := field.Value.([]string)
-			if !ok || ids == nil || field.Source != tt.wantSource {
-				t.Fatalf("diagnostic selection = %#v", field)
-			}
-			if slices.Contains(ids, "code") != tt.wantCode {
-				t.Fatalf("diagnostics disagree with selected features: %v", ids)
-			}
-			if !tt.wantNil && !slices.Equal(ids, c.Features.Enabled) {
-				t.Fatalf("diagnostics changed explicit selection: %v", ids)
-			}
-		})
-	}
-}
-
-func TestPluginsTableIsRejected(t *testing.T) {
-	for _, tt := range []struct {
-		name string
-		give string
-	}{
-		{name: "table", give: "[plugins]\nenabled = []\n"},
-		{name: "dotted key", give: "plugins.enabled = []\n"},
-		{name: "old and new tables", give: "[plugins]\nenabled = []\n[features]\nenabled = ['code']\n"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "config.toml")
-			if err := os.WriteFile(path, []byte(tt.give), 0600); err != nil {
+			if err := c.Validate(); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := Load(path, true); err == nil || !strings.Contains(err.Error(), "[features]") {
-				t.Fatalf("Load() = %v, want a [features] migration error", err)
+			if c.Features.Enabled != nil {
+				t.Fatalf("TOML populated programmatic Features.Enabled = %v, want nil", c.Features.Enabled)
+			}
+			for _, def := range builtin.Catalog() {
+				if !c.Features.Has(def.ID) {
+					t.Fatalf("feature %q disabled for %s", def.ID, tt.name)
+				}
 			}
 		})
 	}
@@ -94,8 +65,8 @@ func TestFeatureSelectionValidationFailsBeforeOtherConfiguration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			stateDir := filepath.Join(t.TempDir(), "must-not-be-created")
 			c := Config{Features: FeatureConfig{Enabled: tt.give}, StateDir: stateDir}
-			// Listen is deliberately invalid: feature selection must fail before
-			// any later configuration processing or service initialization.
+			// Listen is deliberately invalid: programmatic feature selection must
+			// fail before any later configuration processing or initialization.
 			err := c.Validate()
 			if err == nil || !strings.Contains(err.Error(), "features.enabled") || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("invalid features did not fail first with %q: %v", tt.want, err)
@@ -110,7 +81,7 @@ func TestFeatureSelectionValidationFailsBeforeOtherConfiguration(t *testing.T) {
 	}
 }
 
-func TestFeatureDiagnosticSelectionUsesWhitelist(t *testing.T) {
+func TestDiagnosticWhitelistExcludesSecretsAndProgrammaticFeatures(t *testing.T) {
 	c := Config{
 		Features: FeatureConfig{Enabled: []string{}},
 		Token:    "private-owner-token",
@@ -120,13 +91,10 @@ func TestFeatureDiagnosticSelectionUsesWhitelist(t *testing.T) {
 	c.SetSource("features.enabled", "toml")
 	c.SetSource("not-a-diagnostic-field", "private-source-value")
 	fields := Fields(c)
-	if _, exists := fields["not-a-diagnostic-field"]; exists {
-		t.Fatal("source map entries escaped the diagnostic whitelist")
-	}
-	field := fields["features.enabled"]
-	ids, ok := field.Value.([]string)
-	if !ok || ids == nil || len(ids) != 0 || field.Source != "toml" {
-		t.Fatalf("explicit empty selection lost at diagnostic boundary: %#v", field)
+	for _, excluded := range []string{"not-a-diagnostic-field", "features.enabled"} {
+		if _, exists := fields[excluded]; exists {
+			t.Fatalf("%q escaped the diagnostic whitelist", excluded)
+		}
 	}
 	encoded, err := json.Marshal(fields)
 	if err != nil {

@@ -65,7 +65,6 @@ function renderTree(
     onremoveworktree: vi.fn(),
     onworktreedetails: vi.fn(),
     onswitchbranch: vi.fn(),
-    onaddrepository: vi.fn(),
     onrename: vi.fn(),
     onclose: vi.fn(),
     onresume: vi.fn(),
@@ -199,38 +198,25 @@ test("each available repository offers new-worktree and manage-worktrees actions
   await cleanup();
   renderTree([], { canCreate: false });
   await expect.element(item("webmux")).toBeVisible();
-  // Repository rows lose their menus entirely; the "全部仓库" row keeps its
-  // registry menu, with the add-repository item disabled.
   expect(
     page
       .getByRole("button", { name: /仓库操作：(webmux|legacy-api)/ })
       .elements(),
   ).toEqual([]);
-  await tree().getByRole("button", { name: "仓库操作：全部仓库" }).click();
-  await expect
-    .element(page.getByRole("menuitem", { name: "添加仓库…" }))
-    .toBeDisabled();
-});
-
-test("the all-repositories row's menu opens the add-repository dialog", async () => {
-  const handlers = renderTree([]);
-  await tree().getByRole("button", { name: "仓库操作：全部仓库" }).click();
-  await page.getByRole("menuitem", { name: "添加仓库…" }).click();
-  expect(handlers.onaddrepository).toHaveBeenCalled();
 });
 
 test("a row menu trigger steps back to its row on ArrowLeft and still opens on ArrowDown", async () => {
   renderTree([]);
-  const trigger = tree().getByRole("button", { name: "仓库操作：全部仓库" });
+  const trigger = tree().getByRole("button", { name: "仓库操作：webmux" });
   (trigger.element() as HTMLElement).focus();
   await expect.element(trigger).toHaveFocus();
   await userEvent.keyboard("{ArrowLeft}");
-  await expect.element(item("全部仓库")).toHaveFocus();
+  await expect.element(item("webmux")).toHaveFocus();
   // Every other key stays with the primitive: ArrowDown opens the menu.
   (trigger.element() as HTMLElement).focus();
   await userEvent.keyboard("{ArrowDown}");
   await expect
-    .element(page.getByRole("menuitem", { name: "添加仓库…" }))
+    .element(page.getByRole("menuitem", { name: "新建工作树…" }))
     .toBeVisible();
 });
 

@@ -101,6 +101,7 @@
   }
 
   let reader = $state<CodeReader>();
+  let diffViewport = $state<HTMLDivElement>();
   let diffReader = $state<CodeDiffReader>();
   let imageView = $state<CodeImageView>();
   let pdfView = $state<CodePdfView>();
@@ -145,29 +146,53 @@
   }
 </script>
 
-{#if shownDiff?.kind === "text" && !diffReady}
-  <p class="p-2 text-sm" role="status">
-    {calculation === "pending" ? m.s5_calculating_diff() : calculationReason}
-  </p>
-  {#if calculation === "error" || calculation === "limited"}
-    <Button variant="outline" size="sm" onclick={() => (modelSnapshot = "")}
-      >{m.s5_retry_diff_calculation()}</Button
-    >
-  {/if}
-{/if}
-{#if shownDiff?.kind === "text" && diffReady && fileDiff}
-  {#key modelSnapshot}
-    <CodeDiffReader
-      bind:this={diffReader}
-      {fileDiff}
-      {side}
-      expired={status === "expired"}
-      {draftEnabled}
-      bind:hint
-      onselect={onselectdiff}
-      restore={restoreFor("diff")}
-    />
-  {/key}
+{#if shownDiff?.kind === "text"}
+  <div
+    bind:this={diffViewport}
+    data-code-diff-viewport
+    class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+    role="group"
+    tabindex="-1"
+    aria-label={m.s5_diff_viewport()}
+  >
+    {#if diffReady && fileDiff}
+      {#key modelSnapshot}
+        <CodeDiffReader
+          bind:this={diffReader}
+          {fileDiff}
+          {side}
+          expired={status === "expired"}
+          {draftEnabled}
+          bind:hint
+          onselect={onselectdiff}
+          restore={restoreFor("diff")}
+        />
+      {/key}
+    {:else}
+      <div
+        class="flex min-h-0 flex-1 flex-col items-start gap-2 overflow-auto p-2"
+      >
+        {#if calculation === "pending" || modelSnapshot !== shownDiff.snapshotId}
+          <p role="status" class="text-sm">{m.s5_calculating_diff()}</p>
+        {:else}
+          <p
+            role={calculation === "error" ? "alert" : "status"}
+            class="text-sm break-words"
+          >
+            {calculationReason}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onclick={() => {
+              diffViewport?.focus({ preventScroll: true });
+              modelSnapshot = "";
+            }}>{m.s5_retry_diff_calculation()}</Button
+          >
+        {/if}
+      </div>
+    {/if}
+  </div>
 {:else if imagePreview && doc}
   {#key `${snapshotId}:${rawSide ?? ""}`}<CodeImageView
       bind:this={imageView}

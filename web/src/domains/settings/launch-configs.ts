@@ -2,6 +2,7 @@ import { m } from "$lib/paraglide/messages.js";
 import { errorMessage } from "../../platform/error";
 import { joinArgs, parseArgs } from "../../platform/api";
 import type {
+  AgentToolStatus,
   AttentionMode,
   AttentionSettings,
   LaunchConfigSummary,
@@ -76,6 +77,13 @@ const STARTUP_PREFIXES: Record<StartupShell, readonly string[]> = {
   bash: ["bash", "-ic", 'exec -- "$@"', "webmux"],
   zsh: ["zsh", "-ic", 'exec -- "$@"', "webmux"],
 };
+const ENV_BASH_PREFIX = [
+  "/usr/bin/env",
+  "bash",
+  "-ic",
+  'exec -- "$@"',
+  "webmux",
+] as const;
 
 export type EnvRow = { key: number; name: string; value: string };
 export type LaunchConfigInput = {
@@ -97,7 +105,12 @@ export type LaunchDraftErrors = {
 /** Summaries as seen by the new-session sheet; values are never loaded. */
 export type LaunchConfigsState =
   | { status: "loading" }
-  | { status: "ready"; configs: LaunchConfigSummary[] }
+  | {
+      status: "ready";
+      configs: LaunchConfigSummary[];
+      agentTools?: readonly AgentToolStatus[];
+      agentToolsLoading?: boolean;
+    }
   | { status: "unavailable"; error: string };
 
 /** Restore only our exact wrapper; arbitrary user-written shell commands stay intact. */
@@ -121,6 +134,74 @@ function wrappedShell(cmd: readonly string[]): StartupShell | null {
       return shell;
   }
   return null;
+}
+
+/** Extracts the target executable from direct or startup-file-wrapped argv. */
+export function launchConfigExecutable(cmd: readonly string[]): string {
+  if (
+    cmd.length > ENV_BASH_PREFIX.length &&
+    ENV_BASH_PREFIX.every((arg, index) => cmd[index] === arg)
+  ) {
+    return cmd[ENV_BASH_PREFIX.length] ?? "";
+  }
+  const shell = wrappedShell(cmd);
+  if (shell) return cmd[STARTUP_PREFIXES[shell].length] ?? "";
+  return cmd[0] ?? "";
+}
+
+/** Pairs a saved launch config with a cataloged local agent tool, if applicable. */
+export function matchLaunchConfigTool(
+  config: {
+    cmd: readonly string[];
+    envNames?: readonly string[];
+    chatSupport?: { supported: boolean; agent?: string };
+  },
+  tools: readonly AgentToolStatus[],
+): AgentToolStatus | undefined {
+  const exe = launchConfigExecutable(config.cmd);
+  if (!exe) return undefined;
+  const hasCustomPath =
+    /[\\/]/.test(exe) || Boolean(config.envNames?.includes("PATH"));
+  if (hasCustomPath) {
+    return tools.find((tool) => Boolean(tool.path) && tool.path === exe);
+  }
+  const base = exe.toLowerCase().replace(/\.exe$/, "");
+  return (
+    tools.find((tool) =>
+      tool.executables.some((candidate) => candidate.toLowerCase() === base),
+    ) ??
+    (config.chatSupport?.supported && config.chatSupport.agent
+      ? tools.find((tool) => tool.id === config.chatSupport?.agent)
+      : undefined)
+  );
+}
+
+/** Reports whether a launch config targets a cataloged agent absent on this host. */
+export function isLaunchConfigHiddenByAgentInstall(
+  config: {
+    cmd: readonly string[];
+    envNames?: readonly string[];
+    chatSupport?: { supported: boolean; agent?: string };
+  },
+  tools: readonly AgentToolStatus[] | undefined,
+): boolean {
+  if (!tools) return false;
+  const exe = launchConfigExecutable(config.cmd);
+  if (!exe || /[\\/]/.test(exe) || config.envNames?.includes("PATH")) {
+    return false;
+  }
+  const tool = matchLaunchConfigTool(config, tools);
+  return Boolean(tool && !tool.installed);
+}
+
+/** Launch configs selectable in session-start surfaces, hiding uninstalled agents. */
+export function visibleLaunchConfigs(
+  state: LaunchConfigsState,
+): LaunchConfigSummary[] {
+  if (state.status !== "ready") return [];
+  return state.configs.filter(
+    (config) => !isLaunchConfigHiddenByAgentInstall(config, state.agentTools),
+  );
 }
 
 export const LAUNCH_ICON_OPTIONS = [
@@ -184,9 +265,8 @@ export function launchConfigIcon(config: {
   cmd: readonly string[];
 }) {
   if (config.icon) return config.icon;
-  const shell = wrappedShell(config.cmd);
-  const executable = config.cmd[shell ? STARTUP_PREFIXES[shell].length : 0]
-    ?.split(/[\\/]/)
+  const executable = launchConfigExecutable(config.cmd)
+    .split(/[\\/]/)
     .pop()
     ?.toLowerCase()
     .replace(/\.exe$/, "");
@@ -248,7 +328,7 @@ export function validateLaunchDraft(
   attention: AttentionSettings | null = null,
 ):
   | { ok: true; value: LaunchConfigInput; errors: LaunchDraftErrors }
-  | { ok: false; errors: LaunchDraftErrors } {
+  | { ok: false; errors: LaunchDraftErrors; cmd?: string[] } {
   const errors: LaunchDraftErrors = { rows: {} };
   if (
     preview &&
@@ -349,7 +429,7 @@ export function validateLaunchDraft(
     errors.attention ||
     Object.keys(errors.rows).length
   )
-    return { ok: false, errors };
+    return { ok: false, errors, cmd: errors.command ? undefined : cmd };
   return {
     ok: true,
     value: { name: trimmed, cmd, env, preview, attention },

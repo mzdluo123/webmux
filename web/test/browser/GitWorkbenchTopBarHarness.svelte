@@ -21,7 +21,6 @@
     branches = [],
     operations = [],
     returnSession,
-    reworkCount = 0,
     onSelectRepository,
     onSelectWorktree,
   }: {
@@ -33,7 +32,6 @@
     branches?: readonly GitBranchItem[];
     operations?: readonly GitOperation[];
     returnSession?: SessionInfo;
-    reworkCount?: number;
     onSelectRepository: (repositoryId: string) => void;
     onSelectWorktree: (worktreeId?: string) => void;
   } = $props();
@@ -56,8 +54,6 @@
     returnSessionId={returnSession?.id}
     {returnSession}
     sessionsReady={true}
-    {reworkCount}
-    onOpenRework={() => {}}
     {onSelectRepository}
     {onSelectWorktree}
     onAddRepository={() => {}}

@@ -545,64 +545,6 @@ test("Docked log diff collapse and phone back leave open reader panels without c
   await expect(page).toHaveURL(route);
 });
 
-test("TV Back unwinds reader panels and phone steps before leaving Git", async ({
-  page,
-  request,
-  workDir,
-}) => {
-  await page.setViewportSize({ width: 1280, height: 720 });
-  await page.addInitScript(() => localStorage.setItem("webmux.tv-mode", "1"));
-  const { repo, mainWt } = await setupRichGitLogRepository(request, workDir);
-  const route = `/git/${repo.id}/worktrees/${mainWt.id}?view=log`;
-  await page.goto(route);
-  const files = page.getByRole("listbox", { name: "提交变更文件" });
-  await files.getByRole("option", { name: /feature-lane\.ts/ }).click();
-  const diff = page.getByTestId("git-log-diff-panel");
-  await expect(diff).toHaveAttribute("data-diff-presentation", "docked");
-
-  const find = diff.getByRole("button", { name: "文件内查找", exact: true });
-  await find.click();
-  await expect(find).toHaveAttribute("aria-expanded", "true");
-  // Leave text capture first; the reader's own panel must win the next Back without leaving Git.
-  await page.keyboard.press("Escape");
-  await expect(diff).toHaveAttribute("data-diff-presentation", "docked");
-  await page.keyboard.press("Escape");
-  await expect(find).toHaveAttribute("aria-expanded", "false");
-  await expect(diff).toHaveAttribute("data-diff-presentation", "docked");
-  await expect(page.getByRole("listbox", { name: "提交记录" })).toBeVisible();
-  await expect(
-    files.getByRole("option", { name: /feature-lane\.ts/ }),
-  ).toHaveAttribute("aria-selected", "true");
-  await expect(page).toHaveURL(route);
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page
-    .getByRole("option", {
-      name: /Merge branch 'feat\/graph-lane' into main/,
-    })
-    .click();
-  await files.getByRole("option", { name: /feature-lane\.ts/ }).click();
-  await expect(diff).toHaveAttribute("data-diff-presentation", "mobile");
-  await page.waitForURL((url) => url.searchParams.has("commit"));
-  const selectedRoute = page.url();
-  await page.keyboard.press("Escape");
-  await expect(
-    page.getByRole("button", { name: "返回提交列表" }),
-  ).toBeVisible();
-  await expect(page).toHaveURL(selectedRoute);
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("listbox", { name: "提交记录" })).toBeVisible();
-  await expect(page).toHaveURL(selectedRoute);
-
-  await page.getByRole("button", { name: "打开引用筛选抽屉" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).not.toBeVisible();
-  await expect(page).toHaveURL(selectedRoute);
-  await page.keyboard.press("Escape");
-  await expect(page).toHaveURL("/");
-});
-
 test("Log previews the selected Git snapshot sides and retains binary downloads", async ({
   page,
   request,

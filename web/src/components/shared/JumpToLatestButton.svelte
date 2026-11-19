@@ -5,9 +5,11 @@
 
   let {
     class: className = "",
+    labelClass = "",
     onclick,
   }: {
     class?: string;
+    labelClass?: string;
     onclick: () => void;
   } = $props();
 </script>
@@ -17,6 +19,11 @@
   size="sm"
   raised
   class={className}
+  aria-label={m.s4_jump_to_latest()}
+  title={m.s4_jump_to_latest()}
   onmousedown={(event) => event.preventDefault()}
-  {onclick}><IconArrowDown aria-hidden="true" />{m.s4_jump_to_latest()}</Button
+  {onclick}
+  ><IconArrowDown aria-hidden="true" /><span class={labelClass}
+    >{m.s4_jump_to_latest()}</span
+  ></Button
 >

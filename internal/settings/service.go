@@ -38,6 +38,7 @@ func Open(dir string) *Service {
 		s.current.Values.LegacyFontSize = nil
 		s.current.Values.LegacyChatIdleSleepMinutes = nil
 		s.current.Values.LegacyArtifactPrompt = nil
+		s.current.Values.LegacyForceSoftKeys = nil
 		s.current.Values.QuickCommands = nameLegacyCommands(s.current.Values.QuickCommands)
 	}
 	s.commit = s.store.Commit

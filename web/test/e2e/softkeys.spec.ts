@@ -27,14 +27,11 @@ test("mobile soft keys stay in one row with paste visible and all keys reachable
   const bar = page.getByRole("complementary", { name: "终端软键" });
   const paste = bar.getByRole("button", { name: "粘贴", exact: true });
   const keyboard = bar.getByRole("button", { name: "唤起或收起键盘" });
+  const fnToggle = bar.getByRole("button", { name: "Fn", exact: true });
   const quick = bar.getByRole("button", { name: "快捷指令", exact: true });
-  const gamepadToggle = bar.getByRole("button", {
-    name: "展开摇杆",
-    exact: true,
-  });
-  for (const width of [320, 390, 844]) {
+  for (const width of [320, 390, 768, 844]) {
     await page.setViewportSize({ width, height: 844 });
-    await expect(gamepadToggle).toBeInViewport({ ratio: 1 });
+    await expect(fnToggle).toBeInViewport({ ratio: 1 });
     await expect(paste).toBeInViewport({ ratio: 1 });
     await expect(keyboard).toBeInViewport({ ratio: 1 });
     await expect(quick).toBeInViewport({ ratio: 1 });
@@ -59,8 +56,13 @@ test("mobile soft keys stay in one row with paste visible and all keys reachable
       const buttons = [...element.querySelectorAll("button")]
         .map((button) => button.getBoundingClientRect())
         .filter((bounds) => bounds.width > 0);
+      const main = element
+        .querySelector(".soft-keys-main")!
+        .getBoundingClientRect();
       return {
         height: element.getBoundingClientRect().height,
+        mainHeight: main.height,
+        mainWidth: main.width,
         verticalSpread:
           Math.max(...buttons.map((bounds) => bounds.top)) -
           Math.min(...buttons.map((bounds) => bounds.top)),
@@ -72,25 +74,35 @@ test("mobile soft keys stay in one row with paste visible and all keys reachable
       "All soft keys share one row",
     ).toBeLessThanOrEqual(1);
     expect(
-      layout.height,
-      "The toolbar must not consume two button rows",
-    ).toBeLessThan(64);
+      layout.mainHeight,
+      "The toolbar stays a compact single row",
+    ).toBeLessThanOrEqual(36);
+    expect(layout.height).toBeLessThanOrEqual(42);
+    if (width >= 640) {
+      expect(
+        layout.mainWidth,
+        "Tablet and desktop center a compact island",
+      ).toBeLessThan(width - 40);
+    }
     expect(layout.pageOverflow).toBe(0);
   }
   await page.setViewportSize({ width: 320, height: 844 });
   const before = await quick.boundingBox();
+  await fnToggle.click();
+  await expect(fnToggle).toHaveAttribute("aria-pressed", "true");
   await bar
     .getByRole("button", { name: "Ctrl+R", exact: true })
     .scrollIntoViewIfNeeded();
   expect(await quick.boundingBox()).toEqual(before);
   await expect(quick).toBeInViewport({ ratio: 1 });
+  await expect(paste).toBeInViewport({ ratio: 1 });
   // Scroll offsets snap to device pixels (DPR 2.625 here), so the last key can
   // stay clipped by a fraction of a CSS pixel at maximum scroll.
   await expect(
     bar.getByRole("button", { name: "Ctrl+R", exact: true }),
   ).toBeInViewport({ ratio: 0.99 });
-  await paste.scrollIntoViewIfNeeded();
-  await expect(paste).toBeInViewport({ ratio: 1 });
+  await fnToggle.click();
+  await expect(fnToggle).toHaveAttribute("aria-pressed", "false");
   await keyboard.click();
   await expect(page.locator(".xterm-helper-textarea")).toBeFocused();
   await paste.click();
@@ -400,7 +412,7 @@ test("opening the paste dialog while the keyboard is held does not resize the PT
   expect(sizeFrames()).toBe(baseline);
 });
 
-test("desktop devices can force the soft-key toolbar on and off through the terminal menu", async ({
+test("desktop devices can toggle the bottom toolbar on and off through the terminal menu", async ({
   page,
   workDir,
 }, testInfo) => {
@@ -409,7 +421,7 @@ test("desktop devices can force the soft-key toolbar on and off through the term
   const bar = page.getByRole("complementary", { name: "终端软键" });
   const menu = page.getByRole("button", { name: "终端菜单", exact: true });
   const override = page.getByRole("menuitemcheckbox", {
-    name: "强制显示底部工具栏",
+    name: "显示底部工具栏",
     exact: true,
   });
   const input = page.locator(".xterm-helper-textarea");
@@ -430,133 +442,67 @@ test("desktop devices can force the soft-key toolbar on and off through the term
   await keyboard.click();
   await expect(input).not.toBeFocused();
 
-  await bar.getByRole("button", { name: "展开摇杆", exact: true }).click();
-  const gamepad = bar.getByRole("toolbar", { name: "终端摇杆" });
-  await expect(gamepad).toBeVisible();
-  await expect(
-    bar.getByRole("button", { name: "收起摇杆", exact: true }),
-  ).toHaveAttribute("aria-expanded", "true");
-
   await menu.click();
   await expect(override).toBeChecked();
   await override.click();
   await page.keyboard.press("Escape");
   await expect(bar).toBeHidden();
-  await expect(gamepad).toBeHidden();
   await menu.click();
   await expect(override).not.toBeChecked();
   await page.keyboard.press("Escape");
 });
 
-test("touch gamepad mode lays out inside the soft-key bar without covering the terminal, follows control, and deduplicates bottom keys", async ({
+test("touch devices can hide and restore the bottom toolbar and repeat held arrow keys", async ({
   page,
-  browser,
   workDir,
 }, testInfo) => {
   test.skip(
     !testInfo.project.use.isMobile,
-    "Exercises mobile touch gamepad and touch scrolling",
+    "Exercises mobile toolbar toggle and held arrow repeat",
   );
-  const id = await createShell(page, "Touch gamepad", workDir);
+  await createShell(page, "Touch toolbar toggle and repeat", workDir);
   const bar = page.getByRole("complementary", { name: "终端软键" });
-  const gamepad = bar.getByRole("toolbar", { name: "终端摇杆" });
-  const gamepadToggle = bar.getByRole("button", {
-    name: "展开摇杆",
+  const menu = page.getByRole("button", { name: "终端菜单", exact: true });
+  const toggleItem = page.getByRole("menuitemcheckbox", {
+    name: "显示底部工具栏",
     exact: true,
   });
+  const headerQuick = page
+    .locator(".terminal-header")
+    .getByRole("button", { name: "快捷指令", exact: true });
 
-  // Initially off: bottom row has Esc, Tab, Enter, Ctrl, arrows, Ctrl+C.
-  await expect(gamepad).toBeHidden();
-  await expect(
-    bar.getByRole("button", { name: "Esc", exact: true }),
-  ).toBeVisible();
-  await expect(
-    bar.getByRole("button", { name: "↵", exact: true }),
-  ).toBeVisible();
+  // Shown by default on touch devices; hiding moves quick commands to the header.
+  await expect(bar).toBeVisible();
+  await expect(headerQuick).toBeHidden();
+  await menu.tap();
+  await expect(toggleItem).toBeChecked();
+  await toggleItem.tap();
+  await page.keyboard.press("Escape");
+  await expect(bar).toBeHidden();
+  await expect(headerQuick).toBeVisible();
 
-  // Expand the gamepad from the fixed soft-key action.
-  await expect(gamepadToggle).toHaveAttribute("aria-expanded", "false");
-  await gamepadToggle.tap();
-  await expect(
-    bar.getByRole("button", { name: "收起摇杆", exact: true }),
-  ).toHaveAttribute("aria-expanded", "true");
+  // Persists across reloads on the same device, and can be turned back on.
+  await page.reload();
+  await expect(bar).toBeHidden();
+  await menu.tap();
+  await expect(toggleItem).not.toBeChecked();
+  await toggleItem.tap();
+  await page.keyboard.press("Escape");
+  await expect(bar).toBeVisible();
+  await expect(headerQuick).toBeHidden();
 
-  // Controlling client sees the gamepad in the bar and a deduplicated key row.
-  await expect(gamepad).toBeVisible();
-  for (const button of await bar.locator(".soft-trailing button").all()) {
-    await expect(button).toBeInViewport({ ratio: 1 });
-  }
-  for (const button of await gamepad.getByRole("button").all()) {
-    await expect(button).toBeInViewport({ ratio: 1 });
-  }
-  const terminalBox = await page.locator(".terminal-area").boundingBox();
-  const gamepadBox = await gamepad.boundingBox();
-  const barBox = await bar.boundingBox();
-  expect(terminalBox).not.toBeNull();
-  expect(gamepadBox).not.toBeNull();
-  expect(barBox).not.toBeNull();
-  expect(gamepadBox!.y).toBeGreaterThanOrEqual(
-    terminalBox!.y + terminalBox!.height,
-  );
-  expect(gamepadBox!.y).toBeGreaterThanOrEqual(barBox!.y);
-  expect(gamepadBox!.y + gamepadBox!.height).toBeLessThanOrEqual(
-    barBox!.y + barBox!.height,
-  );
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth,
-    ),
-  ).toBe(true);
-  for (const label of ["Esc", "Tab", "↵", "↑", "↓", "←", "→", "Ctrl+C"]) {
-    await expect(
-      bar
-        .locator(".soft-row")
-        .getByRole("button", { name: label, exact: true }),
-    ).toHaveCount(0);
-  }
-  await expect(
-    bar.locator(".soft-row").getByRole("button", { name: "Ctrl", exact: true }),
-  ).toBeVisible();
-  await expect(
-    bar.locator(".soft-row").getByRole("button", { name: "Alt", exact: true }),
-  ).toBeVisible();
-
-  // Open a second client that takes control, turning this mobile page into an observer.
-  const otherContext = await browser.newContext();
-  const otherPage = await otherContext.newPage();
-  try {
-    await otherPage.goto(`/s/${id}`);
-    await otherPage
-      .getByRole("button", { name: "接管控制", exact: true })
-      .click();
-    // Observer must not show the gamepad, and bottom row restores full keys.
-    await expect(
-      page.getByRole("button", { name: "接管控制", exact: true }),
-    ).toBeVisible();
-    await expect(gamepad).toBeHidden();
-    await expect(
-      bar
-        .locator(".soft-row")
-        .getByRole("button", { name: "Esc", exact: true }),
-    ).toBeVisible();
-
-    // Claiming control back restores the gamepad.
-    await page.getByRole("button", { name: "接管控制", exact: true }).tap();
-    await expect(gamepad).toBeVisible();
-  } finally {
-    await otherContext.close();
-  }
-
-  // Verify gamepad keys send input (including Enter and Space).
+  // Holding an arrow key repeats without dismissing focus, and Fn exposes symbols.
   const received = await recordInput(page, workDir);
-  await gamepad.getByRole("button", { name: "Esc", exact: true }).tap();
-  await gamepad.getByRole("button", { name: "空格", exact: true }).tap();
-  await gamepad.getByRole("button", { name: "回车", exact: true }).tap();
-  await expect.poll(() => readFile(received, "utf8")).toBe("\x1b \r");
+  const right = bar.getByRole("button", { name: "→", exact: true });
+  await right.scrollIntoViewIfNeeded();
+  await right.click({ delay: 700 });
+  await expect
+    .poll(
+      async () => (await readFile(received, "utf8")).split("\x1b[C").length - 1,
+    )
+    .toBeGreaterThanOrEqual(2);
 
-  await bar.getByRole("button", { name: "收起摇杆", exact: true }).tap();
-  await expect(gamepad).toBeHidden();
-  await expect(
-    bar.locator(".soft-row").getByRole("button", { name: "Esc", exact: true }),
-  ).toBeVisible();
+  await bar.getByRole("button", { name: "Fn", exact: true }).tap();
+  await bar.getByRole("button", { name: "/", exact: true }).tap();
+  await expect.poll(() => readFile(received, "utf8")).toContain("/");
 });

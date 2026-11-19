@@ -1,7 +1,7 @@
 # CLI agent 接入
 
 选择 `launch` 后，首次创建缺失的 `launch-configs.json` 时，WebMux 写入以下十二款 CLI、Shell 和 omp 的普通配置，共 14 项，可编辑或删除，不会自动安装或认证 CLI。
-新生成配置只有 PTY 核心，不自动创建启动配置；可直接填写临时命令，或先 [选择功能](deployment/configuration.md#内置功能选择) 并重启。混合聊天需 `chat` + `launch` + `files`，目录/worktree 管理另需 `workspace`。
+新生成配置默认启用启动预设、混合聊天和工作区管理。自定义 [功能选择](deployment/configuration.md#内置功能选择) 时，混合聊天需要同时启用 `chat`、`launch`、`files`，仓库管理需要 `workspace`。
 
 旧版安装的 `launch-configs.json` 仍可能保留 Gemini CLI（`gemini --yolo`），但自 2026-06-18 起已停止为免费个人账号及 Google AI Pro/Ultra 处理请求，个人 Google 登录不可用。
 新安装默认预置已替换为 Antigravity CLI（`agy --dangerously-skip-permissions`，混合模式）。
@@ -29,8 +29,8 @@ Kimi 对应当前 Kimi Code CLI，旧 Kimi CLI 用户应先按官方说明迁移
 
 ## 启动与参数
 
-1. 在运行 WebMux 的机器上按官方说明安装 CLI，并以服务用户的身份完成认证；可在“设置 → Agent 工具”（`/settings#agent-tools`）或执行 `webmux agents [--check]` 查看本机已检测到的可执行路径、版本号、外部 ACP 连接器状态与按需检查的可用更新，复制安装或升级命令。
-2. 在“新建会话”中先选择项目；Git 项目可确认“工作位置”，再在“运行”列表中选择启动配置并创建会话。
+1. 在运行 WebMux 的机器上按官方说明安装 CLI，并以服务用户的身份完成认证；可在“设置 → 启动配置”（`/settings#launch-configs`，兼容 `/settings#agent-tools` 跳转）或执行 `webmux agents [--check]` 查看本机已检测到的可执行路径、版本号、外部 ACP 连接器状态与按需检查的可用更新，复制安装或升级命令。
+2. 在“新建会话”中先选择项目；Git 项目可确认“工作位置”，再在“运行”列表中选择启动配置并创建会话。本机未安装的受检 CLI agent 启动配置在新建会话、快速开始聊天与交接入口自动隐藏，并在设置页「启动配置」底部折叠的“未安装的工具”中集中管理；安装后在设置页重新扫描或重新打开新建入口即可选用。
    未启用 workspace 时直接填写目录；从明确仓库或分屏上下文打开时，直接确认会话设置。
 3. 在设置页编辑完整命令、参数、环境变量及图标。参数因 CLI 而异，请查看对应程序的 `--help`。
 

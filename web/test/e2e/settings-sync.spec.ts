@@ -16,6 +16,8 @@ test("isolated desktop and phone synchronize preferences in both directions", as
 }) => {
   const desktop = await browser.newContext({
     viewport: { width: 1280, height: 900 },
+    hasTouch: false,
+    isMobile: false,
   });
   const phone = await browser.newContext({ ...devices["Pixel 7"] });
   try {
@@ -37,10 +39,20 @@ test("isolated desktop and phone synchronize preferences in both directions", as
     await b.getByRole("radio", { name: "浅色", exact: true }).click();
     await expect(b.locator("html")).not.toHaveClass(/dark/);
     await expect(a.locator("html")).toHaveClass(/dark/);
-    await a.getByRole("switch", { name: "始终显示底部工具栏" }).click();
     await expect(
-      b.getByRole("switch", { name: "始终显示底部工具栏" }),
+      a.getByRole("switch", { name: "显示底部工具栏" }),
+    ).not.toBeChecked();
+    await expect(
+      b.getByRole("switch", { name: "显示底部工具栏" }),
     ).toBeChecked();
+    await a.getByRole("switch", { name: "显示底部工具栏" }).click();
+    await b.getByRole("switch", { name: "显示底部工具栏" }).click();
+    await expect(
+      a.getByRole("switch", { name: "显示底部工具栏" }),
+    ).toBeChecked();
+    await expect(
+      b.getByRole("switch", { name: "显示底部工具栏" }),
+    ).not.toBeChecked();
     await b.getByRole("switch", { name: "Diff 自动换行" }).click();
     await expect(
       a.getByRole("switch", { name: "Diff 自动换行" }),
@@ -61,6 +73,7 @@ test("isolated desktop and phone synchronize preferences in both directions", as
       .values;
     expect(serverValues).not.toHaveProperty("theme");
     expect(serverValues).not.toHaveProperty("fontSize");
+    expect(serverValues).not.toHaveProperty("forceSoftKeys");
     await server.restart();
     await a.reload();
     await b.reload();
@@ -68,6 +81,12 @@ test("isolated desktop and phone synchronize preferences in both directions", as
     await expect(b.locator("html")).not.toHaveClass(/dark/);
     await expect(a.getByLabel("终端字号", { exact: true })).toHaveValue("18");
     await expect(b.getByLabel("终端字号", { exact: true })).toHaveValue("15");
+    await expect(
+      a.getByRole("switch", { name: "显示底部工具栏" }),
+    ).toBeChecked();
+    await expect(
+      b.getByRole("switch", { name: "显示底部工具栏" }),
+    ).not.toBeChecked();
     await expect(
       b.getByRole("button", { name: "编辑 共享回显" }),
     ).toBeVisible();
@@ -90,10 +109,18 @@ test("legacy browser keys never overwrite server preferences", async ({
     localStorage.setItem("webmux.theme", "dark");
     localStorage.setItem("webmux.quickCommands", "[]");
     localStorage.setItem("webmux.settingsCache", "bad-cache");
+    localStorage.setItem("webmux.tv-mode", "1");
+    localStorage.setItem("webmux.headsetMode", "1");
   });
   await page.goto("/settings");
   await expect(page.getByText("已连接 · 设置已同步")).toBeVisible();
   await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+  await expect(page.locator("html")).not.toHaveAttribute("data-ui-mode", "tv");
+  await expect(page.locator("html")).not.toHaveAttribute(
+    "data-headset-mode",
+    "true",
+  );
+  await expect(page.locator("#tv-mode, #headset-mode")).toHaveCount(0);
   const snapshot = await (await request.get("/api/settings")).json();
   expect(snapshot.values).not.toHaveProperty("theme");
   expect(snapshot.values.quickCommands).toBeNull();
@@ -116,9 +143,10 @@ test("corrupt settings preserve bytes while terminal APIs remain available", asy
     await expect(page.locator("#appearance").getByRole("alert")).toContainText(
       "settings.json",
     );
+    await expect(page.getByRole("switch", { name: "代码行号" })).toBeDisabled();
     await expect(
-      page.getByRole("switch", { name: "始终显示底部工具栏" }),
-    ).toBeDisabled();
+      page.getByRole("switch", { name: "显示底部工具栏" }),
+    ).toBeEnabled();
     await expect(
       page.getByRole("radio", { name: "深色", exact: true }),
     ).toBeEnabled();
