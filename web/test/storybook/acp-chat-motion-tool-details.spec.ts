@@ -58,12 +58,20 @@ test("tool disclosure reverses smoothly and settles without clipping", async ({
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     return promise;
   });
+  // Playwright can leave an already-visible row under the floating
+  // back-to-latest button. Center it again after the disclosure changes height.
+  const clickCenteredTrigger = async () => {
+    await trigger.evaluate((node) =>
+      node.scrollIntoView({ block: "center", behavior: "instant" }),
+    );
+    await trigger.click();
+  };
   await expect(trigger).toHaveAttribute("aria-expanded", "true");
-  await trigger.click();
+  await clickCenteredTrigger();
   await expect(content).toBeHidden();
   await expect(group.locator("[data-tool-call]")).toHaveCount(0);
   expect(await content.evaluate((node) => node.getAnimations().length)).toBe(0);
-  await trigger.click();
+  await clickCenteredTrigger();
   await expect(content).toBeVisible();
   expect(await content.evaluate((node) => node.getAnimations().length)).toBe(0);
 });
