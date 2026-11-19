@@ -1,6 +1,6 @@
 import { settings, changeSettings } from "../settings/settings.svelte";
 import {
-  HomeWorktreesSchema,
+  SettingsValuesSchema,
   WorktreePinsSchema,
   type Repository,
   type SettingsValues,
@@ -42,11 +42,13 @@ export const worktreePins = {
     return canMoveWorktreePin(this.value, repo, worktreeId, offset, candidates);
   },
   toggle(repo: Repository, worktreeId: string) {
+    const current = this.value;
     const { pins: nextPins, pinned } = toggleWorktreePin(
-      this.value,
+      current,
       repo,
       worktreeId,
     );
+    if (!pinned && nextPins === current) return;
     const changes: Partial<SettingsValues> = {
       worktreePins: WorktreePinsSchema.parse(nextPins),
     };
@@ -55,9 +57,12 @@ export const worktreePins = {
         (item) => item.tree.id === worktreeId && item.pinned,
       );
       if (!shownOnHome) {
-        changes.homeWorktrees = HomeWorktreesSchema.parse(
+        const nextHome = SettingsValuesSchema.shape.homeWorktrees.safeParse(
           setPinned(homeWorktrees.value, repo, [worktreeId], true),
         );
+        if (nextHome.success && nextHome.data) {
+          changes.homeWorktrees = nextHome.data;
+        }
       }
     }
     changeSettings(changes);
@@ -92,9 +97,10 @@ export const worktreePins = {
     repo: Repository | undefined,
     worktreeId: string,
     candidates?: readonly Worktree[],
+    pinsOverride?: WorktreePins,
   ) {
     return buildWorktreePinMenuProps({
-      pins: this.value,
+      pins: pinsOverride ?? this.value,
       repo,
       worktreeId,
       candidates,

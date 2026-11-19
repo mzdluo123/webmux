@@ -1,5 +1,7 @@
 import {
+  MAX_WORKTREE_PIN_REPOS,
   MAX_WORKTREE_PINS_PER_REPO,
+  MAX_WORKTREE_PINS_TOTAL,
   type SettingsValues,
   type QuickCommand,
 } from "../../contracts/schemas";
@@ -87,6 +89,33 @@ function pinsIntent(before: string[], after: string[], latest: string[]) {
   );
 }
 
+function boundWorktreePins(
+  merged: Record<string, string[]>,
+  prioritized: ReadonlySet<string>,
+): Record<string, string[]> {
+  const ordered = [
+    ...Object.keys(merged).filter((k) => prioritized.has(k)),
+    ...Object.keys(merged).filter((k) => !prioritized.has(k)),
+  ];
+  const out: Record<string, string[]> = {};
+  let repos = 0;
+  let total = 0;
+  for (const key of ordered) {
+    if (repos >= MAX_WORKTREE_PIN_REPOS || total >= MAX_WORKTREE_PINS_TOTAL) {
+      break;
+    }
+    const list = (merged[key] ?? []).slice(
+      0,
+      Math.min(MAX_WORKTREE_PINS_PER_REPO, MAX_WORKTREE_PINS_TOTAL - total),
+    );
+    if (list.length === 0) continue;
+    out[key] = list;
+    repos++;
+    total += list.length;
+  }
+  return out;
+}
+
 export function settingsIntent(
   before: SettingsValues,
   changes: Partial<SettingsValues>,
@@ -126,8 +155,9 @@ export function settingsIntent(
       );
     }
     if (desired.worktreePins !== undefined && desired.worktreePins !== null) {
-      const merged = { ...latest.worktreePins };
+      const merged: Record<string, string[]> = { ...latest.worktreePins };
       const old = original.worktreePins ?? {};
+      const touched = new Set<string>();
       for (const key of new Set([
         ...Object.keys(old),
         ...Object.keys(desired.worktreePins),
@@ -135,6 +165,7 @@ export function settingsIntent(
         const beforeList = old[key] ?? [];
         const afterList = desired.worktreePins[key] ?? [];
         if (JSON.stringify(beforeList) === JSON.stringify(afterList)) continue;
+        touched.add(key);
         const rebased = pinsIntent(
           beforeList,
           afterList,
@@ -143,7 +174,7 @@ export function settingsIntent(
         if (rebased.length > 0) merged[key] = rebased;
         else delete merged[key];
       }
-      result.worktreePins = merged;
+      result.worktreePins = boundWorktreePins(merged, touched);
     }
     if (desired.homeWorktrees !== undefined && desired.homeWorktrees !== null) {
       const merged = { ...latest.homeWorktrees };

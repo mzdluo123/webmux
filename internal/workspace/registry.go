@@ -89,13 +89,15 @@ type Service struct {
 	hybrids  *hybrid.Service
 	// commands lists the saved quick commands an initialization instruction
 	// may reference; nil means none exist.
-	commands         func() []QuickCommand
-	pinHomeWorktrees func(repoID, mainWorktreeID string, added []string) error
-	defaultCwd       string
-	gitPath          string
-	githubPath       string
-	githubTimeout    time.Duration
-	fetchTimeout     time.Duration
+	commands                   func() []QuickCommand
+	pinHomeWorktrees           func(repoID, mainWorktreeID string, added []string) error
+	retainWorktreePins         func(repoID string, liveIDs []string) error
+	dropRepositoryWorktreePins func(repoID string) error
+	defaultCwd                 string
+	gitPath                    string
+	githubPath                 string
+	githubTimeout              time.Duration
+	fetchTimeout               time.Duration
 	// fetchRemoteTimeout bounds each remote of FetchRemotes.
 	fetchRemoteTimeout time.Duration
 	stateDir           string
@@ -230,13 +232,6 @@ func (s *Service) UseHybrid(h *hybrid.Service) { s.hybrids = h }
 // the saved quick commands that initialization instructions reference by
 // name.
 func (s *Service) UseQuickCommands(list func() []QuickCommand) { s.commands = list }
-
-// UseHomeWorktrees installs, once at assembly before serving, the callback
-// that pins externally discovered linked worktrees onto the shared
-// homeWorktrees setting.
-func (s *Service) UseHomeWorktrees(pin func(repoID, mainWorktreeID string, added []string) error) {
-	s.pinHomeWorktrees = pin
-}
 
 func (s *Service) load() error {
 	expanded, err := pathutil.Expand(s.stateDir)
@@ -419,6 +414,7 @@ func (s *Service) Unregister(id string) error {
 	s.purgeRepositoryOperations(id)
 	s.purgeRepositoryBaselines(r, id)
 	s.purgeRepositoryCollabState(id)
+	s.purgeRepositoryWorktreePins(id)
 	for _, info := range s.manager.List() {
 		if association := s.Association(info.ID); association != nil && association.RepositoryID == id {
 			s.commitAssociation(info, nil, false)

@@ -5,6 +5,7 @@
   import {
     MAX_BATCH_WORKTREES,
     type Repository,
+    type WorktreePins,
   } from "../../contracts/schemas";
   import {
     lockedStaleReason,
@@ -23,6 +24,7 @@
 
   let {
     repository,
+    pins,
     stage,
     entries,
     filteredEntries,
@@ -35,6 +37,7 @@
     ongit,
   }: {
     repository?: Repository;
+    pins?: WorktreePins;
     stage: "browse" | "select";
     entries: readonly WorktreeBatchEntry[];
     filteredEntries: readonly WorktreeBatchEntry[];
@@ -48,6 +51,7 @@
   } = $props();
 
   const selectedSet = $derived(new Set(selectedIds));
+  const filteredTrees = $derived(filteredEntries.map((entry) => entry.tree));
 </script>
 
 {#snippet badges(entry: WorktreeBatchEntry)}
@@ -183,7 +187,12 @@
                 onswitch={switchableWorktree(entry.tree)
                   ? () => onswitch(entry.tree.id)
                   : undefined}
-                {...worktreePins.menuProps(repository, entry.tree.id)}
+                {...worktreePins.menuProps(
+                  repository,
+                  entry.tree.id,
+                  filteredTrees,
+                  pins,
+                )}
                 worktree={entry.tree}
                 {onoperation}
                 ongit={ongit ? () => ongit(entry.tree.id) : undefined}

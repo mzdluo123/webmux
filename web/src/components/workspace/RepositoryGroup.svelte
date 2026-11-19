@@ -121,7 +121,16 @@
       worktreePins.value,
     ),
   );
-  const shownTrees = $derived(renderLayout.shown.map((item) => item.tree));
+  const shownTrees = $derived(
+    renderLayout.shown
+      .filter(
+        ({ tree }) =>
+          !filtering ||
+          shownArchive(archived.worktrees.get(tree.id)).length > 0 ||
+          visible.some((session) => session.workspace?.worktreeId === tree.id),
+      )
+      .map((item) => item.tree),
+  );
   const layout = $derived(
     visibleIds
       ? homeLayout(

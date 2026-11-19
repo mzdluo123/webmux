@@ -300,6 +300,9 @@
   >
     {#snippet children(page)}<page.default
         worktree={target}
+        onreleased={() => {
+          worktreePins.remove(target.repositoryId, [target.id]);
+        }}
         onchange={onrefreshworktrees}
         onclose={() => (releasingWorktree = null)}
       />{/snippet}

@@ -2,6 +2,19 @@
 
 承接 [verification-log-2026-11-18](verification-log-2026-11-18.md)，收录 2026-11-19 起的局部核对记录；索引见 [WebMux User Stories](../user-stories.md#核对记录)。
 
+## 2026-11-19：工作树置顶多仓库隔离与删除/释放自动收敛修复（US-J29）
+
+- 故事编号与总数（265）保持不变，修复 `US-J29` 多仓库与删除收敛边界并同步更新 `docs/protocol/settings.md`、`docs/user-stories/code-and-worktrees/worktrees/lifecycle.md`：
+  - `worktree-pins.ts` 将单仓库置顶切换与调序的失效 ID 收敛限定在目标仓库内，保留其余仓库已保存的置顶条目；补齐最多 200 个仓库、合计最多 1000 项置顶的前端上限门禁及 `settings-intent.ts` 409 冲突变基裁剪；
+  - `internal/settings` 新增 `RetainWorktreePins` 与 `DropRepositoryWorktreePins` 并接入 `internal/workspace` 健康快照收敛与仓库取消登记，清理删除、释放或外部移除的工作树置顶 ID；`CoreShellDialogs.svelte` 与 `ReleaseWorktreeDialog.svelte` 补齐前端即时移除回调；
+  - `GitWorktreeGuardState.svelte` 可写工作树选择守卫页同步置顶排序与图钉标记，`ManageWorktreesSelectList.svelte` 与 `RepositoryGroup.svelte` 按当前可见候选列表计算上下移边界。
+- 已执行验证：
+  - Go 与静态门禁：`make format-check docs-check persistence-check`、`go vet ./...`、`GOOS=darwin go vet ./...`、`make go-lint`（0 issues）及 `go test -race -count=1 ./internal/settings ./internal/workspace ./internal/api ./internal/wire ./internal/clicmd ./internal/archtest ./cmd/webmux` 通过；
+  - 前端静态与单元测试：`pnpm --dir web build`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`（49 项）与 `make test-unit`（91 个文件共 1289 项）通过；
+  - 浏览器组件测试：`WorkbenchTree.test.ts`、`RepositoryPanel.test.ts`、`RepositoryGroup.test.ts`、`GitWorkbenchRoute.test.ts`、`AppShell.test.ts`、`WorkspaceGroup.test.ts`（6 个文件共 86 项）通过；
+  - Playwright 端到端测试：`worktrees.spec.ts`、`settings-sync.spec.ts`、`git-workbench-route.spec.ts`、`session-creation.spec.ts`、`quick-start.spec.ts`（69 项通过、1 项按项目条件跳过）通过。
+- 局限：无头 Linux Chromium 的 `hover` 与 `any-pointer: coarse` 默认未激活，真实鼠标悬停显现、实体触屏常驻及真机浏览器未验证。
+
 ## 2026-11-19：工作树置顶与跨列表优先排序（US-J29、US-J14、US-C17）
 
 - 新增 US-J29 并同步更新 US-J14、US-C17，故事总数由 264 增至 265：

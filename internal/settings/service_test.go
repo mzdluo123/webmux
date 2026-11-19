@@ -391,3 +391,64 @@ func TestPinHomeWorktreesSeedsDefaultMainAndPreservesExplicitEmptyEntry(t *testi
 		t.Fatalf("r2 got %v, want %v", snap3.Values.HomeWorktrees["r2"], want)
 	}
 }
+
+func TestRetainAndDropWorktreePinsConvergeOnlyOnStaleEntries(t *testing.T) {
+	s := Open(t.TempDir())
+	defer s.Close()
+
+	// Empty worktreePins: pruning and dropping are no-ops without bumping revision.
+	if err := s.RetainWorktreePins("r1", []string{"wt-a"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DropRepositoryWorktreePins("r1"); err != nil {
+		t.Fatal(err)
+	}
+	if snap, _ := s.Snapshot(); snap.Revision != 0 {
+		t.Fatalf("expected revision 0, got %d", snap.Revision)
+	}
+
+	if _, err := s.Patch(0, Changes{
+		Fields: map[string]bool{"worktreePins": true},
+		Values: Values{WorktreePins: map[string][]string{
+			"r1": {"wt-2", "wt-gone", "wt-1"},
+			"r2": {"wt-x"},
+		}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// All pinned IDs still present: no revision bump.
+	if err := s.RetainWorktreePins("r2", []string{"wt-x", "wt-y"}); err != nil {
+		t.Fatal(err)
+	}
+	if snap, _ := s.Snapshot(); snap.Revision != 1 {
+		t.Fatalf("expected unchanged revision 1, got %d", snap.Revision)
+	}
+
+	// Stale ID removed while preserving saved order and sibling repositories.
+	if err := s.RetainWorktreePins("r1", []string{"wt-1", "wt-2", "wt-other"}); err != nil {
+		t.Fatal(err)
+	}
+	snap, err := s.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Revision != 2 || !slices.Equal(snap.Values.WorktreePins["r1"], []string{"wt-2", "wt-1"}) || !slices.Equal(snap.Values.WorktreePins["r2"], []string{"wt-x"}) {
+		t.Fatalf("unexpected worktreePins after retain: rev=%d pins=%+v", snap.Revision, snap.Values.WorktreePins)
+	}
+
+	// Dropping repositories converges empty map to nil.
+	if err := s.DropRepositoryWorktreePins("r1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DropRepositoryWorktreePins("r2"); err != nil {
+		t.Fatal(err)
+	}
+	finalSnap, err := s.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if finalSnap.Revision != 4 || finalSnap.Values.WorktreePins != nil {
+		t.Fatalf("expected nil worktreePins at rev 4, got rev=%d pins=%+v", finalSnap.Revision, finalSnap.Values.WorktreePins)
+	}
+}

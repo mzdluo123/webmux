@@ -5,7 +5,12 @@ import {
   SessionIdSchema,
   WorkspaceCapabilitySchema,
 } from "./session-schemas";
-import { HomeWorktreesSchema, WorktreePinsSchema } from "./workspace-schemas";
+import {
+  HomeWorktreesSchema,
+  MAX_WORKTREE_PIN_REPOS,
+  MAX_WORKTREE_PINS_TOTAL,
+  WorktreePinsSchema,
+} from "./workspace-schemas";
 
 const TunnelInfoSchema = z.object({
   enabled: z.boolean(),
@@ -275,10 +280,11 @@ export const SessionPinsSchema = z
 function validWorktreeMap(
   value: Record<string, string[]>,
   maxTotal: number,
+  maxRepos = MAX_WORKTREE_PIN_REPOS,
 ): boolean {
   const entries = Object.entries(value);
   return (
-    entries.length <= 200 &&
+    entries.length <= maxRepos &&
     entries.reduce((n, [, ids]) => n + ids.length, 0) <= maxTotal &&
     entries.every(
       ([id, ids]) =>
@@ -300,10 +306,10 @@ export const SettingsValuesSchema = z.strictObject({
     .nullable(),
   quickCommands: QuickCommandsSchema.nullable(),
   homeWorktrees: HomeWorktreesSchema.refine((value) =>
-    validWorktreeMap(value, 2000),
+    validWorktreeMap(value, 2000, 200),
   ).nullable(),
   worktreePins: WorktreePinsSchema.refine((value) =>
-    validWorktreeMap(value, 1000),
+    validWorktreeMap(value, MAX_WORKTREE_PINS_TOTAL, MAX_WORKTREE_PIN_REPOS),
   )
     .nullable()
     .optional(),

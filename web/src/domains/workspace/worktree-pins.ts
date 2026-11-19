@@ -1,5 +1,7 @@
 import {
+  MAX_WORKTREE_PIN_REPOS,
   MAX_WORKTREE_PINS_PER_REPO,
+  MAX_WORKTREE_PINS_TOTAL,
   type Repository,
   type Worktree,
   type WorktreePins,
@@ -15,6 +17,26 @@ function withRepoPins(
   if (ids.length > 0) next[repositoryId] = [...ids];
   else delete next[repositoryId];
   return next;
+}
+
+/**
+ * Prunes stale worktree IDs only within `repo.id` on a healthy snapshot while
+ * keeping sibling repositories' pins untouched.
+ */
+function pruneRepoWorktreePins(
+  pins: WorktreePins,
+  repo: Repository,
+): WorktreePins {
+  const saved = pins[repo.id];
+  if (!saved) return pins;
+  if (repo.availability !== "available" || repo.error) {
+    return saved.length > 0 ? pins : withRepoPins(pins, repo.id, []);
+  }
+  const kept = saved.filter((treeId) =>
+    repo.worktrees.some((t) => t.id === treeId),
+  );
+  if (kept.length === saved.length && kept.length > 0) return pins;
+  return withRepoPins(pins, repo.id, kept);
 }
 
 /**
@@ -44,11 +66,13 @@ export function isRepoWorktreePinsFull(
   pins: WorktreePins,
   repo: Repository,
 ): boolean {
-  const count =
-    repo.availability === "available" && !repo.error
-      ? pinnedWorktreeIds(pins, repo.id, repo.worktrees).length
-      : (pins[repo.id]?.length ?? 0);
-  return count >= MAX_WORKTREE_PINS_PER_REPO;
+  const pruned = pruneRepoWorktreePins(pins, repo);
+  const count = pruned[repo.id]?.length ?? 0;
+  if (count >= MAX_WORKTREE_PINS_PER_REPO) return true;
+  const entries = Object.entries(pruned).filter(([, ids]) => ids.length > 0);
+  if (count === 0 && entries.length >= MAX_WORKTREE_PIN_REPOS) return true;
+  const total = entries.reduce((sum, [, ids]) => sum + ids.length, 0);
+  return total >= MAX_WORKTREE_PINS_TOTAL;
 }
 
 /**
@@ -81,7 +105,7 @@ export function toggleWorktreePin(
   repo: Repository,
   worktreeId: string,
 ): { pins: WorktreePins; pinned: boolean } {
-  const pruned = pruneWorktreePins(pins, [repo]);
+  const pruned = pruneRepoWorktreePins(pins, repo);
   const current = pruned[repo.id] ?? [];
   if (current.includes(worktreeId)) {
     return {
@@ -93,7 +117,7 @@ export function toggleWorktreePin(
       pinned: false,
     };
   }
-  if (current.length >= MAX_WORKTREE_PINS_PER_REPO) {
+  if (isRepoWorktreePinsFull(pruned, repo)) {
     return { pins: pruned, pinned: false };
   }
   return {
@@ -125,7 +149,7 @@ export function moveWorktreePin(
   offset: -1 | 1,
   candidates?: readonly Worktree[],
 ): WorktreePins {
-  const pruned = pruneWorktreePins(pins, [repo]);
+  const pruned = pruneRepoWorktreePins(pins, repo);
   const ordered = pinnedWorktreeIds(
     pruned,
     repo.id,

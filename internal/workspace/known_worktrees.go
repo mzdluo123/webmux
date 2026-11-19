@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"log/slog"
 	"slices"
 	"unicode/utf16"
 	"unicode/utf8"
@@ -25,6 +26,30 @@ func validHomeWorktreeID(s string) bool {
 		}
 	}
 	return true
+}
+
+// UseHomeWorktrees installs, once at assembly before serving, the callback
+// that pins externally discovered linked worktrees onto the shared
+// homeWorktrees setting.
+func (s *Service) UseHomeWorktrees(pin func(repoID, mainWorktreeID string, added []string) error) {
+	s.pinHomeWorktrees = pin
+}
+
+// UseWorktreePins installs, once at assembly before serving, the callbacks
+// that prune removed worktrees on healthy snapshots and drop unregistered
+// repositories from the shared worktreePins setting.
+func (s *Service) UseWorktreePins(retain func(repoID string, liveIDs []string) error, dropRepository func(repoID string) error) {
+	s.retainWorktreePins = retain
+	s.dropRepositoryWorktreePins = dropRepository
+}
+
+func (s *Service) purgeRepositoryWorktreePins(repoID string) {
+	if s.dropRepositoryWorktreePins == nil {
+		return
+	}
+	if err := s.dropRepositoryWorktreePins(repoID); err != nil {
+		slog.Warn("drop worktree pins of unregistered repository failed", "repository", repoID, "error", err)
+	}
 }
 
 func observedWorktreeIDs(trees []Worktree) []string {
@@ -106,6 +131,18 @@ func (s *Service) reconcileKnownWorktrees(r *repositoryState, repo Repository) {
 	seeded := r.knownSeeded
 	previous := slices.Clone(r.knownWorktrees)
 	s.mu.Unlock()
+
+	if s.retainWorktreePins != nil && validHomeWorktreeID(repo.ID) {
+		liveIDs := make([]string, 0, len(repo.Worktrees))
+		for _, tree := range repo.Worktrees {
+			if validHomeWorktreeID(tree.ID) {
+				liveIDs = append(liveIDs, tree.ID)
+			}
+		}
+		if err := s.retainWorktreePins(repo.ID, liveIDs); err != nil {
+			slog.Warn("prune worktree pins of repository failed", "repository", repo.ID, "error", err)
+		}
+	}
 
 	currentIDs := observedWorktreeIDs(repo.Worktrees)
 	if !seeded {

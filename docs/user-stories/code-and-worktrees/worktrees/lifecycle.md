@@ -188,14 +188,15 @@
   验收要点：
   - 侧栏「按分支」导航树、首页工作树分组与仓库面板「工作树」分区共用的“⋯”菜单对可用非 bare 工作树提供“置顶工作树”；已置顶工作树提供“取消置顶”，并按当前可见候选边界提供“上移置顶”“下移置顶”；
   - 置顶按仓库维护有序列表（`settings.values.worktreePins`，单仓库最多 50 个、最多 200 个仓库、总计 1000 个），新置顶项插入该仓库列表首位；置顶尚未加入主页显示的空闲工作树时，一并加入 `homeWorktrees` 使其立即出现在首页与侧栏；
-  - 侧栏「按分支」导航树、首页工作树分组、新建会话位置选择器、快速开始已有工作树选择器、Git 工作台目标工作树切换器、仓库面板工作树列表与「主页显示…」弹窗统一将已置顶工作树排在该仓库最前（高于未置顶的主工作区与普通工作树）：
+  - 侧栏「按分支」导航树、首页工作树分组、新建会话位置选择器、快速开始已有工作树选择器、Git 工作台目标工作树切换器与工作树选择守卫页、仓库面板工作树列表与「主页显示…」弹窗统一将已置顶工作树排在该仓库最前（高于未置顶的主工作区与普通工作树）：
     - 展示图钉标记或「已置顶」徽标，侧栏无障碍名称附带“已置顶”且悬停菜单预留槽位避开图钉；
   - 仓库面板「工作树 → 批量清理」中，「选中全部可安全清理（N）」自动跳过已置顶工作树并只统计未置顶的可安全清理项，已置顶项保持可选复选框供手动勾选；
-  - 置顶顺序经 `/api/settings` 与 `/ws/settings` 跨设备同步，409 冲突按仓库粒度重放增删与重排意图；单项/批量删除工作树或取消登记仓库时同步移除对应置顶 ID，仓库状态读取异常时保留原置顶不误清。
+  - 置顶顺序经 `/api/settings` 与 `/ws/settings` 跨设备同步，409 冲突按仓库粒度重放增删与重排意图；工作树删除、释放空间或取消登记仓库时收敛移除对应置顶条目，仓库状态读取异常时保留原置顶列表。
 
 依据：
 
-- 工作树置顶：[纯函数](../../../../web/src/domains/workspace/worktree-pins.ts)、[状态模块](../../../../web/src/domains/workspace/worktree-pins.svelte.ts)、[图钉标记](../../../../web/src/components/workspace/PinnedWorktreeMark.svelte)、[单测](../../../../web/test/worktree-pins.test.ts)
+- 工作树置顶：[纯函数](../../../../web/src/domains/workspace/worktree-pins.ts)、[状态模块](../../../../web/src/domains/workspace/worktree-pins.svelte.ts)、[图钉标记](../../../../web/src/components/workspace/PinnedWorktreeMark.svelte)；
+  [服务端收敛](../../../../internal/settings/service.go)、[单测](../../../../web/test/worktree-pins.test.ts)。
 
 - 批量删除：[服务](../../../../internal/workspace/batch_remove.go)、[仓库工作树分区](../../../../web/src/components/workspace/RepositoryWorktrees.svelte)；
   [预览视图](../../../../web/src/components/workspace/ManageWorktreesPreview.svelte)、[分类纯函数](../../../../web/src/domains/workspace/worktree-batch.ts)。

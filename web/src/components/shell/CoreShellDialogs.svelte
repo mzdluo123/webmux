@@ -64,6 +64,12 @@
             throw new Error(m.s1_workspace_not_enabled());
           workspace.pinCreatedWorktree(repositories.list, tree);
         }}
+        onworktreeremoved={(tree) => {
+          featureContributions.entries.workspace?.worktreePins.remove(
+            tree.repositoryId,
+            [tree.id],
+          );
+        }}
         onclose={() => (creating = null)}
       />
     {/snippet}
