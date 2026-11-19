@@ -1554,7 +1554,7 @@ test.describe("hybrid sessions with the fake agent", () => {
       code.getByRole("tab", { name: "src/target.ts · worktree", exact: true }),
     ).toHaveAttribute("aria-selected", "true");
     const sendRange = code.getByRole("button", {
-      name: "发送位置到草稿（25-27 行）",
+      name: "插入所选位置（第 25-27 行）",
       exact: true,
     });
     await expect(sendRange).toBeEnabled();

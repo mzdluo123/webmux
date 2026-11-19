@@ -37,10 +37,11 @@ async function popOut(page: Page) {
     .getByRole("menuitem", { name: "在独立窗口中显示代码", exact: true })
     .click();
 }
-function sendButton(scope: Scope, range?: string) {
+function sendButton(scope: Scope, range: string) {
   return scope
     .getByRole("button", {
-      name: range ? `发送位置到终端（${range} 行）` : /^发送位置到/,
+      name: `插入所选位置（第 ${range} 行）`,
+      exact: true,
     })
     .filter({ visible: true });
 }

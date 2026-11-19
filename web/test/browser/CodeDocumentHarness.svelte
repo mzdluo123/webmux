@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
+  import * as DropdownMenu from "../../src/lib/components/ui/dropdown-menu";
   import CodeDocumentView from "../../src/components/code/CodeDocumentView.svelte";
   import { CodeDiffSchema, CodeFileSchema } from "../../src/contracts/schemas";
   let {
@@ -18,6 +20,7 @@
   let active = $state(true);
   let status = $state("unchanged");
   let inserted = $state("");
+  let menu = $state<Snippet>();
   let width = $state(650);
   const original = $derived(
     syntax
@@ -139,6 +142,10 @@
 <button onclick={() => (status = "expired")}>Expire snapshot</button>
 <button onclick={() => (width = width === 650 ? 900 : 650)}>Toggle width</button
 >
+<DropdownMenu.Root>
+  <DropdownMenu.Trigger>代码菜单</DropdownMenu.Trigger>
+  <DropdownMenu.Content>{@render menu?.()}</DropdownMenu.Content>
+</DropdownMenu.Root>
 <div style:height="650px" style:width={`${width}px`}>
   <CodeDocumentView
     id="session"
@@ -157,6 +164,7 @@
     openSide={() => {}}
     onComparison={() => {}}
     onState={(value) => (status = value)}
+    bind:menu
   />
 </div>
 <p aria-label="Inserted reference">{inserted}</p>

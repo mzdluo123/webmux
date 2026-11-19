@@ -150,7 +150,7 @@ test("image documents load an authenticated Blob, fit, zoom, pan and release it"
     "Bearer secret",
   );
   expect(getComputedStyle(viewport()).touchAction).toBe("none");
-  // Preview replaces the line reader; whole-file references stay available.
+  // Preview replaces the line reader; file locations stay available in the menu.
   expect(document.querySelector("diffs-container")).toBeNull();
   await expect.poll(percent).toBe(fitPercent(800, 600));
   const frame = viewport().getBoundingClientRect();
@@ -185,7 +185,13 @@ test("image documents load an authenticated Blob, fit, zoom, pan and release it"
     `${Math.round((viewport().clientWidth / 800) * 100)}%`,
   );
 
-  await page.getByRole("button", { name: /发送位置到终端/ }).click();
+  await expect
+    .element(page.getByRole("button", { name: /^插入所选位置/ }))
+    .not.toBeInTheDocument();
+  await page.getByRole("button", { name: "代码菜单", exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: "插入文件位置", exact: true })
+    .click();
   await expect
     .element(page.getByLabelText("Inserted reference"))
     .toHaveTextContent("/repo/assets/photo.png");

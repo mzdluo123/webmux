@@ -138,6 +138,18 @@ test("updates only on refresh, blocks stale references and pauses hidden polling
   render(Harness);
   await page.getByRole("button", { name: "file-0.txt", exact: true }).click();
   await expect.poll(readerText).toContain("original file 0");
+  const insert = page.getByRole("button", {
+    name: "插入所选位置（第 1 行）",
+    exact: true,
+  });
+  const selectFirstLine = async () => {
+    const gutter = document
+      .querySelector("diffs-container")
+      ?.shadowRoot?.querySelector('[data-gutter] [data-column-number="1"]');
+    await page.elementLocator(gutter!).click();
+  };
+  await expect.element(insert).not.toBeInTheDocument();
+  await selectFirstLine();
   state = "updated";
   document.dispatchEvent(new Event("visibilitychange"));
   await expect
@@ -145,23 +157,21 @@ test("updates only on refresh, blocks stale references and pauses hidden polling
       page.getByText("内容已更新，保留旧内容。刷新文档", { exact: false }),
     )
     .toMatchTextContent(new RegExp("内容已更新"));
-  await expect
-    .element(page.getByRole("button", { name: "发送位置到终端" }))
-    .toBeDisabled();
+  await expect.element(insert).toBeDisabled();
   await expect.poll(readerText).toContain("original file 0");
   version = "refreshed";
   state = "unchanged";
   await page.getByRole("button", { name: "刷新文档" }).click();
   await expect.poll(readerText).toContain("refreshed file 0");
-  await page.getByRole("button", { name: "发送位置到终端" }).click();
+  await expect.element(insert).not.toBeInTheDocument();
+  await selectFirstLine();
+  await insert.click();
   await expect
     .element(page.getByLabelText("Inserted reference"))
-    .toMatchTextContent(new RegExp("/root/file-0.txt"));
+    .toHaveTextContent("/root/file-0.txt:1");
   checkFailed = true;
   document.dispatchEvent(new Event("visibilitychange"));
-  await expect
-    .element(page.getByRole("button", { name: "发送位置到终端" }))
-    .toBeDisabled();
+  await expect.element(insert).toBeDisabled();
   await expect.poll(readerText).toContain("refreshed file 0");
   await page.getByRole("button", { name: "Toggle code visibility" }).click();
   const previous = checks;
@@ -809,7 +819,8 @@ test("revealing a file location opens file mode, selects its line range and reso
   // Even when file-3.txt has an unstaged diff, mode: "file" opens file view and selects lines 2-4.
   await page.getByRole("button", { name: "Reveal file 3 lines" }).click();
   const sendRange = page.getByRole("button", {
-    name: "发送位置到终端（2-4 行）",
+    name: "插入所选位置（第 2-4 行）",
+    exact: true,
   });
   await expect.element(sendRange).toBeEnabled();
   await sendRange.click();
@@ -820,7 +831,12 @@ test("revealing a file location opens file mode, selects its line range and reso
   // Relative path from repo root resolves via /root/src/app.ts when cwd is /root/sub.
   await page.getByRole("button", { name: "Reveal repo relative" }).click();
   await expect
-    .element(page.getByRole("button", { name: "发送位置到终端（3 行）" }))
+    .element(
+      page.getByRole("button", {
+        name: "插入所选位置（第 3 行）",
+        exact: true,
+      }),
+    )
     .toBeEnabled();
 
   // Literal colon filename falls back to rawPath ("literal:1") without applying the suffix line.

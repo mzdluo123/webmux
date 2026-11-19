@@ -22,7 +22,12 @@ const gutter = (side: "deletion" | "addition", line: number) =>
       `[data-line-type="change-${side}"][data-column-number="${line}"]`,
     )!,
   );
-const send = () => page.getByRole("button", { name: /发送位置到终端/ }).click();
+const insertSelection = () =>
+  page.getByRole("button", { name: /^插入所选位置/ });
+async function chooseCodeMenuItem(name: string) {
+  await page.getByRole("button", { name: "代码菜单", exact: true }).click();
+  await page.getByRole("menuitem", { name, exact: true }).click();
+}
 const inserted = () => page.getByLabelText("Inserted reference");
 // The rendered text once it has stayed the same for three animation frames:
 // layout changes reach the virtualizer through a ResizeObserver and then a
@@ -82,7 +87,7 @@ test("previews Markdown on request without executing raw HTML or loading images"
   await expect.element(page.getByLabelText("只读代码")).toBeVisible();
 });
 
-test("unchanged content cannot navigate to invisible lines and retains whole-file references", async () => {
+test("unchanged content has no line actions but can insert its file location from the menu", async () => {
   render(Harness, { unchanged: true });
   await expect.element(page.getByText(/文件内容没有变化；/)).toBeVisible();
   await expect
@@ -106,14 +111,9 @@ test("unchanged content cannot navigate to invisible lines and retains whole-fil
   expect(
     document.querySelector("[data-code-search], [data-code-goto-line]"),
   ).toBeNull();
-  await send();
-  await expect
-    .poll(() =>
-      document
-        .querySelector('[aria-label="Inserted reference"]')
-        ?.textContent?.trim(),
-    )
-    .toBe("/repo/code.txt");
+  await expect.element(insertSelection()).not.toBeInTheDocument();
+  await chooseCodeMenuItem("插入文件位置");
+  await expect.element(inserted()).toHaveTextContent("/repo/code.txt");
 });
 
 test("diff keeps line numbers visible without inheriting obsolete display preferences", async () => {
@@ -127,9 +127,7 @@ test("diff keeps line numbers visible without inheriting obsolete display prefer
     .element(page.getByText("点击行号选择；Shift 点击选择范围"))
     .toBeVisible();
   await expect.element(page.getByLabelText("引用来源")).not.toBeInTheDocument();
-  await expect
-    .element(page.getByRole("button", { name: "引用整个文件" }))
-    .not.toBeInTheDocument();
+  await expect.element(insertSelection()).not.toBeInTheDocument();
 });
 
 test("expired snapshots retain content and disable mouse and keyboard expansion", async () => {
@@ -140,6 +138,7 @@ test("expired snapshots retain content and disable mouse and keyboard expansion"
   shadow()!.querySelector<HTMLElement>("[data-expand-button]")!.focus();
   await userEvent.keyboard("{Enter}");
   await expect.poll(code).toContain("ordinary line 20");
+  await gutter("addition", 50).click();
   await page.getByRole("button", { name: "Expire snapshot" }).click();
   await expect.element(expand).toHaveAttribute("aria-disabled", "true");
   // Expiring adds a status line that shortens the viewer; the virtualizer
@@ -150,9 +149,7 @@ test("expired snapshots retain content and disable mouse and keyboard expansion"
     .elementLocator(shadow()!.querySelector("[data-unmodified-lines]")!)
     .click();
   expect(code()).toBe(before);
-  await expect
-    .element(page.getByRole("button", { name: /发送位置到终端/ }))
-    .toBeDisabled();
+  await expect.element(insertSelection()).toBeDisabled();
 });
 
 test("syntax and inline changes are highlighted in a Worker without interpreting source HTML", async () => {
@@ -183,7 +180,7 @@ test("real Worker, local context expansion, side-aware references and snapshot r
     .element(page.getByRole("button", { name: "向下展开 30 行" }).first())
     .toHaveAttribute("tabindex", "0");
   await gutter("deletion", 50).click();
-  await send();
+  await insertSelection().click();
   await expect
     .element(inserted())
     .toHaveTextContent("/repo/code.txt:50（索引版本）");
@@ -198,7 +195,7 @@ test("real Worker, local context expansion, side-aware references and snapshot r
   const scroller = document.querySelector<HTMLElement>(".code-diff-reader")!;
   scroller.scrollTop = 0;
   await expect.poll(code, { timeout: 10000 }).toContain("ordinary line 1");
-  await send();
+  await insertSelection().click();
   await expect
     .element(inserted())
     .toHaveTextContent("/repo/code.txt:50（索引版本）");
@@ -207,8 +204,7 @@ test("real Worker, local context expansion, side-aware references and snapshot r
   ).toEqual([]);
   await page.getByRole("button", { name: "Replace snapshot" }).click();
   await expect.poll(code, { timeout: 10000 }).toContain("changed revision 2");
-  await send();
-  await expect.element(inserted()).toHaveTextContent("/repo/code.txt");
+  await expect.element(insertSelection()).not.toBeInTheDocument();
 });
 
 test("responsive layout, wrap and line ranges preserve the actual selected source", async () => {
@@ -219,7 +215,7 @@ test("responsive layout, wrap and line ranges preserve the actual selected sourc
     .poll(() => shadow()?.querySelector("pre")?.dataset.diffType)
     .toBe("split");
   await gutter("addition", 50).click();
-  await send();
+  await insertSelection().click();
   await expect.element(inserted()).toHaveTextContent("/repo/code.txt:50");
   await gutter("deletion", 50).click();
   await page.getByRole("button", { name: "Toggle width" }).click();
@@ -227,7 +223,7 @@ test("responsive layout, wrap and line ranges preserve the actual selected sourc
   await expect
     .poll(() => shadow()?.querySelector("pre")?.dataset.overflow)
     .toBe("wrap");
-  await send();
+  await insertSelection().click();
   await expect
     .element(inserted())
     .toHaveTextContent("/repo/code.txt:50（索引版本）");
@@ -249,16 +245,14 @@ test("responsive layout, wrap and line ranges preserve the actual selected sourc
   await page
     .elementLocator(shadow()!.querySelector(endSelector)!)
     .click({ modifiers: ["Shift"] });
-  await send();
+  await insertSelection().click();
   await expect
     .element(inserted())
     .toHaveTextContent("/repo/code.txt:50-52（索引版本）");
-  await page.getByRole("button", { name: "引用整个文件" }).click();
-  await send();
+  await chooseCodeMenuItem("清除行选择");
+  await expect.element(insertSelection()).not.toBeInTheDocument();
+  await chooseCodeMenuItem("插入文件位置");
   await expect.element(inserted()).toHaveTextContent("/repo/code.txt");
-  await expect
-    .element(page.getByRole("button", { name: "引用整个文件" }))
-    .not.toBeInTheDocument();
 });
 
 test("horizontal scrollbar syncs diff columns and hides in wrap mode", async () => {
@@ -292,7 +286,8 @@ test("large deletions stay virtualized, with source-line goto and search", async
   render(Harness, { deleted: true });
   await expect.poll(code, { timeout: 10000 }).toContain("ordinary line 1");
   expect(shadow()!.querySelectorAll("[data-line]").length).toBeLessThan(300);
-  await send();
+  await expect.element(insertSelection()).not.toBeInTheDocument();
+  await chooseCodeMenuItem("插入文件位置");
   await expect
     .element(inserted())
     .toHaveTextContent("/repo/code.txt（索引版本）");
@@ -306,7 +301,7 @@ test("large deletions stay virtualized, with source-line goto and search", async
   await page.getByRole("textbox", { name: "跳转到行" }).fill("19800");
   await userEvent.keyboard("{Enter}");
   await expect.poll(code, { timeout: 10000 }).toContain("ordinary line 19800");
-  await send();
+  await insertSelection().click();
   await expect
     .element(inserted())
     .toHaveTextContent("/repo/code.txt:19800（索引版本）");
@@ -328,7 +323,7 @@ test("search can reveal collapsed context and initially searches backwards from 
     .fill("ordinary line 1");
   await page.getByRole("button", { name: "上一个匹配", exact: true }).click();
   await expect.poll(code).toContain("ordinary line 120");
-  await send();
+  await insertSelection().click();
   await expect.element(inserted()).toHaveTextContent("/repo/code.txt:120");
 });
 

@@ -654,7 +654,7 @@ export async function runCommand(page: Page | Locator, command: string) {
   await input.press("Enter");
 }
 
-export async function expectTerminalLine(page: Page, line: string) {
+export async function expectTerminalLine(page: Page | Locator, line: string) {
   // The E2E Chromium projects use xterm's built-in DOM renderer. Match a full
   // rendered line, not the echoed printf command or a mocked terminal buffer.
   await expect
@@ -675,7 +675,7 @@ export const quote = (value: string) =>
 
 /** Turns the shell into a raw byte recorder so tests can assert exact PTY input. */
 export async function recordInput(
-  page: Page,
+  page: Page | Locator,
   directory: string,
   bracketed = true,
 ) {

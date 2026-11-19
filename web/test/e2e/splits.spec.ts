@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   test,
@@ -13,12 +13,14 @@ import {
   narrowSessionHeader,
   openSessionMenu,
   openSplitPanel,
+  recordInput,
   selectSessionInputSide,
   sessionHeader,
   toggleCode,
   toggleDraftMode,
   uploadAction,
 } from "./fixtures";
+import { showFileTree } from "./code-dock";
 import type { Locator, Page } from "@playwright/test";
 
 async function split(pane: Locator, direction: "左右" | "上下") {
@@ -866,4 +868,50 @@ test("same-name panes preserve the upload owner after focus moves", async ({
   expect((await result.json()).path).toContain(`/${id}/uploads/`);
   await expect(first.locator(".xterm-rows")).toContainText("owned.txt");
   await expect(second.locator(".xterm-rows")).not.toContainText("owned.txt");
+});
+
+test("reader location pastes only into the last focused split terminal, without Enter", async ({
+  page,
+  workDir,
+}, info) => {
+  test.skip(!!info.project.use.isMobile, "Simultaneously visible split panes");
+  const path = join(workDir, "selected.txt");
+  await writeFile(path, "first line\nsecond line\n");
+  const ownerDir = join(workDir, "owner-input");
+  const targetDir = join(workDir, "target-input");
+  await Promise.all([mkdir(ownerDir), mkdir(targetDir)]);
+
+  const id = await createShell(page, "Reader owner", workDir);
+  const owner = page.locator(`[data-session-id="${id}"]`);
+  await split(owner, "上下");
+  await expect(page.locator(".split-terminal")).toHaveCount(2);
+  const target = page.locator(".split-terminal").nth(1);
+  const targetInput = await recordInput(target, targetDir);
+  const ownerInput = await recordInput(owner, ownerDir);
+  await expect(owner).toHaveAttribute("data-active", "true");
+
+  const files = await showFileTree(page);
+  await files
+    .getByRole("button", { name: "selected.txt", exact: true })
+    .click();
+  const reader = page.locator(`[data-dock-panel="reader:${id}"]`);
+  await expect(reader).toBeVisible();
+  const insert = reader.getByRole("button", {
+    name: "插入所选位置（第 2 行）",
+    exact: true,
+  });
+  await expect(insert).toHaveCount(0);
+  await target.locator(".xterm-helper-textarea").focus();
+  await expect(target).toHaveAttribute("data-active", "true");
+  await reader.locator('[data-gutter] [data-column-number="2"]').click();
+  await insert.click();
+
+  await expect
+    .poll(async () =>
+      Promise.all([
+        readFile(targetInput, "utf8"),
+        readFile(ownerInput, "utf8"),
+      ]),
+    )
+    .toEqual([`\x1b[200~${path}:2 \x1b[201~`, ""]);
 });
