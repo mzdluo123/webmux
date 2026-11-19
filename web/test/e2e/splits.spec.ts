@@ -1,3 +1,5 @@
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   test,
   expect,
@@ -44,7 +46,7 @@ async function ready(pane: Locator) {
   await expect(pane.locator(".xterm")).toBeAttached();
 }
 
-test("docking, peeking and pinning retain a running terminal and its layout", async ({
+test("edge tabs restore the original dock layout and keep it restored", async ({
   page,
   workDir,
 }, testInfo) => {
@@ -52,13 +54,11 @@ test("docking, peeking and pinning retain a running terminal and its layout", as
   const id = await createShell(page, "Dock anchor", workDir);
   const original = page.locator(`[data-session-id="${id}"]`);
   await split(original, "左右");
+  await expect(page.locator(".split-terminal")).toHaveCount(2);
   const second = page.locator(".split-terminal").nth(1);
   const secondId = await second.getAttribute("data-session-id");
   const root = page.locator(`[data-dock-panel="${secondId}"]`);
   const anchor = page.locator(`[data-dock-panel="${id}"]`);
-  await ready(second);
-  const emulator = await second.locator(".xterm").elementHandle();
-  await command(page, second, "sleep 1; printf 'DOCK_%s\\n' COMPLETE");
 
   const header = root.locator("[draggable=true]");
   const box = (await anchor.boundingBox())!;
@@ -68,7 +68,11 @@ test("docking, peeking and pinning retain a running terminal and its layout", as
   await expect
     .poll(async () => (await root.boundingBox())!.y)
     .toBeGreaterThan((await anchor.boundingBox())!.y + 100);
-  const placed = await root.boundingBox();
+  const divider = page.getByRole("separator", { name: "调整窗格高度" });
+  await divider.press("ArrowDown");
+  await expect(divider).toHaveAttribute("aria-valuenow", "55");
+  const layout = () => Promise.all([anchor.boundingBox(), root.boundingBox()]);
+  const placed = await layout();
   await header.locator(".dock-title-space").dblclick();
   await expect(anchor).toBeHidden();
   await expect(root).toHaveAccessibleName(/.+/);
@@ -78,86 +82,98 @@ test("docking, peeking and pinning retain a running terminal and its layout", as
   )
     .getByRole("menuitem", { name: /^还原/ })
     .click();
-  await expect.poll(() => root.boundingBox()).toEqual(placed);
-  const bottomTab = page.locator(
-    `[data-dock-rail="bottom"] [data-dock-tab="${secondId}"]`,
+  await expect.poll(layout).toEqual(placed);
+
+  const tab = page.locator(`[data-dock-tab="${secondId}"]`);
+  const bottomTab = page.locator('[data-dock-rail="bottom"]').locator(tab);
+  const rightTab = page.locator('[data-dock-rail="right"]').locator(tab);
+  const expectRestored = async () => {
+    await expect(tab).toHaveCount(0);
+    await expect.poll(layout).toEqual(placed);
+  };
+  const rows = second.locator(".xterm-rows");
+  const input = second.locator(".xterm-helper-textarea");
+  const anchorInput = original.locator(".xterm-helper-textarea");
+  const emulator = await second.locator(".xterm").elementHandle();
+  await command(
+    page,
+    second,
+    "printf 'DOCK_%s\\n' STARTED; while [ ! -e dock-release ]; do sleep 0.1; done; printf 'DOCK_%s\\n' COMPLETE; printf done > dock-result",
   );
-  const rightTab = page.locator(
-    `[data-dock-rail="right"] [data-dock-tab="${secondId}"]`,
-  );
-  const pin = () => root.getByRole("button", { name: /^固定/ }).click();
+  await expect(rows).toContainText("DOCK_STARTED");
+
   await (
     await openDockCommands(root)
   )
     .getByRole("menuitem", { name: /^收起(?:「.+」)?$/ })
     .click();
   await expect(root).toBeHidden();
+  await expect(bottomTab).toBeVisible();
   await expect(bottomTab).toHaveAccessibleName(name);
+  await expect
+    .poll(async () => (await anchor.boundingBox())!.height)
+    .toBeGreaterThan(placed[0]!.height);
+  // Release the command only once minimized, and wait for it to finish there.
+  await writeFile(join(workDir, "dock-release"), "");
+  const result = join(workDir, "dock-result");
+  await expect
+    .poll(() => readFile(result, "utf8").catch(() => ""))
+    .toBe("done");
+  await expect(root).toBeHidden();
+
   await bottomTab.click();
-  await expect(root).toHaveAttribute("data-dock-peek", "true");
-  await expect(second.locator(".xterm-rows")).toContainText("DOCK_COMPLETE");
+  await expectRestored();
+  await expect(rows).toContainText("DOCK_COMPLETE");
   expect(await emulator!.evaluate((element) => element.isConnected)).toBe(true);
-  await bottomTab.click();
-  await expect(root).toBeHidden();
-  await bottomTab.click();
-  await anchor.locator(".xterm-helper-textarea").focus();
-  await expect(root).toBeHidden();
-  await bottomTab.click();
-  await pin();
-  await anchor.locator(".xterm-helper-textarea").focus();
-  await expect(root).toBeVisible();
-  await root.getByRole("button", { name: /^取消固定/ }).click();
-  await expect(root).toBeHidden();
-  await bottomTab.click();
-  await pin();
-  await expect(bottomTab).toHaveCount(0);
-  await expect.poll(() => root.boundingBox()).toEqual(placed);
+
+  await expect(root).toHaveAttribute("data-dock-active", "true");
+  await anchor.locator(".xterm-screen").click();
+  await expect(anchorInput).toBeFocused();
+  await expectRestored();
+
+  await input.focus();
+  await expect(input).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expectRestored();
+  await page.keyboard.press("Control+b");
+  await page.keyboard.press("o");
+  await expect(anchorInput).toBeFocused();
+  await expectRestored();
 
   await openDockCommands(root);
   await page.getByRole("menuitem", { name: "收起到边栏", exact: true }).hover();
   await page.getByRole("menuitem", { name: "收起到右侧", exact: true }).click();
   await expect(root).toBeHidden();
   await expect(bottomTab).toHaveCount(0);
-  await expect(rightTab).toHaveAttribute("aria-expanded", "false");
-  const minimizedAnchor = await anchor.boundingBox();
-  await rightTab.click();
-  await expect(rightTab).toHaveAttribute("aria-expanded", "true");
-  await expect(root).toHaveAttribute("data-dock-peek", "true");
-  await expect.poll(() => anchor.boundingBox()).toEqual(minimizedAnchor);
-  await second.locator(".xterm-helper-textarea").focus();
-  await page.keyboard.press("Escape");
-  await expect(root).toBeHidden();
-  await expect(rightTab).toBeFocused();
-
-  await rightTab.click();
-  await expect(root).toHaveAttribute("data-dock-peek", "true");
-  await anchor.click({ position: { x: 8, y: 8 } });
-  await expect(root).toBeHidden();
-  await expect(rightTab).toHaveAttribute("aria-expanded", "false");
-
-  await rightTab.click();
-  await expect(root).toHaveAttribute("data-dock-peek", "true");
+  await expect(rightTab).toBeVisible();
   await page.reload();
-  await expect(rightTab).toHaveAttribute("aria-expanded", "false");
+  await expect(rightTab).toBeVisible();
   await expect(root).toBeHidden();
+  const desktopViewport = page.viewportSize()!;
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(rightTab).toHaveCount(0);
+  await expect(page.locator("[data-dock-rail]")).toHaveCount(0);
   await chooseDockPanel(page, name);
   await expect(root).toBeVisible();
   await expect(anchor).toBeHidden();
-  await expect(second.locator(".xterm-helper-textarea")).not.toBeFocused();
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(input).not.toBeFocused();
+  await chooseDockPanelById(page, id);
+  await openSplitPanel(page);
+  await page
+    .getByRole("dialog", { name: "打开面板", exact: true })
+    .getByRole("button", { name: "收起「Dock anchor」", exact: true })
+    .click();
+  await expect(anchor).toBeHidden();
+  await expect(root).toBeVisible();
+
+  await page.setViewportSize(desktopViewport);
   await expect(rightTab).toBeVisible();
+  await expect(anchor).toBeVisible();
   await expect(root).toBeHidden();
   await rightTab.click();
-  await pin();
-  await expect(rightTab).toHaveCount(0);
-  await expect.poll(() => root.boundingBox()).toEqual(placed);
+  await expectRestored();
 
   await page.reload();
-  await expect(root).toBeVisible();
-  await expect(rightTab).toHaveCount(0);
-  await expect.poll(() => root.boundingBox()).toEqual(placed);
+  await expectRestored();
 });
 
 test("stacked panes reveal the selected tab and keep keyboard focus across switches", async ({
