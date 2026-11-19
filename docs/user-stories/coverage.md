@@ -29,7 +29,7 @@ Relay 页内配对、宿主权威流程、导航恢复与操作核对：US-A10�
 | 官方 Relay 设备配对与开关、GitHub 主机后台与限定 Origin 会话、集中节点配置及监督                                                                                             | US-A08–US-A10；US-H12                                         |
 | 统一上下文新建会话、十二款 CLI 启动配置、目录浏览与创建、名称和命令                                                                                                          | US-B01–US-B07                                                 |
 | 设置页自定义启动配置与图标、启动配置 API 与按配置启动                                                                                                                        | US-B01；US-B08                                                |
-| 设置页“Agent 工具”本机扫描、ACP 适配器状态、含完整 PyPI 元数据的更新检查、复制安装/升级命令与 CLI `webmux agents`                                                            | US-B13；US-Q16；US-S18                                        |
+| 设置页“启动配置”融合本机工具扫描、未安装 Agent 启动入口自动隐藏、ACP 适配器状态、含完整 PyPI 元数据的更新检查、复制安装/升级命令与 CLI `webmux agents`                       | US-B01；US-B08；US-B13；US-Q16；US-Q18；US-Q20；US-S18        |
 | Claude Code / Codex / Copilot / Antigravity / Qoder / QoderCN / Devin 启动前预写文件夹信任记录与 `agent_pretrust` 开关                                                       | US-B09；US-K04                                                |
 | 混合模式勾选（`chat`）、Claude Code 与 Antigravity CLI 默认混合、`chat-support` 判定、起始视图选择                                                                           | US-Q01–US-Q02；US-B01；US-B08                                 |
 | 终端 ↔ 聊天切换、Claude 注册记录身份/候选/外部占用、中断等待、草稿退回与回滚                                                                                                 | US-Q03–US-Q04                                                 |
@@ -93,7 +93,7 @@ Relay 页内配对、宿主权威流程、导航恢复与操作核对：US-A10�
 | 多条暂存编辑、排序、取用与清理                                                                                                                                               | US-F09                                                        |
 | 快捷指令菜单、编辑、排序、删除、系统预设、跨设备同步与临时文件夹                                                                                                             | US-G01–US-G06                                                 |
 | 可插拔 `STDIN/STDOUT` 语音识别（`[voice]`、`/ws/voice`）、聊天与终端双模式录音、实时音量与无回车插入                                                                         | US-G07；US-K03                                                |
-| 软键（含回车与软键盘摇杆模式）、主动键盘、键盘弹出时保持尺寸、触摸/笔、选词、滚动、双指防误触、视口、主屏幕与裁切图标、窄屏紧凑顶栏                                          | US-H01–US-H08                                                 |
+| 紧凑底部软键栏（`Fn` 分层与方向键长按连发）、按设备显隐底部工具栏、主动键盘、键盘弹出时保持尺寸、触摸/笔、选词、滚动、双指防误触、视口、主屏幕与裁切图标、窄屏紧凑顶栏       | US-H01–US-H08                                                 |
 | 安装应用入口、安装状态、提示失败备用说明、非安全上下文提示与 Web App Manifest                                                                                                | US-H09；US-K10                                                |
 | 实时连接 permessage-deflate 按设备开关（手机默认开启）、静态资源 Brotli 预压缩、按需 gzip 与编码协商                                                                         | US-H10；US-H11                                                |
 | 机会性 WebRTC DataChannel P2P 直连升级、UPnP/NAT-PMP/PCP 端口映射、全通道切换、设置页网络诊断与双路径回显测速                                                                | US-H12；US-A04；US-K03；US-M08；US-L10                        |

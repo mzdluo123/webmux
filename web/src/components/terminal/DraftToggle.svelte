@@ -1,6 +1,6 @@
 <script lang="ts">
   import IconNotes from "~icons/tabler/notes";
-  import { Button } from "$lib/components/ui/button";
+  import { Button, type ButtonSize } from "$lib/components/ui/button";
   import { m } from "$lib/paraglide/messages.js";
   import { cn } from "$lib/utils.js";
   import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";
@@ -14,6 +14,7 @@
     scratchSaved,
     disabled,
     toggle,
+    size = "icon-sm",
     class: className,
   }: {
     draft: TerminalDraft;
@@ -21,13 +22,14 @@
     scratchSaved: string;
     disabled: boolean;
     toggle: () => void;
+    size?: ButtonSize;
     class?: string;
   } = $props();
 </script>
 
 <Button
   variant={draft.enabled ? "success" : "ghost"}
-  size="icon-sm"
+  {size}
   class={cn("relative", className)}
   aria-label={draft.scratch.length
     ? m.s4_draft_mode_with_scratch({ count: String(draft.scratch.length) })

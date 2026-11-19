@@ -228,6 +228,68 @@ test("disabled launch never waits on its provider or substitutes a remembered co
   });
 });
 
+test("uninstalled agent configs are skipped by default and invalidate stale memories once scanned", () => {
+  const ready = configs("qwen", "claude");
+  if (ready.status !== "ready") throw new Error("expected ready");
+  const tools = [
+    {
+      id: "qwen",
+      title: "Qwen Code",
+      kind: "terminal" as const,
+      installed: false,
+      executable: "qwen",
+      executables: ["qwen"],
+      updateStatus: "not_installed" as const,
+    },
+    {
+      id: "claudecode",
+      title: "Claude Code",
+      kind: "hybrid" as const,
+      installed: true,
+      executable: "claude",
+      executables: ["claude"],
+      updateStatus: "unchecked" as const,
+    },
+  ];
+  expect(
+    resolveInitialLaunch("", {
+      ...ready,
+      agentToolsLoading: true,
+    }),
+  ).toBeNull();
+  expect(
+    resolveInitialLaunch("", {
+      ...ready,
+      agentTools: tools,
+      agentToolsLoading: false,
+    }),
+  ).toEqual({
+    source: "config",
+    configId: "claude",
+  });
+  expect(
+    resolveInitialLaunch("config:qwen", {
+      ...ready,
+      agentTools: tools,
+      agentToolsLoading: false,
+    }),
+  ).toEqual({
+    source: "unset",
+    configId: "",
+  });
+  expect(
+    resolveInitialLaunch("", {
+      status: "ready",
+      configs: ready.configs.slice(0, 1),
+      agentTools: tools,
+      agentToolsLoading: false,
+    }),
+  ).toEqual({
+    source: "custom",
+    configId: "",
+  });
+});
+
 test("a worktree scope starts in that worktree; an unusable one asks for a new worktree", () => {
   const scope = { repositoryId: "a", worktreeId: "feature" };
   expect(resolveInitialTarget({ ...base, scope })).toMatchObject({

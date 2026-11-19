@@ -2,14 +2,19 @@ import { describe, expect, test } from "vite-plus/test";
 import { joinArgs, parseArgs, quoteArg } from "../src/platform/api";
 import {
   defaultLaunchAttentionSettings,
+  isLaunchConfigHiddenByAgentInstall,
   launchCommandDraft,
+  launchConfigExecutable,
   launchConfigIcon,
   launchConfigSummary,
+  matchLaunchConfigTool,
   validateLaunchDraft,
+  visibleLaunchConfigs,
 } from "../src/domains/settings/launch-configs";
 import {
   LaunchConfigSchema,
   LaunchConfigsSchema,
+  type AgentToolStatus,
 } from "../src/contracts/schemas";
 
 describe("launch icons", () => {
@@ -396,5 +401,154 @@ describe("launch config schemas", () => {
     expect(
       LaunchConfigsSchema.safeParse([{ ...summary, id: "ABC" }]).success,
     ).toBe(false);
+  });
+});
+
+describe("agent tool matching and uninstalled filtering", () => {
+  const tools: AgentToolStatus[] = [
+    {
+      id: "claudecode",
+      title: "Claude Code",
+      icon: "claudecode",
+      kind: "hybrid",
+      installed: true,
+      executable: "claude",
+      executables: ["claude"],
+      path: "/usr/local/bin/claude",
+      installedVersion: "2.1.316",
+      updateStatus: "unchecked",
+    },
+    {
+      id: "codex",
+      title: "Codex CLI",
+      icon: "codex",
+      kind: "hybrid",
+      installed: true,
+      executable: "codex",
+      executables: ["codex"],
+      path: "/usr/local/bin/codex",
+      updateStatus: "unchecked",
+      connector: {
+        executable: "codex-acp",
+        title: "Codex ACP",
+        installed: false,
+        updateStatus: "not_installed",
+      },
+    },
+    {
+      id: "qwen",
+      title: "Qwen Code",
+      icon: "qwen",
+      kind: "terminal",
+      installed: false,
+      executable: "qwen",
+      executables: ["qwen"],
+      updateStatus: "not_installed",
+    },
+  ];
+
+  const makeSummary = (id: string, cmd: string[], envNames: string[] = []) => ({
+    id,
+    name: id,
+    cmd,
+    envNames,
+    chatOptions: [],
+    chat: false,
+    chatSupport: {
+      supported: false,
+      supportedAgents: [],
+      reason: "unknown_agent" as const,
+    },
+    createdAt: "2026-10-23T00:00:00Z",
+    updatedAt: "2026-10-23T00:00:00Z",
+  });
+
+  test("extracts executables from direct, bash/zsh, and /usr/bin/env bash wrappers", () => {
+    expect(launchConfigExecutable(["claude", "--resume"])).toBe("claude");
+    expect(
+      launchConfigExecutable(["bash", "-ic", 'exec -- "$@"', "webmux", "qwen"]),
+    ).toBe("qwen");
+    expect(
+      launchConfigExecutable(["zsh", "-ic", 'exec -- "$@"', "webmux", "qwen"]),
+    ).toBe("qwen");
+    expect(
+      launchConfigExecutable([
+        "/usr/bin/env",
+        "bash",
+        "-ic",
+        'exec -- "$@"',
+        "webmux",
+        "claude",
+        "--dangerously-skip-permissions",
+      ]),
+    ).toBe("claude");
+    expect(
+      launchConfigIcon({
+        cmd: [
+          "/usr/bin/env",
+          "bash",
+          "-ic",
+          'exec -- "$@"',
+          "webmux",
+          "claude",
+        ],
+      }),
+    ).toBe("claudecode");
+  });
+
+  test("hides uninstalled cataloged agents while keeping Shell, custom paths, custom PATH envs, and missing-connector agents", () => {
+    const shellCfg = makeSummary("shellcfg", ["/bin/bash", "-l", "-i"]);
+    const claudeCfg = makeSummary("claudecg", [
+      "/usr/bin/env",
+      "bash",
+      "-ic",
+      'exec -- "$@"',
+      "webmux",
+      "claude",
+    ]);
+    const codexCfg = makeSummary("codexcfg", ["codex"]);
+    const qwenCfg = makeSummary("qwencfg2", [
+      "/usr/bin/env",
+      "bash",
+      "-ic",
+      'exec -- "$@"',
+      "webmux",
+      "qwen",
+    ]);
+    const customPathQwen = makeSummary("qwenpath", ["/opt/custom/bin/qwen"]);
+    const customEnvQwen = makeSummary("qwenenv2", ["qwen"], ["PATH"]);
+
+    expect(matchLaunchConfigTool(claudeCfg, tools)?.id).toBe("claudecode");
+    expect(matchLaunchConfigTool(customPathQwen, tools)).toBeUndefined();
+    expect(isLaunchConfigHiddenByAgentInstall(qwenCfg, tools)).toBe(true);
+    expect(isLaunchConfigHiddenByAgentInstall(qwenCfg, undefined)).toBe(false);
+    expect(isLaunchConfigHiddenByAgentInstall(codexCfg, tools)).toBe(false);
+    expect(isLaunchConfigHiddenByAgentInstall(shellCfg, tools)).toBe(false);
+    expect(isLaunchConfigHiddenByAgentInstall(customPathQwen, tools)).toBe(
+      false,
+    );
+    expect(isLaunchConfigHiddenByAgentInstall(customEnvQwen, tools)).toBe(
+      false,
+    );
+
+    const filtered = visibleLaunchConfigs({
+      status: "ready",
+      configs: [
+        shellCfg,
+        claudeCfg,
+        codexCfg,
+        qwenCfg,
+        customPathQwen,
+        customEnvQwen,
+      ],
+      agentTools: tools,
+    });
+    expect(filtered.map((item) => item.id)).toEqual([
+      "shellcfg",
+      "claudecg",
+      "codexcfg",
+      "qwenpath",
+      "qwenenv2",
+    ]);
   });
 });

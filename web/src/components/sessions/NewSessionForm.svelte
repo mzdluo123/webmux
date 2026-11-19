@@ -6,7 +6,10 @@
     Project,
     SessionView,
   } from "../../contracts/schemas";
-  import type { LaunchConfigsState } from "../../domains/settings/launch-configs";
+  import {
+    visibleLaunchConfigs,
+    type LaunchConfigsState,
+  } from "../../domains/settings/launch-configs";
   import {
     formatSubmitButtonLabel,
     buildNewSessionSummary,
@@ -156,8 +159,8 @@
       : repository?.worktrees.find((item) => item.id === worktreeId),
   );
   const chosenConfig = $derived(
-    source === "config" && launchConfigs.status === "ready"
-      ? launchConfigs.configs.find((item) => item.id === configId)
+    source === "config"
+      ? visibleLaunchConfigs(launchConfigs).find((item) => item.id === configId)
       : undefined,
   );
   const treeTargetMissing = $derived(treeOnly && kind !== "new-worktree");

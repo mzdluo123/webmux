@@ -2,37 +2,77 @@
   import { onMount } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import { settings } from "../../domains/settings/settings.svelte";
+  import { findShell } from "../../hooks/shared/shell.svelte";
+  import {
+    createAgentToolsInspector,
+    type AgentToolsViewState,
+  } from "../../hooks/settings/agent-tools-inspector.svelte";
   import { errorMessage } from "../../platform/error";
   import IconPlus from "~icons/tabler/plus";
   import IconRocket from "~icons/tabler/rocket";
-  import { Button } from "$lib/components/ui/button";
-  import { ListButton } from "$lib/components/ui/list-button";
-  import { InfoHint } from "$lib/components/ui/info-hint";
-  import SettingsRowMenu from "./SettingsRowMenu.svelte";
+  import IconTerminal from "~icons/tabler/terminal-2";
+  import { AdvancedSection } from "$lib/components/ui/advanced-section";
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
+  import { Button } from "$lib/components/ui/button";
   import * as Card from "$lib/components/ui/card";
   import * as Empty from "$lib/components/ui/empty";
+  import { InfoHint } from "$lib/components/ui/info-hint";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import * as Item from "$lib/components/ui/item";
-  import { api, joinArgs } from "../../platform/api";
+  import { APIError, api, joinArgs } from "../../platform/api";
   import {
     LaunchConfigsSchema,
     LaunchPresetsSchema,
     NoContentSchema,
+    type AgentToolsReport,
+    type LaunchConfig,
     type LaunchConfigSummary,
     type LaunchPreset,
   } from "../../contracts/schemas";
   import {
+    partitionLaunchAndAgentRows,
+    type MergedLaunchRow,
+  } from "../../domains/settings/agent-tools";
+  import {
     LAUNCH_CONFIGS_LIMIT,
-    launchConfigIcon,
-    launchConfigSummary,
+    isLaunchConfigHiddenByAgentInstall,
     type StartupShell,
   } from "../../domains/settings/launch-configs";
-  import LaunchConfigIcon from "./LaunchConfigIcon.svelte";
-  import LaunchPresetMenu from "./LaunchPresetMenu.svelte";
+  import AgentToolRow from "./AgentToolRow.svelte";
+  import AgentToolsToolbar from "./AgentToolsToolbar.svelte";
   import LaunchConfigDialog from "./LaunchConfigDialog.svelte";
-  import { InlineNotice } from "$lib/components/ui/inline-notice";
+  import LaunchPresetMenu from "./LaunchPresetMenu.svelte";
 
-  let { defaultShell = "" }: { defaultShell?: "" | StartupShell } = $props();
+  type LaunchConfigsFixture = {
+    configs?: LaunchConfigSummary[];
+    presets?: LaunchPreset[];
+    launchState?: "loading" | "ready" | "unavailable";
+    launchError?: string;
+    report?: AgentToolsReport;
+    agentState?: AgentToolsViewState;
+    agentError?: string;
+  };
+
+  let {
+    defaultShell = "",
+    fixture,
+  }: {
+    defaultShell?: "" | StartupShell;
+    fixture?: LaunchConfigsFixture;
+  } = $props();
+
+  const shell = findShell();
+  const agentInspector = createAgentToolsInspector(
+    () =>
+      fixture
+        ? {
+            report: fixture.report,
+            state: fixture.agentState,
+            error: fixture.agentError,
+          }
+        : undefined,
+    () => void shell?.launchConfigs?.load(),
+  );
 
   // Launch configs live on the server; a load failure (for example 503 when
   // the state file is corrupt or locked) only disables this card.
@@ -40,6 +80,7 @@
   let launchPresets = $state<LaunchPreset[]>([]);
   let launchState = $state<"loading" | "ready" | "unavailable">("loading");
   let launchError = $state("");
+  let launchOverridden = $state(false);
   let launchPresetBusy = $state(false);
   let launchPresetError = $state("");
   let launchDialogOpen = $state(false);
@@ -48,26 +89,64 @@
   let launchDeleteOpen = $state(false);
   let launchDeleteBusy = $state(false);
   let launchDeleteError = $state("");
-  const launchFull = $derived(launchConfigs.length >= LAUNCH_CONFIGS_LIMIT);
+  let uninstalledOpen = $state(false);
+
+  const activeLaunch = $derived(
+    launchOverridden || !fixture
+      ? {
+          configs: launchConfigs,
+          presets: launchPresets,
+          state: launchState,
+          error: launchError,
+        }
+      : {
+          configs: fixture.configs ?? [],
+          presets: fixture.presets ?? [],
+          state: fixture.launchState ?? "ready",
+          error: fixture.launchError ?? "",
+        },
+  );
+
+  const activeConfigs = $derived(activeLaunch.configs);
+  const activePresets = $derived(activeLaunch.presets);
+  const launchViewState = $derived(activeLaunch.state);
+  const launchLoadError = $derived(activeLaunch.error);
+  const launchFull = $derived(activeConfigs.length >= LAUNCH_CONFIGS_LIMIT);
+  const initialLoading = $derived(
+    launchViewState === "loading" || agentInspector.state === "loading",
+  );
+
+  const partitioned = $derived(
+    partitionLaunchAndAgentRows(activeConfigs, agentInspector.report?.tools),
+  );
+  const activeRows = $derived(partitioned.active);
+  const uninstalledRows = $derived(partitioned.uninstalled);
 
   async function loadLaunchConfigs() {
+    launchOverridden = true;
     try {
       launchConfigs = await api("/launch-configs", LaunchConfigsSchema);
       launchError = "";
       launchState = "ready";
+      void shell?.launchConfigs?.load();
     } catch (err) {
+      if (fixture && err instanceof APIError && err.status === 404) {
+        launchConfigs = [];
+        launchError = "";
+        launchState = "ready";
+        return;
+      }
       launchError = errorMessage(err);
       launchState = "unavailable";
     }
   }
 
   async function loadLaunchPresets() {
+    launchOverridden = true;
     try {
       launchPresets = await api("/launch-configs/presets", LaunchPresetsSchema);
       launchPresetError = "";
     } catch (err) {
-      // An empty list disables the menu; keep the reason so the card can
-      // explain why and offer a retry.
       launchPresets = [];
       launchPresetError = errorMessage(err);
     }
@@ -77,13 +156,29 @@
     if (launchPresetBusy) return;
     launchPresetBusy = true;
     launchPresetError = "";
+    const previousIds = activeConfigs.map((item) => item.id);
     try {
+      launchOverridden = true;
       launchConfigs = await api(
         "/launch-configs/presets",
         LaunchConfigsSchema,
         "POST",
         name ? { name } : {},
       );
+      void shell?.launchConfigs?.load();
+      const added = launchConfigs.filter(
+        (item) => !previousIds.includes(item.id),
+      );
+      if (
+        added.some((item) =>
+          isLaunchConfigHiddenByAgentInstall(
+            item,
+            agentInspector.report?.tools,
+          ),
+        )
+      ) {
+        uninstalledOpen = true;
+      }
     } catch (err) {
       launchPresetError = errorMessage(err);
     } finally {
@@ -94,6 +189,15 @@
   function editLaunchConfig(id?: string) {
     launchEditing = id;
     launchDialogOpen = true;
+  }
+
+  async function handleConfigSaved(saved: LaunchConfig) {
+    await loadLaunchConfigs();
+    if (
+      isLaunchConfigHiddenByAgentInstall(saved, agentInspector.report?.tools)
+    ) {
+      uninstalledOpen = true;
+    }
   }
 
   async function deleteLaunchConfig() {
@@ -116,8 +220,11 @@
   }
 
   onMount(() => {
-    void loadLaunchConfigs();
-    void loadLaunchPresets();
+    if (!fixture) {
+      void loadLaunchConfigs();
+      void loadLaunchPresets();
+      void agentInspector.load(false);
+    }
   });
 </script>
 
@@ -129,8 +236,8 @@
     ><IconPlus aria-hidden="true" />{m.s2_launch_new_title()}</Button
   >
   <LaunchPresetMenu
-    presets={launchPresets}
-    configs={launchConfigs}
+    presets={activePresets}
+    configs={activeConfigs}
     busy={disabled || launchPresetBusy}
     onrestore={restoreLaunchPresets}
   />
@@ -152,6 +259,26 @@
   </Empty.Root>
 {/snippet}
 
+{#snippet mergedRowItem(row: MergedLaunchRow, compact = false)}
+  {#if row.kind === "config"}
+    <AgentToolRow
+      config={row.config}
+      tool={row.tool}
+      showToolDetails={row.showToolDetails}
+      {compact}
+      settingsReady={settings.ready}
+      onedit={() => editLaunchConfig(row.config.id)}
+      ondelete={() => {
+        launchDeleting = row.config;
+        launchDeleteError = "";
+        launchDeleteOpen = true;
+      }}
+    />
+  {:else}
+    <AgentToolRow tool={row.tool} {compact} />
+  {/if}
+{/snippet}
+
 <Card.Root
   flat
   role="region"
@@ -170,86 +297,116 @@
     >
   </Card.Header>
   <Card.Content class="space-y-4">
-    {#if launchState === "loading"}
-      <!-- Same shape as the empty state, the usual first result, so the
-         cards below do not shift when the list arrives. -->
+    {#if initialLoading}
       {@render launchEmptyCard(true, m.s2_launch_loading())}
-    {:else if launchState === "unavailable"}
+    {:else if launchViewState === "unavailable"}
       <InlineNotice tone="danger">
         <p>{m.s2_launch_unavailable()}</p>
-        <p class="mt-1 font-mono text-xs">{launchError}</p>
+        <p class="mt-1 font-mono text-xs">{launchLoadError}</p>
       </InlineNotice>
       <Button
         variant="outline"
         onclick={() => {
           void loadLaunchConfigs();
           void loadLaunchPresets();
+          void agentInspector.load(true);
         }}>{m.s2_reload()}</Button
       >
-    {:else if launchConfigs.length === 0}
-      {@render launchEmptyCard(false, m.s2_launch_empty_title())}
     {:else}
-      <Item.Group variant="divided" aria-label={m.s2_launch_list_aria()}>
-        {#each launchConfigs as config (config.id)}
-          <Item.Root variant="divided" size="flush" class="min-h-14">
-            <ListButton
-              variant="content"
-              class="flex min-w-0 flex-1 items-center"
-              aria-label={m.s2_edit_item({ name: config.name })}
-              onclick={() => editLaunchConfig(config.id)}
-            >
-              <span class="flex min-w-0 flex-1 items-center gap-3">
-                <span
-                  class="grid size-9 shrink-0 place-items-center rounded-md bg-muted/60"
-                  ><LaunchConfigIcon icon={launchConfigIcon(config)} /></span
-                >
-                <span class="grid min-w-0 flex-1 gap-0.5">
-                  <span class="truncate text-sm font-medium">{config.name}</span
-                  >
-                  <span class="truncate text-xs text-muted-foreground"
-                    >{launchConfigSummary(config)}</span
-                  >
-                </span>
-              </span>
-            </ListButton>
-            <SettingsRowMenu
-              label={config.name}
-              disabled={!settings.ready}
-              ondelete={() => {
-                launchDeleting = config;
-                launchDeleteError = "";
-                launchDeleteOpen = true;
-              }}
-            />
-          </Item.Root>
-        {/each}
-      </Item.Group>
-      <div class="flex flex-wrap items-center gap-3">
-        {@render launchCreateActions("outline", launchFull)}
-        {#if launchFull}<span class="text-xs text-muted-foreground"
-            >{m.s2_launch_limit_hint({
-              limit: String(LAUNCH_CONFIGS_LIMIT),
-            })}</span
-          >{/if}
-      </div>
-    {/if}
-    {#if launchPresetError && launchState !== "unavailable"}
-      <InlineNotice tone="danger">
-        <p>
-          {launchPresets.length === 0
-            ? m.s2_launch_presets_unavailable({ error: launchPresetError })
-            : m.s2_launch_presets_restore_err({ error: launchPresetError })}
-        </p>
-        {#if launchPresets.length === 0}
-          <Button
-            variant="outline"
-            size="sm"
-            class="mt-2"
-            onclick={() => void loadLaunchPresets()}
-            >{m.s2_launch_presets_reload()}</Button
+      <AgentToolsToolbar
+        state={agentInspector.state}
+        report={agentInspector.report}
+        error={agentInspector.error}
+        checkError={agentInspector.checkError}
+        checking={agentInspector.checking}
+        rescanning={agentInspector.rescanning}
+        busy={agentInspector.busy}
+        primaryAction={activeConfigs.length > 0 && activeRows.length > 0}
+        onrescan={() => void agentInspector.load(true)}
+        oncheck={() => void agentInspector.checkUpdates()}
+      />
+
+      {#if activeConfigs.length === 0}
+        {@render launchEmptyCard(false, m.s2_launch_empty_title())}
+        {#if activeRows.length > 0}
+          <Item.Group
+            variant="divided"
+            aria-label={m.agent_tools_installed_list_aria()}
           >
+            {#each activeRows as row (row.key)}
+              {@render mergedRowItem(row)}
+            {/each}
+          </Item.Group>
         {/if}
-      </InlineNotice>
+      {:else if activeRows.length === 0}
+        <Empty.Root variant="outline">
+          <Empty.Header>
+            <Empty.Media variant="icon"
+              ><IconTerminal aria-hidden="true" /></Empty.Media
+            >
+            <Empty.Title>{m.agent_tools_empty_installed_title()}</Empty.Title>
+            <Empty.Description
+              >{m.agent_tools_empty_installed_desc()}</Empty.Description
+            >
+          </Empty.Header>
+          <Empty.Content>
+            <div class="flex flex-wrap items-center justify-center gap-2">
+              {@render launchCreateActions("default", launchFull)}
+            </div>
+          </Empty.Content>
+        </Empty.Root>
+      {:else}
+        <Item.Group variant="divided" aria-label={m.s2_launch_list_aria()}>
+          {#each activeRows as row (row.key)}
+            {@render mergedRowItem(row)}
+          {/each}
+        </Item.Group>
+        <div class="flex flex-wrap items-center gap-3">
+          {@render launchCreateActions("outline", launchFull)}
+          {#if launchFull}<span class="text-xs text-muted-foreground"
+              >{m.s2_launch_limit_hint({
+                limit: String(LAUNCH_CONFIGS_LIMIT),
+              })}</span
+            >{/if}
+        </div>
+      {/if}
+
+      {#if launchPresetError}
+        <InlineNotice tone="danger">
+          <p>
+            {activePresets.length === 0
+              ? m.s2_launch_presets_unavailable({ error: launchPresetError })
+              : m.s2_launch_presets_restore_err({ error: launchPresetError })}
+          </p>
+          {#if activePresets.length === 0}
+            <Button
+              variant="outline"
+              size="sm"
+              class="mt-2"
+              onclick={() => void loadLaunchPresets()}
+              >{m.s2_launch_presets_reload()}</Button
+            >
+          {/if}
+        </InlineNotice>
+      {/if}
+
+      {#if uninstalledRows.length > 0}
+        <AdvancedSection
+          title={m.agent_tools_uninstalled_toggle({
+            count: String(uninstalledRows.length),
+          })}
+          bind:open={uninstalledOpen}
+        >
+          <Item.Group
+            variant="divided"
+            aria-label={m.agent_tools_uninstalled_list_aria()}
+          >
+            {#each uninstalledRows as row (row.key)}
+              {@render mergedRowItem(row, true)}
+            {/each}
+          </Item.Group>
+        </AdvancedSection>
+      {/if}
     {/if}
   </Card.Content>
 </Card.Root>
@@ -258,7 +415,7 @@
   bind:open={launchDialogOpen}
   configId={launchEditing}
   {defaultShell}
-  onsaved={() => void loadLaunchConfigs()}
+  onsaved={(saved) => void handleConfigSaved(saved)}
 />
 <AlertDialog.Root bind:open={launchDeleteOpen}>
   <AlertDialog.Content>

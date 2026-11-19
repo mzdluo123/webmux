@@ -10,6 +10,7 @@
   import { getFeatureContributions } from "../../features/context";
   import {
     launchConfigIcon,
+    visibleLaunchConfigs,
     type LaunchConfigsState,
   } from "../../domains/settings/launch-configs";
   import type { LaunchSource } from "../../domains/sessions/new-session-defaults";
@@ -67,8 +68,15 @@
     open = next;
     if (!next) search = "";
   }
-  const configs = $derived(
-    launchConfigs.status === "ready" ? launchConfigs.configs : [],
+  const configs = $derived(visibleLaunchConfigs(launchConfigs));
+  const loading = $derived(
+    launchConfigs.status === "loading" ||
+      Boolean(
+        launchConfigs.status === "ready" && launchConfigs.agentToolsLoading,
+      ),
+  );
+  const hasSavedConfigs = $derived(
+    launchConfigs.status === "ready" && launchConfigs.configs.length > 0,
   );
   const chosen = $derived(
     source === "config"
@@ -106,7 +114,7 @@
             aria-hidden="true"
           />
           <ChoiceDetails primary={m.s3_custom_command()} />
-        {:else if launchConfigs.status === "loading"}
+        {:else if loading}
           <span class="text-sm text-muted-foreground"
             >{m.s3_loading_launch_configs()}</span
           >
@@ -135,7 +143,7 @@
             heading={m.s3_launch_configs_heading()}
             value="configs"
           >
-            {#if launchConfigs.status === "loading"}
+            {#if loading}
               <p
                 role="status"
                 class="px-2 py-1.5 text-xs text-muted-foreground"
@@ -150,11 +158,19 @@
               </p>
             {:else if !configs.length}
               <p class="px-2 py-1.5 text-xs text-muted-foreground">
-                {m.s3_no_launch_configs_yet()}<a
-                  class="text-foreground underline underline-offset-2"
-                  href="/settings#launch-configs"
-                  >{m.s3_go_settings_create_launch()}</a
-                >
+                {#if hasSavedConfigs}
+                  {m.s3_all_launch_configs_uninstalled()}<a
+                    class="text-foreground underline underline-offset-2"
+                    href="/settings#launch-configs"
+                    >{m.s3_go_settings_manage_launch()}</a
+                  >
+                {:else}
+                  {m.s3_no_launch_configs_yet()}<a
+                    class="text-foreground underline underline-offset-2"
+                    href="/settings#launch-configs"
+                    >{m.s3_go_settings_create_launch()}</a
+                  >
+                {/if}
               </p>
             {/if}
             {#each configs as config (config.id)}
@@ -199,7 +215,7 @@
       <p role="alert" class="text-sm text-destructive">
         {m.s3_launch_store_unavailable({ error: launchConfigs.error })}
       </p>
-    {:else if source === "unset" && launchConfigs.status === "ready"}
+    {:else if source === "unset" && launchConfigs.status === "ready" && !loading}
       <p role="status" class="text-sm text-muted-foreground">
         {m.s3_launch_config_deleted_reselect()}
       </p>

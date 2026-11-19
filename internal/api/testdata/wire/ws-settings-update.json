@@ -1,7 +1,7 @@
 {
   "body": {
     "changes": {
-      "forceSoftKeys": true,
+      "ignoreHighPorts": true,
       "quickCommands": [],
       "sessionPins": []
     },

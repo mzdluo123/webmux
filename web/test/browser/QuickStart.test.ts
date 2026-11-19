@@ -996,3 +996,66 @@ test("desktop startup toolbar aligns flush to the right edge at rest and mobile 
     await page.viewport(1024, 900);
   }
 });
+
+test("hides uninstalled hybrid agents in quick start and defaults to the installed agent", async () => {
+  respond(/^GET \/api\/launch-configs$/, () =>
+    Response.json([
+      launchConfig({ id: "cfgclaud", name: "Claude Code", cmd: ["claude"] }),
+      launchConfig({
+        id: "cfgcodex",
+        name: "Codex",
+        icon: "codex",
+        cmd: ["codex"],
+      }),
+    ]),
+  );
+  respond(/^GET \/api\/agent-tools$/, () =>
+    Response.json({
+      checkedAt: "2026-04-15T08:30:00Z",
+      shell: "/bin/bash",
+      tools: [
+        {
+          id: "claudecode",
+          title: "Claude Code",
+          icon: "claudecode",
+          kind: "hybrid",
+          installed: false,
+          executable: "claude",
+          executables: ["claude"],
+          updateStatus: "not_installed",
+        },
+        {
+          id: "codex",
+          title: "Codex CLI",
+          icon: "codex",
+          kind: "hybrid",
+          installed: true,
+          executable: "codex",
+          executables: ["codex"],
+          path: "/usr/local/bin/codex",
+          installedVersion: "0.165.0",
+          updateStatus: "unchecked",
+        },
+      ],
+    }),
+  );
+
+  render(ShellHarness, { drafts: createTerminalDrafts() });
+  const socket = await socketAt("/ws/sessions");
+  socket.frame({ type: "snapshot", sessions: [], forwards: [] } as never);
+
+  const toolbar = page.getByRole("toolbar", { name: "启动选项", exact: true });
+  const agentTrigger = toolbar.getByRole("button", {
+    name: "Agent：Codex",
+    exact: true,
+  });
+  await expect.element(agentTrigger).toBeVisible();
+  await agentTrigger.click();
+  await expect
+    .element(page.getByRole("menuitemradio", { name: /Codex/ }))
+    .toBeVisible();
+  expect(
+    page.getByRole("menuitemradio", { name: /Claude Code/ }).elements(),
+  ).toHaveLength(0);
+  await userEvent.keyboard("{Escape}");
+});
