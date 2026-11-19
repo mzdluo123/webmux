@@ -28,7 +28,7 @@ export function useDockPeek(
       if (!(event.target instanceof Element)) return;
       if (
         !event.target.closest(
-          '[data-dock-peek], [data-dock-tab], [role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"]',
+          '[data-dock-peek], [data-dock-tab], [data-dock-command-menu], [role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"]',
         )
       )
         close();
@@ -39,9 +39,21 @@ export function useDockPeek(
         close(true);
       }
     }
+    function terminalEscape(event: KeyboardEvent) {
+      if (
+        event.key !== "Escape" ||
+        !(event.target instanceof Element) ||
+        !event.target.closest("[data-dock-peek] .xterm")
+      )
+        return;
+      event.stopPropagation();
+      escape(event);
+    }
+    document.addEventListener("keydown", terminalEscape, true);
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("keydown", escape);
     return () => {
+      document.removeEventListener("keydown", terminalEscape, true);
       document.removeEventListener("pointerdown", outside, true);
       document.removeEventListener("keydown", escape);
     };

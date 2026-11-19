@@ -29,6 +29,7 @@
     id,
     active = true,
     snapshotId,
+    unified = false,
     rawSide,
     doc,
     shownDiff,
@@ -62,6 +63,7 @@
     active?: boolean;
     snapshotId: string;
     rawSide?: "old" | "new";
+    unified?: boolean;
     doc: CodeDiff["old"] | undefined;
     shownDiff?: CodeDiff;
     diffReady: boolean;
@@ -117,6 +119,10 @@
     if (jsonView) taken.json = true;
   });
 
+  export function readerControls() {
+    return reader ?? diffReader;
+  }
+
   export function captureLeaves() {
     return {
       reader: reader?.capture() ?? restoreFor("reader"),
@@ -160,6 +166,7 @@
         <CodeDiffReader
           bind:this={diffReader}
           {fileDiff}
+          {unified}
           {side}
           expired={status === "expired"}
           {draftEnabled}
@@ -240,6 +247,7 @@
 {:else if doc?.kind === "text" && !shownDiff}
   {#key `${lastVersion}:${generation}`}<CodeReader
       bind:this={reader}
+      {unified}
       text={doc.text}
       path={doc.path}
       restoreLine={anchor}

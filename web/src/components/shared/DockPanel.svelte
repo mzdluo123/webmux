@@ -10,6 +10,7 @@
   import * as Menu from "$lib/components/ui/dropdown-menu";
   import { m } from "$lib/paraglide/messages.js";
   import { dockEdges, type DockEdge } from "$lib/dock-layout";
+  import DockStackTabs from "./DockStackTabs.svelte";
   import { getDock } from "./dock-context";
 
   let {
@@ -18,12 +19,14 @@
     onactivate,
     children,
     header,
+    hostProps,
   }: {
     id: string;
     title: string;
     onactivate?: () => void;
     children: Snippet<[boolean]>;
     header?: Snippet;
+    hostProps?: Record<string, unknown>;
   } = $props();
 
   const dock = getDock();
@@ -35,7 +38,7 @@
   const peeked = $derived(dock.peeked(id));
   const canMove = $derived(!compact && !zoomed && !peeked);
   const targets = $derived(canMove ? dock.targets(id) : undefined);
-  const showTabs = $derived(canMove && tabs.length > 1);
+  const showTabs = $derived(!compact && !peeked && tabs.length > 1);
   const zoomLabel = $derived(
     peeked
       ? m.dock_pin({ title })
@@ -73,6 +76,7 @@
 
 <div class="dock-source">
   <section
+    {...hostProps}
     use:dock.mount
     class="dock-panel"
     data-dock-panel={id}
@@ -124,102 +128,92 @@
         >
       {/if}
       {#if showTabs}
-        <div
-          class="flex min-w-0 max-w-full overflow-x-auto"
-          role="group"
-          aria-label={m.dock_tabs()}
-        >
-          {#each tabs as tab (tab.id)}
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-pressed={tab.id === id}
-              onclick={() => dock.show(tab.id)}
-            >
-              {tab.title}
-            </Button>
-          {/each}
-        </div>
+        <DockStackTabs {id} {tabs} show={dock.show} />
       {/if}
       {#if header}{@render header()}{/if}
       <div class="dock-title-space" class:with-header={!!header}>
         {#if !header && !showTabs}<span class="truncate" {title}>{title}</span
           >{/if}
       </div>
-      {#if !compact}
+      {#if !dock.centralCommands()}
+        {#if !compact}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            type="button"
+            aria-label={zoomLabel}
+            title={zoomLabel}
+            onclick={() => (peeked ? dock.show(id) : dock.toggleZoom(id))}
+          >
+            {#if peeked}
+              <IconPin aria-hidden="true" />
+            {:else if zoomed}
+              <IconArrowsMinimize aria-hidden="true" />
+            {:else}
+              <IconArrowsMaximize aria-hidden="true" />
+            {/if}
+          </Button>
+        {/if}
         <Button
           variant="ghost"
           size="icon-sm"
           type="button"
-          aria-label={zoomLabel}
-          title={zoomLabel}
-          onclick={() => (peeked ? dock.show(id) : dock.toggleZoom(id))}
+          aria-label={m.dock_minimize({ title })}
+          title={m.dock_minimize({ title })}
+          onclick={() => dock.minimize(id)}
         >
-          {#if peeked}
-            <IconPin aria-hidden="true" />
-          {:else if zoomed}
-            <IconArrowsMinimize aria-hidden="true" />
-          {:else}
-            <IconArrowsMaximize aria-hidden="true" />
-          {/if}
+          <IconMinus aria-hidden="true" />
         </Button>
-      {/if}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        type="button"
-        aria-label={m.dock_minimize({ title })}
-        title={m.dock_minimize({ title })}
-        onclick={() => dock.minimize(id)}
-      >
-        <IconMinus aria-hidden="true" />
-      </Button>
-      {#if !compact && !peeked && (edgeRails || targets?.length)}
-        <Menu.Root>
-          <Menu.Trigger>
-            {#snippet child({ props })}
-              <Button
-                {...props}
-                data-dock-actions
-                variant="ghost"
-                size="icon-sm"
-                aria-label={menuLabel}
-                title={menuLabel}
-              >
-                <IconDots aria-hidden="true" />
-              </Button>
-            {/snippet}
-          </Menu.Trigger>
-          <Menu.Content align="end">
-            {#if edgeRails}
-              <Menu.Item onSelect={() => dock.minimize(id, "left")}
-                >{m.dock_minimize_left()}</Menu.Item
-              >
-              <Menu.Item onSelect={() => dock.minimize(id, "right")}
-                >{m.dock_minimize_right()}</Menu.Item
-              >
-              <Menu.Item onSelect={() => dock.minimize(id, "bottom")}
-                >{m.dock_minimize_bottom()}</Menu.Item
-              >
-              {#if targets?.length}<Menu.Separator />{/if}
-            {/if}
-            {#each targets as target (target.id)}
-              <Menu.Sub>
-                <Menu.SubTrigger>{target.title}</Menu.SubTrigger>
-                <Menu.SubContent>
-                  {#each dockEdges as edge (edge)}
-                    <Menu.Item onSelect={() => dock.move(id, target.id, edge)}
-                      >{edgeLabel(edge)}</Menu.Item
-                    >
-                  {/each}
-                </Menu.SubContent>
-              </Menu.Sub>
-            {/each}
-          </Menu.Content>
-        </Menu.Root>
+        {#if !compact && !peeked && (edgeRails || targets?.length)}
+          <Menu.Root>
+            <Menu.Trigger>
+              {#snippet child({ props })}
+                <Button
+                  {...props}
+                  data-dock-actions
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={menuLabel}
+                  title={menuLabel}
+                >
+                  <IconDots aria-hidden="true" />
+                </Button>
+              {/snippet}
+            </Menu.Trigger>
+            <Menu.Content align="end">
+              {#if edgeRails}
+                <Menu.Item onSelect={() => dock.minimize(id, "left")}
+                  >{m.dock_minimize_left()}</Menu.Item
+                >
+                <Menu.Item onSelect={() => dock.minimize(id, "right")}
+                  >{m.dock_minimize_right()}</Menu.Item
+                >
+                <Menu.Item onSelect={() => dock.minimize(id, "bottom")}
+                  >{m.dock_minimize_bottom()}</Menu.Item
+                >
+                {#if targets?.length}<Menu.Separator />{/if}
+              {/if}
+              {#each targets as target (target.id)}
+                <Menu.Sub>
+                  <Menu.SubTrigger>{target.title}</Menu.SubTrigger>
+                  <Menu.SubContent>
+                    {#each dockEdges as edge (edge)}
+                      <Menu.Item onSelect={() => dock.move(id, target.id, edge)}
+                        >{edgeLabel(edge)}</Menu.Item
+                      >
+                    {/each}
+                  </Menu.SubContent>
+                </Menu.Sub>
+              {/each}
+            </Menu.Content>
+          </Menu.Root>
+        {/if}
       {/if}
     </div>
     <div
+      id={`dock-content-${id}`}
+      role={showTabs ? "tabpanel" : undefined}
+      aria-label={showTabs ? title : undefined}
       data-dock-body
       class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
@@ -263,9 +257,16 @@
   .dock-title {
     display: flex;
     align-items: center;
+    block-size: var(--control-default);
     flex: none;
     min-inline-size: 0;
     border-block-end: 1px solid var(--border);
+  }
+
+  @media (any-pointer: coarse), (max-width: 639px) {
+    .dock-title {
+      block-size: var(--control-touch);
+    }
   }
 
   .dock-title-space {

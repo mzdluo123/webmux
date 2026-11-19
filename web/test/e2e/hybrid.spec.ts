@@ -1,3 +1,4 @@
+import { codeReader } from "./code-dock";
 import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -14,6 +15,7 @@ import {
   expectTerminalLine,
   nameSession,
   openSessionMenu,
+  openDockCommands,
   openSessionSwitcher,
   openSplitPanel,
   openSessionLink,
@@ -749,8 +751,11 @@ test.describe("hybrid sessions with the fake agent", () => {
         .click();
     }
     await chooseDockPanel(page, "Capacity chat");
-    const maximize = pane.getByRole("button", { name: /^放大「聊天/ });
-    await maximize.click();
+    const maximize = async () =>
+      (await openDockCommands(pane))
+        .getByRole("menuitem", { name: /^放大「/ })
+        .click();
+    await maximize();
     const documentIdentity = await page.locator("body").elementHandle();
     await expect(page.locator(".split-terminal")).toHaveCount(8);
     await reference.click();
@@ -767,7 +772,7 @@ test.describe("hybrid sessions with the fake agent", () => {
       .getByRole("button", { name: "关闭窗格（保留会话）", exact: true })
       .click();
     await chooseDockPanel(page, "Capacity chat");
-    await maximize.click();
+    await maximize();
     await reference.click();
     await expect(page.getByRole("alert")).toHaveCount(0);
     await expect(page.locator(".split-terminal")).toHaveCount(8);
@@ -1524,7 +1529,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     await expect(working(page)).toHaveCount(0);
     await link.click();
 
-    const code = page.getByRole("region", { name: "代码工作区", exact: true });
+    const code = codeReader(page);
     await expect(code).toBeVisible();
     await expect(
       code.getByRole("tab", { name: "src/target.ts · worktree", exact: true }),

@@ -6,6 +6,7 @@ import {
   createShell,
   chooseDockPanel,
   chooseDockPanelById,
+  narrowSessionHeader,
   openSplitPanel,
   runCommand,
 } from "./fixtures";
@@ -39,7 +40,12 @@ for (const clipboard of ["allowed", "denied", "unavailable"] as const) {
     const foreground = page.locator(`[data-session-id="${id}"]`);
     await openSplitPanel(foreground);
     await page
-      .getByRole("button", { name: "左右分屏 · 新建 Shell", exact: true })
+      .getByRole("button", {
+        name: narrowSessionHeader(page)
+          ? "快速新建 Shell"
+          : "左右分屏 · 新建 Shell",
+        exact: true,
+      })
       .click();
     const background = page.locator(".split-terminal").nth(1);
     await expect(

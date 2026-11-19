@@ -108,12 +108,14 @@
     };
   });
   let choosing = $state(false);
+  let joinTarget = "";
   let creating = $state<SessionInfo | null>(null);
   const splitBusy = $derived(busy || creating !== null);
   function createSession(target: string) {
-    if (splitBusy || ids.length >= MAX_PANES || !info[target]) return;
+    const source = info[target];
+    if (splitBusy || ids.length >= MAX_PANES || !source) return;
     active = target;
-    creating = info[target]!;
+    creating = source;
   }
   const desktop = new MediaQuery("(min-width: 1024px)");
   let mounted = false;
@@ -127,6 +129,12 @@
   });
   let scrollStates = $state<Record<string, ChatScrollState>>({});
   const ids = $derived(layout ? paneIds(layout) : []);
+  const panelSession = (panel: string) =>
+    ids.find(
+      (sid) =>
+        Object.values(sessionPanelIds(sid)).includes(panel) ||
+        panel.startsWith(`reader:${sid}:`),
+    );
   $effect(() => retainTerminalDrafts(drafts, ids));
   const documentScroll = $derived.by(() => {
     const firstId = ids[0];
@@ -283,11 +291,10 @@
     layout = layout
       ? splitPane(layout, target, sessionId, direction)
       : { kind: "pane", sessionId };
-    choosing = false;
     await focus(sessionId);
   }
   async function split(direction: SplitDirection, target: string) {
-    if (splitBusy || ids.length >= MAX_PANES) return;
+    if (splitBusy || ids.length >= MAX_PANES || !ids.includes(target)) return;
     const source = info[target];
     if (!source) return;
     active = target;
@@ -305,12 +312,6 @@
       if (mounted) busy = false;
     }
   }
-  function cycle() {
-    void focus(ids[(ids.indexOf(active) + 1) % ids.length]!);
-  }
-  function zoom(sessionId: string) {
-    dock?.toggleZoom(sessionId);
-  }
   function keydown(event: KeyboardEvent) {
     const cmd = parsePrefixKeydown(event, prefix);
     if (cmd.kind === "ignore") return;
@@ -323,8 +324,9 @@
     prefix = false;
     if (cmd.kind === "send-prefix") terminals[active]?.send("\x02");
     else if (cmd.kind === "split") void split(cmd.direction, active);
-    else if (cmd.kind === "cycle") cycle();
-    else if (cmd.kind === "zoom") zoom(active);
+    else if (cmd.kind === "cycle")
+      void focus(ids[(ids.indexOf(active) + 1) % ids.length]!);
+    else if (cmd.kind === "zoom") dock?.toggleZoom(active);
     else if (cmd.kind === "close" && !busy) close(active);
     else if (cmd.kind === "arrow") {
       const panes = ids.flatMap((sessionId) => {
@@ -350,6 +352,7 @@
     >
       <div class="session-toolbar shrink-0">
         <SessionWorkspaceHeader
+          {dock}
           pickerOpen={showPicker}
           openPanels={() => dock?.openPicker()}
           fileLabel={`${m.s5_file_tree()} · ${paneTitle(active)}`}
@@ -390,35 +393,31 @@
         edgeRails
         pickerTrigger={false}
         onSelectPanel={(panel) => {
-          const sessionId = ids.find(
-            (sid) =>
-              Object.values(sessionPanelIds(sid)).includes(panel) ||
-              panel.startsWith(`reader:${sid}:`),
-          );
-          if (sessionId) active = sessionId;
+          const session = panelSession(panel);
+          if (session) active = session;
         }}
       >
-        {#snippet pickerActions(closePanel)}
+        {#snippet pickerActions(closePanel, panel, hide)}
+          {@const target = panel ? (panelSession(panel.id) ?? "") : active}
           <TerminalSplitPanel
+            compact={compact.current}
             busy={splitBusy}
             limit={ids.length >= MAX_PANES}
-            ready={!!info[active]}
-            onsplit={(direction) => {
-              closePanel();
-              void split(direction, active);
-            }}
-            oncreate={() => {
-              closePanel();
-              createSession(active);
-            }}
-            onchoose={() => {
-              closePanel();
-              choosing = true;
-            }}
-            onclose={() => {
-              closePanel();
-              close(active);
-            }}
+            ready={!!info[target]}
+            oncommand={closePanel}
+            onsplit={(direction) => void split(direction, target)}
+            oncreate={() => createSession(target)}
+            onchoose={ids.includes(target)
+              ? () => {
+                  joinTarget = target;
+                  choosing = true;
+                }
+              : undefined}
+            onclose={target && (!compact.current || panel?.id === target)
+              ? () => close(target)
+              : undefined}
+            hideLabel={panel && m.dock_minimize({ title: panel.title })}
+            onhide={hide}
           />
         {/snippet}
         {#each ids as sessionId (sessionId)}
@@ -480,7 +479,8 @@
       feedSessions={feed.sessions}
       oncancelchoose={() => void focus(active)}
       onselect={(sessionId, direction) => {
-        void add(sessionId, direction);
+        choosing = false;
+        void add(sessionId, direction, joinTarget);
       }}
       oncreated={(session, direction, targetId) => {
         info[session.id] = session;

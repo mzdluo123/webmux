@@ -30,6 +30,7 @@ export const [getDock, setDock] = createContext<{
   tabs: (id: string) => DockEntry[];
   targets: (id: string) => DockEntry[];
   compact: () => boolean;
+  centralCommands: () => boolean;
   zoomed: (id: string) => boolean;
   show: (id: string) => void;
   edgeRails: () => boolean;

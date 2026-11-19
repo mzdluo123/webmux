@@ -29,8 +29,9 @@ export type CodeWorkspaceTab = {
   status: string;
   sequence: number;
   comparison?: CodeDiff;
-  // Narrow-screen menu content supplied by the tab's document view.
+  // Commands supplied by the mounted document view.
   menu?: Snippet;
+  quick?: Snippet;
   // A heading a Markdown link asked to show once the file is previewed.
   heading?: { slug: string; key: number };
   // A line or file view a code link asked to show in the file tab.

@@ -43,18 +43,17 @@
     parseDiffGotoLine,
   } from "../../domains/code/code-diff-dom";
   import type { CodeDiffReaderState } from "../../contracts/schemas";
-  import { Button } from "$lib/components/ui/button";
+  import CodeReaderToolbar from "./CodeReaderToolbar.svelte";
+  import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import CodeHorizontalScrollbar from "./CodeHorizontalScrollbar.svelte";
   import CodeReaderPanels from "./CodeReaderPanels.svelte";
-  import IconSearch from "~icons/tabler/search";
-  import IconTextWrap from "~icons/tabler/text-wrap";
-  import IconZoomIn from "~icons/tabler/zoom-in";
 
   let {
     fileDiff,
     side,
     expired,
     draftEnabled,
+    unified = false,
     onselect,
     restore,
     preferredDiffStyle,
@@ -65,6 +64,7 @@
     side: "old" | "new";
     expired: boolean;
     draftEnabled: boolean;
+    unified?: boolean;
     onselect: (range: SelectedLineRange | null) => void;
     // A captured reading state, applied once the diff has rendered with
     // layout.
@@ -156,6 +156,21 @@
     scrollToLine,
     () => hasChanges,
   );
+
+  export const panelControls = find.controls;
+
+  export function commands() {
+    return readerCommands;
+  }
+
+  function toggleWrap() {
+    changeSettings({
+      codeReader: {
+        ...(settings.values.codeReader ?? defaultCodeReader),
+        diffOverflow: overflow === "wrap" ? "scroll" : "wrap",
+      },
+    });
+  }
   export function clearLineAction() {
     selected = null;
     viewer?.clearSelectedLines({ notify: false });
@@ -388,60 +403,43 @@
   });
 </script>
 
+{#snippet diffTotals()}
+  <span
+    class="flex gap-2 font-mono text-xs tabular-nums"
+    role="img"
+    aria-label={m.s5_diff_totals_aria({
+      additions: String(totals.additions),
+      deletions: String(totals.deletions),
+    })}
+    ><span class="text-success">+{totals.additions}</span><span
+      class="text-destructive">−{totals.deletions}</span
+    ></span
+  >
+{/snippet}
+
+{#snippet readerCommands()}
+  <DropdownMenu.CheckboxItem
+    checked={overflow === "wrap"}
+    onCheckedChange={toggleWrap}
+    closeOnSelect>{m.s5_word_wrap()}</DropdownMenu.CheckboxItem
+  >
+  <DropdownMenu.Label>{@render diffTotals()}</DropdownMenu.Label>
+{/snippet}
+
 <div
   bind:this={root}
   class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
 >
-  <div
-    class="flex min-w-0 shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1"
-  >
-    <span
-      class="mr-auto flex gap-2 font-mono text-xs tabular-nums"
-      role="img"
-      aria-label={m.s5_diff_totals_aria({
-        additions: String(totals.additions),
-        deletions: String(totals.deletions),
-      })}
-      ><span class="text-success">+{totals.additions}</span><span
-        class="text-destructive">−{totals.deletions}</span
-      ></span
-    >
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label={m.s5_find_in_file()}
-      aria-expanded={find.panel === "search"}
-      aria-keyshortcuts="Control+f Meta+f"
-      title={m.s5_find_in_file_shortcut()}
-      disabled={!hasChanges}
-      onclick={() => void find.actions.openPanel("search")}
-      ><IconSearch aria-hidden="true" /></Button
-    >
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      aria-label={m.s5_word_wrap()}
-      title={m.s5_word_wrap()}
-      aria-pressed={overflow === "wrap"}
-      onclick={() => {
-        changeSettings({
-          codeReader: {
-            ...(settings.values.codeReader ?? defaultCodeReader),
-            diffOverflow: overflow === "wrap" ? "scroll" : "wrap",
-          },
-        });
-      }}><IconTextWrap aria-hidden="true" /></Button
-    >
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      title={m.s5_zoom()}
-      aria-label={m.s5_zoom()}
-      aria-expanded={find.panel === "zoom"}
-      onclick={() => void find.actions.openPanel("zoom")}
-      ><IconZoomIn aria-hidden="true" /></Button
-    >
-  </div>
+  {#if !unified}
+    <CodeReaderToolbar
+      panel={find.panel}
+      open={find.actions.openPanel}
+      totals={diffTotals}
+      searchable={hasChanges}
+      pressed={overflow === "wrap"}
+      toggle={toggleWrap}
+    />
+  {/if}
   {#if diffStyle === "split"}
     <div
       class="grid shrink-0 grid-cols-2 border-b bg-muted/40 font-mono text-xs text-muted-foreground"
@@ -470,6 +468,7 @@
     {/if}
   </div>
   <CodeReaderPanels
+    searchAtTop={unified}
     panel={find.panel}
     query={find.search}
     line={selected?.start ?? 1}

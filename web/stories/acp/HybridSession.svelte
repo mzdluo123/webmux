@@ -13,6 +13,7 @@
   import { dockGroup, dockSplit } from "$lib/dock-layout";
   import DockPanel from "../../src/components/shared/DockPanel.svelte";
   import DockWorkspace from "../../src/components/shared/DockWorkspace.svelte";
+  import { m } from "../../src/lib/paraglide/messages.js";
   import ConfirmDialog from "../../src/components/shared/ConfirmDialog.svelte";
   import ConnectorInstallHint from "../../src/components/sessions/ConnectorInstallHint.svelte";
   import HybridCandidatePicker from "../../src/components/sessions/HybridCandidatePicker.svelte";
@@ -456,6 +457,7 @@
   data-bottom-toolbar={bottomToolbarShown ? "shown" : "auto"}
 >
   <SessionWorkspaceHeader
+    {dock}
     {pickerOpen}
     openPanels={() => dock?.openPicker()}
     openFiles={openCode}
@@ -514,27 +516,28 @@
     initial={dockSplit("horizontal", dockGroup("session"), dockGroup("code"))}
     bind:showPicker={pickerOpen}
     compact={compact.current}
+    edgeRails
     pickerTrigger={false}
   >
-    {#snippet pickerActions(closePanel)}
+    {#snippet pickerActions(closePanel, panel, hide)}
       <TerminalSplitPanel
+        compact={compact.current}
+        oncommand={closePanel}
+        hideLabel={panel ? m.dock_minimize({ title: panel.title }) : undefined}
+        onhide={hide}
         busy={false}
         limit={false}
         ready
         onsplit={() => {
-          closePanel();
           notice = "预览：在真实会话中创建分屏。";
         }}
         oncreate={() => {
-          closePanel();
           notice = "预览：在真实会话中打开新建会话。";
         }}
         onchoose={() => {
-          closePanel();
           notice = "预览：在真实会话中选择已有会话。";
         }}
         onclose={() => {
-          closePanel();
           notice = "预览：在真实会话中关闭当前窗格。";
         }}
       />

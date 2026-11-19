@@ -493,7 +493,7 @@ export async function expectConnected(page: Page) {
   await expect(header.getByRole("status")).toHaveCount(0);
 }
 
-const narrowSessionHeader = (page: Page) =>
+export const narrowSessionHeader = (page: Page) =>
   (page.viewportSize()?.width ?? 1280) < 640;
 const sessionHeader = (page: Page) =>
   page.locator(
@@ -655,6 +655,14 @@ export async function recordInput(
   return path;
 }
 
+export async function openDockCommands(panel: Locator) {
+  if (!(await panel.getAttribute("data-dock-active")))
+    await panel.locator(".dock-title-space").click();
+  const page = panel.page();
+  await page.locator("[data-dock-command-menu]").click();
+  return page.getByRole("menu");
+}
+
 export async function openSplitPanel(scope: Locator | Page) {
   await openPanelPicker(scope);
 }
@@ -710,12 +718,16 @@ export async function toggleCode(scope: Locator | Page) {
       await picker.locator(`[data-dock-picker="${id}"]`).click();
     } else {
       if (await files.isVisible())
-        await files
-          .getByRole("button", { name: "收起「文件树」", exact: true })
+        await (
+          await openDockCommands(files)
+        )
+          .getByRole("menuitem", { name: /^收起(?:「文件树」)?$/ })
           .click();
       if (await reader.isVisible())
-        await reader
-          .getByRole("button", { name: /^收起「预览(?: · .+)?」$/ })
+        await (
+          await openDockCommands(reader)
+        )
+          .getByRole("menuitem", { name: /^收起(?:「预览(?: · .+)?」)?$/ })
           .click();
     }
   } else {

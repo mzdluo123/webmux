@@ -10,6 +10,8 @@
   import { m } from "$lib/paraglide/messages.js";
   import SessionSwitcherTrigger from "../shell/SessionSwitcherTrigger.svelte";
   import { findSessionSwitcher } from "../../hooks/shared/session-switcher";
+  import SessionPaneMenu from "./SessionPaneMenu.svelte";
+  import type DockWorkspace from "../shared/DockWorkspace.svelte";
   import { Button } from "$lib/components/ui/button";
   import IconFolder from "~icons/tabler/folder";
   import { tick } from "svelte";
@@ -19,12 +21,14 @@
   import { bottomToolbar } from "../../hooks/terminal/bottom-toolbar-preference.svelte";
   import { keyboardSizeHold } from "../../hooks/terminal/keyboard-size-hold-preference.svelte";
   let {
+    dock,
     pickerOpen,
     openPanels,
     openFiles,
     fileLabel,
     onerror,
   }: {
+    dock: DockWorkspace | undefined;
     pickerOpen: boolean;
     openPanels: () => void;
     openFiles?: () => void;
@@ -58,6 +62,7 @@
     <IconArrowLeft class="size-4" aria-hidden="true" />
   </Button>
   <SessionSwitcherTrigger size="icon-sm" class="max-sm:hidden" />
+  <SessionPaneMenu {dock} />
   <div class="flex-1"></div>
   {#if openFiles}<Button
       variant="ghost"

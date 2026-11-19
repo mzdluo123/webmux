@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { APIRequestContext, Page } from "@playwright/test";
+import { codeReader, openCodeMenu } from "./code-dock";
 import {
   expect,
   holdTerminalFont,
@@ -353,8 +354,11 @@ test("worktree menu '提交改动…' deep-link and session Code Workspace round
     .evaluate((el) => el.scrollTop);
   expect(savedScroll).toBeGreaterThan(80);
 
-  // Jump from CodeWorkspace header "在 Git 中查看" -> /git/{repoId}/worktrees/{mainWt.id}?returnSession={sessionId}.
-  await page.getByRole("button", { name: "在 Git 中查看" }).click();
+  // Open the workbench for this session's worktree from the reader menu.
+  await openCodeMenu(codeReader(page));
+  await page
+    .getByRole("menuitem", { name: "在 Git 中查看", exact: true })
+    .click();
   await expect(page).toHaveURL(
     new RegExp(
       `/git/${repo.id}/worktrees/${mainWt.id}\\?.*returnSession=${sessionId}`,

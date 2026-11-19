@@ -10,6 +10,10 @@ const readerText = () => {
   ].find((element) => element.offsetParent !== null);
   return host?.querySelector("diffs-container")?.shadowRoot?.textContent ?? "";
 };
+const openCodeMenu = () =>
+  page.getByRole("button", { name: "代码菜单", exact: true }).click();
+const codeMenuItem = (name: string) =>
+  page.getByRole("menuitem", { name, exact: true });
 function file(n: number, version = "original") {
   return {
     snapshotId: `snapshot-${n}-${version}`,
@@ -379,7 +383,8 @@ test("loads changes beyond 1000 lazily, virtualizes rows, filters and refreshes 
     .element(page.getByText("original file 1504", { exact: true }))
     .toBeVisible();
   expect(list.querySelectorAll("button").length).toBeLessThan(50);
-  await page.getByRole("button", { name: "刷新全部", exact: true }).click();
+  await openCodeMenu();
+  await codeMenuItem("刷新全部").click();
   await expect
     .poll(() =>
       changeRequests.some(
@@ -530,9 +535,10 @@ test("touch-only devices without Picture-in-Picture get no pop-out control", asy
   await expect
     .element(page.getByRole("button", { name: "file-0.txt", exact: true }))
     .toBeVisible();
-  expect(
-    page.getByRole("button", { name: "在独立窗口中显示代码" }).elements(),
-  ).toHaveLength(0);
+  await openCodeMenu();
+  await expect
+    .element(codeMenuItem("在独立窗口中显示代码"))
+    .not.toBeInTheDocument();
 });
 
 // Opens file-0 and file-1, then pops out into an ordinary popup.
@@ -545,10 +551,9 @@ async function popOutWithTabs(beforePopOut?: () => void) {
   render(Harness);
   await page.getByRole("button", { name: "file-0.txt", exact: true }).click();
   await page.getByRole("button", { name: "file-1.txt", exact: true }).click();
+  await openCodeMenu();
   beforePopOut?.();
-  await page
-    .getByRole("button", { name: "在独立窗口中显示代码", exact: true })
-    .click();
+  await codeMenuItem("在独立窗口中显示代码").click();
   return { popup, open };
 }
 type Snapshot = { active: string; tabs: { key: string }[] };
@@ -884,9 +889,8 @@ test("a blocked popup keeps the panel in place and says why", async () => {
   pointer(true);
   vi.spyOn(window, "open").mockReturnValue(null);
   render(Harness);
-  await page
-    .getByRole("button", { name: "在独立窗口中显示代码", exact: true })
-    .click();
+  await openCodeMenu();
+  await codeMenuItem("在独立窗口中显示代码").click();
   await expect
     .element(page.getByRole("alert"))
     .toMatchTextContent("弹出窗口被浏览器拦截");
@@ -903,9 +907,8 @@ test("a refused pop-out window keeps the panel in place and says why", async () 
     ),
   );
   render(Harness);
-  await page
-    .getByRole("button", { name: "在独立窗口中显示代码", exact: true })
-    .click();
+  await openCodeMenu();
+  await codeMenuItem("在独立窗口中显示代码").click();
   await expect
     .element(page.getByRole("alert"))
     .toMatchTextContent("Document PiP requires user activation");
@@ -1198,7 +1201,8 @@ test("file tabs support roving focus, arrow keys and stable panel relationships"
       document.getElementById(item.controls!)?.getAttribute("aria-labelledby"),
     ).toBe(item.id);
   }
-  await page.getByRole("button", { name: "刷新全部", exact: true }).click();
+  await openCodeMenu();
+  await codeMenuItem("刷新全部").click();
   await expect.element(tab(0)).toHaveAttribute("id", before[0]!.id);
   await expect
     .element(

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { Page, Request } from "@playwright/test";
 import { test, expect, createShell } from "./fixtures";
 import { pdfFixture } from "../fixtures/pdf";
-import { codeReader, showFileTree } from "./code-dock";
+import { codeReader, openCodeMenu, showFileTree } from "./code-dock";
 
 async function open(page: Page, name: string) {
   const tree = await showFileTree(page);
@@ -16,21 +16,10 @@ async function open(page: Page, name: string) {
     }),
   ).toHaveAttribute("aria-selected", "true");
 }
-// Below 640px the document bar's controls live in the code menu. Inactive
-// tabs stay mounted, so pick the visible document bar's button.
+
 async function togglePreview(page: Page, menuItem: string) {
-  const reader = codeReader(page);
-  if (page.viewportSize()!.width < 640) {
-    await reader.getByRole("button", { name: "代码菜单", exact: true }).click();
-    await page.getByRole("menuitem", { name: menuItem, exact: true }).click();
-  } else
-    await reader
-      .getByRole("button", {
-        name: menuItem === "返回源码" ? "返回源码" : "预览",
-        exact: true,
-      })
-      .filter({ visible: true })
-      .click();
+  await openCodeMenu(codeReader(page));
+  await page.getByRole("menuitem", { name: menuItem, exact: true }).click();
 }
 const renderer =
   /code-pdf|pdf\.worker|\.bcmap|\.pfb|LiberationSans|openjpeg|jbig2/;

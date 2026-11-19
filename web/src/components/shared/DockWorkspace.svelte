@@ -52,7 +52,9 @@
     mobilePanel?: string;
     showPicker?: boolean;
     pickerTrigger?: boolean;
-    pickerActions?: Snippet<[() => void]>;
+    pickerActions?: Snippet<
+      [() => void, DockEntry | undefined, (() => void) | undefined]
+    >;
     onSelectPanel?: (id: string) => void;
     children: Snippet;
   } = $props();
@@ -79,6 +81,7 @@
   let history = $state.raw<string[]>([]);
   let mobileHidden = $state.raw<string[]>([]);
   let pickerOrigin: HTMLElement | null = null;
+  let pickerPanel = $state.raw<DockEntry>();
   const entries = new SvelteMap<string, DockEntry>();
   let pickerEntries = $state.raw<DockEntry[]>([]);
   // A picker action can register panels while the drawer is sliding away.
@@ -137,6 +140,19 @@
         : geometry.groups.keys().next().value),
   );
 
+  export function commandTarget() {
+    return activePanel ?? "";
+  }
+
+  export function commandPanel(id: string) {
+    const panel = entries.get(id);
+    if (!edgeRails || compact || !panel || !rect(id)) return;
+    const peeked = !!peek.rect(id);
+    const zoomed = visibleZoom === id;
+    const destinations = peeked || zoomed ? [] : targets(id);
+    return { panel, peeked, zoomed, targets: destinations };
+  }
+
   export function isVisible(id: string) {
     return !!rect(id);
   }
@@ -154,11 +170,14 @@
       mobileHidden = mobileHidden.filter((value) => value !== id);
       mobilePanel = id;
     } else {
+      const keepZoom =
+        edgeRails && geometry.groups.get(visibleZoom)?.ids.includes(id);
       const activated = dockActivate(tree, id);
       if (activated !== tree) node = activated;
       if (hidden.includes(id)) hidden = hidden.filter((value) => value !== id);
-      if (zoom !== id) zoom = "";
+      if (zoom !== id) zoom = keepZoom ? id : "";
     }
+    onSelectPanel?.(id);
   }
 
   export function add(
@@ -194,7 +213,7 @@
     if (!compact && isVisible(id)) zoom = visibleZoom === id ? "" : id;
   }
 
-  function minimize(id: string, destination?: DockRail) {
+  export function minimize(id: string, destination?: DockRail) {
     if (compact) {
       mobileHidden = [...mobileHidden.filter((value) => value !== id), id];
       mobilePanel =
@@ -206,7 +225,11 @@
       history = history.filter(
         (value) => value !== id && value !== mobilePanel,
       );
-      if (!mobilePanel) showPicker = true;
+      if (!mobilePanel && (!edgeRails || !mobile)) {
+        pickerPanel = undefined;
+        showPicker = true;
+      }
+      if (edgeRails && mobile) onSelectPanel?.(mobile);
     } else {
       if (destination) rails[id] = destination;
       peek.close();
@@ -216,9 +239,10 @@
     }
   }
 
-  function move(id: string, target: string, edge: DockEdge) {
+  export function move(id: string, target: string, edge: DockEdge) {
     add(id, target, edge);
     zoom = "";
+    if (edgeRails) return;
     void tick().then(() =>
       surface
         ?.querySelector<HTMLElement>(
@@ -228,14 +252,21 @@
     );
   }
 
-  const previous = $derived(
-    history
-      .filter(
-        (id) =>
-          available.has(id) && !mobileHidden.includes(id) && id !== mobile,
-      )
-      .at(-1),
-  );
+  function targets(id: string) {
+    return [...geometry.groups].flatMap(([key, group]) => {
+      const target = key === id ? group.ids.find((value) => value !== id) : key;
+      const entry = target ? entries.get(target) : undefined;
+      return entry ? [entry] : [];
+    });
+  }
+
+  const previous = $derived.by(() => {
+    for (let i = history.length - 1; i >= 0; i--) {
+      const id = history[i]!;
+      if (id !== mobile && available.has(id) && !mobileHidden.includes(id))
+        return id;
+    }
+  });
   setDock({
     canGoBack: () => compact && !!previous,
     back() {
@@ -264,14 +295,9 @@
       (geometry.groups.get(id)?.ids ?? [])
         .map((key) => entries.get(key))
         .filter((entry) => entry !== undefined),
-    targets: (id) =>
-      [...geometry.groups].flatMap(([key, group]) => {
-        const target =
-          key === id ? group.ids.find((value) => value !== id) : key;
-        const entry = target ? entries.get(target) : undefined;
-        return entry ? [entry] : [];
-      }),
+    targets,
     compact: () => compact,
+    centralCommands: () => edgeRails,
     zoomed: (id) => visibleZoom === id,
     show,
     edgeRails: () => edgeRails,
@@ -283,6 +309,9 @@
   });
 
   export function openPicker() {
+    if (showPicker) return;
+    pickerPanel =
+      compact && edgeRails && mobile ? entries.get(mobile) : undefined;
     pickerOrigin =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
@@ -291,6 +320,13 @@
   }
   function closePicker() {
     showPicker = false;
+  }
+
+  function hidePickedPanel() {
+    const id = pickerPanel?.id;
+    if (!compact || !id || mobile !== id) return;
+    closePicker();
+    minimize(id);
   }
 </script>
 
@@ -376,7 +412,6 @@
         aria-current={isVisible(entry.id) ? "true" : undefined}
         onclick={() => {
           show(entry.id);
-          onSelectPanel?.(entry.id);
           closePicker();
         }}
       >
@@ -384,7 +419,13 @@
         {#if isVisible(entry.id)}<IconCheck aria-hidden="true" />{/if}
       </ListButton>
     {/each}
-    {@render pickerActions?.(closePicker)}
+    {@render pickerActions?.(
+      closePicker,
+      compact ? pickerPanel : undefined,
+      compact && pickerPanel && (!showPicker || mobile === pickerPanel.id)
+        ? hidePickedPanel
+        : undefined,
+    )}
   </div>
 {/snippet}
 

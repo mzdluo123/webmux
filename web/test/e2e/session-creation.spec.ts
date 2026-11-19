@@ -7,6 +7,7 @@ import {
   chooseLaunch,
   chooseLocation,
   expect,
+  narrowSessionHeader,
   openSplitPanel,
   revealSidebar,
   test as queueTest,
@@ -169,7 +170,8 @@ test("full split creation uses saved configs and keeps the launch subdirectory a
   expect(await (await request.get("/api/sessions")).json()).toHaveLength(1);
   await open();
   await chooseLaunch(page, "Project shell");
-  await page.getByRole("radio", { name: "上下分屏", exact: true }).click();
+  if (!narrowSessionHeader(page))
+    await page.getByRole("radio", { name: "上下分屏", exact: true }).click();
   await page
     .getByRole("button", { name: "创建并加入分屏 →", exact: true })
     .click();
@@ -186,7 +188,12 @@ test("full split creation uses saved configs and keeps the launch subdirectory a
   });
   await openSplitPanel(page.locator(".split-terminal").last());
   await page
-    .getByRole("button", { name: "左右分屏 · 新建 Shell", exact: true })
+    .getByRole("button", {
+      name: narrowSessionHeader(page)
+        ? "快速新建 Shell"
+        : "左右分屏 · 新建 Shell",
+      exact: true,
+    })
     .click();
   await expect(page.locator(".split-terminal")).toHaveCount(3);
   const all = await (await request.get("/api/sessions")).json();

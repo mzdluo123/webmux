@@ -1,14 +1,15 @@
-import type { Page } from "@playwright/test";
+import type { FrameLocator, Locator, Page } from "@playwright/test";
 import { expect, toggleCode } from "./fixtures";
 
 export const fileTree = (page: Page) =>
   page.getByRole("region", { name: "文件树", exact: true });
 
-export const readerPanel = (page: Page) =>
+export const codeReader = (page: Page) =>
   page.locator('[data-dock-panel^="reader:"]');
 
-export const codeReader = (page: Page) =>
-  readerPanel(page).getByRole("region", { name: "代码工作区", exact: true });
+export async function openCodeMenu(scope: Page | FrameLocator | Locator) {
+  await scope.getByRole("button", { name: "代码菜单", exact: true }).click();
+}
 
 export async function showFileTree(page: Page) {
   const tree = fileTree(page);

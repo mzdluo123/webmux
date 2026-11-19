@@ -6,13 +6,9 @@
     selectedDocument,
   } from "../../domains/code/reader-groups";
   import CodeNavigationPanel from "./CodeNavigationPanel.svelte";
-  import DockPanel from "../shared/DockPanel.svelte";
+  import CodeReaderGroup from "./CodeReaderGroup.svelte";
   import { getDock } from "../shared/dock-context";
-  import {
-    navMin,
-    navMax,
-    useNavigationResize,
-  } from "../../hooks/code/code-navigation-resize.svelte";
+  import CodeWorkspaceSplit from "./CodeWorkspaceSplit.svelte";
   import { onMount, untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
   import CodeNavigator from "./CodeNavigator.svelte";
@@ -35,7 +31,6 @@
     locateRevealTarget,
   } from "../../domains/code/code-reveal";
   import {
-    codeReaderTitle,
     shouldCloseOverlayNav,
     type CodeTabOrigin,
     type CodeWorkspaceTab,
@@ -75,9 +70,7 @@
   } = $props();
   const seed = untrack(() => initial);
   const dock = untrack(() => (docked ? getDock() : undefined));
-  let navDivider = $state<HTMLDivElement>();
   let section = $state<HTMLElement>();
-  let inner = $state<HTMLDivElement>();
   let navigationHost = $state<HTMLDivElement>();
   let navigator = $state<CodeNavigator>();
   let dropStatus = $state("");
@@ -168,12 +161,6 @@
   export function bounds() {
     return section?.getBoundingClientRect();
   }
-  const { resizeStart, resizeKey } = useNavigationResize(
-    () => inner,
-    () => navDivider,
-    { get: () => ws.s.navWidth, set: (width) => (ws.s.navWidth = width) },
-  );
-
   async function locate(input: string) {
     if (!ws.s.context) return;
     await show(
@@ -305,6 +292,38 @@
   }
 </script>
 
+{#snippet readerHeader(tabs: CodeWorkspaceTab[], doc?: CodeWorkspaceTab)}
+  <CodeWorkspaceHeader
+    bind:navOpen={ws.s.navOpen}
+    dockNavigation={docked
+      ? {
+          show: () => dock?.show(docked!.files),
+          shown: !!dock?.rect(docked.files),
+        }
+      : undefined}
+    navStatus={ws.s.navStatus}
+    {tabs}
+    context={ws.s.context}
+    pending={ws.s.pending}
+    {popout}
+    activeMenu={doc?.menu}
+    {section}
+    activeQuick={doc?.quick}
+    beginOpen={ws.beginOpen}
+    supersedeOpenOnTabKey={ws.supersedeOpenOnTabKey}
+    close={closeTab}
+    refreshAll={() => {
+      void ws.load();
+      for (const tab of ws.s.tabs) void ws.refresh(tab);
+    }}
+    inspectablePath={doc?.rootKind === "artifacts"
+      ? ""
+      : (doc?.file?.document.path ?? doc?.diff?.new.path ?? "")}
+    {onOpenGit}
+    {onInspectGitFile}
+  />
+{/snippet}
+
 {#snippet workspace(
   props: Record<string, unknown>,
   tabs: CodeWorkspaceTab[],
@@ -319,61 +338,24 @@
     class="code-panel relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
     aria-label={m.s5_code_workspace()}
   >
-    <CodeWorkspaceHeader
-      bind:navOpen={ws.s.navOpen}
-      dockNavigation={docked
-        ? {
-            show: () => dock?.show(docked!.files),
-            shown: !!dock?.rect(docked.files),
-          }
-        : undefined}
-      navStatus={ws.s.navStatus}
-      {tabs}
-      context={ws.s.context}
-      pending={ws.s.pending}
-      {popout}
-      activeMenu={doc?.menu}
-      {section}
-      error={notice || ws.s.error}
-      {dropStatus}
-      beginOpen={ws.beginOpen}
-      supersedeOpenOnTabKey={ws.supersedeOpenOnTabKey}
-      close={closeTab}
-      refreshAll={() => {
-        void ws.load();
-        for (const tab of ws.s.tabs) void ws.refresh(tab);
-      }}
-      inspectablePath={doc?.rootKind === "artifacts"
-        ? ""
-        : (doc?.file?.document.path ?? doc?.diff?.new.path ?? "")}
-      {onOpenGit}
-      {onInspectGitFile}
-    />
-    <div
-      class="code-inner flex min-h-0 flex-1 overflow-hidden"
-      style:--code-nav-width={`${ws.s.navWidth}px`}
-      bind:this={inner}
+    {#if !docked}{@render readerHeader(tabs, doc)}{/if}
+    {#if notice || ws.s.error}<p
+        role="alert"
+        class="shrink-0 px-2 py-1 text-sm break-all text-destructive"
+      >
+        {notice || ws.s.error}
+      </p>{/if}
+    {#if dropStatus && !ws.s.navOpen}<p
+        role="status"
+        class="shrink-0 px-2 py-1 text-xs text-muted-foreground"
+      >
+        {dropStatus}
+      </p>{/if}
+    <CodeWorkspaceSplit
+      bind:width={ws.s.navWidth}
+      open={ws.s.navOpen}
+      navigation={docked ? undefined : navigation}
     >
-      {#if !docked}
-        <div class="contents" class:hidden={!ws.s.navOpen}>
-          {@render navigation()}
-          <!-- A focusable separator with aria-valuenow is an interactive widget (WAI-ARIA window splitter). -->
-          <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-          <div
-            bind:this={navDivider}
-            class="code-nav-divider"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={m.s5_resize_nav_width()}
-            aria-valuemin={navMin}
-            aria-valuemax={navMax}
-            aria-valuenow={ws.s.navWidth}
-            tabindex="0"
-            onpointerdown={resizeStart}
-            onkeydown={resizeKey}
-          ></div>
-        </div>
-      {/if}
       <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {#each tabs as tab (tab.key)}
           <Tabs.Content value={tab.key} tabindex={-1}>
@@ -406,6 +388,8 @@
                       undefined,
                       intent === ws.selectionSequence,
                     )}
+                  unified
+                  bind:quick={tab.quick}
                   bind:menu={tab.menu}
                   workspace={tab.contextId === ws.s.context?.contextId
                     ? markdownWorkspace
@@ -424,7 +408,7 @@
             {m.s5_workspace_empty_prompt()}
           </p>{/if}
       </div>
-    </div>
+    </CodeWorkspaceSplit>
   </section>
 {/snippet}
 
@@ -472,25 +456,22 @@
 {#each groups as [group, tabs] (group)}
   {@const doc = selectedDocument(tabs, ws.s.active, selected[group])}
   {@const current = doc?.key ?? ""}
-  <Tabs.Root value={current} onValueChange={(value) => activate(group, value)}>
-    {#snippet child({ props })}
-      {#if docked}
-        <DockPanel
-          id={panelId(group)}
-          title={codeReaderTitle(
-            doc?.file?.document.path ?? doc?.diff?.new.path ?? "",
-          )}
-          onactivate={() => {
-            if (ws.s.active !== current) activate(group, current);
-          }}
-        >
-          {@render workspace(props, tabs, current, group)}
-        </DockPanel>
-      {:else}
-        {@render workspace(props, tabs, current, group)}
-      {/if}
-    {/snippet}
-  </Tabs.Root>
+  <CodeReaderGroup
+    panel={docked ? panelId(group) : undefined}
+    {doc}
+    activate={(key) => activate(group, key)}
+    onactivate={() => {
+      if (ws.s.active !== current) activate(group, current);
+    }}
+  >
+    {#snippet header()}{@render readerHeader(tabs, doc)}{/snippet}
+    {#snippet children(props)}{@render workspace(
+        props,
+        tabs,
+        current,
+        group,
+      )}{/snippet}
+  </CodeReaderGroup>
 {/each}
 {#if docked}
   <CodeNavigationPanel id={docked.files} {inert} bind:navigationHost

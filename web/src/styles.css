@@ -279,10 +279,7 @@
   overflow: visible;
   padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
-.terminal-page[data-document-scroll="true"] .terminal-header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
+.terminal-page[data-document-scroll="true"] .session-toolbar .app-header {
   padding-top: env(safe-area-inset-top);
   min-height: calc(var(--app-header-height) + env(safe-area-inset-top));
 }

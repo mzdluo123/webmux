@@ -5,6 +5,8 @@ import {
   chooseDockPanel,
   chooseDockPanelById,
   expectSessionInputSide,
+  openDockCommands,
+  narrowSessionHeader,
   openSplitPanel,
   selectSessionInputSide,
   toggleCode,
@@ -15,7 +17,12 @@ async function split(pane: Locator, direction: "左右" | "上下") {
   await openSplitPanel(pane);
   await pane
     .page()
-    .getByRole("button", { name: `${direction}分屏 · 新建 Shell`, exact: true })
+    .getByRole("button", {
+      name: narrowSessionHeader(pane.page())
+        ? "快速新建 Shell"
+        : `${direction}分屏 · 新建 Shell`,
+      exact: true,
+    })
     .click();
 }
 async function command(page: Page, pane: Locator, value: string) {
@@ -60,8 +67,10 @@ test("docking, peeking and pinning retain a running terminal and its layout", as
   await expect(anchor).toBeHidden();
   await expect(root).toHaveAccessibleName(/.+/);
   const name = (await root.getAttribute("aria-label"))!;
-  await root
-    .getByRole("button", { name: `还原「${name}」布局`, exact: true })
+  await (
+    await openDockCommands(root)
+  )
+    .getByRole("menuitem", { name: /^还原/ })
     .click();
   await expect.poll(() => root.boundingBox()).toEqual(placed);
   const bottomTab = page.locator(
@@ -70,12 +79,14 @@ test("docking, peeking and pinning retain a running terminal and its layout", as
   const rightTab = page.locator(
     `[data-dock-rail="right"] [data-dock-tab="${secondId}"]`,
   );
-  const pin = root.getByRole("button", {
-    name: `固定「${name}」`,
-    exact: true,
-  });
-  await root
-    .getByRole("button", { name: `收起「${name}」`, exact: true })
+  const pin = async () =>
+    (await openDockCommands(root))
+      .getByRole("menuitem", { name: /^固定/ })
+      .click();
+  await (
+    await openDockCommands(root)
+  )
+    .getByRole("menuitem", { name: /^收起(?:「.+」)?$/ })
     .click();
   await expect(root).toBeHidden();
   await expect(bottomTab).toHaveAccessibleName(name);
@@ -86,13 +97,12 @@ test("docking, peeking and pinning retain a running terminal and its layout", as
   await bottomTab.click();
   await expect(root).toBeHidden();
   await bottomTab.click();
-  await pin.click();
+  await pin();
   await expect(bottomTab).toHaveCount(0);
   await expect.poll(() => root.boundingBox()).toEqual(placed);
 
-  await root
-    .getByRole("button", { name: `「${name}」窗格操作`, exact: true })
-    .click();
+  await openDockCommands(root);
+  await page.getByRole("menuitem", { name: "收起到边栏", exact: true }).hover();
   await page.getByRole("menuitem", { name: "收起到右侧", exact: true }).click();
   await expect(root).toBeHidden();
   await expect(bottomTab).toHaveCount(0);
@@ -102,7 +112,7 @@ test("docking, peeking and pinning retain a running terminal and its layout", as
   await expect(rightTab).toHaveAttribute("aria-expanded", "true");
   await expect(root).toHaveAttribute("data-dock-peek", "true");
   await expect.poll(() => anchor.boundingBox()).toEqual(minimizedAnchor);
-  await pin.focus();
+  await second.locator(".xterm-helper-textarea").focus();
   await page.keyboard.press("Escape");
   await expect(root).toBeHidden();
   await expect(rightTab).toBeFocused();
@@ -128,7 +138,7 @@ test("docking, peeking and pinning retain a running terminal and its layout", as
   await expect(rightTab).toBeVisible();
   await expect(root).toBeHidden();
   await rightTab.click();
-  await pin.click();
+  await pin();
   await expect(rightTab).toHaveCount(0);
   await expect.poll(() => root.boundingBox()).toEqual(placed);
 
@@ -136,6 +146,38 @@ test("docking, peeking and pinning retain a running terminal and its layout", as
   await expect(root).toBeVisible();
   await expect(rightTab).toHaveCount(0);
   await expect.poll(() => root.boundingBox()).toEqual(placed);
+});
+
+test("stacked panes reveal the selected tab and keep keyboard focus across switches", async ({
+  page,
+  workDir,
+}, info) => {
+  test.skip(info.project.use.isMobile, "Desktop docking surface");
+  const id = await createShell(page, "Stack anchor", workDir);
+  const first = page.locator(`[data-dock-panel="${id}"]`);
+  await split(first.locator(".split-terminal"), "左右");
+  const terminals = page.locator(".split-terminal");
+  await expect(terminals).toHaveCount(2);
+  const secondId = await terminals.nth(1).getAttribute("data-session-id");
+  const second = page.locator(`[data-dock-panel="${secondId}"]`);
+  await ready(terminals.nth(1));
+  await second.locator(".status-dot").dragTo(first);
+  const list = page.locator("[data-dock-panel]:visible [data-dock-stack]");
+  const chosen = list.getByRole("tab", { selected: true });
+  const firstTitle = (await first.getAttribute("aria-label"))!;
+  const secondTitle = (await second.getAttribute("aria-label"))!;
+  await expect(chosen).toHaveText(secondTitle);
+  await list.getByRole("tab", { name: firstTitle, exact: true }).click();
+  await expect(first).toBeVisible();
+  await expect(chosen).toHaveText(firstTitle);
+  await expect(chosen).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(second).toBeVisible();
+  await expect(chosen).toHaveText(secondTitle);
+  await expect(chosen).toBeFocused();
+  await expect(chosen).toBeInViewport();
+  await page.reload();
+  await expect(chosen).toHaveText(secondTitle);
 });
 
 test("desktop drag guides dock against a pane or the whole workspace", async ({
@@ -469,7 +511,8 @@ test("existing sessions can join a split and missing panes can be dismissed", as
   await page
     .getByRole("button", { name: "加入已有会话…", exact: true })
     .click();
-  await page.getByRole("radio", { name: "上下分屏", exact: true }).click();
+  if (!narrowSessionHeader(page))
+    await page.getByRole("radio", { name: "上下分屏", exact: true }).click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: /Existing agent/ })
@@ -537,7 +580,8 @@ test("返回列表 in a split leaves only its own pane", async ({
   await page
     .getByRole("button", { name: "加入已有会话…", exact: true })
     .click();
-  await page.getByRole("radio", { name: "左右分屏", exact: true }).click();
+  if (!narrowSessionHeader(page))
+    await page.getByRole("radio", { name: "左右分屏", exact: true }).click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: /Gone soon/ })

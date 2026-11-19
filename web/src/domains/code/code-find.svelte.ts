@@ -51,6 +51,17 @@ export function createCodeFind(
   };
   return {
     actions,
+    controls: {
+      get searchable() {
+        return enabled?.() ?? true;
+      },
+      get searching() {
+        return panel === "search";
+      },
+      open(value: CodeFindPanel) {
+        if (host()?.isConnected) void actions.openPanel(value, false);
+      },
+    },
     panelProps,
     get panel() {
       return panel;

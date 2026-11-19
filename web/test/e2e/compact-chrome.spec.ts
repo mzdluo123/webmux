@@ -203,7 +203,8 @@ test("a phone Diff leaves most of the screen to code and reaches document action
   await expect(
     page.getByRole("tab", { name: /^code\.txt · index(?: ●)?$/ }),
   ).toHaveAttribute("aria-selected", "true");
-  await page.getByRole("button", { name: "跳转行", exact: true }).click();
+  await page.getByRole("button", { name: "代码菜单", exact: true }).click();
+  await page.getByRole("menuitem", { name: "跳转行", exact: true }).click();
   await page.locator("[data-code-goto-line]:visible input").fill("50");
   await page.locator("[data-code-goto-line]:visible input").press("Enter");
   await expect(
@@ -245,18 +246,11 @@ test("wide headers keep every action and the code workspace stays on single rows
     return box.y + box.height / 2;
   };
   const tabRow = await center(tabs);
-  expect(
-    Math.abs(
-      (await center(page.getByRole("button", { name: "刷新全部" }))) - tabRow,
-    ),
-  ).toBeLessThan(2);
-  const path = page
-    .getByRole("tabpanel")
-    .filter({ visible: true })
-    .getByTitle(join(workDir, "code.txt"), { exact: true });
-  const fullFile = page.getByRole("button", { name: "完整文件", exact: true });
-  expect(
-    Math.abs((await center(path)) - (await center(fullFile))),
-  ).toBeLessThan(2);
-  await expect(page.getByRole("button", { name: "代码菜单" })).toBeHidden();
+  const menu = page.getByRole("button", { name: "代码菜单", exact: true });
+  expect(Math.abs((await center(menu)) - tabRow)).toBeLessThan(2);
+  await menu.click();
+  await expect(page.getByRole("menu")).toContainText(join(workDir, "code.txt"));
+  await expect(
+    page.getByRole("menuitem", { name: "刷新全部", exact: true }),
+  ).toBeVisible();
 });

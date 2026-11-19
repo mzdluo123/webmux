@@ -44,6 +44,8 @@
     comparison,
     onComparison,
     onState,
+    unified = false,
+    quick = $bindable(),
     menu = $bindable(),
     workspace,
     heading,
@@ -68,6 +70,8 @@
     onComparison: (diff: CodeDiff) => void;
     onState: (state: string) => void;
     menu?: Snippet;
+    unified?: boolean;
+    quick?: Snippet;
     /** Lets Markdown previews open workspace links and load relative images. */
     workspace?: MarkdownWorkspace;
     /** A one-time request from a link to preview and show a heading. */
@@ -112,6 +116,7 @@
   let busy = $state(false);
   let generation = $state(0);
   let body = $state<CodeDocumentBody>();
+  const controls = $derived(unified ? body?.readerControls() : undefined);
   let headings = $state<MarkdownHeading[]>([]);
   let anchor = $state(1);
   // A restored view already shows its version; the first run resets nothing.
@@ -401,6 +406,12 @@
     {svgView}
     {svgNotice}
     {status}
+    {unified}
+    canSearch={controls?.panelControls.searchable ?? false}
+    searchOpen={controls?.panelControls.searching ?? false}
+    readerMenu={controls?.commands()}
+    onopenpanel={controls?.panelControls.open}
+    bind:quick
     bind:menu
     oncompare={() => void compare()}
     onshowformat={showFormat}
@@ -414,6 +425,7 @@
     bind:this={body}
     {id}
     {active}
+    {unified}
     {snapshotId}
     {rawSide}
     {doc}

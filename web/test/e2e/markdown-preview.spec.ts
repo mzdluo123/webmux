@@ -1,20 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Page } from "@playwright/test";
 import { test, expect, createShell } from "./fixtures";
-import { codeReader, showFileTree } from "./code-dock";
-
-// Below 640px the document bar's controls live in the code menu.
-async function previewMarkdown(page: Page) {
-  if (page.viewportSize()!.width < 640) {
-    await page.getByRole("button", { name: "代码菜单", exact: true }).click();
-    await page.getByRole("menuitem", { name: "预览 Markdown" }).click();
-  } else
-    await page
-      .getByRole("button", { name: "预览", exact: true })
-      .filter({ visible: true })
-      .click();
-}
+import { codeReader, openCodeMenu, showFileTree } from "./code-dock";
 
 test("Markdown preview opens relative links, finds headings and loads workspace images", async ({
   page,
@@ -65,7 +52,10 @@ test("Markdown preview opens relative links, finds headings and loads workspace 
   await createShell(page, "Markdown code", workDir);
   const tree = await showFileTree(page);
   await tree.getByRole("button", { name: "README.md", exact: true }).click();
-  await previewMarkdown(page);
+  await openCodeMenu(codeReader(page));
+  await page
+    .getByRole("menuitem", { name: "预览 Markdown", exact: true })
+    .click();
   const preview = codeReader(page)
     .getByRole("region", { name: "Markdown 预览" })
     .filter({ visible: true });

@@ -1,3 +1,4 @@
+import { codeReader } from "./code-dock";
 import { spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -229,7 +230,7 @@ test.describe("desktop sidebar", () => {
       });
       expect(response.status(), await response.text()).toBe(201);
     }
-    const code = page.getByRole("region", { name: "代码工作区", exact: true });
+    const code = codeReader(page);
     const files = page.getByRole("region", { name: "文件树", exact: true });
     const width = async () => Math.round((await code.boundingBox())!.width);
 
