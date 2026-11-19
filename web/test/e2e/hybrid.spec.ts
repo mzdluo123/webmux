@@ -2007,7 +2007,7 @@ test.describe("hybrid sessions with the fake agent", () => {
     });
   }
 
-  test("after a backend restart each agent resumes only when opened", async ({
+  test("after a backend restart the switcher lists agents without resuming them until opened", async ({
     page,
     request,
     server,
@@ -2033,24 +2033,45 @@ test.describe("hybrid sessions with the fake agent", () => {
     await page.goto("/");
     await server.restart();
     await page.reload();
+    await expect(
+      page.getByRole("link", { name: "E2E resume chat", exact: true }),
+    ).toBeVisible();
+    const homeSwitcher = await openSessionSwitcher(page);
+    await expect(
+      homeSwitcher.getByRole("option", {
+        name: /E2E resume terminal.*打开时恢复/,
+      }),
+    ).toBeVisible();
+    await homeSwitcher.getByRole("combobox").fill("E2E resume chat");
+    const chatOption = homeSwitcher.getByRole("option", {
+      name: /E2E resume chat.*打开时恢复/,
+    });
+    await expect(chatOption).toBeVisible();
     for (const id of [chat, terminal]) {
       const record = await (await request.get(`/api/sessions/${id}`)).json();
       expect(record.archive.resumeOnOpen).toBe(true);
     }
-    const resumedChat = await openSessionLink(page, "E2E resume chat");
-    await expectSide(resumedChat, "chat");
-    await expect(conversation(resumedChat)).toContainText("kept-in-chat");
-    await expect(conversation(resumedChat)).toContainText("echo: kept-in-chat");
+    await chatOption.click();
+    await expect(page).toHaveURL(new RegExp(`/s/${chat}$`));
+    await expectSide(page, "chat");
+    await expect(conversation(page)).toContainText("kept-in-chat");
+    await expect(conversation(page)).toContainText("echo: kept-in-chat");
 
-    await page.goto("/");
+    await page.goto("/settings");
+    const settingsSwitcher = await openSessionSwitcher(page);
+    const terminalOption = settingsSwitcher.getByRole("option", {
+      name: /E2E resume terminal.*打开时恢复/,
+    });
+    await expect(terminalOption).toBeVisible();
     expect(
       (await (await request.get(`/api/sessions/${terminal}`)).json()).state,
     ).toBe("interrupted");
-    const resumedTerminal = await openSessionLink(page, "E2E resume terminal");
-    await expectTerminalLine(resumedTerminal, "> kept-in-tui");
-    await expectTerminalLine(resumedTerminal, "< echo: kept-in-tui");
-    await expectSide(resumedTerminal, "terminal");
-    await tuiTurn(resumedTerminal, "after-restart");
+    await terminalOption.click();
+    await expect(page).toHaveURL(new RegExp(`/s/${terminal}$`));
+    await expectTerminalLine(page, "> kept-in-tui");
+    await expectTerminalLine(page, "< echo: kept-in-tui");
+    await expectSide(page, "terminal");
+    await tuiTurn(page, "after-restart");
   });
 
   test("a missing conversation asks once when a dormant session is opened", async ({

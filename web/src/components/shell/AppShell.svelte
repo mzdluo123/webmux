@@ -79,7 +79,7 @@
   } = resources;
   const archiveSignal = createArchiveSignal();
   export function sessionSwitcherSource() {
-    return { sessions, repositories };
+    return { sessions, repositories, archived };
   }
 
   let creating = $state<{

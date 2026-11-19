@@ -2,6 +2,7 @@
   import IconTerminal2 from "~icons/tabler/terminal-2";
   import IconX from "~icons/tabler/x";
   import { z } from "zod";
+  import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import * as Command from "$lib/components/ui/command";
   import * as Dialog from "$lib/components/ui/dialog";
@@ -10,6 +11,7 @@
   import { featureContributions } from "../../features/registry.svelte";
   import type { Repositories } from "../../hooks/workspace/repositories.svelte";
   import type { SessionList } from "../../hooks/sessions/session-list.svelte";
+  import type { Archived } from "../../hooks/sessions/archived.svelte";
   import {
     SessionInfoSchema,
     type ChatMessageMatch,
@@ -27,13 +29,19 @@
     oncancel,
   }: {
     open: boolean;
-    source?: { sessions: SessionList; repositories?: Repositories };
+    source?: {
+      sessions: SessionList;
+      repositories?: Repositories;
+      archived?: Archived;
+    };
     onselect: (id: string, messageId?: string) => void;
     oncancel: () => void;
   } = $props();
 
   let input = $state<HTMLInputElement | null>(null);
   let snapshot = $state.raw<SessionInfo[] | null>(null);
+  let archivedSnapshot = $state.raw<Archived>();
+  let loadingArchived = $state(false);
   let repositories = $state.raw<Repository[]>([]);
   let loadingRepositories = $state(false);
   let error = $state("");
@@ -100,6 +108,20 @@
   const exited = $derived(
     sessions?.filter((session) => session.status === "exited") ?? [],
   );
+  const dormant = $derived(
+    ((source ? source.archived : archivedSnapshot)?.records ?? []).filter(
+      (record) =>
+        record.archive.resumeOnOpen &&
+        !record.released &&
+        !sessions?.some((session) => session.id === record.id),
+    ),
+  );
+  const hasWorkspace = $derived(
+    !!(
+      sessions?.some((session) => session.workspace) ||
+      dormant.some((record) => record.workspace)
+    ),
+  );
 
   function scoreItem(value: string, search: string): number {
     const separator = value.indexOf(":");
@@ -116,8 +138,6 @@
 
   $effect(() => {
     snapshot = null;
-    repositories = [];
-    loadingRepositories = false;
     error = "";
     if (!open || source) return;
     const controller = new AbortController();
@@ -126,23 +146,45 @@
       .then((result) => {
         if (signal.aborted) return;
         snapshot = result;
-        const workspace = featureContributions.entries.workspace;
-        if (workspace && result.some((session) => session.workspace)) {
-          // A slow or unavailable Git registry should not block session access.
-          loadingRepositories = true;
-          void workspace
-            .loadRepositories(signal)
-            .then((result) => {
-              if (!signal.aborted) repositories = result;
-            })
-            .catch(() => {})
-            .finally(() => {
-              if (!signal.aborted) loadingRepositories = false;
-            });
-        }
       })
       .catch((err: unknown) => {
         if (!signal.aborted) error = errorMessage(err);
+      });
+    return () => controller.abort();
+  });
+
+  $effect(() => {
+    archivedSnapshot = undefined;
+    loadingArchived = false;
+    if (!open || source) return;
+    const archived = featureContributions.entries.chat?.createArchived();
+    if (!archived) return;
+    archivedSnapshot = archived;
+    loadingArchived = true;
+    void archived.refresh().finally(() => {
+      if (archivedSnapshot === archived) loadingArchived = false;
+    });
+    return () => archived.dispose();
+  });
+
+  $effect(() => {
+    repositories = [];
+    loadingRepositories = false;
+    if (!open || source || !hasWorkspace) return;
+    const workspace = featureContributions.entries.workspace;
+    if (!workspace) return;
+    // A slow or unavailable Git registry should not block session access.
+    const controller = new AbortController();
+    const { signal } = controller;
+    loadingRepositories = true;
+    void workspace
+      .loadRepositories(signal)
+      .then((result) => {
+        if (!signal.aborted) repositories = result;
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!signal.aborted) loadingRepositories = false;
       });
     return () => controller.abort();
   });
@@ -150,7 +192,7 @@
 
 {#snippet sessionOption(
   session: SessionInfo,
-  kind: "pinned" | "resumable" | "exited",
+  kind: "pinned" | "resumable" | "exited" | "dormant",
 )}
   {@const repository = repositoryById.get(
     session.workspace?.repositoryId ?? "",
@@ -161,8 +203,9 @@
   {@const detail = [repository?.name, branch, session.cwd]
     .filter(Boolean)
     .join(" · ")}
+  {@const ranking = kind === "dormant" ? "resumable" : kind}
   <Command.Item
-    value={`${kind}:${session.title} ${detail} ${session.id}`}
+    value={`${ranking}:${session.title} ${detail} ${session.id}`}
     onSelect={() => {
       selected = { id: session.id };
       open = false;
@@ -177,7 +220,11 @@
         {detail}
       </span>
     </span>
-    <SessionStatus {session} />
+    {#if kind === "dormant"}
+      <Badge variant="secondary">{m.sessions_resume_on_open()}</Badge>
+    {:else}
+      <SessionStatus {session} />
+    {/if}
   </Command.Item>
 {/snippet}
 
@@ -233,16 +280,18 @@
         aria-label={m.s1_matching_sessions()}
         class="h-[min(25rem,50dvh)] max-h-none min-h-0 overscroll-contain"
       >
-        {#if sessions?.length}
+        {#if sessions?.length || dormant.length}
           {#if !chatMatches.length}
             <Command.Empty>
               {searching
                 ? m.s1_searching_chat_messages()
                 : searchFailed
                   ? m.s1_search_chat_failed()
-                  : loadingMetadata
-                    ? m.s1_loading_repos_and_branches()
-                    : m.s1_no_matching_sessions()}
+                  : loading || loadingArchived
+                    ? m.s1_loading_sessions()
+                    : loadingMetadata
+                      ? m.s1_loading_repos_and_branches()
+                      : m.s1_no_matching_sessions()}
             </Command.Empty>
           {/if}
           {#if pinned.length}
@@ -252,10 +301,13 @@
               {/each}
             </Command.Group>
           {/if}
-          {#if resumable.length}
+          {#if resumable.length || dormant.length}
             <Command.Group heading={m.s1_group_resumable()} value="resumable">
               {#each resumable as session (session.id)}
                 {@render sessionOption(session, "resumable")}
+              {/each}
+              {#each dormant as record (record.id)}
+                {@render sessionOption(record, "dormant")}
               {/each}
             </Command.Group>
           {/if}
@@ -300,7 +352,7 @@
           <p role="alert" class="py-3 text-sm text-destructive">
             {m.s1_load_sessions_failed({ error: loadError })}
           </p>
-        {:else if loading}
+        {:else if loading || loadingArchived}
           <p role="status" class="py-3 text-sm text-muted-foreground">
             {m.s1_loading_sessions()}
           </p>
