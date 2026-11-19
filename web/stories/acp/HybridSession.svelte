@@ -35,6 +35,7 @@
     ChatUploads,
     UploadProgress,
   } from "../../src/hooks/shared/upload.svelte";
+  import { bottomToolbar } from "../../src/hooks/terminal/bottom-toolbar-preference.svelte";
   import {
     eligibilityText,
     shortId,
@@ -432,7 +433,6 @@
     error: "",
     claim() {},
   };
-  let bottomToolbarShown = $state(false);
 </script>
 
 {#snippet quickMenu(
@@ -454,10 +454,7 @@
   />
 {/snippet}
 
-<main
-  class="terminal-page"
-  data-bottom-toolbar={bottomToolbarShown ? "shown" : "auto"}
->
+<main class="terminal-page" data-bottom-toolbar={bottomToolbar.mode}>
   <SessionWorkspaceHeader
     {dock}
     {pickerOpen}
@@ -471,6 +468,7 @@
   {#snippet paneHeader()}
     <TerminalHeader
       features={{ chat: chatFeature, files: filesFeature }}
+      toolbarMode={bottomToolbar.mode}
       {terminal}
       {draft}
       uploading={false}

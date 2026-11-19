@@ -82,14 +82,15 @@
   <Button
     variant={phone.current ? "outline" : "ghost"}
     size={phone.current ? "sm-touch" : "icon-touch-sm"}
+    class="max-sm:min-w-0 max-sm:shrink"
     aria-label={m.s4_open_panel()}
     title={m.s4_open_panel()}
     aria-expanded={pickerOpen}
     aria-haspopup="dialog"
     onclick={openPanels}
   >
-    <IconLayout class="size-4" aria-hidden="true" />
-    {#if phone.current}{m.s4_open_panel()}{/if}
+    <IconLayout class="size-4" data-icon="inline-start" aria-hidden="true" />
+    {#if phone.current}<span class="truncate">{m.s4_open_panel()}</span>{/if}
   </Button>
   {#if fullscreen.offered}<Button
       variant="ghost"
@@ -159,3 +160,11 @@
     </DropdownMenu.Content>
   </DropdownMenu.Root>
 </header>
+
+<style>
+  @media (max-width: 639px) {
+    .app-header {
+      --control-touch: min(2.75rem, 44px);
+    }
+  }
+</style>

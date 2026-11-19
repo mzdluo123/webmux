@@ -123,6 +123,7 @@
   >
     <div
       class="dock-title"
+      data-session-dock-title={(compact && commands && !onclose) || undefined}
       role="presentation"
       draggable={canMove}
       ondblclick={(event) => {
@@ -295,6 +296,16 @@
   .dock-title-space.with-header {
     flex: 0 0 1rem;
     padding: 0;
+  }
+  .dock-title[data-session-dock-title] {
+    /* Keep icon targets usable when text zoom doubles rem lengths. */
+    --control-sm: min(2rem, 32px);
+    --control-touch: min(2.75rem, 44px);
+    --control-touch-compact: min(2.25rem, 36px);
+  }
+  .dock-title[data-session-dock-title] .dock-title-space.with-header {
+    flex-basis: min(1rem, 16px);
+    min-inline-size: min(1rem, 16px);
   }
   .dock-title[draggable="true"] {
     user-select: none;
