@@ -85,10 +85,7 @@ test("docking, peeking and pinning retain a running terminal and its layout", as
   const rightTab = page.locator(
     `[data-dock-rail="right"] [data-dock-tab="${secondId}"]`,
   );
-  const pin = async () =>
-    (await openDockCommands(root))
-      .getByRole("menuitem", { name: /^固定/ })
-      .click();
+  const pin = () => root.getByRole("button", { name: /^固定/ }).click();
   await (
     await openDockCommands(root)
   )
@@ -101,6 +98,15 @@ test("docking, peeking and pinning retain a running terminal and its layout", as
   await expect(second.locator(".xterm-rows")).toContainText("DOCK_COMPLETE");
   expect(await emulator!.evaluate((element) => element.isConnected)).toBe(true);
   await bottomTab.click();
+  await expect(root).toBeHidden();
+  await bottomTab.click();
+  await anchor.locator(".xterm-helper-textarea").focus();
+  await expect(root).toBeHidden();
+  await bottomTab.click();
+  await pin();
+  await anchor.locator(".xterm-helper-textarea").focus();
+  await expect(root).toBeVisible();
+  await root.getByRole("button", { name: /^取消固定/ }).click();
   await expect(root).toBeHidden();
   await bottomTab.click();
   await pin();

@@ -24,7 +24,7 @@ export function useDockPeek(
       close();
       return;
     }
-    function outside(event: PointerEvent) {
+    function outside(event: Event) {
       if (!(event.target instanceof Element)) return;
       if (
         !event.target.closest(
@@ -51,10 +51,12 @@ export function useDockPeek(
     }
     document.addEventListener("keydown", terminalEscape, true);
     document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("focusin", outside, true);
     document.addEventListener("keydown", escape);
     return () => {
       document.removeEventListener("keydown", terminalEscape, true);
       document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("focusin", outside, true);
       document.removeEventListener("keydown", escape);
     };
   });
