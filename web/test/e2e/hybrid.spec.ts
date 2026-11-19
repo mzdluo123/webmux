@@ -1741,14 +1741,14 @@ test.describe("hybrid sessions with the fake agent", () => {
     });
     await openHybrid(page, first, "terminal");
     await tuiTurn(page, "first-tui");
-    await expect(sideTab(page, "chat")).toHaveAccessibleName("聊天");
+    await expectSide(page, "terminal");
     const second = await createHybrid(request, workDir, "terminal", {
       name: "Kimi TUI two",
       agent: "kimi",
     });
     await openHybrid(page, second, "terminal");
     await tuiTurn(page, "second-tui");
-    await expect(sideTab(page, "chat")).toHaveAccessibleName("聊天");
+    await expectSide(page, "terminal");
 
     for (const id of [first, second]) {
       const archived = await request.delete(`/api/sessions/${id}`);
