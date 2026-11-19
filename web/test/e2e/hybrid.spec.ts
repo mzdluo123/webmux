@@ -1762,7 +1762,7 @@ test.describe("hybrid sessions with the fake agent", () => {
       });
     await question
       .getByRole("combobox", { name: "选择要恢复的会话" })
-      .selectOptions({ index: 1 });
+      .selectOption({ index: 1 });
     await question.getByRole("button", { name: "确认" }).click();
     await expectSide(page, "terminal");
     await expectTerminalLine(page, "> first-tui");
