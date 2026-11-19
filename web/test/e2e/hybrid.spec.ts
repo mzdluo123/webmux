@@ -2047,9 +2047,9 @@ test.describe("hybrid sessions with the fake agent", () => {
       (await (await request.get(`/api/sessions/${terminal}`)).json()).state,
     ).toBe("interrupted");
     const resumedTerminal = await openSessionLink(page, "E2E resume terminal");
-    await expectSide(resumedTerminal, "terminal");
     await expectTerminalLine(resumedTerminal, "> kept-in-tui");
     await expectTerminalLine(resumedTerminal, "< echo: kept-in-tui");
+    await expectSide(resumedTerminal, "terminal");
     await tuiTurn(resumedTerminal, "after-restart");
   });
 
