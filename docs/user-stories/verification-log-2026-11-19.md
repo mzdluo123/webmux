@@ -185,3 +185,10 @@
   - `WEBMUX_E2E_BINARY=$(realpath .cache/webmux-e2e/webmux) pnpm --dir web exec playwright test test/e2e/terminal.spec.ts` 通过。
 - 局限：
   - 浏览器与 E2E 验证在 Linux 无头 Chromium 中执行，未在物理触控设备或 Safari 真机上复测。
+
+## 2026-11-19：新会话首次连接时同步终端主题（US-D03、US-D06）
+
+- 首次附着前由服务端应答实时 DA1 查询，让 OMP 等程序结束启动探测；控制端连接后，新发出的 OSC 11 查询取得实际背景色。浏览器和原生附着的历史回放不补发启动应答。
+- `go test -race ./internal/session ./internal/attach -run 'Test(Probe|OSC|RealSessionAnswersProbe|ReplayDoesNotAnswerProbe|ColorScheme|AttachReportsNativeColorScheme)'` 通过。
+- `pnpm --dir web exec playwright test test/e2e/terminal-replies.spec.ts test/e2e/attention.spec.ts -g 'a new TUI learns|reopening suppresses|opening a session does not clear attention' --workers=3`：桌面及手机模拟视口共 8 项通过。
+- 在本地隔离 WebMux 与无头 Chromium 中运行 `omp --no-session`，等待启动探测写入 PTY 后才打开终端；确认 OMP 状态栏采用浅色，切换黑色再切回白色均重新查询并重绘。未使用真机。

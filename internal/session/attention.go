@@ -380,7 +380,8 @@ func (s *Session) signalHandler() *SignalHandler {
 		},
 		// Identity is collected for every session, whether or not it
 		// answers OSC 7501; it never affects attention or status.
-		Identity: s.identity.mergeSignals,
+		Identity:     s.identity.mergeSignals,
+		primaryAttrs: s.queueInitialPrimaryAttrsLocked,
 	}
 	if s.attentionPolicy.Notify {
 		h.Notify = func() { s.raiseAttentionLocked(attentionkind.Notify, SourceTerminal, layerNotify, time.Now()) }

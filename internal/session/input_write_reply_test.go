@@ -32,6 +32,7 @@ func TestProbeReplyPrecedesLaterInput(t *testing.T) {
 		s, reader := replySession(t)
 		go s.replyLoop(s.run)
 		s.mu.Lock()
+		s.run.attached = true
 		s.osc.Feed([]byte("\x1b]7501;?\a\x1b[c"), s.signals)
 		s.mu.Unlock()
 		if err := s.WriteInput(context.Background(), []byte(da1), true); err != nil {

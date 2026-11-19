@@ -45,3 +45,55 @@ test("reopening suppresses historical device replies and preserves live replies"
     .poll(() => readFile(path, "utf8"))
     .toBe(initial + "~~" + initial);
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`a new TUI learns the ${theme} theme even if it probes before the browser attaches`, async ({
+    page,
+    request,
+    workDir,
+  }) => {
+    await page.addInitScript(
+      (value) => localStorage.setItem("webmux.theme", value),
+      theme,
+    );
+    // Like omp, fence capability queries with DA1. A theme notification
+    // triggers a fresh OSC 11 query only after the startup probe has finished.
+    const program = String.raw`stty raw -echo
+exec perl - 3<&0 <<'PERL'
+open my $tty, "<&=3" or die $!;
+$| = 1;
+print "\e[c\e]11;?\a\e[0c\e[?2031h";
+my ($fences, $live, $reply) = (0, 0, "");
+while (sysread($tty, my $byte, 1)) {
+    $reply .= $byte;
+    if ($reply =~ /\e\[\?[\d;]+c$/) {
+        ++$fences;
+    } elsif ($reply =~ /\e\[\?997;[12]n$/) {
+        print "\e]11;?\a" if $fences == 2 && !$live++;
+    } elsif ($reply =~ m{\e\]11;rgb:([0-9a-f/]+)\e\\$}) {
+        print "\r\n", $live ? "LIVE_BG=$1" : "UNEXPECTED_STARTUP_COLOR", "\r\n";
+    } else {
+        next;
+    }
+    $reply = "";
+}
+PERL`;
+    const created = await request.post("/api/sessions", {
+      data: { cwd: workDir, cmd: ["/bin/bash", "-c", program] },
+    });
+    expect(created.status()).toBe(201);
+    const { id } = (await created.json()).session;
+    await expect
+      .poll(async () =>
+        (await request.get(`/api/sessions/${id}/buffer`)).text(),
+      )
+      .toContain("\x1b[?2031h");
+
+    await page.goto(`/s/${id}`);
+    const rgb = theme === "light" ? "ffff/ffff/ffff" : "0d0d/1111/1717";
+    await expectTerminalLine(page, `LIVE_BG=${rgb}`);
+    await expect(page.locator(".xterm-rows")).not.toContainText(
+      "UNEXPECTED_STARTUP_COLOR",
+    );
+  });
+}
