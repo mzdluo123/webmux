@@ -13,6 +13,7 @@
     activate,
     onactivate,
     header,
+    commands,
     children,
   }: {
     panel?: string;
@@ -20,6 +21,7 @@
     activate: (key: string) => void;
     onactivate: () => void;
     header: Snippet;
+    commands: Snippet;
     children: Snippet<[Record<string, unknown>]>;
   } = $props();
 </script>
@@ -35,6 +37,8 @@
         )}
         {onactivate}
         {header}
+        {commands}
+        headerOwnsTitle
       >
         {@render children({})}
       </DockPanel>

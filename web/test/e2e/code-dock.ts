@@ -8,7 +8,19 @@ export const codeReader = (page: Page) =>
   page.locator('[data-dock-panel^="reader:"]');
 
 export async function openCodeMenu(scope: Page | FrameLocator | Locator) {
-  await scope.getByRole("button", { name: "代码菜单", exact: true }).click();
+  const button = { name: "代码菜单", exact: true };
+  if (
+    "page" in scope &&
+    "getAttribute" in scope &&
+    !(await scope.getByRole("button", button).isVisible())
+  ) {
+    await scope.locator(".dock-title-space").click();
+    await scope
+      .page()
+      .locator(".session-toolbar")
+      .getByRole("button", button)
+      .click();
+  } else await scope.getByRole("button", button).click();
 }
 
 export async function showFileTree(page: Page) {

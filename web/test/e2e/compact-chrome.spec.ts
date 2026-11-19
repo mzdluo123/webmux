@@ -267,13 +267,14 @@ test("desktop terminal commands live in the workspace bar and code stays on sing
   await expect(commands).toHaveCount(0);
   await expect(fileTree(page).getByRole("navigation")).toContainText(workDir);
   const tabs = page.getByRole("tablist", { name: "文件标签" });
-  const center = async (locator: Locator) => {
-    const box = (await locator.boundingBox())!;
-    return box.y + box.height / 2;
-  };
-  const tabRow = await center(tabs);
-  const menu = page.getByRole("button", { name: "代码菜单", exact: true });
-  expect(Math.abs((await center(menu)) - tabRow)).toBeLessThan(2);
+  await expect(tabs).toBeVisible();
+  const menu = toolbar.getByRole("button", { name: "代码菜单", exact: true });
+  await expect(
+    toolbar.getByRole("button", { name: "文件内查找", exact: true }),
+  ).toBeVisible();
+  await expect(
+    codeReader(page).getByRole("button", { name: "代码菜单", exact: true }),
+  ).toHaveCount(0);
   await menu.click();
   await expect(page.getByRole("menu")).toContainText(join(workDir, "code.txt"));
   await expect(

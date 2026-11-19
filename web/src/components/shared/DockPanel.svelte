@@ -19,6 +19,7 @@
     children,
     header,
     commands,
+    headerOwnsTitle = false,
     hostProps,
   }: {
     id: string;
@@ -27,6 +28,7 @@
     children: Snippet<[boolean]>;
     header?: Snippet;
     commands?: Snippet;
+    headerOwnsTitle?: boolean;
     hostProps?: Record<string, unknown>;
   } = $props();
 
@@ -34,8 +36,12 @@
   const rect = $derived(dock.rect(id));
   const tabs = $derived(dock.tabs(id));
   const compact = $derived(dock.compact());
-  const localHeader = $derived(compact && commands ? commands : header);
-  const showTitle = $derived(commands ? !compact : !header);
+  const localHeader = $derived(
+    compact && commands && !headerOwnsTitle ? commands : header,
+  );
+  const showTitle = $derived(
+    !headerOwnsTitle && (commands ? !compact : !header),
+  );
   const zoomed = $derived(dock.zoomed(id));
   const edgeRails = $derived(dock.edgeRails());
   const canMove = $derived(!compact && !zoomed);

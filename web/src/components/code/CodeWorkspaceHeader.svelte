@@ -18,6 +18,7 @@
   import IconX from "~icons/tabler/x";
 
   let {
+    part = "all",
     navOpen = $bindable(),
     dockNavigation,
     navStatus,
@@ -36,6 +37,7 @@
     onOpenGit,
     onInspectGitFile,
   }: {
+    part?: "all" | "tabs" | "commands";
     navOpen: boolean;
     dockNavigation?: { shown: boolean; show: () => void };
     navStatus: string;
@@ -60,7 +62,7 @@
   const labels = $derived(fileTabLabels(tabs));
 </script>
 
-<div class="reader-strip flex min-w-0 items-center">
+{#snippet tabStrip()}
   {#if !dockNavigation?.shown}
     <div class="flex shrink-0 items-center">
       <Button
@@ -139,8 +141,14 @@
       </div>
     {/snippet}
   </Tabs.List>
+{/snippet}
+
+{#snippet commands()}
   <div class="flex shrink-0 items-center">
-    {#if activeQuick}<div class="quick-actions items-center">
+    {#if activeQuick}<div
+        class:quick-actions={part === "all"}
+        class="flex items-center"
+      >
         {@render activeQuick()}
       </div>{/if}
     <DropdownMenu.Root>
@@ -190,7 +198,16 @@
       </DropdownMenu.Content>
     </DropdownMenu.Root>
   </div>
-</div>
+{/snippet}
+
+{#if part === "commands"}
+  {@render commands()}
+{:else}
+  <div class="reader-strip flex min-w-0 items-center">
+    {@render tabStrip()}
+    {#if part === "all"}{@render commands()}{/if}
+  </div>
+{/if}
 
 <style>
   .reader-strip {

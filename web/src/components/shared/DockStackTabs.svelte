@@ -30,9 +30,9 @@
     observer.observe(node);
     return () => observer.disconnect();
   });
-  async function closeTab(index: number) {
-    const target = tabs[index].id;
-    const next = target === id ? (tabs[index + 1] ?? tabs[index - 1]).id : id;
+  async function closeTab(target: string, index: number) {
+    const next = target === id ? (tabs[index + 1] ?? tabs[index - 1])?.id : id;
+    if (!next) return;
     if (next !== id) show(next);
     dock.minimize(target);
     await focusTab(next);
@@ -70,7 +70,7 @@
             variant="tab-close"
             aria-label={m.s5_close_tab({ path: tab.title })}
             title={m.s5_close_tab({ path: tab.title })}
-            onclick={() => closeTab(index)}
+            onclick={() => closeTab(tab.id, index)}
             ><IconX aria-hidden="true" /></ListButton
           >
         </div>

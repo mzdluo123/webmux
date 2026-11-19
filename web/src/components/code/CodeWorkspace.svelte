@@ -292,8 +292,13 @@
   }
 </script>
 
-{#snippet readerHeader(tabs: CodeWorkspaceTab[], doc?: CodeWorkspaceTab)}
+{#snippet readerHeader(
+  tabs: CodeWorkspaceTab[],
+  doc?: CodeWorkspaceTab,
+  part: "all" | "tabs" | "commands" = "all",
+)}
   <CodeWorkspaceHeader
+    {part}
     bind:navOpen={ws.s.navOpen}
     dockNavigation={docked
       ? {
@@ -464,7 +469,12 @@
       if (ws.s.active !== current) activate(group, current);
     }}
   >
-    {#snippet header()}{@render readerHeader(tabs, doc)}{/snippet}
+    {#snippet header()}{@render readerHeader(
+        tabs,
+        doc,
+        dock?.compact() ? "all" : "tabs",
+      )}{/snippet}
+    {#snippet commands()}{@render readerHeader(tabs, doc, "commands")}{/snippet}
     {#snippet children(props)}{@render workspace(
         props,
         tabs,
