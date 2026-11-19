@@ -133,7 +133,7 @@ test("expired snapshots retain content and disable mouse and keyboard expansion"
     name: "向上展开 30 行",
     exact: true,
   });
-  const foldedBottom = page.getByText("67 行未修改", { exact: true });
+  const foldedBottom = page.getByText("67 行未修改", { exact: true }).first();
   await expect.element(expandBottom).toHaveAttribute("aria-disabled", "true");
   await expect.element(expandBottom).toHaveAttribute("tabindex", "-1");
   await expect.element(foldedBottom).toBeVisible();
