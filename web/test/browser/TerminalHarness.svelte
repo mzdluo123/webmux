@@ -6,6 +6,8 @@
   } from "../../src/hooks/terminal/terminal.svelte";
   import type { TerminalUserInput } from "../../src/hooks/terminal/terminal-input";
   import TerminalFindBar from "../../src/components/terminal/TerminalFindBar.svelte";
+  import TerminalNotices from "../../src/components/terminal/TerminalNotices.svelte";
+  import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
   import { terminalFindShortcut } from "../../src/hooks/terminal/terminal-find-shortcut";
   import { hasTouchInput } from "../../src/platform/touch-input";
 
@@ -22,6 +24,8 @@
     sizeLocked?: () => boolean;
     // Simulates the keyboard button's height-only hold.
     heightHeld?: () => boolean;
+    // Renders TerminalNotices alongside the terminal for notice tests.
+    showNotices?: boolean;
   };
   const props: Props = $props();
   const {
@@ -31,9 +35,11 @@
     keyboardDismissed,
     sizeLocked,
     heightHeld,
+    showNotices = false,
   } = untrack(() => ({
     ...props,
   }));
+  const noticeDraft = createTerminalDrafts().get("terminal-render-fixture");
 
   let container: HTMLDivElement;
   let copied = $state("");
@@ -102,6 +108,21 @@
 <textarea
   aria-label="Fixture code pane"
   style="position: fixed; left: 450px; top: 0"></textarea>
+{#if showNotices}
+  <div style="position: fixed; left: 0; top: 0; width: 400px; z-index: 20">
+    <TerminalNotices
+      {terminal}
+      draft={noticeDraft}
+      draftSaved=""
+      error=""
+      notice=""
+      showScratch={() => {}}
+      dismissScratch={() => {}}
+      remove={() => {}}
+      leave={() => {}}
+    />
+  </div>
+{/if}
 <div style="position: fixed; left: 0; top: 760px">
   <output aria-label="Terminal connection">{terminal.connection}</output>
   <output aria-label="Terminal restoration"

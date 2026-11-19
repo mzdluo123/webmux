@@ -270,3 +270,148 @@ func TestStashCreateInspectApplySafePopAndDrop(t *testing.T) {
 		t.Fatalf("expected 0 stashes after clean Pop, got %+v %v", remaining, err)
 	}
 }
+
+func TestExecuteStashPopNeedsReviewPreservationAndReplay(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	ctx := context.Background()
+
+	dir := initRepo(t)
+	s, _ := testService(t, t.TempDir(), dir)
+	repo := registerTest(t, s, dir)
+	wtID := repo.Worktrees[0].ID
+
+	putFile(t, filepath.Join(dir, "item.txt"), "base\n")
+	gitTest(t, dir, "add", "item.txt")
+	gitTest(t, dir, "commit", "-m", "init item")
+
+	// Create target stash entry stash@{0}.
+	putFile(t, filepath.Join(dir, "item.txt"), "stashed-v1\n")
+	createPrev, err := s.PreviewStashCreate(ctx, StashCreatePreviewRequest{
+		RepositoryID: repo.ID,
+		WorktreeID:   wtID,
+		Message:      "target-pop-stash",
+	})
+	if err != nil || createPrev.ConfirmationID == "" {
+		t.Fatalf("PreviewStashCreate: %+v %v", createPrev, err)
+	}
+	created, err := s.ExecuteStashCreate(ctx, ExecuteStashCreateRequest{
+		RepositoryID:   repo.ID,
+		WorktreeID:     wtID,
+		ConfirmationID: createPrev.ConfirmationID,
+	})
+	if err != nil {
+		t.Fatalf("ExecuteStashCreate: %v", err)
+	}
+
+	// Prepare a genuine stash commit via `git stash create` (leaves refs/stash untouched until stored).
+	putFile(t, filepath.Join(dir, "item.txt"), "concurrent-shift-content\n")
+	otherStashOID := gitTest(t, dir, "stash", "create")
+	gitTest(t, dir, "checkout", "--", "item.txt")
+
+	// 1. Slot shift after clean apply: ExecuteStashPop returns StashApplyNeedsReview ("needs_review"), preserves stash, and replays "needs_review".
+	popShiftPrev, err := s.PreviewStashApply(ctx, StashApplyPreviewRequest{
+		RepositoryID: repo.ID,
+		WorktreeID:   wtID,
+		Mode:         "pop",
+		StashRef:     created.Entry.StashRef,
+		StashOID:     created.Entry.OID,
+	})
+	if err != nil || popShiftPrev.ConfirmationID == "" {
+		t.Fatalf("PreviewStashApply pop shift: %+v %v", popShiftPrev, err)
+	}
+
+	shiftCtx := context.WithValue(ctx, stashApplyAfterApplyHookKey{}, func() {
+		gitTest(t, dir, "stash", "store", "-m", "WIP on main: concurrent shift", otherStashOID)
+	})
+	shiftReq := ExecuteStashApplyRequest{
+		RepositoryID:    repo.ID,
+		WorktreeID:      wtID,
+		ConfirmationID:  popShiftPrev.ConfirmationID,
+		ClientRequestID: "stash-pop-shift-1",
+	}
+	shiftRes, err := s.ExecuteStashPop(shiftCtx, shiftReq)
+	if err != nil {
+		t.Fatalf("ExecuteStashPop with slot shift: %v", err)
+	}
+	if shiftRes.Outcome != StashApplyNeedsReview || shiftRes.StashDropped || !shiftRes.StashPreserved {
+		t.Fatalf("expected Outcome=%q with stash preserved on slot shift, got %+v", StashApplyNeedsReview, shiftRes)
+	}
+	if got, rErr := os.ReadFile(filepath.Join(dir, "item.txt")); rErr != nil || string(got) != "stashed-v1\n" {
+		t.Fatalf("expected stash content applied to worktree, got %q %v", string(got), rErr)
+	}
+	shiftOp, err := s.GetGitOperation(repo.ID, shiftRes.OperationID)
+	if err != nil || shiftOp.Status != GitOpNeedsReview {
+		t.Fatalf("expected ledger status %q, got %+v %v", GitOpNeedsReview, shiftOp, err)
+	}
+
+	// Idempotent replay with same ClientRequestID keeps Outcome == "needs_review".
+	shiftReplay, err := s.ExecuteStashPop(ctx, shiftReq)
+	if err != nil {
+		t.Fatalf("ExecuteStashPop slot-shift idempotent replay: %v", err)
+	}
+	if shiftReplay.OperationID != shiftRes.OperationID ||
+		shiftReplay.Outcome != StashApplyNeedsReview ||
+		shiftReplay.StashDropped ||
+		!shiftReplay.StashPreserved {
+		t.Fatalf("expected idempotent replay to preserve Outcome=%q, got %+v", StashApplyNeedsReview, shiftReplay)
+	}
+
+	// 2. Drop failure preservation branch (refs/stash.lock): returns "needs_review" and replays "needs_review".
+	gitTest(t, dir, "reset", "--hard", "HEAD")
+	stashesBeforeLock, err := s.ListStashes(ctx, repo.ID)
+	if err != nil || len(stashesBeforeLock) < 2 {
+		t.Fatalf("expected both stashes present after shifted pop, got %+v %v", stashesBeforeLock, err)
+	}
+	var targetSlot StashEntry
+	for _, entry := range stashesBeforeLock {
+		if entry.OID == created.Entry.OID {
+			targetSlot = entry
+			break
+		}
+	}
+	if targetSlot.OID == "" {
+		t.Fatalf("original stash %s missing from list: %+v", created.Entry.OID, stashesBeforeLock)
+	}
+
+	popLockPrev, err := s.PreviewStashApply(ctx, StashApplyPreviewRequest{
+		RepositoryID: repo.ID,
+		WorktreeID:   wtID,
+		Mode:         "pop",
+		StashRef:     targetSlot.StashRef,
+		StashOID:     targetSlot.OID,
+	})
+	if err != nil || popLockPrev.ConfirmationID == "" {
+		t.Fatalf("PreviewStashApply pop lock: %+v %v", popLockPrev, err)
+	}
+
+	stashLockPath := filepath.Join(repo.CommonDir, "refs", "stash.lock")
+	putFile(t, stashLockPath, "locked\n")
+	t.Cleanup(func() { _ = os.Remove(stashLockPath) })
+
+	lockReq := ExecuteStashApplyRequest{
+		RepositoryID:    repo.ID,
+		WorktreeID:      wtID,
+		ConfirmationID:  popLockPrev.ConfirmationID,
+		ClientRequestID: "stash-pop-drop-fail-1",
+	}
+	lockRes, err := s.ExecuteStashPop(ctx, lockReq)
+	_ = os.Remove(stashLockPath)
+	if err != nil {
+		t.Fatalf("ExecuteStashPop with locked stash ref: %v", err)
+	}
+	if lockRes.Outcome != StashApplyNeedsReview || lockRes.StashDropped || !lockRes.StashPreserved {
+		t.Fatalf("expected Outcome=%q when stash drop fails, got %+v", StashApplyNeedsReview, lockRes)
+	}
+
+	lockReplay, err := s.ExecuteStashPop(ctx, lockReq)
+	if err != nil {
+		t.Fatalf("ExecuteStashPop drop-fail idempotent replay: %v", err)
+	}
+	if lockReplay.OperationID != lockRes.OperationID ||
+		lockReplay.Outcome != StashApplyNeedsReview ||
+		lockReplay.StashDropped ||
+		!lockReplay.StashPreserved {
+		t.Fatalf("expected idempotent replay to keep Outcome=%q, got %+v", StashApplyNeedsReview, lockReplay)
+	}
+}

@@ -803,3 +803,102 @@ func TestFixedSlotsRetryAuthenticationWithoutGrowth(t *testing.T) {
 	h.cancel()
 	awaitPoolClosed(t, h, roles...)
 }
+
+func TestPhysicalBackoffStabilityJitterAndRetryAfter(t *testing.T) {
+	b := newPhysicalBackoff(0)
+	if b.threshold != protocol.ControlLease {
+		t.Fatalf("threshold = %v, want %v", b.threshold, protocol.ControlLease)
+	}
+	// Short-lived disconnects continue exponential backoff up to maxBulkBackoff.
+	var prev time.Duration
+	for step := range 10 {
+		b.observeConnected(50 * time.Millisecond)
+		low := b.current
+		got := b.nextDelay(nil, 128)
+		high := low + 255*low/512
+		if got < low || got > high {
+			t.Fatalf("step %d delay = %v, want in [%v, %v]", step, got, low, high)
+		}
+		if step > 0 && low < maxBulkBackoff && low <= prev {
+			t.Fatalf("step %d base %v did not advance beyond %v", step, low, prev)
+		}
+		prev = low
+	}
+	if b.current != maxBulkBackoff {
+		t.Fatalf("capped current = %v, want %v", b.current, maxBulkBackoff)
+	}
+
+	// Stable uptime at or above threshold resets backoff to 100ms.
+	b.observeConnected(protocol.ControlLease)
+	if got := b.nextDelay(nil, 0); got != minPhysicalBackoff {
+		t.Fatalf("after stable run delay = %v, want %v", got, minPhysicalBackoff)
+	}
+
+	// RetryAfterSeconds acts as a strict lower bound with bounded jitter.
+	retryErr := protocol.Error{Code: protocol.RateLimited, RetryAfterSeconds: 6}
+	if got := b.nextDelay(retryErr, 0); got != 6*time.Second {
+		t.Fatalf("retryAfter delay without jitter = %v, want 6s", got)
+	}
+	if got := b.nextDelay(retryErr, 200); got < 6*time.Second || got > 9*time.Second {
+		t.Fatalf("retryAfter delay with jitter = %v, want in [6s, 9s]", got)
+	}
+}
+
+func TestFlappingPhysicalSlotBacksOffUntilStable(t *testing.T) {
+	id := newTestIdentity(t)
+	key := testKey(t)
+	a := testAssignment(t, id)
+	handler, controls, bulks := nodeFixture(t, id, key, a)
+	remote := tlsTestServer(t, id, handler, false)
+	c := newTestClient(t, id, remote.Listener.Addr().String(), "127.0.0.1:12345")
+	c.config.InteractiveConnections = 1
+	c.config.BulkConnections = 1
+	c.stableThreshold = 250 * time.Millisecond
+	owned := cloneAssignment(a)
+	c.assignment = &owned
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ready := make(chan protocol.Scope, 1)
+	done := make(chan error, 1)
+	go func() {
+		done <- c.Connect(ctx, key, a, Callbacks{
+			Ready:        func(scope protocol.Scope) { ready <- scope },
+			PoolsReady:   func(bool, bool) {},
+			Disconnected: func() {},
+			Revoke:       func(context.Context, protocol.Revocation) error { return nil },
+		})
+	}()
+	primary := awaitRole(t, controls)
+	if _, res := openNodeStream(t, primary, protocol.StreamControl, primary.scope); res.Error != nil {
+		t.Fatal(res.Error)
+	}
+	<-ready
+	_ = awaitRole(t, controls) // interactive slot
+
+	// Flap bulk slot three times immediately (< 250ms threshold).
+	for i := range 3 {
+		b := awaitRole(t, bulks)
+		closedAt := time.Now()
+		b.close()
+		if i == 2 {
+			bNext := awaitRole(t, bulks)
+			gap := time.Since(closedAt)
+			if gap < 350*time.Millisecond {
+				t.Fatalf("flapping bulk slot did not back off: reconnect gap = %v, want >= 350ms", gap)
+			}
+			// Keep bNext alive past stableThreshold, then close and verify reset.
+			time.Sleep(300 * time.Millisecond)
+			resetAt := time.Now()
+			bNext.close()
+			bAfterStable := awaitRole(t, bulks)
+			resetGap := time.Since(resetAt)
+			if resetGap > 350*time.Millisecond {
+				t.Fatalf("stable bulk slot did not reset backoff: reconnect gap = %v", resetGap)
+			}
+			bAfterStable.close()
+		}
+	}
+	cancel()
+	<-done
+}

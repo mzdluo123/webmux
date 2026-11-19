@@ -51,9 +51,13 @@ func (c *Conn) call(ctx context.Context, method string, params, result any, o ca
 		return c.afterDeath(method, id, ch, result)
 	case <-ctx.Done():
 		if o.mode == cancelTurn {
-			if err := c.notify(context.Background(), MethodSessionCancel, CancelNotification{SessionID: o.sessionID}); err != nil {
+			cancelBytes, err := encodeNotification(MethodSessionCancel, CancelNotification{SessionID: o.sessionID})
+			if err != nil {
 				c.forget(id)
 				return fmt.Errorf("acp: %s: %w", method, err)
+			}
+			if err := c.enqueueBounded(cancelBytes); err != nil {
+				return c.afterDeath(method, id, ch, result)
 			}
 			select {
 			case m = <-ch:
@@ -67,8 +71,10 @@ func (c *Conn) call(ctx context.Context, method string, params, result any, o ca
 		case m = <-ch:
 			// Answered while cancelling; the answer wins.
 		default:
-			// Best effort: the call has already failed for the caller.
-			_ = c.notify(context.Background(), MethodCancelRequest, CancelRequestNotification{RequestID: json.RawMessage(strconv.FormatInt(id, 10))})
+			// Best effort: queue $/cancel_request when space is available and return ctx.Err() immediately.
+			if cancelBytes, err := encodeNotification(MethodCancelRequest, CancelRequestNotification{RequestID: json.RawMessage(strconv.FormatInt(id, 10))}); err == nil {
+				c.tryEnqueue(cancelBytes)
+			}
 			return fmt.Errorf("acp: %s: %w", method, ctx.Err())
 		}
 	}
@@ -200,15 +206,14 @@ func (c *Conn) startRequest(m wireMessage) {
 	}()
 }
 
-// reply answers an agent request; the answer is dropped if the connection
-// has ended.
+// reply answers an agent request within the bounded write timeout; a stalled
+// write queue disconnects the connection so waiting callers wake up.
 func (c *Conn) reply(id json.RawMessage, result any, rpcErr *RPCError) {
 	b, err := encodeResponse(id, result, rpcErr)
 	if err != nil {
 		b, _ = encodeResponse(id, nil, &RPCError{Code: CodeInternalError, Message: "internal error"})
 	}
-	// Only a dead connection refuses the write, and then nobody is waiting.
-	_ = c.enqueue(context.Background(), b)
+	_ = c.enqueueBounded(b)
 }
 
 // noHandler serves connections opened without a Handler.

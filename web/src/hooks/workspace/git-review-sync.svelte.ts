@@ -117,8 +117,18 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
   const uncomReq = new LatestRequest();
   const taskReq = new LatestRequest();
   const mutateReq = new LatestRequest();
+  let disposed = false;
+
+  function isSameTarget(repoId: string, wtId: string | undefined): boolean {
+    return (
+      !disposed &&
+      repoId === bindings.getRepoId() &&
+      wtId === bindings.getWorktreeId()
+    );
+  }
 
   function dispose() {
+    disposed = true;
     uncomReq.dispose();
     taskReq.dispose();
     mutateReq.dispose();
@@ -185,8 +195,7 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
       if (
         !req.current() ||
         parentSignal?.aborted ||
-        repoId !== bindings.getRepoId() ||
-        wtId !== bindings.getWorktreeId()
+        !isSameTarget(repoId, wtId)
       ) {
         return;
       }
@@ -279,7 +288,7 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
         },
         req.signal,
       );
-      if (!req.current()) return;
+      if (!req.current() || !isSameTarget(repoId, wtId)) return;
       applyServerResponse(res);
       if (res.staleRejected) {
         bindings.patchView({
@@ -288,13 +297,13 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
         bindings.onStaleRejectedRefresh?.();
       }
     } catch (err) {
-      if (req.reportable()) {
+      if (req.reportable() && isSameTarget(repoId, wtId)) {
         bindings.patchView({
           statusBanner: formatError(errorMessage(err)),
         });
       }
     } finally {
-      if (req.current()) mutating = false;
+      if (req.current() && isSameTarget(repoId, wtId)) mutating = false;
     }
   }
 
@@ -315,6 +324,7 @@ export function createGitReviewSyncController(bindings: GitReviewSyncBindings) {
     let live = taskByPath.get(path);
     if (!live) {
       await refreshScope("task", repoId, wtId);
+      if (!isSameTarget(repoId, wtId)) return;
       live = taskByPath.get(path);
     }
     if (!live) {

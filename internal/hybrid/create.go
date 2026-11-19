@@ -190,14 +190,25 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*session.Session,
 	go a.run()
 	go a.watchShell()
 	go a.observeLoop()
+	applied := false
 	started := make(chan error, 1)
-	a.post(func() { a.start(started, initialArgv) })
+	a.post(func() { a.start(started, initialArgv, &applied) })
 	// The start runs to completion even if ctx ends, so a cancelled request
 	// never leaves a half-started session behind.
 	if err := awaitStarted(a, started); err != nil {
+		if errors.Is(err, errStopped) {
+			<-a.quit
+			a.probes.Wait()
+			a.subtasks.Wait()
+			if !applied {
+				_ = s.manager.Remove(info.ID)
+				if rerr := s.records.remove(info.ID); rerr != nil && !errors.Is(rerr, ErrNotFound) {
+					s.log.Warn("hybrid record cleanup failed", "id", info.ID, "error", rerr)
+				}
+			}
+		}
 		// The failed start removed its own record, so the dropped ones
 		// go back rather than being lost for nothing.
-
 		for _, e := range evicted {
 			if err := s.records.restore(e); err != nil {
 				s.log.Warn("hybrid evicted record restore failed", "id", e.ID, "error", err)

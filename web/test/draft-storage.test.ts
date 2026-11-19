@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from "vite-plus/test";
 import {
+  activeBrowserDraftStorage,
   browserDraftStorage,
   createDraftStorage,
   draftRetention,
@@ -8,8 +9,10 @@ import {
   scratchEntryLimit,
   scratchStorageLimit,
 } from "../src/domains/terminal/draft-storage";
+import { savedStorageLabel } from "../src/domains/terminal/session-terminal-io";
 import type { StoredDraft, StoredScratch } from "../src/contracts/schemas";
 import { setActiveHostId } from "../src/platform/storage";
+import { m } from "$lib/paraglide/messages.js";
 
 class MemoryStorage implements Storage {
   data = new Map<string, string>();
@@ -361,6 +364,81 @@ describe("browser draft storage", () => {
       expect(browserDraftStorage().load("cccccccc")?.text).toBe("fresh A");
       setActiveHostId("host-b");
       expect(browserDraftStorage().load("cccccccc")?.text).toBe("fresh B");
+    } finally {
+      setActiveHostId(null);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("activeBrowserDraftStorage routes storage operations, reconciliation and labels per active host", () => {
+    const memory = new MemoryStorage();
+    vi.stubGlobal("localStorage", memory);
+    try {
+      const storage = activeBrowserDraftStorage();
+      const now = Date.now();
+
+      setActiveHostId("host-a");
+      expect(storage.save(draft("aaaaaaaa", now, "draft on host A"))).toBe(
+        true,
+      );
+      expect(
+        storage.saveScratch(
+          scratch("aaaaaaaa", now, [
+            { id: "s-000001", text: "scratch on host A" },
+          ]),
+        ),
+      ).toBe(true);
+      expect(storage.count()).toBe(1);
+      expect(storage.scratchCount()).toBe(1);
+      expect(savedStorageLabel(true, "oversized")).toBe(m.s4_saved_locally());
+
+      // Switch to host-b, reconcile empty session list, and write new host-b records.
+      setActiveHostId("host-b");
+      storage.keep([]);
+
+      expect(storage.save(draft("bbbbbbbb", now, "draft on host B"))).toBe(
+        true,
+      );
+      expect(
+        storage.saveScratch(
+          scratch("bbbbbbbb", now, [
+            { id: "s-000002", text: "scratch on host B" },
+          ]),
+        ),
+      ).toBe(true);
+      expect(storage.load("aaaaaaaa")).toBeNull();
+      expect(storage.load("bbbbbbbb")?.text).toBe("draft on host B");
+      storage.setEnabled(false);
+      expect(savedStorageLabel(true, "oversized")).toBe(
+        m.s4_saved_memory_only(),
+      );
+      storage.setEnabled(true);
+      expect(storage.save(draft("bbbbbbbb", now, "draft on host B kept"))).toBe(
+        true,
+      );
+      expect(
+        storage.saveScratch(
+          scratch("bbbbbbbb", now, [
+            { id: "s-000003", text: "scratch on host B kept" },
+          ]),
+        ),
+      ).toBe(true);
+
+      // Switch back to host-a: host-a records survived host-b's empty reconcile.
+      setActiveHostId("host-a");
+      expect(savedStorageLabel(true, "oversized")).toBe(m.s4_saved_locally());
+      expect(storage.load("aaaaaaaa")?.text).toBe("draft on host A");
+      expect(storage.loadScratch("aaaaaaaa")?.entries[0]?.text).toBe(
+        "scratch on host A",
+      );
+      expect(storage.load("bbbbbbbb")).toBeNull();
+
+      // Switch back to host-b: host-b records reside in host-b's namespace.
+      setActiveHostId("host-b");
+      expect(storage.load("bbbbbbbb")?.text).toBe("draft on host B kept");
+      expect(storage.loadScratch("bbbbbbbb")?.entries[0]?.text).toBe(
+        "scratch on host B kept",
+      );
     } finally {
       setActiveHostId(null);
       vi.unstubAllGlobals();

@@ -207,6 +207,8 @@ func (s *Service) buildStashApplyStateLocked(ctx context.Context, anchor string,
 	}, nil
 }
 
+type stashApplyAfterApplyHookKey struct{}
+
 // ExecuteStashApply applies a confirmed stash entry without dropping it.
 func (s *Service) ExecuteStashApply(ctx context.Context, req ExecuteStashApplyRequest) (StashApplyResult, error) {
 	return s.executeStashApplyOrPop(ctx, GitOpStashApply, purposeStashApply, false, req)
@@ -369,8 +371,12 @@ func (s *Service) executeStashApplyOnce(ctx context.Context, kind string, p purp
 	ledgerStatus := GitOpSucceeded
 	summary := fmt.Sprintf("已应用贮藏 %s (%s)，贮藏条目保留", confirmed.stashRef, shortOID(confirmed.stashOID))
 	var reviewReasons []string
+	sanitizedStderr := run.stderr
 
 	if dropOnClean {
+		if fn, ok := ctx.Value(stashApplyAfterApplyHookKey{}).(func()); ok && fn != nil {
+			fn()
+		}
 		slot, slotErr := s.resolveStashSlotLocked(refreshCtx, r.entry.AnchorPath, confirmed.stashRef, confirmed.stashOID)
 		if slotErr != nil {
 			outcome = StashApplyNeedsReview
@@ -384,6 +390,9 @@ func (s *Service) executeStashApplyOnce(ctx context.Context, kind string, p purp
 				ledgerStatus = GitOpNeedsReview
 				summary = fmt.Sprintf("贮藏 %s 的变更已干净应用，但移除原贮藏条目失败，已安全保留条目", slot.StashRef)
 				reviewReasons = []string{summary}
+				if dropRun.stderr != "" {
+					sanitizedStderr = dropRun.stderr
+				}
 			} else {
 				dropped = true
 				preserved = false
@@ -400,7 +409,7 @@ func (s *Service) executeStashApplyOnce(ctx context.Context, kind string, p purp
 		op.ActualOID = confirmed.stashOID
 		op.Summary = summary
 		op.ReviewReasons = reviewReasons
-		op.SanitizedOutput = run.stderr
+		op.SanitizedOutput = sanitizedStderr
 	})
 	return StashApplyResult{
 		OperationID:    opID,

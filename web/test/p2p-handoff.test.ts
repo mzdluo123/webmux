@@ -37,10 +37,50 @@ import {
 import { connect, handoffLiveSockets, resumeTimeout } from "../src/platform/ws";
 import type { HandoffOptions } from "../src/platform/ws-contracts";
 import {
+  encodeStreamFrames,
+  HYBRID_SAMPLE_INTERVAL_MS,
+  StreamFrameReassembler,
+} from "../src/platform/p2p-framing";
+import { startP2P, stopP2P } from "../src/platform/p2p.svelte";
+import { p2pState } from "../src/platform/p2p-state.svelte";
+import {
   applyRelayAuth,
   clearRelayAuth,
   relayAuthRevision,
 } from "../src/platform/relay-auth";
+
+vi.mock("../src/platform/p2p-state.svelte", () => ({
+  p2pState: {
+    mode: "ws",
+    phase: "idle",
+    reason: "",
+    candidatePath: "unknown",
+    candidateType: "",
+    ipFamily: "",
+    portMapState: "off",
+    portMapProtocol: "",
+    portMapExternalPort: 0,
+    baselineRttMs: null,
+    p2pRttMs: null,
+    upgradeDurationMs: null,
+    switchCount: 0,
+    streams: [],
+    inputUncertain: false,
+    abTest: {
+      running: false,
+      error: "",
+      baselineSamples: [],
+      baselineMinMs: null,
+      baselineMedianMs: null,
+      p2pSamples: [],
+      p2pMinMs: null,
+      p2pMedianMs: null,
+      directSuccess: false,
+      candidateType: "",
+      ipFamily: "",
+    },
+  },
+}));
 
 class MockSocket implements TransportSocket {
   readyState = SOCKET_CONNECTING;
@@ -51,6 +91,7 @@ class MockSocket implements TransportSocket {
   onerror: (() => void) | null = null;
   readonly sent: (string | Uint8Array)[] = [];
   closed = false;
+  closeReason = "";
 
   constructor(
     readonly label: string,
@@ -86,9 +127,10 @@ class MockSocket implements TransportSocket {
     this.sent.push(typeof data === "string" ? data : data.slice());
   }
 
-  close() {
+  close(_code?: number, reason = "") {
     this.readyState = SOCKET_CLOSED;
     this.closed = true;
+    this.closeReason = reason;
   }
 }
 
@@ -1019,4 +1061,598 @@ it("does not invite replay when a terminal send throws after accepting bytes", (
     setClientTransport(null);
     vi.unstubAllGlobals();
   }
+});
+
+describe("Real P2P coordinator and live-socket fallback integration", () => {
+  class FakeWireWebSocket {
+    static instances: FakeWireWebSocket[] = [];
+    readyState = SOCKET_CONNECTING;
+    bufferedAmount = 0;
+    binaryType = "arraybuffer";
+    onopen: (() => void) | null = null;
+    onmessage: ((event: { data: string | ArrayBuffer }) => void) | null = null;
+    onclose: ((event: { code: number; reason: string }) => void) | null = null;
+    onerror: (() => void) | null = null;
+    readonly sent: (string | Uint8Array)[] = [];
+    closed = false;
+    closeReason = "";
+
+    constructor(
+      readonly url: string,
+      readonly subprotocols: string[],
+    ) {
+      FakeWireWebSocket.instances.push(this);
+    }
+
+    open() {
+      this.readyState = SOCKET_OPEN;
+      this.onopen?.();
+    }
+
+    deliverFrame(kind: number, body: string) {
+      const payload = new TextEncoder().encode(body);
+      const frame = new Uint8Array(payload.length + 1);
+      frame[0] = kind;
+      frame.set(payload, 1);
+      this.onmessage?.({ data: frame.buffer });
+    }
+
+    send(data: string | Uint8Array) {
+      this.sent.push(typeof data === "string" ? data : data.slice());
+    }
+
+    close(code = 1000, reason = "") {
+      this.readyState = SOCKET_CLOSED;
+      this.closed = true;
+      this.closeReason = reason;
+      this.onclose?.({ code, reason });
+    }
+  }
+
+  class FakeDataChannel extends EventTarget {
+    readyState: RTCDataChannelState = "connecting";
+    bufferedAmount = 0;
+    bufferedAmountLowThreshold = 0;
+    binaryType: BinaryType = "arraybuffer";
+    onopen: (() => void) | null = null;
+    onmessage: ((event: { data: string | ArrayBuffer }) => void) | null = null;
+    onclose: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    readonly sentFrames: (string | Uint8Array)[] = [];
+    readonly reassembler = new StreamFrameReassembler();
+    closedByClient = false;
+
+    constructor(
+      readonly label: string,
+      private readonly getPingDelayMs: () => number,
+    ) {
+      super();
+    }
+
+    open() {
+      if (this.readyState !== "connecting") return;
+      this.readyState = "open";
+      this.onopen?.();
+    }
+
+    send(data: string | Uint8Array) {
+      const copy = typeof data === "string" ? data : new Uint8Array(data);
+      this.sentFrames.push(copy);
+      if (this.label === "webmux:control" && typeof copy === "string") {
+        const msg = JSON.parse(copy) as {
+          type: string;
+          seq?: number;
+          clientTs?: number;
+        };
+        if (msg.type === "hello") {
+          setTimeout(() => {
+            if (this.readyState === "open") {
+              this.onmessage?.({
+                data: JSON.stringify({
+                  type: "hello",
+                  proto: 1,
+                  appVersion: "1",
+                  candidateType: "srflx/srflx",
+                  ipFamily: "ipv4",
+                }),
+              });
+            }
+          }, 0);
+        } else if (msg.type === "ping" && msg.seq !== undefined) {
+          const seq = msg.seq;
+          const clientTs = msg.clientTs ?? Date.now();
+          setTimeout(() => {
+            if (this.readyState === "open") {
+              this.onmessage?.({
+                data: JSON.stringify({
+                  type: "pong",
+                  seq,
+                  clientTs,
+                }),
+              });
+            }
+          }, this.getPingDelayMs());
+        }
+      }
+    }
+
+    decodedClientEvents() {
+      const out: ReturnType<StreamFrameReassembler["feed"]>[] = [];
+      const reader = new StreamFrameReassembler();
+      for (const item of this.sentFrames) {
+        if (typeof item === "string") continue;
+        const ev = reader.feed(item);
+        if (ev) out.push(ev);
+      }
+      return out;
+    }
+
+    deliverBinaryFrame(kind: number, body: string) {
+      const payload = new TextEncoder().encode(body);
+      const raw = new Uint8Array(payload.length + 1);
+      raw[0] = kind;
+      raw.set(payload, 1);
+      for (const chunk of encodeStreamFrames(raw)) {
+        this.onmessage?.({ data: chunk.buffer });
+      }
+    }
+
+    close() {
+      this.closedByClient = true;
+      this.readyState = "closed";
+    }
+  }
+
+  class FakePeerConnection {
+    static instances: FakePeerConnection[] = [];
+    connectionState: RTCPeerConnectionState = "connected";
+    onicecandidate: ((event: RTCPeerConnectionIceEvent) => void) | null = null;
+    onconnectionstatechange: (() => void) | null = null;
+    readonly channels: FakeDataChannel[] = [];
+    closed = false;
+    static pingDelayMs = 10;
+
+    constructor() {
+      FakePeerConnection.instances.push(this);
+    }
+
+    createDataChannel(label: string) {
+      const ch = new FakeDataChannel(
+        label,
+        () => FakePeerConnection.pingDelayMs,
+      );
+      this.channels.push(ch);
+      if (label === "webmux:control") {
+        setTimeout(() => ch.open(), 0);
+      }
+      return ch as unknown as RTCDataChannel;
+    }
+
+    async createOffer() {
+      return { type: "offer" as const, sdp: "v=0" };
+    }
+
+    async setLocalDescription() {}
+    async setRemoteDescription() {}
+    async addIceCandidate() {}
+    setConfiguration() {}
+
+    async getStats() {
+      const entries = new Map<string, Record<string, unknown>>([
+        [
+          "pair-1",
+          {
+            id: "pair-1",
+            type: "candidate-pair",
+            selected: true,
+            nominated: true,
+            state: "succeeded",
+            localCandidateId: "loc-1",
+            remoteCandidateId: "rem-1",
+          },
+        ],
+        [
+          "loc-1",
+          { id: "loc-1", candidateType: "srflx", address: "203.0.113.10" },
+        ],
+        [
+          "rem-1",
+          { id: "rem-1", candidateType: "srflx", address: "198.51.100.20" },
+        ],
+      ]);
+      return entries as unknown as RTCStatsReport;
+    }
+
+    close() {
+      this.closed = true;
+      this.connectionState = "closed";
+      for (const ch of this.channels) {
+        ch.readyState = "closed";
+      }
+    }
+  }
+
+  let baselineDelayMs = 150;
+  let signalCloses: string[] = [];
+  const conns: { close(): void }[] = [];
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    FakeWireWebSocket.instances = [];
+    FakePeerConnection.instances = [];
+    FakePeerConnection.pingDelayMs = 10;
+    baselineDelayMs = 150;
+    signalCloses = [];
+    vi.stubGlobal("WebSocket", FakeWireWebSocket);
+    vi.stubGlobal("RTCPeerConnection", FakePeerConnection);
+    vi.stubGlobal("navigator", {});
+    vi.stubGlobal("localStorage", {
+      getItem: () => "tok-1",
+      setItem: () => undefined,
+      removeItem: () => undefined,
+    });
+    vi.stubGlobal("location", {
+      protocol: "https:",
+      host: "term.example.com",
+      hostname: "term.example.com",
+      origin: "https://term.example.com",
+      search: "",
+    });
+    vi.stubGlobal(
+      "document",
+      Object.assign(new EventTarget(), {
+        hidden: false,
+        visibilityState: "visible",
+      }),
+    );
+    vi.stubGlobal(
+      "window",
+      Object.assign(new EventTarget(), { setTimeout: globalThis.setTimeout }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string, init?: RequestInit) => {
+        const url = new URL(input, "https://term.example.com");
+        if (url.pathname === "/api/p2p") {
+          return Response.json({
+            supported: true,
+            udpPort: 0,
+            udpBindings: [],
+            capabilities: { networks: ["udp4"], iceMode: "full", turn: false },
+            enabled: true,
+            portMapping: false,
+            stunServers: [],
+            source: "config",
+            storageAvailable: true,
+            portMap: { state: "off" },
+            activePeers: 0,
+            peers: [],
+          });
+        }
+        if (url.pathname === "/api/p2p/ping") {
+          const seq = Number(url.searchParams.get("seq"));
+          await new Promise((resolve) => setTimeout(resolve, baselineDelayMs));
+          return Response.json({ seq, serverTs: Date.now() });
+        }
+        if (url.pathname === "/api/p2p/signal") {
+          const body = JSON.parse(String(init?.body ?? "{}")) as {
+            action: string;
+            peerId?: string;
+          };
+          if (body.action === "close" && body.peerId) {
+            signalCloses.push(body.peerId);
+          }
+          return Response.json({
+            peerId: "peer-live",
+            sdp: "v=0",
+            candidates: [],
+            stunServers: [],
+          });
+        }
+        return Response.json({ error: "not found" }, { status: 404 });
+      }),
+    );
+  });
+
+  afterEach(() => {
+    while (conns.length > 0) conns.pop()?.close();
+    stopP2P();
+    setClientTransport(null);
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("cancels an in-flight cross-path candidate when handoff targets the already-active baseline path", () => {
+    const wsSockets: MockSocket[] = [];
+    const p2pSockets: MockSocket[] = [];
+    const wsTransport = makeTransport("ws", wsSockets, "wss");
+    const p2pTransport = makeTransport("p2p", p2pSockets, "webrtc-direct");
+
+    setClientTransport(wsTransport);
+    const conn = connect("/ws/sessions", vi.fn(), vi.fn(), vi.fn());
+    conns.push(conn);
+    wsSockets[0]!.open();
+
+    // Start staging a P2P candidate without delivering its snapshot yet.
+    setClientTransport(p2pTransport);
+    handoffLiveSockets({ targetPath: "webrtc-direct", allowReconnect: false });
+    expect(p2pSockets).toHaveLength(1);
+    expect(p2pSockets[0]!.closed).toBe(false);
+
+    // Fallback targets `wss`, which matches `wsSockets[0]`; stale P2P candidate closes immediately.
+    setClientTransport(wsTransport);
+    handoffLiveSockets({ targetPath: "wss", allowReconnect: true });
+    expect(p2pSockets[0]!.closed).toBe(true);
+    expect(p2pSockets[0]!.closeReason).toBe("cancel handoff");
+    expect(wsSockets).toHaveLength(1);
+    expect(wsSockets[0]!.closed).toBe(false);
+  });
+
+  it("gracefully drains P2P terminal stream via make-before-break before closing NegotiatedSession", async () => {
+    const onTerminalError = vi.fn();
+    const termConn = connect(
+      "/ws/s/s1?generation=0123456789abcdef&offset=4",
+      vi.fn(),
+      vi.fn(),
+      onTerminalError,
+    );
+    const listConn = connect("/ws/sessions", vi.fn(), vi.fn(), vi.fn());
+    conns.push(termConn, listConn);
+
+    expect(FakeWireWebSocket.instances).toHaveLength(2);
+    const initialTermWs = FakeWireWebSocket.instances[0]!;
+    const initialListWs = FakeWireWebSocket.instances[1]!;
+    initialTermWs.open();
+    initialListWs.open();
+
+    // Soft upgrade (80ms vs 20ms => allowReconnect: false) so unopened listDc keeps initialListWs on `wss`.
+    baselineDelayMs = 80;
+    FakePeerConnection.pingDelayMs = 20;
+    startP2P();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(p2pState.mode).toBe("p2p");
+    const pc = FakePeerConnection.instances[0]!;
+    const termDc = pc.channels.find((c) =>
+      c.label.startsWith("stream:/ws/s/s1"),
+    )!;
+    const listDc = pc.channels.find((c) => c.label === "stream:/ws/sessions")!;
+
+    // Complete upgrade only for terminal stream; leave list stream on `wss`.
+    termDc.open();
+    termDc.deliverBinaryFrame(
+      4,
+      JSON.stringify({
+        mode: "append",
+        generation: "0123456789abcdef",
+        start: 4,
+        end: 6,
+        truncated: false,
+      }),
+    );
+    acknowledgeFence(initialTermWs as unknown as MockSocket);
+    expect(initialTermWs.closed).toBe(true);
+
+    // Send terminal input over P2P DataChannel, then degrade RTT past hysteresis cooldown (6 * 5s).
+    expect(termConn.send(0, new Uint8Array([65]))).toBe(true);
+    baselineDelayMs = 80;
+    FakePeerConnection.pingDelayMs = 150;
+    await vi.advanceTimersByTimeAsync(HYBRID_SAMPLE_INTERVAL_MS * 6 + 1_000);
+
+    expect(p2pState.mode).toBe("ws");
+    expect(p2pState.phase).toBe("standby_hysteresis");
+    // List stream remained on `wss` without reconnecting; unopened listDc was cancelled.
+    expect(initialListWs.closed).toBe(false);
+    expect(listDc.closedByClient).toBe(true);
+    // Terminal stream opened a candidate baseline `wss` socket while PeerConnection stays alive for drain.
+    expect(FakeWireWebSocket.instances).toHaveLength(3);
+    const candidateTermWs = FakeWireWebSocket.instances[2]!;
+    expect(pc.closed).toBe(false);
+    expect(signalCloses).toEqual([]);
+
+    // Candidate baseline socket stages position, and InputHandoffFence drains over the live P2P DataChannel.
+    candidateTermWs.open();
+    candidateTermWs.deliverFrame(
+      4,
+      JSON.stringify({
+        mode: "append",
+        generation: "0123456789abcdef",
+        start: 6,
+        end: 8,
+        truncated: false,
+      }),
+    );
+    expect(pc.closed).toBe(false);
+    const dcFenceIds = termDc.decodedClientEvents().flatMap((ev) => {
+      if (!ev || ev.kind !== "message" || typeof ev.data === "string")
+        return [];
+      const bytes = new Uint8Array(ev.data);
+      if (bytes[0] !== 4) return [];
+      const parsed = JSON.parse(
+        new TextDecoder().decode(bytes.subarray(1)),
+      ) as { ids: string[] };
+      return parsed.ids;
+    });
+    expect(dcFenceIds).toHaveLength(1);
+    expect(dcFenceIds[0]).toMatch(/^hf-/);
+
+    termDc.deliverBinaryFrame(
+      5,
+      JSON.stringify({ id: dcFenceIds[0], state: "missing" }),
+    );
+
+    // Lossless handoff completes: P2P stream closes cleanly ("transport handoff"), zero uncertainty,
+    // and the draining NegotiatedSession closes immediately without waiting for the 10s drain timeout.
+    const closeEvents = termDc
+      .decodedClientEvents()
+      .filter((ev) => ev?.kind === "close");
+    expect(closeEvents).toEqual([
+      { kind: "close", code: 1000, reason: "transport handoff" },
+    ]);
+    expect(onTerminalError).not.toHaveBeenCalled();
+    expect(p2pState.inputUncertain).toBe(false);
+    expect(pc.closed).toBe(true);
+    expect(signalCloses).toEqual(["peer-live"]);
+  });
+
+  it("closes broken NegotiatedSession immediately on hard failure and reconnects P2P streams with zero backoff", async () => {
+    const termStates: string[] = [];
+    const termConn = connect(
+      "/ws/s/s1?generation=0123456789abcdef&offset=4",
+      vi.fn(),
+      (st) => termStates.push(st),
+      vi.fn(),
+    );
+    const listConn = connect("/ws/sessions", vi.fn(), vi.fn(), vi.fn());
+    conns.push(termConn, listConn);
+
+    const initialTermWs = FakeWireWebSocket.instances[0]!;
+    const initialListWs = FakeWireWebSocket.instances[1]!;
+    initialTermWs.open();
+    initialListWs.open();
+
+    startP2P();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(p2pState.mode).toBe("p2p");
+    const pc = FakePeerConnection.instances[0]!;
+    const termDc = pc.channels.find((c) =>
+      c.label.startsWith("stream:/ws/s/s1"),
+    )!;
+    const listDc = pc.channels.find((c) => c.label === "stream:/ws/sessions")!;
+
+    termDc.open();
+    termDc.deliverBinaryFrame(
+      4,
+      JSON.stringify({
+        mode: "append",
+        generation: "0123456789abcdef",
+        start: 4,
+        end: 6,
+        truncated: false,
+      }),
+    );
+    acknowledgeFence(initialTermWs as unknown as MockSocket);
+    expect(initialTermWs.closed).toBe(true);
+    expect(FakeWireWebSocket.instances).toHaveLength(2);
+
+    // Hard failure: PeerConnection transitions to `disconnected`.
+    pc.connectionState = "disconnected";
+    pc.onconnectionstatechange?.();
+
+    // Without advancing timers (0ms backoff), PeerConnection is closed and terminal reconnects on `wss`,
+    // while the baseline list stream stays open without reconnecting and its stale candidate is cancelled.
+    expect(pc.closed).toBe(true);
+    expect(signalCloses).toEqual(["peer-live"]);
+    expect(FakeWireWebSocket.instances).toHaveLength(3);
+    expect(FakeWireWebSocket.instances[2]!.url).toContain("/ws/s/s1");
+    expect(initialListWs.closed).toBe(false);
+    expect(listDc.closedByClient).toBe(true);
+  });
+
+  it("evacuates non-interactive P2P streams on graceful and ungraceful fallback and recovers interrupted drains", async () => {
+    const netConnection = new EventTarget();
+    vi.stubGlobal("navigator", { connection: netConnection });
+
+    // Part 1: Graceful fallback with a non-interactive `/ws/settings` stream opened during P2P.
+    startP2P();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(p2pState.mode).toBe("p2p");
+    const pc1 = FakePeerConnection.instances[0]!;
+
+    const settingsConn = connect("/ws/settings", vi.fn(), vi.fn(), vi.fn());
+    const termConn = connect(
+      "/ws/s/s1?generation=0123456789abcdef&offset=4",
+      vi.fn(),
+      vi.fn(),
+      vi.fn(),
+    );
+    conns.push(settingsConn, termConn);
+
+    const settingsDc1 = pc1.channels.find(
+      (c) => c.label === "stream:/ws/settings",
+    )!;
+    const termDc1 = pc1.channels.find((c) =>
+      c.label.startsWith("stream:/ws/s/s1"),
+    )!;
+    settingsDc1.open();
+    termDc1.open();
+    expect(FakeWireWebSocket.instances).toHaveLength(0);
+    expect(
+      p2pState.streams.map((s) => ({ kind: s.kind, path: s.path })),
+    ).toEqual([
+      { kind: "other", path: "webrtc-direct" },
+      { kind: "terminal", path: "webrtc-direct" },
+    ]);
+
+    // Degrade RTT across hysteresis cooldown to start graceful drain.
+    baselineDelayMs = 80;
+    FakePeerConnection.pingDelayMs = 150;
+    await vi.advanceTimersByTimeAsync(HYBRID_SAMPLE_INTERVAL_MS * 6 + 1_000);
+    expect(p2pState.mode).toBe("ws");
+    expect(p2pState.phase).toBe("standby_hysteresis");
+
+    // `/ws/settings` immediately closed its DataChannel and reopened on `wss` without waiting 10s,
+    // while `/ws/s/s1` opened a candidate `wss` socket and holds `pc1` open for its fence.
+    expect(settingsDc1.closedByClient).toBe(true);
+    expect(FakeWireWebSocket.instances).toHaveLength(2);
+    const settingsWs1 = FakeWireWebSocket.instances.find((ws) =>
+      ws.url.includes("/ws/settings"),
+    )!;
+    const candidateTermWs = FakeWireWebSocket.instances.find((ws) =>
+      ws.url.includes("/ws/s/s1"),
+    )!;
+    expect(settingsWs1).toBeDefined();
+    expect(candidateTermWs).toBeDefined();
+    settingsWs1.open();
+    expect(pc1.closed).toBe(false);
+
+    // Begin terminal fence on `termDc1`, then interrupt the graceful drain with `navigator.connection` change!
+    candidateTermWs.open();
+    candidateTermWs.deliverFrame(
+      4,
+      JSON.stringify({
+        mode: "append",
+        generation: "0123456789abcdef",
+        start: 4,
+        end: 6,
+        truncated: false,
+      }),
+    );
+    expect(pc1.closed).toBe(false);
+
+    netConnection.dispatchEvent(new Event("change"));
+
+    // Draining PeerConnection closes immediately, stalled candidate is cancelled, and terminal reopens on `wss` in 0ms.
+    expect(pc1.closed).toBe(true);
+    expect(candidateTermWs.closed).toBe(true);
+    expect(settingsWs1.closed).toBe(false);
+    expect(FakeWireWebSocket.instances).toHaveLength(3);
+    const recoveredTermWs = FakeWireWebSocket.instances[2]!;
+    expect(recoveredTermWs.url).toContain("/ws/s/s1");
+    recoveredTermWs.open();
+
+    // Part 2: Re-upgrade to P2P, open another non-interactive stream `/ws/repositories` on P2P,
+    // and verify hard failure (`pc.close()` without `dc.onclose`) reconnects `/ws/repositories` on `wss` immediately.
+    baselineDelayMs = 150;
+    FakePeerConnection.pingDelayMs = 10;
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(p2pState.mode).toBe("p2p");
+    const pc2 = FakePeerConnection.instances[1]!;
+
+    const reposConn = connect("/ws/repositories", vi.fn(), vi.fn(), vi.fn());
+    conns.push(reposConn);
+    const reposDc = pc2.channels.find(
+      (c) => c.label === "stream:/ws/repositories",
+    )!;
+    reposDc.open();
+    const wsCountBeforeHardFail = FakeWireWebSocket.instances.length;
+
+    pc2.connectionState = "disconnected";
+    pc2.onconnectionstatechange?.();
+
+    expect(pc2.closed).toBe(true);
+    const reposWs = FakeWireWebSocket.instances
+      .slice(wsCountBeforeHardFail)
+      .find((ws) => ws.url.includes("/ws/repositories"));
+    expect(reposWs).toBeDefined();
+  });
 });

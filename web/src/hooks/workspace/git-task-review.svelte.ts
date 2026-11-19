@@ -82,6 +82,13 @@ export function createGitTaskReviewController(
   const moreReq = new LatestRequest();
   const mutateReq = new LatestRequest();
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
+  let disposed = false;
+
+  function isSameTarget(repoId: string, wtId: string | undefined): boolean {
+    return (
+      !disposed && repoId === deps.getRepoId() && wtId === deps.getWorktreeId()
+    );
+  }
 
   const reader = createGitSnapshotDiffReader({
     getRepoId: deps.getRepoId,
@@ -107,6 +114,7 @@ export function createGitTaskReviewController(
   }
 
   function dispose() {
+    disposed = true;
     clearSearchTimer();
     listReq.dispose();
     moreReq.dispose();
@@ -184,8 +192,7 @@ export function createGitTaskReviewController(
       if (
         !req.current() ||
         parentSignal?.aborted ||
-        repoId !== deps.getRepoId() ||
-        wtId !== deps.getWorktreeId()
+        !isSameTarget(repoId, wtId)
       ) {
         return;
       }
@@ -236,7 +243,7 @@ export function createGitTaskReviewController(
       }
       deps.onTaskRefreshed?.(repoId, wtId, signal);
     } catch (err) {
-      if (!req.reportable()) return;
+      if (!req.reportable() || !isSameTarget(repoId, wtId)) return;
       patchReview({
         status: "error",
         reason: errorMessage(err),
@@ -263,11 +270,7 @@ export function createGitTaskReviewController(
         },
         req.signal,
       );
-      if (
-        !req.current() ||
-        repoId !== deps.getRepoId() ||
-        wtId !== deps.getWorktreeId()
-      ) {
+      if (!req.current() || !isSameTarget(repoId, wtId)) {
         return;
       }
       const latest = currentReview();
@@ -280,7 +283,7 @@ export function createGitTaskReviewController(
         loadingMore: false,
       });
     } catch (err) {
-      if (!req.reportable()) return;
+      if (!req.reportable() || !isSameTarget(repoId, wtId)) return;
       patchReview({ loadingMore: false });
       deps.patchView({
         statusBanner: m.s7_task_more_load_failed({ error: errorMessage(err) }),
@@ -304,11 +307,12 @@ export function createGitTaskReviewController(
     patchReview({ mutating: true });
     try {
       await execute(repoId, wtId, req.signal);
-      if (!req.current()) return;
+      if (!req.current() || !isSameTarget(repoId, wtId)) return;
       await refresh(repoId, wtId);
+      if (!req.current() || !isSameTarget(repoId, wtId)) return;
       deps.onBaselineChanged();
     } catch (err) {
-      if (!req.reportable()) return;
+      if (!req.reportable() || !isSameTarget(repoId, wtId)) return;
       patchReview({ mutating: false });
       deps.patchView({
         statusBanner: formatError(errorMessage(err)),
@@ -326,6 +330,7 @@ export function createGitTaskReviewController(
           baseOid ? { baseOid } : {},
           signal,
         );
+        if (signal.aborted || !isSameTarget(repoId, wtId)) return;
         const baseline = res.baseline ?? null;
         const label = formatBaselineEndpoint(baseline);
         deps.patchView({
@@ -344,6 +349,7 @@ export function createGitTaskReviewController(
       (error) => m.s7_task_clear_baseline_failed({ error }),
       async (repoId, wtId, signal) => {
         await gitDeleteTaskBaseline(repoId, wtId, signal);
+        if (signal.aborted || !isSameTarget(repoId, wtId)) return;
         reader.clearDiff();
         deps.patchView({
           taskBaseline: null,
@@ -408,11 +414,14 @@ export function createGitTaskReviewController(
       void loadTaskFileDiff(chosen);
     },
     setSearchQuery(searchQuery: string) {
+      const repoId = deps.getRepoId();
+      const wtId = deps.getWorktreeId();
       patchReview({ searchQuery });
       clearSearchTimer();
       searchTimer = setTimeout(() => {
         searchTimer = null;
-        void refresh();
+        if (!isSameTarget(repoId, wtId)) return;
+        void refresh(repoId, wtId);
       }, 200);
     },
   };

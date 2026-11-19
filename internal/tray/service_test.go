@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -189,4 +191,149 @@ func TestWSLServiceStatusRejectsUnsupportedContract(t *testing.T) {
 	go func() { _ = server.Serve(l) }()
 	defer func() { _ = server.Close() }()
 	check("local API")
+}
+
+type blockingCloseConn struct {
+	net.Conn
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (c *blockingCloseConn) Close() error {
+	c.once.Do(func() {
+		close(c.started)
+		<-c.release
+	})
+	return c.Conn.Close()
+}
+
+func TestWSLServiceCloseRaceAndTargetSwapOutsideLock(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "wst")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	socket := filepath.Join(dir, "webmux.sock")
+	l, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(contract.StatusV1{V: 1, State: contract.StateRunning, LocalAPI: true, Record: true})
+	})}
+	go func() { _ = server.Serve(l) }()
+	defer func() { _ = server.Close() }()
+
+	// Concurrent WSLService.Status and Close under -race.
+	for range 20 {
+		svc := &WSLService{
+			Runner: stoppedRunner{},
+			Dial:   func(Target) localclient.Dialer { return localclient.UnixDialer{Path: socket} },
+		}
+		var wg sync.WaitGroup
+		for range 4 {
+			wg.Go(func() {
+				_, _ = svc.Status(t.Context())
+			})
+		}
+		wg.Go(func() {
+			svc.Close()
+		})
+		wg.Wait()
+	}
+
+	// TargetService.Retarget releases t.mu before calling old.Close().
+	closeStarted := make(chan struct{})
+	releaseClose := make(chan struct{})
+	ts := NewTargetService(func(s Settings) *WSLService {
+		return &WSLService{
+			Runner: stoppedRunner{},
+			Target: Target{Distro: s.Distro, Webmux: "/usr/bin/webmux"},
+			Dial: func(Target) localclient.Dialer {
+				return dialFunc(func(ctx context.Context) (net.Conn, error) {
+					raw, dialErr := (localclient.UnixDialer{Path: socket}).DialContext(ctx)
+					if dialErr != nil {
+						return nil, dialErr
+					}
+					if s.Distro == "old" {
+						return &blockingCloseConn{Conn: raw, started: closeStarted, release: releaseClose}, nil
+					}
+					return raw, nil
+				})
+			},
+		}
+	}, Settings{Distro: "old"})
+
+	if _, err := ts.Status(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	retargetDone := make(chan struct{})
+	go func() {
+		ts.Retarget(Settings{Distro: "new"}, true)
+		close(retargetDone)
+	}()
+	select {
+	case <-closeStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("old WSLService.Close did not start")
+	}
+
+	currentDone := make(chan string, 1)
+	go func() {
+		currentDone <- ts.Current().Target.Distro
+	}()
+	select {
+	case got := <-currentDone:
+		if got != "new" {
+			t.Fatalf("Current distro = %q, want new", got)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("TargetService.Current blocked while old Close ran")
+	}
+	close(releaseClose)
+	<-retargetDone
+	ts.Close()
+}
+
+type dialFunc func(context.Context) (net.Conn, error)
+
+func (f dialFunc) DialContext(ctx context.Context) (net.Conn, error) { return f(ctx) }
+
+type watchCancelService struct {
+	fakeService
+	watchStarted chan struct{}
+	watchCtx     atomic.Pointer[context.Context]
+}
+
+func (w *watchCancelService) Watch(ctx context.Context, _ func(SessionCounts)) error {
+	w.watchCtx.Store(&ctx)
+	select {
+	case <-w.watchStarted:
+	default:
+		close(w.watchStarted)
+	}
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func TestSupervisorQuitWaitsForLoopCancel(t *testing.T) {
+	svc := &watchCancelService{
+		fakeService:  fakeService{running: true, record: true, launcher: contract.LauncherWindowsTray},
+		watchStarted: make(chan struct{}),
+	}
+	sup := NewSupervisor(Options{
+		Service:  svc,
+		Settings: manualSettings(),
+	})
+	select {
+	case <-svc.watchStarted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Watch did not start")
+	}
+	sup.Quit(false)
+	captured := svc.watchCtx.Load()
+	if captured == nil || (*captured).Err() == nil {
+		t.Fatal("Supervisor.Quit returned before loop cancelled watch context")
+	}
 }

@@ -178,7 +178,11 @@
           {#key diffKey}
             <CodeDiffReader
               fileDiff={diffMeta}
-              side="new"
+              side={(liveDiffState?.status || activeFile?.status) === "D" ||
+              (diffMeta.additionLines.length === 0 &&
+                diffMeta.deletionLines.length > 0)
+                ? "old"
+                : "new"}
               expired={false}
               draftEnabled={false}
               preferredDiffStyle="split"

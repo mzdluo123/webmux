@@ -296,6 +296,127 @@ func TestSmartCheckoutCrashReconciliationAcrossAllPhases(t *testing.T) {
 	}
 }
 
+func TestSmartCheckoutIdempotencyAndValidation(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	ctx := context.Background()
+
+	dir := initRepo(t)
+	putFile(t, filepath.Join(dir, "tracked.txt"), "v1\n")
+	gitTest(t, dir, "add", "tracked.txt")
+	gitTest(t, dir, "commit", "-m", "initial")
+	gitTest(t, dir, "branch", "feat/a")
+
+	s, _ := testService(t, t.TempDir(), dir)
+	repo := registerTest(t, s, dir)
+	wtID := repo.Worktrees[0].ID
+
+	putFile(t, filepath.Join(dir, "tracked.txt"), "local-dirty\n")
+
+	prev1, err := s.PreviewSmartCheckout(ctx, SmartCheckoutPreviewRequest{
+		RepositoryID: repo.ID,
+		WorktreeID:   wtID,
+		Target:       SwitchTarget{Kind: SwitchLocal, Branch: "feat/a"},
+	})
+	if err != nil || prev1.ConfirmationID == "" {
+		t.Fatalf("PreviewSmartCheckout 1: %+v %v", prev1, err)
+	}
+
+	// 1. Invalid ClientRequestID (whitespace or exceeding MaxClientRequestIDLen) returns ErrInvalid without writing ledger or consuming confirmation.
+	for _, badID := range []string{"bad id", "bad\tid", strings.Repeat("x", MaxClientRequestIDLen+1)} {
+		_, err := s.ExecuteSmartCheckout(ctx, ExecuteSmartCheckoutRequest{
+			RepositoryID:    repo.ID,
+			WorktreeID:      wtID,
+			ConfirmationID:  prev1.ConfirmationID,
+			ClientRequestID: badID,
+		})
+		if !errors.Is(err, ErrInvalid) {
+			t.Fatalf("expected ErrInvalid for clientRequestId %q, got %v", badID, err)
+		}
+	}
+	opsBefore, err := s.ListGitOperations(repo.ID, wtID, 20)
+	if err != nil || len(opsBefore) != 0 {
+		t.Fatalf("expected empty operation ledger after invalid clientRequestId, got %+v %v", opsBefore, err)
+	}
+
+	// 2. Same ClientRequestID retrying identical request replays first SmartCheckoutResult without 409 ErrStale.
+	req1 := ExecuteSmartCheckoutRequest{
+		RepositoryID:    repo.ID,
+		WorktreeID:      wtID,
+		ConfirmationID:  prev1.ConfirmationID,
+		ClientRequestID: "sc-retry-1",
+	}
+	res1, err := s.ExecuteSmartCheckout(ctx, req1)
+	if err != nil {
+		t.Fatalf("ExecuteSmartCheckout first call: %v", err)
+	}
+	if res1.Outcome != SmartCheckoutCompleted || res1.OperationID == "" {
+		t.Fatalf("unexpected first result: %+v", res1)
+	}
+
+	replay1, err := s.ExecuteSmartCheckout(ctx, req1)
+	if err != nil {
+		t.Fatalf("ExecuteSmartCheckout idempotent retry failed: %v", err)
+	}
+	if replay1.OperationID != res1.OperationID || replay1.Outcome != SmartCheckoutCompleted {
+		t.Fatalf("expected replayed SmartCheckoutResult matching %+v, got %+v", res1, replay1)
+	}
+	opsAfterRetry, err := s.ListGitOperations(repo.ID, wtID, 20)
+	if err != nil || len(opsAfterRetry) != 1 {
+		t.Fatalf("expected 1 ledger entry after retry, got %+v %v", opsAfterRetry, err)
+	}
+
+	// 3. Reusing the same ClientRequestID with different parameters returns ErrIdempotency.
+	_, err = s.ExecuteSmartCheckout(ctx, ExecuteSmartCheckoutRequest{
+		RepositoryID:        repo.ID,
+		WorktreeID:          wtID,
+		ConfirmationID:      prev1.ConfirmationID,
+		ClientRequestID:     "sc-retry-1",
+		AcknowledgeSessions: true,
+	})
+	if !errors.Is(err, ErrIdempotency) {
+		t.Fatalf("expected ErrIdempotency on mismatched parameters, got %v", err)
+	}
+
+	// 4. Empty ClientRequestID executed consecutively on the same worktree succeeds without colliding.
+	prevBack, err := s.PreviewSmartCheckout(ctx, SmartCheckoutPreviewRequest{
+		RepositoryID: repo.ID,
+		WorktreeID:   wtID,
+		Target:       SwitchTarget{Kind: SwitchLocal, Branch: "main"},
+	})
+	if err != nil || prevBack.ConfirmationID == "" {
+		t.Fatalf("PreviewSmartCheckout back to main: %+v %v", prevBack, err)
+	}
+	resEmpty1, err := s.ExecuteSmartCheckout(ctx, ExecuteSmartCheckoutRequest{
+		RepositoryID:   repo.ID,
+		WorktreeID:     wtID,
+		ConfirmationID: prevBack.ConfirmationID,
+	})
+	if err != nil || resEmpty1.Outcome != SmartCheckoutCompleted {
+		t.Fatalf("first empty ClientRequestID SmartCheckout failed: %+v %v", resEmpty1, err)
+	}
+
+	prevForward, err := s.PreviewSmartCheckout(ctx, SmartCheckoutPreviewRequest{
+		RepositoryID: repo.ID,
+		WorktreeID:   wtID,
+		Target:       SwitchTarget{Kind: SwitchLocal, Branch: "feat/a"},
+	})
+	if err != nil || prevForward.ConfirmationID == "" {
+		t.Fatalf("PreviewSmartCheckout forward to feat/a: %+v %v", prevForward, err)
+	}
+	resEmpty2, err := s.ExecuteSmartCheckout(ctx, ExecuteSmartCheckoutRequest{
+		RepositoryID:   repo.ID,
+		WorktreeID:     wtID,
+		ConfirmationID: prevForward.ConfirmationID,
+	})
+	if err != nil || resEmpty2.Outcome != SmartCheckoutCompleted {
+		t.Fatalf("second consecutive empty ClientRequestID SmartCheckout failed: %+v %v", resEmpty2, err)
+	}
+	if resEmpty1.OperationID == resEmpty2.OperationID {
+		t.Fatalf("expected distinct operation IDs for consecutive empty ClientRequestID calls, got %q", resEmpty1.OperationID)
+	}
+}
+
 func containsIssueCode(issues []Issue, code string) bool {
 	for _, it := range issues {
 		if it.Code == code {

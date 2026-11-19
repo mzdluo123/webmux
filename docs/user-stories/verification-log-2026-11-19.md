@@ -192,3 +192,36 @@
 - `go test -race ./internal/session ./internal/attach -run 'Test(Probe|OSC|RealSessionAnswersProbe|ReplayDoesNotAnswerProbe|ColorScheme|AttachReportsNativeColorScheme)'` 通过。
 - `pnpm --dir web exec playwright test test/e2e/terminal-replies.spec.ts test/e2e/attention.spec.ts -g 'a new TUI learns|reopening suppresses|opening a session does not clear attention' --workers=3`：桌面及手机模拟视口共 8 项通过。
 - 在本地隔离 WebMux 与无头 Chromium 中运行 `omp --no-session`，等待启动探测写入 PTY 后才打开终端；确认 OMP 状态栏采用浅色，切换黑色再切回白色均重新查询并重绘。未使用真机。
+
+## 2026-11-19：全量代码审查 P0/P1 修复核对（US-A08、US-A10、US-D03、US-F06、US-H12、US-J20–US-J22、US-J26–US-J28、US-Q03、US-Q12、US-R01）
+
+### 范围
+
+- 故事编号、总数（264）与覆盖索引保持不变，同步更新受影响故事与协议说明：
+  - 端口转发与 Relay 鉴权（`US-R01`、`US-A08`、`docs/protocol/http-forward.md`）：`/forward/` 校验允许来源与 `Sec-Fetch-Site`，外站顶层文档导航 303 至 `/forward-auth?confirm=1`，Relay 所有者浏览器会话同源转发写请求校验精确 `Origin`；
+  - 语音、会话伴随进程与托盘桥接（底层保障）：
+    - `voice` 单协程串行发送事件并在锁外关闭满载管道，`Session.Output` 有界排空；
+    - `forceSession`/`CleanupOrphan` 纳入标记与子孙树，8 MiB 回放放行 0 字节控制帧；
+    - `tailscaleController.ownership` 与 `WSLService`/`localclient`/`bridgeConn` 消除竞态并回收连接；
+  - 混合会话、ACP、Relay 与 P2P（`US-Q03`、`US-Q12`、`US-A10`、`US-A08`、`US-H12`）：
+    - `config_reapply` 保护缺失项索引并克隆切片，`runToACP` 停止超时转入 `switchAbandoned`；
+    - `acp.Conn` 非阻塞请求取消与有界写超时，`hybrid.Service.Close` 等待分离子任务并将关闭中会话落盘为 `StateClosed`，重启清理标记与脱离进程组的残留进程；
+    - Relay 连接稳定达租期后重置退避，P2P 回收每会话 ICE 配额并支持动态 TURN 续期及前端优雅降级排空；
+  - 终端草稿与输入确认（`US-F06`、`US-D03`、`US-H12`）：
+    - `TerminalDrafts` 动态委托当前激活主机存储命名空间，P2P 端口映射轮询遇瞬时失败继续探测；
+    - 在 `#791` 输入确认跟踪基础上补齐 `4404` 会话移除重置、前台探测跟进，以及手动重同步、视图切回或关闭提示条清除 `inputUncertain`；
+  - Git 工作区与前端工作台（`US-J20`–`US-J22`、`US-J26`–`US-J28`）：
+    - `ExecuteSmartCheckout` 按 `clientRequestId` 幂等重放，大文件（`> 32 MiB`）流式哈希与未跟踪嵌套 Git 仓库识别，`GitStashApplyResultSchema` 补齐 `needs_review`；
+    - 冲突解决器锁定保存期切换并按身份缓存草稿与上下文锚点切片，各确认弹窗参数变更与异常立即失效旧 `confirmationId`；
+    - 跨目标切换重置 `push`/`staging` 等子控制器，快照下载预捕获文件名并绑定取消，`CodeDiffReader` 与四个工作台差异面板对已删除/清空文件回退检索删除行。
+
+### 已执行验证与局限
+
+- 静态与治理门禁：
+  - `make check`（含 `make web`、`make format-check`、`make docs-check`、`make persistence-check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch` 49/49、`go vet` 与 `golangci-lint` v2.15.0 0 issues）通过；
+  - `make test-install`、`make tray`、`GOOS=windows go vet`、`GOOS=darwin go vet` 与 `go test -tags nop2p ./internal/p2p` 通过。
+- 全量测试套件：
+  - Go `-race`（`make test-go`，95 个包）、Vitest 单元测试（89 个文件，1,265 项）、Vitest 浏览器测试（120 个文件，1,008 项）、Storybook（142 项）、Playwright 端到端测试（546 项通过，56 项按设备跳过）与 4× CPU 性能回归（18 项通过，2 项跳过）全部通过；
+  - 在隔离演示服务采集桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色前后对比截图及桌面交互 GIF，并在 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 视口校验 `scrollWidth <= innerWidth`。
+- 局限：
+  - 验证在 Linux 本地隔离实例与无头 Chromium 中完成，未验证物理 `hover`、`any-pointer: coarse` 媒体查询、原生 Windows 托盘交互、真实公网 Relay/TURN 节点及 macOS / iOS / Android 真机浏览器。

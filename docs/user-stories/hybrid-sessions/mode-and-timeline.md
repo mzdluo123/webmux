@@ -39,7 +39,7 @@
     - 未被其他会话占用；
   - 宽屏下划线平滑移向当前选择，手机菜单标记当前输入端。切换中显示进度；目标内容就绪后短暂淡入，开启减少动态效果时直接显示。
   - TUI 在回合中时先发中断键并等待空闲（Claude Code、Antigravity CLI 与 Kimi 为一次 Esc；Codex 启动阶段的“工作中”不算回合，Claude 无启动静默期），10 秒后可选继续等待、强制切换或取消（强制切换的损失说明取自服务端 `forceSwitchNote`，由各 agent 适配器提供）；
-  - 进入目标端前确认 TUI 进程组已退出；
+  - 进入目标端前确认 TUI 进程组已退出；若停止超时仍未确认退出，切换中止并将记录标为已中断、保留原进程身份待清理，不启动第二个并发 TUI 进程；
   - 聊天视图回放完整历史，保留终端端已上报或列表查到的当前会话标题，模型等配置与切换前一致：
     - 按档案补齐 omp 的 mode、Antigravity CLI 的 model 与 thought_level，以及 Codex 的模式、模型、推理强度；Antigravity CLI 与 Codex 首次切换按启动参数推导配置；
     - Claude 首次从 argv 推导 model/effort/mode，冷 load 与 resume 后重应用 model/effort，mode 保留连接器从 transcript 恢复的实际值，回退显示实际配置与通知；

@@ -88,6 +88,12 @@ export function createGitFileInspectorController(deps: GitFileInspectorDeps) {
       : null,
   );
 
+  function isSameTarget(repoId: string, wtId: string | undefined): boolean {
+    return (
+      !disposed && repoId === deps.getRepoId() && wtId === deps.getWorktreeId()
+    );
+  }
+
   function dispose() {
     disposed = true;
     historyReq.dispose();
@@ -102,17 +108,26 @@ export function createGitFileInspectorController(deps: GitFileInspectorDeps) {
     historyReader.resetTarget();
     compareReader.resetTarget();
     open = false;
+    tab = "history";
     filePath = "";
     initialRev = "";
     historyRows = [];
     historyNextCursor = "";
+    historyLoading = false;
+    historyLoadingMore = false;
     historyError = "";
     selectedHistoryOid = null;
+    compareBaseOid = "";
+    compareBaseLabel = "";
+    compareTargetKind = "worktree";
+    compareTargetOid = "";
     fallbackBranches = [];
   }
 
   function close() {
     historyReq.cancel();
+    historyLoading = false;
+    historyLoadingMore = false;
     open = false;
   }
 
@@ -124,9 +139,10 @@ export function createGitFileInspectorController(deps: GitFileInspectorDeps) {
       return;
     }
     const repoId = deps.getRepoId();
+    const wtId = deps.getWorktreeId();
     if (!repoId) return;
     const res = await repositoryBranches(repoId).catch(() => null);
-    if (res && !disposed && repoId === deps.getRepoId()) {
+    if (res && isSameTarget(repoId, wtId)) {
       fallbackBranches = mapGitBranchesResponse(undefined, null, [], res);
     }
   }
@@ -174,7 +190,9 @@ export function createGitFileInspectorController(deps: GitFileInspectorDeps) {
 
   async function loadHistory(reset = true) {
     const repoId = deps.getRepoId();
-    if (!repoId || !filePath || disposed) return;
+    const wtId = deps.getWorktreeId();
+    const targetPath = filePath;
+    if (!repoId || !targetPath || disposed) return;
     if (reset) {
       historyLoading = true;
     } else {
@@ -187,15 +205,22 @@ export function createGitFileInspectorController(deps: GitFileInspectorDeps) {
       const page = await gitFileHistory(
         repoId,
         {
-          path: filePath,
+          path: targetPath,
           rev: initialRev || undefined,
-          worktreeId: deps.getWorktreeId(),
+          worktreeId: wtId,
           cursor: reset ? undefined : historyNextCursor,
           limit: 50,
         },
         req.signal,
       );
-      if (!req.current() || disposed || repoId !== deps.getRepoId()) return;
+      if (
+        !req.current() ||
+        !open ||
+        !isSameTarget(repoId, wtId) ||
+        targetPath !== filePath
+      ) {
+        return;
+      }
       const combined = reset ? page.commits : [...historyRows, ...page.commits];
       historyRows = combined;
       historyNextCursor = page.nextCursor ?? "";
@@ -206,9 +231,11 @@ export function createGitFileInspectorController(deps: GitFileInspectorDeps) {
         else historyReader.clearDiff();
       }
     } catch (err) {
-      if (req.reportable()) historyError = errorMessage(err);
+      if (req.reportable() && isSameTarget(repoId, wtId)) {
+        historyError = errorMessage(err);
+      }
     } finally {
-      if (req.current()) {
+      if (req.current() && isSameTarget(repoId, wtId)) {
         historyLoading = false;
         historyLoadingMore = false;
       }
@@ -280,7 +307,10 @@ export function createGitFileInspectorController(deps: GitFileInspectorDeps) {
     } else if (nextTab === "blame" && !blame.data && !blame.loading) {
       void blame.load(blame.rev || initialRev, blame.path || filePath, false);
     } else if (nextTab === "compare") {
+      const repoId = deps.getRepoId();
+      const wtId = deps.getWorktreeId();
       void ensureRefsLoaded().then(() => {
+        if (!open || tab !== "compare" || !isSameTarget(repoId, wtId)) return;
         if (!compareBaseOid) {
           const head =
             deps.getHeadOid?.() || initialRev || availableRefs[0]?.head || "";

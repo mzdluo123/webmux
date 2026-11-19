@@ -29,6 +29,19 @@ type AuthPeer struct {
 	Host             protocol.ICEEndpoint
 	Context          context.Context
 	Session          *AuthSession
+	Release          func()
+}
+
+func (a *Auth) peerReleaser(s *AuthSession, peer *authPeer) func() {
+	return func() {
+		peer.cancel()
+		a.mu.Lock()
+		if s.peers[peer.id] == peer {
+			delete(s.peers, peer.id)
+		}
+		a.mu.Unlock()
+		<-peer.done
+	}
 }
 
 func cloneAuthEndpoint(endpoint protocol.ICEEndpoint) protocol.ICEEndpoint {
@@ -193,7 +206,7 @@ func (a *Auth) AuthorizePeer(principal AuthPrincipal, peerID protocol.Token, fin
 	}
 	peer.used = true
 	peer.fingerprint = fingerprint
-	return AuthPeer{PeerConnectionID: peerID, Fingerprint: fingerprint, Host: cloneAuthEndpoint(peer.host), Context: peer.ctx, Session: s}, nil
+	return AuthPeer{PeerConnectionID: peerID, Fingerprint: fingerprint, Host: cloneAuthEndpoint(peer.host), Context: peer.ctx, Session: s, Release: a.peerReleaser(s, peer)}, nil
 }
 
 // LookupPeer rechecks current session, exact peer, fingerprint and expiry. It
@@ -213,5 +226,5 @@ func (a *Auth) LookupPeer(principal AuthPrincipal, peerID protocol.Token, finger
 	if peer == nil || !peer.used || peer.fingerprint != fingerprint || peer.ctx.Err() != nil || !a.deps.Now().Before(peer.expires) {
 		return AuthPeer{}, protocol.Error{Code: protocol.Unauthenticated}
 	}
-	return AuthPeer{PeerConnectionID: peerID, Fingerprint: fingerprint, Host: cloneAuthEndpoint(peer.host), Context: peer.ctx, Session: s}, nil
+	return AuthPeer{PeerConnectionID: peerID, Fingerprint: fingerprint, Host: cloneAuthEndpoint(peer.host), Context: peer.ctx, Session: s, Release: a.peerReleaser(s, peer)}, nil
 }

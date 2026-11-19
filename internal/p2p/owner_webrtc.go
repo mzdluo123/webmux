@@ -72,7 +72,7 @@ func OfferFingerprint(raw string) (string, error) {
 func validOwner(owner *OwnerAuthorization) bool {
 	return owner != nil && owner.OwnerID != "" && owner.PeerConnectionID != "" &&
 		owner.Fingerprint != "" && owner.Context != nil && owner.Context.Err() == nil &&
-		time.Now().Before(owner.ExpiresAt)
+		(owner.ExpiresAt.IsZero() || time.Now().Before(owner.ExpiresAt))
 }
 
 func (p *peerEntry) permits(owner *OwnerAuthorization) bool {

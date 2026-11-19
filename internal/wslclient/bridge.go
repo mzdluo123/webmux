@@ -45,6 +45,9 @@ type BridgeDialer struct {
 }
 
 func (d *BridgeDialer) DialContext(ctx context.Context) (net.Conn, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	cmd := d.Command()
 	// Own the pipes: exec.Cmd.Wait closes pipes it created, which would
 	// race with reads still draining the response.
@@ -59,7 +62,7 @@ func (d *BridgeDialer) DialContext(ctx context.Context) (net.Conn, error) {
 		return nil, err
 	}
 	cmd.Stdin, cmd.Stdout = stdinRead, stdoutWrite
-	conn := &bridgeConn{cmd: cmd, stdin: stdinWrite, stdout: stdoutRead, exited: make(chan struct{}), timeout: d.CloseTimeout}
+	conn := &bridgeConn{cmd: cmd, stdin: stdinWrite, stdout: stdoutRead, exited: make(chan struct{}), closed: make(chan struct{}), timeout: d.CloseTimeout}
 	if conn.timeout == 0 {
 		conn.timeout = DefaultCloseTimeout
 	}
@@ -119,6 +122,7 @@ type bridgeConn struct {
 	stdout  io.ReadCloser
 	stderr  boundedBuffer
 	exited  chan struct{}
+	closed  chan struct{}
 	waitErr error
 	timeout time.Duration
 
@@ -145,9 +149,19 @@ func (c *bridgeConn) Read(p []byte) (int, error) {
 	if received {
 		return n, err
 	}
+	if errors.Is(err, os.ErrClosed) {
+		select {
+		case <-c.exited:
+			return n, c.exitError(err)
+		default:
+			return n, err
+		}
+	}
+	timer := time.NewTimer(c.timeout)
 	select {
 	case <-c.exited:
-	case <-time.After(c.timeout):
+		timer.Stop()
+	case <-timer.C:
 		return n, err
 	}
 	return n, c.exitError(err)
@@ -183,19 +197,23 @@ func (c *bridgeConn) Write(p []byte) (int, error) {
 // CloseWrite ends the request stream; the bridge half-closes the socket.
 func (c *bridgeConn) CloseWrite() error { return c.stdin.Close() }
 
-// Close ends stdin, waits for the bridge to exit and kills it after the
-// timeout.
+// Close closes stdin and stdout, waits for the bridge to exit, and kills it
+// after the timeout.
 func (c *bridgeConn) Close() error {
 	c.closeOnce.Do(func() {
 		_ = c.stdin.Close()
+		_ = c.stdout.Close()
+		timer := time.NewTimer(c.timeout)
 		select {
 		case <-c.exited:
-		case <-time.After(c.timeout):
+			timer.Stop()
+		case <-timer.C:
 			_ = c.cmd.Process.Kill()
 			<-c.exited
 		}
-		_ = c.stdout.Close()
+		close(c.closed)
 	})
+	<-c.closed
 	return nil
 }
 

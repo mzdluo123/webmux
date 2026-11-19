@@ -231,6 +231,7 @@
           size="sm"
           aria-label={m.s6_conflict_switch_file_aria()}
           value={conflict.activePath ?? detail?.path ?? ""}
+          disabled={conflict.saving || conflict.resolving}
           onchange={(e) => void conflict.selectFile(e.currentTarget.value)}
         >
           {#each conflictedFiles as cf (cf.path)}

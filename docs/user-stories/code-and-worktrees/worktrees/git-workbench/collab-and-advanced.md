@@ -58,7 +58,7 @@
       - 窄屏（`< 1280px`，含 `320px` 与 `200%` 根字号）通过顶部 `SegmentedControl` 切换 `左侧来源 / 右侧来源 / 共同祖先 Base` 与逐块裁决卡，同时在底部**常驻显示可编辑 `Result` 区域**且零横向溢出；
     - `rebase` 期间服务端将 `left` 固定映射为 `stage 3`（当前分支重放提交）、`right` 固定映射为 `stage 2`（变基目标基底），界面左右列永不对调，并在列头显式展示真实分支名、提交短 OID 与语义角色；
     - 文本冲突四步递进门禁：
-      1. 草稿态：逐块接受左/右/双侧、一键应用全部非冲突改动或手动编辑；
+      1. 草稿态：逐块接受左/右/双侧、一键应用全部非冲突改动或手动编辑（手动编辑后通过上下文锚点原地替换目标冲突块，切换冲突文件或关闭重开解决器按身份缓存未保存草稿，保存与解决在途期间锁定文件切换并核对目标一致性）；
       2. `保存结果 (Save Result)`：拦截遗留 `<<<<<<<` 冲突标记，经 `internal/worktreefs` 的 `os.Root` 原子写回工作区文件，**不自动暂存**，`1..3` 阶保留；
       3. `标记已解决 (Mark as Resolved)`：核对 `stageIdentityKey` 与 `diskSHA` 后写入 `stage 0` 并清除 `1..3` 阶；
       4. `继续操作 (Continue)`：仅当全部未合并条目清零后启用并继续序列操作；
@@ -72,7 +72,7 @@
     - 新建贮藏采用两阶段预览确认，支持自定义说明、`-u`（包含未跟踪文件）与 `--keep-index`，活跃会话存在时要求显式勾选知晓确认；
     - 贮藏详情合并展示已跟踪改动（`base -> S`）与第 3 父节点未跟踪文件（`S^3`，标注 `未跟踪 (S^3)`），支持只读文本差异，以及图片和 PDF 快照预览；
     - `Apply` 与 `Pop` 支持 `--index` 恢复原暂存态。覆盖路径在确认区上方滚动。切换模式或索引选项会撤下旧确认，等新预览成功后才可确认：
-      - 安全两步 `Pop` 先执行 `git stash apply --quiet <oid>`，仅在无冲突成功时才按精确 OID 清理条目；
+      - 安全两步 `Pop` 先执行 `git stash apply --quiet <oid>`，仅在无冲突且槽位一致时按精确 OID 清理条目；若槽位偏移或自动删除失败则保留原贮藏并返回 `outcome: "needs_review"` 提示人工核对；
       - 一旦产生合并冲突则**100% 保留原贮藏条目**并直接进入 `GitConflictView`（`operation.kind = "unstash"`，`canContinue = false`，隐藏多步序列 `Continue` 按钮）；
     - 单条 `Drop` 复核 `stashRef` 仍指向预期 `oid` 后删除并提供 `git stash apply <oid>` 恢复命令，全程不提供 `stash clear`；
   - 日常高级提交选项与已推送 `HEAD` 防误改历史门禁：
@@ -104,13 +104,14 @@
     - 首次勾选、连续扩选和清空时，操作栏高度与当前行的阅读位置稳定；
   - 受控 `丢弃更改 (Discard Changes)`、写盘前新鲜度门禁与恢复快照（`G11`）：
     - 与只改 `.git/index` 的 `Unstage` 严格分离：仅面向 `Unstaged` 与 `Untracked` 开放单文件、左侧列表多选文件（含已跟踪 + 未跟踪混合批量）、单 Hunk 与选中行四级丢弃范围，**绝不触碰已暂存索引条目**；
-    - 两阶段预览确认（`POST .../git/discard-preview` → `POST .../git/discard`）列出将被覆盖或删除的路径及活跃会话警告（有运行中会话时强制要求 `acknowledgeSessions`）；
+    - 两阶段预览确认（`POST .../git/discard-preview` → `POST .../git/discard`）列出将被覆盖或删除的路径及活跃会话警告（有运行中会话时强制要求 `acknowledgeSessions`）；参数变更、刷新预览或请求失败时立即撤下旧 `confirmationId` 并重置会话确认勾选；
     - 执行写盘前在仓库锁下逐一重算目标磁盘文件最新 SHA-256，若预览打开后文件被终端或 CLI Agent 修改则立即返回 `409 stale` 拦截误覆盖，支持一键按最新身份刷新预览；
     - 改写或删除前自动将原工作区内容保存至有界私有恢复提交 `refs/webmux/discard-recovery/<operationId>`（每仓保留最近 20 条，删树同步清理），在持久操作账本与顶栏操作账本浮层披露 `recoveryOid` 及 `git restore --source=<oid> --worktree -- <paths>` 恢复命令；
   - 基于可追踪受控 Stash 的三阶段 `Smart Checkout` 与活跃 Agent 会话保护（`UI-08`、`G11`、衔接 `US-J16`）：
     - 当 `SwitchBranchDialog` 仅因未提交改动受阻（无进行中序列冲突、无其他工作树占用）时，在保留绿色推荐按钮 **“改为在新工作树打开”** 的同时提供显式 `Smart Checkout`（`暂存当前改动 -> 切换到目标分支 -> 在目标分支恢复改动`，支持勾选包含未跟踪文件）；
     - **活跃 CLI Agent 会话门禁**：当工作树存在运行中会话时，“改为在新工作树打开”始终保持主绿色默认入口，原地 `Smart Checkout` 默认收纳在风险说明折叠区并要求显式勾选会话知晓确认；
-    - 持久三阶段状态机（`POST .../git/smart-checkout-preview` → `POST .../git/smart-checkout`，`git-operations.json` 记录 `kind: "smart_checkout"`、`phase`、`stashOid`、`sourceBranch`、`targetBranch` 并支持重启只读对账）：
+    - 未跟踪嵌套 Git 仓库在勾选包含未跟踪文件时显式阻塞；
+    - 持久三阶段状态机（`POST .../git/smart-checkout-preview` → `POST .../git/smart-checkout`，按 `clientRequestId` 幂等重放，`git-operations.json` 记录 `kind: "smart_checkout"`、`phase`、`stashOid`、`sourceBranch`、`targetBranch` 并支持重启只读对账）：
       1. `stashing`：创建带 `webmux-smart-checkout:<operationId>` 标记的受控贮藏并确认落盘精确 `stashOid` 后才允许切换 `HEAD`；
       2. `switching`：切换到目标分支；若切换失败则自动在原分支回放恢复 `stashOid`（零静默丢数）；
       3. `unstashing`：在目标分支优先以 `--index` 应用 `stashOid`：

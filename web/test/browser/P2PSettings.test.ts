@@ -295,3 +295,58 @@ test("a probing status reply cannot replace a newer failed STUN save", async () 
   await expect.element(page.getByText("newer settings error")).toBeVisible();
   await expect.element(input).toHaveValue(draft);
 });
+
+test("probing port-map poll recovers to mapped after a transient network failure and pauses while hidden", async () => {
+  const probing: P2PStatus = {
+    ...baseStatus,
+    portMap: { state: "probing" },
+  };
+  let reads = 0;
+  let hidden = false;
+  vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>((input) => {
+      const path = new URL(String(input), location.href).pathname;
+      if (path === "/api/p2p") {
+        reads++;
+        if (reads === 1) return Promise.resolve(Response.json(probing));
+        if (reads === 2) {
+          return Promise.resolve(
+            Response.json(
+              { error: "temporary gateway error" },
+              { status: 502 },
+            ),
+          );
+        }
+        return Promise.resolve(Response.json(baseStatus));
+      }
+      return Promise.resolve(
+        Response.json({ error: "not found" }, { status: 404 }),
+      );
+    }),
+  );
+
+  render(P2PSettings);
+  await vi.waitFor(() => expect(reads).toBe(1));
+
+  // Second poll fails transiently; failure is surfaced while polling continues.
+  await vi.waitFor(() => expect(reads).toBe(2), { timeout: 4000 });
+  await expect.element(page.getByText("temporary gateway error")).toBeVisible();
+
+  // While hidden, background timer ticks skip HTTP requests.
+  hidden = true;
+  await new Promise((resolve) => setTimeout(resolve, 2300));
+  expect(reads).toBe(2);
+
+  // Returning to foreground refreshes immediately, clears transient error, and converges to mapped.
+  hidden = false;
+  document.dispatchEvent(new Event("visibilitychange"));
+  await expect
+    .element(page.getByText("已映射 UPNP :45123", { exact: true }))
+    .toBeVisible();
+  expect(reads).toBe(3);
+  await expect
+    .element(page.getByText("temporary gateway error"))
+    .not.toBeInTheDocument();
+});

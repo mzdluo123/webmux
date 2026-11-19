@@ -9,6 +9,8 @@ import RepositoryPanelHeaderActions from "../../src/components/workspace/Reposit
 import WorktreeControls from "../../src/components/workspace/WorktreeControls.svelte";
 import { GitWorktreeContextSchema } from "../../src/contracts/git-workbench-schemas";
 import { GitOperationSchema } from "../../src/contracts/schemas";
+import { emptyGitViewState } from "../../src/hooks/workspace/git-workbench-actions";
+import { createGitWorkbenchSubControllers } from "../../src/hooks/workspace/git-workbench-subcontrollers.svelte";
 import CodeWorkspaceHeaderHarness from "./CodeWorkspaceHeaderHarness.svelte";
 import GitWorkbenchTopBarHarness from "./GitWorkbenchTopBarHarness.svelte";
 import { repository, session, worktree } from "./shell-fixture";
@@ -450,4 +452,185 @@ test("GitWorkbenchTopBar keeps unified shadcn button sizing, readable switcher l
     .getByRole("menuitemradio", { name: /feat\/long-worktree/ })
     .click();
   expect(onSelectWorktree).toHaveBeenCalledWith("feat1");
+});
+
+test("resetAllTargets resets push dialog, cancels in-flight staging and fileInspector requests, and isolates cross-target replies", async () => {
+  const pushPreviewGate = Promise.withResolvers<Response>();
+  const stageGate = Promise.withResolvers<Response>();
+  const historyGate = Promise.withResolvers<Response>();
+
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    const url = String(input);
+    if (url.endsWith("/remotes")) return Response.json({ remotes: [] });
+    if (url.endsWith("/push-preview")) return pushPreviewGate.promise;
+    if (url.endsWith("/staging")) {
+      return Response.json({
+        unborn: false,
+        headOid: "1".repeat(40),
+        staged: [],
+        unstaged: [
+          {
+            path: "src/app.ts",
+            area: "unstaged",
+            status: "M",
+            hunkStageAvailable: true,
+            identity: {
+              area: "unstaged",
+              path: "src/app.ts",
+              baseOid: "1".repeat(40),
+              targetSha256: "2".repeat(64),
+            },
+          },
+        ],
+        conflicted: [],
+      });
+    }
+    if (url.endsWith("/commit-preview")) {
+      return Response.json({
+        confirmationId: "preflight-1",
+        expiresAt: null,
+        repositoryId: "repo-a",
+        worktreeId: "wt-a",
+        worktreePath: "/repos/a",
+        headState: "branch",
+        branch: "main",
+        headOid: "1".repeat(40),
+        headParents: [],
+        headPush: { state: "unpushed", branches: [], more: 0 },
+        amend: false,
+        amendPushed: false,
+        signoff: false,
+        expectedTreeOid: "3".repeat(40),
+        indexDigest: "digest-1",
+        stagedFiles: [],
+        identity: {
+          authorName: "Alice",
+          authorEmail: "alice@example.com",
+          committerName: "Alice",
+          committerEmail: "alice@example.com",
+          signEnabled: false,
+        },
+        unstagedCount: 1,
+        untrackedCount: 0,
+        conflictedCount: 0,
+        executableHooks: [],
+        blockers: [],
+        warnings: [],
+      });
+    }
+    if (url.includes("/reviews")) {
+      return Response.json({
+        scope: "uncommitted",
+        status: "ready",
+        totalFiles: 0,
+        reviewedFiles: 0,
+        files: [],
+        applied: false,
+      });
+    }
+    if (url.endsWith("/stage")) return stageGate.promise;
+    if (url.includes("/file-history")) return historyGate.promise;
+    throw new Error(`Unexpected fetch: ${url}`);
+  });
+
+  let activeRepo = "repo-a";
+  let activeWt: string | undefined = "wt-a";
+  let view = emptyGitViewState("repo-a");
+
+  const sub = createGitWorkbenchSubControllers({
+    getRepoId: () => activeRepo,
+    getEffectiveWorktreeId: () => activeWt,
+    getWorktreeTargetId: () => activeWt,
+    getDefaultBranch: () => "main",
+    getRepository: () => undefined,
+    getSessions: () => [],
+    getView: () => view,
+    patchView: (patch) => {
+      view = { ...view, ...patch };
+    },
+    persist: () => {},
+    updateUrl: () => {},
+    onSelectChange: () => {},
+    onReloadTarget: async () => {},
+  });
+
+  try {
+    await sub.staging.refresh("repo-a", "wt-a");
+    const changeId = view.workingChanges[0]?.id;
+    expect(changeId).toBeDefined();
+
+    sub.push.openDialog("main");
+    expect(sub.push.open).toBe(true);
+
+    const stagePromise = sub.staging.stageOrUnstage("stage", changeId!);
+    expect(sub.staging.stagingBusy).toBe(true);
+
+    sub.fileInspector.openInspector({
+      path: "src/app.ts",
+      tab: "history",
+      compareBaseOid: "1".repeat(40),
+    });
+    expect(sub.fileInspector.open).toBe(true);
+    expect(sub.fileInspector.historyLoading).toBe(true);
+    expect(sub.fileInspector.compareBaseOid).toBe("1".repeat(40));
+
+    // Switch target to repo-b/wt-b while push, stage, and file-history are in flight.
+    activeRepo = "repo-b";
+    activeWt = "wt-b";
+    view = emptyGitViewState("repo-b");
+    sub.resetAllTargets("repo-b", "wt-b");
+
+    expect(sub.push.open).toBe(false);
+    expect(sub.push.preview).toBeNull();
+    expect(sub.staging.stagingBusy).toBe(false);
+    expect(sub.fileInspector.open).toBe(false);
+    expect(sub.fileInspector.historyLoading).toBe(false);
+    expect(sub.fileInspector.compareBaseOid).toBe("");
+
+    // Resolve stale in-flight responses for repo-a and verify repo-b stays clean.
+    pushPreviewGate.resolve(
+      Response.json({
+        confirmationId: "late-push",
+        expiresAt: null,
+        branch: "main",
+        commit: "1".repeat(40),
+        remote: "origin",
+        pushUrl: "https://example.invalid/a.git",
+        target: "main",
+        publish: false,
+        commits: { total: 0, items: [] },
+        blockers: [],
+        warnings: [],
+      }),
+    );
+    stageGate.resolve(new Response(null, { status: 204 }));
+    historyGate.resolve(
+      Response.json({
+        status: "ready",
+        path: "src/app.ts",
+        commits: [
+          {
+            oid: "9".repeat(40),
+            shortOid: "9999999",
+            parents: [],
+            subject: "late",
+            authorName: "Alice",
+            authorEmail: "alice@example.com",
+            authorAt: "2026-11-19T00:00:00Z",
+            path: "src/app.ts",
+            status: "M",
+          },
+        ],
+        nextCursor: "",
+      }),
+    );
+
+    await stagePromise;
+    expect(sub.push.preview).toBeNull();
+    expect(sub.fileInspector.historyRows).toEqual([]);
+    expect(view.statusBanner).toBe("");
+  } finally {
+    sub.disposeAll();
+    vi.restoreAllMocks();
+  }
 });

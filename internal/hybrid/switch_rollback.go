@@ -1,6 +1,7 @@
 package hybrid
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/rainchan/webmux/internal/acp"
@@ -30,8 +31,9 @@ func (a *actor) toTUI(op *switchOp) {
 	if link == nil {
 		a.setPhase(PhaseStarting)
 	}
+	sid := a.agentSessionID
 	a.svc.log.Info("hybrid switch started", "id", a.id, "to", string(SideTUI))
-	go a.runToTUI(op, link, turnDone, a.agentSessionID)
+	a.subtask(func() { a.runToTUI(op, link, turnDone, sid) })
 }
 
 // runToTUI is the subtask of a switch to the terminal: wait for the
@@ -39,11 +41,13 @@ func (a *actor) toTUI(op *switchOp) {
 // agent session and wait for its process to go, then start the terminal
 // UI on the session. A failed start rolls back to the chat.
 func (a *actor) runToTUI(op *switchOp, link *acpLink, turnDone chan struct{}, sid string) {
+	life := a.lifetime()
 	if turnDone != nil {
 		wait := time.NewTimer(turnEndWait)
 		select {
 		case <-turnDone:
 		case <-wait.C:
+		case <-life.Done():
 		}
 		wait.Stop()
 	}
@@ -60,7 +64,10 @@ func (a *actor) runToTUI(op *switchOp, link *acpLink, turnDone chan struct{}, si
 			_ = link.stop()
 			return
 		}
-		if err := link.release(); err != nil {
+		if err := link.releaseWithin(life); err != nil {
+			if life.Err() != nil {
+				return
+			}
 			// The agent may still hold the session: no other writer may
 			// start, rollback included.
 			a.sync(func() {
@@ -70,7 +77,15 @@ func (a *actor) runToTUI(op *switchOp, link *acpLink, turnDone chan struct{}, si
 		}
 		gone = link.sidecar.PID()
 	}
-	if !a.sync(func() { a.setPhase(PhaseStarting); a.processGone(gone) }) {
+	canRun := false
+	if !a.sync(func() {
+		if a.stopped || a.closing || a.state != StateActive {
+			return
+		}
+		a.setPhase(PhaseStarting)
+		a.processGone(gone)
+		canRun = true
+	}) || !canRun {
 		return
 	}
 	if err := a.prepareTUIResume(sid); err != nil {
@@ -78,8 +93,14 @@ func (a *actor) runToTUI(op *switchOp, link *acpLink, turnDone chan struct{}, si
 		a.rollbackToACP(op, sid, failure{err: fmt.Errorf("%w: 准备终端会话失败", ErrAgent), public: "准备终端会话失败"})
 		return
 	}
+	if !a.sync(func() { canRun = !a.stopped && !a.closing && a.state == StateActive }) || !canRun || life.Err() != nil {
+		return
+	}
 	argv, dropped := a.cmd.ResumeArgv(sid)
 	if err := a.shell.StartRun(argv); err != nil {
+		if life.Err() != nil {
+			return
+		}
 		a.svc.log.Warn("hybrid terminal start failed", "id", a.id, "error", err)
 		a.rollbackToACP(op, sid, failure{err: fmt.Errorf("%w: 启动终端失败: %w", ErrAgent, err), public: "启动终端失败"})
 		return
@@ -87,7 +108,18 @@ func (a *actor) runToTUI(op *switchOp, link *acpLink, turnDone chan struct{}, si
 	if dropped == nil {
 		dropped = []string{}
 	}
-	a.sync(func() { a.switchedToTUI(op, sid, draft, dropped) })
+	applied := false
+	if !a.sync(func() {
+		if a.stopped || a.closing || a.state != StateActive {
+			return
+		}
+		a.switchedToTUI(op, sid, draft, dropped)
+		applied = true
+	}) || !applied {
+		ctx, cancel := context.WithTimeout(context.Background(), a.closeWait())
+		_ = a.shell.EndRun(ctx)
+		cancel()
+	}
 }
 
 // returnQueue empties the queue into the requester's draft (D20). The
@@ -131,15 +163,30 @@ func (a *actor) terminalStarted(sid string) {
 // rollbackToTUI returns a failed switch to the terminal: the terminal UI
 // resumes the session (D22).
 func (a *actor) rollbackToTUI(op *switchOp, sid string, cause failure) {
-	if !a.sync(func() { a.setPhase(PhaseRollingBack) }) {
+	canRun := false
+	if !a.sync(func() {
+		if a.stopped || a.closing || a.state != StateActive {
+			return
+		}
+		a.setPhase(PhaseRollingBack)
+		canRun = true
+	}) || !canRun || a.lifetime().Err() != nil {
 		return
 	}
 	err := a.prepareTUIResume(sid)
 	if err == nil {
+		if !a.sync(func() { canRun = !a.stopped && !a.closing && a.state == StateActive }) || !canRun || a.lifetime().Err() != nil {
+			return
+		}
 		argv, _ := a.cmd.ResumeArgv(sid)
 		err = a.shell.StartRun(argv)
 	}
-	a.sync(func() {
+	applied := false
+	if !a.sync(func() {
+		if a.stopped || a.closing || a.state != StateActive {
+			return
+		}
+		applied = true
 		a.side = SideTUI
 		if err != nil {
 			a.svc.log.Warn("hybrid rollback failed", "id", a.id, "side", string(SideTUI), "error", err)
@@ -148,7 +195,13 @@ func (a *actor) rollbackToTUI(op *switchOp, sid string, cause failure) {
 		}
 		a.terminalStarted(sid)
 		a.rolledBack(op, cause)
-	})
+	}) || !applied {
+		if err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), a.closeWait())
+			_ = a.shell.EndRun(ctx)
+			cancel()
+		}
+	}
 }
 
 // rollbackToACP returns a failed switch to the chat: a new ACP process
@@ -156,7 +209,16 @@ func (a *actor) rollbackToTUI(op *switchOp, sid string, cause failure) {
 func (a *actor) rollbackToACP(op *switchOp, sid string, cause failure) {
 	var epoch int
 	var cwd string
-	if !a.sync(func() { a.setPhase(PhaseRollingBack); a.epoch++; epoch, cwd = a.epoch, a.agentCwd }) {
+	canRun := false
+	if !a.sync(func() {
+		if a.stopped || a.closing || a.state != StateActive {
+			return
+		}
+		a.setPhase(PhaseRollingBack)
+		a.epoch++
+		epoch, cwd = a.epoch, a.agentCwd
+		canRun = true
+	}) || !canRun || a.lifetime().Err() != nil {
 		return
 	}
 	res := a.openACP(epoch, sid, cwd, false, func() bool { return a.sync(a.restartLog) })

@@ -6,11 +6,13 @@ import TerminalInputComposer from "../../src/components/terminal/TerminalInputCo
 import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
 import { editDraftKey } from "../../src/domains/terminal/draft-key";
 import {
+  activeBrowserDraftStorage,
   createDraftStorage,
   scratchEntriesLimit,
   scratchEntryLimit,
   scratchStorageLimit,
 } from "../../src/domains/terminal/draft-storage";
+import { setActiveHostId } from "../../src/platform/storage";
 
 afterEach(async () => {
   await cleanup();
@@ -550,5 +552,60 @@ test("composer omits empty status row during normal editing and restores focus a
     expect(document.activeElement).not.toBe(textarea);
   } finally {
     host.remove();
+  }
+});
+
+test("switching active host preserves prior host drafts across clearAll and empty reconcile", () => {
+  const saved = memoryDrafts();
+  const memory: Storage = {
+    get length() {
+      return saved.data.size;
+    },
+    clear: () => saved.data.clear(),
+    getItem: (key) => saved.data.get(key) ?? null,
+    key: (index) => [...saved.data.keys()][index] ?? null,
+    removeItem: (key) => void saved.data.delete(key),
+    setItem: (key, value) => void saved.data.set(key, value),
+  };
+  vi.stubGlobal("localStorage", memory);
+  try {
+    const drafts = createTerminalDrafts({
+      storage: activeBrowserDraftStorage(),
+    });
+
+    setActiveHostId("host-a");
+    const hostASession = drafts.get("aaaaaaaa");
+    drafts.setEnabled(hostASession, true);
+    drafts.edit(hostASession, "host A command");
+    expect(drafts.addScratch(hostASession, "host A note")).toBe("added");
+
+    setActiveHostId("host-b");
+    drafts.clearAll();
+    drafts.reconcile([]);
+    const hostBSession = drafts.get("aaaaaaaa");
+    expect(hostBSession.text).toBe("");
+    expect(hostBSession.scratch).toEqual([]);
+    drafts.setEnabled(hostBSession, true);
+    drafts.edit(hostBSession, "host B command");
+    expect(drafts.addScratch(hostBSession, "host B note")).toBe("added");
+
+    setActiveHostId("host-a");
+    drafts.clearAll();
+    const restoredHostA = drafts.get("aaaaaaaa");
+    expect(restoredHostA.text).toBe("host A command");
+    expect(restoredHostA.enabled).toBe(true);
+    expect(restoredHostA.scratch.map((item) => item.text)).toEqual([
+      "host A note",
+    ]);
+
+    setActiveHostId("host-b");
+    drafts.clearAll();
+    const restoredHostB = drafts.get("aaaaaaaa");
+    expect(restoredHostB.text).toBe("host B command");
+    expect(restoredHostB.scratch.map((item) => item.text)).toEqual([
+      "host B note",
+    ]);
+  } finally {
+    setActiveHostId(null);
   }
 });

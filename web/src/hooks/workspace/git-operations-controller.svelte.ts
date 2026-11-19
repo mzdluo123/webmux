@@ -62,17 +62,27 @@ export function createGitOperationsController(
   let fetching = $state(false);
   const acknowledgedIds = new SvelteSet<string>();
   const listReq = new LatestRequest();
+  let activeFetchSeq = 0;
   let disposed = false;
+
+  function isSameTarget(repoId: string, wtId: string | undefined): boolean {
+    return (
+      !disposed && repoId === deps.getRepoId() && wtId === deps.getWorktreeId()
+    );
+  }
 
   function dispose() {
     disposed = true;
+    activeFetchSeq += 1;
     listReq.dispose();
   }
 
   function resetTarget() {
+    activeFetchSeq += 1;
     listReq.cancel();
     operations = [];
     active = null;
+    fetching = false;
   }
 
   function setPhase(
@@ -116,7 +126,8 @@ export function createGitOperationsController(
         !req.current() ||
         disposed ||
         effectiveSignal.aborted ||
-        repoId !== deps.getRepoId()
+        repoId !== deps.getRepoId() ||
+        wtId !== deps.getWorktreeId()
       ) {
         return res.operations;
       }
@@ -181,15 +192,22 @@ export function createGitOperationsController(
     operationId?: string;
     signal?: AbortSignal;
   }): Promise<GitOperation | null> {
-    setPhase(
-      "reconciling",
-      options.kind,
-      m.s7_op_reconciling({ kind: gitOperationKindLabel(options.kind) }),
-      {
-        operationId: options.operationId,
-        clientRequestId: options.clientRequestId,
-      },
-    );
+    const sameTarget = () =>
+      !disposed &&
+      options.repositoryId === deps.getRepoId() &&
+      (options.worktreeId === undefined ||
+        options.worktreeId === deps.getWorktreeId());
+    if (sameTarget()) {
+      setPhase(
+        "reconciling",
+        options.kind,
+        m.s7_op_reconciling({ kind: gitOperationKindLabel(options.kind) }),
+        {
+          operationId: options.operationId,
+          clientRequestId: options.clientRequestId,
+        },
+      );
+    }
 
     for (const wait of POLL_DELAYS_MS) {
       if (disposed || options.signal?.aborted) break;
@@ -207,7 +225,7 @@ export function createGitOperationsController(
             { worktreeId: options.worktreeId, limit: 20 },
             options.signal,
           );
-          if (options.repositoryId === deps.getRepoId()) {
+          if (sameTarget()) {
             operations = res.operations;
           }
           matched = res.operations.find(
@@ -216,33 +234,39 @@ export function createGitOperationsController(
         }
         if (matched) {
           if (isTerminalGitOperationStatus(matched.status)) {
-            await refreshOperations(
-              options.repositoryId,
-              options.worktreeId,
-              options.signal,
-            );
-            clearActive();
+            if (sameTarget()) {
+              await refreshOperations(
+                options.repositoryId,
+                options.worktreeId,
+                options.signal,
+              );
+              clearActive();
+            }
             return matched;
           }
-          setPhase(
-            "running",
-            options.kind,
-            matched.summary ||
-              m.s7_op_server_completing({
-                kind: gitOperationKindLabel(options.kind),
-              }),
-            {
-              operationId: matched.id,
-              clientRequestId: options.clientRequestId,
-            },
-          );
+          if (sameTarget()) {
+            setPhase(
+              "running",
+              options.kind,
+              matched.summary ||
+                m.s7_op_server_completing({
+                  kind: gitOperationKindLabel(options.kind),
+                }),
+              {
+                operationId: matched.id,
+                clientRequestId: options.clientRequestId,
+              },
+            );
+          }
         }
       } catch {
         /* Network may still be reconnecting; wait for next poll */
       }
       await delayMs(wait, options.signal);
     }
-    clearActive();
+    if (sameTarget()) {
+      clearActive();
+    }
     return null;
   }
 
@@ -253,6 +277,7 @@ export function createGitOperationsController(
     const repoId = deps.getRepoId();
     const wtId = deps.getWorktreeId();
     if (!repoId || fetching) return;
+    const fetchSeq = ++activeFetchSeq;
     fetching = true;
     const clientRequestId = generateGitClientRequestId("fetch");
     setPhase("running", "fetch", m.s7_op_fetching_phase(), { clientRequestId });
@@ -262,6 +287,7 @@ export function createGitOperationsController(
         worktreeId: wtId,
       });
       deps.onRepositoryUpdated?.(res.repository);
+      if (fetchSeq !== activeFetchSeq || !isSameTarget(repoId, wtId)) return;
       const okCount = res.results.filter((r) => r.status === "ok").length;
       const failCount = res.results.length - okCount;
       const banner =
@@ -273,8 +299,10 @@ export function createGitOperationsController(
         ? res.repository.worktrees.find((w) => w.id === wt.id)
         : wt;
       await deps.onReloadTarget?.(res.repository, nextTree, sessions);
+      if (fetchSeq !== activeFetchSeq || !isSameTarget(repoId, wtId)) return;
       await refreshOperations(repoId, wtId);
     } catch (err) {
+      if (fetchSeq !== activeFetchSeq || !isSameTarget(repoId, wtId)) return;
       if (isRecoverableNetworkFailure(err)) {
         const recovered = await recoverByClientRequest({
           repositoryId: repoId,
@@ -282,17 +310,23 @@ export function createGitOperationsController(
           kind: "fetch",
           clientRequestId,
         });
+        if (fetchSeq !== activeFetchSeq || !isSameTarget(repoId, wtId)) return;
         if (recovered && recovered.status === "succeeded") {
           deps.onStatusBanner(recovered.summary || m.s7_op_fetch_recovered());
           await deps.onReloadTarget?.(undefined, wt, sessions);
           return;
         }
       }
+      if (fetchSeq !== activeFetchSeq || !isSameTarget(repoId, wtId)) return;
       deps.onStatusBanner(m.s7_op_fetch_failed({ error: errorMessage(err) }));
       await refreshOperations(repoId, wtId);
     } finally {
-      clearActive();
-      fetching = false;
+      if (fetchSeq === activeFetchSeq) {
+        if (isSameTarget(repoId, wtId)) {
+          clearActive();
+        }
+        fetching = false;
+      }
     }
   }
 

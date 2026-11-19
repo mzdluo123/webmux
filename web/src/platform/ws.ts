@@ -11,7 +11,8 @@ import {
   relayOwnerAuthenticated,
   relayAuthStatus,
 } from "./relay-auth";
-import { InputHandoffFence, stageHandoff } from "./ws-handoff";
+import { createManagedHandoff } from "./ws-handoff";
+import { InputHandoffFence } from "./ws-input-fence";
 import type {
   Connection,
   ConnectOptions,
@@ -23,7 +24,6 @@ import {
   protocols,
   SOCKET_OPEN,
   interactiveStreamKind,
-  type ClientTransport,
   type TransportSocket,
 } from "./transport";
 
@@ -63,7 +63,6 @@ export function connect(
   options: ConnectOptions = {},
 ): SocketConnection {
   let socket: TransportSocket | undefined,
-    candidateSocket: TransportSocket | undefined,
     timer: number | undefined,
     stableTimer: number | undefined,
     controlTimer: number | undefined,
@@ -73,13 +72,11 @@ export function connect(
     finished: "exited" | "missing" | "moved" | undefined;
   const controls = new Map<number, Uint8Array>();
   const id = nextManagedStreamID();
-  let targetPath = typeof path === "string" ? path : path();
+  const resolveTarget = () => (typeof path === "string" ? path : path());
+  let targetPath = resolveTarget();
   const ownerStream = relayOwnerAuthenticated() || relayAuthStatus().relay;
   let suspended = relayAuthStatus().relay && !relayOwnerAuthenticated();
   let inputUncertain = false;
-  let candidateTimer: number | undefined;
-  let candidateTransport: ClientTransport | undefined;
-  let candidateAllowReconnect = false;
   const inputFence = new InputHandoffFence();
   const state = (next: Connection) => {
     streamStatuses.set(id, {
@@ -100,26 +97,47 @@ export function connect(
     publishStreams();
     onError(m.relay_sent_input_uncertain());
   }
-  function clearCandidate() {
-    inputFence.clear();
-    clearTimeout(candidateTimer);
-    candidateTimer = undefined;
-    candidateTransport = undefined;
-    candidateAllowReconnect = false;
-    if (!candidateSocket) return;
-    const prev = candidateSocket;
-    candidateSocket = undefined;
-    prev.onopen = null;
-    prev.onmessage = null;
-    prev.onclose = null;
-    prev.onerror = null;
-    prev.close(1000, "cancel handoff");
-  }
   function clearControls() {
     clearTimeout(controlTimer);
     controlTimer = undefined;
     controls.clear();
   }
+  const handoffController = createManagedHandoff({
+    inputFence,
+    isActive: () => !disposed && !finished,
+    resolvePath: resolveTarget,
+    getSocket: () => socket,
+    openCandidate: (transport, target) =>
+      transport.openStream(target, {
+        token: authenticationToken(),
+        compress: wsCompression(),
+      }),
+    adoptSocket(next, target) {
+      clearTimeout(timer);
+      clearTimeout(stableTimer);
+      clearTimeout(resumeTimer);
+      resumeTimer = undefined;
+      const previous = socket;
+      socket = next;
+      targetPath = target;
+      if (previous) {
+        previous.onopen = null;
+        previous.onmessage = null;
+        previous.onclose = null;
+        previous.onerror = null;
+        previous.close(1000, "transport handoff");
+      }
+      // The terminal fence drained prior input; only genuine loss is uncertain.
+      if (interactiveStreamKind(target) === "terminal")
+        inputFence.resetUncertain();
+      else markUncertain();
+      wireActiveSocket(next, () => {});
+    },
+    reopen: () => open(),
+    canHandoff: options.canHandoff,
+    limit: maxBufferedAmount,
+    fenceTimeout: resumeTimeout,
+  });
   function transmit(kind: number, payload: Uint8Array) {
     if (
       socket?.readyState !== SOCKET_OPEN ||
@@ -133,9 +151,9 @@ export function connect(
       socket.send(frame);
       inputFence.sent(kind, payload);
     } catch {
-      // A partially accepted send has an unknown result. Never queue/replay it.
+      // A partially accepted send has an unknown result; keep it unqueued.
       inputFence.failedSend(kind);
-      clearCandidate();
+      handoffController.clear();
       markUncertain();
       socket.close();
       // A false result means definitely rejected. Keep uncertain submissions
@@ -167,6 +185,7 @@ export function connect(
     };
     next.onmessage = (event) => {
       if (socket !== next || closed) return;
+      const hadResumeTimer = resumeTimer !== undefined;
       clearTimeout(resumeTimer);
       resumeTimer = undefined;
       const receipt = inputFence.receive(event.data);
@@ -182,11 +201,16 @@ export function connect(
         next.close(1002, "Invalid server message");
         return;
       }
-      if (receipt === "confirm" && inputFence.needsFollowUpProbe()) api.probe();
+      if (
+        (receipt === "confirm" || hadResumeTimer) &&
+        inputFence.needsFollowUpProbe()
+      ) {
+        api.probe();
+      }
     };
     next.onclose = (event) => {
-      if (candidateSocket === next) {
-        clearCandidate();
+      if (handoffController.isCandidate(next)) {
+        handoffController.clear();
         return;
       }
       if (socket !== next || disposed || closed) return;
@@ -195,16 +219,16 @@ export function connect(
       clearTimeout(resumeTimer);
       resumeTimer = undefined;
       clearControls();
-      clearCandidate();
-      if (event.code === 4410) inputFence.resetUncertain();
-      else markUncertain();
-      if (event.code === 4410 || event.code === 4404 || event.code === 4409) {
-        finished =
-          event.code === 4410
-            ? "exited"
-            : event.code === 4404
-              ? "missing"
-              : "moved";
+      handoffController.clear();
+      if (event.code === 4410 || event.code === 4404) {
+        inputFence.resetUncertain();
+        finished = event.code === 4410 ? "exited" : "missing";
+        state(finished);
+        return;
+      }
+      markUncertain();
+      if (event.code === 4409) {
+        finished = "moved";
         state(finished);
         return;
       }
@@ -226,13 +250,13 @@ export function connect(
     clearTimeout(resumeTimer);
     resumeTimer = undefined;
     clearControls();
-    clearCandidate();
+    handoffController.clear();
     markUncertain();
     const previous = socket;
     socket = undefined;
     previous?.close();
     state(attempt ? "reconnecting" : "connecting");
-    const target = typeof path === "string" ? path : path();
+    const target = resolveTarget();
     targetPath = target;
     const next = currentTransport().openStream(target, {
       token: authenticationToken(),
@@ -289,16 +313,17 @@ export function connect(
     },
     close() {
       disposed = true;
+      inputFence.resetUncertain();
       streamStatuses.delete(id);
       publishStreams();
       liveSockets.delete(reopen);
-      handoffs.delete(handoff);
+      handoffs.delete(handoffController.handoff);
       clearTimeout(timer);
       clearTimeout(stableTimer);
       clearTimeout(resumeTimer);
       resumeTimer = undefined;
       clearControls();
-      clearCandidate();
+      handoffController.clear();
       const previous = socket;
       socket = undefined;
       previous?.close();
@@ -329,138 +354,17 @@ export function connect(
         if (socket === current) open();
       }, resumeTimeout);
     },
+    clearUncertainty() {
+      if (disposed || !inputUncertain) return;
+      inputUncertain = false;
+      const current = streamStatuses.get(id);
+      if (current)
+        streamStatuses.set(id, { ...current, inputUncertain: false });
+      publishStreams();
+    },
   };
   const reopen = () => {
     if (!disposed && !finished) open();
-  };
-  const handoff = (handoffOptions: HandoffOptions) => {
-    if (disposed || finished) return;
-    const target = typeof path === "string" ? path : path();
-    if (!interactiveStreamKind(target)) return;
-    if (
-      handoffOptions.targetPath &&
-      socket?.transportPath === handoffOptions.targetPath
-    )
-      return;
-    const transport = currentTransport();
-    if (
-      candidateSocket &&
-      handoffOptions.targetPath &&
-      candidateSocket.transportPath === handoffOptions.targetPath &&
-      candidateTransport === transport
-    ) {
-      candidateAllowReconnect ||= handoffOptions.allowReconnect === true;
-      return;
-    }
-    if (socket?.readyState !== SOCKET_OPEN) {
-      open();
-      return;
-    }
-    clearCandidate();
-    const previous = socket;
-    const next = transport.openStream(target, {
-      token: authenticationToken(),
-      compress: wsCompression(),
-    });
-    candidateSocket = next;
-    candidateTransport = transport;
-    candidateAllowReconnect = handoffOptions.allowReconnect === true;
-    const currentCandidate = () =>
-      candidateSocket === next &&
-      !disposed &&
-      !finished &&
-      socket === previous &&
-      currentTransport() === transport;
-    const failed = () => {
-      if (candidateSocket !== next) return;
-      const reconnect = candidateAllowReconnect && currentCandidate();
-      clearCandidate();
-      // open() drops unsent controls, marks uncertain input without replaying
-      // it, and lets consumers restore their authoritative snapshot/cursor.
-      if (reconnect) open();
-    };
-    if (
-      handoffOptions.targetPath &&
-      next.transportPath !== handoffOptions.targetPath
-    ) {
-      clearCandidate();
-      return;
-    }
-    next.onopen = null;
-    next.onerror = failed;
-    next.onclose = failed;
-    candidateTimer = window.setTimeout(failed, 10_000);
-    const commit = () => {
-      if (!currentCandidate()) {
-        if (candidateSocket === next) clearCandidate();
-        return;
-      }
-      if (next.readyState !== SOCKET_OPEN) {
-        failed();
-        return;
-      }
-      const buffered = staged.take();
-      if (!buffered) return;
-      clearTimeout(candidateTimer);
-      candidateTimer = undefined;
-      candidateSocket = undefined;
-      candidateTransport = undefined;
-      candidateAllowReconnect = false;
-      clearTimeout(timer);
-      clearTimeout(stableTimer);
-      clearTimeout(resumeTimer);
-      resumeTimer = undefined;
-      const previous = socket;
-      socket = next;
-      targetPath = target;
-      if (previous) {
-        previous.onopen = null;
-        previous.onmessage = null;
-        previous.onclose = null;
-        previous.onerror = null;
-        previous.close(1000, "transport handoff");
-      }
-      // The terminal fence drained prior input; only genuine loss is uncertain.
-      if (interactiveStreamKind(target) === "terminal")
-        inputFence.resetUncertain();
-      else markUncertain();
-      wireActiveSocket(next, () => {});
-      // Deliver the candidate's authoritative position/snapshot, not baseline
-      // output mixed into a new stream. Consumers own generation/cursor dedupe.
-      for (const data of buffered) {
-        if (socket !== next || next.readyState !== SOCKET_OPEN) return;
-        next.onmessage?.({ data });
-      }
-      next.onopen?.();
-    };
-    const staged = stageHandoff(
-      next,
-      target,
-      maxBufferedAmount,
-      options.canHandoff,
-      () => {
-        if (!currentCandidate()) {
-          if (candidateSocket === next) clearCandidate();
-          return;
-        }
-        if (interactiveStreamKind(target) !== "terminal") return commit();
-        inputFence.begin(
-          previous,
-          () => {
-            if (!currentCandidate()) {
-              if (candidateSocket === next) clearCandidate();
-              return;
-            }
-            inputFence.resetUncertain();
-            commit();
-          },
-          failed,
-          resumeTimeout,
-          maxBufferedAmount,
-        );
-      },
-      failed,
-    );
   };
   const revoked = () => {
     if (!ownerStream) return;
@@ -474,7 +378,7 @@ export function connect(
     clearTimeout(resumeTimer);
     resumeTimer = undefined;
     clearControls();
-    clearCandidate();
+    handoffController.clear();
     markUncertain();
     const previous = socket;
     socket = undefined;
@@ -489,7 +393,7 @@ export function connect(
   window.addEventListener("webmux:relay-revoked", revoked);
   window.addEventListener("webmux:relay-restored", restoredAuth);
   liveSockets.add(reopen);
-  handoffs.add(handoff);
+  handoffs.add(handoffController.handoff);
   open();
   return api;
 }

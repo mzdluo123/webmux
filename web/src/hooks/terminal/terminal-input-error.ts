@@ -25,5 +25,8 @@ export function createTerminalInputError() {
       // Uncertainty and unrelated terminal errors remain intact.
       return error.kind === "send" ? { kind: "text", message: "" } : error;
     },
+    clearUncertain(error: TerminalInputError): TerminalInputError {
+      return error.kind === "uncertain" ? { kind: "text", message: "" } : error;
+    },
   };
 }

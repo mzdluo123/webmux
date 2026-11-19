@@ -21,7 +21,7 @@ func (s *Service) ExecuteSmartCheckout(ctx context.Context, req ExecuteSmartChec
 		fmtBool(req.AcknowledgeSessions),
 	)
 	return runIdempotentOperation(
-		ctx, s, req.RepositoryID, req.WorktreeID, GitOpSmartCheckout, reqHash,
+		ctx, s, req.RepositoryID, req.ClientRequestID, GitOpSmartCheckout, reqHash,
 		func(op GitOperation) (SmartCheckoutResult, error) {
 			return s.replaySmartCheckoutOperation(ctx, req.RepositoryID, req.WorktreeID, op)
 		},

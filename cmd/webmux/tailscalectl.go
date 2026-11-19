@@ -211,7 +211,9 @@ func (tc *tailscaleController) Prepare(ctx context.Context, listen string) error
 		return nil
 	}
 	if err := tc.openLock(); err != nil {
+		tc.mu.Lock()
 		tc.storageErr = err
+		tc.mu.Unlock()
 		if target, ok := targetFromListen(listen); ok {
 			if port, found := tc.entryPointingTo(ctx, target); found {
 				if statefile.IsKind(err, statefile.Locked) {
@@ -226,7 +228,9 @@ func (tc *tailscaleController) Prepare(ctx context.Context, listen string) error
 	}
 	record, err := tc.loadState()
 	if err != nil {
+		tc.mu.Lock()
 		tc.storageErr = err
+		tc.mu.Unlock()
 		if target, ok := targetFromListen(listen); ok {
 			if port, found := tc.entryPointingTo(ctx, target); found {
 				return errors.New(tc.unownedHint(err.Error(), port, target))
@@ -234,29 +238,32 @@ func (tc *tailscaleController) Prepare(ctx context.Context, listen string) error
 		}
 		return nil
 	}
-	tc.record = record
 	target, ok := targetFromListen(listen)
+	tc.mu.Lock()
+	tc.record = record
 	if ok {
 		tc.localPort = portFromTarget(target)
 	}
-	if !tc.cfg.Enabled() {
+	cfg := tc.cfg
+	tc.mu.Unlock()
+	if !cfg.Enabled() {
 		if record == nil {
 			return nil
 		}
 		return tc.removeRecord(ctx, record)
 	}
 	removedOwned := false
-	if record != nil && recordStale(record, tc.cfg, target, ok) {
+	if record != nil && recordStale(record, cfg, target, ok) {
 		if err := tc.removeRecord(ctx, record); err != nil {
 			return err
 		}
-		tc.record = nil
+		tc.clearRecord()
 		record = nil
 		removedOwned = true
 	}
 	if record == nil && ok && !removedOwned {
-		if tc.cfg.Port != 0 {
-			if err := tc.refuseUnownedTarget(ctx, target, tc.cfg.Port); err != nil {
+		if cfg.Port != 0 {
+			if err := tc.refuseUnownedTarget(ctx, target, cfg.Port); err != nil {
 				return err
 			}
 		} else if port, found := tc.entryPointingTo(ctx, target); found {
@@ -331,7 +338,10 @@ func (tc *tailscaleController) Close() {
 			}
 		}
 	}
-	tc.ownership.Close()
+	tc.mu.Lock()
+	h := tc.ownership
+	tc.mu.Unlock()
+	h.Close()
 }
 
 // Refresh bypasses the detection cache for an explicit settings-page refresh.

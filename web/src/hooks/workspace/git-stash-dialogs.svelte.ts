@@ -1,12 +1,8 @@
 import { m } from "$lib/paraglide/messages.js";
 import {
-  gitStashApply,
   gitStashApplyPreview,
-  gitStashCreate,
   gitStashCreatePreview,
-  gitStashDrop,
   gitStashDropPreview,
-  gitStashPop,
 } from "../../platform/git-stash-api";
 import type {
   GitInProgressOperation,
@@ -16,10 +12,20 @@ import type {
   GitStashEntry,
 } from "../../contracts/schemas";
 import type { GitWorkbenchViewState } from "../../contracts/git-workbench-schemas";
-import { generateGitClientRequestId } from "../../domains/workspace/git-operations-model";
 import { LatestRequest } from "../shared/remote-request.svelte";
 import type { GitOperationsController } from "./git-operations-controller.svelte";
-import { parseGitManageError } from "./git-remotes-controller.svelte";
+import {
+  parseGitManageError,
+  runLatestGitPreview,
+} from "./git-remotes-controller.svelte";
+import {
+  canConfirmStashApply,
+  canConfirmStashCreate,
+  canConfirmStashDrop,
+  executeStashApply,
+  executeStashCreate,
+  executeStashDrop,
+} from "./git-stash-dialogs-actions";
 
 export { parseGitManageError as parseStashApiError };
 
@@ -57,14 +63,30 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
   let dialogError = $state("");
 
   const previewReq = new LatestRequest();
+  let createMessageTimer: ReturnType<typeof setTimeout> | null = null;
   let disposed = false;
+
+  function clearCreateMessageTimer() {
+    if (createMessageTimer !== null) {
+      clearTimeout(createMessageTimer);
+      createMessageTimer = null;
+    }
+  }
+
+  function isSameTarget(repoId: string, wtId: string | undefined): boolean {
+    return (
+      !disposed && repoId === deps.getRepoId() && wtId === deps.getWorktreeId()
+    );
+  }
 
   function dispose() {
     disposed = true;
+    clearCreateMessageTimer();
     previewReq.dispose();
   }
 
   function resetTarget() {
+    clearCreateMessageTimer();
     previewReq.cancel();
     createOpen = false;
     createPreview = null;
@@ -79,36 +101,44 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
   }
 
   async function refreshCreatePreview() {
+    clearCreateMessageTimer();
+    previewReq.cancel();
+    createPreview = null;
+    acknowledgeSessions = false;
     const repoId = deps.getRepoId();
     const wtId = deps.getWorktreeId();
     if (!repoId || !wtId) {
+      loadingPreview = false;
       dialogError = m.s7_stash_readonly_create_error();
       return;
     }
-    loadingPreview = true;
-    dialogError = "";
-    const req = previewReq.begin();
-    try {
-      const res = await gitStashCreatePreview(
-        repoId,
-        wtId,
-        {
-          message: createMessage.trim() || undefined,
-          includeUntracked: createIncludeUntracked,
-          keepIndex: createKeepIndex,
-        },
-        req.signal,
-      );
-      if (!req.current() || disposed) return;
-      createPreview = res;
-    } catch (err) {
-      if (req.reportable()) dialogError = parseGitManageError(err);
-    } finally {
-      if (req.current()) loadingPreview = false;
-    }
+    const message = createMessage.trim() || undefined;
+    const includeUntracked = createIncludeUntracked;
+    const keepIndex = createKeepIndex;
+    await runLatestGitPreview({
+      tracker: previewReq,
+      isActive: () => createOpen && isSameTarget(repoId, wtId),
+      setLoading: (busy) => (loadingPreview = busy),
+      setDialogError: (msg) => (dialogError = msg),
+      load: (signal) =>
+        gitStashCreatePreview(
+          repoId,
+          wtId,
+          { message, includeUntracked, keepIndex },
+          signal,
+        ),
+      onLoaded: (res) => {
+        createPreview = res;
+      },
+      onCleared: () => {
+        createPreview = null;
+        acknowledgeSessions = false;
+      },
+    });
   }
 
   function openCreateDialog(initialUntracked = false) {
+    clearCreateMessageTimer();
     createOpen = true;
     createMessage = "";
     createIncludeUntracked = initialUntracked;
@@ -122,45 +152,42 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
   async function confirmCreate() {
     const repoId = deps.getRepoId();
     const wtId = deps.getWorktreeId();
-    const cur = createPreview;
-    if (!repoId || !wtId || !cur?.confirmationId || submitting) return;
-    submitting = true;
-    dialogError = "";
-    const clientRequestId = generateGitClientRequestId("stash_push");
-    deps.operations?.setPhase(
-      "running",
-      "stash_push",
-      m.s7_stash_saving_phase(),
-      {
-        clientRequestId,
+    const check = {
+      createOpen,
+      repoId,
+      wtId,
+      preview: createPreview,
+      loadingPreview,
+      submitting,
+      hasPendingDebounce: createMessageTimer !== null,
+      includeUntracked: createIncludeUntracked,
+      keepIndex: createKeepIndex,
+      trimmedMessage: createMessage.trim(),
+      acknowledgeSessions,
+    };
+    if (!canConfirmStashCreate(check)) return;
+    await executeStashCreate({
+      repoId,
+      wtId: check.wtId,
+      confirmationId: check.preview.confirmationId,
+      acknowledgeSessions,
+      isSameTarget: () => isSameTarget(repoId, check.wtId),
+      operations: deps.operations,
+      patchView: deps.patchView,
+      onRefreshList: deps.onRefreshList,
+      onAfterStashMutation: deps.onAfterStashMutation,
+      setSubmitting: (busy) => (submitting = busy),
+      setDialogError: (msg) => (dialogError = msg),
+      onSuccessClose: () => {
+        createOpen = false;
+        createPreview = null;
+        acknowledgeSessions = false;
       },
-    );
-    try {
-      const res = await gitStashCreate(repoId, wtId, {
-        confirmationId: cur.confirmationId,
-        clientRequestId,
-        acknowledgeSessions,
-      });
-      createOpen = false;
-      createPreview = null;
-      deps.patchView({
-        statusBanner: m.s7_stash_saved_banner({
-          ref: res.entry.stashRef,
-          oid: res.entry.shortOid,
-          summary: res.entry.summary,
-        }),
-      });
-      await Promise.all([
-        deps.onRefreshList(res.entry.oid),
-        deps.onAfterStashMutation(),
-      ]);
-      await deps.operations?.refreshOperations(repoId, wtId);
-    } catch (err) {
-      dialogError = parseGitManageError(err);
-    } finally {
-      deps.operations?.clearActive();
-      submitting = false;
-    }
+      onInvalidatePreview: () => {
+        createPreview = null;
+        acknowledgeSessions = false;
+      },
+    });
   }
 
   async function refreshApplyPreview() {
@@ -175,28 +202,31 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
       dialogError = m.s7_stash_select_writable_apply();
       return;
     }
-    loadingPreview = true;
-    dialogError = "";
-    const req = previewReq.begin();
-    try {
-      const res = await gitStashApplyPreview(
-        repoId,
-        wtId,
-        {
-          stashOid: target.oid,
-          stashRef: target.stashRef,
-          mode: applyMode,
-          reinstateIndex: applyReinstateIndex,
-        },
-        req.signal,
-      );
-      if (!req.current() || disposed) return;
-      applyPreview = res;
-    } catch (err) {
-      if (req.reportable()) dialogError = parseGitManageError(err);
-    } finally {
-      if (req.current()) loadingPreview = false;
-    }
+    await runLatestGitPreview({
+      tracker: previewReq,
+      isActive: () => applyOpen && isSameTarget(repoId, wtId),
+      setLoading: (busy) => (loadingPreview = busy),
+      setDialogError: (msg) => (dialogError = msg),
+      load: (signal) =>
+        gitStashApplyPreview(
+          repoId,
+          wtId,
+          {
+            stashOid: target.oid,
+            stashRef: target.stashRef,
+            mode: applyMode,
+            reinstateIndex: applyReinstateIndex,
+          },
+          signal,
+        ),
+      onLoaded: (res) => {
+        applyPreview = res;
+      },
+      onCleared: () => {
+        applyPreview = null;
+        acknowledgeSessions = false;
+      },
+    });
   }
 
   function openApplyDialog(entry: GitStashEntry, mode: "apply" | "pop") {
@@ -213,125 +243,122 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
   async function confirmApply() {
     const repoId = deps.getRepoId();
     const wtId = deps.getWorktreeId();
-    const cur = applyPreview;
-    if (
-      !applyOpen ||
-      !repoId ||
-      !wtId ||
-      !cur?.confirmationId ||
-      cur.mode !== applyMode ||
-      cur.reinstateIndex !== applyReinstateIndex ||
-      cur.blockers.length > 0 ||
-      (cur.sessions.length > 0 && !acknowledgeSessions) ||
-      loadingPreview ||
-      submitting
-    )
-      return;
-    submitting = true;
-    dialogError = "";
-    const opKind = applyMode === "pop" ? "stash_pop" : "stash_apply";
-    const clientRequestId = generateGitClientRequestId(opKind);
-    deps.operations?.setPhase(
-      "running",
-      opKind,
-      applyMode === "pop"
-        ? m.s7_stash_popping_phase()
-        : m.s7_stash_applying_phase(),
-      { clientRequestId },
-    );
-    try {
-      const exec = applyMode === "pop" ? gitStashPop : gitStashApply;
-      const res = await exec(repoId, wtId, {
-        confirmationId: cur.confirmationId,
-        clientRequestId,
-        acknowledgeSessions,
-      });
-      applyOpen = false;
-      applyPreview = null;
-      deps.onInProgressUpdated(res.inProgress);
-      deps.patchView({ statusBanner: res.summary });
-      await Promise.all([deps.onRefreshList(), deps.onAfterStashMutation()]);
-      await deps.operations?.refreshOperations(repoId, wtId);
-      if (res.outcome === "conflicted" || res.inProgress.conflictedCount > 0) {
-        deps.onOpenConflictResolver(res.inProgress.conflictedFiles[0]?.path);
-      }
-    } catch (err) {
-      dialogError = parseGitManageError(err);
-    } finally {
-      deps.operations?.clearActive();
-      submitting = false;
-    }
+    const check = {
+      applyOpen,
+      repoId,
+      wtId,
+      preview: applyPreview,
+      target: applyTarget,
+      mode: applyMode,
+      reinstateIndex: applyReinstateIndex,
+      loadingPreview,
+      submitting,
+      acknowledgeSessions,
+    };
+    if (!canConfirmStashApply(check)) return;
+    await executeStashApply({
+      repoId,
+      wtId: check.wtId,
+      mode: applyMode,
+      confirmationId: check.preview.confirmationId,
+      acknowledgeSessions,
+      isSameTarget: () => isSameTarget(repoId, check.wtId),
+      operations: deps.operations,
+      patchView: deps.patchView,
+      onRefreshList: deps.onRefreshList,
+      onAfterStashMutation: deps.onAfterStashMutation,
+      onInProgressUpdated: deps.onInProgressUpdated,
+      onOpenConflictResolver: deps.onOpenConflictResolver,
+      setSubmitting: (busy) => (submitting = busy),
+      setDialogError: (msg) => (dialogError = msg),
+      onSuccessClose: () => {
+        applyOpen = false;
+        applyPreview = null;
+        acknowledgeSessions = false;
+      },
+      onInvalidatePreview: () => {
+        applyPreview = null;
+        acknowledgeSessions = false;
+      },
+    });
   }
 
   async function openDropDialog(entry: GitStashEntry) {
+    clearCreateMessageTimer();
+    previewReq.cancel();
     const repoId = deps.getRepoId();
     if (!repoId) return;
     dropTarget = entry;
     dropPreview = null;
+    acknowledgeSessions = false;
     dialogError = "";
     dropOpen = true;
-    loadingPreview = true;
-    const req = previewReq.begin();
-    try {
-      const res = await gitStashDropPreview(
-        repoId,
-        { stashOid: entry.oid, stashRef: entry.stashRef },
-        req.signal,
-      );
-      if (!req.current() || disposed) return;
-      dropPreview = res;
-    } catch (err) {
-      if (req.reportable()) dialogError = parseGitManageError(err);
-    } finally {
-      if (req.current()) loadingPreview = false;
-    }
+    await runLatestGitPreview({
+      tracker: previewReq,
+      isActive: () => !disposed && dropOpen && repoId === deps.getRepoId(),
+      setLoading: (busy) => (loadingPreview = busy),
+      setDialogError: (msg) => (dialogError = msg),
+      load: (signal) =>
+        gitStashDropPreview(
+          repoId,
+          { stashOid: entry.oid, stashRef: entry.stashRef },
+          signal,
+        ),
+      onLoaded: (res) => {
+        dropPreview = res;
+      },
+      onCleared: () => {
+        dropPreview = null;
+      },
+    });
   }
 
   async function confirmDrop() {
     const repoId = deps.getRepoId();
-    const cur = dropPreview;
-    if (!repoId || !cur?.confirmationId || submitting) return;
-    submitting = true;
-    dialogError = "";
-    const clientRequestId = generateGitClientRequestId("stash_drop");
-    deps.operations?.setPhase(
-      "running",
-      "stash_drop",
-      m.s7_stash_dropping_phase(),
-      {
-        clientRequestId,
+    const wtId = deps.getWorktreeId();
+    const check = {
+      dropOpen,
+      repoId,
+      preview: dropPreview,
+      target: dropTarget,
+      loadingPreview,
+      submitting,
+    };
+    if (!canConfirmStashDrop(check)) return;
+    await executeStashDrop({
+      repoId,
+      wtId,
+      confirmationId: check.preview.confirmationId,
+      isSameRepo: () => !disposed && repoId === deps.getRepoId(),
+      isSameTarget: () => isSameTarget(repoId, wtId),
+      getLatestWorktreeId: deps.getWorktreeId,
+      operations: deps.operations,
+      patchView: deps.patchView,
+      onRefreshList: () => deps.onRefreshList(),
+      setSubmitting: (busy) => (submitting = busy),
+      setDialogError: (msg) => (dialogError = msg),
+      onSuccessClose: () => {
+        dropOpen = false;
+        dropPreview = null;
       },
-    );
-    try {
-      const res = await gitStashDrop(repoId, {
-        confirmationId: cur.confirmationId,
-        clientRequestId,
-      });
-      dropOpen = false;
-      dropPreview = null;
-      deps.patchView({
-        stashes: res.stashes,
-        statusBanner: m.s7_stash_dropped_banner({
-          ref: res.stashRef,
-          cmd: res.recoveryCommand,
-        }),
-      });
-      await deps.onRefreshList();
-      await deps.operations?.refreshOperations(repoId, deps.getWorktreeId());
-    } catch (err) {
-      dialogError = parseGitManageError(err);
-    } finally {
-      deps.operations?.clearActive();
-      submitting = false;
-    }
+      onInvalidatePreview: () => {
+        dropPreview = null;
+      },
+    });
   }
 
   function closeDialogs() {
     if (submitting) return;
+    clearCreateMessageTimer();
     previewReq.cancel();
+    loadingPreview = false;
     createOpen = false;
+    createPreview = null;
     applyOpen = false;
+    applyPreview = null;
     dropOpen = false;
+    dropPreview = null;
+    acknowledgeSessions = false;
     dialogError = "";
   }
 
@@ -343,13 +370,29 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
       return createMessage;
     },
     setCreateMessage(val: string) {
+      if (submitting || val === createMessage) return;
       createMessage = val;
-      void refreshCreatePreview();
+      clearCreateMessageTimer();
+      previewReq.cancel();
+      createPreview = null;
+      acknowledgeSessions = false;
+      dialogError = "";
+      if (!deps.getRepoId() || !deps.getWorktreeId()) {
+        loadingPreview = false;
+        dialogError = m.s7_stash_readonly_create_error();
+        return;
+      }
+      loadingPreview = true;
+      createMessageTimer = setTimeout(() => {
+        createMessageTimer = null;
+        void refreshCreatePreview();
+      }, 250);
     },
     get createIncludeUntracked() {
       return createIncludeUntracked;
     },
     setCreateIncludeUntracked(val: boolean) {
+      if (submitting || val === createIncludeUntracked) return;
       createIncludeUntracked = val;
       void refreshCreatePreview();
     },
@@ -357,6 +400,7 @@ export function createGitStashDialogsController(deps: GitStashDialogsDeps) {
       return createKeepIndex;
     },
     setCreateKeepIndex(val: boolean) {
+      if (submitting || val === createKeepIndex) return;
       createKeepIndex = val;
       void refreshCreatePreview();
     },

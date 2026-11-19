@@ -75,21 +75,50 @@ type WSLService struct {
 	Digests map[string]string
 	Logf    func(format string, args ...any)
 
-	once   sync.Once
+	mu     sync.Mutex
+	closed bool
 	client *localclient.Client
 }
 
 func (s *WSLService) local() *localclient.Client {
-	s.once.Do(func() {
-		s.client = localclient.New(s.Dial(s.Target))
-	})
-	return s.client
+	s.mu.Lock()
+	if s.client != nil {
+		c := s.client
+		s.mu.Unlock()
+		return c
+	}
+	closed := s.closed
+	s.mu.Unlock()
+	c := localclient.New(s.Dial(s.Target))
+	if closed {
+		c.Retire()
+		return c
+	}
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		c.Retire()
+		return c
+	}
+	if s.client != nil {
+		existing := s.client
+		s.mu.Unlock()
+		c.Retire()
+		return existing
+	}
+	s.client = c
+	s.mu.Unlock()
+	return c
 }
 
-// Close drops idle bridge connections.
+// Close drops idle and active bridge connections.
 func (s *WSLService) Close() {
-	if s.client != nil {
-		s.client.Close()
+	s.mu.Lock()
+	s.closed = true
+	c := s.client
+	s.mu.Unlock()
+	if c != nil {
+		c.Retire()
 	}
 }
 

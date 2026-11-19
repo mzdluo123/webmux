@@ -225,3 +225,78 @@ test("diff panel sits above horizontal scrollbar and keeps a bottom selected lin
   expect(afterRowRect.top).toBeGreaterThanOrEqual(openBox.top - 0.5);
   expect(afterRowRect.bottom).toBeLessThanOrEqual(openBox.bottom + 0.5);
 });
+
+test("emptied file with side=new resolves effectiveSide to old for Ctrl+F search and goto line", async () => {
+  const oldLines = Array.from({ length: 120 }, (_, i) =>
+    i === 19 || i === 89 ? `removed needle ${i + 1}` : `legacy line ${i + 1}`,
+  );
+  const result = computeDiff(`${oldLines.join("\n")}\n`, "");
+  if (result.kind !== "ready") throw new Error(result.reason);
+  const fileDiff = {
+    ...result.fileDiff,
+    name: "deleted.ts",
+    type: "deleted",
+  } as FileDiffMetadata;
+
+  const view = await render(Harness, { fileDiff });
+  const host = document.querySelector<HTMLElement>(".code-diff-reader")!;
+  await expect
+    .poll(
+      () =>
+        shadow()?.querySelector(
+          '[data-line="20"][data-line-type="change-deletion"]',
+        )?.textContent,
+      { timeout: 10000 },
+    )
+    .toContain("removed needle 20");
+
+  host.focus();
+  await userEvent.keyboard("{Control>}f{/Control}");
+  const searchInput = page.getByRole("textbox", { name: "查找" });
+  await expect.element(searchInput).toHaveFocus();
+  await searchInput.fill("removed needle");
+
+  await expect
+    .poll(() =>
+      [...document.querySelectorAll('[role="status"]')].map((el) =>
+        el.textContent?.replace(/\s+/g, " ").trim(),
+      ),
+    )
+    .toContain("修改前 · 0 / 2");
+
+  await page.getByRole("button", { name: "下一个匹配", exact: true }).click();
+  await expect
+    .poll(() =>
+      [...document.querySelectorAll('[role="status"]')].map((el) =>
+        el.textContent?.replace(/\s+/g, " ").trim(),
+      ),
+    )
+    .toContain("修改前 · 1 / 2");
+  await expect
+    .element(page.getByLabelText("Selected lines"))
+    .toHaveTextContent("20-20");
+  expect(view.component.capture().selected).toEqual({
+    start: 20,
+    end: 20,
+    side: "deletions",
+  });
+
+  await page.getByRole("button", { name: "下一个匹配", exact: true }).click();
+  await expect
+    .element(page.getByLabelText("Selected lines"))
+    .toHaveTextContent("90-90");
+
+  await userEvent.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
+  const gotoInput = page.getByLabelText("跳转到行");
+  await expect.element(gotoInput).toBeVisible();
+  await userEvent.fill(gotoInput, "45");
+  await userEvent.keyboard("{Enter}");
+  await expect
+    .element(page.getByLabelText("Selected lines"))
+    .toHaveTextContent("45-45");
+  expect(view.component.capture().selected).toEqual({
+    start: 45,
+    end: 45,
+    side: "deletions",
+  });
+});

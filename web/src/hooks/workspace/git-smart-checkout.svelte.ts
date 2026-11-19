@@ -92,6 +92,7 @@ export function createSmartCheckoutController(deps: SmartCheckoutDeps) {
       !previewing &&
       !deps.getBusy() &&
       preview.confirmationId !== "" &&
+      preview.includeUntracked === includeUntracked &&
       preview.blockers.length === 0 &&
       (!hasActiveSessions || (disclosureOpen && acknowledgeSessions)),
     ),
@@ -102,8 +103,14 @@ export function createSmartCheckoutController(deps: SmartCheckoutDeps) {
     target: SwitchTarget,
     untracked: boolean,
   ) {
+    reqs.cancel();
+    preview = null;
+    acknowledgeSessions = false;
     const smartPreview = deps.getSource().smartPreview;
-    if (!smartPreview) return;
+    if (!smartPreview) {
+      previewing = false;
+      return;
+    }
     const req = reqs.begin();
     previewing = true;
     previewError = "";
@@ -118,8 +125,9 @@ export function createSmartCheckoutController(deps: SmartCheckoutDeps) {
       acknowledgeSessions = false;
       if (res.sessions.length === 0) disclosureOpen = true;
     } catch (err) {
+      preview = null;
+      acknowledgeSessions = false;
       if (req.reportable()) {
-        preview = null;
         previewError = errorMessage(err);
       }
     } finally {
@@ -146,6 +154,7 @@ export function createSmartCheckoutController(deps: SmartCheckoutDeps) {
       preview = null;
       previewing = false;
       previewError = "";
+      acknowledgeSessions = false;
       return;
     }
     disclosureOpen = false;
@@ -155,9 +164,15 @@ export function createSmartCheckoutController(deps: SmartCheckoutDeps) {
   function setIncludeUntracked(next: boolean) {
     if (includeUntracked === next) return;
     includeUntracked = next;
+    reqs.cancel();
+    preview = null;
+    acknowledgeSessions = false;
+    previewError = "";
     const target = deps.getTarget();
     if (target && visible) {
       void loadSmartPreview(deps.getWorktree(), target, next);
+    } else {
+      previewing = false;
     }
   }
 

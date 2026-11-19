@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/ed25519"
-	"crypto/rand"
 	"crypto/tls"
 	"strconv"
 	"sync"
@@ -30,31 +29,33 @@ type relayControlClient interface {
 }
 
 type relayController struct {
-	op            sync.Mutex
-	mu            sync.Mutex
-	ctx           context.Context
-	store         *relaysetting.Service
-	machine       *relaysetting.Machine
-	client        relayControlClient
-	auth          *relaysetting.Auth
-	p2p           *p2p.Service
-	public        *transport.PublicOrigins
-	tokenStrong   bool
-	settings      relaysetting.Settings
-	status        contract.RelayStatus
-	generation    uint64
-	cancel        context.CancelFunc
-	done          chan struct{}
-	assignment    protocol.Assignment
-	scope         protocol.Scope
-	pairing       contract.RelayPairing
-	pairingWake   chan struct{}
-	pairingDone   chan struct{}
-	pairingStop   context.CancelFunc
-	pairingCancel bool
-	pairingNow    func() time.Time
-	pairingWait   func(context.Context, <-chan struct{}, time.Duration) bool
-	closed        bool
+	op                 sync.Mutex
+	mu                 sync.Mutex
+	ctx                context.Context
+	store              *relaysetting.Service
+	machine            *relaysetting.Machine
+	client             relayControlClient
+	auth               *relaysetting.Auth
+	p2p                *p2p.Service
+	public             *transport.PublicOrigins
+	tokenStrong        bool
+	settings           relaysetting.Settings
+	status             contract.RelayStatus
+	generation         uint64
+	cancel             context.CancelFunc
+	done               chan struct{}
+	assignment         protocol.Assignment
+	scope              protocol.Scope
+	pairing            contract.RelayPairing
+	pairingWake        chan struct{}
+	pairingDone        chan struct{}
+	pairingStop        context.CancelFunc
+	pairingCancel      bool
+	pairingNow         func() time.Time
+	pairingWait        func(context.Context, <-chan struct{}, time.Duration) bool
+	reconnectThreshold time.Duration
+	reconnectWait      func(context.Context, time.Duration) bool
+	closed             bool
 }
 
 var _ api.RelayControl = (*relayController)(nil)
@@ -308,12 +309,13 @@ func (rc *relayController) run(ctx context.Context, gen uint64, settings relayse
 	if err != nil {
 		return
 	}
-	backoff := time.Second
+	backoff := newRelayReconnectBackoff(rc.reconnectThreshold)
 	for ctx.Err() == nil {
 		if rc.store.Unavailable() != nil {
 			rc.disconnected(gen)
 			return
 		}
+		var readyAt time.Time
 		assignment, err := rc.client.Assignment(ctx, key, *settings.Binding)
 		if err == nil {
 			rc.mu.Lock()
@@ -337,12 +339,18 @@ func (rc *relayController) run(ctx context.Context, gen uint64, settings relayse
 			rc.mu.Unlock()
 			err = rc.client.Connect(ctx, key, assignment, relay.Callbacks{
 				Ready: func(scope protocol.Scope) {
+					if readyAt.IsZero() {
+						readyAt = rc.clock()
+					}
 					rc.connected(ctx, gen, settings, scope)
 				},
 				PoolsReady:   func(interactive, bulk bool) { rc.poolsReady(gen, interactive, bulk) },
 				Disconnected: func() { rc.disconnected(gen) },
 				Revoke:       func(ctx context.Context, r protocol.Revocation) error { return rc.revoke(ctx, gen, r) },
 			})
+			if !readyAt.IsZero() {
+				backoff.observeReady(rc.clock().Sub(readyAt))
+			}
 		} else {
 			rc.mu.Lock()
 			if gen == rc.generation {
@@ -372,23 +380,8 @@ func (rc *relayController) run(ctx context.Context, gen uint64, settings relayse
 		rc.status.ReconnectReason = "connection-lost"
 		rc.status.DataReachability = "unavailable"
 		rc.mu.Unlock()
-		var jitter [1]byte
-		if _, e := rand.Read(jitter[:]); e != nil {
+		if !rc.waitReconnect(ctx, &backoff, err) {
 			return
-		}
-		delay := backoff + time.Duration(jitter[0])*backoff/512
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return
-		case <-timer.C:
-		}
-		if backoff < 30*time.Second {
-			backoff *= 2
-			if backoff > 30*time.Second {
-				backoff = 30 * time.Second
-			}
 		}
 	}
 }

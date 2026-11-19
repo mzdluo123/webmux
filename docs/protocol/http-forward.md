@@ -54,13 +54,17 @@ interface ForwardRequest {
 - 请求体与响应体流式转发，`FlushInterval` 为立即刷新，SSE 和分块响应逐条到达；WebSocket 升级透明转发。
 - 发往上游的 `Cookie` 删除 `webmux_forward`，其余 Cookie 与 `Authorization` 原样转发。
 - 响应删除 `Service-Worker-Allowed`；不使用 WebMux 的 `Referrer-Policy: no-referrer`，保留上游自己的策略；`X-Content-Type-Options: nosniff` 保留。
-- 网关执行与其他路径相同的 Host 检查；WebSocket 升级还执行与 `/ws/` 相同的 Origin 检查，不通过返回 403。
+- 网关执行与其他路径相同的 Host 检查，并统一执行来源与 Fetch Metadata 校验：
+  - 携带 `Origin` 的请求、非 `GET`/`HEAD`/`OPTIONS` 写请求与 WebSocket 升级均要求允许来源（同源、`allowed_origins` 或受控公网来源；无 `Origin` 时要求 `Sec-Fetch-Site: same-origin`），不通过返回 403；
+  - `Sec-Fetch-Site` 为 `cross-site` 或 `same-site` 时，顶层文档 `GET`/`HEAD` 导航 303 到 `/forward-auth?confirm=1&next=...`，其余子资源、表单、Fetch 与嵌入框架返回 403。
 - 每次请求都读取最新的转发选项，修改选项只影响之后的新请求。
 - 网关不改写 HTML、CSS 或 JS 响应体：默认的 `strip` 模式只适合使用相对路径的应用；使用绝对路径的应用必须改为 `keep` 前缀模式，并把 base 设为 `/forward/{port}/`（Vite `--base /forward/5173/`，Next.js `basePath`）。
 
 ## 认证
 
 网关只认 `webmux_forward` Cookie。主 Token 为空（认证关闭）时，网关与 `/api/` 一样不要求认证。
+
+官方 Relay 所有者浏览器会话访问 `/forward/` 时，同源或直接导航（`Sec-Fetch-Site` 为 `same-origin` 或 `none`）直接代理，缺失 `Sec-Fetch-Site` 时回退要求 `webmux_forward` Cookie；转发页面内的同源写请求校验精确 `Origin`（无需控制面 `X-WebMux-CSRF` 头）。
 
 | 情况                            | 结果                                               |
 | ------------------------------- | -------------------------------------------------- |

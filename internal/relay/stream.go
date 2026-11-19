@@ -95,6 +95,9 @@ func (s *connection) serveStream(p *physical, role protocol.Role, stream *smux.S
 	conn, err := dialer.DialContext(dialCtx, "tcp", s.client.config.LoopbackAddress)
 	cancel()
 	if err != nil {
+		if s.ctx.Err() == nil {
+			_ = stream.SetWriteDeadline(time.Now().Add(protocol.StreamOpenTimeout))
+		}
 		_ = streamResult(stream, header.RequestID, protocol.UpstreamFailed)
 		return
 	}
@@ -107,13 +110,22 @@ func (s *connection) serveStream(p *physical, role protocol.Role, stream *smux.S
 	}
 	s.httpStreams[stream] = httpStream{physical: p, conn: conn}
 	s.mu.Unlock()
+	if err := stream.SetWriteDeadline(time.Now().Add(protocol.StreamOpenTimeout)); err != nil {
+		return
+	}
 	stop := context.AfterFunc(s.ctx, func() {
 		// Interrupt reads/writes without enqueueing a potentially blocked FIN.
 		abortConn(conn)
 		_ = stream.SetDeadline(time.Now())
 	})
 	defer stop()
+	if s.ctx.Err() != nil {
+		return
+	}
 	if err := streamResult(stream, header.RequestID, ""); err != nil {
+		return
+	}
+	if s.ctx.Err() != nil {
 		return
 	}
 	if err := stream.SetDeadline(time.Time{}); err != nil {

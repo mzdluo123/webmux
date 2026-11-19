@@ -1,11 +1,14 @@
-import { describe, expect, test } from "vite-plus/test";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 import {
   GitBranchItemSchema,
   GitHistoryRowSchema,
   type GitWorkbenchViewState,
   GitWorktreeContextSchema,
 } from "../src/contracts/git-workbench-schemas";
-import { GitInProgressOperationSchema } from "../src/contracts/schemas";
+import {
+  GitInProgressOperationSchema,
+  GitStashApplyResultSchema,
+} from "../src/contracts/schemas";
 import { resolveGitBranchActions } from "../src/domains/workspace/git-branches-model";
 import { formatInProgressHeadline } from "../src/domains/workspace/git-divergence-model";
 import { gitOperationKindLabel } from "../src/domains/workspace/git-operations-model";
@@ -17,11 +20,30 @@ import {
   containsRedactedRemoteMask,
   validateAuthorOverrideInput,
 } from "../src/domains/workspace/git-v2-adapter";
+import {
+  readGitTargetMemory,
+  writeGitTargetMemory,
+} from "../src/domains/workspace/git-workbench-memory";
 import { buildCommitPreviewModel } from "../src/domains/workspace/git-workbench-state";
 import {
   buildGitRouteHref,
   parseGitRouteQuery,
 } from "../src/hooks/shared/route";
+import {
+  runConfirmCommitFlow,
+  runOpenCommitPreview,
+} from "../src/hooks/workspace/git-commit-execution";
+import { canConfirmPushPreview } from "../src/hooks/workspace/git-push-execution";
+import { canConfirmBranchRename } from "../src/hooks/workspace/git-refs-manage-actions";
+import {
+  canConfirmStashApply,
+  canConfirmStashCreate,
+  canConfirmStashDrop,
+} from "../src/hooks/workspace/git-stash-dialogs-actions";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function makeV2ViewState(
   overrides: Partial<GitWorkbenchViewState> = {},
@@ -265,5 +287,369 @@ describe("Git Workbench V2 (#550): Stash, Commit Amend/Author/Signoff, Refs & Re
     expect(formatInProgressHeadline(unstashOp)).toContain(
       "原贮藏条目已安全保留",
     );
+  });
+
+  test("GitStashApplyResultSchema accepts completed, conflicted, and needs_review outcomes", () => {
+    const baseResult = {
+      operationId: "op-stash-pop-1",
+      kind: "stash_pop",
+      stashRef: "stash@{0}",
+      stashOid: "1111111111111111111111111111111111111111",
+      stashDropped: false,
+      stashPreserved: true,
+      summary: "已恢复贮藏内容；丢弃贮藏引用失败，条目已保留供人工核对",
+      inProgress: {
+        active: false,
+        worktreeId: "wt-main",
+        worktreePath: "/work/webmux",
+        detached: false,
+        conflictedCount: 0,
+        conflictedFiles: [],
+        canContinue: false,
+        canAbort: false,
+        continueBlockers: [],
+      },
+      worktree: {
+        id: "wt-main",
+        repositoryId: "repo-v2",
+        path: "/work/webmux",
+        kind: "main",
+        branch: "main",
+        head: "1111111111111111111111111111111111111111",
+        detached: false,
+        locked: false,
+        lockReason: "",
+        prunable: false,
+        available: true,
+        dirty: true,
+        hasUntracked: false,
+        hasIgnored: false,
+        error: "",
+        upstream: null,
+        ahead: null,
+        behind: null,
+        upstreamGone: false,
+        lastCommit: null,
+        changes: { staged: 0, unstaged: 1, untracked: 0, conflicted: 0 },
+        operation: null,
+      },
+    };
+
+    for (const outcome of [
+      "completed",
+      "conflicted",
+      "needs_review",
+    ] as const) {
+      const parsed = GitStashApplyResultSchema.parse({
+        ...baseResult,
+        outcome,
+      });
+      expect(parsed.outcome).toBe(outcome);
+    }
+    expect(
+      GitStashApplyResultSchema.safeParse({
+        ...baseResult,
+        outcome: "unknown_outcome",
+      }).success,
+    ).toBe(false);
+  });
+
+  test("confirmation guards reject stale parameters, pending debounce, blockers, and unacknowledged sessions", () => {
+    const createPreview = {
+      confirmationId: "confirm-create-1",
+      expiresAt: null,
+      repositoryId: "repo-v2",
+      worktreeId: "wt-main",
+      worktreePath: "/work/webmux",
+      detached: false,
+      message: "wip",
+      includeUntracked: true,
+      keepIndex: false,
+      stagedCount: 1,
+      unstagedCount: 0,
+      untrackedCount: 1,
+      affectedPaths: ["a.ts"],
+      sessions: [],
+      blockers: [],
+      warnings: [],
+    };
+    expect(
+      canConfirmStashCreate({
+        createOpen: true,
+        repoId: "repo-v2",
+        wtId: "wt-main",
+        preview: createPreview,
+        loadingPreview: false,
+        submitting: false,
+        hasPendingDebounce: false,
+        includeUntracked: true,
+        keepIndex: false,
+        trimmedMessage: "wip",
+        acknowledgeSessions: false,
+      }),
+    ).toBe(true);
+    expect(
+      canConfirmStashCreate({
+        createOpen: true,
+        repoId: "repo-v2",
+        wtId: "wt-main",
+        preview: createPreview,
+        loadingPreview: false,
+        submitting: false,
+        hasPendingDebounce: true,
+        includeUntracked: true,
+        keepIndex: false,
+        trimmedMessage: "wip",
+        acknowledgeSessions: false,
+      }),
+    ).toBe(false);
+    expect(
+      canConfirmStashCreate({
+        createOpen: true,
+        repoId: "repo-v2",
+        wtId: "wt-main",
+        preview: createPreview,
+        loadingPreview: false,
+        submitting: false,
+        hasPendingDebounce: false,
+        includeUntracked: false,
+        keepIndex: false,
+        trimmedMessage: "wip",
+        acknowledgeSessions: false,
+      }),
+    ).toBe(false);
+
+    const stashEntry = {
+      stashRef: "stash@{0}",
+      index: 0,
+      oid: "abc",
+      shortOid: "abc",
+      parents: [],
+      hasUntracked: false,
+      summary: "wip",
+      createdAt: "2026-11-19T00:00:00Z",
+    };
+    expect(
+      canConfirmStashApply({
+        applyOpen: true,
+        repoId: "repo-v2",
+        wtId: "wt-main",
+        preview: {
+          confirmationId: "confirm-apply-1",
+          expiresAt: null,
+          repositoryId: "repo-v2",
+          worktreeId: "wt-main",
+          worktreePath: "/work/webmux",
+          mode: "pop",
+          entry: stashEntry,
+          reinstateIndex: false,
+          detached: false,
+          stagedCount: 0,
+          unstagedCount: 1,
+          untrackedCount: 0,
+          overlappingPaths: [],
+          sessions: [],
+          blockers: [],
+          warnings: [],
+        },
+        target: { ...stashEntry, oid: "different-oid" },
+        mode: "pop",
+        reinstateIndex: false,
+        loadingPreview: false,
+        submitting: false,
+        acknowledgeSessions: false,
+      }),
+    ).toBe(false);
+
+    expect(
+      canConfirmStashDrop({
+        dropOpen: true,
+        repoId: "repo-v2",
+        preview: {
+          confirmationId: "confirm-drop-1",
+          expiresAt: null,
+          repositoryId: "repo-v2",
+          entry: stashEntry,
+          fileCount: 1,
+          recoveryCommand: "git stash apply abc",
+          blockers: [{ code: "locked", message: "blocked" }],
+          warnings: [],
+        },
+        target: stashEntry,
+        loadingPreview: false,
+        submitting: false,
+      }),
+    ).toBe(false);
+
+    expect(
+      canConfirmBranchRename({
+        renameOpen: true,
+        loadingPreview: false,
+        submitting: false,
+        hasPendingDebounce: false,
+        oldName: "feat/old",
+        newName: "feat/new",
+        acknowledgeSessions: false,
+        preview: {
+          confirmationId: "confirm-rename-1",
+          expiresAt: null,
+          repositoryId: "repo-v2",
+          oldName: "feat/old",
+          newName: "feat/new",
+          headOid: "1111111111111111111111111111111111111111",
+          subject: "feat",
+          affectedWorktrees: [],
+          sessions: [],
+          blockers: [],
+          warnings: [],
+        },
+      }),
+    ).toBe(true);
+    expect(
+      canConfirmBranchRename({
+        renameOpen: true,
+        loadingPreview: false,
+        submitting: false,
+        hasPendingDebounce: true,
+        oldName: "feat/old",
+        newName: "feat/new",
+        acknowledgeSessions: false,
+        preview: {
+          confirmationId: "confirm-rename-1",
+          expiresAt: null,
+          repositoryId: "repo-v2",
+          oldName: "feat/old",
+          newName: "feat/new",
+          headOid: "1111111111111111111111111111111111111111",
+          subject: "feat",
+          affectedWorktrees: [],
+          sessions: [],
+          blockers: [],
+          warnings: [],
+        },
+      }),
+    ).toBe(false);
+
+    expect(
+      canConfirmPushPreview({
+        open: true,
+        repoId: "repo-v2",
+        preview: {
+          confirmationId: "confirm-push-1",
+          expiresAt: null,
+          branch: "feat/a",
+          commit: "abc",
+          remote: "origin",
+          pushUrl: "https://example.invalid/r.git",
+          target: "feat/a",
+          publish: true,
+          commits: { total: 0, items: [] },
+          blockers: [],
+          warnings: [],
+        },
+        running: false,
+        loading: false,
+        hasPendingDebounce: true,
+        publishing: true,
+        remote: "origin",
+        target: "feat/a",
+      }),
+    ).toBe(false);
+  });
+
+  test("runOpenCommitPreview ignores AbortError and runConfirmCommitFlow marks preview stale on non-stale failure and isolates switched targets", async () => {
+    const abortCtrl = new AbortController();
+    vi.spyOn(globalThis, "fetch").mockImplementationOnce(async () => {
+      abortCtrl.abort();
+      throw new DOMException("Aborted", "AbortError");
+    });
+
+    let view = makeV2ViewState();
+    await runOpenCommitPreview({
+      repoId: "repo-v2",
+      wtId: "wt-main",
+      view,
+      followUpPush: false,
+      signal: abortCtrl.signal,
+      isCurrent: () => false,
+      setConfirmationId: () => {},
+      getLatestView: () => view,
+      patchView: (patch) => {
+        view = { ...view, ...patch };
+      },
+    });
+    expect(view.statusBanner).toBe("");
+
+    // Non-stale commit failure marks commitPreview stale because confirmationId was consumed.
+    const previewModel = buildCommitPreviewModel(
+      makeV2ViewState({
+        commitMessage: "feat: commit test",
+        commitAmend: true,
+      }),
+      false,
+    );
+    let failView = makeV2ViewState({
+      commitMessage: "feat: commit test",
+      commitPreview: previewModel,
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementationOnce(async () =>
+      Response.json({ error: "pre-commit hook failed" }, { status: 500 }),
+    );
+    await runConfirmCommitFlow({
+      repoId: "repo-v2",
+      wtId: "wt-main",
+      confirmationId: "consumed-id-1",
+      current: failView,
+      signal: new AbortController().signal,
+      clearWebmuxStaged: () => {},
+      refreshStaging: async () => {},
+      patchView: (patch) => {
+        failView = { ...failView, ...patch };
+      },
+    });
+    expect(failView.commitPreview?.stale).toBe(true);
+    expect(failView.commitPreview?.dialogError).toContain(
+      "pre-commit hook failed",
+    );
+
+    // Target switched mid-commit: saves cleared draft memory only for original (repoId, wtId) without mutating new target view.
+    writeGitTargetMemory("repo-a", "wt-a", { commitMessage: "feat: repo-a" });
+    let switchedView = makeV2ViewState({
+      commitMessage: "wip: repo-b untouched draft",
+      commitPreview: null,
+    });
+    const sourceSnapshot = makeV2ViewState({
+      commitMessage: "feat: repo-a",
+      commitPreview: previewModel,
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementationOnce(async () =>
+      Response.json({
+        operationId: "op-commit-a",
+        outcome: "matched",
+        commitOid: "3333333333333333333333333333333333333333",
+        treeOid: "4444444444444444444444444444444444444444",
+        expectedTreeOid: "4444444444444444444444444444444444444444",
+        parents: ["1111111111111111111111111111111111111111"],
+        subject: "feat: repo-a",
+        reviewReasons: [],
+      }),
+    );
+    const patchSpy = vi.fn((patch: Partial<GitWorkbenchViewState>) => {
+      switchedView = { ...switchedView, ...patch };
+    });
+    await runConfirmCommitFlow({
+      repoId: "repo-a",
+      wtId: "wt-a",
+      confirmationId: "confirm-repo-a",
+      current: sourceSnapshot,
+      signal: new AbortController().signal,
+      isCurrentTarget: () => false,
+      clearWebmuxStaged: () => {},
+      refreshStaging: async () => {},
+      patchView: patchSpy,
+    });
+    expect(patchSpy).not.toHaveBeenCalled();
+    expect(switchedView.commitMessage).toBe("wip: repo-b untouched draft");
+    expect(readGitTargetMemory("repo-a", "wt-a").commitMessage).toBe("");
   });
 });

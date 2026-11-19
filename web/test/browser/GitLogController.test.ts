@@ -65,6 +65,7 @@ vi.mock("../../src/domains/code/code-diff-client", async (importOriginal) => {
   };
 });
 
+import { createGitSnapshotDiffReader } from "../../src/hooks/workspace/git-snapshot-diff-reader.svelte";
 import { createGitWorkbenchController } from "../../src/hooks/workspace/git-workbench-controller.svelte";
 
 const OID_HEAD = "1111111111111111111111111111111111111111";
@@ -562,5 +563,187 @@ describe("Git Log controller (async isolation, pagination, scope forwarding)", (
     expect(ctrl.view.historyReason).toContain("无法查看待推送提交");
 
     ctrl.dispose();
+  });
+
+  it("preserves original download filename on mid-download file switch and aborts download on clearDiff, resetTarget, or dispose", async () => {
+    const clickedDownloads: string[] = [];
+    const origCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation(((
+      tagName: string,
+    ) => {
+      const el = origCreateElement(tagName);
+      if (tagName.toLowerCase() === "a") {
+        vi.spyOn(el as HTMLAnchorElement, "click").mockImplementation(() => {
+          clickedDownloads.push((el as HTMLAnchorElement).download);
+        });
+      }
+      return el;
+    }) as typeof document.createElement);
+
+    let repoId = "repo-1";
+    let wtId: string | undefined = "wt-main";
+    const banners: string[] = [];
+    const reader = createGitSnapshotDiffReader({
+      getRepoId: () => repoId,
+      getWorktreeId: () => wtId,
+      onStatusBanner: (msg) => banners.push(msg),
+    });
+
+    const loadBinaryFile = (oldPath: string, newPath: string, snapId: string) =>
+      reader.loadFetchedDiff({
+        baseOid: OID_P1,
+        targetOid: OID_HEAD,
+        leftLabel: "base",
+        rightLabel: "head",
+        file: {
+          oldPath,
+          newPath,
+          status: "M",
+          binary: true,
+          additions: 0,
+          deletions: 0,
+          hunks: [],
+        },
+        missingReason: "missing",
+        fetchDiff: async () => ({
+          ...makeCompareResponse(OID_P1, OID_HEAD, newPath).diff!,
+          snapshotId: snapId,
+          kind: "image",
+        }),
+      });
+
+    await loadBinaryFile(
+      "assets/old-logo.png",
+      "assets/new-logo.png",
+      "snap-1",
+    );
+    expect(reader.state.snapshotId).toBe("snap-1");
+
+    // 1. Mid-download file switch preserves captured baseName from original file.
+    const pendingBlob1 = deferred<Blob>();
+    mocks.gitSnapshotRaw.mockImplementationOnce(() => pendingBlob1.promise);
+    const dlTask1 = reader.downloadSnapshotSide("before");
+    expect(reader.state.downloadingSide).toBe("before");
+
+    await loadBinaryFile("assets/other.png", "assets/other.png", "snap-2");
+    expect(reader.state.path).toBe("assets/other.png");
+
+    pendingBlob1.resolve(new Blob(["img-bytes"]));
+    await dlTask1;
+    expect(clickedDownloads).toEqual(["old-logo.png"]);
+
+    // 2. clearDiff aborts in-flight download signal and suppresses click & error banner.
+    let signalClear: AbortSignal | undefined;
+    const pendingClear = deferred<Blob>();
+    mocks.gitSnapshotRaw.mockImplementationOnce(
+      (_r: string, _s: string, _p: unknown, signal?: AbortSignal) => {
+        signalClear = signal;
+        return pendingClear.promise;
+      },
+    );
+    const dlClear = reader.downloadSnapshotSide("after");
+    await vi.waitFor(() => expect(signalClear).toBeDefined());
+    reader.clearDiff();
+    expect(signalClear?.aborted).toBe(true);
+    pendingClear.reject(new Error("aborted"));
+    await dlClear;
+    expect(clickedDownloads).toEqual(["old-logo.png"]);
+    expect(banners).toHaveLength(0);
+
+    // 3. resetTarget aborts in-flight download signal and drops late completion.
+    await loadBinaryFile("assets/third.png", "assets/third.png", "snap-3");
+    let signalReset: AbortSignal | undefined;
+    const pendingReset = deferred<Blob>();
+    mocks.gitSnapshotRaw.mockImplementationOnce(
+      (_r: string, _s: string, _p: unknown, signal?: AbortSignal) => {
+        signalReset = signal;
+        return pendingReset.promise;
+      },
+    );
+    const dlReset = reader.downloadSnapshotSide("after");
+    await vi.waitFor(() => expect(signalReset).toBeDefined());
+    repoId = "repo-2";
+    wtId = "wt-other";
+    reader.resetTarget();
+    expect(signalReset?.aborted).toBe(true);
+    pendingReset.resolve(new Blob(["stale"]));
+    await dlReset;
+    expect(clickedDownloads).toEqual(["old-logo.png"]);
+
+    // 4. dispose aborts in-flight download signal and drops late completion.
+    await loadBinaryFile("assets/fourth.png", "assets/fourth.png", "snap-4");
+    let signalDispose: AbortSignal | undefined;
+    const pendingDispose = deferred<Blob>();
+    mocks.gitSnapshotRaw.mockImplementationOnce(
+      (_r: string, _s: string, _p: unknown, signal?: AbortSignal) => {
+        signalDispose = signal;
+        return pendingDispose.promise;
+      },
+    );
+    const dlDispose = reader.downloadSnapshotSide("after");
+    await vi.waitFor(() => expect(signalDispose).toBeDefined());
+    reader.dispose();
+    expect(signalDispose?.aborted).toBe(true);
+    pendingDispose.resolve(new Blob(["disposed"]));
+    await dlDispose;
+    expect(clickedDownloads).toEqual(["old-logo.png"]);
+    expect(banners).toHaveLength(0);
+  });
+
+  it("infers D and A statuses from empty diff endpoints when entry status is generic M", async () => {
+    const reader = createGitSnapshotDiffReader({
+      getRepoId: () => "repo-1",
+      getWorktreeId: () => "wt-main",
+      onStatusBanner: () => {},
+    });
+    const baseCmp = makeCompareResponse(OID_P1, OID_HEAD, "removed.ts").diff!;
+
+    await reader.loadFetchedDiff({
+      baseOid: OID_P1,
+      targetOid: OID_HEAD,
+      leftLabel: "base",
+      rightLabel: "head",
+      file: {
+        oldPath: "removed.ts",
+        newPath: "removed.ts",
+        status: "M",
+        binary: false,
+        additions: 0,
+        deletions: 1,
+        hunks: [],
+      },
+      missingReason: "missing",
+      fetchDiff: async () => ({
+        ...baseCmp,
+        old: { ...baseCmp.old, source: `commit:${OID_P1}` },
+        new: { ...baseCmp.new, source: "empty", text: "", lineCount: 0 },
+      }),
+    });
+    expect(reader.state.status).toBe("D");
+
+    await reader.loadFetchedDiff({
+      baseOid: OID_P1,
+      targetOid: OID_HEAD,
+      leftLabel: "base",
+      rightLabel: "head",
+      file: {
+        oldPath: "added.ts",
+        newPath: "added.ts",
+        status: "M",
+        binary: false,
+        additions: 1,
+        deletions: 0,
+        hunks: [],
+      },
+      missingReason: "missing",
+      fetchDiff: async () => ({
+        ...baseCmp,
+        old: { ...baseCmp.old, source: "empty", text: "", lineCount: 0 },
+        new: { ...baseCmp.new, source: `commit:${OID_HEAD}` },
+      }),
+    });
+    expect(reader.state.status).toBe("A");
+
+    reader.dispose();
   });
 });
