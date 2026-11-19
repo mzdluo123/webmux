@@ -45,6 +45,8 @@ export async function openStartedSession(
       if (message) message.style.viewTransitionName = name;
     }
   });
+  // Resizing the viewport can skip the animation while navigation completes.
+  void transition.ready.catch(() => undefined);
   try {
     await transition.finished;
   } finally {
