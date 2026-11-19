@@ -65,7 +65,8 @@ WebMux 是持续运行的终端工作台。视觉方向为克制的开发工具�
 | 公共组合   | ResponsiveDialog、PickerField、AdvancedSection、KeyValueSummary  | 位于 `ui/`，通过 props、snippet 和回调组合基础控件   |
 | 业务模式   | SessionStatus、WorkspaceGroup、SessionRow、TerminalInputComposer | 位于 `components/`，负责领域状态和业务操作           |
 
-`SessionStatus` 区分需立即处理的提醒（需要回答、等待授权、出错停止）与普通等待，以及正常退出与非零退出码。`InlineNotice` 的 danger 使用 `role="alert"`，其他提示使用 `role="status"`；常规静态说明可继续使用普通段落，避免过多实时播报。
+- `SessionStatus` 区分需立即处理的提醒（需要回答、等待授权、出错停止）与普通等待，以及正常退出与非零退出码。
+- `InlineNotice` 的 danger 使用 `role="alert"`，其他提示使用 `role="status"`；可选 `actions` 插槽统一对齐图标、正文与行尾按钮，`surface="floating"` 用于固定在视口上的实心阴影浮层提示；常规静态说明可继续使用普通段落，避免过多实时播报。
 
 表单标签应使用 `for` 关联控件；帮助和错误使用 `aria-describedby`，无效字段设置 `aria-invalid`。字段在手机上使用 16px 文字，避免阅读困难和输入缩放。图标按钮需要可访问名称。
 

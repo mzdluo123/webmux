@@ -19,23 +19,27 @@
 </script>
 
 {#await pending}
-  <InlineNotice class="fixed inset-x-4 bottom-4 z-50">
-    <div class="flex items-center justify-between gap-2">
-      <span>{m.s1_loading_target({ label })}</span>
+  <InlineNotice surface="floating" class="fixed inset-x-4 bottom-4 z-50">
+    {m.s1_loading_target({ label })}
+    {#snippet actions()}
       <Button variant="outline" size="sm" onclick={onclose}
         >{m.s1_cancel()}</Button
       >
-    </div>
+    {/snippet}
   </InlineNotice>
 {:then page}
   {@render children(page)}
 {:catch}
-  <InlineNotice tone="danger" class="fixed inset-x-4 bottom-4 z-50">
-    <div class="flex items-center justify-between gap-2">
-      <span>{m.s1_load_target_failed_retry({ label })}</span>
+  <InlineNotice
+    tone="danger"
+    surface="floating"
+    class="fixed inset-x-4 bottom-4 z-50"
+  >
+    {m.s1_load_target_failed_retry({ label })}
+    {#snippet actions()}
       <Button variant="outline" size="sm" onclick={onclose}
         >{m.s1_close()}</Button
       >
-    </div>
+    {/snippet}
   </InlineNotice>
 {/await}

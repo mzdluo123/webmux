@@ -437,7 +437,7 @@
 
 {#if ready && (discoveryError || discoveryFailureCause)}
   <div class="fixed inset-x-2 bottom-2 z-50">
-    <InlineNotice tone="warning"
+    <InlineNotice tone="warning" surface="floating"
       >{discoveryError ||
         m.s1_discovery_failed({ error: discoveryFailureCause })}</InlineNotice
     >

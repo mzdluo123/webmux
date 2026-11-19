@@ -372,14 +372,11 @@
       <div class="border-b border-border bg-background px-3 py-2">
         <InlineNotice tone="warning">
           {m.s1_broken_worktree_readonly_notice()}
-          <Button
-            size="sm"
-            variant="outline"
-            class="ml-2"
-            onclick={openManageWorktrees}
-          >
-            {m.s1_manage_worktrees_ellipsis()}
-          </Button>
+          {#snippet actions()}
+            <Button size="sm" variant="outline" onclick={openManageWorktrees}>
+              {m.s1_manage_worktrees_ellipsis()}
+            </Button>
+          {/snippet}
         </InlineNotice>
       </div>
     {/if}

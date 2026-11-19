@@ -217,16 +217,18 @@
           <InlineNotice
             tone={historyState === "upstream_gone" ? "warning" : "info"}
           >
-            <span class="mr-2">{describeHistoryStatus(historyState)}</span>
-            {#if historyState === "no_task_baseline" && onSetTaskBaseline}
-              <Button
-                size="sm"
-                variant="outline"
-                onclick={() => onSetTaskBaseline()}
-              >
-                {m.s6_log_list_set_head_baseline()}
-              </Button>
-            {/if}
+            {describeHistoryStatus(historyState)}
+            {#snippet actions()}
+              {#if historyState === "no_task_baseline" && onSetTaskBaseline}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onclick={() => onSetTaskBaseline()}
+                >
+                  {m.s6_log_list_set_head_baseline()}
+                </Button>
+              {/if}
+            {/snippet}
           </InlineNotice>
         </div>
       {:else if visibleCommits.length === 0}

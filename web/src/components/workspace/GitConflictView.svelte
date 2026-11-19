@@ -396,8 +396,8 @@
   {#if conflict?.error}
     <div class="border-b bg-background px-3 py-2">
       <InlineNotice tone="danger">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <span>{conflict.error}</span>
+        {conflict.error}
+        {#snippet actions()}
           {#if conflict.stale || conflict.activePath}
             <Button
               size="sm"
@@ -408,7 +408,7 @@
               {m.s6_conflict_reload_snapshot()}
             </Button>
           {/if}
-        </div>
+        {/snippet}
       </InlineNotice>
     </div>
   {/if}

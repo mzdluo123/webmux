@@ -50,8 +50,8 @@
   >
     <div class="space-y-2 pr-3 pb-2">
       {#if setupError}<InlineNotice tone="warning">
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <span>{setupError}</span>
+          {setupError}
+          {#snippet actions()}
             <Button
               variant="ghost"
               size="sm"
@@ -61,7 +61,7 @@
             >
               {setupBusy ? m.s3_retrying() : m.s3_retry()}
             </Button>
-          </div>
+          {/snippet}
         </InlineNotice>{/if}
       {#if error}<InlineNotice tone="danger">
           {error}

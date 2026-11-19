@@ -266,15 +266,15 @@
 
   {#if detachedHead}
     <InlineNotice tone="warning">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <span>{m.s6_commit_detached_notice()}</span>
+      {m.s6_commit_detached_notice()}
+      {#snippet actions()}
         {#if onCreateBranchFromHead}
           <Button size="sm" variant="outline" onclick={onCreateBranchFromHead}>
             <IconGitBranch aria-hidden="true" />
             {m.s6_commit_new_branch_from_head()}
           </Button>
         {/if}
-      </div>
+      {/snippet}
     </InlineNotice>
   {:else if identityMissing}
     <InlineNotice tone="warning">
