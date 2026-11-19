@@ -14,7 +14,6 @@ import {
   quote,
   recordInput,
   sessionPaneHeader,
-  toggleCode,
   toggleDraftMode,
   uploadAction,
   backToList,
