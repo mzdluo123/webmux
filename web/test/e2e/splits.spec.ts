@@ -213,6 +213,16 @@ test("stacked panes reveal the selected tab and keep keyboard focus across switc
   await expect(chosen).toBeInViewport();
   await page.reload();
   await expect(chosen).toHaveText(secondTitle);
+  const closeTab = (title: string) =>
+    list.getByRole("button", { name: `关闭 ${title}`, exact: true });
+  await closeTab(firstTitle).click();
+  await expect(second).toBeVisible();
+  await expect(first).toBeHidden();
+  await page.locator(`[data-dock-tab="${id}"]`).click();
+  await expect(chosen).toHaveText(firstTitle);
+  await closeTab(firstTitle).click();
+  await expect(second).toBeVisible();
+  await expect(second.locator("[data-dock-actions]")).toBeFocused();
 });
 
 test("desktop drag guides dock against a pane or the whole workspace", async ({
