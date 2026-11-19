@@ -1,15 +1,18 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
-import { page } from "vite-plus/test/browser";
+import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import { resetAttentionToasts } from "../../src/domains/notifications/attention-toast.svelte";
 import PushSettings from "../../src/components/settings/PushSettings.svelte";
 import type { PushSupport } from "../../src/platform/push";
 import type { PushStatus } from "../../src/contracts/schemas";
 
-afterEach(() => {
-  cleanup();
+afterEach(async () => {
+  await cleanup();
+  await userEvent.cleanup();
   localStorage.removeItem("webmux.toastNotifications");
+  localStorage.removeItem("webmux.push.subscriptionId");
   resetAttentionToasts();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -173,6 +176,10 @@ test("a pending permission prompt explains where to allow notifications", async 
     loadStatus: async () => available,
   });
   const toggle = page.getByRole("switch", { name: "在本设备开启推送" });
+  await expect.element(toggle).toBeVisible();
+  const testAction = page.getByRole("button", { name: /发送测试通知/ });
+  const initial = testAction.element().getBoundingClientRect().top;
+  toggle.element().focus();
   await toggle.click();
   const hint = page.getByText("等待浏览器通知授权");
   await expect.element(hint).toBeVisible();
@@ -181,6 +188,7 @@ test("a pending permission prompt explains where to allow notifications", async 
     .toBeVisible();
   await expect.element(toggle).toBeDisabled();
 
+  expect(testAction.element().getBoundingClientRect().top).toBe(initial);
   prompt.resolve("denied");
   await expect
     .element(page.getByText("未获得通知权限", { exact: false }))
@@ -188,4 +196,67 @@ test("a pending permission prompt explains where to allow notifications", async 
   await expect.element(hint).not.toBeInTheDocument();
   await expect.element(toggle).not.toBeChecked();
   await expect.element(toggle).toBeEnabled();
+  await expect.element(toggle).toHaveFocus();
+  expect(testAction.element().getBoundingClientRect().top).toBe(initial);
+});
+
+test("keeps push switch above test button, stable across 1->0 subscriptions, and restores keyboard focus on toggle-off", async () => {
+  localStorage.setItem("webmux.push.subscriptionId", "sub-1");
+  let activeSub = true;
+  const deleteGate = Promise.withResolvers<Response>();
+  vi.stubGlobal("Notification", {
+    permission: "default",
+    requestPermission: async () => "granted" as const,
+  });
+  vi.spyOn(navigator.serviceWorker, "getRegistration").mockImplementation(
+    async () =>
+      (activeSub
+        ? {
+            pushManager: {
+              getSubscription: async () => ({
+                unsubscribe: async () => {
+                  activeSub = false;
+                  return true;
+                },
+                options: { applicationServerKey: null },
+              }),
+            },
+          }
+        : undefined) as ServiceWorkerRegistration | undefined,
+  );
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async () => deleteGate.promise),
+  );
+
+  const view = await render(PushSettings, {
+    support: capable,
+    loadStatus: async () => ({
+      ...available,
+      subscriptions: activeSub ? 1 : 0,
+    }),
+  });
+  const toggle = page.getByRole("switch", { name: "在本设备开启推送" });
+  const testAction = page.getByRole("button", { name: /发送测试通知/ });
+  await expect.element(toggle).toBeChecked();
+  await expect.element(testAction).toBeVisible();
+  expect(view.container.querySelector('[data-slot="scroll-area"]')).toBeNull();
+
+  const toggleRect = toggle.element().getBoundingClientRect();
+  const testRect = testAction.element().getBoundingClientRect();
+  expect(toggleRect.bottom).toBeLessThanOrEqual(testRect.top + 0.5);
+
+  toggle.element().focus();
+  await expect.element(toggle).toHaveFocus();
+  await userEvent.keyboard(" ");
+  await expect.element(toggle).toBeDisabled();
+
+  deleteGate.resolve(new Response(null, { status: 204 }));
+  await expect.element(toggle).not.toBeChecked();
+  await expect.element(toggle).toBeEnabled();
+  await expect.element(toggle).toHaveFocus();
+  expect(testAction.elements()).toHaveLength(0);
+  expect(
+    Math.abs(toggle.element().getBoundingClientRect().top - toggleRect.top),
+  ).toBeLessThanOrEqual(0.5);
 });

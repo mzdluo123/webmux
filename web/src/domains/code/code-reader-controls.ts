@@ -6,6 +6,10 @@ import type {
 } from "@pierre/diffs";
 import { observeDarkTheme } from "./code-pierre";
 import {
+  measureVisibleSelectedBand,
+  nudgeHostForBottomPanel,
+} from "./code-reader-dom";
+import {
   stepMatchLine,
   type MatchCursor,
   type SearchSpec,
@@ -14,13 +18,12 @@ import {
 export type CodeReaderPanel = "search" | "goto" | "zoom";
 
 /** Focuses the open search, go-to-line or zoom control after it renders. */
-async function focusCodePanel(root: ParentNode) {
-  await tick();
+function focusCodePanelControl(root: ParentNode) {
   root
     .querySelector<HTMLElement>(
       "[data-code-search] input, [data-code-goto-line] input, [data-code-zoom] [role='slider']",
     )
-    ?.focus();
+    ?.focus({ preventScroll: true });
 }
 
 /** Toggles the named panel, or closes it when it is already open. */
@@ -32,16 +35,28 @@ function togglePanel<Panel extends string>(
   return toggle && current === value ? undefined : value;
 }
 
-/** Opens or closes a reader panel and focuses its input. */
+/**
+ * Opens or closes a reader panel, nudges `scrollTop` when the bottom panel
+ * covers a visible selected or focused row, and focuses the panel control.
+ */
 async function openCodePanel(
   root: ParentNode,
+  host: HTMLElement,
   current: CodeReaderPanel | undefined,
   value: CodeReaderPanel,
   toggle: boolean,
   setPanel: (panel: CodeReaderPanel | undefined) => void,
 ) {
-  setPanel(togglePanel(current, value, toggle));
-  await focusCodePanel(root);
+  const next = togglePanel(current, value, toggle);
+  const beforeBox = next ? host.getBoundingClientRect() : undefined;
+  const band = beforeBox
+    ? measureVisibleSelectedBand(host, beforeBox)
+    : undefined;
+  setPanel(next);
+  if (!next) return;
+  await tick();
+  if (band && beforeBox) nudgeHostForBottomPanel(host, beforeBox, band);
+  focusCodePanelControl(root);
 }
 
 /** Closes a reader panel and returns focus to its scroll surface. */
@@ -50,7 +65,7 @@ function closeCodePanel(
   setPanel: (panel: undefined) => void,
 ) {
   setPanel(undefined);
-  host.focus();
+  host.focus({ preventScroll: true });
 }
 
 /** Panel toggling, search edits and match stepping for a code reader. */
@@ -72,6 +87,7 @@ export function createReaderPanelActions(options: {
       if (value !== "zoom" && options.enabled && !options.enabled()) return;
       await openCodePanel(
         options.root(),
+        options.host(),
         options.getPanel(),
         value,
         toggle,
@@ -323,6 +339,7 @@ export function bindHorizontalScrollbar(
   let frame = 0;
   const scrollers = new Set<HTMLElement>();
   const observed = new Set<Element>();
+  const applied = new WeakMap<HTMLElement, number>();
 
   function currentScrollers(): HTMLElement[] {
     const item = viewer()?.getRenderedItems()[0];
@@ -334,28 +351,50 @@ export function bindHorizontalScrollbar(
     ];
   }
 
-  function applyLeft(targetLeft: number, source?: HTMLElement) {
-    left = Math.max(0, targetLeft);
+  function leftFor(element: HTMLElement) {
+    return Math.min(left, element.scrollWidth - element.clientWidth);
+  }
+
+  function syncLeft(element: HTMLElement) {
+    const target = leftFor(element);
+    if (Math.abs(element.scrollLeft - target) <= 0.5) return;
+    element.scrollLeft = target;
+    applied.set(element, element.scrollLeft);
+  }
+
+  function scrollTo(target: number, source?: HTMLElement) {
+    left = Math.max(0, target);
     for (const scroller of currentScrollers()) {
-      if (scroller !== source && Math.abs(scroller.scrollLeft - left) > 0.5)
-        scroller.scrollLeft = left;
+      if (scroller !== source) syncLeft(scroller);
     }
     const bar = track();
-    if (bar && bar !== source && Math.abs(bar.scrollLeft - left) > 0.5)
-      bar.scrollLeft = left;
+    if (bar && bar !== source) syncLeft(bar);
+  }
+
+  function acceptScroll(source: HTMLElement) {
+    const previous = applied.get(source);
+    applied.delete(source);
+    if (
+      source.scrollWidth <= source.clientWidth ||
+      source.scrollLeft === previous ||
+      Math.abs(source.scrollLeft - leftFor(source)) <= 0.5
+    )
+      return;
+    scrollTo(source.scrollLeft, source);
   }
 
   const onCodeScroll = (event: Event) => {
     const target = event.currentTarget;
     if (!(target instanceof HTMLElement)) return;
-    if (Math.abs(target.scrollLeft - left) <= 0.5) return;
-    applyLeft(target.scrollLeft, target);
+    // The paired columns and the pinned track share one position here.
+    // Pierre's split-only listener would mirror the shorter column's clamp.
+    if (scrollers.size > 1) event.stopImmediatePropagation();
+    acceptScroll(target);
   };
 
   const onTrackScroll = () => {
     const bar = track();
-    if (!bar || Math.abs(bar.scrollLeft - left) <= 0.5) return;
-    applyLeft(bar.scrollLeft, bar);
+    if (bar) acceptScroll(bar);
   };
 
   function measure() {
@@ -363,7 +402,7 @@ export function bindHorizontalScrollbar(
     const bar = track();
     for (const old of scrollers) {
       if (!active.includes(old)) {
-        old.removeEventListener("scroll", onCodeScroll);
+        old.removeEventListener("scroll", onCodeScroll, true);
         scrollers.delete(old);
       }
     }
@@ -373,7 +412,10 @@ export function bindHorizontalScrollbar(
     for (const scroller of active) {
       if (!scrollers.has(scroller)) {
         scrollers.add(scroller);
-        scroller.addEventListener("scroll", onCodeScroll, { passive: true });
+        scroller.addEventListener("scroll", onCodeScroll, {
+          capture: true,
+          passive: true,
+        });
       }
       nextObserved.add(scroller);
       for (const child of scroller.children) nextObserved.add(child);
@@ -393,7 +435,6 @@ export function bindHorizontalScrollbar(
       }
     }
     if (maxOverflow <= 1) {
-      left = 0;
       onChange({ shown: false, width: 0 });
       return;
     }
@@ -402,20 +443,13 @@ export function bindHorizontalScrollbar(
         ? bar.clientWidth
         : (active[0]?.clientWidth ?? 0);
     const width = Math.ceil(baseWidth + maxOverflow);
-    // In a single-scroller reader, scrollToColumn sets scroller.scrollLeft
-    // directly before its async scroll event; in split diff, any difference
-    // between scrollers means a scroll event is in flight and left will update.
-    const sourceLeft =
-      active.length === 1 && active[0]!.scrollLeft > 0
-        ? active[0]!.scrollLeft
-        : left;
-    const targetLeft = Math.min(sourceLeft, maxOverflow);
     onChange({ shown: true, width });
-    applyLeft(targetLeft);
+    // Narrow layouts and shorter columns clamp independently. A clamp
+    // leaves the shared position available when the wider range returns.
+    for (const scroller of active) syncLeft(scroller);
     requestAnimationFrame(() => {
       const currentBar = track();
-      if (currentBar && Math.abs(currentBar.scrollLeft - left) > 0.5)
-        currentBar.scrollLeft = left;
+      if (currentBar) syncLeft(currentBar);
     });
   }
 
@@ -431,6 +465,7 @@ export function bindHorizontalScrollbar(
 
   return {
     sync: measure,
+    scrollTo,
     onTrackScroll,
     destroy() {
       if (frame) cancelAnimationFrame(frame);
@@ -438,7 +473,7 @@ export function bindHorizontalScrollbar(
       resize.disconnect();
       observed.clear();
       for (const scroller of scrollers)
-        scroller.removeEventListener("scroll", onCodeScroll);
+        scroller.removeEventListener("scroll", onCodeScroll, true);
       scrollers.clear();
     },
   };

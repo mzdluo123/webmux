@@ -292,21 +292,20 @@
               >
                 {m.s2_launch_cmd_help()}
               </p>
-              <div class="flex items-center gap-2">
-                <Checkbox
-                  id="launch-config-startup"
-                  bind:checked={loadStartup}
-                  aria-describedby="launch-config-startup-help"
-                />
-                <Label for="launch-config-startup"
-                  >{m.s2_launch_load_startup()}</Label
-                >
-              </div>
-              {#if loadStartup}
-                <div class="grid gap-2">
-                  <Label for="launch-config-startup-shell"
-                    >{m.s2_launch_startup_file()}</Label
+              <div
+                class="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2"
+              >
+                <div class="flex min-w-0 items-center gap-2">
+                  <Checkbox
+                    id="launch-config-startup"
+                    bind:checked={loadStartup}
+                    aria-describedby="launch-config-startup-help"
+                  />
+                  <Label for="launch-config-startup"
+                    >{m.s2_launch_load_startup()}</Label
                   >
+                </div>
+                <div class:invisible={!loadStartup} inert={!loadStartup}>
                   <Select.Root
                     type="single"
                     value={startupShell}
@@ -333,7 +332,7 @@
                     </Select.Content>
                   </Select.Root>
                 </div>
-              {/if}
+              </div>
               <p
                 id="launch-config-startup-help"
                 class="text-xs text-muted-foreground"
@@ -343,7 +342,7 @@
               {#if providers.LaunchChatFields}
                 <providers.LaunchChatFields
                   config={loadedConfig}
-                  cmd={draft.ok ? draft.value.cmd : undefined}
+                  cmd={draft.ok ? draft.value.cmd : draft.cmd}
                   bind:hybrid
                   disabled={busy}
                 />

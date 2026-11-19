@@ -20,6 +20,7 @@ import {
   applyOfflineDiscardChanges,
   applyOfflineLineMutation,
   countSelectedLines,
+  formatLineRangeLabel,
   mapDiffRangeToLineSelections,
   selectAllChangedInHunk,
   toggleHunkLineSelection,
@@ -182,6 +183,9 @@ describe("Git Workbench V3 (#551): Sub-hunk Line Selection & Offline Splicing", 
   });
 
   test("maps CodeDiffReader range selections to hunk lineIndices", () => {
+    expect(formatLineRangeLabel(11, 11)).toBe("L11");
+    expect(formatLineRangeLabel(11, 12)).toBe("L11-L12");
+
     expect(
       mapDiffRangeToLineSelections([sampleHunk], {
         side: "deletions",
@@ -197,6 +201,15 @@ describe("Git Workbench V3 (#551): Sub-hunk Line Selection & Offline Splicing", 
         end: 12,
       }),
     ).toEqual([{ hunkId: "hunk-0", lineIndices: [2, 3] }]);
+
+    expect(
+      mapDiffRangeToLineSelections([sampleHunk], {
+        side: "deletions",
+        endSide: "additions",
+        start: 11,
+        end: 12,
+      }),
+    ).toEqual([]);
   });
 
   test("splices staged/unstaged/discarded lines while keeping staged entries safe from discard", () => {

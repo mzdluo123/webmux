@@ -46,6 +46,7 @@ export function createGitPushController(deps: GitPushControllerDeps) {
   let remote = $state("");
   let target = $state("");
   let remotes = $state<Remote[]>([]);
+  let remotesLoading = $state(false);
   let remotesError = $state("");
   let preview = $state<PushPreview | null>(null);
   let loading = $state(false);
@@ -98,6 +99,7 @@ export function createGitPushController(deps: GitPushControllerDeps) {
     remote = "";
     target = "";
     remotes = [];
+    remotesLoading = false;
     remotesError = "";
     preview = null;
     loading = false;
@@ -115,7 +117,10 @@ export function createGitPushController(deps: GitPushControllerDeps) {
   async function selectCommit(oid: string, parentOverride?: string) {
     const repoId = deps.getRepoId();
     if (!repoId || !oid) return;
+    detailReq.cancel();
+    detailLoading = false;
     selectedCommitOid = oid;
+    selectedFilePath = null;
     const existing = detailsByOid.get(oid);
     if (
       existing &&
@@ -133,6 +138,8 @@ export function createGitPushController(deps: GitPushControllerDeps) {
     }
 
     const req = detailReq.begin();
+    selectedParentOid = parentOverride ?? "";
+    void diffCtrl.loadFileDiff(oid, selectedParentOid, null);
     detailLoading = true;
     try {
       const raw = await gitCommitDetail(
@@ -161,7 +168,7 @@ export function createGitPushController(deps: GitPushControllerDeps) {
 
   function selectFile(path: string) {
     const oid = selectedCommitOid;
-    if (!oid) return;
+    if (!oid || detailLoading) return;
     const detail = detailsByOid.get(oid);
     if (!detail) return;
     const pKey = selectedParentOid || detail.selectedParent;
@@ -205,6 +212,8 @@ export function createGitPushController(deps: GitPushControllerDeps) {
       if (chosenOid) {
         void selectCommit(chosenOid);
       } else {
+        detailReq.cancel();
+        detailLoading = false;
         selectedCommitOid = null;
         selectedFilePath = null;
         diffCtrl.reset();
@@ -230,6 +239,7 @@ export function createGitPushController(deps: GitPushControllerDeps) {
     precedingCommit = preceding ?? null;
 
     const rReq = remotesReq.begin();
+    remotesLoading = true;
     branchOperations
       .remotes(repoId, rReq.signal)
       .then((res) => {
@@ -237,6 +247,9 @@ export function createGitPushController(deps: GitPushControllerDeps) {
       })
       .catch((err) => {
         if (rReq.reportable() && open) remotesError = errorMessage(err);
+      })
+      .finally(() => {
+        if (rReq.current()) remotesLoading = false;
       });
 
     void refreshPreview();
@@ -253,20 +266,36 @@ export function createGitPushController(deps: GitPushControllerDeps) {
     }
   }
 
-  function setPublishRemote(nextRemote: string) {
-    remote = nextRemote;
+  function invalidateDestination() {
+    clearTimer();
+    previewReq.cancel();
+    detailReq.cancel();
+    diffCtrl.reset();
+    preview = null;
+    rejected = null;
     conflictError = "";
-    void refreshPreview();
+    loadError = "";
+    selectedCommitOid = null;
+    selectedParentOid = "";
+    selectedFilePath = null;
+    detailLoading = false;
+    loading = Boolean(target.trim());
+  }
+
+  function setPublishRemote(nextRemote: string) {
+    if (running || remote === nextRemote) return;
+    remote = nextRemote;
+    invalidateDestination();
+    if (target.trim()) void refreshPreview();
   }
 
   function setPublishTarget(nextTarget: string) {
+    if (running) return;
+    const changed = target.trim() !== nextTarget.trim();
     target = nextTarget;
-    conflictError = "";
-    clearTimer();
-    if (!nextTarget.trim()) {
-      preview = preview ? { ...preview, confirmationId: "" } : null;
-      return;
-    }
+    if (!changed) return;
+    invalidateDestination();
+    if (!target.trim()) return;
     targetTimer = setTimeout(() => {
       targetTimer = null;
       void refreshPreview();
@@ -276,7 +305,14 @@ export function createGitPushController(deps: GitPushControllerDeps) {
   async function confirmPush() {
     const repoId = deps.getRepoId();
     const cur = preview;
-    if (!repoId || !cur || !cur.confirmationId || running || loading) return;
+    if (
+      !repoId ||
+      !cur?.confirmationId ||
+      cur.blockers.length ||
+      running ||
+      loading
+    )
+      return;
     if (publishing && (cur.remote !== remote || cur.target !== target.trim())) {
       return;
     }
@@ -300,8 +336,6 @@ export function createGitPushController(deps: GitPushControllerDeps) {
       });
       deps.onRepositoryUpdated?.(result.repository);
       deps.onRefreshAfterPush?.();
-      await deps.operations?.refreshOperations(repoId, wtId);
-
       if (result.status === "ok") {
         const banner = precedingCommit
           ? cur.publish
@@ -331,7 +365,7 @@ export function createGitPushController(deps: GitPushControllerDeps) {
             })
           : m.s7_push_failed({ error: failMsg }),
       );
-      await refreshPreview();
+      void refreshPreview();
     } catch (err) {
       if (deps.operations && isRecoverableNetworkFailure(err)) {
         const recovered = await deps.operations.recoverByClientRequest({
@@ -349,7 +383,6 @@ export function createGitPushController(deps: GitPushControllerDeps) {
           return;
         }
       }
-      await deps.operations?.refreshOperations(repoId, wtId);
       const msg = errorMessage(err);
       conflictError = msg;
       deps.onStatusBanner(
@@ -360,10 +393,11 @@ export function createGitPushController(deps: GitPushControllerDeps) {
             })
           : m.s7_push_failed({ error: msg }),
       );
-      await refreshPreview();
+      void refreshPreview();
     } finally {
       deps.operations?.clearActive();
       running = false;
+      void deps.operations?.refreshOperations(repoId, wtId);
     }
   }
 
@@ -391,6 +425,9 @@ export function createGitPushController(deps: GitPushControllerDeps) {
     },
     get remotes() {
       return remotes;
+    },
+    get remotesLoading() {
+      return remotesLoading;
     },
     get remotesError() {
       return remotesError;

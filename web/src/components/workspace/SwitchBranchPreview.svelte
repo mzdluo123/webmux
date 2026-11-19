@@ -1,6 +1,7 @@
 <script lang="ts">
   import IconArrowRight from "~icons/tabler/arrow-right";
   import { m } from "$lib/paraglide/messages.js";
+  import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
   import type { SwitchPreview, Worktree } from "../../contracts/schemas";
@@ -16,6 +17,7 @@
     worktree,
     acknowledged = $bindable(false),
     busy = false,
+    onRetry,
   }: {
     preview: SwitchPreview | null;
     previewing?: boolean;
@@ -24,6 +26,7 @@
     worktree: Worktree;
     acknowledged?: boolean;
     busy?: boolean;
+    onRetry: () => void;
   } = $props();
 
   const short = (hash: string | null | undefined) => hash?.slice(0, 8) ?? "";
@@ -56,12 +59,32 @@
   <p role="alert" class="text-sm break-all text-destructive">
     {m.s8_cannot_preview({ error: previewError })}
   </p>
+  <Button type="button" variant="outline" size="sm" onclick={onRetry}>
+    {m.s8_reload_preview_btn()}
+  </Button>
 {/if}
-{#if conflict}<InlineNotice tone="warning"
-    >{m.s8_conflict_repreviewed({ error: conflict })}</InlineNotice
-  >{/if}
+{#snippet conflictNotice()}
+  {#if conflict}
+    <InlineNotice tone="warning">
+      {m.s8_conflict_repreviewed({ error: conflict })}
+    </InlineNotice>
+  {/if}
+{/snippet}
+
+{#if !preview}
+  {@render conflictNotice()}
+{/if}
 {#if preview}
   <section aria-label={m.s8_switch_preview_aria()} class="space-y-3">
+    {#if preview.blockers.length}
+      <div role="alert">
+        <BlockerList
+          title={m.s8_cannot_switch_title()}
+          blockers={preview.blockers.map((item) => item.message)}
+        />
+      </div>
+    {/if}
+    {@render conflictNotice()}
     <div class="space-y-1 rounded-lg border p-3 text-sm">
       <p
         class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-medium"
@@ -93,12 +116,6 @@
               })}
         </p>{/if}
     </div>
-    {#if preview.blockers.length}
-      <BlockerList
-        title={m.s8_cannot_switch_title()}
-        blockers={preview.blockers.map((item) => item.message)}
-      />
-    {/if}
     {#if otherWarnings.length}
       <InlineNotice tone="warning">
         <ul class="space-y-1">

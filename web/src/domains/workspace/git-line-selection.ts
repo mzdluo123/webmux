@@ -121,6 +121,13 @@ export function countSelectedLines(
   return selections.reduce((sum, sel) => sum + sel.lineIndices.length, 0);
 }
 
+export function formatLineRangeLabel(
+  startLine: number,
+  endLine: number,
+): string {
+  return startLine === endLine ? `L${startLine}` : `L${startLine}-L${endLine}`;
+}
+
 /**
  * Maps a CodeDiffReader line range selection into matching changed lines inside
  * `hunks` (matching `oldLine` on deletions side or `newLine` on additions side,
@@ -131,6 +138,7 @@ export function mapDiffRangeToLineSelections(
   range: SelectedLineRange | null,
 ): GitLineSelection[] {
   if (!range || hunks.length === 0) return [];
+  if (range.endSide && range.endSide !== range.side) return [];
   const side: "old" | "new" = range.side === "deletions" ? "old" : "new";
   const start = Math.min(range.start, range.end);
   const end = Math.max(range.start, range.end);

@@ -3,6 +3,7 @@
   import { api } from "../../platform/api";
   import { findShell } from "../../hooks/shared/shell.svelte";
   import {
+    AgentToolsReportSchema,
     LaunchConfigsSchema,
     RepositoriesSchema,
     type Repository,
@@ -27,6 +28,7 @@
     forwarding = $bindable(false),
     excluded,
     feedSessions,
+    oncancelchoose,
     onselect,
     oncreated,
   }: {
@@ -36,6 +38,7 @@
     forwarding: boolean;
     excluded: string[];
     feedSessions: readonly SessionInfo[];
+    oncancelchoose: () => void;
     onselect: (sessionId: string, direction: SplitDirection) => void;
     oncreated: (
       session: SessionInfo,
@@ -63,6 +66,15 @@
     const controller = new AbortController();
     creationController = controller;
     if (featureEnabled("launch") && featureAvailable("launch.configs")) {
+      const toolsPromise = api(
+        "/agent-tools",
+        AgentToolsReportSchema,
+        "GET",
+        undefined,
+        controller.signal,
+      )
+        .then((report) => report.tools)
+        .catch(() => undefined);
       void api(
         "/launch-configs",
         LaunchConfigsSchema,
@@ -70,9 +82,22 @@
         undefined,
         controller.signal,
       )
-        .then((configs) => {
-          if (!controller.signal.aborted)
-            launchConfigs = { status: "ready", configs };
+        .then(async (configs) => {
+          if (controller.signal.aborted) return;
+          launchConfigs = {
+            status: "ready",
+            configs,
+            agentToolsLoading: true,
+          };
+          const agentTools = await toolsPromise;
+          if (!controller.signal.aborted) {
+            launchConfigs = {
+              status: "ready",
+              configs,
+              agentTools,
+              agentToolsLoading: false,
+            };
+          }
         })
         .catch((err) => {
           if (!controller.signal.aborted)
@@ -103,6 +128,7 @@
     {excluded}
     onclose={() => {
       choosing = false;
+      oncancelchoose();
     }}
     {onselect}
   />

@@ -431,14 +431,6 @@
       ><IconZoomIn aria-hidden="true" /></Button
     >
   </div>
-  <CodeReaderPanels
-    panel={find.panel}
-    query={find.search}
-    line={selected?.start ?? 1}
-    status={`${side === "old" ? m.s5_before() : m.s5_after()} · ${find.status}`}
-    {...find.panelProps}
-    ongoto={goto}
-  />
   {#if diffStyle === "split"}
     <div
       class="grid shrink-0 grid-cols-2 border-b bg-muted/40 font-mono text-xs text-muted-foreground"
@@ -466,6 +458,14 @@
       </p>
     {/if}
   </div>
+  <CodeReaderPanels
+    panel={find.panel}
+    query={find.search}
+    line={selected?.start ?? 1}
+    status={`${side === "old" ? m.s5_before() : m.s5_after()} · ${find.status}`}
+    {...find.panelProps}
+    ongoto={goto}
+  />
   <CodeHorizontalScrollbar
     {track}
     bind:trackElement

@@ -327,10 +327,6 @@
       "count": 1,
       "owner": "tray-local"
     },
-    "cmd/webmux/config_migrate.go|migrateConfig|github.com/rainchan/webmux/internal/statefile.Write": {
-      "count": 2,
-      "owner": "bootstrap"
-    },
     "cmd/webmux/configcmd.go|publishConfig|github.com/rainchan/webmux/internal/statefile.Write": {
       "count": 1,
       "owner": "bootstrap"

@@ -37,7 +37,7 @@
     fullscreen,
     codeShown = $bindable(),
     panelView = $bindable("code"),
-    forceSoftKeys = $bindable(),
+    bottomToolbarShown = $bindable(),
     desktop,
     documentScroll,
     chatVisible,
@@ -73,8 +73,6 @@
     keyboardSizeHold,
     setKeyboardSizeHold,
     keyboardHeld,
-    touchGamepad,
-    setTouchGamepad,
     findOpen,
     showFind,
     closeFind,
@@ -106,7 +104,7 @@
     fullscreen: ReturnType<typeof useFullscreen>;
     codeShown: boolean;
     panelView: "picker" | "code" | "split";
-    forceSoftKeys: boolean;
+    bottomToolbarShown: boolean;
     desktop: boolean;
     documentScroll: boolean;
     chatVisible: boolean;
@@ -142,8 +140,6 @@
     keyboardSizeHold: boolean;
     setKeyboardSizeHold: (value: boolean) => void;
     keyboardHeld: boolean;
-    touchGamepad: boolean;
-    setTouchGamepad: (value: boolean) => void;
     findOpen: boolean;
     showFind: () => void;
     closeFind: () => void;
@@ -271,6 +267,7 @@
 {#snippet draftToggle()}
   <DraftToggle
     class="sm:hidden"
+    size="icon-xs"
     {draft}
     {draftSaved}
     {scratchSaved}
@@ -303,7 +300,7 @@
   {keyboardSizeHold}
   {setKeyboardSizeHold}
   bind:codeShown
-  bind:forceSoftKeys
+  bind:bottomToolbarShown
   {quickMenu}
   upload={uploads?.uploadFiles}
   {toggleDraft}
@@ -348,6 +345,7 @@
           {leave}
           {terminal}
           {uploads}
+          hideUploadProgress={terminalShown}
           {features}
           {draft}
           {draftSaved}
@@ -390,8 +388,6 @@
           {terminal}
           visible={terminalVisible}
           sizeLocked={sizeLocked || keyboardHeld}
-          {touchGamepad}
-          {setTouchGamepad}
           {findOpen}
           {uploads}
           {quickMenu}
@@ -415,6 +411,14 @@
               {terminal}
               onclose={closeFind}
             />
+          {/snippet}
+          {#snippet uploadProgress()}
+            {#if terminalShown && features.files && uploads?.progress}<features.files.Progress
+                variant="floating"
+                offset={findOpen}
+                progress={uploads.progress}
+                cancel={() => uploads?.cancel()}
+              />{/if}
           {/snippet}
         </TerminalViewport>
       </div>

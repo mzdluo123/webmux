@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import IconArchive from "~icons/tabler/archive";
   import IconArrowsSplit2 from "~icons/tabler/arrows-split-2";
   import IconChevronDown from "~icons/tabler/chevron-down";
@@ -9,6 +10,7 @@
   import { Button } from "$lib/components/ui/button";
   import { Checkbox } from "$lib/components/ui/checkbox";
   import { Label } from "$lib/components/ui/label";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { Worktree } from "../../contracts/schemas";
   import type { createSmartCheckoutController } from "../../hooks/workspace/git-smart-checkout.svelte";
   import BlockerList from "../shared/BlockerList.svelte";
@@ -41,35 +43,72 @@
   const nonSessionWarnings = $derived(
     (smart.preview?.warnings ?? []).filter((w) => w.code !== "sessions"),
   );
+  const id = $props.id();
+  let errorPanel = $state<HTMLElement | null>(null);
+  let resultPanel = $state<HTMLElement | null>(null);
+  let resolver = $state<HTMLButtonElement | null>(null);
+  let copyButton = $state<HTMLButtonElement | null>(null);
+
+  async function execute(event: MouseEvent) {
+    const trigger = event.currentTarget;
+    if (busy || !smart.canExecute || !(trigger instanceof HTMLElement)) return;
+    let followResult = true;
+    const trackFocus = (focus: FocusEvent) => {
+      if (trigger.isConnected) followResult = focus.target === trigger;
+    };
+    document.addEventListener("focusin", trackFocus);
+    try {
+      await smart.execute();
+      await tick();
+      if (followResult) {
+        const nextFocus =
+          resolver ??
+          copyButton ??
+          (smart.execError || smart.conflictMessage ? errorPanel : null) ??
+          resultPanel ??
+          errorPanel;
+        nextFocus?.focus();
+      }
+    } finally {
+      document.removeEventListener("focusin", trackFocus);
+    }
+  }
 </script>
 
-{#if smart.execError}
-  <InlineNotice tone="danger">{smart.execError}</InlineNotice>
-{/if}
-{#if smart.conflictMessage}
-  <InlineNotice tone="warning">
-    {m.s8_smart_conflict_refreshed({ error: smart.conflictMessage })}
-  </InlineNotice>
+{#if smart.execError || smart.conflictMessage}
+  <div bind:this={errorPanel} tabindex="-1">
+    <InlineNotice tone={smart.execError ? "danger" : "warning"} size="compact">
+      <ScrollArea viewportClasses="max-h-24 overscroll-contain">
+        {smart.execError ||
+          m.s8_smart_conflict_refreshed({ error: smart.conflictMessage })}
+      </ScrollArea>
+    </InlineNotice>
+  </div>
 {/if}
 
-{#if smart.lastResult?.outcome === "rolled_back"}
-  <InlineNotice tone="warning">
-    <div class="space-y-1" data-testid="smart-checkout-rolled-back-notice">
-      <p class="font-medium text-foreground">
-        {m.s8_smart_rolled_back_title()}
-      </p>
-      <p class="text-xs text-muted-foreground">{smart.lastResult.summary}</p>
-    </div>
-  </InlineNotice>
-{:else if smart.lastResult?.outcome === "conflict_needs_resolution"}
+{#if smart.lastResult}
   {@const res = smart.lastResult}
+  {@const rolledBack = res.outcome === "rolled_back"}
   <section
-    aria-label={m.s8_smart_conflict_guide_aria()}
+    bind:this={resultPanel}
+    tabindex="-1"
+    aria-describedby={id}
+    aria-label={rolledBack
+      ? m.s8_smart_section_aria()
+      : m.s8_smart_conflict_guide_aria()}
     class="space-y-3 rounded-lg border border-border bg-background p-3 text-xs"
-    data-testid="smart-checkout-conflict-card"
+    data-testid={rolledBack
+      ? "smart-checkout-rolled-back-notice"
+      : "smart-checkout-conflict-card"}
   >
     <div class="flex flex-wrap items-center gap-2">
-      <Badge variant="warning">{m.s8_smart_restore_conflict_badge()}</Badge>
+      {#if !rolledBack}
+        <Badge variant="warning">{m.s8_smart_restore_conflict_badge()}</Badge>
+      {:else if res.stashRestored}
+        <p class="font-medium text-foreground">
+          {m.s8_smart_rolled_back_title()}
+        </p>
+      {/if}
       {#if res.stashPreserved && res.stashOid}
         <Badge variant="outline">
           <IconArchive aria-hidden="true" />
@@ -77,21 +116,36 @@
         </Badge>
       {/if}
     </div>
-    <p class="leading-relaxed text-foreground">{res.summary}</p>
-    {#if res.recoveryCommand}
+    <ScrollArea
+      viewportClasses="max-h-24 overscroll-contain"
+      viewportProps={{ tabindex: 0 }}
+    >
+      <p
+        {id}
+        role="status"
+        class="wrap-anywhere leading-relaxed text-foreground"
+      >
+        {res.summary}
+      </p>
+    </ScrollArea>
+    {#if res.stashPreserved && res.recoveryCommand}
       <GitRecoveryCommandBox
         label={m.s8_smart_recovery_cmd_label()}
         copyLabel={m.s8_smart_copy_recovery_cmd()}
         command={res.recoveryCommand}
+        bind:copyButton
+        bounded
         testId="smart-checkout-recovery-cmd"
       />
     {/if}
-    {#if onopenconflict}
+    {#if onopenconflict && res.inProgress.conflictedCount > 0}
       <div class="flex flex-wrap items-center gap-2">
         <Button
+          bind:ref={resolver}
           type="button"
           variant="default"
           wrap
+          aria-describedby={id}
           onclick={() =>
             onopenconflict(
               res.worktree,
@@ -232,8 +286,13 @@
               variant={smart.hasActiveSessions ? "outline" : "default"}
               size="sm"
               wrap
-              disabled={!smart.canExecute}
-              onclick={() => void smart.execute()}
+              disabled={!smart.canExecute && !busy}
+              aria-disabled={busy || undefined}
+              tabindex={busy ? -1 : undefined}
+              onclick={(event) => {
+                if (busy || !smart.canExecute) return;
+                void execute(event);
+              }}
               data-testid="smart-checkout-submit-btn"
             >
               <IconSwitchHorizontal aria-hidden="true" />

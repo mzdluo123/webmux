@@ -279,7 +279,7 @@
                     title={node.path}
                   >
                     {#if loading.has(node.path)}<IconLoader
-                        class="size-3.5 shrink-0 animate-spin"
+                        class="size-3.5 shrink-0 motion-safe:animate-spin"
                         aria-hidden="true"
                       />{:else if expanded.has(node.path)}<IconChevronDown
                         class="size-3.5 shrink-0"
@@ -302,9 +302,11 @@
               {@render actions(node)}
             </div>
             <Collapsible.Content>
-              <div class="ml-3 border-l pl-1">
-                {@render contents(branches.get(node.path), node.path, node)}
-              </div>
+              {#if expanded.has(node.path)}
+                <div class="ml-3 border-l pl-1">
+                  {@render contents(branches.get(node.path), node.path, node)}
+                </div>
+              {/if}
             </Collapsible.Content>
           </Collapsible.Root>
         {:else}
@@ -435,7 +437,9 @@
         {@render actions(rootNode)}
       </div>
       <Collapsible.Content>
-        {@render contents(listing, "", rootNode)}
+        {#if rootOpen}
+          {@render contents(listing, "", rootNode)}
+        {/if}
       </Collapsible.Content>
     </Collapsible.Root>
   </div>

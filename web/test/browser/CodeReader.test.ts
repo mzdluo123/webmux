@@ -105,6 +105,119 @@ test("read-only virtualized full file, real line selection, search and goto", as
     .toContain("const line850");
 });
 
+test("reader controls open without moving the displayed lines", async () => {
+  render(Harness, {
+    text: Array.from({ length: 100 }, (_, i) => `line ${i + 1}`).join("\n"),
+    restore: {
+      line: 8,
+      offset: 0,
+      search: {
+        search: "",
+        caseSensitive: false,
+        regexp: false,
+        wholeWord: false,
+      },
+    },
+  });
+  const surface = page.getByLabelText("只读代码");
+  await expect.poll(() => row(12)?.textContent).toBe("line 12");
+  await document.fonts.ready;
+  const host = surface.element();
+  await expect.poll(() => host.scrollTop).toBeGreaterThan(100);
+  const lineY = () =>
+    row(12)!.getBoundingClientRect().y - host.getBoundingClientRect().y;
+  const hostY =
+    host.getBoundingClientRect().y - document.body.getBoundingClientRect().y;
+  const initialY = lineY();
+
+  await page.getByRole("button", { name: "文件内查找" }).click();
+  const search = page.getByRole("textbox", { name: "查找" });
+  await expect.element(search).toHaveFocus();
+  await search.fill("line");
+  expect(lineY()).toBe(initialY);
+  expect(
+    host.getBoundingClientRect().y - document.body.getBoundingClientRect().y,
+  ).toBe(hostY);
+  await userEvent.keyboard("{Control>}{Alt>}g{/Alt}{/Control}");
+  await expect
+    .element(page.getByRole("textbox", { name: "跳转到行" }))
+    .toHaveFocus();
+  expect(lineY()).toBe(initialY);
+  await page.getByRole("button", { name: "缩放", exact: true }).click();
+  await expect.element(page.getByRole("slider")).toHaveFocus();
+  expect(lineY()).toBe(initialY);
+  await userEvent.keyboard("{Escape}");
+  await expect.element(surface).toHaveFocus();
+  expect(lineY()).toBe(initialY);
+});
+
+test("reader panel sits above horizontal scrollbar and nudges scrollTop when covering a selected bottom line", async () => {
+  const long = `const ${"x".repeat(400)} = 1;`;
+  const text = Array.from({ length: 100 }, (_, i) =>
+    i === 0 ? long : `line ${i + 1}`,
+  ).join("\n");
+  render(Harness, { text });
+  const host = document.querySelector<HTMLElement>("[data-code-reader]")!;
+  await expect.poll(() => row(1)?.textContent ?? "").toContain("xxxx");
+  await document.fonts.ready;
+  await expect
+    .poll(() => scrollbar()?.classList.contains("hidden") ?? true)
+    .toBe(false);
+
+  // Select an upper line first: opening the bottom panel keeps scrollTop anchored.
+  await page.elementLocator(gutter(2)!).click();
+  const initialScrollTop = host.scrollTop;
+  await page.getByRole("button", { name: "文件内查找" }).click();
+  await expect
+    .element(page.getByRole("textbox", { name: "查找" }))
+    .toHaveFocus();
+  expect(host.scrollTop).toBe(initialScrollTop);
+
+  const searchPanel =
+    document.querySelector<HTMLElement>("[data-code-search]")!.parentElement!;
+  const hostRect = host.getBoundingClientRect();
+  const panelRect = searchPanel.getBoundingClientRect();
+  const barRect = scrollbar()!.getBoundingClientRect();
+  expect(panelRect.top).toBeGreaterThanOrEqual(hostRect.bottom - 1);
+  expect(barRect.top).toBeGreaterThanOrEqual(panelRect.bottom - 1);
+
+  await userEvent.keyboard("{Escape}");
+  expect(document.querySelector("[data-code-search]")).toBeNull();
+
+  // Select the last fully visible line near the bottom of the viewport.
+  const closedBox = host.getBoundingClientRect();
+  const bottomRows = [
+    ...(shadow()?.querySelectorAll<HTMLElement>("[data-line]") ?? []),
+  ]
+    .map((el) => ({
+      line: Number(el.dataset.line),
+      rect: el.getBoundingClientRect(),
+    }))
+    .filter(
+      ({ line, rect }) =>
+        Number.isInteger(line) &&
+        rect.top >= closedBox.top &&
+        rect.bottom <= closedBox.bottom,
+    );
+  const bottomTarget = bottomRows.at(-1)!;
+  expect(bottomTarget).toBeDefined();
+  await page.elementLocator(gutter(bottomTarget.line)!).click();
+  const beforeScrollTop = host.scrollTop;
+  const beforeRowBottom = row(bottomTarget.line)!.getBoundingClientRect()
+    .bottom;
+
+  await page.getByRole("button", { name: "文件内查找" }).click();
+  await expect
+    .element(page.getByRole("textbox", { name: "查找" }))
+    .toHaveFocus();
+  const openBox = host.getBoundingClientRect();
+  expect(beforeRowBottom).toBeGreaterThan(openBox.bottom);
+  expect(host.scrollTop).toBeGreaterThan(beforeScrollTop);
+  const afterRowRect = row(bottomTarget.line)!.getBoundingClientRect();
+  expect(afterRowRect.top).toBeGreaterThanOrEqual(openBox.top - 0.5);
+  expect(afterRowRect.bottom).toBeLessThanOrEqual(openBox.bottom + 0.5);
+});
+
 test("goto accepts N:column and scrolls the code horizontally", async () => {
   const long = `const ${"x".repeat(400)} = 1;`;
   const text = Array.from({ length: 1000 }, (_, i) =>

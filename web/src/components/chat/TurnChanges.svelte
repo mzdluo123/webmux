@@ -4,11 +4,13 @@
   import { m } from "$lib/paraglide/messages.js";
   import type { ChatContent } from "../../contracts/schemas";
   import { diffStats } from "../../domains/chat/chat-model";
+  import { holdTranscriptPosition } from "../../hooks/chat/transcript-resize";
   import DiffCount from "./DiffCount.svelte";
   import ChatDisclosure from "./ChatDisclosure.svelte";
   import TurnPatch from "./TurnPatch.svelte";
 
   let { changes }: { changes: readonly ChatContent[] } = $props();
+  const previewId = $props.id();
   let selectedPath = $state<string>();
   const byFile = $derived.by(() => {
     const files = new SvelteMap<string, ChatContent[]>();
@@ -39,6 +41,7 @@
       ),
     })),
   );
+  const selected = $derived(files.find(({ path }) => path === selectedPath));
 </script>
 
 <ChatDisclosure>
@@ -47,32 +50,43 @@
     })}{/snippet}
   <p class="text-xs">{m.s3_turn_changes_desc()}</p>
   <ul>
-    {#each files as { path, patches, hasLineStats, stats } (path)}
+    {#each files as { path, hasLineStats, stats } (path)}
       <li>
         <ListButton
           variant="row"
           class="w-full min-w-0"
           aria-pressed={selectedPath === path}
-          onclick={() =>
-            (selectedPath = selectedPath === path ? undefined : path)}
+          aria-controls={selectedPath === path ? previewId : undefined}
+          onclick={(event) => {
+            event.currentTarget.dispatchEvent(
+              new Event(holdTranscriptPosition, { bubbles: true }),
+            );
+            selectedPath = selectedPath === path ? undefined : path;
+          }}
         >
           <span class="truncate" title={path}>{path}</span>
           {#if hasLineStats}
             <DiffCount added={stats.added} removed={stats.removed} />
           {/if}
         </ListButton>
-        {#if selectedPath === path}
-          {#each patches as patch, i (i)}
-            {#if patches.length > 1}<p class="text-xs text-muted-foreground">
-                {m.s3_turn_patch_index({
-                  current: String(i + 1),
-                  total: String(patches.length),
-                })}
-              </p>{/if}
-            <TurnPatch {patch} />
-          {/each}
-        {/if}
       </li>
     {/each}
   </ul>
+  {#if selected}
+    {#key selected.path}
+      <div id={previewId} class="min-w-0 space-y-1.5">
+        {#each selected.patches as patch, i (i)}
+          {#if selected.patches.length > 1}
+            <p class="text-xs text-muted-foreground">
+              {m.s3_turn_patch_index({
+                current: String(i + 1),
+                total: String(selected.patches.length),
+              })}
+            </p>
+          {/if}
+          <TurnPatch {patch} />
+        {/each}
+      </div>
+    {/key}
+  {/if}
 </ChatDisclosure>

@@ -92,12 +92,15 @@ test("session title matches stay above message matches and preserve backend mess
       at: "2026-10-16T00:00:02Z",
     },
   ];
+  const messageSearch = Promise.withResolvers<ChatMessageMatch[]>();
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof globalThis.fetch>(async (input) => {
       const url = String(input);
       if (url.includes("/sessions")) return Response.json(sessions);
-      if (url.includes("/chat/search")) return Response.json(matches);
+      if (url.includes("/chat/search")) {
+        return Response.json(await messageSearch.promise);
+      }
       return Response.json([]);
     }),
   );
@@ -133,13 +136,23 @@ test("session title matches stay above message matches and preserve backend mess
 
   const dialog = page.getByRole("dialog", { name: "快速切换会话" });
   const combobox = dialog.getByRole("combobox");
+  const list = dialog.getByRole("listbox");
+  await expect.element(dialog.getByRole("option").first()).toBeVisible();
+  const listHeight = () => list.element().clientHeight;
+  const originalHeight = listHeight();
   await combobox.fill("user");
+  await expect
+    .poll(() => dialog.getByRole("option").elements())
+    .toHaveLength(2);
+  expect(listHeight()).toBeCloseTo(originalHeight);
+  messageSearch.resolve(matches);
 
   await expect
     .element(
       dialog.getByRole("option", { name: /Agent · 最新回复提到 user token/ }),
     )
     .toBeVisible();
+  expect(listHeight()).toBeCloseTo(originalHeight);
 
   await vi.waitFor(() => {
     const options = dialog.getByRole("option").elements();

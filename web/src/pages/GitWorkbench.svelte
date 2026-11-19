@@ -17,7 +17,7 @@
     writeGitDeviceLayout,
     type GitDeviceLayout,
   } from "../domains/workspace/git-workbench-memory";
-  import { filterActiveWorktreeSessions } from "../domains/workspace/git-rework-model";
+  import { filterActiveWorktreeSessions } from "../domains/workspace/git-workbench-adapter";
   import {
     GIT_CONFLICT_HANDOFF_EVENT,
     type GitConflictHandoff,
@@ -330,10 +330,6 @@
     {returnSession}
     {returnSessionArchived}
     sessionsReady={shell.sessions.connection === "connected"}
-    reworkCount={controller.rework.items.length}
-    onOpenRework={writableWorktree
-      ? () => controller.rework.openReworkSheet(activeWorktreeSessions)
-      : undefined}
     onSelectRepository={switchRepository}
     onSelectWorktree={(wtId) => switchWorktree(wtId)}
     onAddRepository={() => shell.addRepository()}
@@ -485,10 +481,8 @@
 
     <GitWorkbenchPageDialogs
       {controller}
-      {shell}
       {repositoryId}
       {worktreeId}
-      {activeWorktreeSessions}
       onCreateBranchFromHead={handleCreateBranchFromHead}
       onPush={handlePush}
       onFetchRemote={() =>

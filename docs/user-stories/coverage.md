@@ -15,7 +15,7 @@ Dokku 隔离、HTTPS 上游、离线节点 CA、同 key 续签与公开上线状
 Relay 页内配对、宿主权威流程、导航恢复与操作核对：US-A10；用户码仅经鉴权专用接口返回，诊断与危险操作作为次级入口。
 
 原生历史冻结、默认图片/显式文本预览、完整页集、能力门禁、单次发送与进程内状态：US-Q20；原生正文/工具提取与归档恢复：US-Q12、US-Q19；文本及图片预算边界：US-K04。
-功能选择、固定旧配置语义与重启边界：US-K18；核心 PTY 与遗留偏好降级：US-K19；认证能力发现、动态入口及禁用路由：US-K20；禁用数据保留与有序关闭：US-K21。
+配置文件功能开关退役与遗留表忽略（US-K18 已退役，配置解析归 US-K03）；程序化核心 PTY 与遗留偏好降级基建：US-K19；认证能力发现、动态入口及禁用路由：US-K20；测试隔离数据保留与有序关闭：US-K21。
 
 目录共 264 条（A 组 US-A01–US-A10，共 10 条；K 组 US-K01–US-K21，共 21 条）。可选行为以对应功能已选择且能力可用为前提，依赖矩阵见[阅读约定](../user-stories.md#阅读约定与产品边界)，不是全目录已重验声明。
 
@@ -29,7 +29,7 @@ Relay 页内配对、宿主权威流程、导航恢复与操作核对：US-A10�
 | 官方 Relay 设备配对与开关、GitHub 主机后台与限定 Origin 会话、集中节点配置及监督                                                                                             | US-A08–US-A10；US-H12                                         |
 | 统一上下文新建会话、十二款 CLI 启动配置、目录浏览与创建、名称和命令                                                                                                          | US-B01–US-B07                                                 |
 | 设置页自定义启动配置与图标、启动配置 API 与按配置启动                                                                                                                        | US-B01；US-B08                                                |
-| 设置页“Agent 工具”本机扫描、ACP 适配器状态、含完整 PyPI 元数据的更新检查、复制安装/升级命令与 CLI `webmux agents`                                                            | US-B13；US-Q16；US-S18                                        |
+| 设置页“启动配置”融合本机工具扫描、未安装 Agent 启动入口自动隐藏、ACP 适配器状态、含完整 PyPI 元数据的更新检查、复制安装/升级命令与 CLI `webmux agents`                       | US-B01；US-B08；US-B13；US-Q16；US-Q18；US-Q20；US-S18        |
 | Claude Code / Codex / Copilot / Antigravity / Qoder / QoderCN / Devin 启动前预写文件夹信任记录与 `agent_pretrust` 开关                                                       | US-B09；US-K04                                                |
 | 混合模式勾选（`chat`）、Claude Code 与 Antigravity CLI 默认混合、`chat-support` 判定、起始视图选择                                                                           | US-Q01–US-Q02；US-B01；US-B08                                 |
 | 终端 ↔ 聊天切换、Claude 注册记录身份/候选/外部占用、中断等待、草稿退回与回滚                                                                                                 | US-Q03–US-Q04                                                 |
@@ -93,7 +93,7 @@ Relay 页内配对、宿主权威流程、导航恢复与操作核对：US-A10�
 | 多条暂存编辑、排序、取用与清理                                                                                                                                               | US-F09                                                        |
 | 快捷指令菜单、编辑、排序、删除、系统预设、跨设备同步与临时文件夹                                                                                                             | US-G01–US-G06                                                 |
 | 可插拔 `STDIN/STDOUT` 语音识别（`[voice]`、`/ws/voice`）、聊天与终端双模式录音、实时音量与无回车插入                                                                         | US-G07；US-K03                                                |
-| 软键（含回车与软键盘摇杆模式）、主动键盘、键盘弹出时保持尺寸、触摸/笔、选词、滚动、双指防误触、视口、主屏幕与裁切图标、窄屏紧凑顶栏                                          | US-H01–US-H08                                                 |
+| 紧凑底部软键栏（`Fn` 分层与方向键长按连发）、按设备显隐底部工具栏、主动键盘、键盘弹出时保持尺寸、触摸/笔、选词、滚动、双指防误触、视口、主屏幕与裁切图标、窄屏紧凑顶栏       | US-H01–US-H08                                                 |
 | 安装应用入口、安装状态、提示失败备用说明、非安全上下文提示与 Web App Manifest                                                                                                | US-H09；US-K10                                                |
 | 实时连接 permessage-deflate 按设备开关（手机默认开启）、静态资源 Brotli 预压缩、按需 gzip 与编码协商                                                                         | US-H10；US-H11                                                |
 | 机会性 WebRTC DataChannel P2P 直连升级、UPnP/NAT-PMP/PCP 端口映射、全通道切换、设置页网络诊断与双路径回显测速                                                                | US-H12；US-A04；US-K03；US-M08；US-L10                        |
@@ -129,7 +129,7 @@ Relay 页内配对、宿主权威流程、导航恢复与操作核对：US-A10�
 | Git 工作台提交暂存闭环、三态核对预览、顶栏/`Log`/`Branches` 三处共享分支动作与占用保护、~900px 宽幅双栏推送确认框及两步独立失败恢复                                          | US-J22；US-J16；US-J18–US-J20；US-I05–US-I07                  |
 | 持久 Git 操作账本（`git-operations.json`）、`clientRequestId` 幂等合并与重放、服务重启真实 reflog/引用对账、底部 24–28px 状态栏与 `uncertain` 安全门禁                       | US-J23；US-J16–US-J19；US-J22；US-L05；US-L10                 |
 | 工作树固定任务审阅基线（`git-task-baselines.json` 与 `refs/webmux/baselines/*`）、单份净变更审阅（含干净工作区）、`Log` 当前任务范围与交付收尾摘要                           | US-J24；US-J08；US-J18–US-J22；US-L05；US-L10                 |
-| Git 工作台跨设备审阅进度同步与自动失效、“下一处未审阅”、`baseRevision` 乐观锁提交草稿与 409 并排恢复、Diff 摘录返工意见草稿箱及指定会话无回车草稿交回                        | US-J25；US-J07；US-J19–US-J24；US-F01；US-Q07；US-L05；US-L10 |
+| Git 工作台跨设备审阅进度同步与自动失效、“下一处未审阅”、`baseRevision` 乐观锁提交草稿与 409 并排恢复                                                                         | US-J25；US-J19–US-J24；US-L05；US-L10                         |
 | Git 工作台 Merge/Rebase/Cherry-pick/Revert 两阶段方向预览、推送被拒分叉恢复、无状态重进恢复横幅、诚实 Abort 预览与内置三方冲突解决器（四步递进与二进制/删改裁决卡）          | US-J26；US-J16–US-J23；US-L05；US-L10                         |
 | Git 工作台独立 Stash 视图与安全两步 Pop、高级提交（Amend/作者/Sign-off 与已推送保护）、分支重命名/上游/标签/远程维护及单文件 `--follow` 历史与逐行 Blame 溯源                | US-J27；US-I01；US-J15；US-J19–US-J23；US-J26；US-L05；US-L10 |
 | Git 工作台任意逐行（Sub-hunk）暂存/取消暂存、带 SHA-256 新鲜度门禁与恢复快照的丢弃更改，以及基于可追踪受控 Stash 的三阶段 Smart Checkout                                     | US-J28；US-J16；US-J19；US-J22–US-J23；US-J26–US-J27；US-L05  |
@@ -145,8 +145,8 @@ Relay 页内配对、宿主权威流程、导航恢复与操作核对：US-A10�
 | 运行中服务的待生效版本：状态、本机 API、配置响应与 Web UI 提示                                                                                                               | US-K16                                                        |
 | 更新通道：`update channel`、`/etc/webmux/update-channel`、开发版通道与切回不降级                                                                                             | US-K17                                                        |
 | `install.sh` 开发版安装：`WEBMUX_CHANNEL`、当前开发版 `WEBMUX_VERSION`                                                                                                       | US-K11                                                        |
-| config init/path/show/validate/check、启动时旧功能配置迁移、核心终端、能力发现与数据保留                                                                                     | US-K02–US-K04；US-K18–US-K21                                  |
-| 所有 TOML 配置项：访问、会话、提醒、存储、内置功能                                                                                                                           | US-A03；US-K03–US-K04；US-K08–US-K09；US-K18；US-N01–US-N04   |
+| config init/path/show/validate/check、遗留功能配置忽略（US-K18 已退役）、核心终端基建、能力发现与有序退出                                                                    | US-K02–US-K04；US-K19–US-K21                                  |
+| 所有 TOML 配置项：访问、会话、提醒、存储                                                                                                                                     | US-A03；US-K03–US-K04；US-K08–US-K09；US-N01–US-N04           |
 | service install/--dry-run/--force/start/stop/restart/status/logs/uninstall                                                                                                   | US-K05–US-K07                                                 |
 | version/version --json/help、VPN/HTTPS 代理与升级                                                                                                                            | US-K09                                                        |
 | 持久化文件、锁、写入入口与清单防漂移                                                                                                                                         | US-L10                                                        |

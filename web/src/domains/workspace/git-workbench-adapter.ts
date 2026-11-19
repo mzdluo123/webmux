@@ -459,3 +459,17 @@ export function mapGitCommitResultResponse(
 ): GitCommitOutcome {
   return mapV2CommitResultResponse(result);
 }
+
+export function filterActiveWorktreeSessions(
+  sessions: readonly SessionInfo[],
+  worktreeId?: string,
+  worktreePath?: string | null,
+): SessionInfo[] {
+  if (!worktreeId && !worktreePath) return [];
+  return sessions.filter((s) => {
+    if (s.state !== "active" || s.status === "exited") return false;
+    if (worktreeId && s.workspace?.worktreeId === worktreeId) return true;
+    if (worktreePath && s.cwd === worktreePath) return true;
+    return false;
+  });
+}

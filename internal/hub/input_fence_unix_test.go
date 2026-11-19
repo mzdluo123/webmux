@@ -253,3 +253,153 @@ func TestFrameQueryFencesPTYWrites(t *testing.T) {
 		})
 	}
 }
+
+func TestInputQueueAbsorbsStartupBurstAndBoundsBytes(t *testing.T) {
+	socketDir, err := os.MkdirTemp("/tmp", "hub-burst-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(socketDir) })
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: filepath.Join(socketDir, "control.sock"), Net: "unix"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	if err := listener.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	manager := session.NewManager(session.Options{DefaultCwd: t.TempDir()})
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		manager.Shutdown(ctx)
+	})
+	s, err := manager.Create(session.CreateInput{
+		Cmd: []string{os.Args[0], "-test.run=^TestHubInputFencePTYProcess$"},
+		Env: map[string]string{inputFenceSocketEnv: listener.Addr().String()},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	control, err := listener.AcceptUnix()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := control.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	var ready [1]byte
+	if _, err := io.ReadFull(control, ready[:]); err != nil || ready[0] != 'R' {
+		t.Fatalf("PTY process readiness: %q, %v", ready, err)
+	}
+
+	conn := newFakeMessageConn()
+	frames := make(chan recordedFrame, 128)
+	conn.writeHook = func(ctx context.Context, typ MessageType, data []byte) error {
+		select {
+		case frames <- recordedFrame{typ: typ, data: bytes.Clone(data)}:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		Attach(ctx, s, conn, session.AttachOptions{Client: "burst-client"}, false)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		_ = control.Close()
+		_ = conn.CloseNow()
+		<-done
+	})
+	nextFrame := func() []byte {
+		t.Helper()
+		select {
+		case frame := <-frames:
+			return frame.data
+		case <-done:
+			t.Fatal("burst attachment exited unexpectedly")
+		case <-time.After(5 * time.Second):
+			t.Fatal("terminal frame did not arrive")
+		}
+		return nil
+	}
+	for nextFrame()[0] != contract.FrameState {
+	}
+
+	// Block the PTY writer, then queue 64 replies/inputs (4x the old 16-slot
+	// ceiling) plus a fence query; all must survive in FIFO order.
+	blocker := bytes.Repeat([]byte{'B'}, 512*1024)
+	conn.sendFromPeer(MessageBinary, contract.Frame(contract.FrameInput, blocker))
+	expected := bytes.Clone(blocker)
+	for i := range 64 {
+		kind := contract.FrameReply
+		if i%2 == 1 {
+			kind = contract.FrameInput
+		}
+		chunk := []byte{byte('a' + (i % 26))}
+		expected = append(expected, chunk...)
+		conn.sendFromPeer(MessageBinary, contract.Frame(kind, chunk))
+	}
+	const fenceID = "burst-fence-check"
+	queryJSON, err := json.Marshal(contract.SubmissionQuery{IDs: []string{fenceID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.sendFromPeer(MessageBinary, contract.Frame(contract.FrameQuery, queryJSON))
+	resizeJSON, err := json.Marshal(contract.TerminalResize{Cols: 93, Rows: 27})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.sendFromPeer(MessageBinary, contract.Frame(contract.FrameResize, resizeJSON))
+	for {
+		frame := nextFrame()
+		if frame[0] == contract.FrameControl {
+			var state contract.ControlState
+			if err := json.Unmarshal(frame[1:], &state); err == nil && state.Cols == 93 && state.Rows == 27 {
+				break
+			}
+		}
+	}
+	if err := binary.Write(control, binary.BigEndian, uint32(len(expected))); err != nil {
+		t.Fatal(err)
+	}
+	for {
+		frame := nextFrame()
+		if frame[0] != contract.FrameSubmission {
+			continue
+		}
+		var status contract.SubmissionStatus
+		if err := json.Unmarshal(frame[1:], &status); err != nil {
+			t.Fatal(err)
+		}
+		if status.ID == fenceID && status.State == "missing" {
+			break
+		}
+	}
+	var actual [sha256.Size]byte
+	if _, err := io.ReadFull(control, actual[:]); err != nil {
+		t.Fatal(err)
+	}
+	if actual != sha256.Sum256(expected) {
+		t.Fatal("burst frames were lost or reordered")
+	}
+
+	// Exceeding the 2 MiB queued-input byte budget while the PTY stays blocked
+	// disconnects the slow/abusive connection without ending the session.
+	chunk := bytes.Repeat([]byte{'X'}, 768*1024)
+	for range 5 {
+		conn.sendFromPeer(MessageBinary, contract.Frame(contract.FrameInput, chunk))
+	}
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("byte-budget overflow did not disconnect client")
+	}
+	if s.Info().Status == session.StatusExited {
+		t.Fatal("byte-budget disconnect ended persistent session")
+	}
+}

@@ -427,10 +427,57 @@
   }
 }
 .terminal-area {
+  container: terminal-viewport / size;
   position: relative;
   flex: 1;
   min-height: 0;
   background: var(--terminal-background);
+}
+.terminal-selection .terminal-control-icon {
+  display: none;
+}
+
+@container terminal-viewport (height < 8rem) {
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection) {
+    inset: 0.5rem 0.5rem auto;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-jump,
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-selection {
+    position: static;
+    translate: none;
+  }
+
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-selection {
+    margin-inline-start: auto;
+  }
+
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-control-label {
+    display: none;
+  }
+
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-jump
+    button,
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-selection
+    button {
+    aspect-ratio: 1;
+    padding-inline: 0;
+  }
+
+  .terminal-controls:has(.terminal-jump):has(.terminal-selection)
+    .terminal-selection
+    .terminal-control-icon {
+    display: inline-block;
+  }
 }
 .terminal-host {
   position: absolute;
@@ -484,51 +531,68 @@
 .terminal-host.restoring {
   opacity: 0;
 }
+.soft-leading,
+.soft-trailing {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+}
 .soft-row {
   display: flex;
   flex: 1;
   min-width: 0;
   flex-wrap: nowrap;
-  gap: 0.35rem;
+  align-items: center;
+  gap: 2px;
   overflow-x: auto;
   scrollbar-width: none;
 }
-.soft-row > button,
-.soft-trailing > button {
-  flex-shrink: 0;
-  min-height: 36px;
-  min-width: 40px;
-}
-.soft-trailing {
-  display: flex;
-  flex-shrink: 0;
-  gap: 0.35rem;
+.soft-row::-webkit-scrollbar {
+  display: none;
 }
 .soft-keys-main {
   display: flex;
   align-items: center;
   min-width: 0;
+  width: 100%;
 }
 .soft-keys {
   display: none;
   flex-direction: column;
   align-items: stretch;
-  padding: 0.125rem 0.5rem 0.25rem;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+  padding: 2px 4px;
 }
-.terminal-page.force-soft-keys .soft-keys,
-.session-terminal.force-soft-keys .soft-keys {
+@media (min-width: 640px) {
+  .soft-keys {
+    border-top: 0;
+    background: transparent;
+    padding: 2px 12px 4px;
+  }
+  .soft-keys-main {
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--card);
+    padding: 2px 4px;
+  }
+}
+[data-bottom-toolbar="shown"] .soft-keys {
   display: flex;
 }
 /* The header entry is shown exactly when the soft-key bar is hidden. */
-.terminal-page.force-soft-keys .quick-commands-header,
-.session-terminal.force-soft-keys .quick-commands-header {
+[data-bottom-toolbar="shown"] .quick-commands-header {
   display: none;
 }
 @media (any-pointer: coarse) {
-  .soft-keys {
+  [data-bottom-toolbar="auto"] .soft-keys {
     display: flex;
   }
-  .quick-commands-header {
+  [data-bottom-toolbar="auto"] .quick-commands-header {
     display: none;
   }
 }
@@ -545,6 +609,7 @@
   height: 100%;
   min-width: 0;
   min-height: 0;
+  background: var(--terminal-background);
 }
 /* A locked terminal keeps its grid while the host changes (soft keyboard,
    browser chrome, rotation, draft pane or window). Like the observer layout,
@@ -752,6 +817,11 @@
   .terminal-header .wm-control {
     min-height: var(--control-touch-compact);
     min-width: var(--control-touch-compact);
+  }
+  /* Soft keys stay a single compact strip so the terminal keeps its rows. */
+  .soft-keys .wm-control {
+    min-height: var(--control-xs);
+    min-width: var(--control-xs);
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -127,7 +127,7 @@ func TestInactiveFeatureSettingsRemainStoredButNotWritable(t *testing.T) {
 			t.Fatalf("inactive %s writable: %d", field, response.Code)
 		}
 	}
-	request := httptest.NewRequest(http.MethodPatch, "http://webmux/api/settings", strings.NewReader(`{"baseRevision":1,"changes":{"forceSoftKeys":true}}`))
+	request := httptest.NewRequest(http.MethodPatch, "http://webmux/api/settings", strings.NewReader(`{"baseRevision":1,"changes":{"sessionPins":[]}}`))
 	request.Header.Set("Authorization", "Bearer core-secret")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
