@@ -245,6 +245,7 @@
   }
 
   .dock-panel {
+    --dock-touch-height: var(--control-touch);
     display: flex;
     isolation: isolate;
     flex-direction: column;
@@ -278,7 +279,7 @@
 
   @media (any-pointer: coarse), (max-width: 639px) {
     .dock-title {
-      block-size: var(--control-touch);
+      block-size: var(--dock-touch-height);
     }
   }
 
