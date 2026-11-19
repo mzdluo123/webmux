@@ -445,7 +445,7 @@
       aria-label={m.s5_readonly_code()}
       style:--diffs-font-size={`${codeFont.size}px`}
       style:--diffs-line-height={`${codeFont.lineHeight}px`}
-      class="code-reader h-full overflow-x-hidden overflow-y-auto overscroll-contain outline-none contain-strict [overflow-anchor:none]"
+      class="code-reader h-full overflow-x-hidden overflow-y-auto overscroll-contain outline-none contain-strict [overflow-anchor:none] [scrollbar-width:none]"
     ></div>
   </div>
   <CodeReaderPanels

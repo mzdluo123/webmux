@@ -452,7 +452,7 @@
   <div class="relative min-h-0 min-w-0 flex-1">
     <div
       bind:this={host}
-      class="code-diff-reader h-full overflow-x-hidden overflow-y-auto overscroll-contain outline-none contain-strict [overflow-anchor:none]"
+      class="code-diff-reader h-full overflow-x-hidden overflow-y-auto overscroll-contain outline-none contain-strict [overflow-anchor:none] [scrollbar-width:none]"
       style:--diffs-font-size={`${codeFont.size}px`}
       style:--diffs-line-height={`${codeFont.lineHeight}px`}
       tabindex="-1"
