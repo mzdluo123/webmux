@@ -32,7 +32,6 @@
     type TreeNode,
   } from "../../domains/workspace/workbench-tree";
   import IconAlertCircle from "~icons/tabler/alert-circle";
-  import IconBook2 from "~icons/tabler/book-2";
   import IconChevronRight from "~icons/tabler/chevron-right";
   import IconFolder from "~icons/tabler/folder";
   import IconFolderOff from "~icons/tabler/folder-off";
@@ -50,6 +49,7 @@
   import MainWorktreeMark from "../workspace/MainWorktreeMark.svelte";
   import PinnedWorktreeMark from "../workspace/PinnedWorktreeMark.svelte";
   import UpstreamStatus from "../workspace/UpstreamStatus.svelte";
+  import SidebarProjectAvatar from "./SidebarProjectAvatar.svelte";
   import SidebarRepositoryMenu from "./SidebarRepositoryMenu.svelte";
   import SidebarRowMenu from "./SidebarRowMenu.svelte";
   import SidebarSessionMenu from "./SidebarSessionMenu.svelte";
@@ -288,7 +288,7 @@
 {/snippet}
 
 {#snippet chevron(node: TreeNode)}
-  {#if node.children.length && !node.reason}
+  {#if node.kind !== "session" && node.children.length && !node.reason}
     {@const label = isOpen(node)
       ? m.s1_collapse_node({ label: node.label })
       : m.s1_expand_node({ label: node.label })}
@@ -330,9 +330,7 @@
     data-layout-row={sessionId ? undefined : node.key}
     class={`flex items-center ${node.level === 3 ? "pl-8" : node.level === 2 ? "pl-4" : ""}`}
   >
-    {#if node.kind !== "session"}{@render chevron(node)}{:else}<span
-        class="size-6 shrink-0"
-      ></span>{/if}
+    {@render chevron(node)}
     <div class="group/row relative min-w-0 flex-1">
       <ListButton
         variant="file-tree-overlay"
@@ -352,19 +350,20 @@
         onclick={() => activate(node)}
       >
         {#if node.kind === "all"}<IconLayoutDashboard aria-hidden="true" />
-        {:else if node.kind === "repository"}<IconBook2 aria-hidden="true" />
+        {:else if node.kind === "repository"}<SidebarProjectAvatar
+            name={node.label}
+            repositoryId={node.repositoryId}
+          />
         {:else if node.kind === "direct"}<IconFolder aria-hidden="true" />
         {:else if node.kind === "worktree" || node.kind === "missing"}<IconGitBranch
             aria-hidden="true"
           />
-        {:else if node.session}<LaunchConfigIcon
-            icon={sessionIcon(node.session)}
-            size="xs"
-          />
-        {:else if node.record}<LaunchConfigIcon
-            icon={node.record.configId
-              ? (configIcons.get(node.record.configId) ?? "")
-              : ""}
+        {:else if node.session || node.record}<LaunchConfigIcon
+            icon={node.session
+              ? sessionIcon(node.session)
+              : node.record?.configId
+                ? (configIcons.get(node.record.configId) ?? "")
+                : ""}
             size="xs"
           />{/if}
         <span class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">

@@ -486,11 +486,12 @@ test("retains cross-view state, isolates worktree drafts, handles query popstate
   expect(sessionsWsCount).toBe(1);
 });
 
-test("project headings show GitHub avatars and keep a fallback when they fail", async ({
+test("both sidebar layouts show GitHub project avatars and keep a fallback when they fail", async ({
   page,
   request,
   workDir,
 }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   const { repo, mainWt, mainPath } = await setupRepoWithLinkedWorktree(
     request,
     workDir,
@@ -537,12 +538,27 @@ test("project headings show GitHub avatars and keep a fallback when they fail", 
   await expect(heading).toHaveAccessibleName(`${repo.name} 1`);
   const initialBounds = await heading.boundingBox();
 
+  await useWorkbenchBranches(page);
+  const project = page.getByRole("treeitem", {
+    name: `${repo.name}，1 个会话`,
+    exact: true,
+  });
+  const branchImage = project.locator("img");
+  await expect(branchImage).toBeVisible();
+  await expect(branchImage).toHaveAttribute("src", url);
+  const branchBounds = await project.boundingBox();
+
   await page.unroute(url);
   await page.route(url, (route) => route.abort());
   const requestOnReload = page.waitForRequest(url);
   await page.reload();
   await revealSidebar(page);
   await requestOnReload;
+  await expect(branchImage).toHaveCount(0);
+  await expect(project).toContainText("WE");
+  expect(await project.boundingBox()).toEqual(branchBounds);
+
+  await useWorkbenchBranches(page, false);
   await expect(image).toHaveCount(0);
   await expect(heading).toContainText("WE");
   expect(await heading.boundingBox()).toEqual(initialBounds);
