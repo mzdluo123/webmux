@@ -488,17 +488,22 @@ export async function holdTerminalFont(page: Page) {
 
 // A healthy connection shows no text; the status dot names it instead.
 export async function expectConnected(page: Page) {
-  const header = sessionHeader(page);
+  const header = sessionPaneHeader(page);
   await expect(header.getByRole("img", { name: /· 已连接$/ })).toBeVisible();
   await expect(header.getByRole("status")).toHaveCount(0);
 }
 
 export const narrowSessionHeader = (page: Page) =>
   (page.viewportSize()?.width ?? 1280) < 640;
-const sessionHeader = (page: Page) =>
+export const sessionPaneHeader = (page: Page) =>
   page.locator(
-    '[data-dock-panel]:has(.split-terminal[data-active="true"]) .terminal-header',
+    '[data-dock-panel]:has(.split-terminal[data-active="true"]) > .dock-title',
   );
+
+export const sessionHeader = (page: Page) =>
+  narrowSessionHeader(page)
+    ? sessionPaneHeader(page).locator(".terminal-header")
+    : page.locator(".session-toolbar .terminal-header");
 
 export const sessionViewTabs = (page: Page) =>
   sessionHeader(page).getByRole("tablist", {
@@ -598,16 +603,45 @@ export async function expectChatInputAvailable(page: Page, available = true) {
   await close();
 }
 
-// Below 640px the header moves upload and fullscreen into the terminal menu
-// (scroll-to-latest is the floating button); this opens the menu there and
-// returns the entry.
-export async function headerAction(page: Page, name: string) {
-  if (!narrowSessionHeader(page))
-    return sessionHeader(page).getByRole("button", { name, exact: true });
+export async function uploadAction(page: Page) {
   return (await openSessionMenu(page)).getByRole("menuitem", {
-    name,
+    name: "上传文件",
     exact: true,
   });
+}
+
+async function draftModeControl(page: Page) {
+  const name = /^草稿模式/;
+  const softKeys = page
+    .getByRole("complementary", { name: "终端软键", exact: true })
+    .getByRole("button", { name });
+  if (await softKeys.isVisible())
+    return { control: softKeys, attribute: "aria-pressed" };
+  const menu = await openSessionMenu(page);
+  return {
+    control: menu.getByRole("menuitemcheckbox", { name }),
+    attribute: "aria-checked",
+    menu,
+  };
+}
+
+export async function toggleDraftMode(page: Page) {
+  const { control } = await draftModeControl(page);
+  await control.click();
+}
+
+export async function expectDraftMode(
+  page: Page,
+  enabled: boolean,
+  name?: RegExp,
+) {
+  const { control, attribute, menu } = await draftModeControl(page);
+  await expect(control).toHaveAttribute(attribute, String(enabled));
+  if (name) await expect(control).toHaveAccessibleName(name);
+  if (menu) {
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeHidden();
+  }
 }
 
 export async function runCommand(page: Page | Locator, command: string) {

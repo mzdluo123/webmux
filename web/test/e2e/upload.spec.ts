@@ -5,7 +5,7 @@ import {
   createShell,
   expectTerminalLine,
   expectConnected,
-  headerAction,
+  uploadAction,
   holdTerminalReattach,
 } from "./fixtures";
 
@@ -35,7 +35,7 @@ test("file chooser shows progress, survives foreground replay, and pastes a shel
       response.url().endsWith(`/api/sessions/${id}/upload`),
     );
     const chooser = page.waitForEvent("filechooser");
-    await (await headerAction(page, "上传文件")).click();
+    await (await uploadAction(page)).click();
     if (info.project.use.isMobile) {
       await page.evaluate(() => {
         Object.defineProperty(document, "hidden", {
@@ -60,9 +60,8 @@ test("file chooser shows progress, survives foreground replay, and pastes a shel
       page.getByRole("progressbar", { name: "文件上传进度" }),
     ).toBeVisible();
     expect(await grid.boundingBox()).toEqual(initialGrid);
-    // Narrow screens reach upload from the terminal menu, disabled alike.
-    await expect(await headerAction(page, "上传文件")).toBeDisabled();
-    if (info.project.use.isMobile) await page.keyboard.press("Escape");
+    await expect(await uploadAction(page)).toBeDisabled();
+    await page.keyboard.press("Escape");
     uploadGate.resolve();
     const uploaded = await response;
     expect(uploaded.status()).toBe(201);
@@ -114,7 +113,7 @@ test("file chooser uploads every selected file and reports batch progress", asyn
     await page.locator(".xterm-helper-textarea").focus();
     await page.keyboard.type("cat ");
     const chooser = page.waitForEvent("filechooser");
-    await (await headerAction(page, "上传文件")).click();
+    await (await uploadAction(page)).click();
     await (
       await chooser
     ).setFiles([
@@ -166,7 +165,7 @@ test("cancelling an uploaded path during replay never pastes it after reconnect"
   const id = await createShell(page, "Cancel pending upload", workDir);
   try {
     const chooser = page.waitForEvent("filechooser");
-    await (await headerAction(page, "上传文件")).click();
+    await (await uploadAction(page)).click();
     await page.evaluate(() => {
       Object.defineProperty(document, "hidden", {
         configurable: true,
@@ -360,7 +359,7 @@ test("413, 500 and interrupted uploads report failure and allow a successful ret
   });
   async function selectFile() {
     const chooser = page.waitForEvent("filechooser");
-    await (await headerAction(page, "上传文件")).click();
+    await (await uploadAction(page)).click();
     await (
       await chooser
     ).setFiles({

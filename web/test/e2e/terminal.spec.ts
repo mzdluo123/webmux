@@ -7,6 +7,7 @@ import {
   runCommand,
   expectTerminalLine,
   expectConnected,
+  toggleDraftMode,
   backToList,
 } from "./fixtures";
 
@@ -497,7 +498,7 @@ test("draft shortcut does not modify or submit the draft", async ({
   await createShell(page, "Draft find isolation", workDir);
   await runCommand(page, "printf '%s%s\\n' 'DRAFT_' 'FIND_TARGET'");
   await expectTerminalLine(page, "DRAFT_FIND_TARGET");
-  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
+  await toggleDraftMode(page);
   const draft = page.locator(".draft-pane textarea").first();
   await draft.fill("keep my unsent draft");
   await draft.press("Control+Shift+F");

@@ -23,6 +23,8 @@ import {
   runCommand,
   revealSidebar,
   selectSessionInputSide,
+  sessionHeader,
+  sessionPaneHeader,
   sessionViewTabs,
   useWorkbenchBranches,
   workspaceLayoutTest as test,
@@ -85,7 +87,8 @@ const composer = (page: Page) =>
   page.getByRole("textbox", { name: "消息", exact: true });
 const working = (page: Page) =>
   page.getByRole("status").filter({ hasText: "正在工作…" });
-const statusDot = (page: Page) => page.locator(".terminal-header .status-dot");
+const statusDot = (page: Page) =>
+  sessionPaneHeader(page).locator(".status-dot");
 
 async function expectSide(page: Page, side: Side) {
   if (side === "chat") await expect(composer(page)).toBeEditable();
@@ -135,8 +138,18 @@ test("inspecting a terminal panel does not change its hybrid input view or disca
   const pane = page.locator(`[data-dock-panel="${id}"]`);
   await expect(pane.getByRole("textbox", { name: "消息" })).toBeVisible();
   if (!project.use.isMobile) {
+    await expect(
+      sessionHeader(page).getByRole("button", {
+        name: "会话菜单",
+        exact: true,
+      }),
+    ).toHaveText("会话");
     await pane.locator(".dock-title-space").dblclick();
-    await pane.getByRole("button", { name: /还原.*布局/ }).click();
+    await (
+      await openDockCommands(pane)
+    )
+      .getByRole("menuitem", { name: /^还原/ })
+      .click();
   }
   const state = await (await request.get(`/api/sessions/${id}`)).json();
   expect(state.view).toBe("chat");

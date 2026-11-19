@@ -20,6 +20,7 @@
   import QuickCommandMenu from "../../src/components/settings/QuickCommandMenu.svelte";
   import SoftKeys from "../../src/components/terminal/SoftKeys.svelte";
   import SessionWorkspaceHeader from "../../src/components/terminal/SessionWorkspaceHeader.svelte";
+  import TerminalPaneStatus from "../../src/components/terminal/TerminalPaneStatus.svelte";
   import TerminalHeader from "../../src/components/terminal/TerminalHeader.svelte";
   import TerminalSplitPanel from "../../src/components/terminal/TerminalSplitPanel.svelte";
   import TerminalNotices from "../../src/components/terminal/TerminalNotices.svelte";
@@ -84,6 +85,7 @@
   let candidatePick = $state(claudeCandidates[0]!.agentSessionId);
   let connectorDismissed = $state(false);
   let codeShown = $state(false);
+  let fileInput = $state<{ open(): void }>();
   let dock = $state<DockWorkspace>();
   let pickerOpen = $state(false);
 
@@ -464,19 +466,18 @@
     fileLabel="文件树"
     onerror={(message) => (notice = message)}
   />
+  <filesFeature.Input bind:this={fileInput} upload={async () => {}} />
   {#snippet paneHeader()}
     <TerminalHeader
       features={{ chat: chatFeature, files: filesFeature }}
       {terminal}
       {draft}
-      draftSaved="已保存在本机"
-      scratchSaved="已保存在本机"
       uploading={false}
       sizeLocked={false}
       setSizeLocked={() => {}}
       {codeShown}
       {quickMenu}
-      upload={async () => {}}
+      openUpload={() => fileInput?.open()}
       toggleDraft={() => {}}
       showScratch={() => {}}
       showFind={() => {}}
@@ -544,9 +545,10 @@
     {/snippet}
     <DockPanel
       id="session"
-      header={paneHeader}
-      title={view === "chat" ? "聊天" : "终端"}
+      commands={paneHeader}
+      title={terminal.info?.title || (view === "chat" ? "聊天" : "终端")}
     >
+      {#snippet header()}<TerminalPaneStatus {terminal} />{/snippet}
       {#if view === "chat"}
         <div class="h-full min-h-0" use:paneEnter={true}>
           <ChatView

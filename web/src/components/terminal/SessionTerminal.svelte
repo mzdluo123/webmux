@@ -340,7 +340,7 @@
       sourceId={availableFeatures.chat
         ? (hybrid.info?.id ?? hybrid.recoverable?.id)
         : undefined}
-      root={stage?.menuRoot()}
+      menuRoot={() => stage?.menuRoot()}
       children={terminalStage}
     />
   {:else}

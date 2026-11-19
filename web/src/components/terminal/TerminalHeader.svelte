@@ -4,9 +4,8 @@
   import { findShell } from "../../hooks/shared/shell.svelte";
   import { type Snippet } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
-  import IconUpload from "~icons/tabler/upload";
   import IconSearch from "~icons/tabler/search";
-  import { sessionStatusText } from "../../platform/api";
+  import IconChevronDown from "~icons/tabler/chevron-down";
   import {
     Button,
     type ButtonSize,
@@ -17,12 +16,11 @@
   import type { HybridView } from "../../hooks/sessions/hybrid.svelte";
   import type { SwitchTarget } from "../../domains/sessions/hybrid";
   import type { SessionInfo } from "../../contracts/schemas";
-  import { sessionStatusTone } from "../../domains/sessions/session-status";
   import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";
   import type { Connection } from "../../platform/ws-contracts";
-  import DraftToggle from "./DraftToggle.svelte";
   import type { TerminalFeatures } from "../../features/terminal";
   import SessionTitle from "./SessionTitle.svelte";
+  import TerminalPaneStatus from "./TerminalPaneStatus.svelte";
 
   interface HeaderTerminal {
     readonly info: SessionInfo | undefined;
@@ -46,14 +44,12 @@
     toolbarMode,
     features = {},
     draft,
-    draftSaved,
-    scratchSaved,
     uploading,
     sizeLocked,
     setSizeLocked,
     codeShown,
     quickMenu,
-    upload,
+    openUpload,
     toggleDraft,
     showScratch,
     close,
@@ -65,14 +61,12 @@
     features?: TerminalFeatures;
     terminal: HeaderTerminal;
     draft: TerminalDraft;
-    draftSaved: string;
-    scratchSaved: string;
     uploading: boolean;
     sizeLocked: boolean;
     setSizeLocked: (value: boolean) => void;
     codeShown: boolean;
     quickMenu: Snippet<["top" | "bottom", ButtonSize?, ButtonVariant?]>;
-    upload?: (files: File[]) => Promise<void>;
+    openUpload?: () => void;
     toggleDraft: () => void;
     showScratch: () => void;
     close: () => void;
@@ -89,23 +83,16 @@
   );
   const title = $derived(session?.title || m.s4_tab_terminal());
   const phone = new MediaQuery("(max-width: 639px)");
-  let fileInput = $state<{ open(): void }>();
   let menuTrigger = $state<HTMLButtonElement | null>(null);
   let fontOpen = $state(false);
   let skipMenuFocus = false;
   const terminalShown = $derived(!hybrid || hybrid.view === "terminal");
+  const menuLabel = $derived(
+    terminalShown ? m.s4_terminal_menu() : m.s4_session_menu(),
+  );
   // The chat view names the agent it talks to beside the session title.
   const chatAgent = $derived(
     hybrid?.view === "chat" ? (t.info?.agent ?? undefined) : undefined,
-  );
-  const connectionText = $derived(
-    t.connection === "connected"
-      ? m.s4_conn_connected()
-      : t.connection === "exited"
-        ? m.s4_conn_exited()
-        : t.connection === "missing"
-          ? m.s4_conn_missing()
-          : m.s4_conn_reconnecting(),
   );
   const uploadDisabled = $derived(
     uploading ||
@@ -115,54 +102,36 @@
   );
 </script>
 
-<header
+<div
   class="terminal-header flex min-w-0 flex-1 items-center gap-1"
   data-bottom-toolbar={toolbarMode}
 >
-  <!-- The title and the session's state read as one unit; the actions keep
-       their places while the title truncates. On phones the connection
-       label sits below the centered title without resizing its row. -->
-  <div class="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
-    {#if t.info}<span
-        class={`status-dot shrink-0 status-${t.info.status} sm:order-3`}
-        class:status-failed={sessionStatusTone(t.info) === "destructive"}
-        class:motion-safe:animate-pulse={t.connection !== "connected"}
-        role="img"
-        aria-label={`${sessionStatusText(t.info)} · ${connectionText}`}
-        title={`${sessionStatusText(t.info)} · ${connectionText}`}
-
-      ></span>{:else}<!-- Holds the dot's place on phones, where it leads the
-           title, so the title does not shift when the session loads. -->
-      <span class="shrink-0 sm:hidden" aria-hidden="true"
-        ><span class="status-dot invisible"></span></span
-      >{/if}
-    <div class="relative flex min-w-0 flex-col sm:order-1">
-      <SessionTitle {title} {session} agent={chatAgent?.title} />
-      {#if !t.info || t.connection !== "connected"}<span
-          class="pointer-events-none absolute inset-x-0 top-1/2 mt-2 truncate text-xs leading-none text-muted-foreground sm:hidden"
-          role="status">{connectionText}</span
-        >{/if}
+  {#if !phone.current}{@render terminalMenu()}{/if}
+  {#if phone.current}
+    <TerminalPaneStatus terminal={t}>
+      {@render sessionTitle()}
+    </TerminalPaneStatus>
+  {:else}
+    <div class="flex min-w-0 flex-1 items-center gap-2">
+      <div class="flex min-w-0 flex-col">
+        {@render sessionTitle()}
+      </div>
+      {#if features.chat && chatAgent}
+        <span
+          class="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
+          role="img"
+          aria-label={m.s4_agent_label({ title: chatAgent.title })}
+          title={m.s4_agent_label({ title: chatAgent.title })}
+          data-slot="chat-agent"
+        >
+          {#if features.chat.hasLaunchIcon(chatAgent.icon)}
+            <features.chat.LaunchIcon icon={chatAgent.icon} size="sm" />
+          {/if}
+          <span>{chatAgent.title}</span>
+        </span>
+      {/if}
     </div>
-    {#if features.chat && chatAgent}<span
-        class="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground max-sm:hidden sm:order-2"
-        role="img"
-        aria-label={m.s4_agent_label({ title: chatAgent.title })}
-        title={m.s4_agent_label({ title: chatAgent.title })}
-        data-slot="chat-agent"
-      >
-        {#if features.chat.hasLaunchIcon(chatAgent.icon)}
-          <features.chat.LaunchIcon icon={chatAgent.icon} size="sm" />
-        {/if}
-        <span>{chatAgent.title}</span>
-      </span>{/if}
-    {#if !t.info || t.connection !== "connected"}<span
-        class="shrink-0 text-xs whitespace-nowrap text-muted-foreground max-sm:hidden sm:order-4"
-        role="status">{connectionText}</span
-      >{/if}
-  </div>
-  <!-- Actions, left to right: where the session runs, terminal actions
-       (icons), the quick commands and the panes it opens (outlined), then
-       the window and the menu. -->
+  {/if}
   {#if features.chat && hybrid && hybrid.view !== "recovery" && !phone.current}
     <features.chat.ViewTabs
       hybrid={{
@@ -174,52 +143,38 @@
       }}
     />
   {/if}
-  {#if terminalShown && upload}
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      class="max-sm:hidden"
-      aria-label={m.s4_upload_files()}
-      title={m.s4_upload_files()}
-      disabled={uploadDisabled}
-      onclick={() => fileInput?.open()}
-      ><IconUpload class="size-4" aria-hidden="true" /></Button
-    >
-  {/if}
-  {#if features.files && upload}<features.files.Input
-      bind:this={fileInput}
-      {upload}
-    />{/if}
   {#if terminalShown && !codeShown}
     <div class="quick-commands-header flex items-center gap-1">
       {@render quickMenu("bottom", undefined, "ghost")}
     </div>
-    <DraftToggle
-      class="max-sm:hidden"
-      {draft}
-      {draftSaved}
-      {scratchSaved}
-      disabled={t.connection === "missing"}
-      toggle={toggleDraft}
-    />
   {/if}
+  {#if phone.current}{@render terminalMenu()}{/if}
+</div>
+
+{#snippet sessionTitle()}
+  <SessionTitle {title} {session} agent={chatAgent?.title} />
+{/snippet}
+
+{#snippet terminalMenu()}
   <DropdownMenu.Root>
     <DropdownMenu.Trigger>
       {#snippet child({ props })}<Button
           {...props}
           variant="ghost"
-          size="icon-touch-sm"
+          size={phone.current ? "icon-touch-sm" : "sm"}
           bind:ref={menuTrigger}
-          aria-label={terminalShown
-            ? m.s4_terminal_menu()
-            : m.s4_session_menu()}
-          title={terminalShown ? m.s4_terminal_menu() : m.s4_session_menu()}
-          >⋯</Button
-        >{/snippet}
+          aria-label={menuLabel}
+          title={menuLabel}
+        >
+          {#if phone.current}⋯{:else}
+            {terminalShown ? m.s4_tab_terminal() : m.s4_menu_group_session()}
+            <IconChevronDown aria-hidden="true" />
+          {/if}
+        </Button>{/snippet}
     </DropdownMenu.Trigger>
     <DropdownMenu.Content
       class={chatActions ? "min-w-48" : undefined}
-      align="end"
+      align={phone.current ? "end" : "start"}
       onCloseAutoFocus={(event) => {
         if (skipMenuFocus) {
           event.preventDefault();
@@ -269,7 +224,6 @@
             >{m.s4_menu_group_session()}</DropdownMenu.GroupHeading
           >
           <DropdownMenu.CheckboxItem
-            class="sm:hidden"
             closeOnSelect
             checked={draft.enabled}
             disabled={t.connection === "missing"}
@@ -292,11 +246,8 @@
               ? ` (${draft.scratch.length})`
               : ""}</DropdownMenu.Item
           >
-          {#if upload}
-            <DropdownMenu.Item
-              class="sm:hidden"
-              disabled={uploadDisabled}
-              onSelect={() => fileInput?.open()}
+          {#if openUpload}
+            <DropdownMenu.Item disabled={uploadDisabled} onSelect={openUpload}
               >{m.s4_upload_files()}</DropdownMenu.Item
             >
           {/if}
@@ -349,7 +300,7 @@
       >
     </DropdownMenu.Content>
   </DropdownMenu.Root>
-</header>
+{/snippet}
 
 <TerminalFontDialog
   bind:open={fontOpen}

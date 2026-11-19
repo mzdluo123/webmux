@@ -182,8 +182,7 @@
         <DropdownMenu.Item disabled={pending} onSelect={refreshAll}
           >{m.s5_refresh_all()}</DropdownMenu.Item
         >
-        {#if popout}<DropdownMenu.Item
-            onSelect={popout.toggle}
+        {#if popout}<DropdownMenu.Item onSelect={popout.toggle}
             >{popout.popped
               ? m.s5_dock_code_window()
               : m.s5_open_code_in_popout()}</DropdownMenu.Item

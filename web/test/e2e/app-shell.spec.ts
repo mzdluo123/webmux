@@ -278,7 +278,9 @@ test.describe("desktop sidebar", () => {
     await page.getByRole("radio", { name: "按会话" }).click();
     const chats = page.getByRole("navigation", { name: "导航", exact: true });
     await chats.getByRole("button", { name: /^面板甲（/ }).click();
-    await expect(page.locator(".terminal-header")).toContainText("面板甲");
+    await expect(
+      page.getByRole("region", { name: "面板甲", exact: true }),
+    ).toBeVisible();
     await expect(code).toBeHidden();
     await toggleCode(page);
     await expect(files).toBeVisible();
@@ -288,7 +290,9 @@ test.describe("desktop sidebar", () => {
     await toggleCode(page);
     await expect(code).toBeHidden();
     await chats.getByRole("button", { name: /^面板乙（/ }).click();
-    await expect(page.locator(".terminal-header")).toContainText("面板乙");
+    await expect(
+      page.getByRole("region", { name: "面板乙", exact: true }),
+    ).toBeVisible();
     await expect(code).toBeHidden();
 
     // Back on the first session, its files are open again.

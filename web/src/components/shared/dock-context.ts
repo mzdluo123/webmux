@@ -1,7 +1,7 @@
-import { createContext, tick } from "svelte";
+import { createContext, tick, type Snippet } from "svelte";
 import type { DockEdge, DockRail, DockRect } from "$lib/dock-layout";
 
-export type DockEntry = { id: string; title: string };
+export type DockEntry = { id: string; title: string; commands?: Snippet };
 
 // The source anchors stay in their owning component. Move only the panel's
 // single host element, then remove it when the source action is destroyed.

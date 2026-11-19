@@ -74,6 +74,12 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
 }, testInfo) => {
   await page.setViewportSize({ width: 393, height: 851 });
   await createShell(page, "demo-agent", workDir);
+  await expect(page.locator(".session-toolbar .terminal-header")).toHaveCount(
+    0,
+  );
+  await expect(
+    page.locator("[data-dock-panel] .terminal-header"),
+  ).toBeVisible();
   const title = header(page).getByRole("button", {
     name: "demo-agent",
     exact: true,
@@ -216,7 +222,7 @@ test("a phone Diff leaves most of the screen to code and reaches document action
   ).toBeVisible();
 });
 
-test("wide headers keep every action and the code workspace stays on single rows", async ({
+test("desktop terminal commands live in the workspace bar and code stays on single rows", async ({
   page,
   workDir,
 }, info) => {
@@ -224,21 +230,41 @@ test("wide headers keep every action and the code workspace stays on single rows
   await modifiedRepository(workDir);
   await page.setViewportSize({ width: 1440, height: 900 });
   await createShell(page, "Wide layout", workDir);
-  for (const name of ["全屏", "上传文件", "打开面板", "快速切换会话"])
+  const toolbar = page.locator(".session-toolbar");
+  const commands = toolbar.locator(".terminal-header");
+  await expect(commands).toBeVisible();
+  await expect(page.locator("[data-dock-panel] .terminal-header")).toHaveCount(
+    0,
+  );
+  for (const name of ["全屏", "打开面板", "快速切换会话", "窗格"])
     await expect(
-      (name === "上传文件"
-        ? header(page)
-        : page.locator(".session-toolbar")
-      ).getByRole("button", { name, exact: true }),
+      toolbar.getByRole("button", { name, exact: true }),
+    ).toBeVisible();
+  for (const name of ["Wide layout", "快捷指令"])
+    await expect(
+      commands.getByRole("button", { name, exact: true }),
     ).toBeVisible();
   await expect(
-    header(page).getByRole("button", { name: "滚动到最新位置", exact: true }),
-  ).toHaveCount(0);
+    commands.getByRole("button", { name: "终端菜单", exact: true }),
+  ).toHaveText("终端");
+  for (const name of ["上传文件", "草稿模式", "滚动到最新位置"])
+    await expect(
+      commands.getByRole("button", { name, exact: true }),
+    ).toHaveCount(0);
+  const terminalMenu = await openSessionMenu(page);
   await expect(
-    header(page).getByRole("button", { name: /^草稿模式/ }),
-  ).toBeVisible();
+    terminalMenu.getByRole("menuitem", { name: "上传文件", exact: true }),
+  ).toBeEnabled();
+  await expect(
+    terminalMenu.getByRole("menuitemcheckbox", {
+      name: "草稿模式",
+      exact: true,
+    }),
+  ).not.toBeChecked();
+  await page.keyboard.press("Escape");
   await toggleCode(page);
   await openDiff(page);
+  await expect(commands).toHaveCount(0);
   await expect(fileTree(page).getByRole("navigation")).toContainText(workDir);
   const tabs = page.getByRole("tablist", { name: "文件标签" });
   const center = async (locator: Locator) => {

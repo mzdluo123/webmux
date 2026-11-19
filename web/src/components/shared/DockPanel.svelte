@@ -19,6 +19,7 @@
     onactivate,
     children,
     header,
+    commands,
     hostProps,
   }: {
     id: string;
@@ -26,6 +27,7 @@
     onactivate?: () => void;
     children: Snippet<[boolean]>;
     header?: Snippet;
+    commands?: Snippet;
     hostProps?: Record<string, unknown>;
   } = $props();
 
@@ -33,6 +35,8 @@
   const rect = $derived(dock.rect(id));
   const tabs = $derived(dock.tabs(id));
   const compact = $derived(dock.compact());
+  const localHeader = $derived(compact && commands ? commands : header);
+  const showTitle = $derived(commands ? !compact : !header);
   const zoomed = $derived(dock.zoomed(id));
   const edgeRails = $derived(dock.edgeRails());
   const peeked = $derived(dock.peeked(id));
@@ -52,6 +56,7 @@
   $effect(() =>
     dock.register({
       id,
+      commands,
       get title() {
         return title;
       },
@@ -130,9 +135,12 @@
       {#if showTabs}
         <DockStackTabs {id} {tabs} show={dock.show} />
       {/if}
-      {#if header}{@render header()}{/if}
-      <div class="dock-title-space" class:with-header={!!header}>
-        {#if !header && !showTabs}<span class="truncate" {title}>{title}</span
+      {@render localHeader?.()}
+      <div
+        class="dock-title-space"
+        class:with-header={!!localHeader && !showTitle}
+      >
+        {#if showTitle && !showTabs}<span class="truncate" {title}>{title}</span
           >{/if}
       </div>
       {#if !dock.centralCommands()}

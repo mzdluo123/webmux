@@ -4,12 +4,18 @@ import {
   createShell,
   chooseDockPanel,
   chooseDockPanelById,
+  expectConnected,
+  expectDraftMode,
   expectSessionInputSide,
   openDockCommands,
   narrowSessionHeader,
+  openSessionMenu,
   openSplitPanel,
   selectSessionInputSide,
+  sessionHeader,
   toggleCode,
+  toggleDraftMode,
+  uploadAction,
 } from "./fixtures";
 import type { Locator, Page } from "@playwright/test";
 
@@ -56,7 +62,7 @@ test("docking, peeking and pinning retain a running terminal and its layout", as
 
   const header = root.locator("[draggable=true]");
   const box = (await anchor.boundingBox())!;
-  await root.locator(".terminal-header .status-dot").dragTo(anchor, {
+  await header.locator(".dock-title-space").dragTo(anchor, {
     targetPosition: { x: box.width / 2, y: box.height - 10 },
   });
   await expect
@@ -161,7 +167,7 @@ test("stacked panes reveal the selected tab and keep keyboard focus across switc
   const secondId = await terminals.nth(1).getAttribute("data-session-id");
   const second = page.locator(`[data-dock-panel="${secondId}"]`);
   await ready(terminals.nth(1));
-  await second.locator(".status-dot").dragTo(first);
+  await second.locator("[draggable=true] .dock-title-space").dragTo(first);
   const list = page.locator("[data-dock-panel]:visible [data-dock-stack]");
   const chosen = list.getByRole("tab", { selected: true });
   const firstTitle = (await first.getAttribute("aria-label"))!;
@@ -220,7 +226,7 @@ test("desktop drag guides dock against a pane or the whole workspace", async ({
     await page.mouse.move(x + width / 2, y + height / 2);
   }
   async function startDrag() {
-    await source.locator("[draggable=true] .status-dot").hover();
+    await source.locator("[draggable=true] .dock-title-space").hover();
     await page.mouse.down();
     await dragOver(source);
   }
@@ -308,8 +314,7 @@ test("nested splits preserve terminal state, isolate input and restore layout", 
     original,
     "export SPLIT_ORIGINAL=original; printf 'original-pane\\n'",
   );
-  const draftButton = testInfo.project.use.isMobile ? original : page;
-  await draftButton.getByRole("button", { name: "草稿模式" }).click();
+  await toggleDraftMode(page);
   const draftInput = original.locator(".terminal-composer textarea");
   await draftInput.fill("keep this draft");
   await split(original, "左右");
@@ -705,8 +710,9 @@ test("a split preserves hybrid chat and terminal switching beside a shell", asyn
 
   // Archiving the hybrid pane removes only that pane; the page stays.
   await chooseDockPanel(page, "Chat agent");
-  await chat.getByRole("button", { name: "终端菜单", exact: true }).click();
-  await page
+  await (
+    await openSessionMenu(page)
+  )
     .getByRole("menuitem", { name: "停止会话并归档", exact: true })
     .click();
   await page
@@ -723,12 +729,60 @@ test("a split preserves hybrid chat and terminal switching beside a shell", asyn
   );
 });
 
+test("the workspace terminal menu and quick commands follow split pane focus", async ({
+  page,
+  workDir,
+}, info) => {
+  test.skip(!!info.project.use.isMobile, "Workspace terminal command bar");
+  const id = await createShell(page, "Draft owner", workDir);
+  const first = page.locator(`.split-terminal[data-session-id="${id}"]`);
+  await split(first, "左右");
+  const second = page.locator(".split-terminal").nth(1);
+  // Let the split's automatic activation finish before moving focus ourselves.
+  await expect(second).toHaveAttribute("data-active", "true");
+  await expectConnected(page);
+  await expect(second.locator(".restore-overlay")).toBeHidden();
+
+  const firstDraft = first.getByRole("textbox", { name: "草稿内容" });
+  const secondDraft = second.getByRole("textbox", { name: "草稿内容" });
+  const title = sessionHeader(page).getByRole("button", {
+    name: "Draft owner",
+    exact: true,
+  });
+
+  await first.locator(".xterm-helper-textarea").focus();
+  await expect(first).toHaveAttribute("data-active", "true");
+  await expect(title).toBeVisible();
+  await toggleDraftMode(page);
+  await firstDraft.fill("keep this first draft");
+  await expect(secondDraft).toBeHidden();
+
+  await second.locator(".xterm-helper-textarea").focus();
+  await expect(second).toHaveAttribute("data-active", "true");
+  await expect(title).toHaveCount(0);
+  await expectDraftMode(page, false);
+  await toggleDraftMode(page);
+  await sessionHeader(page)
+    .getByRole("button", { name: "快捷指令", exact: true })
+    .click();
+  await page
+    .getByRole("menuitem", { name: "新会话：/new", exact: true })
+    .click();
+  await expect(secondDraft).toHaveValue("/new");
+  await expect(firstDraft).toHaveValue("keep this first draft");
+
+  await firstDraft.focus();
+  await expect(first).toHaveAttribute("data-active", "true");
+  await expect(title).toBeVisible();
+  await expectDraftMode(page, true);
+});
+
 test("same-name panes preserve the upload owner after focus moves", async ({
   page,
   request,
   workDir,
 }, info) => {
-  test.skip(!!info.project.use.isMobile, "Simultaneous pane controls");
+  test.skip(!!info.project.use.isMobile, "Simultaneously visible split panes");
   const id = await createShell(page, "Review", workDir);
   const response = await request.post("/api/sessions", {
     data: {
@@ -749,10 +803,19 @@ test("same-name panes preserve the upload owner after focus moves", async ({
     second = page.locator(`[data-dock-panel="${other}"]`);
   await expect(first).toHaveAccessibleName("Review · 1");
   await expect(second).toHaveAccessibleName("Review · 2");
+  await first.locator(".dock-title-space").click();
+  await expect(first.locator(".split-terminal")).toHaveAttribute(
+    "data-active",
+    "true",
+  );
   const chooser = page.waitForEvent("filechooser");
-  await first.getByRole("button", { name: "上传文件", exact: true }).click();
+  await (await uploadAction(page)).click();
   const picker = await chooser;
   await second.locator(".xterm-helper-textarea").focus();
+  await expect(second.locator(".split-terminal")).toHaveAttribute(
+    "data-active",
+    "true",
+  );
   const upload = page.waitForResponse((r) => r.url().endsWith("/upload"));
   await picker.setFiles({
     name: "owned.txt",

@@ -5,7 +5,7 @@ import {
   runCommand,
   expectTerminalLine,
   expectConnected,
-  headerAction,
+  uploadAction,
   revealSidebar,
 } from "./fixtures";
 
@@ -77,7 +77,7 @@ test("upgrades terminal stream and file upload to WebRTC DataChannel, then falls
   await page.locator(".xterm-helper-textarea").focus();
   await page.keyboard.type("cat ");
   const chooser = page.waitForEvent("filechooser");
-  await (await headerAction(page, "上传文件")).click();
+  await (await uploadAction(page)).click();
   await (
     await chooser
   ).setFiles({

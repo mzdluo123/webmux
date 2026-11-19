@@ -28,7 +28,7 @@ export function useDockPeek(
       if (!(event.target instanceof Element)) return;
       if (
         !event.target.closest(
-          '[data-dock-peek], [data-dock-tab], [data-dock-command-menu], [role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"]',
+          '[data-dock-peek], [data-dock-tab], [data-dock-command-menu], [data-dock-session-commands], [role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"]',
         )
       )
         close();

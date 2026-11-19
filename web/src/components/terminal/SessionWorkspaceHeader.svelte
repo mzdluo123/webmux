@@ -36,6 +36,7 @@
     onerror: (message: string) => void;
   } = $props();
   const phone = new MediaQuery("(max-width: 639px)");
+  const pane = $derived(dock?.activeCommands());
   const openSwitcher = findSessionSwitcher();
   const fullscreen = useFullscreen((message) => onerror(message));
   let menuTrigger = $state<HTMLButtonElement | null>(null);
@@ -63,6 +64,11 @@
   </Button>
   <SessionSwitcherTrigger size="icon-sm" class="max-sm:hidden" />
   <SessionPaneMenu {dock} />
+  {#if pane?.commands}
+    <div class="flex min-w-0 items-center" data-dock-session-commands={pane.id}>
+      {#key pane.id}{@render pane.commands()}{/key}
+    </div>
+  {/if}
   <div class="flex-1"></div>
   {#if openFiles}<Button
       variant="ghost"

@@ -1,4 +1,4 @@
-import { createShell, expect, test } from "./fixtures";
+import { createShell, expect, sessionHeader, test } from "./fixtures";
 
 const longTitle =
   "Dock layout review: keep the full session name available on a narrow phone";
@@ -10,7 +10,7 @@ test("the session title opens its full name and renames the current session", as
   const phone = !!testInfo.project.use.isMobile;
   if (phone) await page.setViewportSize({ width: 320, height: 568 });
   await createShell(page, longTitle, workDir);
-  const header = page.locator(".terminal-header");
+  const header = sessionHeader(page);
   const title = header.getByRole("button", { name: longTitle, exact: true });
   if (phone) {
     await expect

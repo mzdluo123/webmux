@@ -106,13 +106,15 @@ function diffNumber(diff: Locator, line: number) {
 async function closeFrom(win: Page) {
   const frame = frameOf(win);
   await openCodeMenu(frame);
+  const dock = frame.getByRole("menuitem", {
+    name: "收回代码窗口",
+    exact: true,
+  });
+  await expect(dock).toBeVisible();
   const closed = win.waitForEvent("close");
   // This control closes the window it lives in, so its click response can be
   // lost with the window; the close event is the assertion that matters.
-  void frame
-    .getByRole("menuitem", { name: "收回代码窗口", exact: true })
-    .click()
-    .catch(() => undefined);
+  void dock.click().catch(() => undefined);
   await closed;
 }
 
@@ -571,10 +573,9 @@ test("mobile browsers without Picture-in-Picture offer no pop-out", async ({
   await files.getByRole("button", { name: "mobile.txt", exact: true }).click();
   await expect(codeReader(page)).toBeVisible();
   await openCodeMenu(codeReader(page));
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
   await expect(
-    page.getByRole("menu").getByRole("menuitem", {
-      name: "在独立窗口中显示代码",
-      exact: true,
-    }),
+    menu.getByRole("menuitem", { name: "在独立窗口中显示代码", exact: true }),
   ).toHaveCount(0);
 });

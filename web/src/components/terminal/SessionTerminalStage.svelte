@@ -6,6 +6,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import DraftToggle from "./DraftToggle.svelte";
   import TerminalFindBar from "./TerminalFindBar.svelte";
+  import TerminalPaneStatus from "./TerminalPaneStatus.svelte";
   import TerminalHeader from "./TerminalHeader.svelte";
   import TerminalInputComposer from "./TerminalInputComposer.svelte";
   import TerminalNotices from "./TerminalNotices.svelte";
@@ -80,6 +81,7 @@
     container = $bindable(),
   }: SessionTerminalStageProps = $props();
 
+  let fileInput = $state<{ open(): void }>();
   let findPanel = $state<TerminalFindBar>();
   let chatView = $state<ChatViewComponent>();
   let composer = $state<TerminalInputComposer>();
@@ -93,8 +95,12 @@
   export function menuRoot() {
     return (
       document.querySelector<HTMLElement>(
+        `[data-dock-session-commands="${CSS.escape(id)}"]`,
+      ) ??
+      document.querySelector<HTMLElement>(
         `[data-dock-panel="${CSS.escape(id)}"]`,
-      ) ?? undefined
+      ) ??
+      undefined
     );
   }
   export function focusFind() {
@@ -211,14 +217,12 @@
     {chatActions}
     terminal={headerTerminal}
     {draft}
-    {draftSaved}
-    {scratchSaved}
     uploading={uploads?.progress != null}
     {sizeLocked}
     {setSizeLocked}
     {codeShown}
     {quickMenu}
-    upload={uploads?.uploadFiles}
+    openUpload={uploads && features.files ? () => fileInput?.open() : undefined}
     {toggleDraft}
     {showScratch}
     {showFind}
@@ -283,9 +287,14 @@
   id={panels.terminal}
   title={paneTitle}
   {onactivate}
-  header={paneHeader}
+  commands={paneHeader}
 >
+  {#snippet header()}<TerminalPaneStatus terminal={headerTerminal} />{/snippet}
   {#snippet children(visible)}
+    {#if features.files && uploads}<features.files.Input
+        bind:this={fileInput}
+        upload={uploads.uploadFiles}
+      />{/if}
     {@render paneNotices()}
     {#if hybrid.view === "chat"}{@render chatPane()}{/if}
     <div

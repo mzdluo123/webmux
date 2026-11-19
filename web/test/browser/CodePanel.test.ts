@@ -536,6 +536,7 @@ test("touch-only devices without Picture-in-Picture get no pop-out control", asy
     .element(page.getByRole("button", { name: "file-0.txt", exact: true }))
     .toBeVisible();
   await openCodeMenu();
+  await expect.element(page.getByRole("menu")).toBeVisible();
   await expect
     .element(codeMenuItem("在独立窗口中显示代码"))
     .not.toBeInTheDocument();

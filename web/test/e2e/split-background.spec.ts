@@ -6,6 +6,7 @@ import {
   createShell,
   chooseDockPanel,
   chooseDockPanelById,
+  expectConnected,
   narrowSessionHeader,
   openSplitPanel,
   runCommand,
@@ -48,11 +49,7 @@ for (const clipboard of ["allowed", "denied", "unavailable"] as const) {
       })
       .click();
     const background = page.locator(".split-terminal").nth(1);
-    await expect(
-      page.locator(
-        '[data-dock-panel]:has(.split-terminal[data-active="true"]) .terminal-header .status-dot',
-      ),
-    ).toHaveAttribute("aria-label", /已连接/);
+    await expectConnected(page);
     const gate = join(workDir, "copy-ready");
     const text = `pending-${clipboard}`;
     const payload = Buffer.from(text).toString("base64");

@@ -6,24 +6,21 @@ import {
   expect,
   createShell,
   chooseDockPanel,
+  chooseDockPanelById,
   expectConnected,
-  headerAction,
+  expectDraftMode,
   holdTerminalReattach,
+  openSessionMenu,
   quote,
   recordInput,
+  sessionPaneHeader,
   toggleCode,
+  toggleDraftMode,
+  uploadAction,
   backToList,
 } from "./fixtures";
 import { codeReader, showFileTree } from "./code-dock";
 
-const mode = (page: Page) => page.getByRole("button", { name: /^草稿模式/ });
-// Phones keep the switch beside the soft keys; while those are hidden (the
-// code view) it lives in the terminal menu.
-async function toggleMode(page: Page) {
-  if (await mode(page).isVisible()) return mode(page).click();
-  await page.getByRole("button", { name: "终端菜单", exact: true }).click();
-  await page.getByRole("menuitemcheckbox", { name: /^草稿模式/ }).click();
-}
 const draft = (page: Page) =>
   page.getByRole("textbox", {
     name: "草稿内容",
@@ -43,7 +40,7 @@ for (const bracketed of [true, false]) {
   }) => {
     await createShell(page, "Draft recorder", workDir);
     const received = await recordInput(page, workDir, bracketed);
-    await mode(page).click();
+    await toggleDraftMode(page);
     await expect(draft(page)).toBeVisible();
     await expect(send(page)).toBeDisabled();
     await draft(page).fill("  中文🙂 first\nsecond  ");
@@ -57,9 +54,9 @@ for (const bracketed of [true, false]) {
     await draft(page).press("Escape");
     await expect(draft(page)).toBeVisible();
     expect(await readFile(received, "utf8")).toBe("");
-    await mode(page).click();
+    await toggleDraftMode(page);
     await expect(draft(page)).toBeHidden();
-    await mode(page).click();
+    await toggleDraftMode(page);
     await expect(draft(page)).toHaveValue(text);
     await send(page).click();
     const wire = text.replaceAll("\n", "\r");
@@ -67,8 +64,8 @@ for (const bracketed of [true, false]) {
       .poll(() => readFile(received, "utf8"))
       .toBe(bracketed ? `\x1b[200~${wire}\x1b[201~\r` : `${wire}\r`);
     await expect(draft(page)).toBeHidden();
-    await expect(mode(page)).toHaveAttribute("aria-pressed", "false");
-    await mode(page).click();
+    await expectDraftMode(page, false);
+    await toggleDraftMode(page);
     await expect(draft(page)).toHaveValue("");
     await expect(send(page)).toBeDisabled();
     await draft(page).fill(text);
@@ -85,7 +82,7 @@ for (const bracketed of [true, false]) {
     );
     await draft(page).fill("Next draft remains editable");
     await expect(draft(page)).toBeFocused();
-    await expect(mode(page)).toHaveAttribute("aria-pressed", "true");
+    await expectDraftMode(page, true);
   });
 }
 
@@ -95,7 +92,7 @@ test("redirected draft edit keys keep multi-code-point characters whole", async 
 }) => {
   await createShell(page, "Unicode draft", workDir);
   const received = await recordInput(page, workDir);
-  await mode(page).click();
+  await toggleDraftMode(page);
   const editor = draft(page);
   const terminalInput = page.locator(".xterm-helper-textarea");
   const redirect = (key: string) =>
@@ -155,7 +152,7 @@ test("code references and uploaded paths join the same draft without PTY input",
   await writeFile(join(workDir, "reference.txt"), "reference body\n");
   const id = await createShell(page, "Mixed draft", workDir);
   const received = await recordInput(page, workDir);
-  await mode(page).click();
+  await toggleDraftMode(page);
   await draft(page).fill("Please inspect ");
   await draft(page).press("End");
   const files = await showFileTree(page);
@@ -170,11 +167,17 @@ test("code references and uploaded paths join the same draft without PTY input",
     `Please inspect ${join(workDir, "reference.txt")} `,
   );
   await expect(codeReader(page)).toBeVisible();
+  if (info.project.use.isMobile) {
+    await expect(draft(page)).toBeHidden();
+    await chooseDockPanelById(page, id);
+  } else {
+    await sessionPaneHeader(page).locator(".dock-title-space").click();
+  }
   const response = page.waitForResponse((r) =>
     r.url().endsWith(`/api/sessions/${id}/upload`),
   );
   const chooser = page.waitForEvent("filechooser");
-  await (await headerAction(page, "上传文件")).click();
+  await (await uploadAction(page)).click();
   await (
     await chooser
   ).setFiles({
@@ -189,10 +192,6 @@ test("code references and uploaded paths join the same draft without PTY input",
   const expected = `Please inspect ${join(workDir, "reference.txt")} ${quote(path)} `;
   await expect(draft(page)).toHaveValue(expected);
   expect(await readFile(received, "utf8")).toBe("");
-  if (info.project.use.isMobile) {
-    await expect(draft(page)).toBeHidden();
-    await toggleCode(page);
-  }
   await send(page).click();
   await expect
     .poll(() => readFile(received, "utf8"))
@@ -201,11 +200,13 @@ test("code references and uploaded paths join the same draft without PTY input",
     await chooseDockPanel(page, "预览 · reference.txt");
   await expect(codeReader(page)).toBeVisible();
   await expect(draft(page)).toBeHidden();
-  // The phone header has no draft button while the soft keys are hidden.
-  if (!info.project.use.isMobile)
-    await expect(mode(page)).toHaveAttribute("aria-pressed", "false");
-  await toggleMode(page);
+  if (info.project.use.isMobile) await chooseDockPanelById(page, id);
+  else await sessionPaneHeader(page).locator(".dock-title-space").click();
+  await expectDraftMode(page, false);
+  await toggleDraftMode(page);
   await expect(draft(page)).toHaveValue("");
+  if (info.project.use.isMobile)
+    await chooseDockPanel(page, "预览 · reference.txt");
   await info.attach("composer-code.png", {
     body: await page.screenshot(),
     contentType: "image/png",
@@ -218,11 +219,11 @@ test("draft splits the terminal column while the side panel stays full height", 
   workDir,
 }, info) => {
   await writeFile(join(workDir, "panel.txt"), "code stays readable\n");
-  await createShell(page, "Resizable draft", workDir);
+  const id = await createShell(page, "Resizable draft", workDir);
   const terminal = page.locator(".terminal-host");
   const before = await terminal.boundingBox();
   const host = await terminal.elementHandle();
-  await mode(page).click();
+  await toggleDraftMode(page);
   await draft(page).fill("Keep this draft");
   const handle = page.getByRole("separator", { name: "调整草稿面板高度" });
   const panel = page.getByRole("region", { name: "终端输入草稿" });
@@ -239,9 +240,9 @@ test("draft splits the terminal column while the side panel stays full height", 
   const enlarged = (await panel.boundingBox())!;
   expect(shrunk.height).toBeLessThan(before!.height - 50);
   expect(shrunk.y + shrunk.height).toBeLessThanOrEqual(enlarged.y);
-  await mode(page).click();
+  await toggleDraftMode(page);
   await expect.poll(() => terminal.boundingBox()).toEqual(before);
-  await mode(page).click();
+  await toggleDraftMode(page);
   expect(
     await host!.evaluate(
       (element) => element === document.querySelector(".terminal-host"),
@@ -255,6 +256,7 @@ test("draft splits the terminal column while the side panel stays full height", 
   const codeBounds = (await code.boundingBox())!;
   if (info.project.use.isMobile) {
     await expect(panel).toBeHidden();
+    await chooseDockPanelById(page, id);
   } else {
     const bounds = (await panel.boundingBox())!;
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(codeBounds.x);
@@ -271,11 +273,19 @@ test("draft splits the terminal column while the side panel stays full height", 
       resizedTerminal.height + resizedDraft.height,
     );
   }
-  await toggleMode(page);
+  await toggleDraftMode(page);
+  if (info.project.use.isMobile) {
+    await chooseDockPanel(page, "预览 · panel.txt");
+    expect(await code.boundingBox()).toEqual(codeBounds);
+    await chooseDockPanelById(page, id);
+  } else {
+    expect(await code.boundingBox()).toEqual(codeBounds);
+  }
+  await toggleDraftMode(page);
+  if (info.project.use.isMobile)
+    await chooseDockPanel(page, "预览 · panel.txt");
   expect(await code.boundingBox()).toEqual(codeBounds);
-  await toggleMode(page);
-  expect(await code.boundingBox()).toEqual(codeBounds);
-  if (info.project.use.isMobile) await toggleCode(page);
+  if (info.project.use.isMobile) await chooseDockPanelById(page, id);
   await expect(draft(page)).toHaveValue("Keep this draft");
   await expect(panel).toBeVisible();
 });
@@ -286,7 +296,7 @@ test("drafts survive navigation and reload, remain session-local and stop persis
   workDir,
 }) => {
   const a = await createShell(page, "Draft A", workDir);
-  await mode(page).click();
+  await toggleDraftMode(page);
   await draft(page).fill("A private draft");
   const response = await request.post("/api/sessions", {
     data: {
@@ -300,8 +310,8 @@ test("drafts survive navigation and reload, remain session-local and stop persis
   const back = () => backToList(page);
   await back();
   await page.goto(`/s/${b}`);
-  await expect(mode(page)).toHaveAttribute("aria-pressed", "false");
-  await mode(page).click();
+  await expectDraftMode(page, false);
+  await toggleDraftMode(page);
   await expect(draft(page)).toHaveValue("");
   await draft(page).fill("B private draft");
   await back();
@@ -310,7 +320,7 @@ test("drafts survive navigation and reload, remain session-local and stop persis
   await expect(draft(page)).toHaveValue("A private draft");
   // A reload restores the saved draft visibly, with its target, and sends nothing.
   await page.reload();
-  await expect(mode(page)).toHaveAttribute("aria-pressed", "true");
+  await expectDraftMode(page, true);
   await expect(draft(page)).toHaveValue("A private draft");
   await expect(page.getByText(/已恢复本机草稿.*目标：Draft A/)).toBeVisible();
   await expect(send(page)).toBeEnabled();
@@ -327,8 +337,8 @@ test("drafts survive navigation and reload, remain session-local and stop persis
   // toolbar while the restored session is still settling.
   await expectConnected(page);
   await expect(page.locator(".restore-overlay")).toBeHidden();
-  await expect(mode(page)).toHaveAttribute("aria-pressed", "false");
-  await mode(page).click();
+  await expectDraftMode(page, false);
+  await toggleDraftMode(page);
   await expect(draft(page)).toHaveValue("");
 });
 
@@ -338,7 +348,7 @@ test("scratch notes persist and move into the draft only on take", async ({
 }) => {
   const id = await createShell(page, "Scratch notes", workDir);
   const received = await recordInput(page, workDir);
-  await mode(page).click();
+  await toggleDraftMode(page);
   await scratch(page).click();
   await page.getByLabel("新建暂存", { exact: true }).fill("First note");
   await page.getByRole("button", { name: "添加暂存", exact: true }).click();
@@ -348,15 +358,18 @@ test("scratch notes persist and move into the draft only on take", async ({
   await expect(scratchEntry(page, 2)).toHaveValue("Second note");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "暂存" })).toBeHidden();
-  await mode(page).click();
-  // The closed draft button still exposes the scratch count in its name.
-  await expect(mode(page)).toHaveAccessibleName(/2 条暂存/);
+  await toggleDraftMode(page);
+  // The draft control still exposes the scratch count while draft mode is off.
+  await expectDraftMode(page, false, /2 条暂存/);
   expect(await readFile(received, "utf8")).toBe("");
 
   // The terminal menu reaches scratch without opening the draft; an update is
   // announced visibly but does not open the draft or send anything.
-  await page.getByRole("button", { name: "终端菜单", exact: true }).click();
-  await page.getByRole("menuitem", { name: "暂存 (2)", exact: true }).click();
+  await (
+    await openSessionMenu(page)
+  )
+    .getByRole("menuitem", { name: "暂存 (2)", exact: true })
+    .click();
   await page.getByLabel("新建暂存", { exact: true }).fill("Third note");
   await page.getByRole("button", { name: "添加暂存", exact: true }).click();
   await page.keyboard.press("Escape");
@@ -372,7 +385,7 @@ test("scratch notes persist and move into the draft only on take", async ({
     page.getByText("本机保存了 0 个会话的草稿，3 条暂存"),
   ).toBeVisible();
   await page.goto(`/s/${id}`);
-  await mode(page).click();
+  await toggleDraftMode(page);
   await scratch(page).click();
   await expect(scratchEntry(page, 1)).toHaveValue("First note");
   await expect(scratchEntry(page, 2)).toHaveValue("Second note");
@@ -391,7 +404,7 @@ for (const initialDraft of [true, false]) {
   }) => {
     const id = await createShell(page, "Pending draft upload", workDir);
     const received = await recordInput(page, workDir);
-    if (initialDraft) await mode(page).click();
+    if (initialDraft) await toggleDraftMode(page);
     const gate = Promise.withResolvers<void>();
     const started = Promise.withResolvers<void>();
     await page.route(`**/api/sessions/${id}/upload`, async (route) => {
@@ -404,7 +417,7 @@ for (const initialDraft of [true, false]) {
         r.url().endsWith(`/api/sessions/${id}/upload`),
       );
       const chooser = page.waitForEvent("filechooser");
-      await (await headerAction(page, "上传文件")).click();
+      await (await uploadAction(page)).click();
       await (
         await chooser
       ).setFiles({
@@ -413,8 +426,8 @@ for (const initialDraft of [true, false]) {
         buffer: Buffer.from("pending"),
       });
       await started.promise;
-      if (!initialDraft) await mode(page).click();
-      await mode(page).click();
+      if (!initialDraft) await toggleDraftMode(page);
+      await toggleDraftMode(page);
       gate.resolve();
       const { path } = await (await response).json();
       await expect(
@@ -422,7 +435,7 @@ for (const initialDraft of [true, false]) {
       ).toBeHidden();
       expect(await readFile(received, "utf8")).toBe("");
       await expect(draft(page)).toBeHidden();
-      await mode(page).click();
+      await toggleDraftMode(page);
       await expect(draft(page)).toHaveValue(`${quote(path)} `);
     } finally {
       gate.resolve();
@@ -437,7 +450,7 @@ test("native text and file paste target the draft, while exited sessions retain 
 }) => {
   const id = await createShell(page, "Paste draft", workDir);
   const received = await recordInput(page, workDir);
-  await mode(page).click();
+  await toggleDraftMode(page);
   await draft(page).fill("before after");
   await draft(page).evaluate((element: HTMLTextAreaElement) => {
     element.setSelectionRange(7, 12);
@@ -500,7 +513,7 @@ test("composition, direct keyboard entry and disconnect never bypass explicit se
   });
   await createShell(page, "Disconnected draft", workDir);
   const received = await recordInput(page, workDir);
-  await mode(page).click();
+  await toggleDraftMode(page);
   await page.locator(".xterm-helper-textarea").focus();
   await page.keyboard.type("first key");
   await expect(draft(page)).toHaveValue("first key");
@@ -513,7 +526,7 @@ test("composition, direct keyboard entry and disconnect never bypass explicit se
   expect(disconnect).toBeDefined();
   await disconnect!();
   await expect.poll(() => blockedReconnects).toBeGreaterThan(0);
-  await expect(page.locator(".terminal-header").getByRole("status")).toHaveText(
+  await expect(sessionPaneHeader(page).getByRole("status")).toHaveText(
     "重连中",
   );
   await expect(send(page)).toBeDisabled();
@@ -539,7 +552,7 @@ test("an uploaded path waiting for terminal recovery moves to draft immediately"
   const received = await recordInput(page, workDir);
   try {
     const chooser = page.waitForEvent("filechooser");
-    await (await headerAction(page, "上传文件")).click();
+    await (await uploadAction(page)).click();
     await page.evaluate(() => {
       Object.defineProperty(document, "hidden", {
         configurable: true,
@@ -564,7 +577,7 @@ test("an uploaded path waiting for terminal recovery moves to draft immediately"
     await expect(
       page.getByRole("status").filter({ hasText: "文件已上传，等待终端恢复" }),
     ).toBeVisible();
-    await mode(page).click();
+    await toggleDraftMode(page);
     await expect(draft(page)).toHaveValue(`${quote(path)} `);
     await expect(send(page)).toBeDisabled();
     expect(await readFile(received, "utf8")).toBe("");
@@ -582,7 +595,7 @@ test("partial upload failure retains only real paths in the draft", async ({
 }) => {
   const id = await createShell(page, "Partial upload", workDir);
   const received = await recordInput(page, workDir);
-  await mode(page).click();
+  await toggleDraftMode(page);
   let count = 0;
   await page.route(`**/api/sessions/${id}/upload`, async (route) => {
     if (++count === 2) await route.abort("failed");

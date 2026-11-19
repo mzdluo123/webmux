@@ -15,16 +15,16 @@
   const pane = $derived(dock?.commandPanel(target));
   const rails = ["left", "right", "bottom"] as const;
   const railLabel = {
-    left: m.dock_minimize_left,
-    right: m.dock_minimize_right,
-    bottom: m.dock_minimize_bottom,
+    left: () => m.dock_minimize_left(),
+    right: () => m.dock_minimize_right(),
+    bottom: () => m.dock_minimize_bottom(),
   };
   const edgeLabel = {
-    left: m.dock_left,
-    right: m.dock_right,
-    top: m.dock_top,
-    bottom: m.dock_bottom,
-    center: m.dock_center,
+    left: () => m.dock_left(),
+    right: () => m.dock_right(),
+    top: () => m.dock_top(),
+    bottom: () => m.dock_bottom(),
+    center: () => m.dock_center(),
   };
 
   function toggle() {

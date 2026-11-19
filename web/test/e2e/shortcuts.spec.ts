@@ -1,5 +1,11 @@
 import { readFile } from "node:fs/promises";
-import { test, expect, createShell, recordInput } from "./fixtures";
+import {
+  test,
+  expect,
+  createShell,
+  recordInput,
+  toggleDraftMode,
+} from "./fixtures";
 
 for (const theme of ["light", "dark"] as const) {
   test(`settings shortcut reference supports navigation in ${theme} theme`, async ({
@@ -56,7 +62,7 @@ test("reading shortcuts leaves the terminal input and draft untouched", async ({
   ).toHaveCount(0);
   await page.keyboard.press("Escape");
 
-  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
+  await toggleDraftMode(page);
   const draft = page.locator(".terminal-composer textarea");
   await draft.fill("Keep this unsent draft");
   await page.goto(`/settings?session=${id}#shortcuts`);

@@ -144,6 +144,9 @@
     return activePanel ?? "";
   }
 
+  export function activeCommands() {
+    return !compact && activePanel ? entries.get(activePanel) : undefined;
+  }
   export function commandPanel(id: string) {
     const panel = entries.get(id);
     if (!edgeRails || compact || !panel || !rect(id)) return;

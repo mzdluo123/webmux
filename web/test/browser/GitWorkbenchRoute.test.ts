@@ -185,7 +185,10 @@ test("session code workspace keeps Git navigation and all file inspectors in the
     onInspectGitFile,
   });
 
-  const menuTrigger = page.getByRole("button", { name: "代码菜单", exact: true });
+  const menuTrigger = page.getByRole("button", {
+    name: "代码菜单",
+    exact: true,
+  });
   await expect.element(menuTrigger).toHaveAttribute("title", "代码菜单");
   await expect
     .element(page.getByRole("button", { name: "在 Git 中查看", exact: true }))
@@ -203,7 +206,9 @@ test("session code workspace keeps Git navigation and all file inspectors in the
   expect(onInspectGitFile).toHaveBeenCalledTimes(3);
 
   await menuTrigger.click();
-  await page.getByRole("menuitem", { name: "在 Git 中查看", exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: "在 Git 中查看", exact: true })
+    .click();
   expect(onOpenGit).toHaveBeenCalledTimes(1);
 });
 

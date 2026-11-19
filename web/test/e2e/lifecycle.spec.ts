@@ -10,6 +10,7 @@ import {
   expectTerminalLine,
   expectConnected,
   holdTerminalFont,
+  sessionPaneHeader,
   toggleCode,
   backToList,
 } from "./fixtures";
@@ -350,7 +351,7 @@ test("replay and the floating button return to latest output without typing", as
     await expectTerminalLine(page, marker);
   }
   await runCommand(page, "exit");
-  await expect(page.locator(".terminal-header").getByRole("status")).toHaveText(
+  await expect(sessionPaneHeader(page).getByRole("status")).toHaveText(
     "已退出",
   );
   await scrollBack();
