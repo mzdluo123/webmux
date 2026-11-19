@@ -13,7 +13,7 @@
     "aria-expanded:border-foreground/50 aria-expanded:text-foreground aria-pressed:border-foreground/50 aria-pressed:text-foreground aria-[current=true]:border-foreground/50 aria-[current=true]:text-foreground dark:aria-expanded:border-foreground/50 dark:aria-pressed:border-foreground/50 dark:aria-[current=true]:border-foreground/50";
 
   export const buttonVariants = tv({
-    base: "wm-control focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 rounded-md border border-transparent bg-clip-padding text-sm font-medium focus-visible:ring-2 aria-invalid:ring-1 active:not-aria-[haspopup]:translate-y-px [&_svg:not([class*='size-'])]:size-4 group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap transition-colors outline-none select-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+    base: "wm-control focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 rounded-md border border-transparent bg-clip-padding text-sm font-medium focus-visible:ring-2 aria-invalid:ring-1 active:not-aria-[haspopup]:not-aria-disabled:translate-y-px [&_svg:not([class*='size-'])]:size-4 group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap transition-colors outline-none select-none disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
@@ -30,8 +30,6 @@
         link: "text-primary underline-offset-4 hover:underline",
         // A ghost button whose resting text recedes until hovered.
         quiet: `text-muted-foreground hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 ${active}`,
-        // High-contrast virtual key in the soft-key gamepad.
-        hud: `border-foreground/30 bg-card/75 text-foreground font-semibold shadow-sm backdrop-blur-md hover:border-foreground/50 hover:bg-card/90 active:bg-accent/90 dark:border-foreground/35 dark:bg-card/75 dark:hover:bg-card/90 ${active}`,
         // IntelliJ-style primary action inside the Git workbench.
       },
       size: {

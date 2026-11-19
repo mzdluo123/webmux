@@ -62,13 +62,14 @@
         >
       {/snippet}
     </Popover.Trigger>
-    <Popover.Content align="start" class="w-80 space-y-2">
+    <Popover.Content
+      align="start"
+      class="max-h-[min(24rem,var(--bits-popover-content-available-height))] w-80 max-w-[calc(100vw-1rem)] overflow-y-auto"
+    >
       <p class="font-medium">
         {m.s3_qs_init_repo_heading({ name: repository.name })}
       </p>
-      <p
-        class="max-h-64 overflow-y-auto whitespace-pre-wrap break-words text-muted-foreground"
-      >
+      <p class="whitespace-pre-wrap wrap-anywhere text-muted-foreground">
         {instructionPreview.hasUser
           ? instructionPreview.text.replaceAll(
               "{{user}}",
@@ -76,33 +77,31 @@
             )
           : instructionPreview.text}
       </p>
-      {#if instructionPreview.missing.length}
-        <p class="text-xs text-warning" role="status">
-          {m.s3_qs_init_missing_commands({
-            names: instructionPreview.missing
-              .map((name) => `{{${name}}}`)
-              .join(m.s3_list_separator()),
-          })}
+      <div class="space-y-2 text-xs wrap-anywhere text-muted-foreground">
+        <p
+          class="text-warning"
+          role="status"
+          hidden={!instructionPreview.missing.length}
+        >
+          {#if instructionPreview.missing.length}
+            {m.s3_qs_init_missing_commands({
+              names: instructionPreview.missing
+                .map((name) => `{{${name}}}`)
+                .join(m.s3_list_separator()),
+            })}
+          {/if}
         </p>
-      {/if}
-      {#if !instructionPreview.hasUser}
-        <p class="text-xs text-muted-foreground">
-          {m.s3_qs_init_no_user_token({ token: "{{user}}" })}
-        </p>
-      {/if}
-      {#if usesArtifactDir(instructionPreview.text)}
-        <p class="text-xs text-muted-foreground">
-          {m.s3_qs_init_dir_token({ token: "{{dir}}" })}
-        </p>
-      {/if}
-      {#if instructionPreview.hasWebmux}
-        <p class="text-xs text-muted-foreground">
-          {m.s3_qs_init_webmux_token({ token: "{{webmux}}" })}
-        </p>
-      {/if}
-      <p class="text-xs text-muted-foreground">
-        {m.s3_qs_init_footer_hint()}
-      </p>
+        {#if !instructionPreview.hasUser}
+          <p>{m.s3_qs_init_no_user_token({ token: "{{user}}" })}</p>
+        {/if}
+        {#if usesArtifactDir(instructionPreview.text)}
+          <p>{m.s3_qs_init_dir_token({ token: "{{dir}}" })}</p>
+        {/if}
+        {#if instructionPreview.hasWebmux}
+          <p>{m.s3_qs_init_webmux_token({ token: "{{webmux}}" })}</p>
+        {/if}
+        <p>{m.s3_qs_init_footer_hint()}</p>
+      </div>
     </Popover.Content>
   </Popover.Root>
 </div>

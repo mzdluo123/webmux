@@ -120,7 +120,7 @@ describe("preference conflict replay", () => {
     expect(
       SettingsSnapshotSchema.safeParse({
         ...snapshot,
-        values: { ...emptySettings, forceSoftKeys: "yes" },
+        values: { ...emptySettings, forceSoftKeys: true },
       }).success,
     ).toBe(false);
   });

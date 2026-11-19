@@ -402,7 +402,6 @@
           fallbackRightLabel={selectedDetail?.shortOid ?? ""}
           presentation="docked"
           collapsed={effectiveDiffCollapsed}
-          onAddReworkItem={props.onAddReworkItem}
           onToggleCollapsed={() => setDiffCollapsed(!effectiveDiffCollapsed)}
         />
       </div>
@@ -434,7 +433,6 @@
       fallbackLeftLabel={resolvedParent.selectedParent.slice(0, 7)}
       fallbackRightLabel={selectedDetail?.shortOid ?? ""}
       presentation="mobile"
-      onAddReworkItem={props.onAddReworkItem}
       onBack={closeLayer}
     />
   {/if}

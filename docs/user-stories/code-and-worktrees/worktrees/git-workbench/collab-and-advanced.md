@@ -1,6 +1,6 @@
 # 任务基线、协同、冲突解决与日常高级操作（US-J24–US-J28）
 
-本页收录 Git 工作台的任务审阅基线、跨设备审阅与返工交回会话、合并/变基/遴选/还原与三方冲突解决器、独立 `Stash` 视图与日常高级操作，以及任意逐行（Sub-hunk）暂存、受控丢弃更改与三阶段 `Smart Checkout` 故事（US-J24–US-J28）。
+本页收录 Git 工作台的任务审阅基线、跨设备审阅与提交草稿协同、合并/变基/遴选/还原与三方冲突解决器、独立 `Stash` 视图与日常高级操作，以及任意逐行（Sub-hunk）暂存、受控丢弃更改与三阶段 `Smart Checkout` 故事（US-J24–US-J28）。
 基础故事见[Git 工作台基础闭环与账本](core.md)，分索引见[Git 工作台与仓库级接口](../git-workbench.md)。
 
 ## J. 任务基线、协同、冲突解决与日常高级操作
@@ -20,31 +20,29 @@
   - 任务交付与收尾摘要及非自动删树保护（`G12`）：
     - 底部收尾摘要汇总净变更文件数、任务提交数、未提交项、待推提交与工作树关联的运行中/已结束/已归档会话计数；
     - 提供“返回会话”、“推送提交…”（直达 ~900px 宽幅 `GitPushDialog`）、“归档已完成会话”与 `linked` 工作树的“移除工作树…”（复用 `RemoveWorktreeDialog` 安全检查）出口，推送成功绝不自动删除工作树。
-- **US-J25 跨设备审阅进度同步、乐观锁提交草稿与返工意见交回指定会话**：作为多设备协同审阅者，我希望各工作树的“已审阅”进度与提交草稿经服务端安全同步，并可把带版本身份与行范围的结构化返工意见放入指定工作树会话草稿框，以闭合“编码 → 审阅 → 返工 / 提交”回路。
+- **US-J25 跨设备审阅进度同步与乐观锁提交草稿**：作为多设备协同审阅者，我希望各工作树的“已审阅”进度与提交草稿经服务端同步，以便在桌面与移动设备间连续审阅改动并编写提交说明。
   验收要点：
   - 绑定内容身份的服务端审阅进度同步与自动失效（`GET/PUT .../git/reviews`）：
     - 按工作树在 `git-workbench-state.json`（`0600` 原子替换 + 独立锁，纳入 `statefile.Catalog`、`persistence_inventory.json` 与 `webmux config show`）跨设备共享 `uncommitted`（`staged`、`unstaged`、`untracked`）与 `task` 两套审阅范围进度；
-    - 审阅键同时绑定两侧文件模式、Git blob OID 与工作区文件内容 SHA-256 摘要（从不依赖 `mtime`）：外部修改文件或变更暂存内容后旧标记自动失效；过期页面发起旧身份 `mark` 时返回 `200 {applied: false, staleRejected: true}` 与最新快照，绝不把新修改误标为已审阅；
+    - 审阅键同时绑定两侧文件模式、Git blob OID 与工作区文件内容 SHA-256 摘要（按内容摘要计算）：外部修改文件或变更暂存内容后旧标记自动失效；过期页面发起旧身份 `mark` 时返回 `200 {applied: false, staleRejected: true}` 与最新快照，保留新修改的待审阅状态；
     - `Commit` 与 `相对任务起点的变化` 顶部常驻展示已审阅进度与一键“下一处未审阅”按钮，自动循环定位下一处未审阅条目（窄屏自动切入 Diff 阅读页）；
   - 带 `baseRevision` 乐观版本检查的跨设备提交草稿（`GET/PUT .../git/commit-draft`）：
-    - 按工作树持久保存提交 `subject`、`body`、`revision` 与 `updatedAt`（单工作树上限 32 KiB，日志绝不输出草稿正文）；工作树存在活动会话且已暂存文件 `> 0` 时提供“让会话协助起草说明”辅助入口；
-    - 仅当真实提交成功落盘（`ExecuteCommit` 或服务重启对账确认为 `matched` / `needs_review`）后才自动清空草稿；预览过期、Hook/锁冲突报错、`uncertain` 或取消推送均完整保留草稿；
-    - 多设备并发编辑导致 `baseRevision` 不匹配时返回 HTTP `409`（`reason: "draft_conflict"`，附带 `currentDraft`），界面原位并排保留“本机当前输入”与“另一设备已保存版本”，提供“保留本机覆盖保存”、“采用远端版本”与“合并两份内容”三种显式恢复操作，绝不静默覆盖；
-    - 移除/批量移除/释放工作树或注销仓库时同步清理该工作树或仓库的提交草稿与审阅记录；
-  - 差异摘录返工意见草稿箱与目标会话安全交回：
-    - 在 `Commit`、`相对任务起点的变化` 与 `Log` 的任意 Pierre `CodeDiffReader` 中选择单行/连续行范围（或点击常驻 Hunk 条“加入意见”），均可连同修改要求加入按工作树隔离的“返工意见草稿箱”；编辑或发送返工意见绝不覆盖或清空正在编写的提交说明草稿；
-    - 防串行号保护：来自历史提交、`HEAD`、`index` 或任务起点删除侧的摘录显式标明版本身份并附带代码片段，绝不伪装成当前工作区实时行号；来自当前工作区的摘录在发送前向服务端复核最新内容身份，若文件已更新则先提示确认；
-    - 目标会话显式路由：工作树仅有 1 个活跃会话时默认预选并标注视图（`终端 TUI` / `聊天视图`）；有 2 个及以上活跃会话时强制显式单选目标会话后才允许发送；无活跃会话时提供“复制结构化审阅意见 Markdown”与“在该工作树新建会话并带入意见”（预填目标工作树与草稿）；
-    - 只进草稿框、零自动执行：确认发送后跳转到目标会话并将结构化 Markdown 写入该会话草稿（终端会话展开输入草稿框且绝不注入 `\r` 回车自动执行，混合聊天视图填入聊天输入框），其余未选中会话保持原状。
+    - 按工作树持久保存提交 `subject`、`body`、`revision` 与 `updatedAt`（单工作树上限 32 KiB，日志仅记录操作元数据）；
+    - 仅当真实提交成功落盘（`ExecuteCommit` 或服务重启对账确认为 `matched` / `needs_review`）后自动清空草稿；预览过期、Hook/锁冲突报错、`uncertain` 或取消推送均完整保留草稿；
+    - 多设备并发编辑导致 `baseRevision` 不匹配时返回 HTTP `409`（`reason: "draft_conflict"`，附带 `currentDraft`），界面原位并排保留“本机当前输入”与“另一设备已保存版本”，提供“保留本机覆盖保存”、“采用远端版本”与“合并两份内容”三种显式恢复操作；
+    - 从冲突卡解决后：保留本机与合并两份内容时保留原本机正文的选区与阅读滚动位置，采用远端版本时将光标与滚动归零至新正文起点，并在允许自动输入聚焦的环境下聚焦正文框；
+    - 移除/批量移除/释放工作树或注销仓库时同步清理该工作树或仓库的提交草稿与审阅记录。
 - **US-J26 Git 工作台合并、变基、遴选、还原协调恢复与三方冲突解决器**：作为处理分叉分支或冲突提交的使用者，我希望在零活跃会话浏览器中显式预览执行 `Merge`、`Rebase`、`Cherry-pick` 与 `Revert`，重进恢复进行中横幅与诚实 `Abort` 预览，并用三方冲突解决器完成裁决与继续。
   验收要点：
+  - 在桌面三栏和手机布局之间切换，保留正在编辑的冲突结果、选区和焦点。
   - 显式方向与爆炸半径预览及分叉推送闭环（`UI-05`、`UI-06`）：
     - 多处统一操作入口：
       - 顶栏分支弹层、`Log` 引用树与 `Branches` 视图提供“合并到当前分支… (Merge)”与“将当前分支变基到此处… (Rebase)”；
       - `Log` 提交行菜单与提交详情提供“遴选此提交… (Cherry-pick)”与“还原此提交… (Revert)”；
-      - `GitPushDialog` 在远端非快进拒绝后原位展示“获取远程 (Fetch)”、“快进更新…”、“合并远端分支… (Merge)”与“变基到远端分支… (Rebase)”（全程禁止 `--force`）；
+      - `GitPushDialog` 在远端非快进拒绝后原位展示“获取远程 (Fetch)”、“快进更新…”、“合并远端分支… (Merge)”与“变基到远端分支… (Rebase)”（全程禁止 `--force`）。拒绝原因即时显示，长消息可在恢复按钮上方滚动；
     - 两阶段预览与活跃会话确认：
       - 四类操作均采用 `*-preview` → 限时 `confirmationId` 确认，列出目标工作树、当前分支、源引用或提交、方向语句（`merge A into B` / `rebase B onto A`）、待合入或重放提交计数及 `git merge-tree` 预判冲突路径；
+      - 快进、已是最新和有分歧历史的合并预览共用固定确认区。读取或执行出错时，预览首先展示错误；
       - 目标工作树存在运行中会话时强制要求显式勾选 `acknowledgeSessions`（未确认返回 `409 session_ack_required`）；
     - 执行前自动写入私有保护引用 `refs/webmux/recovery/<worktreeId>/<kind>` 保存操作前 `HEAD`，完成后、中止后或移除/释放工作树时自动清理；
   - 无状态重进协调恢复横幅与诚实 `Abort` 预览（`A13`、`G10`）：
@@ -71,7 +69,7 @@
     - 顶栏模式切换支持 `贮藏`（`?view=stash`）及提交面板快捷创建入口，因 `refs/stash` 归属仓库共享栈而在只读仓库与各工作树一致列出 `oid`、`stashRef`、`branch`、`baseOid` 与 `hasUntracked`；
     - 新建贮藏采用两阶段预览确认，支持自定义说明、`-u`（包含未跟踪文件）与 `--keep-index`，活跃会话存在时要求显式勾选知晓确认；
     - 贮藏详情合并展示已跟踪改动（`base -> S`）与第 3 父节点未跟踪文件（`S^3`，标注 `未跟踪 (S^3)`），复用 Pierre `CodeDiffReader` 只读检视差异；
-    - `Apply` 与 `Pop` 支持 `--index` 恢复原暂存态：
+    - `Apply` 与 `Pop` 支持 `--index` 恢复原暂存态。覆盖路径在确认区上方滚动。切换模式或索引选项会撤下旧确认，等新预览成功后才可确认：
       - 安全两步 `Pop` 先执行 `git stash apply --quiet <oid>`，仅在无冲突成功时才按精确 OID 清理条目；
       - 一旦产生合并冲突则**100% 保留原贮藏条目**并直接进入 `GitConflictView`（`operation.kind = "unstash"`，`canContinue = false`，隐藏多步序列 `Continue` 按钮）；
     - 单条 `Drop` 复核 `stashRef` 仍指向预期 `oid` 后删除并提供 `git stash apply <oid>` 恢复命令，全程不提供 `stash clear`；
@@ -82,19 +80,25 @@
   - 本地分支重命名、上游绑定、标签管理与远程凭据保护：
     - 本地分支支持两阶段 `git branch -m` 重命名预览与执行（含当前检出分支与活跃会话确认），以及显式绑定本地远程跟踪分支上游或一键解除上游；
     - 支持在 `HEAD` 或 `Log` 任意提交创建轻量标签或附注标签（`git tag -a`），在 `Branches` 视图 `标签 (Tags)` 分组展示详情，删除时校验预期指向并返回 `git tag <name> <oid>` 恢复命令；
+    - 切换标签类型时保留名称和附注草稿，仅过渡附注输入区。开启减少动态效果时立即切换，轻量标签模式的附注输入退出键盘焦点顺序；
     - 支持添加、修改与移除远程仓库配置：服务端返回前将内嵌口令脱敏为 `***`，写入时校验允许的 URL 协议并拒绝包含字面量 `***` 的请求（`400`），防止脱敏占位符覆写 `.git/config`；
   - 单文件 `--follow` 历史、只读逐行 `Blame` 链式溯源与跨版本比较：
     - 从 Git 工作台变更/历史文件行及会话代码工作区头部按钮打开单文件检视器，提供 `文件历史 (--follow)`、`逐行溯源 (Blame)` 与 `跨版本比较` 三页签；
     - `GET .../git/file-history` 追踪文件跨重命名演进并展示 `oldPath → newPath` 与单提交文件 Diff；
+    - 加载更早的提交时保持列表阅读位置；在手机上从提交详情返回时恢复原列表偏移与提交行焦点，提交 OID 和该版本路径随选择保留；
     - `GET .../git/blame` 以 `--no-optional-locks` 执行只读 `git blame --porcelain`，支持按行查看提交信息、沿父提交与前身路径“追溯此提交之前版本”（带面包屑回退）及一键“在历史图中定位”跳转到 `Log`；跨版本比较支持任意提交版本与 `HEAD` 或实时 `worktree` 对照。
+    - 在当前工作区与指定提交间切换时，右侧目标控件保持单行高度且比较结果区顶部位置保持不变；用方向键选择指定提交后按 Tab 进入目标修订输入框，结果区异步重载时通过编程式焦点将焦点保留在比较结果容器内。
 - **US-J28 Git 工作台任意逐行（Sub-hunk）暂存、受控丢弃更改与基于可追踪 Stash 的三阶段 Smart Checkout**：
   作为在同一文件中混杂多处修改或需带未提交改动原地切换分支的使用者，我希望按任意单行或行范围操作真实 Git `index`、在防陈旧覆盖与快照保护下丢弃局部更改，并通过可追踪受控 Stash 安全执行三阶段 `Smart Checkout`。
   验收要点：
+  - 首次勾选或清空批量选择时，操作栏在文件列表下方出现或收起，列表上方的行保持原位；勾选视口底部条目时自动滚动使该行保持可见。
   - 任意逐行（Sub-hunk）暂存与取消暂存（`UI-04`、`G02`、`A03`）：
     - `POST .../git/stage` 与 `POST .../git/unstage` 支持 `lineSelections: [{hunkId, lineIndices}]`（与 `hunkIds` 互斥），对二进制、符号链接、重命名、含 `.gitattributes` 过滤器或冲突文件拒绝逐行操作（`409`）；
     - 逐行暂存（`index -> worktree`）仅将选中的 `-` 行从 `index` 删除、选中的 `+` 行写入 `index`（未选中的 `-` 行保留在 `index`、未选中的 `+` 行不进入 `index`）；逐行取消暂存（`HEAD -> index`）仅把 `index` 中选中的变更行还原回 `HEAD`（含 `unborn HEAD`），**全程不改写工作区文件任何字节**；
     - 合成目标索引 blob 时完整保留文件权限（`100644` / `100755`）、行尾（`LF` / `CRLF`）与文件末尾无换行（`none`）语义，校验 `StageFileIdentity` 过期即返回 `409 stale`；
+    - 在逐块阅读器与逐行选择之间切换时，以同一文件的代码行或邻近变更块恢复视口；
     - 前端提供桌面与触屏常驻可达的逐行选择面板（单行复选框、`Shift+点击` 连续范围、按块全选/清空，窄屏隐藏重复 Hunk 条保持 `320px` 与 `200%` 大字号零横向溢出），并支持在 Pierre `CodeDiffReader` 中拖选行范围直接一键暂存或取消暂存选中变更行；
+    - 首次勾选、连续扩选和清空时，操作栏高度与当前行的阅读位置稳定；
   - 受控 `丢弃更改 (Discard Changes)`、写盘前新鲜度门禁与恢复快照（`G11`）：
     - 与只改 `.git/index` 的 `Unstage` 严格分离：仅面向 `Unstaged` 与 `Untracked` 开放单文件、左侧列表多选文件（含已跟踪 + 未跟踪混合批量）、单 Hunk 与选中行四级丢弃范围，**绝不触碰已暂存索引条目**；
     - 两阶段预览确认（`POST .../git/discard-preview` → `POST .../git/discard`）列出将被覆盖或删除的路径及活跃会话警告（有运行中会话时强制要求 `acknowledgeSessions`）；
@@ -109,6 +113,7 @@
       3. `unstashing`：在目标分支优先以 `--index` 应用 `stashOid`：
          - 仅当 100% 无冲突恢复时按精确 OID 丢弃该受控临时贮藏（绝不误删用户自有贮藏）；
          - 若产生合并冲突，**100% 保留 `stashOid`**、给出 `git stash apply <oid>` 恢复命令，并一键打开 `GitConflictView`（标注 `"Smart Checkout 贮藏 <shortOid>"` 来源）完成三方裁决。
+    - 回滚或恢复受阻时，结果区内滚动查看长说明。贮藏保留时可复制完整恢复命令。提交后焦点进入冲突解决、复制命令或结果说明。
 
 依据：
 
@@ -119,13 +124,11 @@
   - 前端请求与状态：[任务接口封装](../../../../../web/src/platform/git-task-api.ts)、[任务审阅控制器](../../../../../web/src/hooks/workspace/git-task-review.svelte.ts)；
   - 前端面板组件：[任务净变更面板](../../../../../web/src/components/workspace/GitTaskReviewPane.svelte)、[任务收尾摘要](../../../../../web/src/components/workspace/GitTaskDeliverySummary.svelte)；
   - 前端测试：[任务接口单测](../../../../../web/test/git-task-api.test.ts)、[任务基线浏览器测试](../../../../../web/test/browser/GitWorkbenchTaskBaseline.test.ts)、[任务基线与收尾 E2E](../../../../../web/test/e2e/git-workbench-task-baseline.spec.ts)。
-- 跨设备审阅进度同步、乐观锁提交草稿与返工意见交回会话：
+- 跨设备审阅进度同步与乐观锁提交草稿：
   - 服务端存储：[协同存储](../../../../../internal/workspace/workbench_collab_store.go)、[提交草稿](../../../../../internal/workspace/workbench_draft.go)、[审阅扫描](../../../../../internal/workspace/workbench_reviews_scan.go)、[审阅服务](../../../../../internal/workspace/workbench_reviews.go)；
   - 服务端路由与测试：[协同路由](../../../../../internal/featureapi/git_collab.go)、[协同契约](../../../../../internal/contract/git_collab.go)、[服务层测试](../../../../../internal/workspace/workbench_collab_test.go)、[接口测试](../../../../../internal/api/git_collab_test.go)；
-  - 前端领域模型：[草稿模型](../../../../../web/src/domains/workspace/git-commit-draft-model.ts)、[返工意见模型](../../../../../web/src/domains/workspace/git-rework-model.ts)、[会话草稿交回](../../../../../web/src/hooks/workspace/git-session-handoff.ts)；
-  - 前端控制器：[审阅同步控制器](../../../../../web/src/hooks/workspace/git-review-sync.svelte.ts)、[草稿控制器](../../../../../web/src/hooks/workspace/git-commit-draft.svelte.ts)、[返工控制器](../../../../../web/src/hooks/workspace/git-rework-controller.svelte.ts)；
-  - 前端组件：[草稿冲突卡片](../../../../../web/src/components/workspace/GitCommitDraftConflictCard.svelte)、[Diff 选行摘录条](../../../../../web/src/components/workspace/GitDiffSelectionBar.svelte)、[返工草稿箱弹窗](../../../../../web/src/components/workspace/GitReworkDialog.svelte)；
-  - 前端测试：[协同模型单测](../../../../../web/test/git-collab.test.ts)、[跨端协同与会话交回 E2E](../../../../../web/test/e2e/git-workbench-v1-collab.spec.ts)。
+  - 前端领域模型与控制器：[草稿模型](../../../../../web/src/domains/workspace/git-commit-draft-model.ts)、[审阅同步控制器](../../../../../web/src/hooks/workspace/git-review-sync.svelte.ts)、[草稿控制器](../../../../../web/src/hooks/workspace/git-commit-draft.svelte.ts)；
+  - 前端组件与测试：[草稿冲突卡片](../../../../../web/src/components/workspace/GitCommitDraftConflictCard.svelte)、[协同模型单测](../../../../../web/test/git-collab.test.ts)、[跨端协同 E2E](../../../../../web/test/e2e/git-workbench-v1-collab.spec.ts)。
 - 合并、变基、遴选、还原协调恢复与三方冲突解决器：
   - 原子写与分段合并：[工作区原子写入](../../../../../internal/worktreefs/write.go)、[三方分段合并](../../../../../internal/workspace/conflict_merge3.go)；
   - 冲突探查与解决：[冲突探查](../../../../../internal/workspace/conflict_inspect.go)、[冲突保存与解决](../../../../../internal/workspace/conflict_resolve.go)；
@@ -162,6 +165,7 @@
   - 服务端测试：[逐行测试](../../../../../internal/workspace/hunk_lines_test.go)、[丢弃测试](../../../../../internal/workspace/discard_test.go)、[Smart Checkout 测试](../../../../../internal/workspace/smart_checkout_test.go)；
   - 前端契约请求与模型：[V3 契约](../../../../../web/src/contracts/git-v3-schemas.ts)、[V3 请求封装](../../../../../web/src/platform/git-v3-api.ts)、[逐行选区纯函数模型](../../../../../web/src/domains/workspace/git-line-selection.ts)；
   - 前端控制器：[丢弃控制器](../../../../../web/src/hooks/workspace/git-discard-controller.svelte.ts)、[Smart Checkout 控制器](../../../../../web/src/hooks/workspace/git-smart-checkout.svelte.ts)；
-  - 前端组件：[逐行选择面板](../../../../../web/src/components/workspace/GitStagingLineSelector.svelte)、[丢弃预览框](../../../../../web/src/components/workspace/GitDiscardPreviewDialog.svelte)、[Smart Checkout 面板](../../../../../web/src/components/workspace/SwitchBranchSmartCheckout.svelte)；
+  - 前端选区组件：[逐行选择面板](../../../../../web/src/components/workspace/GitStagingLineSelector.svelte)、[Diff 选行操作条](../../../../../web/src/components/workspace/GitDiffSelectionBar.svelte)；
+  - 前端预览与切换组件：[丢弃预览框](../../../../../web/src/components/workspace/GitDiscardPreviewDialog.svelte)、[Smart Checkout 面板](../../../../../web/src/components/workspace/SwitchBranchSmartCheckout.svelte)；
   - 前端单测与浏览器测试：[逐行与 V3 单测](../../../../../web/test/git-v3-line-smart.test.ts)、[切分支测试](../../../../../web/test/browser/SwitchBranchDialog.test.ts)、[逐行与丢弃测试](../../../../../web/test/browser/GitWorkbenchLineSmart.test.ts)；
   - 前端端到端测试：[全流程 E2E](../../../../../web/test/e2e/git-workbench-line-smart.spec.ts)。

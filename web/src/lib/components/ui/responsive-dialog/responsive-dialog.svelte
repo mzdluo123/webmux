@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { MediaQuery } from "svelte/reactivity";
   import { cn } from "$lib/utils";
   import * as Dialog from "$lib/components/ui/dialog";
   import * as Drawer from "$lib/components/ui/drawer";
@@ -23,6 +22,7 @@
     pinDrawerHeader = false,
     truncateDrawerTitle = false,
     actions,
+    footer,
   }: {
     title: string;
     description: string;
@@ -49,8 +49,12 @@
      * stay put while the body changes. Keep them icon-sized below `sm`.
      */
     actions?: Snippet;
+    /** Controls pinned below the scrolling body. */
+    footer?: Snippet;
   } = $props();
-  const desktop = new MediaQuery("(min-width: 640px)");
+  // Choose the focus scope once per opening so resizing preserves its subtree.
+  const desktop =
+    typeof window !== "undefined" && matchMedia("(min-width: 640px)").matches;
   let open = $state(true);
   function changed(value: boolean) {
     if (!value && !busy) onclose();
@@ -61,10 +65,14 @@
 {#snippet drawerBody()}
   {#if pinDrawerHeader}
     <ScrollArea class="min-h-8 flex-1">
-      <div class="px-4 pt-1 pb-safe-4">{@render children()}</div>
+      <div class={["px-4 pt-1", !footer && "pb-safe-4"]}>
+        {@render children()}
+      </div>
     </ScrollArea>
   {:else}
-    <div class="px-4 pt-1 pb-safe-4">{@render children()}</div>
+    <div class={["px-4 pt-1", !footer && "pb-safe-4"]}>
+      {@render children()}
+    </div>
   {/if}
 {/snippet}
 
@@ -91,12 +99,16 @@
   {/if}
 {/snippet}
 
-{#if desktop.current}
+{#if desktop}
   <Dialog.Root bind:open onOpenChange={changed}>
     <Dialog.Content
       class={cn(
         "flex max-h-[90dvh] flex-col overflow-hidden sm:max-w-xl",
+        footer && "[&>[data-slot=scroll-area]]:flex-1",
         className,
+        // The desktop focus scope survives a resize. Use the available width
+        // at phone sizes so zoomed text has the same room as in a drawer.
+        "max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-0 max-sm:max-h-[95dvh] max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:px-4",
       )}
       onEscapeKeydown={(event) => {
         if (busy || onback?.()) event.preventDefault();
@@ -106,7 +118,9 @@
       }}
     >
       <ScrollArea class="min-h-8">
-        <div class="grid gap-4 [&>*]:min-w-0">
+        <div
+          class={["grid gap-4 [&>*]:min-w-0", !footer && "max-sm:pb-safe-4"]}
+        >
           {#if actions}
             <div class="flex min-w-0 items-start gap-3 pr-8">
               <Dialog.Header class="min-w-0 flex-1 pr-0">
@@ -124,6 +138,9 @@
           {@render children()}
         </div>
       </ScrollArea>
+      {#if footer}<div class="shrink-0 max-sm:pb-safe-4">
+          {@render footer()}
+        </div>{/if}
     </Dialog.Content>
   </Dialog.Root>
 {:else}
@@ -146,6 +163,9 @@
             {@render drawerBody()}
           </div>
         </ScrollArea>
+      {/if}
+      {#if footer}
+        <div class="shrink-0 px-4 pt-2 pb-safe-4">{@render footer()}</div>
       {/if}
     </Drawer.Content>
   </Drawer.Root>

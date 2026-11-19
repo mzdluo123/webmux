@@ -28,21 +28,19 @@
   } = $props();
 </script>
 
-{#if panel === "search"}
-  <div class="shrink-0 border-b">
-    <CodeSearchPanel {query} {onquery} {onnext} {onprevious} {onclose} />
-    {#if status}
-      <p class="px-2 pb-1 text-xs text-muted-foreground" role="status">
-        {status}
-      </p>
+{#if panel}
+  <div class="max-h-[45%] shrink-0 overflow-auto border-t bg-background">
+    {#if panel === "search"}
+      <CodeSearchPanel {query} {onquery} {onnext} {onprevious} {onclose} />
+      {#if status}
+        <p class="px-2 pb-1 text-xs text-muted-foreground" role="status">
+          {status}
+        </p>
+      {/if}
+    {:else if panel === "goto"}
+      <CodeGotoLine {line} onsubmit={ongoto} {onclose} />
+    {:else}
+      <CodeZoomPanel {onclose} />
     {/if}
-  </div>
-{:else if panel === "goto"}
-  <div class="shrink-0 border-b">
-    <CodeGotoLine {line} onsubmit={ongoto} {onclose} />
-  </div>
-{:else if panel === "zoom"}
-  <div class="shrink-0 border-b">
-    <CodeZoomPanel {onclose} />
   </div>
 {/if}

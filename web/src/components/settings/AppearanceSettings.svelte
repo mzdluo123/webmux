@@ -1,7 +1,6 @@
 <script lang="ts">
   import {
     settings,
-    changeSettings,
     reloadSettings,
   } from "../../domains/settings/settings.svelte";
   import {
@@ -9,6 +8,7 @@
     minFontSize,
     maxFontSize,
   } from "../../hooks/terminal/terminal-font-preference.svelte";
+  import { bottomToolbar } from "../../hooks/terminal/bottom-toolbar-preference.svelte";
   import { themePreference } from "../../hooks/settings/theme";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -96,6 +96,19 @@
         }}>{m.s2_reset_default_font()}</Button
       >
     </div>
+    <div class="space-y-3">
+      <div class="flex items-center justify-between gap-3">
+        <Label for="settings-softkeys">{m.s2_force_softkeys()}</Label>
+        <Switch
+          id="settings-softkeys"
+          checked={bottomToolbar.shown}
+          onCheckedChange={(value) => bottomToolbar.set(value)}
+        />
+      </div>
+      <Button variant="outline" size="sm" onclick={() => bottomToolbar.reset()}
+        >{m.s2_reset_default_toolbar()}</Button
+      >
+    </div>
     <div class="flex flex-wrap items-center justify-between gap-3">
       <p role="status" class="text-sm text-muted-foreground">
         {settings.saving
@@ -113,21 +126,5 @@
     {#if settings.error}<InlineNotice tone="danger"
         >{settings.error}</InlineNotice
       >{/if}
-    <fieldset disabled={!settings.ready} class="space-y-6">
-      <div class="flex items-center justify-between gap-3">
-        <Label for="settings-softkeys">{m.s2_force_softkeys()}</Label>
-        <Switch
-          id="settings-softkeys"
-          checked={settings.values.forceSoftKeys ?? false}
-          onCheckedChange={(value) => changeSettings({ forceSoftKeys: value })}
-        />
-      </div>
-      <Button
-        variant="outline"
-        size="sm"
-        onclick={() => changeSettings({ forceSoftKeys: null })}
-        >{m.s2_reset_default_toolbar()}</Button
-      >
-    </fieldset>
   </Card.Content>
 </Card.Root>

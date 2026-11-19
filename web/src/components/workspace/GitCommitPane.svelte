@@ -14,7 +14,6 @@
   import { m } from "$lib/paraglide/messages.js";
   import type { GitReviewScope } from "../../contracts/git-workbench-schemas";
   import type { GitHunkAndLineMutationProps } from "../../domains/workspace/git-line-selection";
-  import type { createReworkDraftItem } from "../../domains/workspace/git-rework-model";
   import type { GitPaneScrollCallbacks } from "../../domains/workspace/git-workbench-memory";
   import { isChangeReviewed } from "../../domains/workspace/git-workbench-state";
   import type { GitDiffPanelReader } from "../../hooks/workspace/git-log-diff.svelte";
@@ -48,7 +47,6 @@
     defaultLinePickerOpen = false,
     uncommittedProgress: externalUncommittedProgress,
     taskProgress: externalTaskProgress,
-    liveWorktreeIdentityForPath,
     hasActiveWorktreeSession = false,
     activeSessionCount = 0,
     exitedSessionCount = 0,
@@ -63,7 +61,6 @@
     onToggleReviewed,
     onToggleTaskReviewed,
     onJumpNextUnreviewed,
-    onAddReworkItem,
     onStageChange,
     onUnstageChange,
     onStageHunk,
@@ -101,16 +98,11 @@
       defaultLinePickerOpen?: boolean;
       uncommittedProgress?: GitReviewProgressSummary;
       taskProgress?: GitReviewProgressSummary;
-      liveWorktreeIdentityForPath?: (path: string) => string | undefined;
       paneSizes?: [number, number];
       onPaneSizesChange?: (sizes: [number, number]) => void;
       onReviewScopeChange?: (scope: GitReviewScope) => void;
       onToggleTaskReviewed?: (path: string) => void;
       onJumpNextUnreviewed?: (scope: GitReviewScope) => string | null;
-      onAddReworkItem?: (
-        input: Parameters<typeof createReworkDraftItem>[0],
-        options?: { openSheet?: boolean },
-      ) => void;
       onSelectTaskFile?: (path: string) => void;
       onTaskSearchChange?: (q: string) => void;
       onLoadMoreTaskFiles?: () => void;
@@ -278,9 +270,6 @@
 
 {#snippet rightPaneContent(mobile: boolean)}
   {#if effectiveScope === "task"}
-    {@const activeTaskPath = activeTaskFile
-      ? activeTaskFile.newPath || activeTaskFile.oldPath
-      : ""}
     <GitLogDiffPanel
       logDiff={taskDiffReader}
       fallbackFile={activeTaskFile}
@@ -288,11 +277,6 @@
       fallbackRightLabel={m.s6_current_workspace()}
       backLabel={m.s6_back_to_task_changes()}
       presentation={mobile ? "mobile" : "docked"}
-      isTaskScope={true}
-      liveWorktreeIdentity={activeTaskPath
-        ? liveWorktreeIdentityForPath?.(activeTaskPath)
-        : undefined}
-      {onAddReworkItem}
       onBack={mobile ? () => (mobileStep = "changes") : undefined}
     />
   {:else}
@@ -346,9 +330,6 @@
             staleReason={activeDiffStaleReason}
             {defaultLinePickerOpen}
             {hasActiveWorktreeSession}
-            liveWorktreeIdentity={liveWorktreeIdentityForPath?.(
-              activeChange.path,
-            )}
             {onStageChange}
             {onUnstageChange}
             {onStageHunk}
@@ -360,7 +341,6 @@
               : undefined}
             {onDiscardHunk}
             {onDiscardLines}
-            {onAddReworkItem}
             {onRefreshSnapshot}
             {onOpenConflictResolver}
             {onOpenWorktreeTerminal}

@@ -34,6 +34,7 @@ export function useP2PSettings() {
     revision: 0,
   });
   const requests = new LatestRequest();
+  let mutationFailed = false;
   let pollTimer: ReturnType<typeof setTimeout> | undefined;
 
   function schedulePortMapPoll(next: P2PStatus | undefined) {
@@ -44,6 +45,7 @@ export function useP2PSettings() {
   }
 
   async function refresh() {
+    if (ui.saving || requests.disposed) return;
     const ticket = requests.begin();
     try {
       const next = await api(
@@ -56,11 +58,12 @@ export function useP2PSettings() {
       if (!ticket.current()) return;
       if (!ui.status) ui.revision++;
       ui.status = next;
-      ui.failure = "";
+      if (!mutationFailed) ui.failure = "";
       refreshP2PStatus(next);
       schedulePortMapPoll(next);
     } catch (cause) {
-      if (ticket.reportable()) ui.failure = errorMessage(cause);
+      if (ticket.reportable() && !mutationFailed)
+        ui.failure = errorMessage(cause);
     }
   }
 
@@ -69,7 +72,9 @@ export function useP2PSettings() {
     payload?: P2PSettingsUpdate,
   ) {
     if (ui.saving || requests.disposed) return false;
+    clearTimeout(pollTimer);
     ui.saving = true;
+    mutationFailed = false;
     ui.failure = "";
     ui.feedback = "";
     const ticket = requests.begin();
@@ -87,17 +92,22 @@ export function useP2PSettings() {
       refreshP2PAfterSettingsChange(next);
       await requestFeatureHostRefresh();
       if (requests.disposed) return false;
-      schedulePortMapPoll(next);
       ui.feedback =
         method === "DELETE"
           ? m.s2_p2p_feedback_reset()
           : m.s2_p2p_feedback_saved();
       return true;
     } catch (cause) {
-      if (!requests.disposed) ui.failure = errorMessage(cause);
+      if (ticket.reportable()) {
+        mutationFailed = true;
+        ui.failure = errorMessage(cause);
+      }
       return false;
     } finally {
-      if (!requests.disposed) ui.saving = false;
+      if (!requests.disposed) {
+        ui.saving = false;
+        schedulePortMapPoll(ui.status);
+      }
     }
   }
 

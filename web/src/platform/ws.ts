@@ -77,7 +77,6 @@ export function connect(
   const ownerStream = relayOwnerAuthenticated() || relayAuthStatus().relay;
   let suspended = relayAuthStatus().relay && !relayOwnerAuthenticated();
   let inputUncertain = false;
-  let sentInput = false;
   let candidateTimer: number | undefined;
   let candidateTransport: ClientTransport | undefined;
   let candidateAllowReconnect = false;
@@ -94,8 +93,7 @@ export function connect(
     onState(next);
   };
   function markUncertain() {
-    if (!sentInput) return;
-    sentInput = false;
+    if (!inputFence.consumeUncertain()) return;
     inputUncertain = true;
     const current = streamStatuses.get(id);
     if (current) streamStatuses.set(id, { ...current, inputUncertain });
@@ -133,11 +131,10 @@ export function connect(
     frame.set(payload, 1);
     try {
       socket.send(frame);
-      if (kind === 0 || kind === 3) sentInput = true;
-      if (kind === 0 || kind === 3 || kind === 6) inputFence.sent();
+      inputFence.sent(kind, payload);
     } catch {
       // A partially accepted send has an unknown result. Never queue/replay it.
-      if (kind === 0 || kind === 3) sentInput = true;
+      inputFence.failedSend(kind);
       clearCandidate();
       markUncertain();
       socket.close();
@@ -172,7 +169,8 @@ export function connect(
       if (socket !== next || closed) return;
       clearTimeout(resumeTimer);
       resumeTimer = undefined;
-      if (inputFence.receive(event.data)) return;
+      const receipt = inputFence.receive(event.data);
+      if (receipt === "handoff") return;
       try {
         onMessage(event.data);
       } catch (error) {
@@ -182,7 +180,9 @@ export function connect(
             : m.s1_ws_invalid_server_message(),
         );
         next.close(1002, "Invalid server message");
+        return;
       }
+      if (receipt === "confirm" && inputFence.needsFollowUpProbe()) api.probe();
     };
     next.onclose = (event) => {
       if (candidateSocket === next) {
@@ -196,7 +196,8 @@ export function connect(
       resumeTimer = undefined;
       clearControls();
       clearCandidate();
-      markUncertain();
+      if (event.code === 4410) inputFence.resetUncertain();
+      else markUncertain();
       if (event.code === 4410 || event.code === 4404 || event.code === 4409) {
         finished =
           event.code === 4410
@@ -420,7 +421,8 @@ export function connect(
         previous.close(1000, "transport handoff");
       }
       // The terminal fence drained prior input; only genuine loss is uncertain.
-      if (interactiveStreamKind(target) === "terminal") sentInput = false;
+      if (interactiveStreamKind(target) === "terminal")
+        inputFence.resetUncertain();
       else markUncertain();
       wireActiveSocket(next, () => {});
       // Deliver the candidate's authoritative position/snapshot, not baseline
@@ -449,7 +451,7 @@ export function connect(
               if (candidateSocket === next) clearCandidate();
               return;
             }
-            sentInput = false;
+            inputFence.resetUncertain();
             commit();
           },
           failed,

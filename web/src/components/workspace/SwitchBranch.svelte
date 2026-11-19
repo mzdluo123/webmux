@@ -78,7 +78,7 @@
     resolveSwitchOccupantPath,
     suggestSwitchBranchName,
   } from "../../domains/workspace/worktree-sync";
-  import PreviewForm from "./PreviewForm.svelte";
+  import SwitchBranchForm from "./SwitchBranchForm.svelte";
   import SwitchBranchPreview from "./SwitchBranchPreview.svelte";
   import SwitchBranchSmartCheckout from "./SwitchBranchSmartCheckout.svelte";
   import SwitchBranchTargetFields, {
@@ -90,6 +90,7 @@
   // (blockers, warnings, the sessions that keep running) and only a clean
   // preview can be confirmed (or carried across via tracked-stash Smart Checkout).
   let {
+    formId,
     repository,
     worktree,
     initialBranch,
@@ -104,6 +105,7 @@
     onopenconflict,
     oncancel,
   }: {
+    formId?: string;
     repository: Repository;
     worktree: Worktree;
     initialBranch?: string;
@@ -255,6 +257,15 @@
     const request = previews.begin();
     previewing = true;
     previewError = "";
+    if (previewViewport) {
+      previewViewport.scrollTop = 0;
+      const outer = previewViewport.closest<HTMLElement>(
+        '[data-slot="scroll-area-viewport"]',
+      );
+      if (outer && outer.scrollTop > previewViewport.offsetTop) {
+        outer.scrollTop = previewViewport.offsetTop;
+      }
+    }
     try {
       const result = await source.preview(worktree, next, request.signal);
       if (!request.current()) return;
@@ -310,6 +321,18 @@
     resolveSwitchNewWorktreePreset(preview, target, startIsBranch),
   );
 
+  export function isSwitchReady() {
+    return canSwitch;
+  }
+
+  let previewViewport = $state<HTMLElement | null>(null);
+
+  function retryPreview() {
+    if (!target || previewing || busy) return;
+    previewViewport?.focus({ preventScroll: true });
+    void readPreview(target);
+  }
+
   async function submit() {
     if (!canSwitch || !preview || !target) return;
     const confirmed = preview;
@@ -341,78 +364,91 @@
   }
 </script>
 
-<PreviewForm {busy} {error} onsubmit={() => void submit()} onclose={oncancel}>
-  {#snippet summary()}
-    <p
-      class="rounded-lg border bg-muted/40 p-3 font-mono text-xs break-all text-muted-foreground"
-    >
-      {worktree.path}
-    </p>
+<SwitchBranchForm
+  {formId}
+  worktreePath={worktree.path}
+  {busy}
+  {canSwitch}
+  bind:previewViewport
+  onsubmit={() => void submit()}
+  {oncancel}
+>
+  {#snippet fields()}
+    <SwitchBranchTargetFields
+      {mode}
+      {busy}
+      {data}
+      {loadError}
+      chosenName={chosen?.name ?? ""}
+      {localItems}
+      {remoteItems}
+      {localBranchList}
+      {remoteBranchList}
+      bind:newName
+      {nameTaken}
+      bind:startPoint
+      {startIsBranch}
+      bind:commit
+      {commitRows}
+      {commitsRead}
+      {commitsError}
+      onModeChange={changeMode}
+      onSelectBranch={(name) => {
+        chosen = {
+          kind: localNames.has(name) ? "local" : "remote",
+          name,
+        };
+      }}
+      onSuggestName={() => {
+        newName = suggestion(newName || undefined);
+      }}
+    />
   {/snippet}
 
-  <SwitchBranchTargetFields
-    {mode}
-    {busy}
-    {data}
-    {loadError}
-    chosenName={chosen?.name ?? ""}
-    {localItems}
-    {remoteItems}
-    {localBranchList}
-    {remoteBranchList}
-    bind:newName
-    {nameTaken}
-    bind:startPoint
-    {startIsBranch}
-    bind:commit
-    {commitRows}
-    {commitsRead}
-    {commitsError}
-    onModeChange={changeMode}
-    onSelectBranch={(name) => {
-      chosen = { kind: localNames.has(name) ? "local" : "remote", name };
-    }}
-    onSuggestName={() => {
-      newName = suggestion(newName || undefined);
-    }}
-  />
+  {#snippet previewBody()}
+    {#if busy}<p role="status" class="text-sm">
+        {m.s8_preview_form_busy()}
+      </p>{/if}
+    {#if error}<p role="alert" class="text-sm break-all text-destructive">
+        {error}
+      </p>{/if}
+    <SwitchBranchPreview
+      {preview}
+      {previewing}
+      {previewError}
+      {conflict}
+      {worktree}
+      bind:acknowledged
+      {busy}
+      onRetry={retryPreview}
+    />
 
-  <SwitchBranchPreview
-    {preview}
-    {previewing}
-    {previewError}
-    {conflict}
-    {worktree}
-    bind:acknowledged
-    {busy}
-  />
+    <SwitchBranchSmartCheckout {smart} {worktree} {busy} {onopenconflict} />
 
-  <SwitchBranchSmartCheckout {smart} {worktree} {busy} {onopenconflict} />
-
-  {#snippet actions()}
-    {#if occupant}
-      <Button
-        type="button"
-        variant="outline"
-        wrap
-        disabled={busy}
-        title={occupant}
-        onclick={() => ongoto(occupant)}>{m.s8_go_to_worktree()}</Button
-      >
-    {/if}
-    <Button type="submit" disabled={!canSwitch}
-      >{busy ? m.s8_switching() : m.s8_switch_btn()}</Button
-    >
-    {#if newWorktreePreset}
-      <Button
-        type="button"
-        variant="success"
-        wrap
-        disabled={busy}
-        title={m.s8_open_in_new_worktree_instead_title()}
-        onclick={() => onnewworktree(newWorktreePreset)}
-        >{m.s8_open_in_new_worktree_instead()}</Button
-      >
+    {#if occupant || newWorktreePreset}
+      <div class="flex flex-wrap justify-end gap-2">
+        {#if occupant}
+          <Button
+            type="button"
+            variant="outline"
+            wrap
+            disabled={busy}
+            title={occupant}
+            onclick={() => ongoto(occupant)}>{m.s8_go_to_worktree()}</Button
+          >
+        {/if}
+        {#if newWorktreePreset}
+          <Button
+            type="button"
+            variant="success"
+            wrap
+            disabled={busy}
+            title={m.s8_open_in_new_worktree_instead_title()}
+            onclick={() => onnewworktree(newWorktreePreset)}
+            >{m.s8_open_in_new_worktree_instead()}</Button
+          >
+        {/if}
+      </div>
     {/if}
   {/snippet}
-</PreviewForm>
+</SwitchBranchForm>

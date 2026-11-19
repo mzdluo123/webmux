@@ -19,7 +19,6 @@ import { createGitOperationsController } from "./git-operations-controller.svelt
 import { createGitPushController } from "./git-push-controller.svelte";
 import { createGitRefsManageController } from "./git-refs-manage-controller.svelte";
 import { createGitReviewSyncController } from "./git-review-sync.svelte";
-import { createGitReworkController } from "./git-rework-controller.svelte";
 import { createGitStashController } from "./git-stash-controller.svelte";
 import { createGitTaskReviewController } from "./git-task-review.svelte";
 import { createGitStagingController } from "./git-workbench-staging.svelte";
@@ -63,12 +62,6 @@ export function createGitWorkbenchSubControllers(
     getView: deps.getView,
     patchView: deps.patchView,
     onUpdateDraftMessage: (msg) => commitDraft.updateLocalMessage(msg),
-  });
-  const rework = createGitReworkController({
-    getRepoId: deps.getRepoId,
-    getWorktreeId: deps.getWorktreeTargetId,
-    getView: deps.getView,
-    patchView: deps.patchView,
   });
   const operations = createGitOperationsController({
     getRepoId: deps.getRepoId,
@@ -253,7 +246,6 @@ export function createGitWorkbenchSubControllers(
     commitDraft.dispose();
     commitOptions.dispose();
     reviews.dispose();
-    rework.dispose();
     operations.dispose();
     staging.dispose();
     taskReview.dispose();
@@ -269,11 +261,10 @@ export function createGitWorkbenchSubControllers(
     discard.dispose();
   }
 
-  function resetAllTargets(repoId: string, wtId?: string) {
+  function resetAllTargets() {
     commitDraft.resetTarget();
     commitOptions.resetTarget();
     reviews.resetTarget();
-    rework.loadTarget(repoId, wtId);
     operations.resetTarget();
     staging.resetTarget();
     taskReview.resetTarget();
@@ -292,7 +283,6 @@ export function createGitWorkbenchSubControllers(
     commitDraft,
     commitOptions,
     reviews,
-    rework,
     operations,
     staging,
     taskReview,

@@ -384,7 +384,6 @@ test("GitWorkbenchTopBar keeps unified shadcn button sizing, readable switcher l
       context: createContext({ checkedOutBranch: "main" }),
       operations: [failedUpdate],
       returnSession: session({ id: "sess1234", title: "提交改动" }),
-      reworkCount: 2,
       onSelectRepository,
       onSelectWorktree,
     },

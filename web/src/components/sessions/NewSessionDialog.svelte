@@ -16,7 +16,10 @@
     featureEnabled,
   } from "../../platform/feature-host.svelte";
   import { getFeatureContributions } from "../../features/context";
-  import type { LaunchConfigsState } from "../../domains/settings/launch-configs";
+  import {
+    visibleLaunchConfigs,
+    type LaunchConfigsState,
+  } from "../../domains/settings/launch-configs";
   import {
     isCommandReady,
     isLocationTargetReady,
@@ -181,9 +184,11 @@
   let mkdirMounted = $state(false);
 
   const configs = $derived(
-    launchEnabled && launchConfigs.status === "ready"
-      ? launchConfigs.configs
-      : [],
+    launchEnabled ? visibleLaunchConfigs(launchConfigs) : [],
+  );
+  const launchSettled = $derived(
+    launchConfigs.status !== "loading" &&
+      !(launchConfigs.status === "ready" && launchConfigs.agentToolsLoading),
   );
   const chosenConfig = $derived(
     source === "config" ? configs.find((c) => c.id === configId) : undefined,
@@ -202,12 +207,7 @@
       }
     }
     // Never silently replace a config deleted while the dialog is open.
-    if (
-      launchConfigs.status !== "loading" &&
-      source === "config" &&
-      !chosenConfig
-    )
-      source = "unset";
+    if (launchSettled && source === "config" && !chosenConfig) source = "unset";
     if (!chatEnabled && chosenConfig?.chat) source = "unset";
     if (chatEnabled && chosenConfig?.chat) {
       startSide = storedView(
@@ -397,6 +397,7 @@
       ? m.s3_new_session_project_desc()
       : m.s3_new_session_default_desc()}
   class="p-5 sm:max-w-3xl"
+  drawerFullScreen={projectEnabled && !projectRestricted}
   pinDrawerHeader
   {busy}
   {onclose}

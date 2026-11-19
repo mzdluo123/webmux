@@ -4,28 +4,19 @@
     GitWorkingChange,
     GitWorktreeContext,
   } from "../../contracts/git-workbench-schemas";
-  import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
-  import type { GitAmendDraftPrompt } from "../../hooks/workspace/git-commit-options.svelte";
   import type { GitFileInspectorTab } from "../../hooks/workspace/git-file-inspector-controller.svelte";
-  import type { GitCommitComposerCallbacks } from "./GitCommitComposer.svelte";
+  import type {
+    GitCommitComposerCallbacks,
+    GitCommitComposerStateProps,
+  } from "./GitCommitComposer.svelte";
 
-  export interface GitUncommittedChangesSharedProps extends GitCommitComposerCallbacks {
+  export interface GitUncommittedChangesSharedProps
+    extends GitCommitComposerStateProps, GitCommitComposerCallbacks {
     context: GitWorktreeContext;
     changes: readonly GitWorkingChange[];
     reviewedPaths: readonly string[];
-    commitMessage: string;
     taskReview?: GitTaskReviewState;
     stagingBusy?: boolean;
-    uncertainBlocked?: boolean;
-    draftSaving?: boolean;
-    draftRevision?: number;
-    draftConflict?: GitCommitDraftConflictState | null;
-    commitAmend?: boolean;
-    commitAmendPushed?: boolean;
-    commitAuthorOverride?: string;
-    commitSignoff?: boolean;
-    commitSignoffTrailer?: string;
-    amendDraftPrompt?: GitAmendDraftPrompt | null;
     hasActiveWorktreeSession?: boolean;
     activeSessionCount?: number;
     exitedSessionCount?: number;
@@ -55,13 +46,14 @@
 </script>
 
 <script lang="ts">
+  import { tick } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import IconArchive from "~icons/tabler/archive";
-  import IconChevronDown from "~icons/tabler/chevron-down";
   import IconChevronRight from "~icons/tabler/chevron-right";
   import IconRefresh from "~icons/tabler/refresh";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
+  import * as Collapsible from "$lib/components/ui/collapsible";
   import { ListButton } from "$lib/components/ui/list-button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import type { GitChangeGroup } from "../../contracts/git-workbench-schemas";
@@ -120,7 +112,6 @@
     onResolveDraftKeepLocal,
     onResolveDraftAdoptRemote,
     onResolveDraftMergeBoth,
-    onRequestCommitAssist,
     onToggleCommitAmend,
     onResolveAmendDraft,
     onCommitAuthorOverrideChange,
@@ -154,10 +145,27 @@
     ),
   );
 
-  function toggleBatchSelect(item: GitWorkingChange) {
-    batchSelectedIds = batchSelectedIds.includes(item.id)
-      ? batchSelectedIds.filter((id) => id !== item.id)
-      : [...batchSelectedIds, item.id];
+  async function toggleBatchSelect(item: GitWorkingChange) {
+    const selecting = !batchSelectedIds.includes(item.id);
+    batchSelectedIds = selecting
+      ? [...batchSelectedIds, item.id]
+      : batchSelectedIds.filter((id) => id !== item.id);
+    if (!selecting) return;
+    await tick();
+    if (!listScrollEl) return;
+    const rowEl = listScrollEl.querySelector<HTMLElement>(
+      `[data-change-id="${CSS.escape(item.id)}"]`,
+    );
+    if (!rowEl) return;
+    const viewportRect = listScrollEl.getBoundingClientRect();
+    const rowRect = rowEl.getBoundingClientRect();
+    if (rowRect.bottom > viewportRect.bottom) {
+      listScrollEl.scrollTop += Math.ceil(rowRect.bottom - viewportRect.bottom);
+      onListScrollChange?.(listScrollEl.scrollTop);
+    } else if (rowRect.top < viewportRect.top) {
+      listScrollEl.scrollTop -= Math.ceil(viewportRect.top - rowRect.top);
+      onListScrollChange?.(listScrollEl.scrollTop);
+    }
   }
   const sections = $derived<{ key: GitChangeGroup; title: string }[]>([
     { key: "conflicted", title: m.s7_group_conflicted() },
@@ -176,13 +184,9 @@
     return out;
   });
 
-  function toggleGroup(key: string) {
-    collapsed = { ...collapsed, [key]: !collapsed[key] };
-  }
-
   function focusChangeRow(index: number) {
     const rows = listScrollEl?.querySelectorAll<HTMLButtonElement>(
-      "[data-working-change-row]",
+      "[data-working-change-row]:not([inert] *)",
     );
     rows?.[index]?.focus();
   }
@@ -289,26 +293,10 @@
     />
   {/if}
 
-  {#if !readonlyMode && onDiscardChanges}
-    <GitDiscardBatchBar
-      selectedItems={selectedBatchItems}
-      busy={stagingBusy}
-      onStageSelected={(items) => {
-        for (const item of items) onStageChange(item.id);
-      }}
-      onDiscardSelected={(items) =>
-        onDiscardChanges(
-          items.map((i) => i.id),
-          items.map((i) => i.path),
-        )}
-      onClearSelection={() => (batchSelectedIds = [])}
-    />
-  {/if}
-
   <!-- Interactive listbox delegates ArrowUp/ArrowDown/Home/End across child option buttons. -->
   <ScrollArea
     bind:viewportRef={listScrollEl}
-    class="min-h-8 flex-1"
+    class="min-h-16 flex-1"
     viewportProps={{
       role: "listbox",
       "aria-label": m.s7_uncommitted_listbox_aria(),
@@ -338,79 +326,87 @@
       {#each sections as sec (sec.key)}
         {@const list = grouped[sec.key]}
         {@const isOpen = !collapsed[sec.key]}
-        <div class="space-y-0.5" data-change-section={sec.key}>
-          <div class="flex min-w-0 flex-wrap items-center gap-1">
-            <div class="min-w-0 basis-32 flex-1">
-              <ListButton
-                variant="section-header"
-                aria-expanded={isOpen}
-                onclick={() => toggleGroup(sec.key)}
-              >
-                {#if isOpen}
-                  <IconChevronDown
-                    class="size-3.5 shrink-0"
-                    aria-hidden="true"
-                  />
-                {:else}
-                  <IconChevronRight
-                    class="size-3.5 shrink-0"
-                    aria-hidden="true"
-                  />
-                {/if}
-                <span class="min-w-0 flex-1 truncate">{sec.title}</span>
-                <Badge variant="outline">{list.length}</Badge>
-              </ListButton>
-            </div>
+        <div data-change-section={sec.key}>
+          <Collapsible.MotionRoot
+            open={isOpen}
+            onOpenChange={(next) => {
+              collapsed = { ...collapsed, [sec.key]: !next };
+              listScrollEl
+                ?.querySelector<HTMLElement>(
+                  `[data-change-section="${sec.key}"] [data-slot="collapsible-trigger"]`,
+                )
+                ?.scrollIntoView({ block: "nearest" });
+            }}
+          >
+            {#snippet header()}
+              <div class="flex min-w-0 flex-wrap items-center gap-1">
+                <div class="min-w-0 basis-32 flex-1">
+                  <Collapsible.Trigger>
+                    {#snippet child({ props })}
+                      <ListButton {...props} variant="section-header">
+                        <IconChevronRight
+                          class={[
+                            "size-3.5 shrink-0 motion-safe:transition-transform",
+                            isOpen && "rotate-90",
+                          ]}
+                          aria-hidden="true"
+                        />
+                        <span class="min-w-0 flex-1 truncate">{sec.title}</span>
+                        <Badge variant="outline">{list.length}</Badge>
+                      </ListButton>
+                    {/snippet}
+                  </Collapsible.Trigger>
+                </div>
 
-            {#if !readonlyMode && list.length > 0 && onStageGroup}
-              {#if sec.key === "staged"}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={stagingBusy}
-                  onclick={() => onStageGroup("unstage", "staged")}
-                >
-                  {m.s7_uncommitted_unstage_all()}
-                </Button>
-              {:else if sec.key === "unstaged" || sec.key === "untracked"}
-                {#if onDiscardChanges}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={stagingBusy}
-                    onclick={() =>
-                      onDiscardChanges(
-                        list.map((i) => i.id),
-                        list.map((i) => i.path),
-                      )}
-                    data-testid={`git-discard-group-${sec.key}`}
-                  >
-                    {m.s7_uncommitted_discard_all()}
-                  </Button>
+                {#if !readonlyMode && list.length > 0 && onStageGroup}
+                  {#if sec.key === "staged"}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={stagingBusy}
+                      onclick={() => onStageGroup("unstage", "staged")}
+                    >
+                      {m.s7_uncommitted_unstage_all()}
+                    </Button>
+                  {:else if sec.key === "unstaged" || sec.key === "untracked"}
+                    {#if onDiscardChanges}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={stagingBusy}
+                        onclick={() =>
+                          onDiscardChanges(
+                            list.map((i) => i.id),
+                            list.map((i) => i.path),
+                          )}
+                        data-testid={`git-discard-group-${sec.key}`}
+                      >
+                        {m.s7_uncommitted_discard_all()}
+                      </Button>
+                    {/if}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={stagingBusy}
+                      onclick={() =>
+                        onStageGroup(
+                          "stage",
+                          sec.key === "unstaged" ? "unstaged" : "untracked",
+                        )}
+                    >
+                      {m.s7_uncommitted_stage_all()}
+                    </Button>
+                  {/if}
                 {/if}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={stagingBusy}
-                  onclick={() =>
-                    onStageGroup(
-                      "stage",
-                      sec.key === "unstaged" ? "unstaged" : "untracked",
-                    )}
-                >
-                  {m.s7_uncommitted_stage_all()}
-                </Button>
-              {/if}
-            {/if}
-          </div>
+              </div>
+            {/snippet}
 
-          {#if isOpen}
             {#if list.length === 0}
-              <p class="px-6 py-1 text-xs text-muted-foreground">
+              <p class="mt-0.5 px-6 py-1 text-xs text-muted-foreground">
                 {m.s7_uncommitted_empty_section()}
               </p>
             {:else}
-              <div class="space-y-0.5">
+              <div class="mt-0.5 space-y-0.5">
                 {#each list as entry (entry.id)}
                   <GitWorkingChangeRow
                     item={entry}
@@ -439,11 +435,21 @@
                 {/each}
               </div>
             {/if}
-          {/if}
+          </Collapsible.MotionRoot>
         </div>
       {/each}
     </div>
   </ScrollArea>
+
+  {#if !readonlyMode && onDiscardChanges}
+    <GitDiscardBatchBar
+      selectedItems={selectedBatchItems}
+      busy={stagingBusy}
+      {onStageChange}
+      {onDiscardChanges}
+      onClearSelection={() => (batchSelectedIds = [])}
+    />
+  {/if}
 
   <GitCommitComposer
     {context}
@@ -462,7 +468,6 @@
     {commitSignoff}
     {commitSignoffTrailer}
     {amendDraftPrompt}
-    canAssistCommitDraft={activeSessionCount > 0}
     {onCommitMessageChange}
     {onOpenCommitPreview}
     {onOpenPush}
@@ -470,7 +475,6 @@
     {onResolveDraftKeepLocal}
     {onResolveDraftAdoptRemote}
     {onResolveDraftMergeBoth}
-    {onRequestCommitAssist}
     {onToggleCommitAmend}
     {onResolveAmendDraft}
     {onCommitAuthorOverrideChange}
