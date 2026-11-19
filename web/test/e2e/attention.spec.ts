@@ -55,6 +55,7 @@ workspaceLayoutTest(
     expect(info.attention).toMatchObject({ kind: "question", source: "agent" });
 
     await page.goto(`/s/${id}`);
+    await expectConnected(page);
     await expect(page.locator(".restore-overlay")).toBeHidden();
     await expect(page).toHaveTitle("E2E agent · WebMux");
     await expect(page.locator(".terminal-header .status-dot")).toHaveClass(
