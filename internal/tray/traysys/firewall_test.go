@@ -194,10 +194,26 @@ func (n *fakeNetsh) firewall() Firewall {
 				switch cmd[2] {
 				case "delete":
 					targetName := strings.TrimPrefix(cmd[4], "name=")
+					var filterDir, filterProto, filterProg string
+					for _, arg := range cmd[5:] {
+						switch {
+						case strings.HasPrefix(arg, "dir="):
+							filterDir = strings.ToLower(strings.TrimPrefix(arg, "dir="))
+						case strings.HasPrefix(arg, "protocol="):
+							if strings.EqualFold(strings.TrimPrefix(arg, "protocol="), "TCP") {
+								filterProto = "6"
+							}
+						case strings.HasPrefix(arg, "program="):
+							filterProg = strings.TrimPrefix(arg, "program=")
+						}
+					}
 					filtered := n.rules[:0]
 					for _, raw := range n.rules {
 						p, ok := ParseFirewallRuleString(raw)
-						if ok && strings.EqualFold(p.Name, targetName) {
+						if ok && strings.EqualFold(p.Name, targetName) &&
+							(filterDir == "" || p.Dir == filterDir) &&
+							(filterProto == "" || p.Protocol == filterProto) &&
+							(filterProg == "" || sameWindowsPath(p.App, filterProg)) {
 							continue
 						}
 						filtered = append(filtered, raw)
@@ -218,7 +234,11 @@ func TestFirewallApply(t *testing.T) {
 	validRule := "v2.31|Action=Allow|Active=TRUE|Dir=In|Protocol=6|Profile=Domain|Profile=Private|App=" + exe + "|Name=" + rule.Name() + "|"
 	disabledRule := "v2.31|Action=Allow|Active=FALSE|Dir=In|Protocol=6|Profile=Domain|Profile=Private|App=" + exe + "|Name=" + rule.Name() + "|"
 	localBlock := "v2.31|Action=Block|Active=TRUE|Dir=In|Protocol=6|Profile=Private|App=" + exe + "|Name=webmux-tray.exe|"
+	disabledLocalBlock := strings.Replace(localBlock, "Active=TRUE", "Active=FALSE", 1)
+	udpBlock := strings.Replace(localBlock, "Protocol=6", "Protocol=17", 1)
+	outboundBlock := strings.Replace(localBlock, "Dir=In", "Dir=Out", 1)
 	unnamedBlock := "v2.31|Action=Block|Active=TRUE|Dir=In|Protocol=6|Profile=Private|App=" + exe + "|"
+	blankBlock := strings.Replace(localBlock, "Name=webmux-tray.exe", "Name=   ", 1)
 	collidingAllow := strings.Replace(localBlock, "Action=Block", "Action=Allow", 1)
 	wildcardBlock := strings.Replace(localBlock, "Name=webmux-tray.exe", "Name=ALL", 1)
 
@@ -229,12 +249,23 @@ func TestFirewallApply(t *testing.T) {
 		clearBlocks bool
 		want        int
 		verbs       []string // verbs inside the single Run batch, or nil when no elevation
+		wantRules   int      // optional post-Apply rule count check when > 0
 	}{
 		{name: "allow adds a missing rule", netsh: fakeNetsh{}, allow: true, want: FirewallDone, verbs: []string{"add"}},
 		{name: "allow with valid rule present asks nothing", netsh: fakeNetsh{rules: []string{validRule}}, allow: true, want: FirewallDone},
 		{name: "allow repairs disabled rule in one batch", netsh: fakeNetsh{rules: []string{disabledRule}}, allow: true, want: FirewallDone, verbs: []string{"delete", "add"}},
 		{name: "allow clears local block and repairs in one batch", netsh: fakeNetsh{rules: []string{validRule, localBlock}}, allow: true, clearBlocks: true, want: FirewallDone, verbs: []string{"delete", "delete", "add"}},
+		{
+			name:        "allow clears active and disabled tcp blocks while keeping udp and outbound rules",
+			netsh:       fakeNetsh{rules: []string{localBlock, disabledLocalBlock, udpBlock, outboundBlock}},
+			allow:       true,
+			clearBlocks: true,
+			want:        FirewallDone,
+			verbs:       []string{"delete", "add"},
+			wantRules:   3,
+		},
 		{name: "allow unnamed block fails without elevation", netsh: fakeNetsh{rules: []string{unnamedBlock}}, allow: true, clearBlocks: true, want: FirewallFailed},
+		{name: "allow whitespace name block fails without elevation", netsh: fakeNetsh{rules: []string{blankBlock}}, allow: true, clearBlocks: true, want: FirewallFailed},
 		{name: "same selector as allow rule needs manual cleanup", netsh: fakeNetsh{rules: []string{localBlock, collidingAllow}}, allow: true, clearBlocks: true, want: FirewallFailed},
 		{name: "reserved all name needs manual cleanup", netsh: fakeNetsh{rules: []string{wildcardBlock}}, allow: true, clearBlocks: true, want: FirewallFailed},
 		{name: "remove deletes the rule", netsh: fakeNetsh{rules: []string{validRule}}, allow: false, want: FirewallDone, verbs: []string{"delete"}},
@@ -248,6 +279,9 @@ func TestFirewallApply(t *testing.T) {
 			n := tc.netsh
 			if got := n.firewall().Apply(tc.allow, tc.clearBlocks); got != tc.want {
 				t.Errorf("Apply(%v, %v) = %d, want %d", tc.allow, tc.clearBlocks, got, tc.want)
+			}
+			if tc.wantRules > 0 && len(n.rules) != tc.wantRules {
+				t.Errorf("remaining rules = %d (%q), want %d", len(n.rules), n.rules, tc.wantRules)
 			}
 			if tc.verbs == nil {
 				if len(n.batches) != 0 {

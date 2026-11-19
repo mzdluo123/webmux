@@ -85,6 +85,13 @@ func InspectFirewall(exe string) (FirewallStatus, error) {
 // exe, requesting administrator elevation at most once when changes are needed.
 // For an installed copy, it also syncs HKCU\...\Uninstall\WebMux\FirewallRule.
 func ApplyFirewall(exe string, allow, clearBlocks bool) int {
+	if exe == "" {
+		return FirewallFailed
+	}
+	absExe, err := filepath.Abs(exe)
+	if err != nil {
+		return FirewallFailed
+	}
 	var args []string
 	if allow {
 		args = []string{"allow"}
@@ -92,9 +99,9 @@ func ApplyFirewall(exe string, allow, clearBlocks bool) int {
 			args = append(args, "--clear-blocks")
 		}
 	} else {
-		args = []string{"remove", exe}
+		args = []string{"remove", absExe}
 	}
-	return runFirewall(args, exe)
+	return runFirewall(args, absExe)
 }
 
 // FirewallCommand runs `webmux-tray firewall allow [--clear-blocks] | remove [PATH]`
@@ -115,6 +122,10 @@ func runFirewall(args []string, selfExe string) int {
 	targetExe := req.Program
 	if targetExe == "" {
 		targetExe = selfExe
+	}
+	targetExe, err = filepath.Abs(targetExe)
+	if err != nil {
+		return FirewallFailed
 	}
 	system, err := windows.GetSystemDirectory()
 	if err != nil {
@@ -139,7 +150,7 @@ func runFirewall(args []string, selfExe string) int {
 			} else {
 				childArgs = append(childArgs, "remove")
 				if req.Program != "" {
-					childArgs = append(childArgs, req.Program)
+					childArgs = append(childArgs, targetExe)
 				}
 			}
 			childArgs = append(childArgs, "--elevated")
