@@ -48,6 +48,16 @@ async function ready(pane: Locator) {
   await expect(pane.locator(".xterm")).toBeAttached();
 }
 
+async function expectPaneOutline(panel: Locator, shown: boolean) {
+  await expect
+    .poll(() =>
+      panel.evaluate(
+        (element) => getComputedStyle(element, "::after").content !== "none",
+      ),
+    )
+    .toBe(shown);
+}
+
 test("edge tabs restore the original dock layout and keep it restored", async ({
   page,
   workDir,
@@ -111,6 +121,7 @@ test("edge tabs restore the original dock layout and keep it restored", async ({
     .click();
   await expect(root).toBeHidden();
   await expect(bottomTab).toBeVisible();
+  await expectPaneOutline(anchor, false);
   await expect(bottomTab).toHaveAccessibleName(name);
   await expect
     .poll(async () => (await anchor.boundingBox())!.height)
@@ -157,6 +168,7 @@ test("edge tabs restore the original dock layout and keep it restored", async ({
   await chooseDockPanel(page, name);
   await expect(root).toBeVisible();
   await expect(anchor).toBeHidden();
+  await expectPaneOutline(root, false);
   await expect(input).not.toBeFocused();
   await chooseDockPanelById(page, id);
   await openSplitPanel(page);
@@ -204,6 +216,7 @@ test("stacked panes reveal the selected tab and keep keyboard focus across switc
   const firstTitle = (await first.getAttribute("aria-label"))!;
   const secondTitle = (await second.getAttribute("aria-label"))!;
   await expect(chosen).toHaveText(secondTitle);
+  await expectPaneOutline(second, false);
   await list.getByRole("tab", { name: firstTitle, exact: true }).click();
   await expect(first).toBeVisible();
   await expect(chosen).toHaveText(firstTitle);
@@ -501,29 +514,39 @@ test("tmux prefix splits, focuses, zooms and closes only the pane", async ({
     "Keyboard shortcuts use a physical keyboard",
   );
   const id = await createShell(page, "Keyboard shell", workDir);
+  const firstPanel = page.locator(`[data-dock-panel="${id}"]`);
   await page.locator(".xterm-helper-textarea").focus();
+  await expectPaneOutline(firstPanel, false);
   await page.keyboard.press("Control+b");
   await page.keyboard.press("Shift+5");
   await expect(page.locator(".split-terminal")).toHaveCount(2);
   const second = page.locator(".split-terminal").nth(1);
   await ready(second);
   const secondId = await second.getAttribute("data-session-id");
+  const secondPanel = page.locator(`[data-dock-panel="${secondId}"]`);
   await second.locator(".xterm-helper-textarea").focus();
+  await expectPaneOutline(secondPanel, true);
+  await expectPaneOutline(firstPanel, false);
   await page.keyboard.press("Control+b");
   await page.keyboard.press("o");
   await expect(
     page.locator(`[data-session-id="${id}"] .xterm-helper-textarea`),
   ).toBeFocused();
+  await expectPaneOutline(firstPanel, true);
+  await expectPaneOutline(secondPanel, false);
   await page.keyboard.press("Control+b");
   await page.keyboard.press("z");
   await expect(second).toBeHidden();
+  await expectPaneOutline(firstPanel, false);
   await page.keyboard.press("Control+b");
   await page.keyboard.press("z");
   await expect(second).toBeVisible();
+  await expectPaneOutline(firstPanel, true);
   await second.locator(".xterm-helper-textarea").focus();
   await page.keyboard.press("Control+b");
   await page.keyboard.press("x");
   await expect(page.locator(".split-terminal")).toHaveCount(1);
+  await expectPaneOutline(firstPanel, false);
   const retained = await (
     await request.get(`/api/sessions/${secondId}`)
   ).json();
