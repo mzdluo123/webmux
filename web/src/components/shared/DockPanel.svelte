@@ -84,8 +84,6 @@
     style:--dock-y={rect ? `${rect.y * 100}%` : undefined}
     style:--dock-w={rect ? `${rect.width * 100}%` : undefined}
     style:--dock-h={rect ? `${rect.height * 100}%` : undefined}
-    ondragover={peeked ? undefined : (event) => dock.dragOver(event, id)}
-    ondrop={peeked ? undefined : (event) => dock.drop(event, id)}
     onpointerdowncapture={() => {
       dock.select(id);
       onactivate?.();

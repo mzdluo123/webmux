@@ -10,7 +10,6 @@
   import { m } from "$lib/paraglide/messages.js";
   import {
     dockActivate,
-    dockDropEdge,
     dockFill,
     dockGeometry,
     dockIds,
@@ -24,6 +23,7 @@
   } from "$lib/dock-layout";
   import { store, stored } from "../../platform/storage";
   import { mountDockHost, setDock, type DockEntry } from "./dock-context";
+  import DockDragLayer from "./DockDragLayer.svelte";
   import DockEdgeRail from "./DockEdgeRail.svelte";
   import { useDockPeek } from "../../hooks/shared/dock-peek.svelte";
   import type { DockRail } from "$lib/dock-layout";
@@ -75,7 +75,6 @@
   let zoom = $state("");
   let surface = $state<HTMLDivElement>();
   let dragging = $state<string>();
-  let hint = $state<{ target: string; edge: DockEdge }>();
   let history = $state.raw<string[]>([]);
   let mobileHidden = $state.raw<string[]>([]);
   let pickerOrigin: HTMLElement | null = null;
@@ -106,16 +105,6 @@
     (id) => available.has(id) && hidden.includes(id),
     side,
   );
-  const preview = $derived.by(() => {
-    if (!hint) return undefined;
-    const box = geometry.groups.get(hint.target)?.rect;
-    if (!box || hint.edge === "center") return box;
-    if (hint.edge === "left") return { ...box, width: box.width / 2 };
-    if (hint.edge === "right")
-      return { ...box, x: box.x + box.width / 2, width: box.width / 2 };
-    if (hint.edge === "top") return { ...box, height: box.height / 2 };
-    return { ...box, y: box.y + box.height / 2, height: box.height / 2 };
-  });
 
   $effect(() => {
     store(
@@ -216,23 +205,6 @@
     }
   }
 
-  function drag(id: string | undefined) {
-    dragging = id;
-    hint = undefined;
-  }
-
-  function dragOver(event: DragEvent, target: string) {
-    if (!dragging || dragging === target || !event.dataTransfer) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    const edge = dockDropEdge(
-      (event.clientX - box.left) / box.width,
-      (event.clientY - box.top) / box.height,
-    );
-    if (hint?.target !== target || hint.edge !== edge) hint = { target, edge };
-  }
-
   function move(id: string, target: string, edge: DockEdge) {
     add(id, target, edge);
     zoom = "";
@@ -292,14 +264,7 @@
     minimize,
     toggleZoom,
     move,
-    drag,
-    dragOver,
-    drop(event, target) {
-      dragOver(event, target);
-      if (dragging && hint?.target === target && dragging !== target)
-        move(dragging, target, hint.edge);
-      drag(undefined);
-    },
+    drag: (id) => (dragging = id),
   });
 
   export function openPicker() {
@@ -353,16 +318,18 @@
           />
         {/each}
       {/if}
-      {#if preview && !compact}
-        <div
-          class="dock-preview"
-          data-dock-preview
-          aria-hidden="true"
-          style:--dock-x={`${preview.x * 100}%`}
-          style:--dock-y={`${preview.y * 100}%`}
-          style:--dock-w={`${preview.width * 100}%`}
-          style:--dock-h={`${preview.height * 100}%`}
-        ></div>
+      {#if dragging && !compact}
+        <DockDragLayer
+          id={dragging}
+          {tree}
+          groups={geometry.groups}
+          {available}
+          {hidden}
+          finish={(next) => {
+            if (next) node = next;
+            dragging = undefined;
+          }}
+        />
       {/if}
     </div>
     {@render rail("right")}
@@ -468,11 +435,5 @@
     align-items: center;
     overflow-x: auto;
     border-block-end: 1px solid var(--border);
-  }
-  .dock-preview {
-    pointer-events: none;
-    z-index: 20;
-    border: 1px solid var(--primary);
-    background: color-mix(in oklab, var(--primary) 20%, transparent);
   }
 </style>

@@ -37,6 +37,4 @@ export const [getDock, setDock] = createContext<{
   toggleZoom: (id: string) => void;
   move: (id: string, target: string, edge: DockEdge) => void;
   drag: (id: string | undefined) => void;
-  dragOver: (event: DragEvent, target: string) => void;
-  drop: (event: DragEvent, target: string) => void;
 }>();
