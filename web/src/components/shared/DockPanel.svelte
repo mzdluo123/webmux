@@ -2,6 +2,7 @@
   import type { Snippet } from "svelte";
   import IconArrowsMaximize from "~icons/tabler/arrows-maximize";
   import IconArrowsMinimize from "~icons/tabler/arrows-minimize";
+  import IconBack from "~icons/tabler/arrow-left";
   import IconDots from "~icons/tabler/dots";
   import IconMinus from "~icons/tabler/minus";
   import { Button } from "$lib/components/ui/button";
@@ -15,11 +16,13 @@
     title,
     onactivate,
     children,
+    header,
   }: {
     id: string;
     title: string;
     onactivate?: () => void;
     children: Snippet<[boolean]>;
+    header?: Snippet;
   } = $props();
 
   const dock = getDock();
@@ -67,8 +70,25 @@
     style:--dock-h={rect ? `${rect.height * 100}%` : undefined}
     ondragover={(event) => dock.dragOver(event, id)}
     ondrop={(event) => dock.drop(event, id)}
+    onpointerdowncapture={() => {
+      dock.select(id);
+      onactivate?.();
+    }}
+    onfocusin={() => {
+      dock.select(id);
+      onactivate?.();
+    }}
   >
     <div class="dock-title">
+      {#if compact && dock.canGoBack()}
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label={m.s8_back()}
+          title={m.s8_back()}
+          onclick={dock.back}><IconBack aria-hidden="true" /></Button
+        >
+      {/if}
       {#if !compact && tabs.length > 1 && !zoomed}
         <div
           class="flex min-w-0 max-w-full overflow-x-auto"
@@ -87,8 +107,10 @@
           {/each}
         </div>
       {/if}
+      {#if header}{@render header()}{/if}
       <div
         class="dock-title-space"
+        class:with-header={!!header}
         role="presentation"
         draggable={!compact && !zoomed}
         ondblclick={() => dock.toggleZoom(id)}
@@ -100,8 +122,9 @@
         }}
         ondragend={() => dock.drag(undefined)}
       >
-        {#if compact || tabs.length < 2 || zoomed}<span class="truncate" {title}
-            >{title}</span
+        {#if !header && (compact || tabs.length < 2 || zoomed)}<span
+            class="truncate"
+            {title}>{title}</span
           >{/if}
       </div>
       {#if !compact}
@@ -168,8 +191,6 @@
     <div
       data-dock-body
       class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-      onpointerdowncapture={onactivate}
-      onfocusin={onactivate}
     >
       {@render children(!!rect)}
     </div>
@@ -214,6 +235,10 @@
     font-size: 0.75rem;
   }
 
+  .dock-title-space.with-header {
+    flex: 0 0 1rem;
+    padding: 0;
+  }
   .dock-title-space[draggable="true"] {
     cursor: grab;
   }

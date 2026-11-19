@@ -82,6 +82,12 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
   for (const width of [393, 320]) {
     await page.setViewportSize({ width, height: 851 });
     for (const codeOpen of [false, true]) {
+      if (codeOpen) {
+        await expect(fileTree(page)).toBeVisible();
+        await expect(header(page)).toBeHidden();
+        await toggleCode(page);
+        continue;
+      }
       await expectOneRow(header(page));
       await expect(title).toBeVisible();
       // 393px fits the whole title; 320px may truncate it but keeps it shown.
@@ -100,7 +106,9 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
       ).toBeHidden();
       await expect(sessionViewTabs(page)).toHaveCount(0);
       await expect(
-        header(page).getByRole("button", { name: "打开侧栏" }),
+        page
+          .locator(".session-toolbar")
+          .getByRole("button", { name: "打开侧栏" }),
       ).toBeVisible();
       // The file tree replaces the terminal without opening a document.
       if (codeOpen)
@@ -130,15 +138,22 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
       .getByRole("button", { name: "新建会话…", exact: true }),
   ).toBeVisible();
   await closePanelPicker(page);
-  const menu = await openSessionMenu(page);
+  await page
+    .locator(".session-toolbar")
+    .getByRole("button", { name: "显示", exact: true })
+    .click();
   await expect(
-    menu.getByRole("menuitem", { name: "快速切换会话", exact: true }),
+    page.getByRole("menuitem", { name: "快速切换会话", exact: true }),
   ).toBeVisible();
   // Draft mode left the phone header for the soft keys and this menu.
-  for (const name of ["全屏", "上传文件"])
-    await expect(
-      page.getByRole("menuitem", { name, exact: true }),
-    ).toBeEnabled();
+  await expect(
+    page.getByRole("menuitem", { name: "全屏", exact: true }),
+  ).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await openSessionMenu(page);
+  await expect(
+    page.getByRole("menuitem", { name: "上传文件", exact: true }),
+  ).toBeEnabled();
   await expect(
     page.getByRole("menuitem", { name: "滚动到最新位置", exact: true }),
   ).toHaveCount(0);
@@ -210,7 +225,10 @@ test("wide headers keep every action and the code workspace stays on single rows
   await createShell(page, "Wide layout", workDir);
   for (const name of ["全屏", "上传文件", "打开面板", "快速切换会话"])
     await expect(
-      header(page).getByRole("button", { name, exact: true }),
+      (name === "上传文件"
+        ? header(page)
+        : page.locator(".session-toolbar")
+      ).getByRole("button", { name, exact: true }),
     ).toBeVisible();
   await expect(
     header(page).getByRole("button", { name: "滚动到最新位置", exact: true }),

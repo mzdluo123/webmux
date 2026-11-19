@@ -1,9 +1,18 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
+  import {
+    groupDocuments,
+    selectedDocument,
+  } from "../../domains/code/reader-groups";
+  import CodeNavigationPanel from "./CodeNavigationPanel.svelte";
   import DockPanel from "../shared/DockPanel.svelte";
   import { getDock } from "../shared/dock-context";
-  import { dragWidth, keyWidth } from "../../hooks/shared/splitter";
+  import {
+    navMin,
+    navMax,
+    useNavigationResize,
+  } from "../../hooks/code/code-navigation-resize.svelte";
   import { onMount, untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
   import CodeNavigator from "./CodeNavigator.svelte";
@@ -66,8 +75,6 @@
   } = $props();
   const seed = untrack(() => initial);
   const dock = untrack(() => (docked ? getDock() : undefined));
-  const navMin = 120,
-    navMax = 640;
   let navDivider = $state<HTMLDivElement>();
   let section = $state<HTMLElement>();
   let inner = $state<HTMLDivElement>();
@@ -77,105 +84,88 @@
   const views = new SvelteMap<CodeWorkspaceTab, CodeDocumentView>();
   const shown = $derived(visible || !!popout?.popped);
   let base = $derived(`/sessions/${id}/code`);
+  const assignment = $state<Record<string, number>>({ ...seed?.readerGroups });
+  const selected = $state<Record<number, string>>({
+    ...seed?.readerSelections,
+  });
+  let lastGroup = $state(seed?.readerGroups?.[seed.active] ?? 0);
+  let nextGroup = Math.max(0, ...Object.values(seed?.readerGroups ?? {}));
+  const panelId = (group: number) =>
+    group ? `${docked!.reader}:${group}` : docked!.reader;
   const ws = useCodeWorkspaceState({
     id: () => id,
     base: () => base,
     shown: () => shown,
     seed,
     closeOverlayNav: () => {
-      if (docked) dock?.show(docked.reader);
-      else if (shouldCloseOverlayNav(section)) ws.s.navOpen = false;
+      if (docked) {
+        const key = ws.s.active;
+        lastGroup = assignment[key] ?? lastGroup;
+        assignment[key] = lastGroup;
+        selected[lastGroup] = key;
+        dock?.show(panelId(lastGroup));
+      } else if (shouldCloseOverlayNav(section)) ws.s.navOpen = false;
     },
   });
   const activeTab = $derived(ws.s.tabs.find((tab) => tab.key === ws.s.active));
   const activePath = $derived(activeTab?.file?.document.path ?? "");
-  const activeDocumentPath = $derived(
-    activePath || activeTab?.diff?.new.path || activeTab?.diff?.old.path || "",
+  const groups = $derived(
+    groupDocuments(
+      ws.s.tabs,
+      docked ? assignment : undefined,
+      !docked || !!notice || !!ws.s.error,
+    ),
   );
-  const activeGitPath = $derived(
-    activeTab?.rootKind === "artifacts" ? "" : activeDocumentPath,
-  );
-  const activeMenu = $derived(activeTab?.menu);
-  const readerTitle = $derived(codeReaderTitle(activeDocumentPath));
+  function activate(group: number, key: string) {
+    lastGroup = group;
+    selected[group] = key;
+    ws.activate(key);
+  }
+  function closeTab(key: string) {
+    const group = assignment[key] ?? 0;
+    ws.close(key);
+    delete assignment[key];
+    if (!groups.has(group)) {
+      delete selected[group];
+      if (group && docked) dock?.remove(panelId(group));
+      lastGroup = assignment[ws.s.active] ?? 0;
+    }
+  }
+  async function openRight(path: string, opaqueId: string) {
+    if (!dock || !docked || !ws.s.context) return;
+    const key = `${ws.s.context.contextId}:${opaqueId}:worktree`;
+    const anchor = groups.has(lastGroup) ? panelId(lastGroup) : id;
+    const group = ++nextGroup;
+    const failure = await openFile(path, opaqueId);
+    if (failure || !ws.mounted || !ws.s.tabs.some((tab) => tab.key === key))
+      return;
+    assignment[key] = group;
+    selected[group] = key;
+    lastGroup = group;
+    dock.add(panelId(group), anchor, "right");
+    dock.show(panelId(group));
+  }
 
   /** The reading state of this workspace, for another instance to restore. */
   export function capture(): CodeWorkspaceSnapshot {
-    return ws.snapshotState(
+    const snapshot = ws.snapshotState(
       (tab) => views.get(tab)?.capture() ?? $state.snapshot(tab.restore),
       () => navigator?.capture() ?? seed?.navigator,
     );
+    return {
+      ...snapshot,
+      readerGroups: { ...assignment },
+      readerSelections: { ...selected },
+    };
   }
   export function bounds() {
     return section?.getBoundingClientRect();
   }
-  function setNavWidth(width: number) {
-    const limit = Math.min(navMax, (inner?.clientWidth ?? navMax) - 160);
-    ws.s.navWidth = Math.round(Math.max(navMin, Math.min(limit, width)));
-  }
-  function resizeStart(event: PointerEvent) {
-    dragWidth(event, renderedNavWidth(), setNavWidth);
-  }
-  function resizeKey(event: KeyboardEvent) {
-    keyWidth(
-      event,
-      renderedNavWidth(),
-      { min: navMin, max: navMax },
-      setNavWidth,
-    );
-  }
-  $effect(() => {
-    const divider = navDivider;
-    const container = inner;
-    if (!divider || !container) return;
-
-    let ownedFocus = document.activeElement === divider;
-    let overlayFocus: HTMLElement | undefined;
-    function remember() {
-      ownedFocus = true;
-    }
-    const clear = (event: FocusEvent) => {
-      if (event.relatedTarget || divider.getClientRects().length)
-        ownedFocus = false;
-    };
-    const update = () => {
-      if (divider.getClientRects().length) {
-        if (overlayFocus && document.activeElement === overlayFocus)
-          divider.focus({ preventScroll: true });
-        overlayFocus = undefined;
-      } else if (
-        ownedFocus &&
-        (document.activeElement === divider ||
-          document.activeElement === document.body)
-      ) {
-        const tab = container.querySelector<HTMLElement>(
-          '.code-navigation [role="tab"][aria-selected="true"]',
-        );
-        if (tab?.getClientRects().length) {
-          overlayFocus = tab;
-          tab.focus({ preventScroll: true });
-        }
-        ownedFocus = false;
-      }
-    };
-    const resize = new ResizeObserver(update);
-    resize.observe(container);
-    window.addEventListener("resize", update);
-    divider.addEventListener("focus", remember);
-    divider.addEventListener("blur", clear);
-    return () => {
-      resize.disconnect();
-      window.removeEventListener("resize", update);
-      divider.removeEventListener("focus", remember);
-      divider.removeEventListener("blur", clear);
-    };
-  });
-
-  function renderedNavWidth() {
-    return (
-      inner?.querySelector(".code-navigation")?.getBoundingClientRect().width ||
-      ws.s.navWidth
-    );
-  }
+  const { resizeStart, resizeKey } = useNavigationResize(
+    () => inner,
+    () => navDivider,
+    { get: () => ws.s.navWidth, set: (width) => (ws.s.navWidth = width) },
+  );
 
   async function locate(input: string) {
     if (!ws.s.context) return;
@@ -308,7 +298,13 @@
   }
 </script>
 
-{#snippet workspace(props: Record<string, unknown>)}
+{#snippet workspace(
+  props: Record<string, unknown>,
+  tabs: CodeWorkspaceTab[],
+  current: string,
+  group: number,
+)}
+  {@const doc = tabs.find((tab) => tab.key === current)}
   <section
     {...props}
     bind:this={section}
@@ -325,22 +321,24 @@
           }
         : undefined}
       navStatus={ws.s.navStatus}
-      tabs={ws.s.tabs}
+      {tabs}
       context={ws.s.context}
       pending={ws.s.pending}
       {popout}
-      {activeMenu}
+      activeMenu={doc?.menu}
       {section}
       error={notice || ws.s.error}
       {dropStatus}
       beginOpen={ws.beginOpen}
       supersedeOpenOnTabKey={ws.supersedeOpenOnTabKey}
-      close={ws.close}
+      close={closeTab}
       refreshAll={() => {
         void ws.load();
         for (const tab of ws.s.tabs) void ws.refresh(tab);
       }}
-      inspectablePath={activeGitPath}
+      inspectablePath={doc?.rootKind === "artifacts"
+        ? ""
+        : (doc?.file?.document.path ?? doc?.diff?.new.path ?? "")}
       {onOpenGit}
       {onInspectGitFile}
     />
@@ -370,7 +368,7 @@
         </div>
       {/if}
       <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {#each ws.s.tabs as tab (tab.key)}
+        {#each tabs as tab (tab.key)}
           <Tabs.Content value={tab.key} tabindex={-1}>
             {#snippet child({ props })}
               <div {...props} class="min-h-0 flex-1 overflow-hidden">
@@ -381,9 +379,8 @@
                   }
                   restore={tab.restore}
                   {id}
-                  active={shown &&
-                    ws.s.active === tab.key &&
-                    (!docked || !!dock?.rect(docked.reader))}
+                  active={current === tab.key &&
+                    (docked ? !!dock?.rect(panelId(group)) : shown)}
                   file={tab.file}
                   diff={tab.diff}
                   status={tab.status}
@@ -459,37 +456,37 @@
     bind:changeSearch={ws.s.changeSearch}
     load={(append) => ws.load(append)}
     openFile={(path, opaqueId) => void openFile(path, opaqueId)}
+    openRight={docked ? openRight : undefined}
     {locate}
     openDiff={(change) => void openDiff(change)}
   />
 {/snippet}
 
-<Tabs.Root value={ws.s.active} onValueChange={ws.activate}>
-  {#snippet child({ props })}
-    {#if docked}
-      <DockPanel id={docked.reader} title={readerTitle}>
-        {@render workspace(props)}
-      </DockPanel>
-      <DockPanel id={docked.files} title={m.s5_file_tree()}>
-        <div
-          class="dock-code-navigation flex min-h-0 flex-1"
-          {inert}
-          bind:this={navigationHost}
+{#each groups as [group, tabs] (group)}
+  {@const doc = selectedDocument(tabs, ws.s.active, selected[group])}
+  {@const current = doc?.key ?? ""}
+  <Tabs.Root value={current} onValueChange={(value) => activate(group, value)}>
+    {#snippet child({ props })}
+      {#if docked}
+        <DockPanel
+          id={panelId(group)}
+          title={codeReaderTitle(
+            doc?.file?.document.path ?? doc?.diff?.new.path ?? "",
+          )}
+          onactivate={() => {
+            if (ws.s.active !== current) activate(group, current);
+          }}
         >
-          {@render navigation()}
-        </div>
-      </DockPanel>
-    {:else}
-      {@render workspace(props)}
-    {/if}
-  {/snippet}
-</Tabs.Root>
-
-<style>
-  .dock-code-navigation :global(.code-navigation) {
-    position: static;
-    width: 100%;
-    max-width: 100%;
-    border-inline-end: 0;
-  }
-</style>
+          {@render workspace(props, tabs, current, group)}
+        </DockPanel>
+      {:else}
+        {@render workspace(props, tabs, current, group)}
+      {/if}
+    {/snippet}
+  </Tabs.Root>
+{/each}
+{#if docked}
+  <CodeNavigationPanel id={docked.files} {inert} bind:navigationHost
+    >{@render navigation()}</CodeNavigationPanel
+  >
+{/if}

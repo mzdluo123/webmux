@@ -4,6 +4,7 @@
   import IconCheck from "~icons/tabler/check";
   import IconLayout from "~icons/tabler/layout-columns";
   import { Button } from "$lib/components/ui/button";
+  import * as Dialog from "$lib/components/ui/dialog";
   import * as Drawer from "$lib/components/ui/drawer";
   import { ListButton } from "$lib/components/ui/list-button";
   import { m } from "$lib/paraglide/messages.js";
@@ -28,6 +29,7 @@
   let {
     initial,
     storageKey,
+    migrate,
     compact = false,
     flow = false,
     mobilePanel = $bindable(""),
@@ -39,6 +41,7 @@
   }: {
     initial: DockNode;
     storageKey: string;
+    migrate?: () => ReturnType<typeof restoreDock>;
     compact?: boolean;
     flow?: boolean;
     mobilePanel?: string;
@@ -50,7 +53,10 @@
   } = $props();
 
   const key = untrack(() => `dock.${storageKey}`);
-  const saved = restoreDock(stored(key));
+  const saved = untrack(() => {
+    const raw = stored(key);
+    return raw ? restoreDock(raw) : migrate?.();
+  });
   let node = $state.raw<DockNode | undefined>(saved?.node);
   let hidden = $state.raw<string[]>(saved?.hidden ?? []);
   let zoom = $state("");
@@ -203,7 +209,23 @@
     );
   }
 
+  const previous = $derived(
+    history
+      .filter(
+        (id) =>
+          available.has(id) && !mobileHidden.includes(id) && id !== mobile,
+      )
+      .at(-1),
+  );
   setDock({
+    canGoBack: () => compact && !!previous,
+    back() {
+      if (!previous) return;
+      const id = previous;
+      history = history.slice(0, history.lastIndexOf(id));
+      mobilePanel = id;
+      onSelectPanel?.(id);
+    },
     register(entry) {
       entries.set(entry.id, entry);
       return () => {
@@ -212,6 +234,9 @@
     },
     mount: (element) => mountDockHost(element, () => surface),
     rect,
+    select: (id) => onSelectPanel?.(id),
+    add,
+    remove,
     tabs: (id) =>
       (geometry.groups.get(id)?.ids ?? [])
         .map((key) => entries.get(key))
@@ -301,41 +326,64 @@
   {@render children()}
 </div>
 
-<Drawer.Root bind:open={showPicker}>
-  <Drawer.Content
-    onCloseAutoFocus={(event) => {
-      if (!pickerOrigin?.isConnected) return;
-      event.preventDefault();
-      pickerOrigin.focus();
-      pickerOrigin = null;
-    }}
+{#snippet choices()}
+  <div class="min-h-0 space-y-1 overflow-y-auto px-3 pb-3">
+    {#each pickerEntries as entry (entry.id)}
+      <ListButton
+        variant="action-sheet"
+        data-dock-picker={entry.id}
+        aria-current={isVisible(entry.id) ? "true" : undefined}
+        onclick={() => {
+          show(entry.id);
+          onSelectPanel?.(entry.id);
+          closePicker();
+        }}
+      >
+        <span class="min-w-0 flex-1">{entry.title}</span>
+        {#if isVisible(entry.id)}<IconCheck aria-hidden="true" />{/if}
+      </ListButton>
+    {/each}
+    {@render pickerActions?.(closePicker)}
+  </div>
+{/snippet}
+
+{#if !compact && !pickerTrigger}
+  <Dialog.Root bind:open={showPicker}
+    ><Dialog.Content
+      onCloseAutoFocus={(event) => {
+        if (!pickerOrigin?.isConnected) return;
+        event.preventDefault();
+        pickerOrigin.focus();
+        pickerOrigin = null;
+      }}
+      ><Dialog.Header
+        ><Dialog.Title>{m.s4_open_panel()}</Dialog.Title></Dialog.Header
+      >{@render choices()}<Dialog.Footer
+        ><Button variant="outline" onclick={closePicker}>{m.s1_cancel()}</Button
+        ></Dialog.Footer
+      ></Dialog.Content
+    ></Dialog.Root
   >
-    <Drawer.Header>
-      <Drawer.Title>{m.s4_open_panel()}</Drawer.Title>
-    </Drawer.Header>
-    <div class="min-h-0 space-y-1 overflow-y-auto px-3 pb-3">
-      {#each pickerEntries as entry (entry.id)}
-        <ListButton
-          variant="action-sheet"
-          data-dock-picker={entry.id}
-          aria-current={isVisible(entry.id) ? "true" : undefined}
-          onclick={() => {
-            show(entry.id);
-            onSelectPanel?.(entry.id);
-            closePicker();
-          }}
-        >
-          <span class="min-w-0 flex-1">{entry.title}</span>
-          {#if isVisible(entry.id)}<IconCheck aria-hidden="true" />{/if}
-        </ListButton>
-      {/each}
-      {@render pickerActions?.(closePicker)}
-    </div>
-    <Drawer.Footer>
-      <Button variant="outline" onclick={closePicker}>{m.s1_cancel()}</Button>
-    </Drawer.Footer>
-  </Drawer.Content>
-</Drawer.Root>
+{:else}
+  <Drawer.Root bind:open={showPicker}>
+    <Drawer.Content
+      onCloseAutoFocus={(event) => {
+        if (!pickerOrigin?.isConnected) return;
+        event.preventDefault();
+        pickerOrigin.focus();
+        pickerOrigin = null;
+      }}
+    >
+      <Drawer.Header>
+        <Drawer.Title>{m.s4_open_panel()}</Drawer.Title>
+      </Drawer.Header>
+      {@render choices()}
+      <Drawer.Footer>
+        <Button variant="outline" onclick={closePicker}>{m.s1_cancel()}</Button>
+      </Drawer.Footer>
+    </Drawer.Content>
+  </Drawer.Root>
+{/if}
 
 <style>
   [data-dock-flow="true"] {

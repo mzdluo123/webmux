@@ -58,7 +58,7 @@ test("docking and minimizing a running terminal retain the emulator, layout and 
   const placed = await root.boundingBox();
   await header.dblclick();
   await expect(anchor).toBeHidden();
-  await expect(root).toHaveAccessibleName(/^终端 · .+$/);
+  await expect(root).toHaveAccessibleName(/.+/);
   const name = (await root.getAttribute("aria-label"))!;
   await root
     .getByRole("button", { name: `还原「${name}」布局`, exact: true })
@@ -156,7 +156,7 @@ test("nested splits preserve terminal state, isolate input and restore layout", 
       .toBeGreaterThan(45);
   } else {
     await expect(page.locator(".split-terminal:visible")).toHaveCount(1);
-    await chooseDockPanel(page, "终端 · Primary shell");
+    await chooseDockPanel(page, "Primary shell");
     await expect(original).toBeVisible();
     await expect(draftInput).toHaveValue("keep this draft");
   }
@@ -179,7 +179,7 @@ test("nested splits preserve terminal state, isolate input and restore layout", 
   expect(
     sessions.every((session: { cwd: string }) => session.cwd === workDir),
   ).toBe(true);
-  await chooseDockPanel(page, "终端 · Primary shell");
+  await chooseDockPanel(page, "Primary shell");
   await expect(original.locator(".terminal-composer textarea")).toHaveValue(
     "keep this draft",
   );
@@ -212,7 +212,9 @@ test("the keyboard size hold preference applies to every mounted pane", async ({
   await expect(page.locator(".split-terminal")).toHaveCount(2);
   const second = page.locator(".split-terminal").nth(1);
   await ready(second);
-  const menu = page.getByRole("button", { name: "终端菜单", exact: true });
+  const menu = page
+    .locator(".session-toolbar")
+    .getByRole("button", { name: "显示", exact: true });
   // The dropdown renders in a portal outside the pane.
   const option = page.getByRole("menuitemcheckbox", {
     name: "键盘弹出时保持尺寸",
@@ -228,7 +230,7 @@ test("the keyboard size hold preference applies to every mounted pane", async ({
   await expect(option).not.toBeChecked();
   await page.keyboard.press("Escape");
 
-  await chooseDockPanel(page, "终端 · Hold preference");
+  await chooseDockPanel(page, "Hold preference");
   await expect(first).toBeVisible();
   await menu.click();
   await expect(option).not.toBeChecked();
@@ -451,7 +453,7 @@ test("a split preserves hybrid chat and terminal switching beside a shell", asyn
     .getByRole("dialog")
     .getByRole("button", { name: /Chat agent/ })
     .click();
-  const chat = page.locator(`[data-dock-panel="chat:${chatId}"]`);
+  const chat = page.locator(`[data-dock-panel="${chatId}"]`);
   await expect(
     chat.getByRole("textbox", { name: "消息", exact: true }),
   ).toBeEditable();
@@ -486,13 +488,13 @@ test("a split preserves hybrid chat and terminal switching beside a shell", asyn
     "data-retained",
     "yes",
   );
-  await chooseDockPanel(page, "终端 · Shell beside chat");
+  await chooseDockPanel(page, "Shell beside chat");
   await expect(page).toHaveTitle(/Shell beside chat · WebMux$/);
   await expect(page.locator(".split-terminal")).toHaveCount(2);
 
   // Archiving the hybrid pane removes only that pane; the page stays.
-  await chooseDockPanel(page, "终端 · Chat agent");
-  await page.getByRole("button", { name: "终端菜单", exact: true }).click();
+  await chooseDockPanel(page, "Chat agent");
+  await chat.getByRole("button", { name: "终端菜单", exact: true }).click();
   await page
     .getByRole("menuitem", { name: "停止会话并归档", exact: true })
     .click();

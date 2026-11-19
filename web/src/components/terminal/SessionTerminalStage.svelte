@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { ButtonSize, ButtonVariant } from "$lib/components/ui/button";
   import DockPanel from "../shared/DockPanel.svelte";
-  import { mountDockHost } from "../shared/dock-context";
   import { paneEnter } from "../../hooks/shared/pane-enter";
   import { bottomToolbar } from "../../hooks/terminal/bottom-toolbar-preference.svelte";
   import { m } from "$lib/paraglide/messages.js";
@@ -21,14 +20,10 @@
     panels,
     dockSessionName,
     dockSessionNumber,
-    toolbar,
     active,
-    pickerOpen,
-    openPanels,
     onactivate,
     chatActions,
     headerTerminal,
-    fullscreen,
     codeShown,
     documentScroll,
     chatVisible,
@@ -50,7 +45,6 @@
     dismissCopy,
     notice = $bindable(),
     showScratch,
-    showFontSize,
     closeSession,
     closing,
     reopen,
@@ -61,8 +55,6 @@
     terminalVisible,
     sizeLocked,
     setSizeLocked,
-    keyboardSizeHold,
-    setKeyboardSizeHold,
     keyboardHeld,
     findOpen,
     showFind,
@@ -91,30 +83,20 @@
   let findPanel = $state<TerminalFindBar>();
   let chatView = $state<ChatViewComponent>();
   let composer = $state<TerminalInputComposer>();
-  const terminalTitle = $derived(
-    dockSessionName === undefined
-      ? m.s4_tab_terminal()
-      : dockSessionNumber === undefined
-        ? m.dock_terminal_named({ title: dockSessionName })
-        : m.dock_terminal_title({
-            index: dockSessionNumber,
-            title: dockSessionName,
-          }),
+  const paneName = $derived(
+    dockSessionName || headerTerminal.info?.title || id,
   );
-  const chatTitle = $derived(
-    dockSessionName === undefined
-      ? m.s4_tab_chat()
-      : dockSessionNumber === undefined
-        ? m.dock_chat_named({ title: dockSessionName })
-        : m.dock_chat_title({
-            index: dockSessionNumber,
-            title: dockSessionName,
-          }),
+  const paneTitle = $derived(
+    dockSessionNumber ? `${paneName} · ${dockSessionNumber}` : paneName,
   );
 
-  const mountToolbar = (element: HTMLElement) =>
-    mountDockHost(element, () => toolbar);
-
+  export function menuRoot() {
+    return (
+      document.querySelector<HTMLElement>(
+        `[data-dock-panel="${CSS.escape(id)}"]`,
+      ) ?? undefined
+    );
+  }
   export function focusFind() {
     findPanel?.focus();
   }
@@ -222,54 +204,39 @@
     />{/if}
 {/snippet}
 
-<div>
-  {#if active}
-    <div
-      use:mountToolbar
-      class="session-terminal"
-      data-bottom-toolbar={bottomToolbar.mode}
-    >
-      <TerminalHeader
-        {features}
-        {chatActions}
-        {openPanels}
-        {pickerOpen}
-        terminal={headerTerminal}
-        {fullscreen}
-        {draft}
-        {draftSaved}
-        {scratchSaved}
-        uploading={uploads?.progress != null}
-        {sizeLocked}
-        {setSizeLocked}
-        {keyboardSizeHold}
-        {setKeyboardSizeHold}
-        {codeShown}
-        bind:bottomToolbarShown={
-          () => bottomToolbar.shown, (value) => bottomToolbar.set(value)
-        }
-        {quickMenu}
-        upload={uploads?.uploadFiles}
-        {toggleDraft}
-        {showScratch}
-        {showFontSize}
-        {showFind}
-        close={closeSession}
-        {leave}
-        hybrid={hybrid.known ? hybrid : undefined}
-      />
-      {#if !noticesInTerminal}{@render sessionNotices()}{/if}
-      {#if features.chat && hybrid.view === "switching"}
-        <features.chat.SwitchProgress
-          target={hybrid.target}
-          steps={hybrid.steps}
-          awaitingChoice={hybrid.awaitingChoice}
-          onchoose={onChooseSwitch}
-        />
-      {/if}
-    </div>
+{#snippet paneHeader()}
+  <TerminalHeader
+    toolbarMode={bottomToolbar.mode}
+    {features}
+    {chatActions}
+    terminal={headerTerminal}
+    {draft}
+    {draftSaved}
+    {scratchSaved}
+    uploading={uploads?.progress != null}
+    {sizeLocked}
+    {setSizeLocked}
+    {codeShown}
+    {quickMenu}
+    upload={uploads?.uploadFiles}
+    {toggleDraft}
+    {showScratch}
+    {showFind}
+    close={closeSession}
+    hybrid={hybrid.known ? hybrid : undefined}
+  />
+{/snippet}
+{#snippet paneNotices()}
+  {#if !noticesInTerminal}{@render sessionNotices()}{/if}
+  {#if features.chat && hybrid.view === "switching"}
+    <features.chat.SwitchProgress
+      target={hybrid.target}
+      steps={hybrid.steps}
+      awaitingChoice={hybrid.awaitingChoice}
+      onchoose={onChooseSwitch}
+    />
   {/if}
-</div>
+{/snippet}
 
 {#snippet sessionNotices()}
   <div class="flex shrink-0 flex-col bg-background">
@@ -312,10 +279,18 @@
   </div>
 {/snippet}
 
-<DockPanel id={panels.terminal} title={terminalTitle} {onactivate}>
+<DockPanel
+  id={panels.terminal}
+  title={paneTitle}
+  {onactivate}
+  header={paneHeader}
+>
   {#snippet children(visible)}
+    {@render paneNotices()}
+    {#if hybrid.view === "chat"}{@render chatPane()}{/if}
     <div
       class="session-terminal split-terminal relative flex min-h-0 flex-1 flex-col overflow-hidden"
+      class:hidden={hybrid.view === "chat"}
       data-bottom-toolbar={bottomToolbar.mode}
       data-session-id={id}
       data-visible={visible}
@@ -326,11 +301,6 @@
         <div class="absolute inset-x-0 top-0 z-30">
           {@render sessionNotices()}
         </div>
-      {/if}
-      {#if !terminalShown && hybrid.view === "chat"}
-        <p class="shrink-0 border-b px-2 py-1 text-xs text-muted-foreground">
-          {m.dock_terminal_inactive()}
-        </p>
       {/if}
       <TerminalWorkspace
         draftOpen={draft.enabled && terminalShown}
@@ -386,42 +356,38 @@
   </div>
 {/snippet}
 
-{#if hybrid.known}
-  <DockPanel id={panels.chat} title={chatTitle} {onactivate}>
-    {#if features.chat && chatUploads && hybrid.view === "chat"}
-      <div
-        class={[
-          "flex min-h-0 flex-1 flex-col",
-          !documentScroll && "h-full overflow-hidden",
-        ]}
-        use:paneEnter={true}
-      >
-        <features.chat.ChatView
-          bind:this={chatView}
-          sessionId={id}
-          visible={chatVisible}
-          model={hybrid.chat.model}
-          chat={hybrid.chat.state}
-          connection={hybrid.chat.connection}
-          {draft}
-          {drafts}
-          uploads={chatUploads}
-          uploadUnavailable={chatUploadUnavailable}
-          location={hybrid.info}
-          actions={hybrid.actions}
-          onreview={features.code ? review : undefined}
-          onopenlocation={features.code ? openCodeLocation : undefined}
-          onterminal={() => hybrid.request("terminal")}
-          {quickMenu}
-          {documentScroll}
-          oneditchange={onChatEditChange}
-        />
-      </div>
-    {:else if hybrid.view === "terminal"}
-      <p class="p-3 text-sm text-muted-foreground">{m.dock_chat_inactive()}</p>
-    {/if}
-  </DockPanel>
-{/if}
+{#snippet chatPane()}
+  {#if features.chat && chatUploads && hybrid.view === "chat"}
+    <div
+      class={[
+        "flex min-h-0 flex-1 flex-col",
+        !documentScroll && "h-full overflow-hidden",
+      ]}
+      use:paneEnter={true}
+    >
+      <features.chat.ChatView
+        bind:this={chatView}
+        sessionId={id}
+        visible={chatVisible}
+        model={hybrid.chat.model}
+        chat={hybrid.chat.state}
+        connection={hybrid.chat.connection}
+        {draft}
+        {drafts}
+        uploads={chatUploads}
+        uploadUnavailable={chatUploadUnavailable}
+        location={hybrid.info}
+        actions={hybrid.actions}
+        onreview={features.code ? review : undefined}
+        onopenlocation={features.code ? openCodeLocation : undefined}
+        onterminal={() => hybrid.request("terminal")}
+        {quickMenu}
+        {documentScroll}
+        oneditchange={onChatEditChange}
+      />
+    </div>
+  {/if}
+{/snippet}
 {@render codeContent()}
 {#snippet draftPane()}
   <TerminalInputComposer

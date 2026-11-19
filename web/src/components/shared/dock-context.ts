@@ -19,6 +19,11 @@ export function mountDockHost(
 }
 export const [getDock, setDock] = createContext<{
   register: (entry: DockEntry) => () => void;
+  canGoBack: () => boolean;
+  back: () => void;
+  select: (id: string) => void;
+  add: (id: string, target: string, edge: DockEdge) => void;
+  remove: (id: string) => void;
   mount: (node: HTMLElement) => { destroy: () => void };
   rect: (id: string) => DockRect | undefined;
   tabs: (id: string) => DockEntry[];

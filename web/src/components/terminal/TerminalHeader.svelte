@@ -1,13 +1,7 @@
 <script lang="ts">
-  import SidebarButton from "../shell/SidebarButton.svelte";
-  import { findShell, shellUi } from "../../hooks/shared/shell.svelte";
-  import { tick, type Snippet } from "svelte";
+  import { findShell } from "../../hooks/shared/shell.svelte";
+  import { type Snippet } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
-  import IconArrowLeft from "~icons/tabler/arrow-left";
-  import IconLayout from "~icons/tabler/layout-columns";
-  import IconArrowsExchange from "~icons/tabler/arrows-exchange";
-  import IconMaximize from "~icons/tabler/maximize";
-  import IconMinimize from "~icons/tabler/minimize";
   import IconUpload from "~icons/tabler/upload";
   import IconSearch from "~icons/tabler/search";
   import { sessionStatusText } from "../../platform/api";
@@ -18,7 +12,6 @@
   } from "$lib/components/ui/button";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { m } from "$lib/paraglide/messages.js";
-  import type { Fullscreen } from "../../hooks/shared/fullscreen.svelte";
   import type { HybridView } from "../../hooks/sessions/hybrid.svelte";
   import type { SwitchTarget } from "../../domains/sessions/hybrid";
   import type { SessionInfo } from "../../contracts/schemas";
@@ -27,8 +20,6 @@
   import type { Connection } from "../../platform/ws-contracts";
   import DraftToggle from "./DraftToggle.svelte";
   import type { TerminalFeatures } from "../../features/terminal";
-  import SessionSwitcherTrigger from "../shell/SessionSwitcherTrigger.svelte";
-  import { findSessionSwitcher } from "../../hooks/shared/session-switcher";
   import SessionTitle from "./SessionTitle.svelte";
 
   interface HeaderTerminal {
@@ -50,56 +41,41 @@
 
   let {
     terminal: t,
+    toolbarMode,
     features = {},
-    fullscreen,
     draft,
     draftSaved,
     scratchSaved,
     uploading,
     sizeLocked,
     setSizeLocked,
-    keyboardSizeHold,
-    setKeyboardSizeHold,
     codeShown,
-    bottomToolbarShown = $bindable(),
     quickMenu,
     upload,
     toggleDraft,
     showScratch,
-    showFontSize,
     close,
-    leave,
     showFind,
     hybrid,
-    openPanels,
-    pickerOpen = false,
     chatActions,
   }: {
+    toolbarMode?: string;
     features?: TerminalFeatures;
     terminal: HeaderTerminal;
-    fullscreen: Fullscreen;
     draft: TerminalDraft;
     draftSaved: string;
     scratchSaved: string;
     uploading: boolean;
     sizeLocked: boolean;
     setSizeLocked: (value: boolean) => void;
-    keyboardSizeHold: boolean;
-    setKeyboardSizeHold: (value: boolean) => void;
     codeShown: boolean;
-    bottomToolbarShown: boolean;
     quickMenu: Snippet<["top" | "bottom", ButtonSize?, ButtonVariant?]>;
     upload?: (files: File[]) => Promise<void>;
     toggleDraft: () => void;
     showScratch: () => void;
-    showFontSize: () => void;
     close: () => void;
-    /** Leaves this session: the page returns home, a split closes its pane. */
-    leave: () => void;
     showFind: () => void;
     hybrid?: HeaderHybrid;
-    openPanels: () => void;
-    pickerOpen?: boolean;
     chatActions?: Snippet;
   } = $props();
   // A rename reaches the session list first; the list title wins here so
@@ -111,12 +87,8 @@
   );
   const title = $derived(session?.title || m.s4_tab_terminal());
   const phone = new MediaQuery("(max-width: 639px)");
-  const openSwitcher = findSessionSwitcher();
-  let menuTrigger = $state<HTMLButtonElement | null>(null);
   let fileInput = $state<{ open(): void }>();
   let skipMenuFocus = false;
-  // Off the terminal view there is no PTY: terminal-only actions are hidden;
-  // fullscreen, the code panel and closing the session stay.
   const terminalShown = $derived(!hybrid || hybrid.view === "terminal");
   // The chat view names the agent it talks to beside the session title.
   const chatAgent = $derived(
@@ -140,26 +112,9 @@
 </script>
 
 <header
-  class="app-header terminal-header flex h-(--app-header-height) shrink-0 items-center gap-2 border-b bg-card px-1 sm:px-2"
+  class="terminal-header flex min-w-0 flex-1 items-center gap-1"
+  data-bottom-toolbar={toolbarMode}
 >
-  <!-- Phones open the sidebar drawer here (a home-screen app has no back
-       button); wider screens return to the current mode's home. -->
-  <SidebarButton class="sm:hidden" />
-  <Button
-    class="max-sm:hidden"
-    variant="ghost"
-    size="icon-sm"
-    aria-label={shellUi.mode === "chat"
-      ? m.s4_back_to_new_chat()
-      : m.s4_back_to_session_list()}
-    title={shellUi.mode === "chat"
-      ? m.s4_back_to_new_chat()
-      : m.s4_back_to_session_list()}
-    onclick={leave}
-  >
-    <IconArrowLeft class="size-4" aria-hidden="true" />
-  </Button>
-  <SessionSwitcherTrigger size="icon-sm" class="max-sm:hidden" />
   <!-- The title and the session's state read as one unit; the actions keep
        their places while the title truncates. On phones the connection
        label sits below the centered title without resizing its row. -->
@@ -244,41 +199,10 @@
       toggle={toggleDraft}
     />
   {/if}
-  <Button
-    variant="ghost"
-    size="icon-touch-sm"
-    aria-label={m.s4_open_panel()}
-    title={m.s4_open_panel()}
-    aria-expanded={pickerOpen}
-    aria-haspopup="dialog"
-    onclick={openPanels}
-    ><IconLayout class="size-4" aria-hidden="true" /></Button
-  >
-  {#if fullscreen.offered}<Button
-      variant="ghost"
-      size="icon-sm"
-      class="max-sm:hidden"
-      aria-label={fullscreen.active
-        ? m.s4_exit_fullscreen()
-        : m.s4_enter_fullscreen()}
-      title={fullscreen.active
-        ? m.s4_exit_fullscreen()
-        : m.s4_enter_fullscreen()}
-      aria-pressed={fullscreen.active}
-      aria-busy={fullscreen.busy}
-      disabled={fullscreen.busy}
-      onclick={() => {
-        void fullscreen.toggle();
-      }}
-    >
-      {#if fullscreen.active}<IconMinimize class="size-4" aria-hidden="true" />
-      {:else}<IconMaximize class="size-4" aria-hidden="true" />{/if}
-    </Button>{/if}
   <DropdownMenu.Root>
     <DropdownMenu.Trigger>
       {#snippet child({ props })}<Button
           {...props}
-          bind:ref={menuTrigger}
           variant="ghost"
           size="icon-touch-sm"
           aria-label={terminalShown
@@ -329,29 +253,6 @@
         </DropdownMenu.RadioGroup>
         <DropdownMenu.Separator />
       {/if}
-      {#if phone.current && openSwitcher}
-        <DropdownMenu.Item
-          onSelect={() => {
-            skipMenuFocus = true;
-            void tick().then(() => openSwitcher(menuTrigger));
-          }}
-        >
-          <IconArrowsExchange aria-hidden="true" />
-          {m.s1_quick_switch_session()}
-        </DropdownMenu.Item>
-      {/if}
-      {#if fullscreen.offered}<DropdownMenu.Item
-          class="sm:hidden"
-          disabled={fullscreen.busy}
-          onSelect={() => {
-            void fullscreen.toggle();
-          }}
-          >{fullscreen.active
-            ? m.s4_exit_fullscreen()
-            : m.s4_enter_fullscreen()}</DropdownMenu.Item
-        >{#if terminalShown}<DropdownMenu.Separator
-            class="sm:hidden"
-          />{/if}{/if}
       {#if chatActions}<DropdownMenu.Group
           ><DropdownMenu.GroupHeading
             >{m.s4_menu_group_handoff()}</DropdownMenu.GroupHeading
@@ -406,9 +307,6 @@
           <DropdownMenu.Item onSelect={() => t.resync()}
             >{m.s4_resync()}</DropdownMenu.Item
           >
-          <DropdownMenu.Item onSelect={showFontSize}
-            >{m.s4_font_size()}</DropdownMenu.Item
-          >
         </DropdownMenu.Group>
         <DropdownMenu.Separator />
         <DropdownMenu.Group>
@@ -420,15 +318,6 @@
             onCheckedChange={(value) => setSizeLocked(value === true)}
           >
             {m.s4_lock_size()}
-          </DropdownMenu.CheckboxItem>
-          <DropdownMenu.CheckboxItem
-            checked={keyboardSizeHold}
-            onCheckedChange={(value) => setKeyboardSizeHold(value === true)}
-          >
-            {m.s4_hold_size_on_keyboard()}
-          </DropdownMenu.CheckboxItem>
-          <DropdownMenu.CheckboxItem bind:checked={bottomToolbarShown}>
-            {m.s4_force_soft_keys()}
           </DropdownMenu.CheckboxItem>
         </DropdownMenu.Group>
       {/if}

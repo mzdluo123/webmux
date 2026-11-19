@@ -53,7 +53,7 @@ for (const clipboard of ["allowed", "denied", "unavailable"] as const) {
       background,
       `while [ ! -f '${gate}' ]; do sleep 0.05; done; printf '\\033]52;c;${payload}\\a'; printf 'copy-emitted\\n'`,
     );
-    await chooseDockPanel(page, "终端 · Foreground shell");
+    await chooseDockPanel(page, "Foreground shell");
     await foreground.locator(".xterm-helper-textarea").focus();
     await writeFile(gate, "ready");
     const pending = page.getByRole("status", { name: "待处理的复制请求" });
@@ -180,14 +180,14 @@ test("background hybrid choice waits for pane activation", async ({
   const background = page.locator(`[data-session-id="${agentId}"]`);
   await expect(background.locator(".xterm-rows")).toContainText("prompt>");
   await expect.poll(() => !!ask).toBe(true);
-  await chooseDockPanel(page, "终端 · Typing shell");
+  await chooseDockPanel(page, "Typing shell");
   await foreground.locator(".xterm-helper-textarea").focus();
   ask!();
   const dialog = page.getByRole("alertdialog", { name: "TUI 仍在执行回合" });
   await expect(dialog).toBeHidden();
   await expect(foreground).toHaveAttribute("data-active", "true");
   await expect(foreground.locator(".xterm-helper-textarea")).toBeFocused();
-  await chooseDockPanel(page, "终端 · Pending agent");
+  await chooseDockPanel(page, "Pending agent");
   await expect(dialog).toBeVisible();
   await expect(background).toHaveAttribute("data-active", "true");
 });

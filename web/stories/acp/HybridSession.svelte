@@ -429,12 +429,6 @@
     error: "",
     claim() {},
   };
-  const fullscreen = {
-    offered: true,
-    active: false,
-    busy: false,
-    toggle: async () => {},
-  };
   let bottomToolbarShown = $state(false);
 </script>
 
@@ -462,30 +456,22 @@
   data-bottom-toolbar={bottomToolbarShown ? "shown" : "auto"}
 >
   <TerminalHeader
-    {pickerOpen}
     features={{ chat: chatFeature, files: filesFeature }}
     {terminal}
-    {fullscreen}
     {draft}
     draftSaved="已保存在本机"
     scratchSaved="已保存在本机"
     uploading={false}
     sizeLocked={false}
     setSizeLocked={() => {}}
-    keyboardSizeHold={true}
-    setKeyboardSizeHold={() => {}}
     {codeShown}
-    bind:bottomToolbarShown
     {quickMenu}
     upload={async () => {}}
     toggleDraft={() => {}}
     showScratch={() => {}}
-    showFontSize={() => {}}
     showFind={() => {}}
     close={() => {}}
-    leave={() => {}}
     {hybrid}
-    openPanels={() => dock?.openPicker()}
   />
   <TerminalNotices
     features={{ chat: chatFeature, files: filesFeature }}
@@ -498,7 +484,6 @@
     showScratch={() => {}}
     dismissScratch={() => {}}
     remove={() => {}}
-    leave={() => {}}
     {notices}
     dismiss={(key) => {
       if (key.startsWith("notice:")) notice = "";

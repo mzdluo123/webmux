@@ -2,7 +2,6 @@
   import { onMount, tick, untrack, type Snippet } from "svelte";
   import { navigate } from "../../platform/api";
   import { useTerminal } from "../../hooks/terminal/terminal.svelte";
-  import { keyboardSizeHold } from "../../hooks/terminal/keyboard-size-hold-preference.svelte";
   import {
     createSessionUploadHandlers,
     useSessionTerminalChrome,
@@ -13,7 +12,6 @@
     availableTerminalFeatures,
     type TerminalFeatures,
   } from "../../features/terminal";
-  import { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
   import type { ChatScrollState } from "../../platform/capabilities";
   import { shellUi } from "../../hooks/shared/shell.svelte";
   import type { QuickCommand, SessionInfo } from "../../contracts/schemas";
@@ -45,10 +43,7 @@
     panels,
     dockSessionName,
     dockSessionNumber,
-    toolbar,
     desktop,
-    pickerOpen,
-    openPanels,
     onactivate,
     keyboardDismissed,
     keyboardVisibility,
@@ -73,10 +68,7 @@
     panels: ReturnType<typeof sessionPanelIds>;
     dockSessionName?: string;
     dockSessionNumber?: number;
-    toolbar: HTMLDivElement | undefined;
     desktop: boolean;
-    pickerOpen: boolean;
-    openPanels: () => void;
     onactivate: () => void;
     keyboardDismissed: () => boolean;
     keyboardVisibility: () => KeyboardVisibility;
@@ -107,7 +99,6 @@
   let error = $state("");
   let notice = $state("");
   let closing = $state(false);
-  let settingsOpen = $state(false);
   let scratchOpen = $state(false);
   let mounted = false;
   let seenHybrid = false;
@@ -206,7 +197,7 @@
       return;
     }
     revealOnReady = false;
-    dock.show(hybrid.view === "chat" ? panels.chat : panels.terminal);
+    dock.show(panels.terminal);
   }
 
   function showFind() {
@@ -219,7 +210,6 @@
     chrome.codeShown = true;
     codeLoaded = true;
     dock.show(panels.files);
-    if (!dock.compact()) dock.show(panels.reader);
   }
 
   export function focus() {
@@ -227,7 +217,7 @@
   }
   export function revealChat() {
     revealOnReady = false;
-    dock.show(panels.chat);
+    dock.show(panels.terminal);
   }
   export function send(input: string) {
     t.send(input);
@@ -315,7 +305,6 @@
     uploadHandlers.draftBridge,
     () => !!availableFeatures.files,
   );
-  const fullscreen = useFullscreen((message) => (error = message));
   $effect(() => {
     const record = hybrid.recoverable;
     if (hybrid.known) seenHybrid = true;
@@ -351,7 +340,7 @@
       sourceId={availableFeatures.chat
         ? (hybrid.info?.id ?? hybrid.recoverable?.id)
         : undefined}
-      root={toolbar}
+      root={stage?.menuRoot()}
       children={terminalStage}
     />
   {:else}
@@ -367,15 +356,12 @@
     {drafts}
     {hybrid}
     {chrome}
-    fontSize={t.fontSize}
-    setFontSize={t.setFontSize}
     filePaste={(event) => uploads?.filePaste(event) ?? false}
     insertText={input.insertText}
     {focusTerminal}
     scratchSaved={input.scratchSaved}
     {onremoved}
     {onarchived}
-    bind:settingsOpen
     bind:closing
     bind:scratchOpen
   />
@@ -389,20 +375,16 @@
     bind:notice
     codeShown={dock.compact() &&
       (!!dock.rect(panels.files) || !!dock.rect(panels.reader))}
-    {toolbar}
     {active}
     {panels}
     {dockSessionName}
     {dockSessionNumber}
-    {pickerOpen}
-    {openPanels}
     {onactivate}
     {chatActions}
     {id}
     {headerTerminal}
-    {fullscreen}
     {documentScroll}
-    chatVisible={active && !!dock.rect(panels.chat)}
+    chatVisible={hybrid.view === "chat" && !!dock.rect(panels.terminal)}
     {hybrid}
     terminal={t}
     uploads={availableFeatures.files ? uploads : undefined}
@@ -420,7 +402,6 @@
     copyPending={chrome.copyPending}
     dismissCopy={() => (chrome.pendingCopy = null)}
     {showScratch}
-    showFontSize={() => (settingsOpen = true)}
     closeSession={() => (closing = true)}
     {closing}
     {reopen}
@@ -431,8 +412,6 @@
     terminalVisible={terminalVisible()}
     sizeLocked={chrome.sizeLocked}
     setSizeLocked={chrome.setSizeLocked}
-    keyboardSizeHold={keyboardSizeHold.enabled}
-    setKeyboardSizeHold={(value) => (keyboardSizeHold.enabled = value)}
     keyboardHeld={chrome.keyboardHeld}
     findOpen={chrome.findOpen}
     {showFind}

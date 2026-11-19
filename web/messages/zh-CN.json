@@ -2047,6 +2047,7 @@
   "s5_not_previewable_image": "不是可预览的图片",
   "s5_old_side_missing": "旧侧不存在",
   "s5_open": "打开",
+  "s5_open_right": "在右侧打开",
   "s5_open_by_path": "按路径打开",
   "s5_open_code_in_popout": "在独立窗口中显示代码",
   "s5_open_in_code_panel": "在代码面板中打开 {path}",

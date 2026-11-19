@@ -16,7 +16,6 @@ export const deviceScopedKeys: ReadonlySet<string> = new Set([
   "workbenchLayout",
   "quickStartSide",
   "codePanelSize",
-  "sizeLocked",
   "wsCompression",
   "toastNotifications",
   "fontSize",

@@ -3,7 +3,7 @@
   import { onMount, onDestroy, tick, untrack } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import { dockGroup } from "$lib/dock-layout";
-  import { ListButton } from "$lib/components/ui/list-button";
+  import SessionWorkspaceHeader from "../components/terminal/SessionWorkspaceHeader.svelte";
   import { MediaQuery } from "svelte/reactivity";
   import { navigate, store, stored } from "../platform/api";
   import type { SessionInfo } from "../contracts/schemas";
@@ -27,6 +27,7 @@
     sessionDockTree,
     sessionPanelIds,
   } from "../domains/terminal/session-dock";
+  import { migrateSessionLayout } from "../domains/terminal/session-layout-migration";
   import {
     MAX_PANES,
     createSplitShellSession,
@@ -81,8 +82,9 @@
   let connections = $state<Record<string, string>>({});
   let revisions = $state<Record<string, number>>({});
   let dock = $state<DockWorkspace>();
-  let toolbar = $state<HTMLDivElement>();
-  let mobilePanel = $state(untrack(() => stored(`${key}.mobile-panel`)));
+  let mobilePanel = $state(
+    untrack(() => stored(`${key}.mobile-panel`).replace(/^chat:/, "")),
+  );
   let showPicker = $state(false);
   const compact = new MediaQuery("(max-width: 639px)");
   let prefix = $state(false);
@@ -119,8 +121,7 @@
   let messagePanel = $state("");
   $effect(() => {
     const target = messagePanel && terminals[messagePanel];
-    // A reopened pane can mount before the hybrid session registers its chat.
-    if (!target || !dock?.hasPanel(sessionPanelIds(messagePanel).chat)) return;
+    if (!target || !dock?.hasPanel(messagePanel)) return;
     untrack(() => target.revealChat());
     messagePanel = "";
   });
@@ -132,7 +133,7 @@
     const current = firstId ? scrollStates[firstId] : undefined;
     if (!firstId || !current || ids.length !== 1 || !dock) return false;
     const panels = sessionPanelIds(firstId);
-    if (!dock.isVisible(panels.chat) || dock.isVisible(panels.terminal))
+    if (!dock.isVisible(panels.terminal) || info[firstId]?.view !== "chat")
       return false;
     return chatDocumentScroll({
       ...current,
@@ -155,7 +156,6 @@
     layout
       ? sessionDockTree(
           layout,
-          (sid) => !!(feed.byId.get(sid) ?? info[sid])?.views.includes("chat"),
           (sid) => (info[sid] ?? feed.byId.get(sid))?.view === "chat",
           (availableFeatures?.code?.codePanelState.size() ?? 50) / 100,
         )
@@ -349,7 +349,17 @@
       style:--viewport-height={`${viewport.height}px`}
       onkeydowncapture={keydown}
     >
-      <div class="session-toolbar shrink-0" bind:this={toolbar}></div>
+      <div class="session-toolbar shrink-0">
+        <SessionWorkspaceHeader
+          pickerOpen={showPicker}
+          openPanels={() => dock?.openPicker()}
+          fileLabel={`${m.s5_file_tree()} · ${paneTitle(active)}`}
+          openFiles={availableFeatures.code
+            ? () => terminals[active]?.openCode()
+            : undefined}
+          onerror={(message) => (error = message)}
+        />
+      </div>
       {#if prefix}
         <p
           class="shrink-0 border-b px-2 py-1 text-xs text-muted-foreground"
@@ -366,7 +376,13 @@
       />
       <DockWorkspace
         bind:this={dock}
-        storageKey={`session.${id}`}
+        storageKey={`session.v2.${id}`}
+        migrate={() =>
+          migrateSessionLayout(
+            stored(`dock.session.${id}`),
+            ids,
+            (sid) => feed.byId.get(sid)?.view === "chat",
+          )}
         {initial}
         flow={documentScroll}
         compact={compact.current}
@@ -374,24 +390,15 @@
         bind:showPicker
         pickerTrigger={false}
         onSelectPanel={(panel) => {
-          const sessionId = ids.find((sid) =>
-            Object.values(sessionPanelIds(sid)).includes(panel),
+          const sessionId = ids.find(
+            (sid) =>
+              Object.values(sessionPanelIds(sid)).includes(panel) ||
+              panel.startsWith(`reader:${sid}:`),
           );
           if (sessionId) active = sessionId;
         }}
       >
         {#snippet pickerActions(closePanel)}
-          {#if availableFeatures.code}
-            <ListButton
-              variant="action-sheet"
-              onclick={() => {
-                terminals[active]?.openCode();
-                closePanel();
-              }}
-            >
-              {m.s4_code()}
-            </ListButton>
-          {/if}
           <TerminalSplitPanel
             busy={splitBusy}
             limit={ids.length >= MAX_PANES}
@@ -428,10 +435,7 @@
               {panels}
               dockSessionName={dockSession?.name}
               dockSessionNumber={dockSession?.number}
-              {toolbar}
               desktop={desktop.current}
-              pickerOpen={showPicker}
-              openPanels={() => dock?.openPicker()}
               onactivate={() => {
                 active = sessionId;
                 prefix = false;
@@ -445,9 +449,7 @@
               active={active === sessionId}
               reopen={(session) => {
                 info[sessionId] = session;
-                dock?.show(
-                  session.view === "chat" ? panels.chat : panels.terminal,
-                );
+                dock?.show(panels.terminal);
                 revisions[sessionId] = (revisions[sessionId] ?? 0) + 1;
               }}
               onremoved={() => removeSession(sessionId)}

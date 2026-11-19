@@ -2326,6 +2326,7 @@
   "s5_not_previewable_image": "Not a previewable image",
   "s5_old_side_missing": "Does not exist on old side",
   "s5_open": "Open",
+  "s5_open_right": "Open to the right",
   "s5_open_by_path": "Open by path",
   "s5_open_code_in_popout": "Open code in new window",
   "s5_open_in_code_panel": "Open {path} in code panel",

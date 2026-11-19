@@ -488,14 +488,17 @@ export async function holdTerminalFont(page: Page) {
 
 // A healthy connection shows no text; the status dot names it instead.
 export async function expectConnected(page: Page) {
-  const header = page.locator(".terminal-header");
+  const header = sessionHeader(page);
   await expect(header.getByRole("img", { name: /· 已连接$/ })).toBeVisible();
   await expect(header.getByRole("status")).toHaveCount(0);
 }
 
 const narrowSessionHeader = (page: Page) =>
   (page.viewportSize()?.width ?? 1280) < 640;
-const sessionHeader = (page: Page) => page.locator(".terminal-header");
+const sessionHeader = (page: Page) =>
+  page.locator(
+    '[data-dock-panel]:has(.split-terminal[data-active="true"]) .terminal-header',
+  );
 
 export const sessionViewTabs = (page: Page) =>
   sessionHeader(page).getByRole("tablist", {
@@ -514,10 +517,14 @@ export async function openSessionSwitcher(page: Page) {
   const name = "快速切换会话";
   if (new URL(page.url()).pathname.startsWith("/s/")) {
     if (narrowSessionHeader(page)) {
-      const menu = await openSessionMenu(page);
-      await menu.getByRole("menuitem", { name, exact: true }).click();
+      await page
+        .locator(".session-toolbar")
+        .getByRole("button", { name: "显示", exact: true })
+        .click();
+      await page.getByRole("menuitem", { name, exact: true }).click();
     } else {
-      await sessionHeader(page)
+      await page
+        .locator(".session-toolbar")
         .getByRole("button", { name, exact: true })
         .click();
     }
@@ -700,11 +707,7 @@ export async function toggleCode(scope: Locator | Page) {
       const picker = await openPanelPicker(scope);
       const active = page.locator(".split-terminal[data-active=true]");
       const id = await active.getAttribute("data-session-id");
-      const panel =
-        (await active.getAttribute("data-input-view")) === "chat"
-          ? `chat:${id}`
-          : id;
-      await picker.locator(`[data-dock-picker="${panel}"]`).click();
+      await picker.locator(`[data-dock-picker="${id}"]`).click();
     } else {
       if (await files.isVisible())
         await files
@@ -716,7 +719,6 @@ export async function toggleCode(scope: Locator | Page) {
           .click();
     }
   } else {
-    const picker = await openPanelPicker(scope);
-    await picker.getByRole("button", { name: "代码", exact: true }).click();
+    await page.getByRole("button", { name: /^文件树 · / }).click();
   }
 }

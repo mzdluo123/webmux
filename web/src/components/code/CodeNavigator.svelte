@@ -45,6 +45,7 @@
     changeSearch = $bindable(""),
     load,
     openFile,
+    openRight,
     openDiff,
     locate,
     sessionCwd,
@@ -84,6 +85,7 @@
     changeSearch: string;
     load: (append?: boolean) => void | Promise<void>;
     openFile: (path: string, nodeId: string) => void;
+    openRight?: (path: string, nodeId: string) => void;
     openDiff: (change: CodeChange) => void;
     locate: (input: string) => Promise<void>;
     sessionCwd: string;
@@ -278,6 +280,7 @@
       {context}
       {includeIgnored}
       {openFile}
+      {openRight}
       {changed}
       restore={restored?.clipboard}
     />

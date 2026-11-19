@@ -55,14 +55,22 @@
     context: z.infer<typeof CodeContextSchema> | undefined;
     includeIgnored: boolean;
     openFile: (path: string, nodeId: string) => void;
+    openRight?: (path: string, nodeId: string) => void;
     /** After a change; removed lists paths that no longer exist. */
     changed: (removed: string[]) => void;
     /** The copy/cut clipboard to start with. */
     restore?: Clipboard;
   }
 
-  let { id, context, includeIgnored, openFile, changed, restore }: Props =
-    $props();
+  let {
+    id,
+    context,
+    includeIgnored,
+    openFile,
+    openRight,
+    changed,
+    restore,
+  }: Props = $props();
 
   const base = $derived(`/sessions/${id}/code`);
   const writable = $derived(!!context?.writableAvailable);
@@ -111,6 +119,7 @@
         trash: IconTrash,
       },
       openFile,
+      openRight,
       save: (node, archive) => void save(node, archive),
       openUploadPicker: (node) => {
         pickerTarget = node;
