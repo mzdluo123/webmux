@@ -10,7 +10,6 @@
   import SwitchChoiceDialog from "../../src/components/chat/SwitchChoiceDialog.svelte";
   import SwitchProgress from "../../src/components/chat/SwitchProgress.svelte";
   import CodeChangesList from "../../src/components/code/CodeChangesList.svelte";
-  import { ListButton } from "$lib/components/ui/list-button";
   import { dockGroup, dockSplit } from "$lib/dock-layout";
   import DockPanel from "../../src/components/shared/DockPanel.svelte";
   import DockWorkspace from "../../src/components/shared/DockWorkspace.svelte";
@@ -19,6 +18,7 @@
   import HybridCandidatePicker from "../../src/components/sessions/HybridCandidatePicker.svelte";
   import QuickCommandMenu from "../../src/components/settings/QuickCommandMenu.svelte";
   import SoftKeys from "../../src/components/terminal/SoftKeys.svelte";
+  import SessionWorkspaceHeader from "../../src/components/terminal/SessionWorkspaceHeader.svelte";
   import TerminalHeader from "../../src/components/terminal/TerminalHeader.svelte";
   import TerminalSplitPanel from "../../src/components/terminal/TerminalSplitPanel.svelte";
   import TerminalNotices from "../../src/components/terminal/TerminalNotices.svelte";
@@ -455,24 +455,33 @@
   class="terminal-page"
   data-bottom-toolbar={bottomToolbarShown ? "shown" : "auto"}
 >
-  <TerminalHeader
-    features={{ chat: chatFeature, files: filesFeature }}
-    {terminal}
-    {draft}
-    draftSaved="已保存在本机"
-    scratchSaved="已保存在本机"
-    uploading={false}
-    sizeLocked={false}
-    setSizeLocked={() => {}}
-    {codeShown}
-    {quickMenu}
-    upload={async () => {}}
-    toggleDraft={() => {}}
-    showScratch={() => {}}
-    showFind={() => {}}
-    close={() => {}}
-    {hybrid}
+  <SessionWorkspaceHeader
+    {pickerOpen}
+    openPanels={() => dock?.openPicker()}
+    openFiles={openCode}
+    fileLabel="文件树"
+    onerror={(message) => (notice = message)}
   />
+  {#snippet paneHeader()}
+    <TerminalHeader
+      features={{ chat: chatFeature, files: filesFeature }}
+      {terminal}
+      {draft}
+      draftSaved="已保存在本机"
+      scratchSaved="已保存在本机"
+      uploading={false}
+      sizeLocked={false}
+      setSizeLocked={() => {}}
+      {codeShown}
+      {quickMenu}
+      upload={async () => {}}
+      toggleDraft={() => {}}
+      showScratch={() => {}}
+      showFind={() => {}}
+      close={() => {}}
+      {hybrid}
+    />
+  {/snippet}
   <TerminalNotices
     features={{ chat: chatFeature, files: filesFeature }}
     terminal={noticeTerminal}
@@ -508,15 +517,6 @@
     pickerTrigger={false}
   >
     {#snippet pickerActions(closePanel)}
-      {#if !codeShown}
-        <ListButton
-          variant="action-sheet"
-          onclick={() => {
-            openCode();
-            closePanel();
-          }}>代码</ListButton
-        >
-      {/if}
       <TerminalSplitPanel
         busy={false}
         limit={false}
@@ -539,7 +539,11 @@
         }}
       />
     {/snippet}
-    <DockPanel id="session" title={view === "chat" ? "聊天" : "终端"}>
+    <DockPanel
+      id="session"
+      header={paneHeader}
+      title={view === "chat" ? "聊天" : "终端"}
+    >
       {#if view === "chat"}
         <div class="h-full min-h-0" use:paneEnter={true}>
           <ChatView

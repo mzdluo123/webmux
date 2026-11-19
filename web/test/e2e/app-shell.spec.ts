@@ -236,7 +236,8 @@ test.describe("desktop sidebar", () => {
     await page.goto(`/s/${first}`);
     await expectConnected(page);
     await toggleCode(page);
-    await expect(code).toBeVisible();
+    await expect(files).toBeVisible();
+    await expect(code).toBeHidden();
     await files.getByRole("button", { name: "note.txt", exact: true }).click();
     const note = code.getByRole("tab", { name: /^note\.txt · / });
     await expect(note).toBeVisible();
@@ -266,10 +267,11 @@ test.describe("desktop sidebar", () => {
     await expect(page).not.toHaveURL(new RegExp(`/s/${first}$`));
     await expect(code).toBeHidden();
     await toggleCode(page);
-    await expect(code).toBeVisible();
+    await expect(files).toBeVisible();
+    await expect(code).toBeHidden();
+    await files.getByRole("button", { name: "note.txt", exact: true }).click();
     await expect.poll(width).toBe(before);
-    // Open files belong to their own session.
-    await expect(note).toHaveCount(0);
+    // Resizing the first session did not change the second reader.
 
     // Conversation grouping keeps the panel state too.
     await page.getByRole("radio", { name: "按会话" }).click();
@@ -278,7 +280,9 @@ test.describe("desktop sidebar", () => {
     await expect(page.locator(".terminal-header")).toContainText("面板甲");
     await expect(code).toBeHidden();
     await toggleCode(page);
-    await expect(code).toBeVisible();
+    await expect(files).toBeVisible();
+    await expect(code).toBeHidden();
+    await files.getByRole("button", { name: "note.txt", exact: true }).click();
     await expect.poll(width).toBe(before);
     await toggleCode(page);
     await expect(code).toBeHidden();
