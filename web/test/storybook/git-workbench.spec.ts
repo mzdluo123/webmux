@@ -14,7 +14,6 @@ for (const story of [
   "commit-needs-review",
   "operation-uncertain-recovery",
   "commit-draft-conflict-409",
-  "rework-session-handoff",
   "conflict-three-way-text",
   "conflict-binary-variant",
   "divergence-rebase-preview",
@@ -43,7 +42,6 @@ for (const story of [
       if (
         story === "commit-full-index-preview" ||
         story === "push-confirmation-dialog" ||
-        story === "rework-session-handoff" ||
         story === "divergence-rebase-preview" ||
         story === "abort-operation-dialog" ||
         story === "file-history-and-blame" ||

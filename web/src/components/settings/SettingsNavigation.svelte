@@ -107,9 +107,9 @@
       if (!frame) frame = requestAnimationFrame(update);
     }
     function followHash() {
-      const target = targets.find(
-        (element) => `#${element.id}` === location.hash,
-      );
+      const hash =
+        location.hash === "#agent-tools" ? "#launch-configs" : location.hash;
+      const target = targets.find((element) => `#${element.id}` === hash);
       if (target) {
         target.scrollIntoView({ block: "start" });
         target.focus({ preventScroll: true });

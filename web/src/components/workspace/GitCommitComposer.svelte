@@ -1,5 +1,20 @@
 <script lang="ts" module>
+  import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
   import type { GitAmendDraftPrompt } from "../../hooks/workspace/git-commit-options.svelte";
+
+  export interface GitCommitComposerStateProps {
+    commitMessage: string;
+    uncertainBlocked?: boolean;
+    draftSaving?: boolean;
+    draftRevision?: number;
+    draftConflict?: GitCommitDraftConflictState | null;
+    commitAmend?: boolean;
+    commitAmendPushed?: boolean;
+    commitAuthorOverride?: string;
+    commitSignoff?: boolean;
+    commitSignoffTrailer?: string;
+    amendDraftPrompt?: GitAmendDraftPrompt | null;
+  }
 
   export interface GitCommitComposerCallbacks {
     onCommitMessageChange: (msg: string) => void;
@@ -9,7 +24,6 @@
     onResolveDraftKeepLocal?: () => void;
     onResolveDraftAdoptRemote?: () => void;
     onResolveDraftMergeBoth?: () => void;
-    onRequestCommitAssist?: () => void;
     onToggleCommitAmend?: (checked: boolean) => void;
     onResolveAmendDraft?: (choice: "replace" | "merge" | "keep") => void;
     onCommitAuthorOverrideChange?: (value: string) => void;
@@ -22,14 +36,12 @@
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconCheck from "~icons/tabler/check";
   import IconGitBranch from "~icons/tabler/git-branch";
-  import IconSparkles from "~icons/tabler/sparkles";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Textarea } from "$lib/components/ui/textarea";
   import { m } from "$lib/paraglide/messages.js";
   import type { GitWorktreeContext } from "../../contracts/git-workbench-schemas";
-  import type { GitCommitDraftConflictState } from "../../domains/workspace/git-commit-draft-model";
   import { validateAuthorOverrideInput } from "../../domains/workspace/git-v2-adapter";
   import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
@@ -47,7 +59,6 @@
     draftSaving = false,
     draftRevision = 0,
     draftConflict = null,
-    canAssistCommitDraft = false,
     commitAmend = false,
     commitAmendPushed = false,
     commitAuthorOverride = "",
@@ -61,30 +72,18 @@
     onResolveDraftKeepLocal,
     onResolveDraftAdoptRemote,
     onResolveDraftMergeBoth,
-    onRequestCommitAssist,
     onToggleCommitAmend,
     onResolveAmendDraft,
     onCommitAuthorOverrideChange,
     onToggleCommitSignoff,
-  }: GitCommitComposerCallbacks & {
-    context: GitWorktreeContext;
-    stagedCount: number;
-    conflictedCount?: number;
-    commitMessage: string;
-    readonlyMode?: boolean;
-    busy?: boolean;
-    uncertainBlocked?: boolean;
-    draftSaving?: boolean;
-    draftRevision?: number;
-    draftConflict?: GitCommitDraftConflictState | null;
-    canAssistCommitDraft?: boolean;
-    commitAmend?: boolean;
-    commitAmendPushed?: boolean;
-    commitAuthorOverride?: string;
-    commitSignoff?: boolean;
-    commitSignoffTrailer?: string;
-    amendDraftPrompt?: GitAmendDraftPrompt | null;
-  } = $props();
+  }: GitCommitComposerStateProps &
+    GitCommitComposerCallbacks & {
+      context: GitWorktreeContext;
+      stagedCount: number;
+      conflictedCount?: number;
+      readonlyMode?: boolean;
+      busy?: boolean;
+    } = $props();
 
   const parsed = $derived.by(() => {
     const idx = commitMessage.indexOf("\n");
@@ -332,54 +331,35 @@
     </p>
   {/if}
 
-  <div class="flex min-w-0 flex-wrap items-center justify-between gap-2">
-    <div class="min-w-0">
-      {#if !readonlyMode && stagedCount > 0 && canAssistCommitDraft && onRequestCommitAssist}
-        <Button
-          size="default"
-          variant="outline"
-          onclick={onRequestCommitAssist}
-          aria-label={m.s6_commit_assist_aria()}
-          title={m.s6_commit_assist_tooltip()}
-          data-testid="git-commit-assist-btn"
-        >
-          <IconSparkles aria-hidden="true" />
-          <span class="sm:hidden">{m.s6_commit_assist_short()}</span>
-          <span class="max-sm:hidden">{m.s6_commit_assist_aria()}</span>
-        </Button>
-      {/if}
-    </div>
-
-    <div class="flex flex-wrap items-center justify-end gap-2">
-      {#if canDirectPush && onOpenPush}
-        <Button variant="outline" onclick={onOpenPush}>
-          <IconArrowUp aria-hidden="true" />
-          {m.s6_commit_push_ahead_btn()}
-        </Button>
-      {/if}
-      <Button
-        variant="outline"
-        disabled={!canPreviewCommit ||
-          detachedHead ||
-          (commitAmend && commitAmendPushed)}
-        title={detachedHead
-          ? m.s6_commit_and_push_detached_tooltip()
-          : commitAmend && commitAmendPushed
-            ? m.s6_commit_and_push_amend_pushed_tooltip()
-            : disabledHint || undefined}
-        onclick={() => onOpenCommitPreview(true)}
-        data-testid="git-commit-and-push-btn"
-      >
-        {m.s6_commit_and_push_btn()}
+  <div class="flex flex-wrap items-center justify-end gap-2">
+    {#if canDirectPush && onOpenPush}
+      <Button variant="outline" onclick={onOpenPush}>
+        <IconArrowUp aria-hidden="true" />
+        {m.s6_commit_push_ahead_btn()}
       </Button>
-      <Button
-        variant="default"
-        disabled={!canPreviewCommit}
-        title={disabledHint || undefined}
-        onclick={() => onOpenCommitPreview(false)}
-      >
-        {m.s6_commit_preview_btn()}
-      </Button>
-    </div>
+    {/if}
+    <Button
+      variant="outline"
+      disabled={!canPreviewCommit ||
+        detachedHead ||
+        (commitAmend && commitAmendPushed)}
+      title={detachedHead
+        ? m.s6_commit_and_push_detached_tooltip()
+        : commitAmend && commitAmendPushed
+          ? m.s6_commit_and_push_amend_pushed_tooltip()
+          : disabledHint || undefined}
+      onclick={() => onOpenCommitPreview(true)}
+      data-testid="git-commit-and-push-btn"
+    >
+      {m.s6_commit_and_push_btn()}
+    </Button>
+    <Button
+      variant="default"
+      disabled={!canPreviewCommit}
+      title={disabledHint || undefined}
+      onclick={() => onOpenCommitPreview(false)}
+    >
+      {m.s6_commit_preview_btn()}
+    </Button>
   </div>
 </div>

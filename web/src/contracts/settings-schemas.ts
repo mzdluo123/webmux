@@ -308,7 +308,6 @@ export const SettingsValuesSchema = z.strictObject({
     .nullable()
     .optional(),
   sessionPins: SessionPinsSchema.nullable().optional(),
-  forceSoftKeys: z.boolean().nullable(),
   ignoreHighPorts: z.boolean().nullable(),
 });
 export type SettingsValues = z.infer<typeof SettingsValuesSchema>;

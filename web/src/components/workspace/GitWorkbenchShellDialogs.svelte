@@ -5,44 +5,31 @@
     GitPrecedingCommit,
     GitWorkbenchViewState,
   } from "../../contracts/git-workbench-schemas";
-  import type { GitReworkItem, SessionInfo } from "../../contracts/schemas";
   import { applyShellCommitConfirm } from "../../domains/workspace/git-shell-actions";
   import {
     applyShellDiscardConfirm,
     type PendingShellDiscard,
   } from "../../domains/workspace/git-shell-v3-actions";
-  import type { GitSessionHandoffMode } from "../../hooks/workspace/git-rework-controller.svelte";
   import GitAbortOperationDialog from "./GitAbortOperationDialog.svelte";
   import GitCommitPreviewDialog from "./GitCommitPreviewDialog.svelte";
   import GitDiscardPreviewDialog from "./GitDiscardPreviewDialog.svelte";
   import GitDivergencePreviewDialog from "./GitDivergencePreviewDialog.svelte";
   import GitFileInspectorDialog from "./GitFileInspectorDialog.svelte";
   import GitPushDialog from "./GitPushDialog.svelte";
-  import GitReworkDialog from "./GitReworkDialog.svelte";
   import GitStashApplyDialog from "./GitStashApplyDialog.svelte";
   import GitStashCreateDialog from "./GitStashCreateDialog.svelte";
   import GitStashDropDialog from "./GitStashDropDialog.svelte";
 
   let {
     view = $bindable(),
-    reworkOpen = $bindable(false),
-    reworkItems = $bindable([]),
     pendingDiscard = $bindable(null),
-    handoffMode,
-    activeSessions,
     simulatedCommitOutcome = null,
-    selectedSessionId = $bindable(""),
     acknowledgeSessions = $bindable(false),
     onOpenFollowUpPush,
   }: {
     view: GitWorkbenchViewState;
-    reworkOpen?: boolean;
-    reworkItems?: GitReworkItem[];
     pendingDiscard?: PendingShellDiscard | null;
-    handoffMode: GitSessionHandoffMode;
-    activeSessions: readonly SessionInfo[];
     simulatedCommitOutcome?: GitCommitOutcome | null;
-    selectedSessionId?: string;
     acknowledgeSessions?: boolean;
     onOpenFollowUpPush: (branch: string, preceding: GitPrecedingCommit) => void;
   } = $props();
@@ -139,45 +126,6 @@
         statusBanner: m.s7_shell_abort_confirmed(),
       })}
     onDismiss={() => (view = { ...view, abortPreview: null })}
-  />
-{/if}
-
-{#if reworkOpen}
-  <GitReworkDialog
-    mode={handoffMode}
-    items={reworkItems}
-    stagedChanges={view.workingChanges.filter((c) => c.group === "staged")}
-    {activeSessions}
-    bind:selectedSessionId
-    hasCommitMessageDraft={Boolean(view.commitMessage.trim())}
-    onUpdateNote={(id, note) =>
-      (reworkItems = reworkItems.map((it) =>
-        it.id === id ? { ...it, userNote: note } : it,
-      ))}
-    onRemoveItem={(id) =>
-      (reworkItems = reworkItems.filter((it) => it.id !== id))}
-    onClearAll={() => (reworkItems = [])}
-    onCopyMarkdown={() =>
-      (view = { ...view, statusBanner: m.s7_shell_rework_copied_md() })}
-    onConfirmStale={() => {}}
-    onDeliverToSession={(session) => {
-      reworkOpen = false;
-      if (handoffMode === "rework") reworkItems = [];
-      view = {
-        ...view,
-        statusBanner: m.s7_shell_rework_delivered_session({
-          session: session.title || session.id,
-        }),
-      };
-    }}
-    onStartNewSessionWithDraft={() => {
-      reworkOpen = false;
-      view = {
-        ...view,
-        statusBanner: m.s7_shell_rework_new_session_opened(),
-      };
-    }}
-    onClose={() => (reworkOpen = false)}
   />
 {/if}
 

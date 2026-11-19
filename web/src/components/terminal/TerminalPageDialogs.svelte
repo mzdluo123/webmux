@@ -3,6 +3,7 @@
   import { api } from "../../platform/api";
   import { findShell } from "../../hooks/shared/shell.svelte";
   import {
+    AgentToolsReportSchema,
     LaunchConfigsSchema,
     RepositoriesSchema,
     type Repository,
@@ -65,6 +66,15 @@
     const controller = new AbortController();
     creationController = controller;
     if (featureEnabled("launch") && featureAvailable("launch.configs")) {
+      const toolsPromise = api(
+        "/agent-tools",
+        AgentToolsReportSchema,
+        "GET",
+        undefined,
+        controller.signal,
+      )
+        .then((report) => report.tools)
+        .catch(() => undefined);
       void api(
         "/launch-configs",
         LaunchConfigsSchema,
@@ -72,9 +82,22 @@
         undefined,
         controller.signal,
       )
-        .then((configs) => {
-          if (!controller.signal.aborted)
-            launchConfigs = { status: "ready", configs };
+        .then(async (configs) => {
+          if (controller.signal.aborted) return;
+          launchConfigs = {
+            status: "ready",
+            configs,
+            agentToolsLoading: true,
+          };
+          const agentTools = await toolsPromise;
+          if (!controller.signal.aborted) {
+            launchConfigs = {
+              status: "ready",
+              configs,
+              agentTools,
+              agentToolsLoading: false,
+            };
+          }
         })
         .catch((err) => {
           if (!controller.signal.aborted)

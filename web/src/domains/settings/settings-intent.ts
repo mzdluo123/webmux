@@ -17,7 +17,6 @@ export const emptySettings: SettingsValues = {
   homeWorktrees: null,
   worktreePins: null,
   sessionPins: null,
-  forceSoftKeys: null,
   ignoreHighPorts: null,
 };
 export type SettingsIntent = (

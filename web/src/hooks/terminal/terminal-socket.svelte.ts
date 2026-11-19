@@ -14,6 +14,7 @@ import {
 } from "../../contracts/schemas";
 import {
   clientIdentity,
+  createHoverCoalescer,
   encodeIdsQuery,
   encodeSubmission,
   encodeTerminalSize,
@@ -84,6 +85,10 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     if (!terminal || !socket || !run || !accepting()) return undefined;
     return { term: terminal, ws: socket, run };
   };
+  const hover = createHoverCoalescer((report) => {
+    if (!replaying && accepting() && controlling())
+      socket?.send(6, encoder.encode(report));
+  });
 
   function attach(
     term: Terminal,
@@ -286,7 +291,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
           sentSize = "";
           view.fit();
           if (submissions.size) ws.send(4, encodeIdsQuery(submissions.keys()));
-        }
+        } else hover.cancel();
         if (state === "connecting" || state === "reconnecting") {
           // The ring may have wrapped since the last position was received.
           // Exited recovery must obtain the server's final safe reset, not raw HTTP bytes.
@@ -354,6 +359,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
       },
       dispose() {
         disposed = true;
+        hover.cancel();
         cancelAnimationFrame(restoreFrame);
         document.removeEventListener("visibilitychange", visible);
         graphics?.dispose();
@@ -414,6 +420,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     attach,
     // Sends user input. A rejected send is reported, never queued.
     sendInput(input: string) {
+      hover.flush();
       const sent =
         accepting() && (socket?.send(0, encoder.encode(input)) ?? false);
       error = inputError.sent(sent, error);
@@ -423,6 +430,10 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     // Sends one of xterm's automatic replies to a device query.
     sendReply(reply: string) {
       if (!replaying) socket?.send(6, encoder.encode(reply));
+    },
+    // Coalesces controller pointer hover on the reply lane without taking control.
+    sendHover(report: string) {
+      if (!replaying && accepting() && controlling()) hover.schedule(report);
     },
     // Takes input and grid control for this browser tab.
     claim() {
@@ -438,6 +449,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     ) {
       const target = submission();
       if (!target) return false;
+      hover.flush();
       const body = preparePaste(text, target.term.modes.bracketedPasteMode);
       submissions.set(submissionId, report);
       if (

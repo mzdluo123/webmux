@@ -14,7 +14,6 @@
     onBranchFilter,
     onBranchAction,
     onSetTaskBaseline,
-    onAddReworkItem,
     onRequestCheckout,
     onOpenOccupiedWorktree,
   }: {
@@ -23,7 +22,6 @@
     onBranchFilter: GitLogPaneProps["onBranchFilterChange"];
     onBranchAction: GitLogPaneProps["onBranchAction"];
     onSetTaskBaseline?: GitLogPaneProps["onSetTaskBaseline"];
-    onAddReworkItem?: GitLogPaneProps["onAddReworkItem"];
     onRequestCheckout: GitLogPaneProps["onRequestCheckout"];
     onOpenOccupiedWorktree: GitLogPaneProps["onOpenOccupiedWorktree"];
   } = $props();
@@ -107,7 +105,6 @@
   }}
   onExitCompare={() => (view = { ...view, compareMode: null })}
   onSetTaskBaseline={!readonlyMode ? onSetTaskBaseline : undefined}
-  onAddReworkItem={!readonlyMode ? onAddReworkItem : undefined}
   onCherryPickCommit={(oid) =>
     (view = {
       ...view,

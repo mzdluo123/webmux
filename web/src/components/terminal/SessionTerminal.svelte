@@ -3,7 +3,7 @@
   import { navigate } from "../../platform/api";
   import { useTerminal } from "../../hooks/terminal/terminal.svelte";
   import { keyboardSizeHold } from "../../hooks/terminal/keyboard-size-hold-preference.svelte";
-  import { touchGamepad } from "../../hooks/terminal/touch-gamepad-preference.svelte";
+  import { bottomToolbar } from "../../hooks/terminal/bottom-toolbar-preference.svelte";
   import {
     createSessionUploadHandlers,
     useSessionTerminalChrome,
@@ -22,10 +22,6 @@
   import type CodePanelComponent from "../code/CodePanel.svelte";
   import SessionTerminalDialogs from "./SessionTerminalDialogs.svelte";
   import SessionTerminalStage from "./SessionTerminalStage.svelte";
-  import {
-    settings,
-    changeSettings,
-  } from "../../domains/settings/settings.svelte";
   import {
     createHeaderTerminalView,
     deriveChatUploadUnavailable,
@@ -100,7 +96,6 @@
   let closing = $state(false);
   let settingsOpen = $state(false);
   let scratchOpen = $state(false);
-  const forceSoftKeys = $derived(settings.values.forceSoftKeys ?? false);
   let mounted = false;
   let seenHybrid = false;
   let codePanel = $state<CodePanelComponent>();
@@ -298,9 +293,9 @@
 
 <div
   class="session-terminal flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
-  class:force-soft-keys={forceSoftKeys}
   class:ios={isIOS()}
   bind:clientWidth={paneWidth}
+  data-bottom-toolbar={bottomToolbar.mode}
   data-terminal-compact={!desktop}
   bind:this={terminalRoot}
 >
@@ -352,8 +347,8 @@
       () => chrome.panelView, (value) => (chrome.panelView = value)
     }
     {chatActions}
-    bind:forceSoftKeys={
-      () => forceSoftKeys, (value) => changeSettings({ forceSoftKeys: value })
+    bind:bottomToolbarShown={
+      () => bottomToolbar.shown, (value) => bottomToolbar.set(value)
     }
     {id}
     {paneActions}
@@ -393,8 +388,6 @@
     keyboardSizeHold={keyboardSizeHold.enabled}
     setKeyboardSizeHold={(value) => (keyboardSizeHold.enabled = value)}
     keyboardHeld={chrome.keyboardHeld}
-    touchGamepad={touchGamepad.enabled}
-    setTouchGamepad={(value) => (touchGamepad.enabled = value)}
     findOpen={chrome.findOpen}
     showFind={chrome.showFind}
     closeFind={chrome.closeFind}

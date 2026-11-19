@@ -85,29 +85,3 @@ export const GitPutReviewsRequestSchema = z
   })
   .strict();
 export type GitPutReviewsRequest = z.infer<typeof GitPutReviewsRequestSchema>;
-
-// ---- Per-worktree rework feedback items for session handoff (#548 G08) ----
-
-const GitReworkSourceKindSchema = z.enum([
-  "worktree",
-  "index",
-  "head",
-  "task-base",
-  "commit",
-]);
-export type GitReworkSourceKind = z.infer<typeof GitReworkSourceKindSchema>;
-
-export const GitReworkItemSchema = z.object({
-  id: z.string().min(1).max(64),
-  path: z.string().min(1).max(1024),
-  oldPath: z.string().max(1024).optional(),
-  sourceKind: GitReworkSourceKindSchema,
-  versionLabel: z.string().min(1).max(160),
-  startLine: z.number().int().positive(),
-  endLine: z.number().int().positive(),
-  codeSnippet: z.string().max(8000),
-  userNote: z.string().max(4000).default(""),
-  capturedWorktreeIdentity: z.string().max(160).optional(),
-  createdAt: z.number(),
-});
-export type GitReworkItem = z.infer<typeof GitReworkItemSchema>;

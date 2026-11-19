@@ -23,7 +23,6 @@ type SettingsValues struct {
 	HomeWorktrees   map[string][]string `json:"homeWorktrees"`
 	WorktreePins    map[string][]string `json:"worktreePins"`
 	SessionPins     []string            `json:"sessionPins"`
-	ForceSoftKeys   *bool               `json:"forceSoftKeys"`
 	IgnoreHighPorts *bool               `json:"ignoreHighPorts"`
 }
 type SettingsSnapshot struct {

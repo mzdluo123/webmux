@@ -57,7 +57,7 @@
     keyboardSizeHold,
     setKeyboardSizeHold,
     codeShown = $bindable(),
-    forceSoftKeys = $bindable(),
+    bottomToolbarShown = $bindable(),
     quickMenu,
     upload,
     toggleDraft,
@@ -82,7 +82,7 @@
     keyboardSizeHold: boolean;
     setKeyboardSizeHold: (value: boolean) => void;
     codeShown: boolean;
-    forceSoftKeys: boolean;
+    bottomToolbarShown: boolean;
     quickMenu: Snippet<["top" | "bottom", ButtonSize?, ButtonVariant?]>;
     upload?: (files: File[]) => Promise<void>;
     toggleDraft: () => void;
@@ -389,7 +389,7 @@
           >
             {m.s4_hold_size_on_keyboard()}
           </DropdownMenu.CheckboxItem>
-          <DropdownMenu.CheckboxItem bind:checked={forceSoftKeys}>
+          <DropdownMenu.CheckboxItem bind:checked={bottomToolbarShown}>
             {m.s4_force_soft_keys()}
           </DropdownMenu.CheckboxItem>
         </DropdownMenu.Group>

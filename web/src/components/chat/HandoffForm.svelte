@@ -15,6 +15,7 @@
     type HandoffEditor,
   } from "../../hooks/sessions/handoff.svelte";
   import type { TargetKind } from "../../domains/sessions/new-session-defaults";
+  import { visibleLaunchConfigs } from "../../domains/settings/launch-configs";
   import { handoffMaxPages } from "../../contracts/handoff-schemas";
   import { getShell } from "../../hooks/shared/shell.svelte";
   import { getFeatureContributions } from "../../features/context";
@@ -28,8 +29,10 @@
     getFeatureContributions().creation;
   const workspaceAvailable = featureAvailable("workspace.manage");
   const agents = $derived(
-    shell.launchConfigs?.state.status === "ready"
-      ? shell.launchConfigs.state.configs.filter((item) => item.chat)
+    shell.launchConfigs
+      ? visibleLaunchConfigs(shell.launchConfigs.state).filter(
+          (item) => item.chat,
+        )
       : [],
   );
   const repositories = $derived(shell.repositories?.list ?? []);

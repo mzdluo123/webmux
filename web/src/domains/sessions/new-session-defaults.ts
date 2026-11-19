@@ -1,6 +1,9 @@
 import { m } from "$lib/paraglide/messages.js";
 import { api, APIError, parseArgs, store } from "../../platform/api";
-import type { LaunchConfigsState } from "../settings/launch-configs";
+import {
+  visibleLaunchConfigs,
+  type LaunchConfigsState,
+} from "../settings/launch-configs";
 import type { WorktreePreset } from "./worktree-preset";
 import {
   buildCreateSessionRequest,
@@ -174,8 +177,14 @@ export function resolveInitialLaunch(
       : "";
   if (!enabled)
     return { source: remembered ? "unset" : "custom", configId: "" };
-  if (launchConfigs.status === "loading") return null;
-  const configs = launchConfigs.status === "ready" ? launchConfigs.configs : [];
+  if (
+    launchConfigs.status === "loading" ||
+    (launchConfigs.status === "ready" &&
+      launchConfigs.agentToolsLoading &&
+      launchConfigs.configs.length > 0)
+  )
+    return null;
+  const configs = visibleLaunchConfigs(launchConfigs);
   if (remembered)
     return configs.some((config) => config.id === remembered)
       ? { source: "config", configId: remembered }

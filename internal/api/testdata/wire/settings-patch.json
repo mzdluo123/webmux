@@ -5,9 +5,8 @@
     "updatedAt": "<time>",
     "values": {
       "codeReader": null,
-      "forceSoftKeys": true,
       "homeWorktrees": null,
-      "ignoreHighPorts": null,
+      "ignoreHighPorts": true,
       "preview": null,
       "quickCommands": [],
       "sessionPins": [],

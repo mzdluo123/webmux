@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import IconCopy from "~icons/tabler/copy";
-  import IconDeviceGamepad2 from "~icons/tabler/device-gamepad-2";
   import IconX from "~icons/tabler/x";
   import {
     Button,
@@ -48,8 +47,6 @@
     lock,
     paste,
     keyboard,
-    touchGamepad = false,
-    setTouchGamepad,
     findOpen = false,
     findBar,
     uploadProgress,
@@ -69,23 +66,10 @@
     lock: (key: "shift") => void;
     paste: () => Promise<void>;
     keyboard: () => void;
-    touchGamepad?: boolean;
-    setTouchGamepad: (value: boolean) => void;
     findOpen?: boolean;
     findBar?: Snippet;
     uploadProgress?: Snippet;
   } = $props();
-
-  const gamepadAvailable = $derived(
-    t.controlling === true &&
-      t.connection !== "missing" &&
-      (t.exitCode === null || t.exitCode === undefined) &&
-      visible,
-  );
-  const gamepadActive = $derived(touchGamepad && gamepadAvailable);
-  const gamepadToggleLabel = $derived(
-    gamepadActive ? m.s4_collapse_gamepad() : m.s4_expand_gamepad(),
-  );
 
   // Keep the hint off touch screens, including hybrids whose secondary pointer
   // is coarse, and mirror the platform's actual copy shortcut.
@@ -93,21 +77,6 @@
   const shortcutHint =
     !hasTouchInput() && matchMedia("(pointer: fine)").matches;
 </script>
-
-{#snippet gamepadToggle()}
-  <Button
-    variant="ghost"
-    size="icon-sm"
-    aria-label={gamepadToggleLabel}
-    title={gamepadToggleLabel}
-    aria-expanded={gamepadActive}
-    disabled={!gamepadAvailable}
-    onmousedown={(event) => event.preventDefault()}
-    onclick={() => setTouchGamepad(!touchGamepad)}
-  >
-    <IconDeviceGamepad2 aria-hidden="true" />
-  </Button>
-{/snippet}
 
 <div class="terminal-column">
   <div class="terminal-area">
@@ -197,8 +166,6 @@
     {send}
     modifiers={t.modifiers}
     locked={t.shiftLocked}
-    gamepad={gamepadActive}
-    {gamepadToggle}
     {toggle}
     {lock}
     paste={() => {
@@ -207,7 +174,7 @@
     {keyboard}
   >
     {#snippet trailing()}
-      {@render draftToggle()}{@render quickMenu("top", "icon-sm", "ghost")}
+      {@render draftToggle()}{@render quickMenu("top", "icon-xs", "ghost")}
     {/snippet}
   </SoftKeys>
 </div>

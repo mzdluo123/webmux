@@ -11,14 +11,14 @@ import (
 	"testing"
 )
 
-func softKeysChange(value bool) Changes {
-	return Changes{Fields: map[string]bool{"forceSoftKeys": true}, Values: Values{ForceSoftKeys: &value}}
+func highPortsChange(value bool) Changes {
+	return Changes{Fields: map[string]bool{"ignoreHighPorts": true}, Values: Values{IgnoreHighPorts: &value}}
 }
 func TestDurableRevisionsAndSubscriptions(t *testing.T) {
 	dir := t.TempDir()
 	s := Open(dir)
 	initial, err := s.Snapshot()
-	if err != nil || initial.Revision != 0 || initial.Values.ForceSoftKeys != nil {
+	if err != nil || initial.Revision != 0 || initial.Values.IgnoreHighPorts != nil {
 		t.Fatalf("initial: %+v %v", initial, err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "settings.json")); !os.IsNotExist(err) {
@@ -37,22 +37,22 @@ func TestDurableRevisionsAndSubscriptions(t *testing.T) {
 	if first := <-sub.Events; first.Snapshot == nil || first.Snapshot.Revision != 0 {
 		t.Fatalf("first: %+v", first)
 	}
-	next, err := s.Patch(0, softKeysChange(true))
+	next, err := s.Patch(0, highPortsChange(true))
 	if err != nil || next.Revision != 1 {
 		t.Fatalf("patch: %+v %v", next, err)
 	}
-	if e := <-sub.Events; e.Revision != 1 || !e.Changes.Fields["forceSoftKeys"] {
+	if e := <-sub.Events; e.Revision != 1 || !e.Changes.Fields["ignoreHighPorts"] {
 		t.Fatalf("event: %+v", e)
 	}
-	*next.Values.ForceSoftKeys = false
-	if _, err := s.Patch(0, softKeysChange(false)); !errors.Is(err, ErrConflict) {
+	*next.Values.IgnoreHighPorts = false
+	if _, err := s.Patch(0, highPortsChange(false)); !errors.Is(err, ErrConflict) {
 		t.Fatal(err)
 	}
 	s.Close()
 	reopened := Open(dir)
 	defer reopened.Close()
 	got, err := reopened.Snapshot()
-	if err != nil || got.Revision != 1 || got.Values.ForceSoftKeys == nil || !*got.Values.ForceSoftKeys {
+	if err != nil || got.Revision != 1 || got.Values.IgnoreHighPorts == nil || !*got.Values.IgnoreHighPorts {
 		t.Fatalf("reopen: %+v %v", got, err)
 	}
 }
@@ -62,7 +62,7 @@ func TestAtomicConcurrentPatch(t *testing.T) {
 	var wg sync.WaitGroup
 	results := make(chan error, 2)
 	for _, value := range []bool{true, false} {
-		wg.Go(func() { _, err := s.Patch(0, softKeysChange(value)); results <- err })
+		wg.Go(func() { _, err := s.Patch(0, highPortsChange(value)); results <- err })
 	}
 	wg.Wait()
 	close(results)
@@ -90,7 +90,7 @@ func TestCorruptionPreserved(t *testing.T) {
 			}
 			s := Open(dir)
 			defer s.Close()
-			if _, err := s.Patch(0, softKeysChange(true)); !errors.Is(err, ErrUnavailable) {
+			if _, err := s.Patch(0, highPortsChange(true)); !errors.Is(err, ErrUnavailable) {
 				t.Fatal(err)
 			}
 			got, err := os.ReadFile(path)
@@ -101,26 +101,26 @@ func TestCorruptionPreserved(t *testing.T) {
 	}
 }
 
-// Files written with legacy theme, fontSize or chatIdleSleepMinutes keys load
-// cleanly and drop those keys on the next write.
+// Files written with legacy theme, fontSize, forceSoftKeys or
+// chatIdleSleepMinutes keys load cleanly and drop those keys on the next write.
 func TestLoadsFileWithLegacySettingsKeys(t *testing.T) {
 	dir := t.TempDir()
-	data := `{"v":1,"revision":11,"updatedAt":"2026-10-28T02:13:13.53185523Z","values":{"theme":"dark","fontSize":12,"chatIdleSleepMinutes":15,"preview":null,"codeReader":null,"quickCommands":null,"homeWorktrees":null,"forceSoftKeys":true}}`
+	data := `{"v":1,"revision":11,"updatedAt":"2026-10-28T02:13:13.53185523Z","values":{"theme":"dark","fontSize":12,"chatIdleSleepMinutes":15,"preview":null,"codeReader":null,"quickCommands":null,"homeWorktrees":null,"forceSoftKeys":true,"ignoreHighPorts":true}}`
 	if err := os.WriteFile(filepath.Join(dir, "settings.json"), []byte(data), 0600); err != nil {
 		t.Fatal(err)
 	}
 	s := Open(dir)
 	defer s.Close()
 	v, err := s.Snapshot()
-	if err != nil || v.Revision != 11 || v.Values.ForceSoftKeys == nil || !*v.Values.ForceSoftKeys {
+	if err != nil || v.Revision != 11 || v.Values.IgnoreHighPorts == nil || !*v.Values.IgnoreHighPorts {
 		t.Fatalf("snapshot: %+v %v", v, err)
 	}
-	softKeys := false
-	if v, err = s.Patch(11, Changes{Fields: map[string]bool{"forceSoftKeys": true}, Values: Values{ForceSoftKeys: &softKeys}}); err != nil || v.Values.ForceSoftKeys == nil || *v.Values.ForceSoftKeys {
+	highPorts := false
+	if v, err = s.Patch(11, Changes{Fields: map[string]bool{"ignoreHighPorts": true}, Values: Values{IgnoreHighPorts: &highPorts}}); err != nil || v.Values.IgnoreHighPorts == nil || *v.Values.IgnoreHighPorts {
 		t.Fatalf("patch: %+v %v", v, err)
 	}
 	raw, err := os.ReadFile(filepath.Join(dir, "settings.json"))
-	if err != nil || strings.Contains(string(raw), "theme") || strings.Contains(string(raw), "fontSize") || strings.Contains(string(raw), "chatIdleSleepMinutes") {
+	if err != nil || strings.Contains(string(raw), "theme") || strings.Contains(string(raw), "fontSize") || strings.Contains(string(raw), "forceSoftKeys") || strings.Contains(string(raw), "chatIdleSleepMinutes") {
 		t.Fatalf("legacy keys rewritten: %s %v", raw, err)
 	}
 }
@@ -133,7 +133,7 @@ func TestFailedCommitDoesNotPublish(t *testing.T) {
 	}
 	<-sub.Events
 	s.commit = func(storedFile) error { return errors.New("injected disk failure") }
-	if _, err := s.Patch(0, softKeysChange(true)); !errors.Is(err, ErrUnavailable) {
+	if _, err := s.Patch(0, highPortsChange(true)); !errors.Is(err, ErrUnavailable) {
 		t.Fatal(err)
 	}
 	if s.current.Revision != 0 {
@@ -142,7 +142,7 @@ func TestFailedCommitDoesNotPublish(t *testing.T) {
 	if _, ok := <-sub.Events; ok {
 		t.Fatal("uncommitted event")
 	}
-	if _, err := s.Patch(0, softKeysChange(false)); !errors.Is(err, ErrUnavailable) {
+	if _, err := s.Patch(0, highPortsChange(false)); !errors.Is(err, ErrUnavailable) {
 		t.Fatal("writes not frozen")
 	}
 }
@@ -167,7 +167,7 @@ func TestSlowSubscriberDoesNotBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := range int64(40) {
-		if _, err := s.Patch(i, softKeysChange(true)); err != nil {
+		if _, err := s.Patch(i, highPortsChange(true)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -195,7 +195,7 @@ func TestSubscribeConcurrentCommitHasNoGap(t *testing.T) {
 			}
 			subscribed <- sub
 		}()
-		go func() { <-start; _, err := s.Patch(0, softKeysChange(true)); committed <- err }()
+		go func() { <-start; _, err := s.Patch(0, highPortsChange(true)); committed <- err }()
 		close(start)
 		sub := <-subscribed
 		if sub == nil {
@@ -321,11 +321,11 @@ func TestQuickCommandNames(t *testing.T) {
 	if got := (*snap.Values.QuickCommands)[3].Command; got != "放 {{dir}} 与 {{dir}}" {
 		t.Fatalf("legacy placeholder %q", got)
 	}
-	softKeys := true
-	if _, err := s.Patch(3, Changes{Fields: map[string]bool{"forceSoftKeys": true}, Values: Values{ForceSoftKeys: &softKeys}}); err != nil {
+	highPorts := true
+	if _, err := s.Patch(3, Changes{Fields: map[string]bool{"ignoreHighPorts": true}, Values: Values{IgnoreHighPorts: &highPorts}}); err != nil {
 		t.Fatalf("unrelated patch with a legacy unnamed command: %v", err)
 	}
-	if stored, _ := os.ReadFile(filepath.Join(dir, "settings.json")); strings.Contains(string(stored), "artifactPrompt") || strings.Contains(string(stored), "theme") {
+	if stored, _ := os.ReadFile(filepath.Join(dir, "settings.json")); strings.Contains(string(stored), "artifactPrompt") || strings.Contains(string(stored), "theme") || strings.Contains(string(stored), "forceSoftKeys") {
 		t.Fatalf("retired key written back: %s", stored)
 	}
 }

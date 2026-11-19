@@ -6,7 +6,6 @@
   import IconArrowDown from "~icons/tabler/arrow-down";
   import IconArrowUp from "~icons/tabler/arrow-up";
   import IconDots from "~icons/tabler/dots";
-  import IconMessageForward from "~icons/tabler/message-forward";
   import IconRefresh from "~icons/tabler/refresh";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
@@ -40,8 +39,6 @@
     returnSession,
     returnSessionArchived = false,
     sessionsReady = false,
-    reworkCount = 0,
-    onOpenRework,
     onSelectRepository,
     onSelectWorktree,
     onAddRepository,
@@ -69,8 +66,6 @@
     returnSession?: SessionInfo;
     returnSessionArchived?: boolean;
     sessionsReady?: boolean;
-    reworkCount?: number;
-    onOpenRework?: () => void;
     onSelectRepository: (repositoryId: string) => void;
     onSelectWorktree: (worktreeId?: string) => void;
     onAddRepository: () => void;
@@ -229,24 +224,6 @@
       class="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1.5"
     >
       {@render operations?.()}
-      {#if worktreeUsable && onOpenRework}
-        <Button
-          size="sm"
-          variant="outline"
-          onclick={onOpenRework}
-          aria-label={reworkCount > 0
-            ? m.s7_topbar_rework_count_aria({ count: reworkCount })
-            : m.s7_topbar_rework_aria()}
-          title={m.s7_topbar_rework_title()}
-          data-testid="git-open-rework-btn"
-        >
-          <IconMessageForward aria-hidden="true" />
-          <span class="max-sm:hidden">{m.s7_topbar_rework_btn()}</span>
-          {#if reworkCount > 0}
-            <Badge variant="info">{reworkCount}</Badge>
-          {/if}
-        </Button>
-      {/if}
 
       {#if returnSession}
         <Button
