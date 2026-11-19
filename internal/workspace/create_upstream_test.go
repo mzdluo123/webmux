@@ -285,3 +285,33 @@ func TestSessionCreateGeneratedLocationSurvivesConfirmationAcrossSeconds(t *test
 		t.Fatalf("generated location or chosen baseline changed: %+v, expected %s at %s", tree, original.branch, expectedPath)
 	}
 }
+
+func TestCreateWorktreeLatestUpstream(t *testing.T) {
+	for _, kind := range []string{"behind", "ahead", "diverged", "offline"} {
+		t.Run(kind, func(t *testing.T) {
+			isolateGit(t)
+			s, r, root, remote := upstreamFixture(t)
+			latest := gitTest(t, root, "rev-parse", "origin/main")
+			if kind == "behind" || kind == "diverged" {
+				latest = advanceUpstream(t, root, remote, "remote")
+			}
+			if kind == "ahead" || kind == "diverged" {
+				gitTest(t, root, "commit", "--allow-empty", "-m", "local")
+			}
+			if kind == "offline" {
+				gitTest(t, root, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "missing.git"))
+			}
+			req := CreateRequest{Mode: "new", Branch: "task", Base: "refs/heads/main", Path: filepath.Join(t.TempDir(), "tree"), LatestUpstream: true}
+			tree, err := s.CreateWorktree(context.Background(), r.ID, req)
+			if kind == "offline" {
+				if !errors.Is(err, ErrInvalid) {
+					t.Fatalf("expected fetch failure, got %v", err)
+				}
+				return
+			}
+			if err != nil || tree.Head == nil || *tree.Head != latest {
+				t.Fatalf("expected upstream %s, got %+v, %v", latest, tree, err)
+			}
+		})
+	}
+}

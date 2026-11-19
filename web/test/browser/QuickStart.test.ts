@@ -146,6 +146,7 @@ test("defaults skip what is unusable, and the first send goes in one request", a
     newWorktree: {
       repositoryId: "repo1",
       mode: "new",
+      latestUpstream: true,
       base: "refs/heads/main",
       branch: expect.stringMatching(/^wt\/[a-z]+-[a-z]+$/),
     },

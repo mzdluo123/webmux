@@ -20,7 +20,7 @@ func CreateInput(r contract.CreateSessionRequest) sessioncreate.Input {
 		in.Workspace = &sessioncreate.Reference{RepositoryID: r.Workspace.RepositoryID, WorktreeID: r.Workspace.WorktreeID}
 	}
 	if r.NewWorktree != nil {
-		in.NewWorktree = &sessioncreate.NewWorktree{RepositoryID: r.NewWorktree.RepositoryID, Mode: r.NewWorktree.Mode, Branch: r.NewWorktree.Branch, Base: r.NewWorktree.Base, Path: r.NewWorktree.Path}
+		in.NewWorktree = &sessioncreate.NewWorktree{RepositoryID: r.NewWorktree.RepositoryID, Mode: r.NewWorktree.Mode, Branch: r.NewWorktree.Branch, Base: r.NewWorktree.Base, Path: r.NewWorktree.Path, LatestUpstream: r.NewWorktree.LatestUpstream}
 		if choice := r.NewWorktree.UpstreamChoice; choice != nil {
 			in.NewWorktree.UpstreamChoice = &sessioncreate.UpstreamChoice{
 				ConfirmationID: choice.ConfirmationID,

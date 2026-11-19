@@ -428,6 +428,7 @@ const NewWorktreeSchema = z.object({
   branch: z.string().optional(),
   base: z.string().optional(),
   path: z.string().optional(),
+  latestUpstream: z.boolean().optional(),
   upstreamChoice: UpstreamChoiceSchema.optional(),
 });
 // POST /sessions, the only way to create a session. The location is one of

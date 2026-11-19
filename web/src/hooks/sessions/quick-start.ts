@@ -416,6 +416,7 @@ export async function executeQuickStart(params: {
       newWorktree: {
         repositoryId: repository.id,
         mode: "new",
+        latestUpstream: true,
         base,
         branch,
       },

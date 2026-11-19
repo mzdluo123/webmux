@@ -198,6 +198,7 @@ type NewWorktree struct {
 	Base           string          `json:"base,omitempty"`
 	Path           string          `json:"path,omitempty"`
 	UpstreamChoice *UpstreamChoice `json:"upstreamChoice,omitempty"`
+	LatestUpstream bool            `json:"latestUpstream,omitempty"`
 }
 
 // CreateSessionResult is the 201 body of POST /api/sessions. Worktree is
