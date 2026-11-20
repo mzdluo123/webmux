@@ -246,11 +246,11 @@ func snapshotOf(t *testing.T, s *Service, id string) Repository {
 }
 
 // assertSnapshotProcesses checks a snapshot's Git processes: rev-parse and
-// worktree list for the repository, rev-parse and status per worktree, and
-// one batched log.
+// worktree list for the repository, status per worktree (common-dir verified
+// in pure Go), and one batched log.
 func assertSnapshotProcesses(t *testing.T, calls []string, trees int) {
 	t.Helper()
-	if countCalls(calls, "log") != 1 || countCalls(calls, "status") != trees || len(calls) != 2+2*trees+1 {
+	if countCalls(calls, "rev-parse") != 1 || countCalls(calls, "log") != 1 || countCalls(calls, "status") != trees || len(calls) != 2+trees+1 {
 		t.Fatalf("snapshot of %d worktrees ran %v", trees, calls)
 	}
 }
