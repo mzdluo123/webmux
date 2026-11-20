@@ -38,6 +38,7 @@ import {
 import { RelayAuthReasonSchema } from "../contracts/relay-schemas";
 import { store, stored } from "./storage";
 import { currentTransport, TransportUploadError } from "./transport";
+import { recordApiTiming } from "./perf";
 import { resolveWorktreeUpstream } from "./worktree-upstream";
 
 export { store, stored };
@@ -113,6 +114,7 @@ async function request(
   signal?: AbortSignal,
 ): Promise<Response> {
   const authRevision = relayAuthRevision();
+  const started = performance.now();
   const response = await currentTransport().fetch(path, {
     method,
     signal,
@@ -122,6 +124,13 @@ async function request(
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  recordApiTiming(
+    method,
+    path,
+    performance.now() - started,
+    response.status,
+    response.headers.get("Server-Timing"),
+  );
   if (!response.ok)
     throw responseError(
       response.status,

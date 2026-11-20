@@ -39,6 +39,7 @@ type Config struct {
 	P2P              P2PConfig         `toml:"p2p"`
 	Relay            RelayConfig       `toml:"relay"`
 	MCP              MCPConfig         `toml:"mcp"`
+	Perf             PerfConfig        `toml:"perf"`
 	// Features is programmatic-only: configuration files always enable all
 	// built-in features, while tests retain isolated feature selection.
 	Features FeatureConfig `toml:"-" json:"-"`
@@ -318,6 +319,7 @@ func Load(path string, required bool) (Config, error) {
 		Tailscale: TailscaleConfig{Mode: TailscaleOff, Provider: "auto"},
 		P2P:       DefaultP2PConfig(),
 		Relay:     DefaultRelayConfig(),
+		Perf:      DefaultPerfConfig(),
 	}
 	metadata, err := toml.DecodeFile(path, &c)
 	if err != nil {
@@ -389,6 +391,9 @@ func (c *Config) Validate() error {
 		return err
 	}
 	c.Relay = relayConfig
+	if err := c.Perf.validate(); err != nil {
+		return err
+	}
 	return c.Push.validate()
 }
 

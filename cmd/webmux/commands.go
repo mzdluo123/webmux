@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"time"
 
 	"github.com/rainchan/webmux/internal/clicmd"
 	"github.com/rainchan/webmux/internal/client"
@@ -310,6 +311,26 @@ func opsCommands() clicmd.Registry {
 				{Command: "sudo webmux update channel dev", Text: "Follow development builds."},
 			},
 			SeeAlso: []string{"webmux update check"},
+		},
+		{Name: "perf", Group: g, Summary: "Inspect local performance bottleneck logs."},
+		{
+			Name: "perf report", Group: g, NoGlobal: true,
+			Summary: "Summarize recorded backend and frontend performance bottlenecks.",
+			Bind: func(fs *flag.FlagSet) clicmd.Action {
+				configOption(fs)
+				fs.Duration("since", 2*time.Hour, "aggregate events within this `DURATION`")
+				fs.Int("top", 10, "maximum `N` entries per ranking table")
+				fs.Bool("json", false, "print the report as JSON")
+				return nil
+			},
+			Env:    configEnv,
+			Output: "A ranked bottleneck summary, or JSON with --json.",
+			Exit:   exitClient,
+			Examples: []clicmd.Example{
+				{Command: "webmux perf report", Text: "Summarize bottlenecks from the past 2 hours."},
+				{Command: "webmux perf report --since 30m --top 15 --json", Text: "Emit the past 30 minutes as JSON."},
+			},
+			SeeAlso: []string{"webmux status", "webmux config show"},
 		},
 		{
 			Name: "help", Group: clicmd.GroupHelp, NoGlobal: true, Args: "[COMMAND...]",

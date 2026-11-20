@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -23,6 +24,7 @@ import (
 	"github.com/rainchan/webmux/internal/api"
 	"github.com/rainchan/webmux/internal/clicmd"
 	"github.com/rainchan/webmux/internal/contract"
+	"github.com/rainchan/webmux/internal/perf"
 	"github.com/rainchan/webmux/internal/runtime"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/settings"
@@ -103,6 +105,50 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	sessionOptions.TerminalVersion = version
 	sessionOptions.Executable = serverExecutable()
 	m := session.NewManager(sessionOptions)
+	var perfRec *perf.Recorder
+	if c.Perf.Enabled {
+		rec, perfErr := perf.New(perf.Options{
+			Dir:            filepath.Join(c.StateDir, "perf"),
+			SlowMS:         c.Perf.SlowMS,
+			SampleSeconds:  c.Perf.SampleSeconds,
+			MaxBytesMB:     c.Perf.MaxBytesMB,
+			RetentionDays:  c.Perf.RetentionDays,
+			FlightRecorder: c.Perf.FlightRecorder,
+			SpikeMS:        c.Perf.SpikeMS,
+			Sessions: func() []perf.SessionRef {
+				items := m.List()
+				refs := make([]perf.SessionRef, 0, len(items))
+				for _, item := range items {
+					if item.Status == session.StatusExited {
+						continue
+					}
+					pid := 0
+					if s, getErr := m.Get(item.ID); getErr == nil {
+						if procs := s.RunProcesses(); len(procs) > 0 {
+							pid = procs[0].PID
+						}
+					}
+					refs = append(refs, perf.SessionRef{
+						ID:     item.ID,
+						Name:   item.Title,
+						PID:    pid,
+						Status: string(item.Status),
+					})
+				}
+				return refs
+			},
+		})
+		if perfErr != nil {
+			slog.Warn("performance recorder disabled", "error", perfErr)
+		} else {
+			perfRec = rec
+			perf.SetDefault(perfRec)
+			defer func() {
+				perf.SetDefault(nil)
+				perfRec.Close()
+			}()
+		}
+	}
 	preferences := settings.Open(c.StateDir)
 	features := &featureServices{agents: registry}
 	var server *http.Server
@@ -158,6 +204,7 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	deps.Guide = guide
 	deps.Launcher = runtime.Launcher(os.Getenv)
 	deps.Relay = &api.Relay{Control: relayControl, Auth: relayControl.auth}
+	deps.Perf = perfRec
 	if c.Features.Has("mcp") && c.MCP.Enabled {
 		handler, closeMCP, err := networkMCP(ctx, c.Config, listener.Addr(), deps.Capabilities)
 		if err != nil {

@@ -89,6 +89,7 @@
 - `run/server.json.lock` 仅保护运行时记录和本机控制面；锁冲突退化为 TCP 服务，不能与 Tailscale 安全阻止启动混淆。
 - 升级前停止全部旧进程并备份；新旧版本不得共用状态目录并发运行，改名后的锁无法与旧锁互斥。
 - Windows 托盘、日志、下载缓存、会话临时文件夹（含上传文件与快速开始的暂存上传）、代码树文件操作（写入用户工作区或临时文件夹）、`webmux repo settings --edit` 交给编辑器的临时文件与 baseline 结果属于独立生命周期，保持逐项登记的例外。
+- 按需开启的本地性能剖析日志（`state_dir/perf/` 中的每日 JSONL 与可选 FlightRecorder trace）按容量上限与保留天数自动裁剪，不记录终端输入输出、prompt 或凭据，以 `perf-logs` 例外登记。
 - 外部 agent 的锁与 Claude 进程注册记录不属于 WebMux 存储；适配器只进行有界只读核对，不创建或修改这些文件，也不把路径、记录正文或进程事实写入 WebMux 状态。
 - Kimi ACP 会话切到 TUI 前是写入例外：适配器只把当前会话 `wire.jsonl` 的 `acp:<会话ID>` 环境绑定改为 `local`，避免 2.5.2 工具注册丢失。首次修改保留 `wire.jsonl.before-local-binding` 备份，临时文件原子替换，其他事件不变；这不属于 WebMux 存储。
 - 例外是选择 `launch` 启动集成后的 `agent_pretrust`（默认开启），见 [CLI agent 接入](cli-agents.md#文件夹信任预写)；未选择时不写入这些记录：

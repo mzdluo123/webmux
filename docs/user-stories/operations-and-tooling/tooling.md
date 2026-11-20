@@ -149,6 +149,12 @@
   - `TestSourceFileSize` 在 `go test ./...` 中要求 `cmd/` 与 `internal/` 下的非测试生产 `.go` 文件少于 500 行（`<= 499` 行），超限时报错指示按职责拆分为同家族 `<family>_<part>.go` 文件并禁止删注释或改用空泛文件名；
   - `web/test/architecture.test.ts` 的 `file naming` 拒绝 camelCase 的 TypeScript 文件、非 PascalCase 的 Svelte 组件，以及 500 行及以上的生产 `.ts`/`.svelte` 文件（排除生成的 `src/lib/components/ui/`、测试与 stories），超限时提示按领域模块、子组件或架构分层拆分；
   - 规则页登记在 [Agent 规则](../../agent-rules.md)，`AGENTS.md` 只保留一行指针。
+- **US-L16 按需开启的前后端运行态性能瓶颈记录与报告**：作为部署者或贡献者，我希望能在本地配置文件中按需开启低开销的前后端性能剖析，记录每个时刻最耗资源与最慢的操作，并用 CLI 一键汇总，以便定位真实使用中的卡顿与高占用瓶颈。
+  验收要点：
+  - `[perf]` 默认关闭；开启后服务端记录慢 HTTP 与 Git 子命令、向响应写入 `Server-Timing` 头、按周期采样 Go 堆/GC/Goroutine/本进程 CPU 与按会话进程树归因的 Top CPU/RSS，并向 `GET /api/config` 下发只读采集提示；
+  - 浏览器仅在服务端返回 `perf.enabled` 时启用 `long-animation-frame`（降级 `longtask`）、慢交互 `event`、意外 `layout-shift`、慢 API（关联 `Server-Timing`）、WebSocket 慢帧/吞吐窗口与 JS 堆/DOM 采样，并批量发送至受认证与 Origin 校验的 `POST /api/perf/events`；
+  - 数据落盘至 `<state_dir>/perf/`（每日 JSONL + 可选 `FlightRecorder` 尖峰 trace），按 `max_bytes_mb` 与 `retention_days` 自动清理，严格不记录终端输入输出、prompt 或凭据；仅在开启时于本机 Unix socket `/local/v1/debug/pprof/` 暴露 pprof；
+  - `webmux perf report [--since] [--top] [--json]` 离线汇总前后端热操作、最慢事件、会话资源峰值与捕获的 trace 路径。
 
 依据：
 

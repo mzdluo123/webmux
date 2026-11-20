@@ -196,6 +196,13 @@ export const ConfigSchema = z.object({
   voice: z.boolean().default(false),
   // Whether opportunistic P2P direct upgrade is enabled on the server.
   p2p: z.boolean().default(false),
+  // Present only when local performance profiling is enabled on the server.
+  perf: z
+    .object({
+      enabled: z.boolean(),
+      slowMs: z.number().int().positive(),
+    })
+    .optional(),
 });
 
 export const VoiceClientMessageSchema = z.object({

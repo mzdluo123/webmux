@@ -1,5 +1,6 @@
 import { m } from "$lib/paraglide/messages.js";
 import { api } from "../../platform/api";
+import { configurePerf } from "../../platform/perf";
 import { homeCache, type HomeSetup } from "../../domains/workspace/home-cache";
 import { ConfigSchema } from "../../contracts/schemas";
 
@@ -72,6 +73,7 @@ export function createServerSetup(): ServerSetup {
           voice: config.voice,
         };
         homeCache.rememberSetup(value);
+        configurePerf(config.perf);
         loadFailed = false;
       } catch {
         loadFailed = true;
