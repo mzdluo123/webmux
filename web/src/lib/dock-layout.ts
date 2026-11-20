@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export type DockDirection = "horizontal" | "vertical";
 export type DockEdge = "left" | "right" | "top" | "bottom" | "center";
+export type DockRail = "left" | "right" | "bottom";
 export type DockGroup = { kind: "group"; ids: string[]; active: string };
 export type DockSplit = {
   kind: "split";
@@ -224,6 +225,15 @@ export function dockDropEdge(x: number, y: number): DockEdge {
   return min < 0.25 ? dockEdges[distances.indexOf(min)]! : "center";
 }
 
+export function dockRail(rect: DockRect | undefined): DockRail | undefined {
+  if (!rect) return undefined;
+  const left = rect.x < 0.01;
+  const right = rect.x + rect.width > 0.99;
+  if (left !== right) return left ? "left" : "right";
+  if (rect.y > 0.01 && rect.y + rect.height > 0.99) return "bottom";
+  return undefined;
+}
+
 const groupSchema = z.object({
   kind: z.literal("group"),
   ids: z.array(z.string().min(1)),
@@ -241,7 +251,6 @@ const treeSchema: z.ZodType<DockNode> = z.lazy(() =>
     }),
   ]),
 );
-export type DockRail = "left" | "right" | "bottom";
 const layoutSchema = z.object({
   version: z.literal(1),
   node: treeSchema,
