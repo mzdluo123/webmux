@@ -4,7 +4,7 @@ import {
   expect,
   expectConnected,
   revealSidebar,
-  sessionPaneHeader,
+  sessionHeader,
   test,
   workspaceLayoutTest,
 } from "./fixtures";
@@ -59,7 +59,7 @@ workspaceLayoutTest(
     await expectConnected(page);
     await expect(page.locator(".restore-overlay")).toBeHidden();
     await expect(page).toHaveTitle("E2E agent · WebMux");
-    await expect(sessionPaneHeader(page).locator(".status-dot")).toHaveClass(
+    await expect(sessionHeader(page).locator(".status-dot")).toHaveClass(
       /status-failed/,
     );
     await page.locator(".xterm-helper-textarea").focus();

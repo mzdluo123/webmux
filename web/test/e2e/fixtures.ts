@@ -488,10 +488,16 @@ export async function holdTerminalFont(page: Page) {
 
 // A healthy connection shows no text; the status dot names it instead.
 export async function expectConnected(page: Page) {
-  const header = sessionPaneHeader(page);
+  const header = sessionHeader(page);
   await expect(header.getByRole("img", { name: /· 已连接$/ })).toBeVisible();
   await expect(header.getByRole("status")).toHaveCount(0);
 }
+
+export const workspaceRefreshButton = (page: Page) =>
+  page
+    .getByRole("button", { name: /^刷新(?:工作区| Git 状态)$/ })
+    .filter({ visible: true })
+    .first();
 
 export const narrowSessionHeader = (page: Page) =>
   (page.viewportSize()?.width ?? 1280) < 640;
@@ -520,22 +526,11 @@ export async function openSessionMenu(page: Page) {
 
 export async function openSessionSwitcher(page: Page) {
   const name = "快速切换会话";
-  if (new URL(page.url()).pathname.startsWith("/s/")) {
-    if (narrowSessionHeader(page)) {
-      await page
-        .locator(".session-toolbar")
-        .getByRole("button", { name: "显示", exact: true })
-        .click();
-      await page.getByRole("menuitem", { name, exact: true }).click();
-    } else {
-      await page
-        .locator(".session-toolbar")
-        .getByRole("button", { name, exact: true })
-        .click();
-    }
-  } else {
-    await page.getByRole("button", { name, exact: true }).click();
-  }
+  await page
+    .getByRole("button", { name, exact: true })
+    .filter({ visible: true })
+    .first()
+    .click();
   return page.getByRole("dialog", { name, exact: true });
 }
 

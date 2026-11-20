@@ -60,7 +60,11 @@
     const target =
       panel?.querySelector<HTMLElement>(
         '[data-dock-stack] [aria-selected="true"]',
-      ) ?? panel?.querySelector<HTMLElement>("[data-dock-actions]");
+      ) ??
+      panel?.querySelector<HTMLElement>("[data-dock-actions]") ??
+      surface
+        ?.closest(".terminal-page")
+        ?.querySelector<HTMLElement>("[data-dock-command-menu]");
     target?.focus({ preventScroll: true });
   }
 </script>

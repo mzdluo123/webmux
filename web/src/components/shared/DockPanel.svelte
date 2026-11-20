@@ -54,6 +54,17 @@
   const showTabs = $derived(
     (!compact && tabs.length > 1) || (!!onclose && !!tabs.length),
   );
+  // Desktop single-session views already lift their title, status and pane menu
+  // into SessionWorkspaceHeader; omit the duplicate pane title bar until splits,
+  // tabs or zoom need per-pane chrome.
+  const hideSingleTitle = $derived(
+    !compact &&
+      !!commands &&
+      !onclose &&
+      !showTabs &&
+      !zoomed &&
+      !dock.hasMultipleVisiblePanels(),
+  );
   const zoomLabel = $derived(
     zoomed ? m.dock_restore({ title }) : m.dock_maximize({ title }),
   );
@@ -122,112 +133,114 @@
       onactivate?.();
     }}
   >
-    <div
-      class="dock-title"
-      data-session-dock-title={(compact && commands && !onclose) || undefined}
-      role="presentation"
-      draggable={canMove}
-      ondblclick={(event) => {
-        if (
-          event.target instanceof Element &&
-          !event.target.closest("button, input, a, [role=tab]")
-        )
-          dock.toggleZoom(id);
-      }}
-      ondragstart={(event) => {
-        if (!canMove || !event.dataTransfer) return;
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", title);
-        dock.drag(id);
-      }}
-      ondragend={() => dock.drag(undefined)}
-    >
-      {#if compact && dock.canGoBack()}
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label={m.s8_back()}
-          title={m.s8_back()}
-          onclick={dock.back}><IconBack aria-hidden="true" /></Button
-        >
-      {/if}
-      {#if showTabs}
-        <DockStackTabs {id} {tabs} {canMove} show={dock.show} />
-      {/if}
-      {@render localHeader?.()}
+    {#if !hideSingleTitle}
       <div
-        class="dock-title-space"
-        class:with-header={!!localHeader && !showTitle}
+        class="dock-title"
+        data-session-dock-title={(compact && commands && !onclose) || undefined}
+        role="presentation"
+        draggable={canMove}
+        ondblclick={(event) => {
+          if (
+            event.target instanceof Element &&
+            !event.target.closest("button, input, a, [role=tab]")
+          )
+            dock.toggleZoom(id);
+        }}
+        ondragstart={(event) => {
+          if (!canMove || !event.dataTransfer) return;
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", title);
+          dock.drag(id);
+        }}
+        ondragend={() => dock.drag(undefined)}
       >
-        {#if !compact && titleContent}
-          {@render titleContent(titleLabel)}
-        {:else}
-          {@render titleLabel()}
+        {#if compact && dock.canGoBack()}
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={m.s8_back()}
+            title={m.s8_back()}
+            onclick={dock.back}><IconBack aria-hidden="true" /></Button
+          >
         {/if}
-      </div>
-      <Menu.Root>
-        <Menu.Trigger>
-          {#snippet child({ props })}
-            <Button
-              {...props}
-              data-dock-actions
-              variant="ghost"
-              size="icon-sm"
-              aria-label={menuLabel}
-              title={menuLabel}
-            >
-              <IconDots aria-hidden="true" />
-            </Button>
-          {/snippet}
-        </Menu.Trigger>
-        <Menu.Content align="end" class="w-56">
-          <Menu.Label>{title}</Menu.Label>
-          {#if !compact}
-            <Menu.Item onSelect={() => dock.toggleZoom(id)}>
-              {#if zoomed}<IconArrowsMinimize aria-hidden="true" />
-              {:else}<IconArrowsMaximize aria-hidden="true" />{/if}
-              {zoomLabel}
-            </Menu.Item>
+        {#if showTabs}
+          <DockStackTabs {id} {tabs} {canMove} show={dock.show} />
+        {/if}
+        {@render localHeader?.()}
+        <div
+          class="dock-title-space"
+          class:with-header={!!localHeader && !showTitle}
+        >
+          {#if !compact && titleContent}
+            {@render titleContent(titleLabel)}
           {:else}
-            <Menu.Item onSelect={() => dock.minimize(id)}
-              >{m.dock_minimize({ title })}</Menu.Item
-            >
+            {@render titleLabel()}
           {/if}
-          {#if !compact && edgeRails}
-            <Menu.Item onSelect={() => dock.minimize(id, "left")}
-              >{m.dock_minimize_left()}</Menu.Item
-            >
-            <Menu.Item onSelect={() => dock.minimize(id, "right")}
-              >{m.dock_minimize_right()}</Menu.Item
-            >
-            <Menu.Item onSelect={() => dock.minimize(id, "bottom")}
-              >{m.dock_minimize_bottom()}</Menu.Item
-            >
-            {#if targets?.length}<Menu.Separator />{/if}
-          {/if}
-          {#each targets as target (target.id)}
-            <Menu.Sub>
-              <Menu.SubTrigger>{target.title}</Menu.SubTrigger>
-              <Menu.SubContent>
-                {#each dockEdges as edge (edge)}
-                  <Menu.Item onSelect={() => dock.move(id, target.id, edge)}
-                    >{edgeLabel(edge)}</Menu.Item
-                  >
-                {/each}
-              </Menu.SubContent>
-            </Menu.Sub>
-          {/each}
-        </Menu.Content>
-      </Menu.Root>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label={m.dock_minimize({ title })}
-        title={m.dock_minimize({ title })}
-        onclick={() => dock.minimize(id)}
-        ><IconMinus aria-hidden="true" /></Button
-      >
-    </div>
+        </div>
+        <Menu.Root>
+          <Menu.Trigger>
+            {#snippet child({ props })}
+              <Button
+                {...props}
+                data-dock-actions
+                variant="ghost"
+                size="icon-sm"
+                aria-label={menuLabel}
+                title={menuLabel}
+              >
+                <IconDots aria-hidden="true" />
+              </Button>
+            {/snippet}
+          </Menu.Trigger>
+          <Menu.Content align="end" class="w-56">
+            <Menu.Label>{title}</Menu.Label>
+            {#if !compact}
+              <Menu.Item onSelect={() => dock.toggleZoom(id)}>
+                {#if zoomed}<IconArrowsMinimize aria-hidden="true" />
+                {:else}<IconArrowsMaximize aria-hidden="true" />{/if}
+                {zoomLabel}
+              </Menu.Item>
+            {:else}
+              <Menu.Item onSelect={() => dock.minimize(id)}
+                >{m.dock_minimize({ title })}</Menu.Item
+              >
+            {/if}
+            {#if !compact && edgeRails}
+              <Menu.Item onSelect={() => dock.minimize(id, "left")}
+                >{m.dock_minimize_left()}</Menu.Item
+              >
+              <Menu.Item onSelect={() => dock.minimize(id, "right")}
+                >{m.dock_minimize_right()}</Menu.Item
+              >
+              <Menu.Item onSelect={() => dock.minimize(id, "bottom")}
+                >{m.dock_minimize_bottom()}</Menu.Item
+              >
+              {#if targets?.length}<Menu.Separator />{/if}
+            {/if}
+            {#each targets as target (target.id)}
+              <Menu.Sub>
+                <Menu.SubTrigger>{target.title}</Menu.SubTrigger>
+                <Menu.SubContent>
+                  {#each dockEdges as edge (edge)}
+                    <Menu.Item onSelect={() => dock.move(id, target.id, edge)}
+                      >{edgeLabel(edge)}</Menu.Item
+                    >
+                  {/each}
+                </Menu.SubContent>
+              </Menu.Sub>
+            {/each}
+          </Menu.Content>
+        </Menu.Root>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={m.dock_minimize({ title })}
+          title={m.dock_minimize({ title })}
+          onclick={() => dock.minimize(id)}
+          ><IconMinus aria-hidden="true" /></Button
+        >
+      </div>
+    {/if}
     <div
       id={`dock-content-${id}`}
       role={showTabs ? "tabpanel" : undefined}

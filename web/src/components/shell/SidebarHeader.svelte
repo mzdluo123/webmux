@@ -10,6 +10,7 @@
   let {
     oncollapse,
     onclose,
+    onhome,
     showSessionSwitcher,
     controls,
     byBranch,
@@ -17,6 +18,7 @@
   }: {
     oncollapse?: () => void;
     onclose?: () => void;
+    onhome?: () => void;
     showSessionSwitcher: boolean;
     controls: string;
     byBranch: boolean;
@@ -39,9 +41,19 @@
       ><IconLayoutSidebarLeftCollapse aria-hidden="true" /></Button
     >
   {/if}
-  <span class="brand flex-1" role="img" aria-label="WebMux" title="WebMux">
+  <a
+    class="brand flex-1 rounded-md transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+    href="/"
+    aria-label="WebMux"
+    title={m.s1_back_to_workspace()}
+    onclick={(event) => {
+      if (!onhome) return;
+      event.preventDefault();
+      onhome();
+    }}
+  >
     <Brand />
-  </span>
+  </a>
   {#if onGroupingChange}
     <div class="shrink-0">
       <WorkbenchGroupingSwitch

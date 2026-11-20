@@ -15,6 +15,7 @@ import {
   revealSidebar,
   useWorkbenchBranches,
   backToList,
+  workspaceRefreshButton,
 } from "./fixtures";
 import {
   addRepositoryButton,
@@ -264,7 +265,7 @@ test("external changes refresh and restart retains registry but not sessions", a
   const before = await (await request.get("/api/repositories")).json();
   const external = join(workDir, "external worktree");
   await git(root, "worktree", "add", "-b", "external", external);
-  await page.getByRole("button", { name: "刷新 Git 状态" }).click();
+  await workspaceRefreshButton(page).click();
   const repo = page.locator(`[data-repository-id="${before[0].id}"]`);
   await expand(repo);
   // Newly added external worktrees appear on the home page automatically and can be toggled in "主页显示…".
@@ -289,7 +290,7 @@ test("external changes refresh and restart retains registry but not sessions", a
   await page.getByRole("option", { name: "external", exact: true }).click();
   await page.keyboard.press("Escape");
   await expect(repo.getByText("external", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "刷新 Git 状态" }).click();
+  await workspaceRefreshButton(page).click();
   await expect(repo.getByText("external", { exact: true })).toHaveCount(0);
   await repositoryMenu(page, "主页显示…");
   await expect(picker).toBeVisible();
@@ -410,10 +411,11 @@ test("multiple repositories keep every session visible through local failure, co
   const toggle = firstGroup.locator("button[aria-expanded]").first();
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await page.getByRole("button", { name: "刷新 Git 状态" }).click();
-  await expect(
-    page.getByRole("button", { name: "刷新 Git 状态" }),
-  ).toHaveAttribute("aria-busy", "false");
+  await workspaceRefreshButton(page).click();
+  await expect(workspaceRefreshButton(page)).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   expect(
     await page
@@ -431,7 +433,7 @@ test("multiple repositories keep every session visible through local failure, co
     ),
   ).toBe(true);
   await rename(other, other + "-moved");
-  await page.getByRole("button", { name: "刷新 Git 状态" }).click();
+  await workspaceRefreshButton(page).click();
   const failed = page.locator(`[data-repository-id="${registered[1].id}"]`);
   await expect(
     failed.getByText("已不可用工作区", { exact: true }),
@@ -640,7 +642,7 @@ test("late Git response cannot replace a newer refresh", async ({
     await delayed;
     await route.fulfill({ status: 200, json: old });
   });
-  await page.getByRole("button", { name: "刷新 Git 状态" }).click();
+  await workspaceRefreshButton(page).click();
   await capture;
   const external = join(workDir, "newer-snapshot");
   await git(root, "worktree", "add", "-b", "newer-snapshot", external);
@@ -661,9 +663,10 @@ test("late Git response cannot replace a newer refresh", async ({
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       ),
   );
-  await expect(
-    page.getByRole("button", { name: "刷新 Git 状态" }),
-  ).toHaveAttribute("aria-busy", "false");
+  await expect(workspaceRefreshButton(page)).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
   await expectHomeWorktrees(page, 2, 2);
 });
 

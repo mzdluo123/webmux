@@ -158,7 +158,7 @@
 <div
   class={rail
     ? "flex flex-col items-center gap-1 border-t py-2"
-    : "flex flex-wrap items-center border-t px-2 py-1.5 sm:gap-1 sm:px-3"}
+    : "flex items-center gap-1 border-t px-2 py-1.5 sm:px-3"}
 >
   <span role="status" class="sr-only">{connectionLabel}</span>
   <Popover.Root open={detailsOpen} onOpenChange={detailsChanged}>
@@ -167,8 +167,8 @@
       aria-label={m.s1_view_host_status({ status: statusLabel })}
       title={statusLabel}
       class={rail
-        ? "flex size-8 cursor-pointer items-center justify-center rounded-sm hover:bg-muted/60"
-        : "flex h-5 min-w-5 flex-1 cursor-pointer items-center gap-2 rounded-sm text-xs text-muted-foreground hover:bg-muted/60"}
+        ? "flex size-11 cursor-pointer items-center justify-center rounded-sm hover:bg-muted/60 sm:size-8"
+        : "flex h-8 min-w-5 flex-1 cursor-pointer items-center gap-2 rounded-sm px-1 text-xs text-muted-foreground hover:bg-muted/60"}
     >
       <!-- min-h-4 is the text line: the hostname arriving later must not move the dot. -->
       <span aria-hidden="true" class="flex min-h-4 min-w-0 items-center gap-2">
@@ -291,29 +291,32 @@
   <div
     class={rail
       ? "flex flex-col items-center gap-1"
-      : "flex max-w-full flex-wrap items-center sm:gap-1"}
+      : "flex shrink-0 items-center gap-0.5 sm:gap-1"}
   >
     {#if onaddrepository}
       <Button
         variant="ghost"
-        size="icon-touch"
+        size="icon-touch-sm"
         aria-label={m.s8_add_repo_title()}
         title={m.s8_add_repo_title()}
         disabled={!canAddRepository}
         onclick={onaddrepository}><IconFolderPlus aria-hidden="true" /></Button
       >
     {/if}
-    {#if forward}<forward.Button onclick={onforward} />{/if}
+    {#if forward}<forward.Button
+        size="icon-touch-sm"
+        onclick={onforward}
+      />{/if}
     <Button
       href="/settings"
       variant="ghost"
-      size="icon-touch"
+      size="icon-touch-sm"
       aria-label={m.s1_settings()}
       title={m.s1_settings()}><IconSettings aria-hidden="true" /></Button
     >
     <Button
       variant="ghost"
-      size="icon-touch"
+      size="icon-touch-sm"
       class="shrink-0"
       aria-label={dark ? m.s1_switch_light_theme() : m.s1_switch_dark_theme()}
       title={dark ? m.s1_switch_light_theme() : m.s1_switch_dark_theme()}

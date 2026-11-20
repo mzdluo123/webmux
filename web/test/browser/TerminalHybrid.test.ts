@@ -516,17 +516,21 @@ test("the chat header names its agent on desktop and gives its title the space o
   expect(badge.title).toBe("Agent：omp");
   expect(badge.querySelector('[data-launch-icon="pi"] svg')).not.toBeNull();
   expect(badge.innerText).toBe("omp");
-  // Desktop keeps session commands and the agent in the workspace bar,
-  // and shows status in the session's own dock pane.
+  // Desktop single-pane sessions lift title, agent and status into the
+  // workspace bar and omit the duplicate dock title row.
   await page.viewport(1024, 800);
   const pane = page.getByRole("region", { name: title, exact: true });
-  const desktopTitle = page
-    .elementLocator(badge.closest("[data-dock-session-commands]")!)
-    .getByRole("button", { name: title, exact: true });
+  const commands = page.elementLocator(
+    badge.closest("[data-dock-session-commands]")!,
+  );
+  const desktopTitle = commands.getByRole("button", {
+    name: title,
+    exact: true,
+  });
   await expect.element(desktopTitle).toBeVisible();
-  const status = pane.getByRole("img", { name: /^需要回答 · / });
-  await expect.element(status).toBeVisible();
-  await expect.element(status).toHaveClass("status-failed");
+  const desktopStatus = commands.getByRole("img", { name: /^需要回答 · / });
+  await expect.element(desktopStatus).toBeVisible();
+  await expect.element(desktopStatus).toHaveClass("status-failed");
   await expect
     .poll(
       () =>
@@ -540,6 +544,7 @@ test("the chat header names its agent on desktop and gives its title the space o
   const titleButton = pane.getByRole("button", { name: title, exact: true });
   await expect.element(titleButton).toBeVisible();
   // The phone moves the title into the pane, with status before it.
+  const status = pane.getByRole("img", { name: /^需要回答 · / });
   await expect.element(status).toBeVisible();
   const label = titleButton.getByText(title, { exact: true }).element();
   expect(label.scrollWidth).toBeGreaterThan(label.clientWidth);

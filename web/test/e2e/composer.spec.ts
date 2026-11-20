@@ -13,6 +13,7 @@ import {
   openSessionMenu,
   quote,
   recordInput,
+  sessionHeader,
   sessionPaneHeader,
   toggleDraftMode,
   uploadAction,
@@ -522,9 +523,7 @@ test("composition, direct keyboard entry and disconnect never bypass explicit se
   expect(disconnect).toBeDefined();
   await disconnect!();
   await expect.poll(() => blockedReconnects).toBeGreaterThan(0);
-  await expect(sessionPaneHeader(page).getByRole("status")).toHaveText(
-    "重连中",
-  );
+  await expect(sessionHeader(page).getByRole("status")).toHaveText("重连中");
   await expect(send(page)).toBeDisabled();
   await draft(page).fill("Keep after disconnect");
   expect(await readFile(received, "utf8")).toBe("");

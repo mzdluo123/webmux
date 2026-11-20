@@ -2,12 +2,15 @@
   import { m } from "$lib/paraglide/messages.js";
   import IconPlugConnected from "~icons/tabler/plug-connected";
   import { Badge } from "$lib/components/ui/badge";
-  import { Button } from "$lib/components/ui/button";
+  import { Button, type ButtonSize } from "$lib/components/ui/button";
   import { forwards } from "../../domains/workspace/forwards.svelte";
 
   // The header entry to the port-forwarding dialog; the badge counts the
   // server's forwards.
-  let { onclick }: { onclick: () => void } = $props();
+  let {
+    onclick,
+    size = "icon-sm",
+  }: { onclick: () => void; size?: ButtonSize } = $props();
   const count = $derived(forwards.list.length);
   const label = $derived(
     count ? m.s8_fwd_btn_count({ count: String(count) }) : m.s8_fwd_title(),
@@ -16,7 +19,7 @@
 
 <Button
   variant="ghost"
-  size={count ? "sm" : "icon-sm"}
+  size={count ? "sm" : size}
   aria-label={label}
   title={label}
   aria-haspopup="dialog"

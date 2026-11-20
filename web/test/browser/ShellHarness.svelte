@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import AppShell from "../../src/components/shell/AppShell.svelte";
   import QuickStart from "../../src/pages/QuickStart.svelte";
   import WorkspaceSessionList from "../../src/pages/WorkspaceSessionList.svelte";
@@ -8,6 +8,7 @@
   import { matchRoute } from "../../src/hooks/shared/route";
   import type { TerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
   import type { Shell } from "../../src/hooks/shared/shell.svelte";
+  import { provideSessionSwitcher } from "../../src/hooks/shared/session-switcher";
   import ShellSessionPage from "./ShellSessionPage.svelte";
   import Terminal from "../../src/pages/Terminal.svelte";
 
@@ -17,11 +18,15 @@
     drafts,
     exposeShell,
     terminalPage = false,
+    onSessionSwitcher,
   }: {
     drafts: TerminalDrafts;
     exposeShell?: (shell: Shell) => void;
     terminalPage?: boolean;
+    onSessionSwitcher?: (invoker: HTMLElement | null) => void;
   } = $props();
+  if (untrack(() => onSessionSwitcher))
+    provideSessionSwitcher((invoker) => onSessionSwitcher?.(invoker));
   let path = $state(location.pathname);
   onMount(() => {
     const change = () => (path = location.pathname);

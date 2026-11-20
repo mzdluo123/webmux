@@ -8,7 +8,6 @@ import {
   recordInput,
   expectConnected,
   sessionHeader,
-  sessionPaneHeader,
   toggleDraftMode,
 } from "./fixtures";
 
@@ -178,9 +177,7 @@ test("commands are disabled while the terminal cannot send, but drafts still acc
   blockReconnect = true;
   await disconnect!();
   await expect.poll(() => blockedReconnects).toBeGreaterThan(0);
-  await expect(sessionPaneHeader(page).getByRole("status")).toHaveText(
-    "重连中",
-  );
+  await expect(sessionHeader(page).getByRole("status")).toHaveText("重连中");
   await quick(page).click();
   await expect(menu(page).getByText("终端未就绪，暂不能发送")).toBeVisible();
   await expect(item(page, "恢复会话：/resume（并回车）")).toBeDisabled();
@@ -191,7 +188,7 @@ test("commands are disabled while the terminal cannot send, but drafts still acc
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expectConnected(page);
   await request.delete(`/api/sessions/${id}`);
-  await expect(sessionPaneHeader(page).getByRole("status")).toHaveText(
+  await expect(sessionHeader(page).getByRole("status")).toHaveText(
     /^已退出 · 退出码 /,
   );
   await quick(page).click();

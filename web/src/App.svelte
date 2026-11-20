@@ -122,7 +122,13 @@
   const sessionId = $derived(route.name === "terminal" ? route.id : "");
   const shellRoute = $derived(shellRouteFor(route));
   const canSwitch = $derived(
-    ready && !relayGate() && (shellRoute !== null || route.name === "settings"),
+    ready &&
+      !relayGate() &&
+      (shellRoute !== null ||
+        route.name === "settings" ||
+        route.name === "settings-tailscale" ||
+        route.name === "settings-tunnel" ||
+        route.name === "settings-relay"),
   );
   let shell = $state<AppShell>();
   let terminal = $state<TerminalPage>();

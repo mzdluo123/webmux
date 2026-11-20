@@ -302,11 +302,11 @@
   style:--viewport-height={`${viewport.height}px`}
 >
   <header
-    class="app-header flex min-h-(--app-header-height) shrink-0 items-center gap-1 border-b bg-card px-1 sm:px-4"
+    class="app-header flex min-h-(--app-header-height) shrink-0 items-center gap-1 border-b bg-card px-1 sm:hidden"
   >
-    <SidebarButton class="sm:hidden" />
+    <SidebarButton />
     <h1 class="flex-1 text-sm font-medium">{m.s1_new_session()}</h1>
-    <SessionSwitcherTrigger size="icon-sm" />
+    <SessionSwitcherTrigger size="icon-touch" />
   </header>
 
   <!-- Files dropped anywhere below the header become attachments. -->
