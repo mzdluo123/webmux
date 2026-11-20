@@ -40,6 +40,11 @@ type Service struct {
 }
 
 func New(manager *session.Manager, options Options) *Service {
+	if len(options.DefaultCmd) == 0 {
+		options.DefaultCmd = []string{"/bin/sh", "-l", "-i"}
+	} else {
+		options.DefaultCmd = slices.Clone(options.DefaultCmd)
+	}
 	lifetime, cancel := context.WithCancel(context.Background())
 	return &Service{manager: manager, options: options, flights: make(map[string]*flight), lifetime: lifetime, cancel: cancel}
 }
@@ -167,6 +172,10 @@ func (s *Service) prepare(ctx context.Context, in Input) (plan, error) {
 		if err != nil {
 			return p, err
 		}
+	} else if in.Cmd == nil {
+		p.command.Cmd = slices.Clone(s.options.DefaultCmd)
+	} else if len(in.Cmd) == 0 || in.Cmd[0] == "" {
+		return p, invalid("command requires an executable")
 	}
 	if err := session.ValidateEnv(p.command.Env); err != nil {
 		return p, invalid("%v", err)

@@ -199,6 +199,15 @@ test("full split creation uses saved configs and keeps the launch subdirectory a
   await expect(page.locator(".split-terminal")).toHaveCount(3);
   const all = await (await request.get("/api/sessions")).json();
   expect(all.every((item: { cwd: string }) => item.cwd === cwd)).toBe(true);
+  const quickShell = all.find(
+    (item: { id: string; configId?: string }) =>
+      item.id !== original.id && item.configId !== config.id,
+  );
+  expect(quickShell).toMatchObject({
+    cwd,
+    cmd: ["/bin/bash", "-l", "-i"],
+    workspace: { repositoryId: repo.id },
+  });
 });
 
 test("split creation retains a new worktree across repository changes after command failure", async ({

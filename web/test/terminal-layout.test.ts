@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import type { SessionInfo } from "../src/contracts/schemas";
 import {
   MAX_PANES,
+  createSplitShellSession,
   layoutGeometry,
   paneIds,
   removePane,
@@ -92,5 +94,80 @@ describe("terminal pane layout", () => {
     invalid.push(JSON.stringify(deep));
     for (const value of invalid)
       expect(restoreLayout(value, "aaaaaaaa")).toEqual(first);
+  });
+});
+
+describe("createSplitShellSession", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const baseSession: SessionInfo = {
+    id: "aaaaaaaa",
+    generation: "0123456789abcdef",
+    title: "Shell",
+    cwd: "/work/project/packages/app",
+    cmd: ["/bin/zsh", "-l", "-i"],
+    status: "running",
+    exitCode: null,
+    preview: "",
+    createdAt: "2026-11-20T00:00:00Z",
+    lastActiveAt: "2026-11-20T00:00:00Z",
+    cols: 80,
+    rows: 24,
+    clients: 1,
+    workspace: {
+      repositoryId: "repo1",
+      worktreeId: "wt1",
+      worktreePath: "/work/project",
+    },
+    attention: null,
+    reportedCwd: null,
+    state: "active",
+    views: ["terminal"],
+    view: "terminal",
+    transition: null,
+    agent: null,
+    listeningPorts: [],
+  };
+
+  it("omits cmd so the server starts its default login shell while preserving cwd and workspace", async () => {
+    const created: SessionInfo = { ...baseSession, id: "bbbbbbbb" };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ session: created, configWarnings: [] }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const session = await createSplitShellSession(baseSession);
+
+    expect(session.id).toBe("bbbbbbbb");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/sessions");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      cwd: "/work/project/packages/app",
+      workspace: { repositoryId: "repo1", worktreeId: "wt1" },
+    });
+  });
+
+  it("omits both cmd and workspace for direct sessions", async () => {
+    const direct: SessionInfo = { ...baseSession, workspace: null };
+    const created: SessionInfo = { ...direct, id: "cccccccc" };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ session: created, configWarnings: [] }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await createSplitShellSession(direct);
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({
+      cwd: "/work/project/packages/app",
+    });
   });
 });
