@@ -415,10 +415,16 @@ func (a *actor) sessions(ctx context.Context, cwd, until string) ([]acp.SessionI
 		}
 		return nil, agentFailure(acp.MethodInitialize, err, sidecar).err
 	}
+	return a.listSessionsOn(ctx, link.conn, sidecar, cwd, until)
+}
+
+// listSessionsOn paginates session/list on an already-initialized ACP
+// connection until session until is seen or probePages pages are read.
+func (a *actor) listSessionsOn(ctx context.Context, conn *acp.Conn, sidecar *session.Sidecar, cwd, until string) ([]acp.SessionInfo, error) {
 	var out []acp.SessionInfo
 	cursor := ""
 	for range probePages {
-		resp, err := link.conn.ListSessions(ctx, acp.ListSessionsRequest{Cwd: cwd, Cursor: cursor})
+		resp, err := conn.ListSessions(ctx, acp.ListSessionsRequest{Cwd: cwd, Cursor: cursor})
 		if err != nil {
 			a.svc.log.Warn("hybrid probe failed", "id", a.id, "method", acp.MethodSessionList, "error", err)
 			return nil, agentFailure(acp.MethodSessionList, err, sidecar).err

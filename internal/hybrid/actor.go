@@ -321,8 +321,11 @@ func (a *actor) watchShell() {
 
 // flush publishes the state and overlay after a change. Leaving the chat
 // side drops its latched attention: the terminal's signals decide there.
+// During session/load history replay, publishing is deferred until
+// finishControlReplay so replaying hundreds of historical updates does not
+// flood /ws/sessions and chat subscribers with intermediate state frames.
 func (a *actor) flush() {
-	if !a.dirty || a.stopped {
+	if !a.dirty || a.stopped || a.control.replay {
 		return
 	}
 	a.dirty = false
