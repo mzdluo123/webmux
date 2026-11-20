@@ -271,3 +271,15 @@
   - 前端单元与端到端测试：`test/terminal-layout.test.ts`（6 项）、Playwright `test/e2e/session-creation.spec.ts` 与 `test/e2e/split-background.spec.ts`（22 项通过，含快速分屏验证 `cmd` 为 `["/bin/bash", "-l", "-i"]`）以及 `test/e2e/splits.spec.ts` 中 `stacked panes` 用例通过。
 - 局限：
   - 本机 `golangci-lint`（以 Go 1.26 编译）低于仓库 `go.mod` 目标版本（Go 1.27.4），`make go-lint` 由 CI 环境复核；本机 `/tmp` 受磁盘配额限制，`cmd/webmux` 依赖 `/tmp` 的子测试与 `splits.spec.ts` 写入 `/tmp` 截图路径的用例由 CI 全量运行覆盖。
+
+## 2026-11-21：单端 PR 跳过另一端 CI 与路径分类收窄（US-L02）
+
+- 故事编号与总数保持不变，同步更新 `US-L02`、[测试规则](../agent-rules/testing.md)、[CI 耗时优化](../ci-performance.md) 与 [CONTRIBUTING.md](../../CONTRIBUTING.md)：
+  - 纯后端（`go=true, web=false`）PR 跳过 `E2E runtime` 与 4 个 Playwright E2E 分片；`Go race` 不再依赖 `E2E runtime`，改为直接构建内嵌前端后独立运行。
+  - 纯前端（`go=false, web=true`）PR 跳过 `make test-install`，保留前端套件与 E2E；`.github/pr-assets/**` 截图证据不再命中 `.github/` 全量兜底。
+  - `go.mod`、`go.sum`、`.golangci.yml`、`install.sh`、`protocol/**` 归入纯后端，`web/` 依赖与配置归入纯前端；跨端契约/夹具（wire 快照、`fakeagent`、`embed-assets.ts`、`sw.js`、`fake-agent-names.txt`）仍同时触发双端。推送到 `main` 继续强制完整套件。
+- 已执行验证：
+  - `bash -n .github/scripts/classify-changes.sh`、`bash -n .github/scripts/test-classify-changes.sh` 与 `bash .github/scripts/test-classify-changes.sh`（覆盖 23 组单路径/组合路径场景）通过。
+  - `.github/workflows/test.yml` YAML 解析、`.github/pr-assets/` 排除过滤回归、`make docs-check`、`make persistence-check`、`go test -count=1 ./internal/archtest -run '^(TestAgents|TestGenericCodeNamesNoAgent)'` 与 `make format-check` 通过。
+- 局限：
+  - 本次修改涉及 `.github/`，PR 自身按安全规则在 GitHub Actions 触发全量运行；单端跳过效果在合入 `main` 后对后续纯前端/纯后端 PR 生效。

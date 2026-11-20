@@ -47,25 +47,38 @@ while IFS= read -r file; do
   [[ -z "$file" ]] && continue
 
   case "$file" in
-    # Tooling, dependencies and anything that changes how the workflow runs.
-    .github/* | Makefile | go.mod | go.sum | go.work | go.work.sum | install.sh | \
-      .nvmrc | .node-version | package.json | pnpm-lock.yaml | pnpm-workspace.yaml | \
-      web/pnpm-lock.yaml | web/package.json | web/pnpm-workspace.yaml | web/.npmrc | \
-      web/vite.config.* | web/playwright.config.* | web/vitest*.config.* | \
-      web/svelte.config.* | web/tsconfig*.json | web/scripts/* | baseline/*)
+    # PR visual evidence assets (screenshots, GIFs, manifests) are not executed
+    # by CI or either stack; keep them out of the `.github/*` tooling catch-all.
+    .github/pr-assets/*)
+      continue
+      ;;
+    # Workflow, shared build tooling and cross-stack environment changes.
+    .github/* | Makefile | .nvmrc | .node-version | \
+      package.json | pnpm-lock.yaml | pnpm-workspace.yaml | baseline/*)
       full_run
       ;;
   esac
 
   case "$file" in
-    # Go sources, fixtures and the packages built into the server. Checked
-    # before Markdown so future `.md` fixtures under internal/ count as Go.
-    *.go | go.mod | go.sum | go.work | go.work.sum | cmd/* | internal/* | deploy/* | */testdata/*)
+    # Cross-stack files whose contract or fixture is asserted by both stacks.
+    internal/api/testdata/wire/* | internal/wire/testdata/* | \
+      internal/acp/testdata/fakeagent/* | \
+      web/scripts/embed-assets.ts | web/public/sw.js | \
+      web/test/e2e/fake-agent-names.txt)
+      docs_only=false
+      go=true
+      web=true
+      ;;
+    # Go sources, module/lint config, installer script and server packages.
+    # Checked before web/* and Markdown so web/embed*.go and .md fixtures under
+    # internal/ count as Go.
+    *.go | go.mod | go.sum | go.work | go.work.sum | .golangci.yml | install.sh | \
+      cmd/* | internal/* | deploy/* | protocol/*)
       docs_only=false
       go=true
       ;;
-    # Everything else under web/ is frontend work, including its Markdown
-    # fixtures; checked before the generic Markdown rule for the same reason.
+    # Frontend sources, dependencies, configs and tests (including Markdown
+    # fixtures under web/); checked before the generic Markdown rule.
     web/*)
       docs_only=false
       web=true
@@ -79,14 +92,6 @@ while IFS= read -r file; do
       ;;
   esac
 done <<< "$changed"
-
-# Go wire fixtures are also inputs to the frontend Zod contract tests.
-case "$changed" in
-  *internal/api/testdata/wire/* | *internal/wire/testdata/*)
-    docs_only=false
-    web=true
-    ;;
-esac
 
 {
   echo "go=$go"

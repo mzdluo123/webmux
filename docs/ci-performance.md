@@ -150,3 +150,9 @@ PR 运行 [41287420287](https://github.com/mzdluo123/webmux/actions/runs/4128742
 
 - 原因：GitHub macOS arm64 runner 容量不足，job 排队约 20 分钟后以“未被 runner 接收”失败；重跑又遇到 runner 上 `git` 段错误，使 `Test result` 失败。
 - 现状：CI 只剩 Ubuntu 与 Windows 安装程序冒烟，`E2E runtime` 只构建 Linux 程序；macOS 构建仍由 Ubuntu 的 `GOOS=darwin go vet` 检查。
+
+2026-11-21：收窄单端 PR 的跨端 CI 范围。
+
+- 纯后端（`go=true, web=false`）PR 跳过 `E2E runtime` 与 4 个 Playwright E2E 分片；`Go race` 不再依赖 `E2E runtime`，直接构建内嵌前端并立即并行启动。
+- 纯前端（`go=false, web=true`）PR 额外跳过 `make test-install`；`.github/pr-assets/**` 截图证据不再命中 `.github/` 全量兜底。
+- `go.mod`、`go.sum`、`.golangci.yml`、`install.sh`、`protocol/**` 归入纯后端，`web/` 依赖与配置归入纯前端；跨端契约/夹具（wire 快照、`fakeagent`、`web/scripts/embed-assets.ts`、`web/public/sw.js`、`web/test/e2e/fake-agent-names.txt`）仍同时触发双端。推送到 `main` 继续强制完整套件。
