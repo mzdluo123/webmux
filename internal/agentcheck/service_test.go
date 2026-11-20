@@ -562,3 +562,73 @@ func TestFlightBudgetExpiryPreservesPartialResults(t *testing.T) {
 		t.Fatalf("hung tool = %+v, want installed with check_failed", rep.Tools[5])
 	}
 }
+
+func TestVersionCacheReusesUnchangedAndTimedOutBinaries(t *testing.T) {
+	binDir := t.TempDir()
+	hitsFile := filepath.Join(t.TempDir(), "hits")
+	fastPath := writeExecutable(t, binDir, "fast-tool", "#!/bin/sh\necho x >> "+hitsFile+"\necho '1.2.3'\n")
+	writeExecutable(t, binDir, "hung-tool", "#!/bin/sh\necho h >> "+hitsFile+"\nsleep 10\n")
+
+	now := time.Date(2026, 11, 20, 16, 0, 0, 0, time.UTC)
+	svc := agentcheck.New(agentcheck.Options{
+		Entries: []agentcatalog.Entry{
+			{ID: "fast", Title: "Fast", Kind: agentcatalog.KindHybrid, Executables: []string{"fast-tool"}},
+			{ID: "hung", Title: "Hung", Kind: agentcatalog.KindHybrid, Executables: []string{"hung-tool"}},
+		},
+		ShellPath:      "/bin/sh",
+		Env:            []string{"PATH=" + binDir + ":/usr/bin:/bin", "SHELL=/bin/sh"},
+		LocalTTL:       30 * time.Second,
+		VersionTimeout: 200 * time.Millisecond,
+		Now:            func() time.Time { return now },
+	})
+
+	// Cold scan probes both binaries once (fast succeeds, hung times out).
+	rep, err := svc.Inspect(context.Background(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Tools[0].InstalledVersion != "1.2.3" || rep.Tools[1].InstalledVersion != "" {
+		t.Fatalf("cold scan = %+v", rep.Tools)
+	}
+	_ = os.Remove(hitsFile)
+
+	// Advance past LocalTTL (30s) but within timeout cache TTL (5m):
+	// neither unchanged fast-tool nor timed-out hung-tool should re-exec --version.
+	now = now.Add(45 * time.Second)
+	start := time.Now()
+	rep2, err := svc.Inspect(context.Background(), false)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep2.Tools[0].InstalledVersion != "1.2.3" || rep2.Tools[1].InstalledVersion != "" {
+		t.Fatalf("warm scan = %+v", rep2.Tools)
+	}
+	if elapsed >= 150*time.Millisecond {
+		t.Fatalf("warm scan took %s; timed-out binary was not cached", elapsed)
+	}
+	if data, err := os.ReadFile(hitsFile); err == nil && len(data) > 0 {
+		t.Fatalf("warm scan unexpectedly re-probed binaries: %q", string(data))
+	}
+
+	// Updating the binary on disk changes its size/mtime and invalidates its entry.
+	writeExecutable(t, binDir, "fast-tool", "#!/bin/sh\necho x >> "+hitsFile+"\necho '2.0.0-updated'\n")
+	now = now.Add(45 * time.Second)
+	rep3, err := svc.Inspect(context.Background(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep3.Tools[0].InstalledVersion != "2.0.0-updated" {
+		t.Fatalf("updated binary version = %q, want 2.0.0-updated", rep3.Tools[0].InstalledVersion)
+	}
+
+	// Explicit refresh=true bypasses version cache and re-probes.
+	_ = os.Remove(hitsFile)
+	if _, err := svc.Inspect(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(hitsFile); err != nil || len(data) == 0 {
+		t.Fatalf("explicit refresh should re-probe binaries")
+	}
+	_ = fastPath
+}
