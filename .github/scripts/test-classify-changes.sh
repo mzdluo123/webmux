@@ -14,10 +14,14 @@ git commit --allow-empty -qm base
 base=$(git rev-parse HEAD)
 
 check() {
-  local name=$1 path=$2 expected=$3
-  mkdir -p "$(dirname "$path")"
-  printf '%s\n' "$name" >> "$path"
-  git add "$path"
+  local name=$1 expected=$2
+  shift 2
+  local path
+  for path in "$@"; do
+    mkdir -p "$(dirname "$path")"
+    printf '%s\n' "$name" >> "$path"
+    git add "$path"
+  done
   git commit -qm "$name"
   local head output
   head=$(git rev-parse HEAD)
@@ -34,11 +38,27 @@ check() {
   git clean -qfd
 }
 
-check docs-only docs/usage.md 'go=false web=false docs_only=true full=false '
-check go-only internal/session/manager.go 'go=true web=false docs_only=false full=false '
-check web-only web/src/platform/api.ts 'go=false web=true docs_only=false full=false '
-check api-wire internal/api/testdata/wire/example.json 'go=true web=true docs_only=false full=false '
-check conversion-wire internal/wire/testdata/response-arrays.json 'go=true web=true docs_only=false full=false '
-check unknown-path quality.toml 'go=true web=true docs_only=false full=true '
-check tooling .github/scripts/classify-changes.sh 'go=true web=true docs_only=false full=true '
+check docs-only 'go=false web=false docs_only=true full=false ' docs/usage.md
+check pr-assets-only 'go=false web=false docs_only=true full=false ' .github/pr-assets/demo/after.png
+check web-with-pr-assets 'go=false web=true docs_only=false full=false ' web/src/App.svelte .github/pr-assets/demo/after.png
+check go-only 'go=true web=false docs_only=false full=false ' internal/session/manager.go
+check go-with-docs 'go=true web=false docs_only=false full=false ' internal/session/manager.go docs/usage.md
+check go-mod 'go=true web=false docs_only=false full=false ' go.mod
+check go-lint-config 'go=true web=false docs_only=false full=false ' .golangci.yml
+check protocol-relay 'go=true web=false docs_only=false full=false ' protocol/relay/access.go
+check install-script 'go=true web=false docs_only=false full=false ' install.sh
+check web-embed-go 'go=true web=false docs_only=false full=false ' web/embed.go
+check web-only 'go=false web=true docs_only=false full=false ' web/src/platform/api.ts
+check web-lockfile 'go=false web=true docs_only=false full=false ' web/pnpm-lock.yaml
+check web-config 'go=false web=true docs_only=false full=false ' web/vitest.config.ts
+check api-wire 'go=true web=true docs_only=false full=false ' internal/api/testdata/wire/example.json
+check conversion-wire 'go=true web=true docs_only=false full=false ' internal/wire/testdata/response-arrays.json
+check fakeagent 'go=true web=true docs_only=false full=false ' internal/acp/testdata/fakeagent/main.go
+check embed-assets-script 'go=true web=true docs_only=false full=false ' web/scripts/embed-assets.ts
+check service-worker 'go=true web=true docs_only=false full=false ' web/public/sw.js
+check fake-agent-names 'go=true web=true docs_only=false full=false ' web/test/e2e/fake-agent-names.txt
+check unknown-path 'go=true web=true docs_only=false full=true ' quality.toml
+check tooling 'go=true web=true docs_only=false full=true ' .github/scripts/classify-changes.sh
+check workflow 'go=true web=true docs_only=false full=true ' .github/workflows/test.yml
+check makefile 'go=true web=true docs_only=false full=true ' Makefile
 echo 'classifier tests passed'

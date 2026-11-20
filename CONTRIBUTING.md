@@ -128,19 +128,17 @@ pnpm --dir web exec playwright test test/e2e/terminal.spec.ts
 E2E 失败时的截图、trace 和日志位于 `web/playwright-report/` 与 `web/test-results/`，可通过 `pnpm --dir web test:e2e:report` 查看。
 
 CI 先由 `Classify changes` job 按变更路径裁剪测试：
-仅文档变更只跑格式、文档、持久化与 agent/web 静态守卫；仅 Go 变更跳过 Vitest、Storybook 与性能，
-仅前端变更跳过 Go race job、Windows 交叉编译与 Windows 安装程序冒烟，E2E 在两类变更下都保留；
-未知路径、`.github/**`、`Makefile`、模块/锁文件与安装脚本变更一律全量运行。
-分类 job 会自行校验 base，`.github/` 变更独立触发全量，并执行 base 版本的分类脚本，
-避免 PR 修改分类器后跳过自身的测试。
+仅文档或 `.github/pr-assets/**` 截图证据变更只跑格式、文档、持久化与 agent/web 静态守卫；
+仅 Go 变更（含 `go.mod`、`go.sum`、`.golangci.yml`、`install.sh`、`protocol/**` 与 `web/embed*.go`）跳过前端 lint/类型/架构、Vitest、Storybook、性能、E2E runtime 与 E2E 分片；
+仅前端变更（含 `web/` 依赖与配置文件）跳过安装脚本检查、`golangci-lint`、Go race、Windows 交叉编译、Windows 安装程序冒烟与 Linux 安装包，保留 Vitest、Storybook、性能与 E2E；
+跨端契约与夹具文件（`internal/api/testdata/wire/**`、`internal/wire/testdata/**`、`internal/acp/testdata/fakeagent/**`、`web/scripts/embed-assets.ts`、`web/public/sw.js`、`web/test/e2e/fake-agent-names.txt`）同时触发双端；
+未知路径、`.github/**`（`.github/pr-assets/**` 除外）、`Makefile`、`.nvmrc` 与 `baseline/**` 变更强制全量运行。
+分类 job 会自行校验 base，对 `.github/pr-assets/` 之外的 `.github/` 变更独立触发全量，并执行 base 版本的分类脚本，避免 PR 修改分类器后跳过自身的测试。
 
-CI 将各套件拆成并行 job：格式检查与前端构建、Go race（含 `GOOS=darwin go vet` 交叉检查）、Vitest、Storybook、性能回归
-以及分四片的 E2E（桌面与手机项目）均在 Ubuntu 上运行。`E2E runtime` job
-按冻结锁文件安装依赖，一次构建前端、Linux E2E 程序并打包 Playwright
-的三个运行包，Go race 与所有 E2E 分片依赖该 job 复用同一产物。
-分片不再各自安装 pnpm、前端依赖或 Go，也不重复构建；`Test result` 汇总全部 job，
-接受被有意跳过的 `skipped`，并按分类结果交叉校验应运行的 job 均为 `success`。
-同一 PR 的新推送会取消仍在运行的旧检查。
+CI 将各套件拆成并行 job：格式检查与静态守卫、Go race（含 `GOOS=darwin go vet` 交叉检查，直接构建内嵌前端、不等待 `E2E runtime`）、Vitest、Storybook、性能回归以及分四片的 E2E（桌面与手机项目）均在 Ubuntu 上运行。
+仅在需要前端测试时，`E2E runtime` job 按冻结锁文件安装依赖，一次构建前端、Linux E2E 程序并打包 Playwright 与 Zod，供所有 E2E 分片复用。
+分片不再各自安装 pnpm、前端依赖或 Go，也不重复构建；`Test result` 汇总全部 job，接受被有意跳过的 `skipped`，并按分类结果交叉校验应运行的 job 均为 `success`。
+同一 PR 的新推送会取消仍在运行的旧检查；推送到 `main` 时始终跑完整全量套件。
 
 速度测量、用例一致性和整体 CI 的验收方法见 [CI 耗时优化](docs/ci-performance.md)。
 
