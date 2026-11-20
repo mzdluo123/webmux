@@ -568,3 +568,68 @@ func TestResumeACPReusesSingleConnectionAndSuppressesReplayFlood(t *testing.T) {
 		t.Fatalf("ACP resume published %d intermediate updated events during replay, want <= 2", got)
 	}
 }
+
+// Normal ACP resume loads the recorded agent session directly without calling
+// session/list, and only falls back to session/list on the same connection
+// when loading fails because the session is gone.
+func TestResumeACPSkipsListSessionsUnlessLoadFails(t *testing.T) {
+	h := newHarness(t, 0)
+	in := h.input(omp.Name, SideACP)
+	id := h.create(in).Info().ID
+	chatTurn(t, h, id, "keep fast path")
+	rec := h.record(id)
+	h.closeSession(id)
+
+	// Fail session/list to prove a healthy ACP resume never calls it.
+	envNoList := make(map[string]string, len(in.Env)+1)
+	for k, v := range in.Env {
+		envNoList[k] = v
+	}
+	envNoList["FAKEAGENT_FAIL"] = "session/list=-32000"
+	h.mustResume(id, ResumeInput{Side: SideACP, Env: envNoList})
+	if users := h.replayedUsers(id); !slices.Contains(users, "keep fast path") {
+		t.Fatalf("replayed users %q", users)
+	}
+
+	// Delete the stored agent session and verify fallback still returns
+	// *SessionMissingError with candidates on a single ACP process.
+	h.closeSession(id)
+	if err := os.Remove(filepath.Join(h.store, "sessions", rec.AgentSessionID+".json")); err != nil {
+		t.Fatal(err)
+	}
+	h.storeSession("cand1", rec.Cwd, "replacement", time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC), "hello")
+	_, err := h.resume(id, ResumeInput{Side: SideACP, Env: in.Env})
+	var missing *SessionMissingError
+	if !errors.As(err, &missing) || len(missing.Candidates) != 1 || missing.Candidates[0].AgentSessionID != "cand1" {
+		t.Fatalf("missing session fallback: err=%v candidates=%+v", err, missing)
+	}
+}
+
+// TUI resume does not block waiting for its read-only probe sidecar to finish
+// graceful shutdown after session/list already returned.
+func TestResumeTUIDoesNotBlockOnProbeShutdown(t *testing.T) {
+	h := newHarness(t, 0)
+	realBin := agentPath(t, omp.Name)
+	wrapper := filepath.Join(t.TempDir(), omp.Name)
+	// When invoked in ACP mode (--mode acp), run fakeagent and then linger
+	// 800ms before exiting so a synchronous Sidecar.Stop would stall Resume.
+	script := "#!/bin/sh\n'" + realBin + "' \"$@\"\ncode=$?\ncase \" $* \" in\n  *\" acp \"*) sleep 0.8 ;;\nesac\nexit $code\n"
+	if err := os.WriteFile(wrapper, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	in := h.input(omp.Name, SideACP)
+	in.Cmd = []string{wrapper}
+	id := h.create(in).Info().ID
+	chatTurn(t, h, id, "fast tui resume")
+	h.closeSession(id)
+
+	start := time.Now()
+	s := h.mustResume(id, ResumeInput{Side: SideTUI, Env: in.Env})
+	elapsed := time.Since(start)
+	if elapsed >= 650*time.Millisecond {
+		t.Fatalf("TUI resume waited %v for probe shutdown, want < 650ms", elapsed)
+	}
+	waitFor(t, "resumed TUI conversation", func() bool {
+		return strings.Contains(string(s.Buffer()), "> fast tui resume")
+	})
+}

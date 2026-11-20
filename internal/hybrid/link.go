@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"time"
 
@@ -213,6 +214,17 @@ func (a *actor) openACPWithRequirement(epoch int, sid, cwd string, resume bool, 
 // openOnLink opens agent session sid in cwd on an already-initialized ACP
 // connection link. On failure it stops link and clears replay mode if entered.
 func (a *actor) openOnLink(link *acpLink, init acp.InitializeResponse, sid, cwd string, resume bool, beforeLoad func() bool, requireResume bool) openResult {
+	return a.openOnLinkMode(link, init, sid, cwd, resume, beforeLoad, requireResume, false)
+}
+
+// openOnLinkOrMissing opens sid on link via session/load and, if loading fails
+// while the connection is still alive, falls back to session/list on the same
+// connection to report a *SessionMissingError with candidates when sid is gone.
+func (a *actor) openOnLinkOrMissing(link *acpLink, init acp.InitializeResponse, sid, cwd string) openResult {
+	return a.openOnLinkMode(link, init, sid, cwd, false, nil, false, true)
+}
+
+func (a *actor) openOnLinkMode(link *acpLink, init acp.InitializeResponse, sid, cwd string, resume bool, beforeLoad func() bool, requireResume, checkMissingOnFail bool) openResult {
 	want := a.reapplyValues()
 	res := openResult{link: link, init: init}
 	ctx := a.lifetime()
@@ -247,10 +259,24 @@ func (a *actor) openOnLink(link *acpLink, init acp.InitializeResponse, sid, cwd 
 		res.config = r.ConfigOptions
 	}
 	if err != nil {
-		f := a.callFailed(link, method, err)
 		if replaying {
 			a.sync(a.finishControlReplay)
 		}
+		if checkMissingOnFail && ctx.Err() == nil && !externalWriter(err) && !errors.Is(err, ErrExternalWriter) {
+			select {
+			case <-link.conn.Done():
+			default:
+				listCtx, cancel := context.WithTimeout(a.probeCtx, probeTimeout)
+				listed, lerr := a.listSessionsOn(listCtx, link.conn, link.sidecar, cwd, sid)
+				cancel()
+				if lerr == nil && !slices.ContainsFunc(listed, func(s acp.SessionInfo) bool { return s.SessionID == sid }) {
+					_ = link.stop()
+					missing := &SessionMissingError{Candidates: candidates(listed)}
+					return openResult{fail: &failure{err: missing, public: missing.Error()}}
+				}
+			}
+		}
+		f := a.callFailed(link, method, err)
 		if externalWriter(err) || errors.Is(err, ErrExternalWriter) {
 			f = &failure{err: ErrExternalWriter, public: ErrExternalWriter.Error()}
 		}
