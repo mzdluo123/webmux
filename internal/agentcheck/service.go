@@ -32,7 +32,7 @@ const (
 	defaultLocalTTL       = 30 * time.Second
 	defaultRemoteTTL      = 30 * time.Minute
 	defaultLookupTimeout  = 5 * time.Second
-	defaultVersionTimeout = 3 * time.Second
+	defaultVersionTimeout = 1500 * time.Millisecond
 )
 
 // ConnectorStatus reports the local installation and upstream update state of
@@ -130,6 +130,7 @@ type Service struct {
 	mu              sync.Mutex
 	localCached     *localSnapshot
 	localFlight     *flight[localSnapshot]
+	versionCache    map[string]cachedBinaryVersion
 	remoteCached    map[agentprofile.UpstreamSource]remoteEntry
 	remoteCheckedAt *time.Time
 	remoteFlight    *flight[struct{}]
@@ -191,6 +192,7 @@ func New(opts Options) *Service {
 		localBudgetOverride:  opts.LocalBudget,
 		remoteBudgetOverride: opts.RemoteBudget,
 		now:                  nowFn,
+		versionCache:         make(map[string]cachedBinaryVersion),
 		remoteCached:         make(map[agentprofile.UpstreamSource]remoteEntry),
 	}
 }
@@ -238,7 +240,7 @@ func (s *Service) getLocalSnapshot(ctx context.Context, refresh bool) (localSnap
 		return localSnapshot{}, err
 	}
 	if refresh {
-		snap, err := s.scanHost(ctx, false)
+		snap, err := s.scanHost(ctx, false, true)
 		if err == nil {
 			s.mu.Lock()
 			s.localCached = &snap
@@ -284,7 +286,7 @@ func (s *Service) finishLocalFlight(parent context.Context, f *flight[localSnaps
 	flightCtx, cancel := context.WithTimeout(context.WithoutCancel(parent), s.localBudget())
 	defer cancel()
 
-	snap, err := s.scanHost(flightCtx, true)
+	snap, err := s.scanHost(flightCtx, true, false)
 
 	s.mu.Lock()
 	if err == nil {

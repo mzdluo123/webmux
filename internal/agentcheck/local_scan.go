@@ -15,11 +15,25 @@ import (
 )
 
 const (
-	lookupOutputLimit  = 64 << 10
-	versionOutputLimit = 4 << 10
-	versionConcurrency = 4
-	startupPathKey     = "__WEBMUX_PATH__"
+	lookupOutputLimit      = 64 << 10
+	versionOutputLimit     = 4 << 10
+	versionConcurrency     = 16
+	versionTimeoutCacheTTL = 5 * time.Minute
+	startupPathKey         = "__WEBMUX_PATH__"
 )
+
+type binaryStat struct {
+	realPath string
+	modNS    int64
+	size     int64
+}
+
+type cachedBinaryVersion struct {
+	stat      binaryStat
+	version   string
+	timedOut  bool
+	checkedAt time.Time
+}
 
 type localSnapshot struct {
 	checkedAt time.Time
@@ -45,7 +59,7 @@ type localConnector struct {
 	belowVerified    bool
 }
 
-func (s *Service) scanHost(ctx context.Context, allowPartialVersions bool) (localSnapshot, error) {
+func (s *Service) scanHost(ctx context.Context, allowPartialVersions, bypassVersionCache bool) (localSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return localSnapshot{}, err
 	}
@@ -59,7 +73,7 @@ func (s *Service) scanHost(ctx context.Context, allowPartialVersions bool) (loca
 	}
 
 	uniquePaths := uniqueResolvedPaths(resolved)
-	versions := s.probeVersions(ctx, probeEnv, uniquePaths)
+	versions := s.probeVersions(ctx, probeEnv, uniquePaths, bypassVersionCache)
 	if err := ctx.Err(); err != nil && !allowPartialVersions {
 		return localSnapshot{}, err
 	}
@@ -227,7 +241,46 @@ func parseStartupLookup(raw []byte, names []string) (map[string]string, string, 
 	return resolved, shellPath, true
 }
 
-func (s *Service) probeVersions(parent context.Context, baseEnv, paths []string) map[string]string {
+func statBinary(absPath string) (binaryStat, bool) {
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return binaryStat{}, false
+	}
+	resolved, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		resolved = absPath
+	}
+	return binaryStat{realPath: resolved, modNS: info.ModTime().UnixNano(), size: info.Size()}, true
+}
+
+func (s *Service) lookupCachedVersion(absPath string, st binaryStat, now time.Time) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rec, ok := s.versionCache[absPath]
+	if !ok || rec.stat != st {
+		return "", false
+	}
+	if rec.timedOut && now.Sub(rec.checkedAt) >= versionTimeoutCacheTTL {
+		return "", false
+	}
+	return rec.version, true
+}
+
+func (s *Service) storeCachedVersion(absPath string, st binaryStat, ver string, timedOut bool, now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.versionCache == nil {
+		s.versionCache = make(map[string]cachedBinaryVersion)
+	}
+	s.versionCache[absPath] = cachedBinaryVersion{
+		stat:      st,
+		version:   ver,
+		timedOut:  timedOut,
+		checkedAt: now,
+	}
+}
+
+func (s *Service) probeVersions(parent context.Context, baseEnv, paths []string, bypassCache bool) map[string]string {
 	results := make(map[string]string, len(paths))
 	if len(paths) == 0 {
 		return results
@@ -236,6 +289,7 @@ func (s *Service) probeVersions(parent context.Context, baseEnv, paths []string)
 	env = append(env, baseEnv...)
 	env = append(env, "CI=1", "NO_COLOR=1")
 
+	now := s.now()
 	sem := make(chan struct{}, versionConcurrency)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -244,8 +298,19 @@ func (s *Service) probeVersions(parent context.Context, baseEnv, paths []string)
 		if parent.Err() != nil {
 			break
 		}
+		st, hasStat := statBinary(absPath)
+		if !bypassCache && hasStat {
+			if cached, ok := s.lookupCachedVersion(absPath, st, now); ok {
+				if cached != "" {
+					mu.Lock()
+					results[absPath] = cached
+					mu.Unlock()
+				}
+				continue
+			}
+		}
 		wg.Add(1)
-		go func(binary string) {
+		go func(binary string, st binaryStat, hasStat bool) {
 			defer wg.Done()
 			select {
 			case sem <- struct{}{}:
@@ -254,19 +319,22 @@ func (s *Service) probeVersions(parent context.Context, baseEnv, paths []string)
 			}
 			defer func() { <-sem }()
 
-			ver := s.readBinaryVersion(parent, env, binary)
+			ver, timedOut, parentAborted := s.readBinaryVersion(parent, env, binary)
+			if hasStat && !parentAborted {
+				s.storeCachedVersion(binary, st, ver, timedOut, s.now())
+			}
 			if ver != "" {
 				mu.Lock()
 				results[binary] = ver
 				mu.Unlock()
 			}
-		}(absPath)
+		}(absPath, st, hasStat)
 	}
 	wg.Wait()
 	return results
 }
 
-func (s *Service) readBinaryVersion(parent context.Context, env []string, binary string) string {
+func (s *Service) readBinaryVersion(parent context.Context, env []string, binary string) (version string, timedOut bool, parentAborted bool) {
 	ctx, cancel := context.WithTimeout(parent, s.versionTimeout)
 	defer cancel()
 
@@ -279,9 +347,12 @@ func (s *Service) readBinaryVersion(parent context.Context, env []string, binary
 	cmd.Stderr = buf
 
 	if err := cmd.Run(); err != nil {
-		return ""
+		if parent.Err() != nil {
+			return "", false, true
+		}
+		return "", ctx.Err() == context.DeadlineExceeded, false
 	}
-	return agentprofile.ExtractVersion(buf.String())
+	return agentprofile.ExtractVersion(buf.String()), false, false
 }
 
 func lookPathInEnv(file string, env []string) string {
