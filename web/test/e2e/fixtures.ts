@@ -303,6 +303,18 @@ export async function backToList(page: Page) {
     .click();
 }
 
+/** Opens the pure session queue on `/` in conversation mode (dismissing the phone drawer if opened). */
+export async function openSessionQueue(page: Page) {
+  const opened = await revealSidebar(page);
+  const scope = page
+    .getByRole("navigation", { name: "导航", exact: true })
+    .getByRole("radiogroup", { name: "会话范围", exact: true });
+  if (await scope.isVisible()) {
+    await scope.getByRole("radio", { name: "全部", exact: true }).click();
+  }
+  if (opened) await page.keyboard.press("Escape");
+}
+
 /** Switches the Workbench grouping and returns whether the drawer was opened. */
 export async function useWorkbenchBranches(page: Page, enabled = true) {
   const opened = await revealSidebar(page);
@@ -418,11 +430,14 @@ export async function createShell(
   cwd?: string,
 ): Promise<string> {
   await page.goto("/");
-  await page
+  const mainNew = page
     .getByRole("main")
     .getByRole("button", { name: "＋ 新建会话", exact: true })
-    .first()
-    .click();
+    .first();
+  const quickStart = page.getByRole("textbox", { name: "任务描述" });
+  await expect(mainNew.or(quickStart).first()).toBeVisible();
+  if (!(await mainNew.isVisible())) await openSessionQueue(page);
+  await mainNew.click();
   await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
   if (cwd) await useDirectory(page, cwd);
   await nameSession(page, name);

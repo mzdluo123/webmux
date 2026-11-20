@@ -1,4 +1,10 @@
-import { createShell, expect, test, backToList } from "./fixtures";
+import {
+  createShell,
+  expect,
+  test,
+  backToList,
+  openSessionQueue,
+} from "./fixtures";
 
 test("the saved dark theme is applied before the application module loads", async ({
   page,
@@ -56,6 +62,7 @@ test("reduced motion disables skeleton and dialog animation", async ({
       ),
     ).toBeLessThanOrEqual(0.001);
     config.resolve();
+    await openSessionQueue(page);
     await page
       .getByRole("main")
       .getByRole("button", { name: "＋ 新建会话", exact: true })

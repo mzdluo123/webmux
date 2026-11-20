@@ -24,12 +24,7 @@ test("a #token= link signs in and leaves no token in the address or history", as
     }),
   );
   await page.goto(`${server.baseURL}/#token=${encodeURIComponent(token)}`);
-  await expect(
-    page
-      .getByRole("main")
-      .getByRole("button", { name: "＋ 新建会话", exact: true })
-      .first(),
-  ).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "任务描述" })).toBeVisible();
   expect(page.url()).toBe(`${server.baseURL}/`);
   expect(await page.evaluate(() => localStorage.getItem("webmux.token"))).toBe(
     token,

@@ -195,11 +195,13 @@
 
   function filterQueue(attention: boolean) {
     shell.repositories?.select("all");
+    workbenchLayout.queueView = "queue";
     workbenchLayout.attentionOnly = attention;
     if (route.name !== "sessions") openPage("/");
   }
   function scope(next: string, worktreeId?: string) {
     workbenchLayout.attentionOnly = false;
+    workbenchLayout.queueView = "queue";
     shell.repositories?.select(next, worktreeId);
     openPage("/");
   }
@@ -213,6 +215,7 @@
     ) {
       shell.repositories.select("all");
       workbenchLayout.attentionOnly = false;
+      workbenchLayout.queueView = "composer";
       shellUi.drawerOpen = false;
       openPage("/");
       shellUi.requestQuickStartFocus("explicit");
@@ -245,7 +248,11 @@
   <SidebarHeader
     oncollapse={collapsible ? () => shellUi.setCollapsed(true) : undefined}
     {onclose}
-    onhome={() => openPage("/")}
+    onhome={() => {
+      workbenchLayout.attentionOnly = false;
+      workbenchLayout.queueView = "composer";
+      openPage("/");
+    }}
     showSessionSwitcher={collapsible}
     controls={navigationId}
     byBranch={!queue}
@@ -261,6 +268,13 @@
         variant="outline"
         size="sm-touch"
         class="min-w-0 flex-1"
+        aria-current={route.name === "sessions" &&
+        queue &&
+        workbenchLayout.queueView === "composer" &&
+        Boolean(chat) &&
+        featureAvailable("workspace.manage")
+          ? "page"
+          : undefined}
         onclick={startNewSession}
       >
         <IconPlus aria-hidden="true" />{m.s1_new_session()}
@@ -333,10 +347,12 @@
             {configIcons}
             {current}
             allCurrent={route.name === "sessions" &&
+              workbenchLayout.queueView === "queue" &&
               !workbenchLayout.attentionOnly &&
               (!shell.repositories?.choice ||
                 shell.repositories.choice === "all")}
             attentionCurrent={route.name === "sessions" &&
+              workbenchLayout.queueView === "queue" &&
               workbenchLayout.attentionOnly}
             onfilter={filterQueue}
             oncreate={(repositoryId) =>

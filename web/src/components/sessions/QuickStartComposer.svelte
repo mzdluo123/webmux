@@ -51,8 +51,6 @@
   import QuickStartInitInstructionBar from "./QuickStartInitInstructionBar.svelte";
   import QuickStartLocationBar from "./QuickStartLocationBar.svelte";
 
-  let { compactHeader = false }: { compactHeader?: boolean } = $props();
-
   let features = $state.raw<QuickStartFeatures>({ errors: [] });
   const shell = getShell();
 
@@ -305,25 +303,25 @@
   {/if}
 {/snippet}
 
-<FileDropZone
-  class="relative"
-  {uploads}
-  blocked={sending}
-  label={m.s1_drop_to_attach_message()}
->
-  <section
-    bind:this={section}
-    aria-label={m.s1_quick_start_heading()}
-    class={[
-      "mx-auto flex w-full max-w-[46rem] flex-col gap-3 sm:gap-4",
-      compactHeader ? "pt-1 pb-6 sm:pt-2 sm:pb-8" : "py-6 sm:py-12",
-    ]}
+<main class="flex min-h-0 flex-1 flex-col overflow-hidden">
+  <!-- Files dropped anywhere below the header become attachments. -->
+  <FileDropZone
+    class="relative flex min-h-0 flex-1 flex-col overflow-y-auto"
+    {uploads}
+    blocked={sending}
+    label={m.s1_drop_to_attach_message()}
   >
-    <div class="flex flex-col items-center gap-1.5 text-center">
-      <h1 class="text-xl font-semibold tracking-tight sm:text-2xl">
-        {m.s1_quick_start_heading()}
-      </h1>
-      {#if !compactHeader}
+    <section
+      bind:this={section}
+      aria-label={m.s1_quick_start_heading()}
+      class="grid w-full flex-1 shrink-0 grid-rows-[minmax(min-content,1fr)_auto_1fr] gap-4 py-4 sm:gap-6"
+    >
+      <div
+        class="flex flex-col items-center justify-end gap-2 px-4 text-center"
+      >
+        <h1 class="text-2xl font-medium tracking-tight">
+          {m.s1_quick_start_heading()}
+        </h1>
         <p class="max-w-md text-sm text-muted-foreground">
           {targetMode === "existing"
             ? chat
@@ -333,163 +331,163 @@
               ? m.s1_quick_start_sub_new_chat()
               : m.s1_quick_start_sub_new_terminal()}
         </p>
-      {/if}
-    </div>
-
-    <div
-      class="flex min-h-0 w-full flex-col gap-1.5 [&>[data-chat-composer]]:shrink-0"
-      data-quick-start-composer
-    >
-      <div
-        class="min-h-0 space-y-1.5 overflow-y-auto overscroll-contain empty:hidden"
-      >
-        {#if sending}
-          <p
-            class="flex items-center gap-1.5 px-1 text-xs text-muted-foreground wrap-anywhere"
-            role="status"
-          >
-            <IconLoader2
-              class="size-3.5 shrink-0 animate-spin motion-reduce:animate-none"
-              aria-hidden="true"
-            />{targetMode === "existing"
-              ? m.s1_starting_agent({ name: agent?.name ?? "" })
-              : m.s1_creating_worktree_starting_agent({
-                  name: agent?.name ?? "",
-                })}
-          </p>
-        {/if}
-        <QuickStartBanners
-          task={text}
-          {missing}
-          {targetMode}
-          {branchError}
-          {repository}
-          {failure}
-          {shell}
-        />
-        {#each features.errors as message (message)}<InlineNotice tone="warning"
-            >{message}</InlineNotice
-          >{/each}
       </div>
 
-      <ComposerCard
-        bind:textarea={input}
-        value={text}
-        oninput={(event) => {
-          text = event.currentTarget.value;
-          persistDraft();
-        }}
-        placeholder={targetMode === "existing"
-          ? m.s1_quick_start_placeholder_existing()
-          : m.s1_quick_start_placeholder_new()}
-        label={m.s1_task_description()}
-        disabled={sending}
-        {uploads}
-        uploadsDisabled={sending}
-        busy={Boolean(
-          text || attachments.length > 0 || uploads.progress || sending,
-        )}
-        action={{
-          kind: "send",
-          label: m.s1_send(),
-          disabled: !canSend,
-          onclick: () => void send(),
-        }}
-        textareaProps={{ onkeydown: keydown }}
+      <footer
+        class="mx-auto flex min-h-0 w-full max-w-[46rem] flex-col gap-1.5 px-3 pb-safe-2 sm:px-4 sm:pb-6 [&>[data-chat-composer]]:shrink-0"
+        data-quick-start-composer
       >
-        {#snippet location({ compact })}
-          <QuickStartLocationBar
-            {compact}
-            {repositories}
+        <div
+          class="min-h-0 space-y-1.5 overflow-y-auto overscroll-contain empty:hidden"
+        >
+          {#if sending}
+            <p
+              class="flex items-center gap-1.5 px-1 text-xs text-muted-foreground wrap-anywhere"
+              role="status"
+            >
+              <IconLoader2
+                class="size-3.5 shrink-0 animate-spin motion-reduce:animate-none"
+                aria-hidden="true"
+              />{targetMode === "existing"
+                ? m.s1_starting_agent({ name: agent?.name ?? "" })
+                : m.s1_creating_worktree_starting_agent({
+                    name: agent?.name ?? "",
+                  })}
+            </p>
+          {/if}
+          <QuickStartBanners
+            task={text}
+            {missing}
+            {targetMode}
+            {branchError}
             {repository}
-            {sending}
-            {targetModeChoice}
-            {worktreeChoice}
-            {baseChoice}
-            {uploadError}
-            bind:targetMode
-            bind:selectedWorktree
-            bind:branchData
-            bind:branchError
-            bind:base
-            onrepositorychange={(id) => {
-              repositoryChoice = id;
-              instructionChoice = undefined;
-              persistDraft();
-            }}
-            ontargetmodechange={(next) => {
-              if (targetModeChoice !== next) {
-                targetModeChoice = next;
-                persistDraft();
-              }
-            }}
-            onselectworktree={(worktreeId) => {
-              targetModeChoice = "existing";
-              worktreeChoice = {
-                repositoryId: repository?.id ?? "",
-                worktreeId,
-              };
-              persistDraft();
-            }}
-            onselectbranch={(name) => {
-              targetModeChoice = "new";
-              baseChoice = { repositoryId: repository?.id ?? "", name };
-              persistDraft();
-            }}
+            {failure}
+            {shell}
           />
-        {/snippet}
-        {#snippet menu({ compact })}
-          {#if repository?.initInstruction}
-            <QuickStartInitInstructionBar
+          {#each features.errors as message (message)}<InlineNotice
+              tone="warning">{message}</InlineNotice
+            >{/each}
+        </div>
+
+        <ComposerCard
+          bind:textarea={input}
+          value={text}
+          oninput={(event) => {
+            text = event.currentTarget.value;
+            persistDraft();
+          }}
+          placeholder={targetMode === "existing"
+            ? m.s1_quick_start_placeholder_existing()
+            : m.s1_quick_start_placeholder_new()}
+          label={m.s1_task_description()}
+          disabled={sending}
+          {uploads}
+          uploadsDisabled={sending}
+          busy={Boolean(
+            text || attachments.length > 0 || uploads.progress || sending,
+          )}
+          action={{
+            kind: "send",
+            label: m.s1_send(),
+            disabled: !canSend,
+            onclick: () => void send(),
+          }}
+          textareaProps={{ onkeydown: keydown }}
+        >
+          {#snippet location({ compact })}
+            <QuickStartLocationBar
               {compact}
+              {repositories}
               {repository}
               {sending}
-              {useInstruction}
-              onchange={(next) => {
-                instructionChoice = repository
-                  ? { repositoryId: repository.id, use: next }
-                  : undefined;
+              {targetModeChoice}
+              {worktreeChoice}
+              {baseChoice}
+              {uploadError}
+              bind:targetMode
+              bind:selectedWorktree
+              bind:branchData
+              bind:branchError
+              bind:base
+              onrepositorychange={(id) => {
+                repositoryChoice = id;
+                instructionChoice = undefined;
+                persistDraft();
+              }}
+              ontargetmodechange={(next) => {
+                if (targetModeChoice !== next) {
+                  targetModeChoice = next;
+                  persistDraft();
+                }
+              }}
+              onselectworktree={(worktreeId) => {
+                targetModeChoice = "existing";
+                worktreeChoice = {
+                  repositoryId: repository?.id ?? "",
+                  worktreeId,
+                };
+                persistDraft();
+              }}
+              onselectbranch={(name) => {
+                targetModeChoice = "new";
+                baseChoice = { repositoryId: repository?.id ?? "", name };
                 persistDraft();
               }}
             />
-          {/if}
-        {/snippet}
-        {#snippet hints()}
-          {#if usesArtifactDir(text)}
-            <p class="px-1 pt-1 text-xs text-muted-foreground">
-              {m.s1_hint_artifact_dir({ token: "{{dir}}" })}
-            </p>
-          {/if}
-          {#if usesWebmuxBrief(text)}
-            <p class="px-1 pt-1 text-xs text-muted-foreground">
-              {m.s1_hint_webmux_brief({ token: "{{webmux}}" })}
-            </p>
-          {/if}
-        {/snippet}
-        {#snippet leading()}
-          <ChatUploadButton {uploads} disabled={sending} />
-          <span class="contents" inert={sending}>
-            {@render agentToolbar(true)}
-          </span>
-        {/snippet}
-        {#snippet accessories({ size, variant })}
-          <QuickStartAccessories
-            {features}
-            voice={featureAvailable("voice.recognize") &&
-              voicePreference.enabled}
-            {sending}
-            {size}
-            {variant}
-            oninsert={(text) => void insertTextAtCursor(text)}
-            onerror={(message) => (uploadError = message)}
-            run={(command) => void insertTextAtCursor(command.command)}
-            onfocus={() => input?.focus()}
-          />
-        {/snippet}
-        {#snippet below()}
-          {@render agentToolbar(false)}
-        {/snippet}
-      </ComposerCard>
-    </div>
-  </section>
-</FileDropZone>
+          {/snippet}
+          {#snippet menu({ compact })}
+            {#if repository?.initInstruction}
+              <QuickStartInitInstructionBar
+                {compact}
+                {repository}
+                {sending}
+                {useInstruction}
+                onchange={(next) => {
+                  instructionChoice = repository
+                    ? { repositoryId: repository.id, use: next }
+                    : undefined;
+                  persistDraft();
+                }}
+              />
+            {/if}
+          {/snippet}
+          {#snippet hints()}
+            {#if usesArtifactDir(text)}
+              <p class="px-1 pt-1 text-xs text-muted-foreground">
+                {m.s1_hint_artifact_dir({ token: "{{dir}}" })}
+              </p>
+            {/if}
+            {#if usesWebmuxBrief(text)}
+              <p class="px-1 pt-1 text-xs text-muted-foreground">
+                {m.s1_hint_webmux_brief({ token: "{{webmux}}" })}
+              </p>
+            {/if}
+          {/snippet}
+          {#snippet leading()}
+            <ChatUploadButton {uploads} disabled={sending} />
+            <span class="contents" inert={sending}>
+              {@render agentToolbar(true)}
+            </span>
+          {/snippet}
+          {#snippet accessories({ size, variant })}
+            <QuickStartAccessories
+              {features}
+              voice={featureAvailable("voice.recognize") &&
+                voicePreference.enabled}
+              {sending}
+              {size}
+              {variant}
+              oninsert={(text) => void insertTextAtCursor(text)}
+              onerror={(message) => (uploadError = message)}
+              run={(command) => void insertTextAtCursor(command.command)}
+              onfocus={() => input?.focus()}
+            />
+          {/snippet}
+          {#snippet below()}
+            {@render agentToolbar(false)}
+          {/snippet}
+        </ComposerCard>
+      </footer>
+    </section>
+  </FileDropZone>
+</main>

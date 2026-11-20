@@ -6,6 +6,7 @@ import {
   expect,
   expectSessionInputSide,
   expectTerminalLine,
+  openSessionQueue,
   revealSidebar,
   selectSessionInputSide,
   test,
@@ -119,6 +120,9 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
     expect(
       Math.abs(card.x + card.width / 2 - (main.x + main.width / 2)),
     ).toBeLessThan(4);
+    expect(
+      Math.abs(card.y + card.height / 2 - (main.y + main.height / 2)),
+    ).toBeLessThan(50);
   }
   await input.fill("修复首页排序");
   await page.getByRole("button", { name: "发送", exact: true }).click();
@@ -175,6 +179,7 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
     .getByRole("button", { name: "停止并归档", exact: true })
     .click();
   await expect(page).toHaveURL(/\/$/);
+  await openSessionQueue(page);
   const archivedRegion = page
     .getByRole("region", { name: /的已归档会话$/ })
     .first();
@@ -209,6 +214,7 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
     await expect(page).toHaveURL(/\/$/);
     await expect(input).toBeVisible();
   }
+  await openSessionQueue(page);
   const archivedRegion2 = page
     .getByRole("region", { name: /的已归档会话$/ })
     .first();

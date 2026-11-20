@@ -312,6 +312,7 @@
     ) {
       repositories.select("all");
       workbenchLayout.attentionOnly = false;
+      workbenchLayout.queueView = "composer";
       openPage("/");
       shellUi.requestQuickStartFocus("explicit");
       return;

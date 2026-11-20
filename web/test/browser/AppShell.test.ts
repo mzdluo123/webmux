@@ -30,6 +30,7 @@ beforeEach(() => {
   resetAttentionToasts();
   workbenchLayout.value = "workspaces";
   workbenchLayout.attentionOnly = false;
+  workbenchLayout.queueView = "queue";
   shellUi.setCollapsed(false);
   history.replaceState(null, "", "/");
   respond(/^GET \/api\/repositories$/, () => Response.json([repository()]));
@@ -42,6 +43,7 @@ afterEach(() => {
   localStorage.removeItem("webmux.workbenchTree");
   workbenchLayout.value = "queue";
   workbenchLayout.attentionOnly = false;
+  workbenchLayout.queueView = "composer";
   localStorage.removeItem("webmux.workbenchLayout");
   resetAttentionToasts();
   history.replaceState(null, "", "/");
@@ -119,7 +121,7 @@ test("the collapsed rail keeps the expand and primary actions, not the mode swit
     .toBeVisible();
 });
 
-test("the sidebar's new-session action opens the dialog in branch mode and focuses quick start in conversation mode", async () => {
+test("the sidebar's new-session action opens the dialog in branch mode and opens the dedicated quick-start canvas in conversation mode", async () => {
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot();
   await sidebar().getByRole("button", { name: "新建会话" }).click();
@@ -129,11 +131,29 @@ test("the sidebar's new-session action opens the dialog in branch mode and focus
   await expect.element(dialog).not.toBeInTheDocument();
 
   await sidebar().getByRole("radio", { name: "按会话" }).click();
+  // Switching to conversation mode from queue view shows the session queue; clicking 新建会话 enters the dedicated quick-start canvas without the queue below it.
+  await expect
+    .element(page.getByRole("searchbox", { name: "搜索会话" }))
+    .toBeVisible();
   await sidebar().getByRole("button", { name: "新建会话" }).click();
   expect(location.pathname).toBe("/");
   await expect
     .element(page.getByRole("textbox", { name: "任务描述" }))
     .toHaveFocus();
+  expect(page.getByRole("searchbox", { name: "搜索会话" }).elements()).toEqual(
+    [],
+  );
+  // Clicking 全部 in the sidebar switches cleanly back to the pure session queue.
+  await sidebar()
+    .getByRole("radiogroup", { name: "会话范围" })
+    .getByRole("radio", { name: "全部", exact: true })
+    .click();
+  await expect
+    .element(page.getByRole("searchbox", { name: "搜索会话" }))
+    .toBeVisible();
+  expect(page.getByRole("textbox", { name: "任务描述" }).elements()).toEqual(
+    [],
+  );
 });
 
 test("opening any session preserves the active workbench grouping", () => {

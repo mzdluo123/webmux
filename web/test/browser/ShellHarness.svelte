@@ -31,6 +31,7 @@
     if (pathname !== "/new") return pathname;
     workbenchLayout.value = "queue";
     workbenchLayout.attentionOnly = false;
+    workbenchLayout.queueView = "composer";
     history.replaceState(null, "", "/");
     shellUi.requestQuickStartFocus("auto");
     return "/";

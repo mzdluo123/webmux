@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { test, expect } from "./fixtures";
+import { test, expect, openSessionQueue } from "./fixtures";
 
 test("workspace UI audit: touch targets, overflow and session discovery", async ({
   page,
@@ -24,6 +24,7 @@ test("workspace UI audit: touch targets, overflow and session discovery", async 
     expect(response.status()).toBe(201);
   }
   await page.goto("/");
+  await openSessionQueue(page);
   await expect(page.locator("[data-session-id]")).toHaveCount(3);
   const measurements = [];
   const directory = process.env.WEBMUX_UI_AUDIT_DIR

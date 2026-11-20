@@ -76,12 +76,7 @@ test("a detected port forwards, opens through authentication, echoes WebSockets 
     .toBeGreaterThan(0);
 
   await page.goto(`${server.baseURL}/#token=${encodeURIComponent(token)}`);
-  await expect(
-    page
-      .getByRole("main")
-      .getByRole("button", { name: "＋ 新建会话", exact: true })
-      .first(),
-  ).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "任务描述" })).toBeVisible();
   await page.goto(`${server.baseURL}/s/${id}`);
   const prompt = page.getByText(new RegExp(`^检测到端口 ${port}（`));
   await expect(prompt).toBeVisible();

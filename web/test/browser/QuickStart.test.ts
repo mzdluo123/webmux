@@ -54,6 +54,7 @@ const branches = {
 beforeEach(() => {
   workbenchLayout.value = "queue";
   workbenchLayout.attentionOnly = false;
+  workbenchLayout.queueView = "composer";
   history.replaceState(null, "", "/new");
   respond(/^GET \/api\/repositories$/, () =>
     Response.json([
@@ -89,6 +90,7 @@ afterEach(() => {
     localStorage.removeItem(`webmux.${key}`);
   workbenchLayout.value = "queue";
   workbenchLayout.attentionOnly = false;
+  workbenchLayout.queueView = "composer";
   history.replaceState(null, "", "/");
 });
 

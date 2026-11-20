@@ -19,6 +19,7 @@ import {
   openSessionSwitcher,
   openSplitPanel,
   openSessionLink,
+  openSessionQueue,
   toggleCode,
   runCommand,
   revealSidebar,
@@ -1815,6 +1816,7 @@ test.describe("hybrid sessions with the fake agent", () => {
         if (layout === "queue") {
           if (await useWorkbenchBranches(page, false))
             await page.keyboard.press("Escape");
+          await openSessionQueue(page);
           const archivedSection = page
             .getByRole("region", { name: /的已归档会话$/ })
             .first();
@@ -1994,6 +1996,7 @@ test.describe("hybrid sessions with the fake agent", () => {
       await route.fulfill({ response, json: records });
     });
     await page.reload();
+    await openSessionQueue(page);
     const feature = page.getByRole("region", {
       name: "会话历史 的已归档会话",
     });
