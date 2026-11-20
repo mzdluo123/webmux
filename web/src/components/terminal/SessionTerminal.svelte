@@ -13,7 +13,6 @@
     type TerminalFeatures,
   } from "../../features/terminal";
   import type { ChatScrollState } from "../../platform/capabilities";
-  import { shellUi } from "../../hooks/shared/shell.svelte";
   import type { QuickCommand, SessionInfo } from "../../contracts/schemas";
   import type CodePanelComponent from "../code/CodePanel.svelte";
   import SessionTerminalDialogs from "./SessionTerminalDialogs.svelte";
@@ -96,7 +95,7 @@
   const availableFeatures = $derived(availableTerminalFeatures(features));
   const chatAvailable = $derived(!!availableFeatures.chat);
   const draft = untrack(() => drafts.get(id));
-  const leave = () => (onleave ? onleave() : navigate(shellUi.home));
+  const leave = () => (onleave ? onleave() : navigate("/"));
   const voiceEnabled = $derived(
     !!features.voice &&
       featureAvailable("voice.recognize") &&

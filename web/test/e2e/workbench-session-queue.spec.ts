@@ -1,6 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
-import { test, expect, revealSidebar, useWorkbenchBranches } from "./fixtures";
+import {
+  test,
+  expect,
+  openSessionQueue,
+  revealSidebar,
+  useWorkbenchBranches,
+} from "./fixtures";
 
 test("the sidebar waits for project and archive data before showing groups", async ({
   page,
@@ -101,6 +107,7 @@ test("the default queue prioritizes explicit attention and keeps a focused sessi
   expect(attention.status()).toBe(200);
 
   await page.goto("/");
+  await openSessionQueue(page);
   const main = page.getByRole("main");
   const issue = main.locator(`[data-session-id="${urgent}"]`);
   const monitor = main.locator(`[data-session-id="${running}"]`);
@@ -282,6 +289,7 @@ test("closing the docked preview returns focus after a running session exits", a
   expect(response.status()).toBe(201);
   const { session } = await response.json();
   await page.goto("/");
+  await openSessionQueue(page);
   const main = page.getByRole("main");
   const row = main.locator(`[data-session-id="${session.id}"]`);
   await expect(row).toHaveAttribute("data-queue-group", "running");

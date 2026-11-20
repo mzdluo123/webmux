@@ -11,7 +11,7 @@ describe("route matching", () => {
   test("keeps terminal routes core and assigns optional deep links locally", () => {
     expect(routeFeature(matchRoute("/"))).toBeUndefined();
     expect(routeFeature(matchRoute("/s/abcdefgh"))).toBeUndefined();
-    expect(routeFeature(matchRoute("/new"))).toBe("chat");
+    expect(routeFeature(matchRoute("/new"))).toBeUndefined();
     expect(routeFeature(matchRoute("/git"))).toBe("workspace");
     expect(routeFeature(matchRoute("/code/abcdefgh"))).toBe("code");
     expect(routeFeature(matchRoute("/settings/tailscale"))).toBe("tailscale");
@@ -54,6 +54,7 @@ describe("route matching", () => {
 
   test("falls back to the session list", () => {
     expect(matchRoute("/")).toEqual({ name: "sessions" });
+    expect(matchRoute("/new")).toEqual({ name: "sessions" });
     expect(matchRoute("/unknown")).toEqual({ name: "sessions" });
   });
 

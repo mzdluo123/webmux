@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { findShell, shellUi } from "../hooks/shared/shell.svelte";
+  import { findShell } from "../hooks/shared/shell.svelte";
   import { onMount, onDestroy, tick, untrack } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import { dockGroup } from "$lib/dock-layout";
@@ -251,7 +251,7 @@
     layout = next;
     if (!next) {
       active = "";
-      navigate(shellUi.home);
+      navigate("/");
       return;
     }
     if (active === sessionId)

@@ -4,6 +4,7 @@ import {
   createShell,
   runCommand,
   expectTerminalLine,
+  openSessionQueue,
   workspaceRefreshButton,
 } from "./fixtures";
 import { devices } from "@playwright/test";
@@ -184,8 +185,10 @@ test("loading and refreshing the home page never rewrites shared pins", async ({
   // Phones show the scope as the top bar title, so wait for the page itself.
   const refresh = workspaceRefreshButton(page);
   await page.goto("/");
+  await openSessionQueue(page);
   await refresh.waitFor();
   await page.reload();
+  await openSessionQueue(page);
   await refresh.waitFor();
   await expect(refresh).toHaveAttribute("aria-busy", "false");
   const refreshed = page.waitForResponse(

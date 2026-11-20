@@ -28,8 +28,9 @@ import {
 installChatFixture();
 beforeEach(() => {
   resetAttentionToasts();
-  shellUi.setMode("workbench");
   workbenchLayout.value = "workspaces";
+  workbenchLayout.attentionOnly = false;
+  workbenchLayout.queueView = "queue";
   shellUi.setCollapsed(false);
   history.replaceState(null, "", "/");
   respond(/^GET \/api\/repositories$/, () => Response.json([repository()]));
@@ -37,11 +38,12 @@ beforeEach(() => {
   respond(/^GET \/api\/sessions$/, () => Response.json([record()]));
 });
 afterEach(() => {
-  localStorage.removeItem("webmux.shellMode");
   localStorage.removeItem("webmux.sidebarCollapsed");
   localStorage.removeItem("webmux.toastNotifications");
   localStorage.removeItem("webmux.workbenchTree");
   workbenchLayout.value = "queue";
+  workbenchLayout.attentionOnly = false;
+  workbenchLayout.queueView = "composer";
   localStorage.removeItem("webmux.workbenchLayout");
   resetAttentionToasts();
   history.replaceState(null, "", "/");
@@ -119,27 +121,55 @@ test("the collapsed rail keeps the expand and primary actions, not the mode swit
     .toBeVisible();
 });
 
-test("the sidebar's new-session action opens quick start", async () => {
+test("the sidebar's new-session action opens the dialog in branch mode and opens the dedicated quick-start canvas in conversation mode", async () => {
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot();
   await sidebar().getByRole("button", { name: "新建会话" }).click();
-  expect(location.pathname).toBe("/new");
+  const dialog = page.getByRole("dialog", { name: "新建会话" });
+  await expect.element(dialog).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(dialog).not.toBeInTheDocument();
+
+  await sidebar().getByRole("radio", { name: "按会话" }).click();
+  // Switching to conversation mode from queue view shows the session queue; clicking 新建会话 enters the dedicated quick-start canvas without the queue below it.
+  await expect
+    .element(page.getByRole("searchbox", { name: "搜索会话" }))
+    .toBeVisible();
+  await sidebar().getByRole("button", { name: "新建会话" }).click();
+  expect(location.pathname).toBe("/");
+  await expect
+    .element(page.getByRole("textbox", { name: "任务描述" }))
+    .toHaveFocus();
+  expect(page.getByRole("searchbox", { name: "搜索会话" }).elements()).toEqual(
+    [],
+  );
+  // Clicking 全部 in the sidebar switches cleanly back to the pure session queue.
+  await sidebar()
+    .getByRole("radiogroup", { name: "会话范围" })
+    .getByRole("radio", { name: "全部", exact: true })
+    .click();
+  await expect
+    .element(page.getByRole("searchbox", { name: "搜索会话" }))
+    .toBeVisible();
+  expect(page.getByRole("textbox", { name: "任务描述" }).elements()).toEqual(
+    [],
+  );
 });
 
-test("opening any session keeps its return context", () => {
-  for (const mode of ["workbench", "chat"] as const) {
-    shellUi.setMode(mode);
+test("opening any session preserves the active workbench grouping", () => {
+  for (const layout of ["workspaces", "queue"] as const) {
+    workbenchLayout.value = layout;
     openSession(session({ id: "shellaaa" }));
-    expect(shellUi.mode).toBe(mode);
+    expect(workbenchLayout.value).toBe(layout);
     expect(location.pathname).toBe("/s/shellaaa");
     openSession(chat({ id: "chataaaa" }));
-    expect(shellUi.mode).toBe(mode);
+    expect(workbenchLayout.value).toBe(layout);
     expect(location.pathname).toBe("/s/chataaaa");
   }
 });
 
 test("session references use the active chat and visibly disable locked drafts", async () => {
-  shellUi.setMode("chat");
+  workbenchLayout.value = "queue";
   history.replaceState(null, "", "/s/anchorzz");
   const drafts = createTerminalDrafts();
   const anchor = drafts.get("anchorzz");
@@ -193,27 +223,26 @@ test("session references use the active chat and visibly disable locked drafts",
 });
 
 test("renaming from the sidebar menu uses the shared dialog", async () => {
-  history.replaceState(null, "", "/new");
+  workbenchLayout.value = "queue";
   respond(/^PATCH \/api\/sessions\/chataaaa$/, () =>
     Response.json(chat({ id: "chataaaa", title: "首页排序" })),
   );
   render(ShellHarness, { drafts: createTerminalDrafts() });
   const socket = await snapshot();
-  const chats = sidebar().getByRole("list", { name: "聊天历史" });
-  await sidebar()
-    .getByRole("button", { name: /已归档/ })
-    .click();
-  const archived = sidebar().getByRole("list", { name: "已归档聊天" });
+  const archived = page.getByRole("region", { name: /的已归档会话$/ });
+  await archived.getByRole("button", { name: /已归档/ }).click();
   // Archived records resume or delete their record; they have no rename.
-  await archived.getByRole("button", { name: "会话操作：整理文档" }).click();
   await expect
-    .element(page.getByRole("menuitem", { name: "删除记录" }))
+    .element(archived.getByRole("button", { name: "恢复", exact: true }))
     .toBeVisible();
-  expect(page.getByRole("menuitem", { name: "修改标题" }).elements()).toEqual(
+  await expect
+    .element(archived.getByRole("button", { name: "删除 整理文档" }))
+    .toBeVisible();
+  expect(archived.getByRole("button", { name: "修改标题" }).elements()).toEqual(
     [],
   );
-  await userEvent.keyboard("{Escape}");
-  await chats.getByRole("button", { name: "会话操作：修复排序" }).click();
+
+  await sidebar().getByRole("button", { name: "会话操作：修复排序" }).click();
   await page.getByRole("menuitem", { name: "修改标题" }).click();
   const dialog = page.getByRole("dialog");
   const field = dialog.getByRole("textbox");
@@ -232,19 +261,18 @@ test("renaming from the sidebar menu uses the shared dialog", async () => {
     session: chat({ id: "chataaaa", title: "首页排序" }),
   } as never);
   await expect
-    .element(chats.getByRole("button", { name: "首页排序（空闲）" }))
+    .element(sidebar().getByRole("button", { name: /^首页排序/ }))
     .toBeVisible();
 });
 
 test("a rejected name stays in the dialog and the row keeps its title", async () => {
-  history.replaceState(null, "", "/new");
+  workbenchLayout.value = "queue";
   respond(/^PATCH \/api\/sessions\/chataaaa$/, () =>
     Response.json({ error: "名称不能包含控制字符" }, { status: 400 }),
   );
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot();
-  const chats = sidebar().getByRole("list", { name: "聊天历史" });
-  await chats.getByRole("button", { name: "会话操作：修复排序" }).click();
+  await sidebar().getByRole("button", { name: "会话操作：修复排序" }).click();
   await page.getByRole("menuitem", { name: "修改标题" }).click();
   await page.getByRole("dialog").getByRole("textbox").fill("坏\u0007名");
   await page.getByRole("dialog").getByRole("button", { name: "保存" }).click();
@@ -252,12 +280,12 @@ test("a rejected name stays in the dialog and the row keeps its title", async ()
     .element(page.getByRole("dialog").getByText("名称不能包含控制字符"))
     .toBeVisible();
   await expect
-    .element(chats.getByRole("button", { name: "修复排序（空闲）" }))
+    .element(sidebar().getByRole("button", { name: /^修复排序/ }))
     .toBeVisible();
 });
 
 test("an archived chat resumes on its chat side, or says why it cannot", async () => {
-  history.replaceState(null, "", "/new");
+  workbenchLayout.value = "queue";
   respond(/^POST \/api\/sessions\/archivea\/resume$/, () =>
     Response.json(
       { error: "工作目录 /repos/webmux 已不存在" },
@@ -266,17 +294,15 @@ test("an archived chat resumes on its chat side, or says why it cannot", async (
   );
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot();
-  await sidebar()
-    .getByRole("button", { name: /已归档/ })
-    .click();
-  const archived = sidebar().getByRole("list", { name: "已归档聊天" });
-  await archived.getByRole("button", { name: "整理文档（已结束）" }).click();
+  const archived = page.getByRole("region", { name: /的已归档会话$/ });
+  await archived.getByRole("button", { name: /已归档/ }).click();
+  await archived.getByRole("button", { name: "恢复", exact: true }).click();
   await expect
-    .element(sidebar().getByRole("alert"))
+    .element(archived.getByRole("alert"))
     .toMatchTextContent(
       /无法恢复“整理文档”：工作目录 \/repos\/webmux 已不存在/,
     );
-  expect(location.pathname).toBe("/new");
+  expect(location.pathname).toBe("/");
   expect(commands().at(-1)).toMatchObject({
     path: "/api/sessions/archivea/resume",
     body: { view: "chat" },
@@ -285,12 +311,18 @@ test("an archived chat resumes on its chat side, or says why it cannot", async (
   respond(/^POST \/api\/sessions\/archivea\/resume$/, () =>
     Response.json(chat({ id: "archivea", title: "整理文档" })),
   );
-  await archived.getByRole("button", { name: "整理文档（已结束）" }).click();
-  await expect.poll(() => location.pathname).toBe("/s/archivea");
+  await archived.getByRole("button", { name: "恢复", exact: true }).click();
+  await expect
+    .poll(
+      () =>
+        commands().filter((c) => c.path === "/api/sessions/archivea/resume")
+          .length,
+    )
+    .toBe(2);
 });
 
-test("the sidebar menu archives a live chat and deletes an archived record", async () => {
-  history.replaceState(null, "", "/new");
+test("the sidebar menu archives a live chat and the timeline deletes an archived record", async () => {
+  workbenchLayout.value = "queue";
   respond(
     /^DELETE \/api\/sessions\/chataaaa$/,
     () => new Response(null, { status: 204 }),
@@ -301,8 +333,7 @@ test("the sidebar menu archives a live chat and deletes an archived record", asy
   );
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot();
-  const chats = sidebar().getByRole("list", { name: "聊天历史" });
-  await chats.getByRole("button", { name: "会话操作：修复排序" }).click();
+  await sidebar().getByRole("button", { name: "会话操作：修复排序" }).click();
   await page.getByRole("menuitem", { name: "停止会话并归档" }).click();
   await page
     .getByRole("alertdialog")
@@ -316,12 +347,9 @@ test("the sidebar menu archives a live chat and deletes an archived record", asy
     )
     .toBe(true);
 
-  await sidebar()
-    .getByRole("button", { name: /已归档/ })
-    .click();
-  const archived = sidebar().getByRole("list", { name: "已归档聊天" });
-  await archived.getByRole("button", { name: "会话操作：整理文档" }).click();
-  await page.getByRole("menuitem", { name: "删除记录" }).click();
+  const archived = page.getByRole("region", { name: /的已归档会话$/ });
+  await archived.getByRole("button", { name: /已归档/ }).click();
+  await archived.getByRole("button", { name: "删除 整理文档" }).click();
   await page
     .getByRole("alertdialog")
     .getByRole("button", { name: "确认" })
@@ -385,21 +413,18 @@ function serveLinkedWorktreeChat() {
   );
 }
 async function openLinkedChatArchive() {
+  workbenchLayout.value = "queue";
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot();
-  await sidebar()
-    .getByRole("button", { name: /已归档/ })
-    .click();
-  const archived = sidebar().getByRole("list", { name: "已归档聊天" });
-  await archived.getByRole("button", { name: "会话操作：分支聊天" }).click();
+  const archived = page.getByRole("region", { name: /的已归档会话$/ });
+  await archived.getByRole("button", { name: /已归档/ }).click();
   return archived;
 }
 
 test("deleting an archived record leaves its linked worktree in place", async () => {
-  history.replaceState(null, "", "/new");
   serveLinkedWorktreeChat();
-  await openLinkedChatArchive();
-  await page.getByRole("menuitem", { name: "删除记录" }).click();
+  const archived = await openLinkedChatArchive();
+  await archived.getByRole("button", { name: "删除 分支聊天" }).click();
   const dialog = page.getByRole("alertdialog");
   await expect
     .element(dialog)
@@ -425,9 +450,9 @@ test("deleting an archived record leaves its linked worktree in place", async ()
 });
 
 test("deleting an archived record and its linked worktree removes both", async () => {
-  history.replaceState(null, "", "/new");
   serveLinkedWorktreeChat();
-  await openLinkedChatArchive();
+  const archived = await openLinkedChatArchive();
+  await archived.getByRole("button", { name: "更多操作 分支聊天" }).click();
   await page.getByRole("menuitem", { name: "删除记录和工作树" }).click();
   const dialog = page.getByRole("dialog", { name: "删除 worktree" });
   await expect.element(dialog).toBeVisible();
@@ -489,8 +514,8 @@ const releasedChat = record({
   },
 });
 
-test("the sidebar releases an archived chat's worktree after a preview and marks the record", async () => {
-  history.replaceState(null, "", "/new");
+test("the archived timeline releases a chat's worktree after a preview and marks the record", async () => {
+  workbenchLayout.value = "queue";
   respond(/^GET \/api\/repositories$/, () =>
     Response.json([repository({ worktrees: [worktree(), branchTree] })]),
   );
@@ -524,11 +549,9 @@ test("the sidebar releases an archived chat's worktree after a preview and marks
   });
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot();
-  await sidebar()
-    .getByRole("button", { name: /已归档/ })
-    .click();
-  const archived = sidebar().getByRole("list", { name: "已归档聊天" });
-  await archived.getByRole("button", { name: "会话操作：分支聊天" }).click();
+  const archived = page.getByRole("region", { name: /的已归档会话$/ });
+  await archived.getByRole("button", { name: /已归档/ }).click();
+  await archived.getByRole("button", { name: "更多操作 分支聊天" }).click();
   await page.getByRole("menuitem", { name: "释放空间" }).click();
   const dialog = page.getByRole("dialog", { name: "释放空间" });
   // Deleted ignored files are warned about, not listed.
@@ -541,37 +564,19 @@ test("the sidebar releases an archived chat's worktree after a preview and marks
     .toMatchTextContent(/尚未推送到任何远程.*请先推送/);
   // An unpushed commit warns, never blocks.
   await dialog.getByRole("button", { name: "释放空间" }).click();
-  await expect
-    .element(
-      archived.getByRole("button", { name: "分支聊天（已释放空间，已结束）" }),
-    )
-    .toBeVisible();
+  await expect.element(archived.getByText(/已释放空间/)).toBeVisible();
   expect(commands().at(-1)).toMatchObject({
     path: "/api/repositories/repo1/worktrees/wt1/release",
     body: { confirmationId: "conf1234" },
   });
-  const releasedRow = archived.getByRole("button", {
-    name: "分支聊天（已释放空间，已结束）",
-  });
-  expect(releasedRow.element().textContent).not.toContain("已释放空间");
+  // Released, the record offers no second release menu.
   expect(
-    releasedRow
-      .element()
-      .querySelector("[data-status]")
-      ?.getAttribute("data-status"),
-  ).toBe("released");
-  // Released, the record offers no second release.
-  await archived.getByRole("button", { name: "会话操作：分支聊天" }).click();
-  await expect
-    .element(page.getByRole("menuitem", { name: "删除记录" }))
-    .toBeVisible();
-  expect(page.getByRole("menuitem", { name: "释放空间" }).elements()).toEqual(
-    [],
-  );
+    archived.getByRole("button", { name: "更多操作 分支聊天" }).elements(),
+  ).toEqual([]);
 });
 
 test("a released archived chat rebuilds its worktree after confirmation before resuming", async () => {
-  history.replaceState(null, "", "/new");
+  workbenchLayout.value = "queue";
   respond(/^GET \/api\/sessions$/, () => Response.json([releasedChat]));
   respond(/^POST \/api\/hybrid-sessions\/archivew\/rebuild-preview$/, () =>
     Response.json({
@@ -592,15 +597,12 @@ test("a released archived chat rebuilds its worktree after confirmation before r
   );
   render(ShellHarness, { drafts: createTerminalDrafts() });
   await snapshot();
-  await sidebar()
-    .getByRole("button", { name: /已归档/ })
-    .click();
-  const row = sidebar()
-    .getByRole("list", { name: "已归档聊天" })
-    .getByRole("button", { name: "分支聊天（已释放空间，已结束）" });
+  const archived = page.getByRole("region", { name: /的已归档会话$/ });
+  await archived.getByRole("button", { name: /已归档/ }).click();
+  const resumeBtn = archived.getByRole("button", { name: "恢复", exact: true });
 
   // Cancelling leaves the record released and resumes nothing.
-  await row.click();
+  await resumeBtn.click();
   const dialog = page.getByRole("dialog", { name: "重建工作树后恢复" });
   await expect
     .element(dialog)
@@ -611,11 +613,15 @@ test("a released archived chat rebuilds its worktree after confirmation before r
   expect(released().map((c) => c.path)).toEqual([
     "/api/hybrid-sessions/archivew/rebuild-preview",
   ]);
-  expect(location.pathname).toBe("/new");
+  expect(location.pathname).toBe("/");
 
-  await row.click();
+  await resumeBtn.click();
   await dialog.getByRole("button", { name: "重建并恢复" }).click();
-  await expect.poll(() => location.pathname).toBe("/s/archivew");
+  await expect
+    .poll(() =>
+      released().some((c) => c.path === "/api/sessions/archivew/resume"),
+    )
+    .toBe(true);
   expect(released().slice(-2)).toMatchObject([
     {
       path: "/api/hybrid-sessions/archivew/rebuild",
@@ -626,7 +632,7 @@ test("a released archived chat rebuilds its worktree after confirmation before r
 });
 
 test("the workbench tree lists a released record under 已不可用工作区 and rebuilds it on click", async () => {
-  shellUi.setMode("workbench");
+  workbenchLayout.value = "workspaces";
   history.replaceState(null, "", "/s/otherabc");
   respond(/^GET \/api\/repositories$/, () =>
     Response.json([repository({ worktrees: [worktree()] })]),

@@ -1,41 +1,8 @@
 <script lang="ts">
-  import { openStartedSession } from "../hooks/sessions/open-started-session";
-  import { onMount, tick } from "svelte";
-  import { m } from "$lib/paraglide/messages.js";
+  import { tick } from "svelte";
   import IconLoader2 from "~icons/tabler/loader-2";
-  import { stored, uploadQuickStartFile } from "../platform/api";
-  import {
-    setBrowserChrome,
-    resetBrowserChrome,
-  } from "../platform/browser-chrome";
-  import type { ConfigValue } from "../platform/chat-api";
-  import ChatUploadButton from "../components/chat/ChatUploadButton.svelte";
-  import ComposerCard from "../components/chat/ComposerCard.svelte";
-  import QuickStartAgentToolbar from "../components/sessions/QuickStartAgentToolbar.svelte";
-  import QuickStartBanners from "../components/sessions/QuickStartBanners.svelte";
-  import QuickStartInitInstructionBar from "../components/sessions/QuickStartInitInstructionBar.svelte";
-  import QuickStartLocationBar from "../components/sessions/QuickStartLocationBar.svelte";
-  import { voicePreference } from "../hooks/shared/voice-preference.svelte";
-  import FileDropZone from "../components/shared/FileDropZone.svelte";
-  import SessionSwitcherTrigger from "../components/shell/SessionSwitcherTrigger.svelte";
-  import SidebarButton from "../components/shell/SidebarButton.svelte";
-  import { useChatUpload } from "../hooks/shared/upload.svelte";
-  import { useViewport } from "../hooks/shared/viewport.svelte";
-  import {
-    executeQuickStart,
-    pickDefault,
-    quickStartMemory,
-    saveQuickStartDraftFromPage,
-    type QuickStartBranches,
-    type QuickStartTargetMode,
-  } from "../hooks/sessions/quick-start";
-  import {
-    usesArtifactDir,
-    usesWebmuxBrief,
-  } from "../domains/settings/quick-commands";
-  import { visibleLaunchConfigs } from "../domains/settings/launch-configs";
-  import { insertAtSelection } from "../lib/text-insertion";
-  import { useQuickStartAgentOptions } from "../hooks/sessions/quick-start-agent-options.svelte";
+  import { m } from "$lib/paraglide/messages.js";
+  import { InlineNotice } from "$lib/components/ui/inline-notice";
   import type {
     ChatAttachment,
     ChatPermissionMode as PermissionMode,
@@ -43,20 +10,47 @@
     Repository,
     SessionView,
     Worktree,
-  } from "../contracts/schemas";
-  import { getShell } from "../hooks/shared/shell.svelte";
-  import { enterSendIntent } from "../hooks/shared/enter-send";
-  import { allowAutomaticInputFocus } from "../hooks/shared/input-focus";
+  } from "../../contracts/schemas";
+  import { visibleLaunchConfigs } from "../../domains/settings/launch-configs";
+  import {
+    usesArtifactDir,
+    usesWebmuxBrief,
+  } from "../../domains/settings/quick-commands";
   import {
     loadQuickStartFeatures,
     type QuickStartFeatures,
-  } from "../features/quick-start";
-  import { InlineNotice } from "$lib/components/ui/inline-notice";
-  import QuickStartAccessories from "../components/sessions/QuickStartAccessories.svelte";
+  } from "../../features/quick-start";
+  import { openStartedSession } from "../../hooks/sessions/open-started-session";
+  import {
+    executeQuickStart,
+    pickDefault,
+    quickStartMemory,
+    saveQuickStartDraftFromPage,
+    type QuickStartBranches,
+    type QuickStartTargetMode,
+  } from "../../hooks/sessions/quick-start";
+  import { useQuickStartAgentOptions } from "../../hooks/sessions/quick-start-agent-options.svelte";
+  import { enterSendIntent } from "../../hooks/shared/enter-send";
+  import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
+  import { getShell, shellUi } from "../../hooks/shared/shell.svelte";
+  import { useChatUpload } from "../../hooks/shared/upload.svelte";
+  import { voicePreference } from "../../hooks/shared/voice-preference.svelte";
+  import { insertAtSelection } from "../../lib/text-insertion";
+  import { stored, uploadQuickStartFile } from "../../platform/api";
+  import type { ConfigValue } from "../../platform/chat-api";
   import {
     featureAvailable,
     featureCapabilityRevision,
-  } from "../platform/feature-host.svelte";
+  } from "../../platform/feature-host.svelte";
+  import ChatUploadButton from "../chat/ChatUploadButton.svelte";
+  import ComposerCard from "../chat/ComposerCard.svelte";
+  import FileDropZone from "../shared/FileDropZone.svelte";
+  import QuickStartAccessories from "./QuickStartAccessories.svelte";
+  import QuickStartAgentToolbar from "./QuickStartAgentToolbar.svelte";
+  import QuickStartBanners from "./QuickStartBanners.svelte";
+  import QuickStartInitInstructionBar from "./QuickStartInitInstructionBar.svelte";
+  import QuickStartLocationBar from "./QuickStartLocationBar.svelte";
+
   let features = $state.raw<QuickStartFeatures>({ errors: [] });
   const shell = getShell();
 
@@ -197,15 +191,24 @@
       text.trim() !== "",
   );
 
+  let section = $state<HTMLElement | null>(null);
   let input = $state<HTMLTextAreaElement | null>(null);
-  const viewport = useViewport();
+
   $effect(() => {
-    setBrowserChrome(m.s1_chrome_new_chat(), false);
+    const reason = shellUi.quickStartFocusReason;
+    if (!reason) return;
+    shellUi.consumeQuickStartFocus();
+    if (
+      reason === "auto" &&
+      !(allowAutomaticInputFocus() && window.innerWidth >= 640)
+    )
+      return;
+    void tick().then(() => {
+      section?.scrollIntoView({ block: "nearest" });
+      input?.focus();
+    });
   });
-  onMount(() => {
-    if (allowAutomaticInputFocus() && window.innerWidth >= 640) input?.focus();
-    return resetBrowserChrome;
-  });
+
   $effect(() => {
     featureCapabilityRevision();
     let disposed = false;
@@ -216,6 +219,7 @@
       disposed = true;
     };
   });
+
   async function send() {
     if (!canSend || !repository || !agent) return;
     if (targetMode === "new" && !branchData) return;
@@ -248,6 +252,7 @@
       void shell.repositories?.refresh();
     }
   }
+
   async function insertTextAtCursor(snippet: string) {
     const result = insertAtSelection(
       text,
@@ -261,6 +266,7 @@
     input?.focus();
     input?.setSelectionRange(result.caret, result.caret);
   }
+
   function keydown(event: KeyboardEvent) {
     if (!enterSendIntent(event)) return;
     event.preventDefault();
@@ -297,18 +303,7 @@
   {/if}
 {/snippet}
 
-<main
-  class="flex h-(--viewport-height) flex-col overflow-hidden"
-  style:--viewport-height={`${viewport.height}px`}
->
-  <header
-    class="app-header flex min-h-(--app-header-height) shrink-0 items-center gap-1 border-b bg-card px-1 sm:hidden"
-  >
-    <SidebarButton />
-    <h1 class="flex-1 text-sm font-medium">{m.s1_new_session()}</h1>
-    <SessionSwitcherTrigger size="icon-touch" />
-  </header>
-
+<main class="flex min-h-0 flex-1 flex-col overflow-hidden">
   <!-- Files dropped anywhere below the header become attachments. -->
   <FileDropZone
     class="relative flex min-h-0 flex-1 flex-col overflow-y-auto"
@@ -317,12 +312,16 @@
     label={m.s1_drop_to_attach_message()}
   >
     <section
+      bind:this={section}
+      aria-label={m.s1_quick_start_heading()}
       class="grid w-full flex-1 shrink-0 grid-rows-[minmax(min-content,1fr)_auto_1fr] gap-4 py-4 sm:gap-6"
     >
       <div
         class="flex flex-col items-center justify-end gap-2 px-4 text-center"
       >
-        <h2 class="text-2xl font-medium">{m.s1_quick_start_heading()}</h2>
+        <h1 class="text-2xl font-medium tracking-tight">
+          {m.s1_quick_start_heading()}
+        </h1>
         <p class="max-w-md text-sm text-muted-foreground">
           {targetMode === "existing"
             ? chat

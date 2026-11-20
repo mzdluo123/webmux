@@ -62,6 +62,9 @@ export async function loadCreateSettingsContributions(): Promise<
       creation.LaunchStartSideFields = (
         await import("../components/sessions/LaunchStartSideFields.svelte")
       ).default;
+      creation.QuickStartComposer = (
+        await import("../components/sessions/QuickStartComposer.svelte")
+      ).default;
     }),
     load("notifications", async () => {
       if (featureEnabled("launch"))

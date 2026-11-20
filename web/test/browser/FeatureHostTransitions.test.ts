@@ -93,7 +93,6 @@ beforeEach(() => {
   p2pReady = false;
   discoveryReads = 0;
   history.replaceState(null, "", "/");
-  shellUi.setMode("workbench");
   shellUi.setCollapsed(false);
   clearHomeCache();
   root = document.createElement("div");

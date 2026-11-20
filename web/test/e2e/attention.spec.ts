@@ -283,7 +283,7 @@ test("raises a top-right toast by default while browsing and navigates to the se
     if (new URL(socket.url()).pathname !== "/ws/sessions") return;
     socket.on("framereceived", ({ payload }) => frames.push(String(payload)));
   });
-  await page.goto("/new");
+  await page.goto("/");
   const created = await request.post("/api/sessions", {
     data: {
       cwd: workDir,
@@ -336,7 +336,7 @@ test("shows a script's notify message in the toast and clears it on request", as
     if (new URL(socket.url()).pathname !== "/ws/sessions") return;
     socket.on("framereceived", ({ payload }) => frames.push(String(payload)));
   });
-  await page.goto("/new");
+  await page.goto("/");
   await expect
     .poll(() => frames.some((frame) => frame.includes(`"${id}"`)))
     .toBe(true);

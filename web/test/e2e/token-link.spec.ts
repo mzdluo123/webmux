@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { workspaceRefreshButton } from "./fixtures";
+import { useWorkbenchBranches, workspaceRefreshButton } from "./fixtures";
 import { startE2EServer, type E2EServer } from "./server.mjs";
 
 const token = "e2e a&b#c";
@@ -24,12 +24,7 @@ test("a #token= link signs in and leaves no token in the address or history", as
     }),
   );
   await page.goto(`${server.baseURL}/#token=${encodeURIComponent(token)}`);
-  await expect(
-    page
-      .getByRole("main")
-      .getByRole("button", { name: "＋ 新建会话", exact: true })
-      .first(),
-  ).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "任务描述" })).toBeVisible();
   expect(page.url()).toBe(`${server.baseURL}/`);
   expect(await page.evaluate(() => localStorage.getItem("webmux.token"))).toBe(
     token,
@@ -70,6 +65,7 @@ test("a mid-session 401 clears workspace state and allows signing in again", asy
   page,
 }) => {
   await page.goto(`${server.baseURL}/#token=${encodeURIComponent(token)}`);
+  if (await useWorkbenchBranches(page)) await page.keyboard.press("Escape");
   await expect(page.getByRole("searchbox", { name: "搜索会话" })).toBeVisible();
   await page.getByRole("searchbox", { name: "搜索会话" }).fill("discard me");
   await page.route("**/api/repositories", async (route) => {

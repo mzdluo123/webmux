@@ -31,6 +31,8 @@
   } from "../../hooks/shared/shell.svelte";
   import { dragWidth, keyWidth } from "../../hooks/shared/splitter";
   import { provideSidebarProjectAvatars } from "../../hooks/shared/sidebar-project-avatars";
+  import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
   import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
   import type { RelayReconnection } from "../../platform/relay-auth.svelte";
   import CoreShellDialogs from "./CoreShellDialogs.svelte";
@@ -57,7 +59,7 @@
   }: {
     route: Extract<
       Route,
-      { name: "sessions" | "quick-start" | "terminal" | "handoff" | "git" }
+      { name: "sessions" | "terminal" | "handoff" | "git" }
     >;
     drafts: TerminalDrafts;
     reconnection?: RelayReconnection;
@@ -300,17 +302,23 @@
     }
   }
 
-  // Explicit quick-start pages retain a return path for sessions launched there.
-  $effect(() => {
-    if (route.name === "sessions" && shellUi.mode !== "workbench") {
-      shellUi.setMode("workbench");
-      void repositories?.refresh();
-    } else if (
-      (route.name === "quick-start" || route.name === "handoff") &&
-      shellUi.mode !== "chat"
-    )
-      shellUi.setMode("chat");
-  });
+  function startFromRail() {
+    if (
+      contributions.chat &&
+      workspace &&
+      workbenchLayout.value === "queue" &&
+      featureAvailable("workspace.manage") &&
+      repositories
+    ) {
+      repositories.select("all");
+      workbenchLayout.attentionOnly = false;
+      workbenchLayout.queueView = "composer";
+      openPage("/");
+      shellUi.requestQuickStartFocus("explicit");
+      return;
+    }
+    shell.start();
+  }
   // Dragging or arrow keys on the sidebar's edge set its width.
   const setWidth = (width: number) => shellUi.setWidth(width);
   function resizeStart(event: PointerEvent) {
@@ -349,9 +357,7 @@
       size="icon-touch"
       aria-label={m.s1_new_session()}
       title={m.s1_new_session()}
-      aria-current={route.name === "quick-start" ? "page" : undefined}
-      onclick={() => (contributions.chat ? openPage("/new") : shell.start())}
-      ><IconPlus aria-hidden="true" /></Button
+      onclick={startFromRail}><IconPlus aria-hidden="true" /></Button
     >
 
     <SessionSwitcherTrigger size="icon-touch" />
