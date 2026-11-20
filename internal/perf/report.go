@@ -199,9 +199,10 @@ func Summarize(dir string, since time.Duration, top int) (Report, error) {
 				})
 			case ev.Source == "frontend":
 				if ev.Kind == "memory" {
-					if ev.Op == "js_heap_mb" {
+					switch ev.Op {
+					case "js_heap_mb":
 						rep.PeakJSHeapMB = max(rep.PeakJSHeapMB, ev.Value)
-					} else if ev.Op == "dom_nodes" {
+					case "dom_nodes":
 						rep.PeakDOMNodes = max(rep.PeakDOMNodes, int(ev.Value))
 					}
 					continue
