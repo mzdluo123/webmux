@@ -2668,3 +2668,66 @@ test.each(["permission", "form"] as const)(
     }
   },
 );
+
+test("long conversations unmount off-screen message bodies while keeping anchors and turn jumps working", async () => {
+  await page.viewport(1280, 900);
+  try {
+    const socket = await open();
+    socket.frame(snapshot(chatState()));
+    socket.frame({
+      type: "events",
+      generation: "g1",
+      items: events(
+        ...Array.from({ length: 120 }, (_, index) => [
+          {
+            kind: "message.append" as const,
+            message: {
+              messageId: `virt-u${index}`,
+              role: "user" as const,
+              text: `第 ${index + 1} 轮提问`,
+            },
+          },
+          {
+            kind: "message.append" as const,
+            message: {
+              messageId: `virt-a${index}`,
+              role: "agent" as const,
+              text: `## 回复 ${index + 1}\n\n${"详细内容段落。".repeat(30)}\n\n\`\`\`ts\nexport const n${index} = ${index};\n\`\`\``,
+            },
+          },
+        ]).flat(),
+      ),
+    });
+
+    const transcript = page.getByRole("list", { name: "对话" });
+    await expect
+      .poll(
+        () =>
+          transcript.element().querySelectorAll('[data-message-id^="virt-"]')
+            .length,
+      )
+      .toBe(240);
+    // Latest messages stay mounted while distant historical bodies are unmounted.
+    await expect.element(transcript.getByText(/第 120 轮提问/)).toBeVisible();
+    await expect
+      .poll(
+        () => transcript.element().querySelectorAll(".markdown-preview").length,
+      )
+      .toBeLessThan(60);
+
+    // Jumping to turn 1 reveals and mounts the earliest message cleanly.
+    const nav = page.getByRole("navigation", { name: "对话轮次" });
+    await nav.getByRole("button").first().click();
+    const dialog = page.getByRole("dialog");
+    await expect.element(dialog).toBeVisible();
+    await dialog
+      .getByRole("button", { name: "第 1 轮 · 你：第 1 轮提问", exact: true })
+      .click();
+    await expect.element(transcript.getByText(/第 1 轮提问/)).toBeVisible();
+    await expect
+      .element(transcript.getByRole("heading", { name: "回复 1", exact: true }))
+      .toBeVisible();
+  } finally {
+    await page.viewport(1024, 900);
+  }
+});

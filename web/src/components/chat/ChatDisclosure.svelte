@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick, type Snippet } from "svelte";
+  import { tick, type Snippet } from "svelte";
   import { animate } from "motion/mini";
   import IconChevronRight from "~icons/tabler/chevron-right";
   import * as Collapsible from "$lib/components/ui/collapsible";
@@ -36,18 +36,23 @@
     if (!changed) return;
     const height = node.getBoundingClientRect().height;
     settle();
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (reduced.matches) return;
     revealing = true;
     const current = revision;
     void tick().then(() => {
       if (revision !== current || !node.isConnected) return;
       node.style.overflow = "clip";
+      window.addEventListener("resize", settle);
+      reduced.addEventListener("change", settle);
       const animation = animate(
         node,
         { height: [`${height}px`, `${expanded ? node.scrollHeight : 0}px`] },
         { duration: 0.25, ease: [0.22, 1, 0.36, 1] },
       );
       cleanup = () => {
+        window.removeEventListener("resize", settle);
+        reduced.removeEventListener("change", settle);
         animation.cancel();
         node.style.removeProperty("height");
         node.style.removeProperty("overflow");
@@ -58,16 +63,7 @@
     });
   });
 
-  onMount(() => {
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    window.addEventListener("resize", settle);
-    reduced.addEventListener("change", settle);
-    return () => {
-      settle();
-      window.removeEventListener("resize", settle);
-      reduced.removeEventListener("change", settle);
-    };
-  });
+  $effect(() => () => settle());
 </script>
 
 <Collapsible.Root bind:open class="min-w-0">

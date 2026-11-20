@@ -4,6 +4,10 @@
   import { Button } from "$lib/components/ui/button";
   import type { DisplayEntry } from "../../domains/chat/chat-model";
   import type { ChatCodeLink } from "../../domains/code/markdown-link";
+  import {
+    createTranscriptWindow,
+    entryKey,
+  } from "../../hooks/chat/transcript-window.svelte";
   import TimelineItem from "./TimelineItem.svelte";
 
   let {
@@ -12,6 +16,8 @@
     entries,
     turnIds,
     documentScroll,
+    scroller = null,
+    following = true,
     preview,
     waiting,
     onreview,
@@ -23,12 +29,28 @@
     entries: readonly DisplayEntry[];
     turnIds: ReadonlySet<string>;
     documentScroll: boolean;
+    scroller?: HTMLElement | null;
+    following?: boolean;
     preview: (path: string) => string | undefined;
     waiting: readonly string[];
     onreview?: (path: string) => void;
     onopenlocation?: (target: ChatCodeLink) => void;
     onjump: (id: string) => boolean;
   } = $props();
+
+  const transcriptWindow = createTranscriptWindow({
+    entries: () => entries,
+    scroller: () => scroller,
+    documentScroll: () => documentScroll,
+    following: () => following,
+  });
+
+  export function reveal(messageId: string) {
+    transcriptWindow.reveal(messageId);
+  }
+  export function clearReveal() {
+    transcriptWindow.clearReveal();
+  }
 
   function requestedMessage() {
     const query = new URLSearchParams(window.location.search);
@@ -71,9 +93,24 @@
 />
 
 <ol class="flex flex-col gap-2.5" aria-label={m.s3_transcript_label()}>
-  {#each entries as entry (`${entry.type}:${entry.id}`)}
+  {#each entries as entry, index (entryKey(entry))}
+    {@const key = entryKey(entry)}
+    {@const mounted = transcriptWindow.isMounted(
+      entry,
+      index,
+      selectedMessage,
+      targetMessage,
+    )}
     <li
-      class={documentScroll ? "min-w-0 scroll-mt-16" : "min-w-0 scroll-mt-4"}
+      use:transcriptWindow.observeRow={key}
+      class={[
+        "min-w-0 [contain:layout_style]",
+        documentScroll ? "scroll-mt-16" : "scroll-mt-4",
+        !mounted && "min-h-(--transcript-placeholder-height)",
+      ]}
+      style:--transcript-placeholder-height={mounted
+        ? undefined
+        : `${transcriptWindow.placeholderHeight(entry, key)}px`}
       class:rounded-md={entry.type === "message" &&
         selectedMessage === entry.id}
       class:bg-muted={entry.type === "message" && selectedMessage === entry.id}
@@ -88,21 +125,23 @@
         ? entry.id
         : undefined}
     >
-      <TimelineItem
-        {entry}
-        {sessionId}
-        {preview}
-        {waiting}
-        {onreview}
-        {onopenlocation}
-      />
-      {#if entry.type === "message" && selectedMessage === entry.id}
-        <Button
-          variant="ghost"
-          size="xs"
-          onclick={() => (selectedMessage = null)}
-          >{m.s3_clear_message_highlight()}</Button
-        >
+      {#if mounted}
+        <TimelineItem
+          {entry}
+          {sessionId}
+          {preview}
+          {waiting}
+          {onreview}
+          {onopenlocation}
+        />
+        {#if entry.type === "message" && selectedMessage === entry.id}
+          <Button
+            variant="ghost"
+            size="xs"
+            onclick={() => (selectedMessage = null)}
+            >{m.s3_clear_message_highlight()}</Button
+          >
+        {/if}
       {/if}
     </li>
   {/each}
