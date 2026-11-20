@@ -259,3 +259,15 @@
 - `pnpm --dir web check`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`pnpm --dir web exec vp fmt --check src` 与 `make docs-check` 通过。
 - Playwright 运行 `session-pane-files.spec.ts` 和 `splits.spec.ts`，22 项通过，8 项按项目条件跳过。
 - 在有界面的 Chromium 隔离实例中核对七种视口的浅色与深色主题，验证细线位置、页面横向溢出、鼠标悬停、键盘切换、长文件名截断和标签栏横向滚动。桌面、平板和手机各采集浅色与深色前后截图。触屏使用 Chromium 模拟。
+
+## 2026-11-20：分屏快速新建 Shell 采用服务端默认登录 Shell（US-D13、US-B01）
+
+- 故事编号与总数（265）保持不变，同步更新 `US-D13`、[创建会话 API](../protocol/http-session-create.md) 与[终端使用](../usage/terminal.md)：
+  - `POST /api/sessions` 省略 `cmd` 与 `configId` 时，由服务端 `sessioncreate` 启动注入的默认登录 Shell（`assemble.DefaultShellCmd(os.Getenv("SHELL"))`，即 `[$SHELL, "-l", "-i"]`，未设置 `$SHELL` 时回退 `["/bin/sh", "-l", "-i"]`）；显式传入 `cmd: []` 或 `cmd: [""]` 仍在预检返回 400。
+  - 前端 `createSplitShellSession` 移除硬编码 `cmd: ["/bin/sh", "-i"]`，仅传递 `cwd` 与可选 `workspace`。
+- 已执行验证：
+  - Go `-race` 测试：`go test -race -count=1 ./cmd/internal/assemble ./internal/sessioncreate ./internal/api ./internal/mcpcontrol ./internal/archtest ./internal/docguard` 通过。
+  - 静态与格式门禁：`make format-check`、`make docs-check`、`make persistence-check`、`pnpm --dir web build`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`（49 项）、`go vet ./...` 与 `GOOS=darwin go vet ./...` 通过。
+  - 前端单元与端到端测试：`test/terminal-layout.test.ts`（6 项）、Playwright `test/e2e/session-creation.spec.ts` 与 `test/e2e/split-background.spec.ts`（22 项通过，含快速分屏验证 `cmd` 为 `["/bin/bash", "-l", "-i"]`）以及 `test/e2e/splits.spec.ts` 中 `stacked panes` 用例通过。
+- 局限：
+  - 本机 `golangci-lint`（以 Go 1.26 编译）低于仓库 `go.mod` 目标版本（Go 1.27.4），`make go-lint` 由 CI 环境复核；本机 `/tmp` 受磁盘配额限制，`cmd/webmux` 依赖 `/tmp` 的子测试与 `splits.spec.ts` 写入 `/tmp` 截图路径的用例由 CI 全量运行覆盖。

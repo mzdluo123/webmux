@@ -8,13 +8,15 @@ Web 端的新建会话对话框、快速开始页与 `webmux run` 都调用它�
 
 创建成功时，实际提交初始聊天提示才返回可选 `initialInput`（沿用会话输入回执，含 turnId/promptId 或排队项）；空白提示和空初始化指令不返回该字段。
 
-**功能前提**：显式 `cmd`/`env` + `cwd` 的普通 PTY 创建属于核心，不需要 launch/workspace/files。
+**功能前提**：显式 `cmd`/`env`（或省略以启动服务端默认 Shell）+ `cwd` 的普通 PTY 创建属于核心，不需要 launch/workspace/files。
 `configId` 需要 `launch`；`workspace` / `newWorktree` / 仓库初始化指令需要 `workspace`；附件需要 `files`；聊天视图需要 `chat`（依赖 `launch` + `files`）；快捷指令展开需要 `quick-commands`。
 未提供对应贡献时不猜测命令或位置，也不隐式启用功能；先读取 [能力发现](../protocol.md#能力发现)。旧浏览器记住的 `configId` 不能回退为任意默认命令。
 
 ## 请求体
 
 ```jsonc
+// 服务端默认登录 Shell（省略 cmd 与 configId）
+{ "cwd": "/home/u/proj" }
 // 显式自定义命令
 { "cwd": "/home/u/proj", "cmd": ["bash", "-lc", "make dev"], "name": "可选" }
 // 已保存的启动配置
@@ -54,9 +56,10 @@ Web 端的新建会话对话框、快速开始页与 `webmux run` 都调用它�
   - 新聊天页以 `mode: "new"`、`latestUpstream: true` 创建分支，自动采用已获取的远程上游提交；无上游时使用本地基线，获取失败时返回错误。
   - 默认流程在创建前检查分支上游；409 `reason: "worktree_upstream_confirmation"` 的 `worktreeUpstream` 给出确认信息，确认后在 `newWorktree.upstreamChoice` 传回选择，详见[工作树上游确认](http-workspace.md#创建前的上游确认)。
 
-**命令**二选一：
+**命令**三选一：
 
-- `cmd`（加可选 `env`）：完整 argv，不经 shell 展开，首项非空；不接收 `preset` 或单独的预设 `args`。
+- 省略 `cmd` 与 `configId`：启动服务端默认登录 Shell（`[$SHELL, "-l", "-i"]`，未设置 `$SHELL` 时回退 `["/bin/sh", "-l", "-i"]`）；可附加可选 `env`。
+- `cmd`（加可选 `env`）：完整 argv，不经 shell 展开，首项非空（显式传入 `cmd: []` 或 `cmd: [""]` 仍在预检返回 400）；不接收 `preset` 或单独的预设 `args`。
 - `configId`：按已保存配置的完整 argv 与环境变量启动。
   - `cmd` 须为空数组或省略，`env` 须省略或为 `{}`，否则 400。
   - 空字符串 `configId` 400，未知 ID 404，启动配置存储不可用 503。这些检查都在目录与 Git 操作之前完成。

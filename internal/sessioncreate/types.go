@@ -129,6 +129,9 @@ type Chat interface {
 }
 type Options struct {
 	DefaultCwd string
+	// DefaultCmd is the login shell argv started when a request omits both
+	// ConfigID and Cmd. Empty falls back to ["/bin/sh", "-l", "-i"].
+	DefaultCmd []string
 	Commands   Commands
 	Locations  Locations
 	Files      Files

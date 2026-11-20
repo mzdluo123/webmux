@@ -44,8 +44,8 @@ import (
 // open is called only after the selection is validated. Constructors remain
 // explicit here: neither services nor the HTTP host look up another feature.
 func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Manager, preferences *settings.Service, public *transport.PublicOrigins, address net.Addr, guide *agentguide.Instance, localAPI func() *localRuntime, bridge *transport.Bridge, out io.Writer) error {
+	shell := os.Getenv("SHELL")
 	if c.Features.Has("launch") {
-		shell := os.Getenv("SHELL")
 		p.launch = launch.Open(c.StateDir, p.agents)
 		if err := p.launch.Unavailable(); err != nil {
 			slog.Warn("launch configs unavailable", "error", err)
@@ -148,7 +148,7 @@ func (p *featureServices) open(ctx context.Context, c serverRun, m *session.Mana
 		p.recovery = hybridresume.New(p.chat, p.launch, resumeOptions)
 		p.handoff = handoff.New(handoffOptions)
 	}
-	createOptions := sessioncreate.Options{DefaultCwd: c.DefaultCwd, Brief: func(id, dir string) string {
+	createOptions := sessioncreate.Options{DefaultCwd: c.DefaultCwd, DefaultCmd: assemble.DefaultShellCmd(shell), Brief: func(id, dir string) string {
 		return guide.Brief(agentguide.BriefInput{SessionID: id, Dir: dir})
 	}}
 	if p.launch != nil {

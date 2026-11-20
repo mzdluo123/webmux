@@ -121,3 +121,21 @@ func TestPresetsFollowDefaultShell(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultShellCmd(t *testing.T) {
+	tests := []struct {
+		shell string
+		want  []string
+	}{
+		{"/bin/bash", []string{"/bin/bash", "-l", "-i"}},
+		{"/bin/zsh", []string{"/bin/zsh", "-l", "-i"}},
+		{"/usr/bin/fish", []string{"/usr/bin/fish", "-l", "-i"}},
+		{"", []string{"/bin/sh", "-l", "-i"}},
+		{"   ", []string{"/bin/sh", "-l", "-i"}},
+	}
+	for _, tt := range tests {
+		if got := DefaultShellCmd(tt.shell); !slices.Equal(got, tt.want) {
+			t.Errorf("DefaultShellCmd(%q) = %q, want %q", tt.shell, got, tt.want)
+		}
+	}
+}
