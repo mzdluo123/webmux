@@ -45,7 +45,11 @@
     class="min-w-0 max-w-full"
     {title}
   >
-    <IconChevronDown data-icon="inline-start" aria-hidden="true" />
+    <IconChevronDown
+      class="text-muted-foreground transition-colors group-hover/button:text-foreground"
+      data-icon="inline-start"
+      aria-hidden="true"
+    />
     <span class="min-w-0 max-w-48 truncate">{title}</span>
   </Button>
 {/snippet}

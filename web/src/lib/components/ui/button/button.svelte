@@ -16,8 +16,8 @@
     base: "wm-control focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 rounded-md border border-transparent bg-clip-padding text-sm font-medium focus-visible:ring-2 aria-invalid:ring-1 active:not-aria-[haspopup]:not-aria-disabled:translate-y-px [&_svg:not([class*='size-'])]:size-4 group/button inline-flex shrink-0 items-center justify-center whitespace-nowrap transition-colors outline-none select-none disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
-        outline: `border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 ${active}`,
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        outline: `border-border bg-background hover:bg-muted hover:text-foreground dark:bg-card/60 dark:border-border dark:hover:bg-muted dark:hover:border-input ${active}`,
         ghost: `hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 ${active}`,
         // The group draws the moving selection line for these buttons.
         mode: "text-muted-foreground hover:bg-muted hover:text-foreground aria-pressed:text-foreground dark:hover:bg-muted/50",

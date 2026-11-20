@@ -153,9 +153,11 @@
 }
 .status-running {
   background: var(--success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 20%, transparent);
 }
 .status-waiting {
   background: var(--warning);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 22%, transparent);
 }
 .status-idle {
   background: var(--muted-foreground);
@@ -165,6 +167,7 @@
 }
 .status-failed {
   background: var(--destructive);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--destructive) 22%, transparent);
 }
 .workspace-page {
   background: var(--background);

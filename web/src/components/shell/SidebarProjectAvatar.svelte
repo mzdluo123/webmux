@@ -24,7 +24,7 @@
 </script>
 
 <span
-  class="relative grid size-6 shrink-0 place-items-center overflow-hidden rounded-md bg-muted text-xs font-semibold text-muted-foreground"
+  class="relative grid size-6 shrink-0 place-items-center overflow-hidden rounded-md bg-muted text-xs font-semibold tracking-tight text-muted-foreground ring-1 ring-inset ring-foreground/10"
   aria-hidden="true"
 >
   {#if !repositoryId}

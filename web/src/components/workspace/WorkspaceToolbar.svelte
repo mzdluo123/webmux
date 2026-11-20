@@ -50,7 +50,7 @@
   );
 </script>
 
-<div class="mb-6 space-y-3 border-b pb-4 sm:mb-8 sm:space-y-4">
+<div class="mb-6 space-y-3 sm:mb-7 sm:space-y-4">
   <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
     <p role="status" class="sr-only">
       {#if loading}{m.s8_toolbar_loading()}
@@ -64,7 +64,7 @@
     <div class="min-w-[min(100%,10rem)] flex-1 sm:mr-3">
       <div class="flex min-w-0 items-center gap-1.5">
         <h1
-          class="text-lg leading-tight font-semibold tracking-tight wrap-anywhere sm:text-3xl"
+          class="text-xl leading-tight font-semibold tracking-tight wrap-anywhere sm:text-2xl"
         >
           {resolvedTitle}
         </h1>
