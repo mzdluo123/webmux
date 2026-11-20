@@ -1,99 +1,34 @@
 import type {
-  ChatAttachment,
   ChatContent,
   ChatEvent,
   ChatFrame,
   ChatOption,
   ChatRequest,
-  StopReason,
   ToolStatus,
 } from "../../contracts/schemas";
-import { diffStats, summarizeTurnDiff, type TurnDiffState } from "./chat-diff";
+import { diffStats, summarizeTurnDiff } from "./chat-diff";
+import { mergePrependedModel } from "./chat-backfill";
+import type {
+  ChatModel,
+  DisplayEntry,
+  TimelineEntry,
+  ToolEntry,
+  WorkEntry,
+  WorkStep,
+} from "./chat-types";
 
-export { diffStats };
+export {
+  diffStats,
+  type ChatModel,
+  type DisplayEntry,
+  type TimelineEntry,
+  type ToolEntry,
+  type WorkStep,
+};
 
 // Pure reducer from the chat channel's frames to the timeline the chat view
 // renders. Non-timeline state (plan, config, queue, requests...) arrives as
 // whole `state` objects and is not tracked here.
-
-type MessageEntry = {
-  type: "message";
-  id: string;
-  role: "user" | "agent" | "thought";
-  text: string;
-  truncated: boolean;
-  attachments?: ChatAttachment[];
-};
-export type ToolEntry = {
-  type: "tool";
-  id: string;
-  kind: string;
-  title: string;
-  status: ToolStatus;
-  content: ChatContent[];
-  locations: { path: string; line?: number }[];
-  /** Owning live turn; late patches keep it until an explicit tool restart. */
-  diffTurnId?: string;
-  /** Created by a patch whose opening event fell out of the cached log. */
-  partial: boolean;
-  /**
-   * Outcome of the permission request attached to this call, if answered;
-   * the chosen option's name and kind when the request was seen.
-   */
-  permission?: {
-    outcome: string;
-    optionId?: string;
-    name?: string;
-    kind?: ChatOption["kind"];
-  };
-};
-export type TimelineEntry =
-  | MessageEntry
-  | ToolEntry
-  | {
-      type: "compaction";
-      id: string;
-      status: "running" | "completed" | "failed";
-      summary: string;
-    }
-  | {
-      type: "notice";
-      id: string;
-      level: "info" | "warning" | "error";
-      text: string;
-    }
-  | {
-      type: "turnEnd";
-      id: string;
-      stopReason: StopReason;
-      error?: string;
-      changes?: readonly ChatContent[];
-    }
-  | {
-      type: "marker";
-      id: string;
-      kind: "loaded" | "switched" | "truncated" | "reconnected";
-      view?: string;
-    };
-
-export type ChatModel = {
-  generation: string;
-  /** Sequence expected next; events below it were already applied. */
-  next: number;
-  /** Older events were dropped by the server's byte limit. */
-  truncated: boolean;
-  title?: string;
-  entries: TimelineEntry[];
-  /** Entry position by "type:id", for upserts. */
-  index: ReadonlyMap<string, number>;
-  /** Diff-bearing tools from the current turn, ordered by latest content update. */
-  turnDiff?: TurnDiffState;
-  /** Tool call and options of each permission request on a tool call. */
-  requestTools: ReadonlyMap<
-    string,
-    { toolCallId: string; options: readonly ChatOption[] }
-  >;
-};
 
 export function emptyChat(): ChatModel {
   return {
@@ -111,7 +46,7 @@ export function emptyChat(): ChatModel {
  * after which the server resends events.
  */
 export function resumePoint(model: ChatModel) {
-  return model.generation
+  return model.generation && !model.backfillPending
     ? { generation: model.generation, seq: Math.max(0, model.next - 1) }
     : undefined;
 }
@@ -132,8 +67,26 @@ export function applyFrame(model: ChatModel, frame: ChatFrame): ChatModel {
       if (frame.generation && frame.generation !== model.generation)
         return model;
       const items = frame.items;
-      if (!items?.length) return model;
-      return applyEventsBatch(model, items);
+      const more = !!frame.more;
+      const next = items?.length ? applyEventsBatch(model, items) : model;
+      if (!more) return next;
+      return next.backfillPending ? next : { ...next, backfillPending: true };
+    }
+    case "backfill": {
+      if (frame.generation && frame.generation !== model.generation)
+        return model;
+      const more = !!frame.more;
+      const items = frame.items;
+      if (!items?.length) {
+        return !!model.backfillPending === more
+          ? model
+          : { ...model, backfillPending: more };
+      }
+      const earlier = applyEventsBatch(
+        { ...emptyChat(), generation: model.generation },
+        items,
+      );
+      return mergePrependedModel(earlier, model, more);
     }
     case "state":
       return model;
@@ -431,15 +384,6 @@ function trackRequestInto(draft: BatchDraft, request: ChatRequest) {
     options: request.options ?? [],
   });
 }
-
-export type WorkStep = ToolEntry | (MessageEntry & { role: "thought" });
-type WorkEntry = {
-  type: "work";
-  id: string;
-  steps: WorkStep[];
-  calls: ToolEntry[];
-};
-export type DisplayEntry = TimelineEntry | WorkEntry;
 
 const isWorkStep = (entry: TimelineEntry): entry is WorkStep =>
   entry.type === "tool" ||

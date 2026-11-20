@@ -33,6 +33,25 @@ func ChatEvents(generation string, events []hybrid.Event) contract.ChatFrame {
 	return f
 }
 
+// ChatTailEvents is an initial tail events frame; More is true when earlier
+// cached events will follow in backfill frames.
+func ChatTailEvents(generation string, events []hybrid.Event, more bool) contract.ChatFrame {
+	f := ChatEvents(generation, events)
+	f.More = more
+	return f
+}
+
+// ChatBackfill is a backfill frame carrying an earlier slice of the cached log
+// to prepend before already-delivered events; More is true while older slices
+// remain.
+func ChatBackfill(generation string, events []hybrid.Event, more bool) contract.ChatFrame {
+	f := contract.ChatFrame{Type: contract.ChatFrameBackfill, Generation: generation, Items: each(events, ChatEvent), More: more}
+	if len(events) > 0 {
+		f.From = events[0].Seq
+	}
+	return f
+}
+
 // ChatFrame converts one live frame: events, or the whole state.
 func ChatFrame(f hybrid.Frame) contract.ChatFrame {
 	if f.State != nil {
