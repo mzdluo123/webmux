@@ -153,8 +153,9 @@ test("shortcut preserves Shell input and restores focus when dismissed", async (
   if (!project.use.isMobile)
     await expect(
       page
-        .locator(".session-toolbar")
-        .getByRole("button", { name: "快速切换会话", exact: true }),
+        .getByRole("button", { name: "快速切换会话", exact: true })
+        .filter({ visible: true })
+        .first(),
     ).toHaveAttribute("aria-keyshortcuts", keys);
   await terminal.press("Control+k");
   await expect.poll(() => readFile(recording, "utf8")).toBe("\x0b");

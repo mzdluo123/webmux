@@ -354,9 +354,7 @@
       ><IconPlus aria-hidden="true" /></Button
     >
 
-    {#if route.name === "sessions" && workspace}
-      <SessionSwitcherTrigger size="icon-touch" />
-    {/if}
+    <SessionSwitcherTrigger size="icon-touch" />
     <SidebarRailSessions
       sessions={sessions.sessions.filter(
         (item) => item.state === "active" && item.status !== "exited",

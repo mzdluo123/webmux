@@ -144,7 +144,11 @@ test("inspecting a terminal panel does not change its hybrid input view or disca
         exact: true,
       }),
     ).toHaveText("会话");
-    await pane.locator(".dock-title-space").dblclick();
+    await (
+      await openDockCommands(pane)
+    )
+      .getByRole("menuitem", { name: /^最大化/ })
+      .click();
     await (
       await openDockCommands(pane)
     )

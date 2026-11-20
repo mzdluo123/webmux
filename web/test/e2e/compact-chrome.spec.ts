@@ -86,6 +86,10 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
   });
   const label = title.getByText("demo-agent", { exact: true });
   const toolbar = page.locator(".session-toolbar");
+  const switcher = toolbar.getByRole("button", {
+    name: "快速切换会话",
+    exact: true,
+  });
   const panels = toolbar.getByRole("button", { name: "打开面板", exact: true });
   const files = toolbar.getByRole("button", { name: /^文件树 · / });
   const display = toolbar.getByRole("button", { name: "显示", exact: true });
@@ -93,7 +97,7 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
   for (const width of [393, 320]) {
     await page.setViewportSize({ width, height: 851 });
     await expectOneRow(toolbar.locator("header"));
-    for (const button of [files, panels, display]) {
+    for (const button of [switcher, files, panels, display]) {
       await expect(button).toBeVisible();
       expect(await button.boundingBox()).toMatchObject({
         width: 44,
@@ -163,7 +167,7 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
     .click();
   await expect(
     page.getByRole("menuitem", { name: "快速切换会话", exact: true }),
-  ).toBeVisible();
+  ).toHaveCount(0);
   // Draft mode left the phone header for the soft keys and this menu.
   await expect(
     page.getByRole("menuitem", { name: "全屏", exact: true }),
@@ -249,10 +253,19 @@ test("desktop terminal commands live in the workspace bar and code stays on sing
   await expect(page.locator("[data-dock-panel] .terminal-header")).toHaveCount(
     0,
   );
-  for (const name of ["全屏", "打开面板", "快速切换会话", "窗格"])
+  await expect(page.locator("[data-dock-panel] > .dock-title")).toHaveCount(0);
+  for (const name of ["全屏", "打开面板", "窗格"])
     await expect(
       toolbar.getByRole("button", { name, exact: true }),
     ).toBeVisible();
+  await expect(
+    toolbar.getByRole("button", { name: "快速切换会话", exact: true }),
+  ).toBeHidden();
+  await expect(
+    page
+      .getByRole("button", { name: "快速切换会话", exact: true })
+      .filter({ visible: true }),
+  ).toHaveCount(1);
   for (const name of ["Wide layout", "快捷指令"])
     await expect(
       commands.getByRole("button", { name, exact: true }),

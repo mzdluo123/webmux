@@ -286,9 +286,8 @@
   <SidebarHeader
     oncollapse={collapsible ? () => shellUi.setCollapsed(true) : undefined}
     {onclose}
-    showSessionSwitcher={collapsible &&
-      route.name === "sessions" &&
-      !!workspace}
+    onhome={() => openPage("/")}
+    showSessionSwitcher={collapsible}
     controls={navigationId}
     byBranch={!queue}
     onGroupingChange={workspace

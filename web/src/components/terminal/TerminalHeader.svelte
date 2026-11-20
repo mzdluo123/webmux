@@ -4,6 +4,7 @@
   import { findShell } from "../../hooks/shared/shell.svelte";
   import { type Snippet } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
+  import IconDots from "~icons/tabler/dots";
   import IconSearch from "~icons/tabler/search";
   import IconChevronDown from "~icons/tabler/chevron-down";
   import {
@@ -117,25 +118,27 @@
       {@render sessionTitle()}
     </TerminalPaneStatus>
   {:else}
-    <div class="flex min-w-0 flex-1 items-center gap-2">
-      <div class="flex min-w-0 flex-col">
-        {@render sessionTitle()}
+    <TerminalPaneStatus terminal={t}>
+      <div class="flex min-w-0 items-center gap-2">
+        <div class="flex min-w-0 flex-col">
+          {@render sessionTitle()}
+        </div>
+        {#if features.chat && chatAgent}
+          <span
+            class="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground md:inline-flex"
+            role="img"
+            aria-label={m.s4_agent_label({ title: chatAgent.title })}
+            title={m.s4_agent_label({ title: chatAgent.title })}
+            data-slot="chat-agent"
+          >
+            {#if features.chat.hasLaunchIcon(chatAgent.icon)}
+              <features.chat.LaunchIcon icon={chatAgent.icon} size="sm" />
+            {/if}
+            <span>{chatAgent.title}</span>
+          </span>
+        {/if}
       </div>
-      {#if features.chat && chatAgent}
-        <span
-          class="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground md:inline-flex"
-          role="img"
-          aria-label={m.s4_agent_label({ title: chatAgent.title })}
-          title={m.s4_agent_label({ title: chatAgent.title })}
-          data-slot="chat-agent"
-        >
-          {#if features.chat.hasLaunchIcon(chatAgent.icon)}
-            <features.chat.LaunchIcon icon={chatAgent.icon} size="sm" />
-          {/if}
-          <span>{chatAgent.title}</span>
-        </span>
-      {/if}
-    </div>
+    </TerminalPaneStatus>
   {/if}
   {#if features.chat && hybrid && hybrid.view !== "recovery" && !compactActions.current}
     <features.chat.ViewTabs
@@ -177,7 +180,7 @@
           aria-label={menuLabel}
           title={menuLabel}
         >
-          {#if compactActions.current}⋯{:else}
+          {#if compactActions.current}<IconDots aria-hidden="true" />{:else}
             {terminalShown ? m.s4_tab_terminal() : m.s4_menu_group_session()}
             <IconChevronDown aria-hidden="true" />
           {/if}

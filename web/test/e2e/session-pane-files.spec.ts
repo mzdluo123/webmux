@@ -12,13 +12,22 @@ test("browse before reading and compare files without replacing the session", as
     ),
   );
   const id = await createShell(page, "File review", workDir);
-  const sessionHeight = (await page
-    .locator("[data-dock-panel]:visible > .dock-title")
-    .boundingBox())!.height;
+  if (!testInfo.project.use.isMobile) {
+    await expect(
+      page.locator(`[data-dock-panel="${id}"] > .dock-title`),
+    ).toHaveCount(0);
+  }
   await page.getByRole("button", { name: "文件树 · File review" }).click();
   const tree = page.getByRole("region", { name: "文件树", exact: true });
   const readers = page.locator('[data-dock-panel^="reader:"]:visible');
   await expect(tree).toBeVisible();
+  const sessionHeight = (await page
+    .locator(
+      testInfo.project.use.isMobile
+        ? "[data-dock-panel]:visible > .dock-title"
+        : `[data-dock-panel="${id}"] > .dock-title`,
+    )
+    .boundingBox())!.height;
   expect(
     (await tree.locator(":scope > .dock-title").boundingBox())!.height,
   ).toBe(sessionHeight);

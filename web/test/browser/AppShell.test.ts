@@ -878,3 +878,56 @@ test("sidebar hides idle inbox, balances scope radios, hands focus back on empty
   await expect.poll(() => inboxTrigger().elements().length).toBe(0);
   expect(sidebar().element().contains(document.activeElement)).toBe(true);
 });
+
+test("sidebar brand returns home, session switcher stays pinned across routes, and footer controls share one row and height", async () => {
+  await page.viewport(1280, 800);
+  localStorage.setItem("webmux.sidebarWidth", "256");
+  history.replaceState(null, "", "/s/shellaaa");
+  let switcherCalls = 0;
+  render(ShellHarness, {
+    drafts: createTerminalDrafts(),
+    onSessionSwitcher: () => {
+      switcherCalls += 1;
+    },
+  });
+  await snapshot([session({ id: "shellaaa", title: "主终端" })]);
+
+  // Session switcher stays pinned in the sidebar header even on session routes.
+  const switcher = sidebar().getByRole("button", {
+    name: "快速切换会话",
+    exact: true,
+  });
+  await expect.element(switcher).toBeVisible();
+  await switcher.click();
+  expect(switcherCalls).toBe(1);
+
+  // Footer controls align to a single row with uniform 32px desktop heights.
+  const addRepo = sidebar().getByRole("button", {
+    name: "添加仓库",
+    exact: true,
+  });
+  const forward = sidebar().getByRole("button", { name: /^端口转发/ });
+  const settings = sidebar().getByRole("link", { name: "设置", exact: true });
+  const theme = sidebar().getByRole("button", {
+    name: /^切换为(?:白色|黑色)主题$/,
+  });
+  const rects = [addRepo, forward, settings, theme].map((control) =>
+    control.element().getBoundingClientRect(),
+  );
+  for (const rect of rects) {
+    expect(Math.round(rect.height)).toBe(32);
+    expect(Math.abs(rect.top - rects[0]!.top)).toBeLessThanOrEqual(1);
+  }
+
+  // Collapsed rail keeps the session switcher reachable on session routes too.
+  await sidebar().getByRole("button", { name: "收起侧栏" }).click();
+  const rail = page.getByRole("navigation", { name: "窄栏导航" });
+  await expect
+    .element(rail.getByRole("button", { name: "快速切换会话", exact: true }))
+    .toBeVisible();
+  await rail.getByRole("button", { name: "展开侧栏" }).click();
+
+  // Brand link returns to workspace home.
+  await sidebar().getByRole("link", { name: "WebMux", exact: true }).click();
+  await expect.poll(() => location.pathname).toBe("/");
+});

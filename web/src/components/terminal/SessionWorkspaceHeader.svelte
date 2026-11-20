@@ -1,20 +1,17 @@
 <script lang="ts">
   import SidebarButton from "../shell/SidebarButton.svelte";
-  import { MediaQuery } from "svelte/reactivity";
+  import IconAdjustmentsHorizontal from "~icons/tabler/adjustments-horizontal";
   import IconArrowLeft from "~icons/tabler/arrow-left";
   import IconLayout from "~icons/tabler/layout-columns";
-  import IconArrowsExchange from "~icons/tabler/arrows-exchange";
   import IconMaximize from "~icons/tabler/maximize";
   import IconMinimize from "~icons/tabler/minimize";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
   import { m } from "$lib/paraglide/messages.js";
   import SessionSwitcherTrigger from "../shell/SessionSwitcherTrigger.svelte";
-  import { findSessionSwitcher } from "../../hooks/shared/session-switcher";
   import SessionPaneMenu from "./SessionPaneMenu.svelte";
   import type DockWorkspace from "../shared/DockWorkspace.svelte";
   import { Button } from "$lib/components/ui/button";
   import IconFolder from "~icons/tabler/folder";
-  import { tick } from "svelte";
   import { navigate } from "../../platform/api";
   import { shellUi } from "../../hooks/shared/shell.svelte";
   import { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
@@ -37,15 +34,12 @@
     fileLabel: string;
     onerror: (message: string) => void;
   } = $props();
-  const phone = new MediaQuery("(max-width: 639px)");
   const pane = $derived(dock?.activeCommands());
-  const openSwitcher = findSessionSwitcher();
   const fullscreen = useFullscreen((message) => onerror(message));
-  let menuTrigger = $state<HTMLButtonElement | null>(null);
 </script>
 
 <header
-  class="app-header flex h-(--app-header-height) items-center gap-2 bg-card px-1 sm:px-2"
+  class="app-header flex h-(--app-header-height) items-center gap-2 border-b bg-card px-1 sm:px-2"
 >
   <!-- Phones open the sidebar drawer here (a home-screen app has no back
        button); wider screens return to the current mode's home. -->
@@ -64,7 +58,6 @@
   >
     <IconArrowLeft class="size-4" aria-hidden="true" />
   </Button>
-  <SessionSwitcherTrigger size="icon-sm" class="max-sm:hidden" />
   <SessionPaneMenu {dock} {closePane} />
   {#if pane?.commands}
     <div class="flex min-w-0 items-center" data-dock-session-commands={pane.id}>
@@ -72,6 +65,7 @@
     </div>
   {/if}
   <div class="flex-1"></div>
+  <SessionSwitcherTrigger size="icon-touch-sm" class="sm:hidden" />
   {#if openFiles}<Button
       variant="ghost"
       size="icon-touch-sm"
@@ -115,25 +109,16 @@
       {#snippet child({ props })}
         <Button
           {...props}
-          bind:ref={menuTrigger}
           size="icon-touch-sm"
           variant="ghost"
           aria-label={m.s4_menu_group_display()}
-          title={m.s4_menu_group_display()}>⋯</Button
+          title={m.s4_menu_group_display()}
         >
+          <IconAdjustmentsHorizontal aria-hidden="true" />
+        </Button>
       {/snippet}
     </DropdownMenu.Trigger>
     <DropdownMenu.Content align="end">
-      {#if phone.current && openSwitcher}
-        <DropdownMenu.Item
-          onSelect={() => {
-            void tick().then(() => openSwitcher(menuTrigger));
-          }}
-        >
-          <IconArrowsExchange aria-hidden="true" />
-          {m.s1_quick_switch_session()}
-        </DropdownMenu.Item>
-      {/if}
       {#if fullscreen.offered}
         <DropdownMenu.Item
           class="sm:hidden"

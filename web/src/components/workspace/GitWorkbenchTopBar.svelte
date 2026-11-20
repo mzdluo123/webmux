@@ -134,7 +134,7 @@
 </script>
 
 <header
-  class="flex min-w-0 flex-col gap-1.5 border-b bg-background px-2.5 py-2 sm:px-3"
+  class="app-header flex min-w-0 flex-col gap-1.5 border-b bg-card px-2.5 py-2 sm:px-3"
   data-testid="git-workbench-topbar"
 >
   <div
@@ -143,7 +143,7 @@
     <div class="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
       <SidebarButton class="sm:hidden" />
       <Button
-        variant="outline"
+        variant={returnSession ? "ghost" : "outline"}
         size="sm-touch"
         aria-label={m.s7_switch_to_sessions()}
         onclick={onReturnWorkbench}
@@ -281,7 +281,7 @@
             {#snippet child({ props })}
               <Button
                 {...props}
-                size="icon-sm"
+                size="icon-touch-sm"
                 variant="outline"
                 aria-label={m.s7_topbar_more_sync_aria()}
                 title={m.s7_topbar_more_sync_aria()}

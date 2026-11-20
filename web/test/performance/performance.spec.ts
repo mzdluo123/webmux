@@ -292,7 +292,9 @@ test("4x CPU: delayed repository discovery and Git refresh stay stable", async (
   await settled(page);
   await writeFile(join(workDir, "tracked.txt"), "changed\n");
   await page
-    .getByRole("button", { name: "刷新 Git 状态", exact: true })
+    .getByRole("button", { name: /^刷新(?:工作区| Git 状态)$/ })
+    .filter({ visible: true })
+    .first()
     .click();
   await expect(page.getByText("有修改", { exact: true })).toBeVisible();
   await performanceReport(page, testInfo, "repository-and-refresh");
@@ -333,10 +335,10 @@ test("4x CPU: a stalled repository request cannot block existing terminals", asy
     // Slow discovery stays in the background: the session list renders and
     // keeps every session instead of surfacing a startup timeout.
     await expect(page.getByText(/初次读取超时/)).toHaveCount(0);
-    const refresh = page.getByRole("button", {
-      name: "刷新 Git 状态",
-      exact: true,
-    });
+    const refresh = page
+      .getByRole("button", { name: /^刷新(?:工作区| Git 状态)$/ })
+      .filter({ visible: true })
+      .first();
     await expect(refresh).toHaveAttribute("aria-busy", "true");
     expect(pendingRequests).toBe(1);
     await performanceReport(page, testInfo, "repository-stall");

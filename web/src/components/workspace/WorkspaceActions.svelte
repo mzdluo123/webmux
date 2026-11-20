@@ -26,9 +26,12 @@
     <IconGitBranch aria-hidden="true" /> Git
   </Button>
 {/if}
+<!-- When the expanded desktop sidebar already exposes workspace refresh,
+     avoid showing a second identical refresh button on the same screen. -->
 <Button
   variant="quiet"
   size="icon-touch-sm"
+  class="lg:group-data-[collapsed=false]/shell:hidden"
   aria-label={m.s8_refresh_git_status()}
   title={refreshing ? m.s8_refreshing_git_status() : m.s8_refresh_git_status()}
   aria-busy={refreshing}
