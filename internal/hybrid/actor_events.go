@@ -44,10 +44,15 @@ func (a *actor) emit(events ...Event) {
 		default:
 			continue
 		}
-		if !toolsOnly {
+		// During session/load history replay, defer flush until
+		// finishControlReplay/installLink so replaying historical updates does
+		// not flood /ws/sessions and chat subscribers with intermediate state.
+		if !toolsOnly && !a.control.replay {
 			a.dirty = true
 		}
 	}
-	a.refreshWork()
+	if !a.control.replay {
+		a.refreshWork()
+	}
 	a.log.append(time.Now().UTC(), events...)
 }
