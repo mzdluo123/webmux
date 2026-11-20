@@ -132,3 +132,29 @@ test("a detected port forwards, opens through authentication, echoes WebSockets 
   const removed = await popup.reload();
   expect(removed?.status()).toBe(404);
 });
+
+test("opening port forwarding omits the loading notice while the dialog chunk loads", async ({
+  page,
+}) => {
+  const requested = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  await page.route("**/assets/ForwardDialog-*.js", async (route) => {
+    requested.resolve();
+    await release.promise;
+    await route.continue();
+  });
+
+  await page.goto(`${server.baseURL}/#token=${encodeURIComponent(token)}`);
+  await expect(page.getByRole("textbox", { name: "任务描述" })).toBeVisible();
+  await revealSidebar(page);
+  await page.getByRole("button", { name: /^端口转发/ }).click();
+  await requested.promise;
+  try {
+    await expect(
+      page.getByRole("status").filter({ hasText: "正在加载端口转发" }),
+    ).toHaveCount(0);
+  } finally {
+    release.resolve();
+  }
+  await expect(page.getByRole("dialog", { name: "端口转发" })).toBeVisible();
+});
