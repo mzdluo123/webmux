@@ -11,7 +11,7 @@ import {
   expectTerminalLine,
   expectConnected,
   openSessionMenu,
-  sessionPaneHeader,
+  sessionHeader,
   toggleDraftMode,
   toggleCode,
   backToList,
@@ -193,9 +193,7 @@ test("4x CPU: create, type, replay, switch, filter and open dialogs remain usabl
   await page.evaluate(() =>
     window.dispatchEvent(new Event("webmux:test-disconnect")),
   );
-  await expect(sessionPaneHeader(page).getByRole("status")).toHaveText(
-    "重连中",
-  );
+  await expect(sessionHeader(page).getByRole("status")).toHaveText("重连中");
   await expectConnected(page);
   await expect(page.locator(".restore-overlay")).toBeHidden();
   await runCommand(page, "printf '\\n%s%s\\n' 'reconnected-' 'ready'");

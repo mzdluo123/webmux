@@ -281,7 +281,7 @@
             {#snippet child({ props })}
               <Button
                 {...props}
-                size="icon-touch-sm"
+                size="icon-sm"
                 variant="outline"
                 aria-label={m.s7_topbar_more_sync_aria()}
                 title={m.s7_topbar_more_sync_aria()}

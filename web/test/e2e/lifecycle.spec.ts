@@ -10,7 +10,7 @@ import {
   expectTerminalLine,
   expectConnected,
   holdTerminalFont,
-  sessionPaneHeader,
+  sessionHeader,
   toggleCode,
   backToList,
 } from "./fixtures";
@@ -351,7 +351,7 @@ test("replay and the floating button return to latest output without typing", as
     await expectTerminalLine(page, marker);
   }
   await runCommand(page, "exit");
-  await expect(sessionPaneHeader(page).getByRole("status")).toHaveText(
+  await expect(sessionHeader(page).getByRole("status")).toHaveText(
     /^已退出 · 退出码 /,
   );
   await scrollBack();
@@ -368,7 +368,7 @@ test("shell exit reports its real code and remains removable", async ({
 }) => {
   const id = await createShell(page, "E2E exit code", workDir);
   await runCommand(page, "exit 7");
-  await expect(sessionPaneHeader(page).getByRole("status")).toHaveText(
+  await expect(sessionHeader(page).getByRole("status")).toHaveText(
     "已退出 · 退出码 7",
   );
   const exited = await request.get(`/api/sessions/${id}`);

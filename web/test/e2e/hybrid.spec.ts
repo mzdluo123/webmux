@@ -24,7 +24,6 @@ import {
   revealSidebar,
   selectSessionInputSide,
   sessionHeader,
-  sessionPaneHeader,
   sessionViewTabs,
   useWorkbenchBranches,
   workspaceLayoutTest as test,
@@ -87,8 +86,7 @@ const composer = (page: Page) =>
   page.getByRole("textbox", { name: "消息", exact: true });
 const working = (page: Page) =>
   page.getByRole("status").filter({ hasText: "正在工作…" });
-const statusDot = (page: Page) =>
-  sessionPaneHeader(page).locator(".status-dot");
+const statusDot = (page: Page) => sessionHeader(page).locator(".status-dot");
 
 async function expectSide(page: Page, side: Side) {
   if (side === "chat") await expect(composer(page)).toBeEditable();
@@ -147,7 +145,7 @@ test("inspecting a terminal panel does not change its hybrid input view or disca
     await (
       await openDockCommands(pane)
     )
-      .getByRole("menuitem", { name: /^最大化/ })
+      .getByRole("menuitem", { name: /^放大/ })
       .click();
     await (
       await openDockCommands(pane)

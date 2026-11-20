@@ -237,7 +237,7 @@ test("stacked panes reveal the selected tab and keep keyboard focus across switc
   await expect(chosen).toHaveText(firstTitle);
   await closeTab(firstTitle).click();
   await expect(second).toBeVisible();
-  await expect(second.locator("[data-dock-actions]")).toBeFocused();
+  await expect(page.locator("[data-dock-command-menu]")).toBeFocused();
 });
 
 test("desktop drag guides dock against a pane or the whole workspace", async ({
