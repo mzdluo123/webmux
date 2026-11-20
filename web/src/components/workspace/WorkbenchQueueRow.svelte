@@ -80,8 +80,9 @@
 
 <li
   class={[
-    "group/row relative flex min-w-0 items-start gap-1 border-b",
-    needsAttention && "rounded-md border bg-card",
+    "group/row relative flex min-w-0 items-start gap-1 border-b border-border/70 transition-colors",
+    needsAttention &&
+      "rounded-lg border border-border bg-card hover:border-input",
     previewing && "bg-muted/70",
   ]}
   data-session-id={session.id}
@@ -97,7 +98,7 @@
   }}
 >
   <a
-    class="group/link grid min-h-13 min-w-0 flex-1 grid-cols-1 items-center gap-1 rounded-sm px-3 py-2 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+    class="group/link grid min-h-13 min-w-0 flex-1 grid-cols-1 items-center gap-1 rounded-sm px-3 py-2 transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
     data-session-link
     aria-label={session.title}
     href={`/s/${session.id}`}
@@ -163,7 +164,7 @@
         >
       {/if}
       <span
-        class="text-xs font-medium text-muted-foreground underline-offset-2 group-hover/link:underline group-focus-visible/link:underline sm:col-span-full"
+        class="text-xs font-medium text-muted-foreground underline-offset-2 transition-colors group-hover/link:text-foreground group-hover/link:underline group-focus-visible/link:text-foreground group-focus-visible/link:underline sm:col-span-full"
         >{m.s8_queue_review()} <span aria-hidden="true">→</span></span
       >
     {:else if group === "running" && session.agent?.work}
