@@ -322,28 +322,22 @@ func (a *actor) resumeSide(epoch int, side Side, sid string, candidatesSince tim
 	return resumeResult{agentSessionID: sid, link: r.link, init: r.init, config: r.config, notes: r.notes, loaded: !r.resumed, resumed: r.resumed, pid: pid, process: processIdentity(pid)}
 }
 
-// verifyAndOpenACP connects one ACP process, verifies sid is still listed in
-// cwd and unoccupied, and loads sid on that same connection without spawning a
-// second ACP process or serializing behind the background probe limit.
+// verifyAndOpenACP connects one ACP process, checks local occupancy and
+// external-writer guards, and optimistically loads sid on that connection.
+// Only when session/load fails does it fall back to session/list on the same
+// connection to report a *SessionMissingError with candidates, avoiding the
+// full directory scan on every normal resume.
 func (a *actor) verifyAndOpenACP(epoch int, sid, cwd string) openResult {
 	if a.externalWriterNow(sid) {
 		return openResult{fail: &failure{err: ErrExternalWriter, public: ErrExternalWriter.Error()}}
 	}
+	if a.svc.occupied(a.id, sid) {
+		occ := fmt.Errorf("%w: %s", ErrConflict, reasonText(ReasonOccupied))
+		return openResult{fail: &failure{err: occ, public: occ.Error()}}
+	}
 	link, init, fail := a.connect(epoch)
 	if fail != nil {
 		return openResult{fail: fail}
-	}
-	listCtx, cancel := context.WithTimeout(a.probeCtx, probeTimeout)
-	listed, err := a.listSessionsOn(listCtx, link.conn, link.sidecar, cwd, sid)
-	cancel()
-	if err != nil {
-		_ = link.stop()
-		return openResult{fail: &failure{err: err, public: err.Error()}}
-	}
-	if !slices.ContainsFunc(listed, func(s acp.SessionInfo) bool { return s.SessionID == sid }) {
-		_ = link.stop()
-		missing := &SessionMissingError{Candidates: candidates(listed)}
-		return openResult{fail: &failure{err: missing, public: missing.Error()}}
 	}
 	if a.svc.occupied(a.id, sid) {
 		_ = link.stop()
@@ -354,7 +348,7 @@ func (a *actor) verifyAndOpenACP(epoch int, sid, cwd string) openResult {
 		_ = link.stop()
 		return openResult{fail: &failure{err: ErrExternalWriter, public: ErrExternalWriter.Error()}}
 	}
-	return a.openOnLink(link, init, sid, cwd, false, nil, false)
+	return a.openOnLinkOrMissing(link, init, sid, cwd)
 }
 
 // verify checks before a resume that agent session sid is still listed in
@@ -363,6 +357,9 @@ func (a *actor) verifyAndOpenACP(epoch int, sid, cwd string) openResult {
 func (a *actor) verify(sid string) error {
 	if a.externalWriterNow(sid) {
 		return ErrExternalWriter
+	}
+	if a.svc.occupied(a.id, sid) {
+		return fmt.Errorf("%w: %s", ErrConflict, reasonText(ReasonOccupied))
 	}
 	listed, err := a.sessions(a.probeCtx, a.cwd, sid)
 	if err != nil {
