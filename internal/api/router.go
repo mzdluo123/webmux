@@ -15,6 +15,7 @@ import (
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/hoststat"
 	"github.com/rainchan/webmux/internal/hub"
+	"github.com/rainchan/webmux/internal/perf"
 	"github.com/rainchan/webmux/internal/session"
 	"github.com/rainchan/webmux/internal/sessioncreate"
 	"github.com/rainchan/webmux/internal/settings"
@@ -46,6 +47,7 @@ type Deps struct {
 	Guide             *agentguide.Instance
 	LocalURL          string
 	Launcher          string
+	Perf              *perf.Recorder
 }
 
 type Server struct {
@@ -88,6 +90,9 @@ func (s *Server) coreRoutes(registrar transport.Registrar) {
 	mux.HandleFunc("GET /api/config", func(w http.ResponseWriter, r *http.Request) {
 		hostname, _ := os.Hostname()
 		view := contract.ServerConfig{DefaultCwd: s.Config.DefaultCwd, DefaultShell: s.DefaultShell, Hostname: hostname, Tunnel: s.tunnelInfo(), PendingUpdate: s.pendingUpdate()}
+		if s.Perf != nil {
+			view.Perf = &contract.PerfClientConfig{Enabled: true, SlowMS: s.Perf.SlowMS()}
+		}
 		if s.EnrichConfig != nil {
 			s.EnrichConfig(&view)
 		}
@@ -109,6 +114,7 @@ func (s *Server) coreRoutes(registrar transport.Registrar) {
 	s.guideRoutes(mux)
 	s.settingsRoutes(mux)
 	s.relayRoutes(mux)
+	s.perfRoutes(mux)
 	// The same core stream descriptions are also used by the P2P bridge.
 	for _, stream := range s.streams {
 		mux.Handle(stream.Pattern, transport.StreamHTTP(stream))
@@ -159,6 +165,7 @@ const chatBodyBytes = transport.InputBodyBytes
 
 func (s *Server) middleware(next http.Handler) http.Handler {
 	hostAllowed := hostCheck(s.Config)
+	timed := s.wrapPerf(next)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer baseHeaders(w)()
 		if r.URL.Path == "/api/relay" || strings.HasPrefix(r.URL.Path, "/api/relay/") {
@@ -200,7 +207,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 				return
 			}
 		}
-		next.ServeHTTP(w, r)
+		timed.ServeHTTP(w, r)
 	})
 }
 func (s *Server) authorized(r *http.Request) bool {

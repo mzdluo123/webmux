@@ -70,6 +70,8 @@ func dispatch(args []string, stdout, stderr io.Writer) int {
 		return serviceCommand(args[1:], stdout, stderr)
 	case "update":
 		return updateCommand(args[1:], stdout, stderr)
+	case "perf":
+		return perfCommand(args[1:], stdout, stderr)
 	}
 	if code, ok := sessionCommand(args, stdout, stderr); ok {
 		return code
@@ -83,7 +85,7 @@ func dispatch(args []string, stdout, stderr io.Writer) int {
 func isOps(name string) bool {
 	first, _, _ := strings.Cut(name, " ")
 	switch first {
-	case "serve", "start", "version", "status", "stop", "bridge", "mcp-serve", "config", "service", "update", "help":
+	case "serve", "start", "version", "status", "stop", "bridge", "mcp-serve", "config", "service", "update", "perf", "help":
 		return true
 	}
 	return false

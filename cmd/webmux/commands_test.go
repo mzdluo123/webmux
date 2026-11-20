@@ -49,6 +49,9 @@ func TestOpsCommandFlagsMatchTable(t *testing.T) {
 			runUpdate(append([]string{sub}, args...), io.Discard, stderr, updateEnv{})
 		}
 	}
+	impl["perf report"] = func(args []string, stderr io.Writer) {
+		perfCommand(append([]string{"report"}, args...), io.Discard, stderr)
+	}
 	listed := regexp.MustCompile(`(?m)^  -([A-Za-z0-9-]+)`)
 	e := sessionEnv(io.Discard, io.Discard)
 	for _, c := range opsCommands() {

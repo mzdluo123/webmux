@@ -13,6 +13,7 @@ import {
 } from "./relay-auth";
 import { createManagedHandoff } from "./ws-handoff";
 import { InputHandoffFence } from "./ws-input-fence";
+import { recordWsMessage } from "./perf";
 import type {
   Connection,
   ConnectOptions,
@@ -190,6 +191,11 @@ export function connect(
       resumeTimer = undefined;
       const receipt = inputFence.receive(event.data);
       if (receipt === "handoff") return;
+      const started = performance.now();
+      const bytes =
+        typeof event.data === "string"
+          ? event.data.length
+          : event.data.byteLength;
       try {
         onMessage(event.data);
       } catch (error) {
@@ -200,6 +206,8 @@ export function connect(
         );
         next.close(1002, "Invalid server message");
         return;
+      } finally {
+        recordWsMessage(targetPath, bytes, performance.now() - started);
       }
       if (
         (receipt === "confirm" || hadResumeTimer) &&

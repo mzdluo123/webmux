@@ -7,9 +7,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/rainchan/webmux/internal/perf"
 	"github.com/rainchan/webmux/internal/session"
 )
 
@@ -55,11 +57,31 @@ func runGitProcess(ctx context.Context, p gitProcess) gitExit {
 	cmd.WaitDelay = time.Second
 	stderr := &boundedOutput{limit: p.stderrLimit, cancel: cancel}
 	cmd.Stdout, cmd.Stderr = p.stdout, stderr
+	started := time.Now()
 	err := session.RunCommand(cmd)
+	perf.RecordGit(ctx, gitPerfOp(p.args), time.Since(started), err != nil)
 	if cmd.Process != nil && (ctx.Err() != nil || errors.Is(err, exec.ErrWaitDelay)) {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
 	return gitExit{err: err, ctxErr: ctx.Err(), stderr: stderr.String(), stderrExceeded: stderr.exceeded}
+}
+
+// gitPerfOp extracts a safe "git <subcommand>" label without paths, branch
+// names, or user arguments so performance logs never leak repository content.
+func gitPerfOp(args []string) string {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch arg {
+		case "-C", "-c", "--git-dir", "--work-tree", "--namespace", "--config-env":
+			i++
+			continue
+		}
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+		return "git " + arg
+	}
+	return "git"
 }
 
 // boundedOutput buffers at most limit bytes; the first write past the limit
