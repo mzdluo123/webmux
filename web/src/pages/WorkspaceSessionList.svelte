@@ -85,7 +85,6 @@
     () => workbenchLayout.value,
     "[data-session-id]",
   );
-  const viewport = useViewport();
   const attentionOnly = $derived(queue && workbenchLayout.attentionOnly);
   const QuickStartComposer = $derived(
     featureEnabled("chat")
@@ -100,6 +99,10 @@
       featureAvailable("workspace.manage") &&
       Boolean(shell.repositories),
   );
+  const renderQuickStart = $derived(
+    showQuickStart && !loading && !initializing,
+  );
+  const viewport = useViewport(() => renderQuickStart);
   let searchInput = $state<HTMLInputElement | null>(null);
   const list = $derived(
     sessions.filter((session) => session.state === "active"),
@@ -254,7 +257,7 @@
   <WorkspaceHeaderActions {refreshing} {selectedWorktree} />
 {/snippet}
 
-{#if showQuickStart && QuickStartComposer && !loading && !initializing}
+{#if renderQuickStart && QuickStartComposer}
   <div
     class="workspace-page safe-area-page flex h-(--viewport-height) flex-col overflow-hidden"
     style:--viewport-height={`${viewport.height}px`}

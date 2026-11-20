@@ -9,6 +9,7 @@ import {
   expect,
   narrowSessionHeader,
   openSplitPanel,
+  openSessionQueue,
   revealSidebar,
   test as queueTest,
   workspaceLayoutTest as test,
@@ -392,6 +393,7 @@ queueTest(
 
     if (await page.getByRole("dialog", { name: "导航" }).isVisible())
       await page.keyboard.press("Escape");
+    await openSessionQueue(page);
     await page
       .getByRole("main")
       .getByRole("button", { name: "＋ 新建会话", exact: true })
