@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { workspaceRefreshButton } from "./fixtures";
+import { useWorkbenchBranches, workspaceRefreshButton } from "./fixtures";
 import { startE2EServer, type E2EServer } from "./server.mjs";
 
 const token = "e2e a&b#c";
@@ -70,6 +70,7 @@ test("a mid-session 401 clears workspace state and allows signing in again", asy
   page,
 }) => {
   await page.goto(`${server.baseURL}/#token=${encodeURIComponent(token)}`);
+  if (await useWorkbenchBranches(page)) await page.keyboard.press("Escape");
   await expect(page.getByRole("searchbox", { name: "搜索会话" })).toBeVisible();
   await page.getByRole("searchbox", { name: "搜索会话" }).fill("discard me");
   await page.route("**/api/repositories", async (route) => {
