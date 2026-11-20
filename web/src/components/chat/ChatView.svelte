@@ -73,6 +73,7 @@
   let root = $state<HTMLDivElement | null>(null);
   let scroller = $state<HTMLElement | null>(null);
   let transcript = $state<HTMLDivElement | null>(null);
+  let transcriptView = $state<ChatTranscript>();
   let dock = $state<HTMLDivElement | null>(null);
   let stick = $state(true);
   let activeTurnId = $state("");
@@ -156,26 +157,39 @@
       activeTurnId = "";
       return;
     }
-    const viewportTop = documentScroll ? 0 : target.getBoundingClientRect().top;
-    const readingLine = viewportTop + (documentScroll ? 64 : 16);
     const elements = transcript.querySelectorAll<HTMLElement>(
       "[data-conversation-message]",
     );
-    let current = elements[0]?.dataset.conversationMessage ?? "";
-    for (const element of elements) {
-      if (element.getBoundingClientRect().top > readingLine) break;
-      current = element.dataset.conversationMessage ?? current;
+    if (!elements.length) {
+      activeTurnId = "";
+      return;
     }
     // Scrolled to the end, the last message can sit below the reading line
     // (a compact transcript where tools are folded shows several turns at
-    // once); mark it anyway so the current tick converges to the newest
-    // message instead of stalling on an earlier turn.
+    // once); mark it anyway without calling getBoundingClientRect across
+    // every message in a long conversation.
     const top = documentScroll ? window.scrollY : target.scrollTop;
     const height = documentScroll ? window.innerHeight : target.clientHeight;
-    if (top + height >= target.scrollHeight - 32)
-      current =
-        elements[elements.length - 1]?.dataset.conversationMessage ?? current;
-    activeTurnId = current;
+    if (top + height >= target.scrollHeight - 32) {
+      activeTurnId =
+        elements[elements.length - 1]?.dataset.conversationMessage ?? "";
+      return;
+    }
+    const viewportTop = documentScroll ? 0 : target.getBoundingClientRect().top;
+    const readingLine = viewportTop + (documentScroll ? 64 : 16);
+    let lo = 0;
+    let hi = elements.length - 1;
+    let best = 0;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (elements[mid]!.getBoundingClientRect().top <= readingLine) {
+        best = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    activeTurnId = elements[best]?.dataset.conversationMessage ?? "";
   }
   function scheduleActiveTurn() {
     if (activeTurnFrame) return;
@@ -207,6 +221,7 @@
     };
   });
   function jumpToTurn(id: string) {
+    transcriptView?.reveal(id);
     const message = transcript?.querySelector<HTMLElement>(
       `[data-conversation-message="${CSS.escape(id)}"]`,
     );
@@ -219,20 +234,30 @@
     jumpingToTurn = true;
     stick = false;
     activeTurnId = id;
-    const viewportTop = documentScroll
-      ? 0
-      : target.getBoundingClientRect().top + target.clientTop;
-    const margin = Number.parseFloat(getComputedStyle(message).scrollMarginTop);
-    const top =
-      (documentScroll ? window.scrollY : target.scrollTop) +
-      message.getBoundingClientRect().top -
-      viewportTop -
-      margin;
-    // Scroll only the owner viewport, never its clipped pane or the page.
-    if (documentScroll) window.scrollTo({ top, behavior: "instant" });
-    else target.scrollTo({ top, behavior: "instant" });
+    const align = () => {
+      const currentTarget = scrollRoot();
+      if (!currentTarget || !message.isConnected) return;
+      const viewportTop = documentScroll
+        ? 0
+        : currentTarget.getBoundingClientRect().top + currentTarget.clientTop;
+      const margin = Number.parseFloat(
+        getComputedStyle(message).scrollMarginTop,
+      );
+      const top =
+        (documentScroll ? window.scrollY : currentTarget.scrollTop) +
+        message.getBoundingClientRect().top -
+        viewportTop -
+        margin;
+      // Scroll only the owner viewport, never its clipped pane or the page.
+      if (documentScroll) window.scrollTo({ top, behavior: "instant" });
+      else currentTarget.scrollTo({ top, behavior: "instant" });
+    };
+    align();
     follow();
     turnJumpFrame = requestAnimationFrame(() => {
+      // Re-align once after any newly revealed off-screen messages mount.
+      align();
+      follow();
       turnJumpFrame = requestAnimationFrame(() => {
         turnJumpFrame = 0;
         jumpingToTurn = false;
@@ -255,6 +280,7 @@
     cancelAnimationFrame(turnJumpFrame);
     turnJumpFrame = 0;
     jumpingToTurn = false;
+    transcriptView?.clearReveal();
     stick = true;
     scrollToBottom();
   }
@@ -328,11 +354,14 @@
       >
         <ChatTurnStatus mode="notices" truncated={model.truncated} {chat} />
         <ChatTranscript
+          bind:this={transcriptView}
           {sessionId}
           {visible}
           {entries}
           {turnIds}
           {documentScroll}
+          {scroller}
+          following={stick}
           {preview}
           {waiting}
           {onreview}
