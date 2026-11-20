@@ -55,20 +55,12 @@ func (s *Server) EnrichDetails(ctx context.Context, info session.Info, out *cont
 }
 
 func (s *Server) detailsWorkspace(ctx context.Context, ref *workspace.Association, out *contract.SessionDetails) {
-	repositories, err := s.Workspace.List(ctx)
+	repository, tree, err := s.Workspace.WorktreeInfo(ctx, ref.RepositoryID, ref.WorktreeID)
 	if err != nil {
 		return
 	}
-	for _, repository := range repositories {
-		if repository.ID != ref.RepositoryID {
-			continue
-		}
-		out.Repository = &contract.DetailsRepository{ID: repository.ID, Name: repository.Name, Path: repository.AnchorPath}
-		for _, tree := range repository.Worktrees {
-			if tree.ID == ref.WorktreeID {
-				out.Worktree = &contract.DetailsWorktree{ID: tree.ID, Branch: tree.Branch, Path: tree.Path, Main: tree.Kind == "main"}
-			}
-		}
-		return
+	out.Repository = &contract.DetailsRepository{ID: repository.ID, Name: repository.Name, Path: repository.AnchorPath}
+	if tree != nil {
+		out.Worktree = &contract.DetailsWorktree{ID: tree.ID, Branch: tree.Branch, Path: tree.Path, Main: tree.Kind == "main"}
 	}
 }
