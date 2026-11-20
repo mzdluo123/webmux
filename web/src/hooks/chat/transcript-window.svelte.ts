@@ -1,7 +1,9 @@
+import { untrack } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { DisplayEntry } from "../../domains/chat/chat-model";
 
 const VIRTUALIZE_THRESHOLD = 48;
+const INITIAL_TAIL_PINNED = 8;
 const TAIL_PINNED = 24;
 const REVEAL_RADIUS = 8;
 const OVERSCAN_MARGIN = "1200px 0px";
@@ -47,6 +49,8 @@ export function createTranscriptWindow(options: {
   const nodes = new SvelteMap<HTMLElement, string>();
   let pinnedIndex = $state<number | null>(null);
   let tailStart = $state(0);
+  let hydrating = $state(false);
+  let previousTotal = 0;
   let observer: IntersectionObserver | undefined;
 
   const active = $derived(options.entries().length > VIRTUALIZE_THRESHOLD);
@@ -63,8 +67,28 @@ export function createTranscriptWindow(options: {
 
   // Only advance the pinned tail window while following the bottom so new
   // streaming messages never unmount an entry above a reader in history.
+  // When a large backlog arrives all at once (0 -> >48 entries), mount only
+  // the bottom screenful on frame 1 and widen to the full tail buffer on the
+  // next animation frame to avoid a single >100ms initial-mount LoAF.
   $effect(() => {
     const total = options.entries().length;
+    const bulkInitial = previousTotal === 0 && total > VIRTUALIZE_THRESHOLD;
+    previousTotal = total;
+    if (bulkInitial && options.following()) {
+      hydrating = true;
+      tailStart = Math.max(0, total - INITIAL_TAIL_PINNED);
+      const frame = requestAnimationFrame(() => {
+        hydrating = false;
+        const latest = options.entries().length;
+        if (options.following()) {
+          tailStart = Math.max(0, latest - TAIL_PINNED);
+        }
+      });
+      return () => {
+        cancelAnimationFrame(frame);
+        hydrating = false;
+      };
+    }
     const desired = Math.max(0, total - TAIL_PINNED);
     if (options.following() || desired < tailStart) {
       tailStart = desired;
@@ -72,7 +96,7 @@ export function createTranscriptWindow(options: {
   });
 
   $effect(() => {
-    const enabled = active;
+    const enabled = active && !hydrating;
     const docScroll = options.documentScroll();
     const root = docScroll ? null : options.scroller();
     if (!enabled || (!docScroll && !root)) {
@@ -99,7 +123,9 @@ export function createTranscriptWindow(options: {
       { root, rootMargin: OVERSCAN_MARGIN },
     );
     observer = next;
-    for (const node of nodes.keys()) next.observe(node);
+    untrack(() => {
+      for (const node of nodes.keys()) next.observe(node);
+    });
     return () => {
       next.disconnect();
       if (observer === next) observer = undefined;
@@ -126,6 +152,7 @@ export function createTranscriptWindow(options: {
   }
 
   function reveal(messageId: string) {
+    hydrating = false;
     const list = options.entries();
     const idx = list.findIndex(
       (entry) => entry.type === "message" && entry.id === messageId,
