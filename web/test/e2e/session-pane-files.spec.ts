@@ -51,7 +51,17 @@ test("browse before reading and compare files without replacing the session", as
     return;
   }
   await tree.getByRole("button", { name: "second.txt", exact: true }).click();
-  const strip = readers.locator(".dock-title");
+  const strip = readers.locator(":scope > .dock-title");
+  // Pane actions stay at the right edge of the title bar.
+  await expect
+    .poll(async () => {
+      const stripBox = await strip.boundingBox();
+      const lastButton = await strip.locator("button").last().boundingBox();
+      return stripBox && lastButton
+        ? stripBox.x + stripBox.width - (lastButton.x + lastButton.width)
+        : Number.NaN;
+    })
+    .toBeCloseTo(0, 0);
   await strip.getByRole("tab", { name: /^first\.txt/ }).click();
   await expect(readers.getByRole("tabpanel")).toContainText(
     "Contents of first.txt",
