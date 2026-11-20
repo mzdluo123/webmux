@@ -152,15 +152,19 @@ func (l *chatLog) append(now time.Time, events ...Event) {
 	}
 	stored := make([]Event, len(events))
 	for i, e := range events {
-		l.sealLocked(e)
 		e.Seq, e.At = l.next, now
 		l.next++
+		stored[i] = e
+		l.sealLocked(e)
+		l.pruneSupersededStateLocked(e.Kind)
+		if l.mergeConsecutiveToolLocked(e) {
+			continue
+		}
 		size := eventSize(e)
 		l.events = append(l.events, e)
 		l.sizes = append(l.sizes, size)
 		l.spans = append(l.spans, span{first: e.Seq})
 		l.bytes += size
-		stored[i] = e
 	}
 	if l.bytes > l.capacity {
 		l.degradeLocked()
@@ -233,14 +237,19 @@ func (l *chatLog) subscribe(resume *ResumePoint) (*Subscription, error) {
 			// Sequences have gaps where chunks were merged: find the first
 			// event that stands for something the client has not applied.
 			start = sort.Search(len(l.events), func(i int) bool { return l.events[i].Seq >= resume.Seq })
-			partial = start < len(l.events) && l.spans[start].first < resume.Seq
+			partial = start < len(l.events) && l.spans[start].ends != nil && l.spans[start].first < resume.Seq
 		} else {
 			snap.Reset = true
 		}
 	}
-	events := append([]Event(nil), l.events[start:]...)
-	if partial {
-		events[0] = l.remainderLocked(start, resume.Seq)
+	var events []Event
+	if start == 0 && !partial {
+		events = compactBacklog(l.events)
+	} else {
+		events = append([]Event(nil), l.events[start:]...)
+		if partial {
+			events[0] = l.remainderLocked(start, resume.Seq)
+		}
 	}
 	sub := &Subscription{Snapshot: snap, Events: events, log: l, out: make(chan Frame, subscriberQueue), done: make(chan struct{})}
 	sub.Out, sub.Done = sub.out, sub.done
@@ -289,11 +298,11 @@ func (l *chatLog) sealLocked(next Event) {
 	if !ok {
 		return
 	}
-	if nid, nrole, nok := chunkKey(next); nok && nid == id && nrole == role {
+	if nid, nrole, nok := chunkKey(next); nok && nid == id && nrole == role && l.events[n-1].Seq+1 == next.Seq {
 		return
 	}
 	start := n - 1
-	for start > 0 && l.spans[start-1].ends == nil {
+	for start > 0 && l.spans[start-1].ends == nil && l.events[start-1].Seq+1 == l.events[start].Seq {
 		pid, prole, pok := chunkKey(l.events[start-1])
 		if !pok || pid != id || prole != role {
 			break
