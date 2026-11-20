@@ -110,11 +110,16 @@
     const entry = at === undefined ? undefined : model.entries[at];
     return entry?.type === "tool" ? entry : undefined;
   });
-  const waiting = $derived(
-    (chat?.requests ?? []).flatMap((item) =>
+  const emptyWaiting: readonly string[] = [];
+  const waiting = $derived.by(() => {
+    const requests = chat?.requests;
+    if (!requests?.length) return emptyWaiting;
+    const ids = requests.flatMap((item) =>
       item.toolCallId ? [item.toolCallId] : [],
-    ),
-  );
+    );
+    return ids.length ? ids : emptyWaiting;
+  });
+  const preview = (path: string) => uploads.preview?.(path);
   const blocked = $derived(
     unavailable ||
       (chat?.recovery
@@ -328,7 +333,7 @@
           {entries}
           {turnIds}
           {documentScroll}
-          preview={(path) => uploads.preview?.(path)}
+          {preview}
           {waiting}
           {onreview}
           {onopenlocation}

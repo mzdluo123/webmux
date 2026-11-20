@@ -344,6 +344,53 @@ describe("timeline grouping", () => {
       ),
     ).toEqual(["u1", ["t1", "r1", "t2", "e1"], "a1", ["r3"], "u2"]);
   });
+
+  test("preserves unchanged work group references while streaming later messages", () => {
+    let m = connect();
+    m = applyFrame(
+      m,
+      events([
+        ev({
+          kind: "tool.upsert",
+          tool: {
+            toolCallId: "r1",
+            kind: "read",
+            title: "a",
+            status: "completed",
+          },
+        }),
+        ev({
+          kind: "message.append",
+          message: { messageId: "a1", role: "agent", text: "Hello" },
+        }),
+      ]),
+    );
+    const beforeEntries = m.entries;
+    const beforeIndex = m.index;
+    const beforeGroups = groupTimeline(m.entries);
+    const next = applyFrame(
+      m,
+      events([
+        ev({
+          kind: "message.append",
+          message: { messageId: "a1", role: "agent", text: " world" },
+        }),
+        ev({
+          kind: "message.append",
+          message: { messageId: "a1", role: "agent", text: "!" },
+        }),
+      ]),
+    );
+    expect(beforeEntries[1]?.type === "message" && beforeEntries[1].text).toBe(
+      "Hello",
+    );
+    expect(beforeIndex.size).toBe(2);
+    expect(next.entries[1]?.type === "message" && next.entries[1].text).toBe(
+      "Hello world!",
+    );
+    const afterGroups = groupTimeline(next.entries);
+    expect(afterGroups[0]).toBe(beforeGroups[0]);
+  });
 });
 
 describe("conversation turn navigation", () => {
