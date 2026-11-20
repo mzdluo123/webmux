@@ -1778,8 +1778,8 @@ test.describe("hybrid sessions with the fake agent", () => {
   });
 
   for (const view of ["chat", "terminal"] as const) {
-    for (const mode of ["chat", "workbench"] as const) {
-      test(`archived ${view} resumes its remembered view with the ${mode} sidebar`, async ({
+    for (const layout of ["queue", "workspaces"] as const) {
+      test(`archived ${view} resumes its remembered view in the ${layout} layout`, async ({
         page,
         request,
         workDir,
@@ -1811,23 +1811,31 @@ test.describe("hybrid sessions with the fake agent", () => {
         await switchTo(page, view);
         const archived = await request.delete(`/api/sessions/${id}`);
         expect(archived.status(), await archived.text()).toBe(204);
-        await page.goto(mode === "chat" ? "/new" : "/");
-        if (mode === "chat") {
+        await page.goto("/");
+        if (layout === "queue") {
+          if (await useWorkbenchBranches(page, false))
+            await page.keyboard.press("Escape");
+          const archivedSection = page
+            .getByRole("region", { name: /的已归档会话$/ })
+            .first();
+          await archivedSection.getByRole("button", { name: /已归档/ }).click();
+          await archivedSection
+            .getByRole("button", { name: "恢复", exact: true })
+            .click();
           await revealSidebar(page);
           await page
-            .getByRole("button", { name: /已归档/ })
-            .first()
-            .click();
-          await page
-            .getByRole("list", { name: "已归档聊天" })
-            .getByRole("button", { name: `${name}（已结束）`, exact: true })
+            .getByRole("navigation", { name: "导航" })
+            .last()
+            .getByRole("button", { name: new RegExp(`^${name}`) })
             .click();
         } else {
-          const archived = page.getByRole("region", {
+          if (await useWorkbenchBranches(page))
+            await page.keyboard.press("Escape");
+          const archivedSection = page.getByRole("region", {
             name: "main 的已归档会话",
           });
-          await archived.getByRole("button", { name: /已归档/ }).click();
-          await archived
+          await archivedSection.getByRole("button", { name: /已归档/ }).click();
+          await archivedSection
             .getByRole("button", { name: "恢复", exact: true })
             .click();
           await openSessionLink(page, name);
@@ -2226,18 +2234,20 @@ test.describe("hybrid sessions with the fake agent", () => {
     await openHybrid(page, terminal, "terminal");
     await tuiTurn(page, "branch-before-restart");
     await expectChatInputAvailable(page);
-    await page.goto("/new");
+    await page.goto("/");
+    if (await useWorkbenchBranches(page, false))
+      await page.keyboard.press("Escape");
     await server.restart();
     await page.reload();
 
     await revealSidebar(page);
-    const recent = page.getByRole("list", { name: "聊天历史", exact: true });
-    const chatRow = recent.getByRole("button", {
+    const nav = page.getByRole("navigation", { name: "导航" }).last();
+    const chatRow = nav.getByRole("button", {
       name: /Recent restart chat.*打开时恢复/,
     });
     await expect(chatRow).toBeVisible();
     await expect(
-      recent.getByRole("button", {
+      nav.getByRole("button", {
         name: /Branch restart terminal.*打开时恢复/,
       }),
     ).toBeVisible();

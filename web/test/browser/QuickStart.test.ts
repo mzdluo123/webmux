@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
-import { openSession, shellUi } from "../../src/hooks/shared/shell.svelte";
+import { openSession } from "../../src/hooks/shared/shell.svelte";
+import { workbenchLayout } from "../../src/domains/workspace/workbench-layout.svelte";
 import { createTerminalDrafts } from "../../src/domains/terminal/terminal-draft.svelte";
 import {
   commands,
@@ -51,7 +52,8 @@ const branches = {
 };
 
 beforeEach(() => {
-  shellUi.setMode("chat");
+  workbenchLayout.value = "queue";
+  workbenchLayout.attentionOnly = false;
   history.replaceState(null, "", "/new");
   respond(/^GET \/api\/repositories$/, () =>
     Response.json([
@@ -79,12 +81,14 @@ beforeEach(() => {
 });
 afterEach(() => {
   for (const key of [
-    "shellMode",
+    "workbenchLayout",
     "quickStart",
     "quickStartSide",
     "quick-start-draft",
   ])
     localStorage.removeItem(`webmux.${key}`);
+  workbenchLayout.value = "queue";
+  workbenchLayout.attentionOnly = false;
   history.replaceState(null, "", "/");
 });
 
@@ -262,13 +266,13 @@ test("switching pages away from /new and back keeps all composer choices, attach
     .element(page.getByRole("list", { name: "待发送附件" }))
     .toHaveTextContent("note.md");
 
-  // Switch away to an open session page and back to /new.
+  // Switch away to an open session page and back to home (via legacy /new redirect).
   openSession({ id: "chataaaa" });
   await expect.poll(() => location.pathname).toBe("/s/chataaaa");
   await expect.element(page.getByTestId("session-page")).toBeVisible();
   history.pushState(null, "", "/new");
   window.dispatchEvent(new PopStateEvent("popstate"));
-  await expect.poll(() => location.pathname).toBe("/new");
+  await expect.poll(() => location.pathname).toBe("/");
 
   await expect
     .element(page.getByRole("textbox", { name: "任务描述" }))
@@ -657,7 +661,9 @@ test("choosing an agent reads its options and holds the row until done", async (
   try {
     await page.getByRole("button", { name: "会话选项" }).click();
     await expect
-      .element(page.getByRole("status"))
+      .element(
+        page.getByRole("dialog", { name: "会话选项" }).getByRole("status"),
+      )
       .toHaveTextContent("正在读取配置…");
     await userEvent.keyboard("{Escape}");
   } finally {
@@ -725,7 +731,7 @@ test("a failed step keeps the text and offers what was created", async () => {
     .element(alert.getByRole("button", { name: "在此 worktree 新建会话" }))
     .toBeVisible();
   await expect.element(input).toHaveValue("修复首页排序");
-  expect(location.pathname).toBe("/new");
+  expect(location.pathname).toBe("/");
 });
 
 test("worktree branch conflict retries with a fresh suggested branch without flashing an error", async () => {

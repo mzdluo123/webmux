@@ -16,7 +16,6 @@
   import * as AlertDialog from "$lib/components/ui/alert-dialog";
   import * as Card from "$lib/components/ui/card";
   import { api, navigate } from "../platform/api";
-  import { shellUi } from "../hooks/shared/shell.svelte";
   import {
     ConfigSchema,
     PreviewSettingsSchema,
@@ -137,12 +136,8 @@
 <div class="safe-area-page min-h-dvh">
   <SettingsPageHeader
     switcher
-    href={shellUi.home}
-    label={sessionId
-      ? m.s1_back_to_terminal()
-      : shellUi.mode === "chat"
-        ? m.s4_back_to_new_chat()
-        : m.s1_back_to_workspace()}
+    href="/"
+    label={sessionId ? m.s1_back_to_terminal() : m.s1_back_to_workspace()}
     onclick={sessionId ? () => navigate(`/s/${sessionId}`) : undefined}
   />
   <div class="settings-layout mx-auto max-w-6xl px-4 sm:px-8">

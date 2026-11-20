@@ -167,7 +167,7 @@ module.exports = {
         path: "^src/(App\\.svelte|pages/(SessionList|Terminal)\\.svelte|components/shell/(AppShell|AppSidebar|SidebarFooter|SessionSwitcher)\\.svelte|hooks/sessions/session-list\\.svelte\\.ts)$",
       },
       to: {
-        path: "^src/(pages/(QuickStart|Handoff|GitWorkbench|WorkspaceSessionList|CodePopout|TailscaleSettingsPage|TunnelSettingsPage|ForwardAuth)\\.svelte|components/(chat|code|workspace|notifications)/|hooks/(workspace|chat)/|domains/(chat|notifications)/)",
+        path: "^src/(pages/(Handoff|GitWorkbench|WorkspaceSessionList|CodePopout|TailscaleSettingsPage|TunnelSettingsPage|ForwardAuth)\\.svelte|components/(chat|code|workspace|notifications)/|hooks/(workspace|chat)/|domains/(chat|notifications)/)",
         dependencyTypesNot: ["type-only"],
       },
     },

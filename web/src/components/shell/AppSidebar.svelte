@@ -10,7 +10,6 @@
   import type {
     ArchivedSession,
     HybridRelease,
-    Worktree,
     SessionInfo,
     AgentConnector,
   } from "../../contracts/schemas";
@@ -24,7 +23,7 @@
   import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
   import { useLayoutRowsMotion } from "../../hooks/shared/layout-rows-motion.svelte";
   import { useSidebarScrollHandoff } from "../../hooks/shared/sidebar-scroll-handoff.svelte";
-  import { paneEnter } from "../../hooks/shared/pane-enter";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import SidebarWorkspaceTree from "./SidebarWorkspaceTree.svelte";
   import WorkbenchSidebarSessions from "./WorkbenchSidebarSessions.svelte";
@@ -57,7 +56,7 @@
   }: {
     route: Extract<
       Route,
-      { name: "sessions" | "quick-start" | "terminal" | "handoff" | "git" }
+      { name: "sessions" | "terminal" | "handoff" | "git" }
     >;
     /** Desktop only; the drawer closes on its own. */
     collapsible?: boolean;
@@ -77,14 +76,11 @@
       shell.repositories?.initialSettled === false ||
       shell.archived?.initialSettled === false,
   );
-  const chatHome = $derived(
-    !!chat && (route.name === "quick-start" || route.name === "handoff"),
-  );
   const navigationId = $props.id();
   let navigationRows = $state<HTMLDivElement | null>(null);
   useLayoutRowsMotion(
     () => navigationRows,
-    () => (chatHome ? "" : workbenchLayout.value),
+    () => workbenchLayout.value,
     "[data-sidebar-session-id], [data-layout-row]",
   );
   const showWorkspaces = $derived(
@@ -119,31 +115,6 @@
   function askRemove(record: ArchivedSession) {
     removing = record;
     removeOpen = true;
-  }
-  function askRemoveWithWorktree(record: ArchivedSession, worktree: Worktree) {
-    shell.removeWorktree(worktree, {
-      onremoved: () => void forgetAfterWorktree(record),
-      forgetRecords: [record],
-    });
-  }
-  // The worktree is already gone when this runs; a failed record deletion
-  // leaves a released record behind, which the user can delete again.
-  async function forgetAfterWorktree(record: ArchivedSession) {
-    resumeErrorFn = null;
-    try {
-      await removeRecord(record.id);
-      sessionPins.refreshEnded(record.id);
-      shell.drafts.remove(record.id);
-    } catch (err) {
-      const cause = errorMessage(err);
-      resumeErrorFn = () =>
-        m.s1_worktree_removed_record_delete_failed({
-          title: recordTitle(record),
-          error: cause,
-        });
-    } finally {
-      await shell.archived?.refresh();
-    }
   }
   async function confirmRemove() {
     const record = removing;
@@ -214,16 +185,6 @@
       resuming = "";
     }
   }
-  function revealNavigation(node: HTMLElement, _chatHome: boolean) {
-    const animation = paneEnter(node, false);
-    return {
-      update() {
-        animation.update(false);
-        animation.update(true);
-      },
-      destroy: animation.destroy,
-    };
-  }
   let drawer = $state<HTMLElement | null>(null);
   let navigationViewport = $state<HTMLElement | null>(null);
 
@@ -239,29 +200,27 @@
   }
   function scope(next: string, worktreeId?: string) {
     workbenchLayout.attentionOnly = false;
-    shellUi.setMode("workbench");
     shell.repositories?.select(next, worktreeId);
     openPage("/");
   }
+  function startNewSession() {
+    if (
+      chat &&
+      workspace &&
+      queue &&
+      featureAvailable("workspace.manage") &&
+      shell.repositories
+    ) {
+      shell.repositories.select("all");
+      workbenchLayout.attentionOnly = false;
+      shellUi.drawerOpen = false;
+      openPage("/");
+      shellUi.requestQuickStartFocus("explicit");
+      return;
+    }
+    shell.start();
+  }
 </script>
-
-{#snippet history()}
-  {#if chat}<chat.History
-      sessions={unpinned}
-      {records}
-      {configs}
-      repositories={shell.repositories?.list ?? []}
-      {current}
-      {resuming}
-      onopen={openSession}
-      onresume={open}
-      onrename={shell.rename}
-      onclose={shell.close}
-      onrelease={shell.releaseWorktree}
-      onremove={askRemove}
-      onremoveworktree={askRemoveWithWorktree}
-    />{/if}
-{/snippet}
 
 {#snippet workspaces()}
   <SidebarWorkspaceTree
@@ -293,7 +252,6 @@
     onGroupingChange={workspace
       ? (checked) => {
           workbenchLayout.value = checked ? "workspaces" : "queue";
-          if (chatHome) openPage("/");
         }
       : undefined}
   />
@@ -303,12 +261,11 @@
         variant="outline"
         size="sm-touch"
         class="min-w-0 flex-1"
-        aria-current={route.name === "quick-start" ? "page" : undefined}
-        onclick={() => (chat ? openPage("/new") : shell.start())}
+        onclick={startNewSession}
       >
         <IconPlus aria-hidden="true" />{m.s1_new_session()}
       </Button>
-      {#if !chatHome && workspace && shell.repositories}
+      {#if workspace && shell.repositories}
         <Button
           variant="outline"
           size="icon-touch"
@@ -350,12 +307,12 @@
     class="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]]:overscroll-contain [&_[data-slot=scroll-area-viewport]>div]:!block"
   >
     <div id={navigationId} class="px-2 py-2" bind:this={navigationRows}>
-      {#if pinned.length && (chatHome || !queue)}
+      {#if pinned.length && !queue}
         <SidebarPinnedSessions
           sessions={pinned}
           {current}
           {configIcons}
-          showLocation={chatHome}
+          showLocation={false}
         />
       {/if}
 
@@ -365,10 +322,8 @@
         >
           {resumeError || sessionPins.error}
         </p>{/if}
-      <div use:revealNavigation={chatHome}>
-        {#if chatHome}
-          {@render history()}
-        {:else if queue}
+      <div>
+        {#if queue}
           <WorkbenchSidebarSessions
             loading={queueLoading}
             sessions={live}

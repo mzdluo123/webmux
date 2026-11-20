@@ -22,7 +22,6 @@
     openGitWorkbench,
     openPage,
     openSession,
-    shellUi,
   } from "../hooks/shared/shell.svelte";
   import { dispatchGitPageBranchAction } from "../hooks/workspace/git-branch-action-dispatch";
   import { createGitWorkbenchController } from "../hooks/workspace/git-workbench-controller.svelte";
@@ -336,7 +335,6 @@
     onPush={() => handlePush()}
     onReturnSession={(id) => openSession({ id })}
     onReturnWorkbench={() => {
-      shellUi.setMode("workbench");
       openPage("/");
     }}
   />

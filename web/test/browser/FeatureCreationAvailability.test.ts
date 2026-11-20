@@ -199,7 +199,7 @@ test("instruction preview keeps long reference notes reachable on a short phone"
 
 test("selected but unavailable workspace falls back to creating chat in an ordinary directory", async () => {
   capabilities(["workspace.manage"]);
-  history.replaceState(null, "", "/new");
+  history.replaceState(null, "", "/");
   respond(/^GET \/api\/launch-configs$/, () => Response.json([launchConfig()]));
   respond(/^GET \/api\/sessions$/, () => Response.json([]));
   respond(/^POST \/api\/sessions$/, () =>
@@ -211,6 +211,10 @@ test("selected but unavailable workspace falls back to creating chat in an ordin
   render(ShellHarness, { drafts: createTerminalDrafts() });
   const socket = await socketAt("/ws/sessions");
   socket.frame({ type: "snapshot", sessions: [], forwards: [] } as never);
+  await page
+    .getByRole("complementary", { name: "侧栏" })
+    .getByRole("button", { name: "新建会话" })
+    .click();
   await expect
     .element(page.getByRole("dialog", { name: "新建会话" }))
     .toBeVisible();

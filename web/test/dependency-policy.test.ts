@@ -168,7 +168,7 @@ describe("dependency boundary policy", () => {
     ],
     [
       "src/components/shell/AppShell.svelte",
-      "src/components/chat/ChatHistory.svelte",
+      "src/components/chat/ChatView.svelte",
       "core-does-not-load-feature-implementations",
     ],
   ])("rejects %s → %s (%s)", (from, to, rule) => {

@@ -52,10 +52,11 @@
     routeFeature,
     shellRouteFor,
   } from "./hooks/shared/route";
-  import { openSession } from "./hooks/shared/shell.svelte";
+  import { openSession, shellUi } from "./hooks/shared/shell.svelte";
   import { createTerminalDrafts } from "./domains/terminal/terminal-draft.svelte";
   import { activeBrowserDraftStorage } from "./domains/terminal/draft-storage";
   import { clearHomeCache } from "./domains/workspace/home-cache";
+  import { workbenchLayout } from "./domains/workspace/workbench-layout.svelte";
   import { sessionPins } from "./domains/sessions/session-pins.svelte";
   import {
     clearSessionListSnapshot,
@@ -94,7 +95,16 @@
   const drafts = createTerminalDrafts({ storage: activeBrowserDraftStorage() });
   let uploadNotice = $state("");
 
-  let path = $state(location.pathname);
+  function normalizeLegacyNewPath(pathname: string): string {
+    if (pathname !== "/new") return pathname;
+    workbenchLayout.value = "queue";
+    workbenchLayout.attentionOnly = false;
+    history.replaceState(null, "", "/");
+    shellUi.requestQuickStartFocus("auto");
+    return "/";
+  }
+
+  let path = $state(normalizeLegacyNewPath(location.pathname));
   let search = $state(location.search);
   let ready = $state(false);
   let rebuildingFeatures = $state(false);
@@ -212,7 +222,7 @@
         );
         if (epoch !== bootstrapEpoch) return;
         setFeatureCapabilities(capabilities);
-        path = location.pathname;
+        path = normalizeLegacyNewPath(location.pathname);
         await loadFeatureContributions({
           forwardAuth: route.name === "forward-auth",
           codePopout: route.name === "code",
@@ -222,7 +232,7 @@
         resetFeatureCapabilities();
         disposeFeatureContributions();
         discoveryFailureCause = errorMessage(discoveryFailure);
-        path = location.pathname;
+        path = normalizeLegacyNewPath(location.pathname);
       }
       if (epoch !== bootstrapEpoch) return;
       startSettings();
@@ -241,10 +251,11 @@
 
   onMount(() => {
     const change = () => {
-      const pathChanged = path !== location.pathname;
+      const nextPath = normalizeLegacyNewPath(location.pathname);
+      const pathChanged = path !== nextPath;
       if (pathChanged) switcherOpen = false;
       pendingSessionOpen = "";
-      path = location.pathname;
+      path = nextPath;
       search = location.search;
       if (pathChanged) focusRoute();
     };

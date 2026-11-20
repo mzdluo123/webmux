@@ -13,7 +13,6 @@
   import { Button } from "$lib/components/ui/button";
   import IconFolder from "~icons/tabler/folder";
   import { navigate } from "../../platform/api";
-  import { shellUi } from "../../hooks/shared/shell.svelte";
   import { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
   import { bottomToolbar } from "../../hooks/terminal/bottom-toolbar-preference.svelte";
   import { keyboardSizeHold } from "../../hooks/terminal/keyboard-size-hold-preference.svelte";
@@ -48,13 +47,9 @@
     class="max-sm:hidden"
     variant="ghost"
     size="icon-sm"
-    aria-label={shellUi.mode === "chat"
-      ? m.s4_back_to_new_chat()
-      : m.s4_back_to_session_list()}
-    title={shellUi.mode === "chat"
-      ? m.s4_back_to_new_chat()
-      : m.s4_back_to_session_list()}
-    onclick={() => navigate(shellUi.home)}
+    aria-label={m.s4_back_to_session_list()}
+    title={m.s4_back_to_session_list()}
+    onclick={() => navigate("/")}
   >
     <IconArrowLeft class="size-4" aria-hidden="true" />
   </Button>

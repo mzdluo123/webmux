@@ -8,6 +8,7 @@
 
   let {
     title,
+    compact = false,
     mainWorktree = false,
     pinnedWorktree = false,
     actions,
@@ -23,6 +24,8 @@
     children,
   }: {
     title?: string;
+    /** Compact queue bar below the inline quick-start composer. */
+    compact?: boolean;
     mainWorktree?: boolean;
     pinnedWorktree?: boolean;
     /** Routes and controls for the current scope. */
@@ -50,38 +53,44 @@
   );
 </script>
 
-<div class="mb-6 space-y-3 sm:mb-7 sm:space-y-4">
-  <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-    <p role="status" class="sr-only">
-      {#if loading}{m.s8_toolbar_loading()}
-      {:else if filtering}{m.s8_toolbar_filtering_sessions({
-          visible: String(visibleCount),
-          total: String(sessionCount),
-        })}
-      {:else}{scopeCounts}{/if}{#if refreshing}
-        {m.s8_toolbar_refreshing_git()}{/if}
-    </p>
-    <div class="min-w-[min(100%,10rem)] flex-1 sm:mr-3">
-      <div class="flex min-w-0 items-center gap-1.5">
-        <h1
-          class="text-xl leading-tight font-semibold tracking-tight wrap-anywhere sm:text-2xl"
-        >
-          {resolvedTitle}
-        </h1>
-        {#if mainWorktree}<MainWorktreeMark srLabel size="md" />{/if}
-        {#if pinnedWorktree}<PinnedWorktreeMark srLabel size="md" />{/if}
+<div
+  class={compact
+    ? "mb-5 space-y-3 border-t pt-5 sm:mb-6 sm:space-y-4"
+    : "mb-6 space-y-3 sm:mb-7 sm:space-y-4"}
+>
+  <p role="status" class="sr-only">
+    {#if loading}{m.s8_toolbar_loading()}
+    {:else if filtering}{m.s8_toolbar_filtering_sessions({
+        visible: String(visibleCount),
+        total: String(sessionCount),
+      })}
+    {:else}{scopeCounts}{/if}{#if refreshing}
+      {m.s8_toolbar_refreshing_git()}{/if}
+  </p>
+  {#if !compact}
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div class="min-w-[min(100%,10rem)] flex-1 sm:mr-3">
+        <div class="flex min-w-0 items-center gap-1.5">
+          <h1
+            class="text-xl leading-tight font-semibold tracking-tight wrap-anywhere sm:text-2xl"
+          >
+            {resolvedTitle}
+          </h1>
+          {#if mainWorktree}<MainWorktreeMark srLabel size="md" />{/if}
+          {#if pinnedWorktree}<PinnedWorktreeMark srLabel size="md" />{/if}
+        </div>
+        {#if meta}<div class="empty:hidden sm:mt-2">{@render meta()}</div>{/if}
       </div>
-      {#if meta}<div class="empty:hidden sm:mt-2">{@render meta()}</div>{/if}
+      <Button
+        class="shrink-0"
+        aria-label={m.s8_toolbar_new_session_plus()}
+        disabled={startDisabled}
+        onclick={() => onstart()}
+        ><IconPlus aria-hidden="true" />{m.s8_new_session()}</Button
+      >
     </div>
-    <Button
-      class="shrink-0"
-      aria-label={m.s8_toolbar_new_session_plus()}
-      disabled={startDisabled}
-      onclick={() => onstart()}
-      ><IconPlus aria-hidden="true" />{m.s8_new_session()}</Button
-    >
-  </div>
-  <div class="flex min-w-0 flex-wrap items-center gap-1 border-b">
+  {/if}
+  <div class="flex min-w-0 flex-wrap items-center gap-1 border-b pb-1">
     <span
       aria-current="page"
       class="flex min-h-9 items-center gap-2 border-b-2 border-foreground px-2 text-sm font-medium"
@@ -92,6 +101,17 @@
       </span>
     </span>
     {@render actions()}
+    {#if compact}
+      <Button
+        variant="outline"
+        size="sm"
+        class="ml-auto shrink-0"
+        aria-label={m.s8_toolbar_new_session_plus()}
+        disabled={startDisabled}
+        onclick={() => onstart()}
+        ><IconPlus aria-hidden="true" />{m.s8_new_session()}</Button
+      >
+    {/if}
   </div>
   {@render children()}
 </div>

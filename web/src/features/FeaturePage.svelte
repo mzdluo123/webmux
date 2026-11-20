@@ -62,10 +62,6 @@
         {search}
       />{/snippet}
   </LazyPage>
-{:else if route.name === "quick-start" && entries.chat}
-  <LazyPage load={entries.chat.pages["quick-start"]} label={m.s1_quick_start()}>
-    {#snippet children(page)}<page.default />{/snippet}
-  </LazyPage>
 {:else if route.name === "sessions" && entries.workspace}
   <LazyPage load={entries.workspace.pages.sessions} label={m.s1_workspace()}>
     {#snippet children(page)}<page.default />{/snippet}
