@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -496,5 +497,74 @@ func TestRecoveryUnavailableOnCorruptStore(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(path); string(b) != "{broken" {
 		t.Fatalf("corrupt store rewritten: %q", b)
+	}
+}
+
+type countUpdatedObserver struct {
+	id      string
+	updated atomic.Int64
+}
+
+func (o *countUpdatedObserver) Observe(e session.Event) {
+	if e.Type == "updated" && e.Session != nil && e.Session.ID == o.id {
+		o.updated.Add(1)
+	}
+}
+
+// Resuming an ACP session with a recorded agent session ID verifies and loads
+// it on a single ACP connection without spawning a second process or waiting
+// on background eligibility probes, and suppresses intermediate session-list
+// notifications during history replay.
+func TestResumeACPReusesSingleConnectionAndSuppressesReplayFlood(t *testing.T) {
+	h := newHarness(t, 0)
+	realBin := agentPath(t, omp.Name)
+	countFile := filepath.Join(t.TempDir(), "spawns.log")
+	wrapper := filepath.Join(t.TempDir(), omp.Name)
+	script := "#!/bin/sh\nprintf 'spawn\\n' >> '" + countFile + "'\nexec '" + realBin + "' \"$@\"\n"
+	if err := os.WriteFile(wrapper, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	in := h.input(omp.Name, SideACP)
+	in.Cmd = []string{wrapper}
+	id := h.create(in).Info().ID
+	for _, msg := range []string{"first /plan", "second /title", "third", "fourth", "fifth"} {
+		chatTurn(t, h, id, msg)
+	}
+	h.restart()
+
+	// Reset spawn log and saturate background probe slots to prove ACP resume
+	// neither spawns a separate probe process nor blocks on maxProbes.
+	if err := os.WriteFile(countFile, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for range cap(h.svc.probes) {
+		h.svc.probes <- struct{}{}
+	}
+	defer func() {
+		for range cap(h.svc.probes) {
+			<-h.svc.probes
+		}
+	}()
+
+	obs := &countUpdatedObserver{id: id}
+	stop := h.manager.Observe(obs)
+	defer stop()
+
+	s := h.mustResume(id, ResumeInput{Side: SideACP, Env: in.Env})
+	if users := h.replayedUsers(id); len(users) < 5 {
+		t.Fatalf("expected 5 replayed user prompts, got %q", users)
+	}
+	if s.Info().Preview == "" {
+		t.Fatal("resumed session lost its final preview")
+	}
+	raw, err := os.ReadFile(countFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spawns := len(strings.Fields(string(raw))); spawns != 1 {
+		t.Fatalf("ACP resume spawned %d agent processes, want 1", spawns)
+	}
+	if got := obs.updated.Load(); got > 2 {
+		t.Fatalf("ACP resume published %d intermediate updated events during replay, want <= 2", got)
 	}
 }

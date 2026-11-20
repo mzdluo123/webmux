@@ -203,17 +203,24 @@ func (a *actor) openACPWithRequirement(epoch int, sid, cwd string, resume bool, 
 	if a.externalWriterNow(sid) {
 		return openResult{fail: &failure{err: ErrExternalWriter, public: ErrExternalWriter.Error()}}
 	}
-	want := a.reapplyValues()
 	link, init, fail := a.connect(epoch)
 	if fail != nil {
 		return openResult{fail: fail}
 	}
+	return a.openOnLink(link, init, sid, cwd, resume, beforeLoad, requireResume)
+}
+
+// openOnLink opens agent session sid in cwd on an already-initialized ACP
+// connection link. On failure it stops link and clears replay mode if entered.
+func (a *actor) openOnLink(link *acpLink, init acp.InitializeResponse, sid, cwd string, resume bool, beforeLoad func() bool, requireResume bool) openResult {
+	want := a.reapplyValues()
 	res := openResult{link: link, init: init}
 	ctx := a.lifetime()
 	servers, scope := a.sessionMCPServers(ctx)
 	link.historyScope = scope
 	method := acp.MethodSessionLoad
 	var err error
+	replaying := false
 	if requireResume && (!agentprofile.ResumesSessions(a.cmd.Agent) || link.caps.Resume == nil) {
 		_ = link.stop()
 		return openResult{fail: &failure{err: ErrNativeResumeUnavailable, public: ErrNativeResumeUnavailable.Error()}}
@@ -231,6 +238,7 @@ func (a *actor) openACPWithRequirement(epoch int, sid, cwd string, resume bool, 
 			_ = link.stop()
 			return openResult{fail: &failure{err: errStopped, public: errStopped.Error()}}
 		}
+		replaying = true
 		var r acp.LoadSessionResponse
 		r, err = link.conn.LoadSession(ctx, acp.LoadSessionRequest{SessionID: sid, Cwd: cwd, MCPServers: servers})
 		if err != nil {
@@ -240,6 +248,9 @@ func (a *actor) openACPWithRequirement(epoch int, sid, cwd string, resume bool, 
 	}
 	if err != nil {
 		f := a.callFailed(link, method, err)
+		if replaying {
+			a.sync(a.finishControlReplay)
+		}
 		if externalWriter(err) || errors.Is(err, ErrExternalWriter) {
 			f = &failure{err: ErrExternalWriter, public: ErrExternalWriter.Error()}
 		}

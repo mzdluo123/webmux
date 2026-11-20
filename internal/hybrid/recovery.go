@@ -269,6 +269,14 @@ func (a *actor) resumeSide(epoch int, side Side, sid string, candidatesSince tim
 			return resumeResult{err: fmt.Errorf("%w: %s", ErrConflict, reasonText(ReasonOccupied))}
 		}
 	}
+	if sid != "" && !resolved && side == SideACP {
+		r := a.verifyAndOpenACP(epoch, sid, a.cwd)
+		if r.fail != nil {
+			return resumeResult{err: r.fail.err}
+		}
+		pid := r.link.sidecar.PID()
+		return resumeResult{agentSessionID: sid, link: r.link, init: r.init, config: r.config, notes: r.notes, loaded: !r.resumed, resumed: r.resumed, pid: pid, process: processIdentity(pid)}
+	}
 	if sid != "" && !resolved {
 		err := a.verify(sid)
 		if side == SideTUI && errors.Is(err, ErrConnectorMissing) {
@@ -312,6 +320,41 @@ func (a *actor) resumeSide(epoch int, side Side, sid string, candidatesSince tim
 	}
 	pid := r.link.sidecar.PID()
 	return resumeResult{agentSessionID: sid, link: r.link, init: r.init, config: r.config, notes: r.notes, loaded: !r.resumed, resumed: r.resumed, pid: pid, process: processIdentity(pid)}
+}
+
+// verifyAndOpenACP connects one ACP process, verifies sid is still listed in
+// cwd and unoccupied, and loads sid on that same connection without spawning a
+// second ACP process or serializing behind the background probe limit.
+func (a *actor) verifyAndOpenACP(epoch int, sid, cwd string) openResult {
+	if a.externalWriterNow(sid) {
+		return openResult{fail: &failure{err: ErrExternalWriter, public: ErrExternalWriter.Error()}}
+	}
+	link, init, fail := a.connect(epoch)
+	if fail != nil {
+		return openResult{fail: fail}
+	}
+	listCtx, cancel := context.WithTimeout(a.probeCtx, probeTimeout)
+	listed, err := a.listSessionsOn(listCtx, link.conn, link.sidecar, cwd, sid)
+	cancel()
+	if err != nil {
+		_ = link.stop()
+		return openResult{fail: &failure{err: err, public: err.Error()}}
+	}
+	if !slices.ContainsFunc(listed, func(s acp.SessionInfo) bool { return s.SessionID == sid }) {
+		_ = link.stop()
+		missing := &SessionMissingError{Candidates: candidates(listed)}
+		return openResult{fail: &failure{err: missing, public: missing.Error()}}
+	}
+	if a.svc.occupied(a.id, sid) {
+		_ = link.stop()
+		occ := fmt.Errorf("%w: %s", ErrConflict, reasonText(ReasonOccupied))
+		return openResult{fail: &failure{err: occ, public: occ.Error()}}
+	}
+	if a.externalWriterNow(sid) {
+		_ = link.stop()
+		return openResult{fail: &failure{err: ErrExternalWriter, public: ErrExternalWriter.Error()}}
+	}
+	return a.openOnLink(link, init, sid, cwd, false, nil, false)
 }
 
 // verify checks before a resume that agent session sid is still listed in
