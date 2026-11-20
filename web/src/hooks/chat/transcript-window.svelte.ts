@@ -3,6 +3,7 @@ import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { DisplayEntry } from "../../domains/chat/chat-model";
 
 const VIRTUALIZE_THRESHOLD = 48;
+const PROGRESSIVE_THRESHOLD = 80;
 const INITIAL_TAIL_PINNED = 8;
 const TAIL_PINNED = 24;
 const REVEAL_RADIUS = 8;
@@ -67,12 +68,12 @@ export function createTranscriptWindow(options: {
 
   // Only advance the pinned tail window while following the bottom so new
   // streaming messages never unmount an entry above a reader in history.
-  // When a large backlog arrives all at once (0 -> >48 entries), mount only
+  // When a large backlog arrives all at once (0 -> >80 entries), mount only
   // the bottom screenful on frame 1 and widen to the full tail buffer on the
   // next animation frame to avoid a single >100ms initial-mount LoAF.
   $effect(() => {
     const total = options.entries().length;
-    const bulkInitial = previousTotal === 0 && total > VIRTUALIZE_THRESHOLD;
+    const bulkInitial = previousTotal === 0 && total > PROGRESSIVE_THRESHOLD;
     previousTotal = total;
     if (bulkInitial && options.following()) {
       hydrating = true;
