@@ -209,6 +209,7 @@
   <LazyDialog
     onclose={() => (forwarding = false)}
     label={m.s4_port_forwarding()}
+    showLoading={false}
     load={() => import("../workspace/ForwardDialog.svelte")}
   >
     {#snippet children(Dialog)}<Dialog.default

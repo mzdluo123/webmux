@@ -79,6 +79,7 @@
   <LazyDialog
     load={forward.dialog}
     label={m.s1_port_forwarding()}
+    showLoading={false}
     onclose={() => (forwarding = false)}
   >
     {#snippet children(page)}<page.default
