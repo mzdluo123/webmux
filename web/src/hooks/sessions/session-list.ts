@@ -20,6 +20,12 @@ import {
   type StatusFilter,
 } from "../../domains/sessions/session-status";
 
+function indexRepositories(repositories: readonly Repository[]) {
+  const byId = new Map<string, Repository>();
+  for (const repo of repositories) byId.set(repo.id, repo);
+  return byId;
+}
+
 /**
  * The repositories and worktrees that live sessions name but the repository
  * list does not contain yet. A session started elsewhere (`webmux run
@@ -31,14 +37,22 @@ export function unknownWorkspaces(
   sessions: readonly SessionInfo[],
   repositories: readonly Repository[],
 ): string[] {
+  const reposById = indexRepositories(repositories);
+  const worktreesByRepo = new Map<string, Set<string>>();
   const unknown = new Set<string>();
   for (const { workspace } of sessions) {
     if (!workspace) continue;
-    const repository = repositories.find(
-      (r) => r.id === workspace.repositoryId,
-    );
-    if (!repository) unknown.add(`r:${workspace.repositoryId}`);
-    else if (!repository.worktrees.some((t) => t.id === workspace.worktreeId))
+    const repository = reposById.get(workspace.repositoryId);
+    if (!repository) {
+      unknown.add(`r:${workspace.repositoryId}`);
+      continue;
+    }
+    let trees = worktreesByRepo.get(repository.id);
+    if (!trees) {
+      trees = new Set(repository.worktrees.map((t) => t.id));
+      worktreesByRepo.set(repository.id, trees);
+    }
+    if (!trees.has(workspace.worktreeId))
       unknown.add(`w:${workspace.worktreeId}`);
   }
   return [...unknown];
@@ -50,12 +64,13 @@ export function filterVisibleSessions(
   statusFilter: StatusFilter,
   search: string,
 ): SessionInfo[] {
+  const reposById = search ? indexRepositories(repositories) : undefined;
   return scopedSessions.filter((session) => {
     if (!matchesStatusFilter(session.status, statusFilter)) return false;
     if (!search) return true;
-    const repository = repositories.find(
-      (repo) => repo.id === session.workspace?.repositoryId,
-    );
+    const repository = session.workspace
+      ? reposById?.get(session.workspace.repositoryId)
+      : undefined;
     const tree = repository?.worktrees.find(
       (worktree) => worktree.id === session.workspace?.worktreeId,
     );
@@ -75,13 +90,14 @@ export function filterVisibleArchiveIds(
   if (!filtering) return undefined;
   if (statusFilter !== "all" && statusFilter !== "archived")
     return new Set<string>();
+  const reposById = search ? indexRepositories(repositories) : undefined;
   return new Set(
     recoverable
       .filter((record) => {
         if (!search) return true;
-        const repository = repositories.find(
-          (repo) => repo.id === record.workspace?.repositoryId,
-        );
+        const repository = record.workspace
+          ? reposById?.get(record.workspace.repositoryId)
+          : undefined;
         const tree = repository?.worktrees.find(
           (worktree) => worktree.id === record.workspace?.worktreeId,
         );
