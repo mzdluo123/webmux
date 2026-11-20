@@ -149,7 +149,7 @@
           class={[
             "min-h-14 resize-none overflow-y-auto",
             compact &&
-              "composer-mobile:field-sizing-fixed composer-mobile:max-h-9 composer-mobile:min-h-9 composer-mobile:overflow-hidden",
+              "composer-mobile:field-sizing-fixed composer-mobile:max-h-9 composer-mobile:min-h-9 composer-mobile:overflow-hidden composer-mobile:leading-7 composer-mobile:whitespace-nowrap composer-mobile:text-ellipsis",
           ]}
           {placeholder}
           aria-label={label}
