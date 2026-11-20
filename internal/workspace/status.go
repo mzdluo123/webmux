@@ -193,12 +193,61 @@ func detectOperation(path string) *string {
 	if err != nil {
 		return nil
 	}
+	return detectOperationInDir(dir)
+}
+
+func detectOperationInDir(dir string) *string {
 	for _, marker := range operationMarkers {
 		if _, err := os.Lstat(filepath.Join(dir, marker.file)); err == nil {
 			return strptr(marker.operation)
 		}
 	}
 	return nil
+}
+
+// worktreeCommonDir resolves a worktree's gitdir and canonical common dir in
+// pure Go without spawning `git rev-parse`. Returns ok=false on any anomaly so
+// callers can fall back to Git itself.
+func worktreeCommonDir(path string) (gitDir, commonDir string, ok bool) {
+	dir, err := worktreeGitDir(path)
+	if err != nil {
+		return "", "", false
+	}
+	common := dir
+	if data, err := readBoundedSmallFile(filepath.Join(dir, "commondir"), maxGitFile); err == nil {
+		rel := strings.TrimRight(string(data), "\r\n")
+		if rel == "" {
+			return "", "", false
+		}
+		if filepath.IsAbs(rel) {
+			common = rel
+		} else {
+			common = filepath.Join(dir, rel)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", "", false
+	}
+	resolved, err := canonical(common)
+	if err != nil {
+		return "", "", false
+	}
+	return dir, resolved, true
+}
+
+func readBoundedSmallFile(path string, limit int64) ([]byte, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = file.Close() }()
+	data, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, errors.New("file exceeds size limit")
+	}
+	return data, nil
 }
 
 // lastFetched is the newest FETCH_HEAD modification time of the repository

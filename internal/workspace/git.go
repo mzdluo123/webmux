@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -190,21 +189,31 @@ func parseWorktrees(data []byte, repository string) ([]Worktree, error) {
 	return out, nil
 }
 func (s *Service) snapshot(ctx context.Context, r *repositoryState) (Repository, error) {
+	return s.snapshotWithCache(ctx, r, false)
+}
+
+func (s *Service) snapshotWithCache(ctx context.Context, r *repositoryState, useCache bool) (Repository, error) {
 	if err := ctx.Err(); err != nil {
 		return Repository{}, err
 	}
 	r.flightMu.Lock()
 	flight := r.flight
+	if flight != nil && !useCache && flight.cached {
+		// An explicit fresh Refresh must not join an in-flight cached List read.
+		flight = nil
+	}
 	if flight == nil {
 		readCtx, cancel := context.WithTimeout(context.Background(), readTimeout)
-		flight = &snapshotFlight{done: make(chan struct{}), cancel: cancel}
-		r.flight = flight
+		flight = &snapshotFlight{done: make(chan struct{}), cancel: cancel, cached: useCache}
+		if r.flight == nil {
+			r.flight = flight
+		}
 		go func() {
 			defer cancel()
 			if err := acquire(readCtx, r); err != nil {
 				flight.err = err
 			} else {
-				flight.repository = s.readRepository(readCtx, r)
+				flight.repository = s.readRepositoryWithCache(readCtx, r, useCache)
 				s.reconcileKnownWorktrees(r, flight.repository)
 				s.sweepOnce(readCtx, r)
 				release(r)
@@ -254,6 +263,10 @@ func (s *Service) unavailableRepository(r *repositoryState, err error) Repositor
 }
 
 func (s *Service) readRepository(ctx context.Context, r *repositoryState) Repository {
+	return s.readRepositoryWithCache(ctx, r, false)
+}
+
+func (s *Service) readRepositoryWithCache(ctx context.Context, r *repositoryState, useCache bool) Repository {
 	e := r.entry
 	result := repositoryResult(e)
 	result.InitInstruction = s.initInstruction(r)
@@ -275,25 +288,29 @@ func (s *Service) readRepository(ctx context.Context, r *repositoryState) Reposi
 		result.Error = err.Error()
 		return result
 	}
-	// Worktrees have independent indexes, so their status checks run in
-	// parallel; the service-wide pool avoids a process burst on large lists.
+	var activeTrees map[string]bool
+	if useCache {
+		activeTrees = s.activeWorktreeIDs()
+	}
+	packedNS := statModNS(filepath.Join(e.CommonDir, "packed-refs"))
+	fetchNS := statModNS(filepath.Join(e.CommonDir, "FETCH_HEAD"))
+	now := time.Now()
+	live := make(map[string]bool, len(trees))
+	for i := range trees {
+		live[trees[i].ID] = true
+	}
 	limit := s.worktreeGate
 	var wg sync.WaitGroup
 	for i := range trees {
 		wg.Add(1)
 		go func(tree *Worktree) {
 			defer wg.Done()
-			select {
-			case limit <- struct{}{}:
-			case <-ctx.Done():
-				tree.Error = ctx.Err().Error()
-				return
-			}
-			defer func() { <-limit }()
-			s.populateWorktreeStatus(ctx, e.CommonDir, tree)
+			allowCache := useCache && !activeTrees[tree.ID]
+			s.populateWorktreeStatusCached(ctx, r, e.CommonDir, tree, allowCache, packedNS, fetchNS, now, limit)
 		}(&trees[i])
 	}
 	wg.Wait()
+	r.pruneWorktreeStatusCache(live)
 	s.fillLastCommits(ctx, e.AnchorPath, trees)
 	sort.SliceStable(trees, func(i, j int) bool {
 		if trees[i].Kind != "linked" {
@@ -307,39 +324,6 @@ func (s *Service) readRepository(ctx context.Context, r *repositoryState) Reposi
 	result.Availability, result.Worktrees = "available", trees
 	result.LastFetchedAt = lastFetched(e.CommonDir)
 	return result
-}
-
-func (s *Service) populateWorktreeStatus(ctx context.Context, commonDir string, tree *Worktree) {
-	stat, statErr := os.Stat(tree.Path)
-	if statErr != nil || !stat.IsDir() {
-		tree.Error = fmt.Sprintf("工作树目录不可访问: %v", statErr)
-		return
-	}
-	if tree.Kind == "bare" {
-		tree.Available = true
-		return
-	}
-	actual, checkErr := s.common(ctx, tree.Path)
-	if checkErr != nil || actual != commonDir {
-		tree.Error = fmt.Sprintf("无法验证工作树身份: %v", checkErr)
-		return
-	}
-	tree.Available = true
-	tree.Operation = detectOperation(tree.Path)
-	data, statusErr := s.git(ctx, tree.Path, "status", "--porcelain=v2", "-z", "--branch", "--untracked-files=normal", "--ignored=matching")
-	if statusErr != nil {
-		tree.Error = statusErr.Error()
-		return
-	}
-	status, parseErr := parseStatus(data)
-	if parseErr != nil {
-		tree.Error = parseErr.Error()
-		return
-	}
-	dirty := status.dirty
-	tree.Dirty, tree.HasUntracked, tree.HasIgnored = &dirty, status.untracked, status.ignored
-	tree.Upstream, tree.Ahead, tree.Behind, tree.UpstreamGone = status.upstream, status.ahead, status.behind, status.upstreamGone
-	tree.Changes = &status.changes
 }
 
 // fillLastCommits describes every worktree's HEAD with one batched log;

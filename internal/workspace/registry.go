@@ -51,6 +51,10 @@ type repositoryState struct {
 	gate           chan struct{}
 	flightMu       sync.Mutex
 	flight         *snapshotFlight
+	// statusCache holds per-worktree status entries reused across List calls for
+	// dormant worktrees whose Git/index/ref metadata has not changed.
+	statusCacheMu sync.Mutex
+	statusCache   map[string]cachedWorktreeStatus
 	// fetching is the running FetchRemotes; guarded by fetchMu.
 	fetchMu  sync.Mutex
 	fetching *fetchFlight
@@ -64,6 +68,7 @@ type snapshotFlight struct {
 	err        error
 	cancel     context.CancelFunc
 	waiters    int
+	cached     bool
 }
 type Service struct {
 	projectMu     sync.Mutex
@@ -164,7 +169,7 @@ func New(stateDir string, manager *session.Manager, launches *launch.Service, de
 	if stateDir == "" {
 		stateDir = config.DefaultStateDir()
 	}
-	s := &Service{manager: manager, launches: launches, defaultCwd: defaultCwd, stateDir: stateDir, fetchTimeout: branchFetchTimeout, fetchRemoteTimeout: fetchRemoteTimeout, worktreeGate: make(chan struct{}, 4), writeGates: make(map[string]chan struct{}), starts: make(map[string]int), reservations: make(map[string]bool), changed: make(chan struct{}), confirmations: make(map[string]confirmation), opFlights: make(map[string]*opFlight), watchInterval: defaultWatchInterval, watchDebounce: defaultWatchDebounce}
+	s := &Service{manager: manager, launches: launches, defaultCwd: defaultCwd, stateDir: stateDir, fetchTimeout: branchFetchTimeout, fetchRemoteTimeout: fetchRemoteTimeout, worktreeGate: make(chan struct{}, worktreeConcurrency()), writeGates: make(map[string]chan struct{}), starts: make(map[string]int), reservations: make(map[string]bool), changed: make(chan struct{}), confirmations: make(map[string]confirmation), opFlights: make(map[string]*opFlight), watchInterval: defaultWatchInterval, watchDebounce: defaultWatchDebounce}
 	s.githubPath, _ = exec.LookPath("gh")
 	s.githubTimeout = githubRequestTimeout
 	git, err := exec.LookPath("git")
@@ -441,7 +446,7 @@ func (s *Service) List(ctx context.Context) ([]Repository, error) {
 		wg.Add(1)
 		go func(i int, r *repositoryState) {
 			defer wg.Done()
-			snapshot, err := s.snapshot(ctx, r)
+			snapshot, err := s.snapshotWithCache(ctx, r, true)
 			if err != nil {
 				failures[i] = err
 				return

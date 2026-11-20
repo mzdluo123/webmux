@@ -72,21 +72,11 @@ func (s *Server) launchChatRoutes(mux transport.Registrar) {
 			if !s.Config.Features.Has("workspace") || s.Workspace == nil {
 				return nil, workspace.ErrUnavailable
 			}
-			repositories, err := s.Workspace.List(r.Context())
+			anchor, err := s.Workspace.AnchorPath(req.RepositoryID)
 			if err != nil {
 				return nil, err
 			}
-			found := false
-			for _, repository := range repositories {
-				if repository.ID == req.RepositoryID {
-					cwd = repository.AnchorPath
-					found = true
-					break
-				}
-			}
-			if !found {
-				return nil, workspace.ErrNotFound
-			}
+			cwd = anchor
 		}
 		options, err := s.Hybrid.ProbeAgentOptions(r.Context(), hybrid.CreateInput{Cwd: cwd, ConfigID: command.ConfigID, Cmd: command.Cmd, Env: command.Env})
 		return wire.ChatConfigs(options), err
