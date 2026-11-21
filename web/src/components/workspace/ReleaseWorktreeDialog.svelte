@@ -91,6 +91,7 @@
   <PreviewForm
     {formId}
     {busy}
+    submitting={busy && preview !== null}
     {error}
     onsubmit={() => void release()}
     {onclose}

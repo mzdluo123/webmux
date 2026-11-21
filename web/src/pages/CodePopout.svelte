@@ -30,9 +30,5 @@
         >{m.s1_back_to_session()}</Button
       >
     </div>
-  {:else}
-    <p role="status" class="p-6 text-sm text-muted-foreground">
-      {m.s1_connecting_session_page()}
-    </p>
   {/if}
 </main>

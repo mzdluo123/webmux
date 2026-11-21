@@ -119,3 +119,23 @@ test("retries API errors and keeps the search and direction", async () => {
   await page.getByRole("button", { name: /前端调试/ }).click();
   expect(onselect).toHaveBeenCalledWith("sessb234", "vertical");
 });
+
+test("renders initialSessions immediately without flashing a loading notice", async () => {
+  const pending = Promise.withResolvers<Response>();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof globalThis.fetch>(() => pending.promise),
+  );
+  render(SplitSessionDialog, {
+    excluded: ["sessc234"],
+    initialSessions: sessions,
+    onclose: () => {},
+    onselect: () => {},
+  });
+
+  await expect.element(page.getByText("正在加载会话…")).not.toBeInTheDocument();
+  await expect
+    .element(page.getByRole("button", { name: /后端构建/ }))
+    .toBeVisible();
+  pending.resolve(Response.json(sessions));
+});

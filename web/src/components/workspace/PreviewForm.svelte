@@ -11,6 +11,7 @@
   let {
     formId,
     busy,
+    submitting = busy,
     error,
     onsubmit,
     onclose,
@@ -21,6 +22,8 @@
   }: {
     formId?: string;
     busy: boolean;
+    /** Shows the in-flight submission notice only while mutating, not on initial preview read. */
+    submitting?: boolean;
     error: string;
     onsubmit: () => void;
     onclose: () => void;
@@ -48,7 +51,7 @@
   {:else}
     {@render summary()}
   {/if}
-  {#if busy}<p role="status" class="text-sm">
+  {#if submitting}<p role="status" class="text-sm">
       {m.s8_preview_form_busy()}
     </p>{/if}
   {@render children()}

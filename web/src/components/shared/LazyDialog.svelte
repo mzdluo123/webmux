@@ -7,31 +7,18 @@
   let {
     load,
     label,
-    showLoading = true,
     onclose,
     children,
   }: {
     load: () => Promise<T>;
     label: string;
-    showLoading?: boolean;
     onclose: () => void;
     children: Snippet<[T]>;
   } = $props();
   const pending = untrack(() => load());
 </script>
 
-{#await pending}
-  {#if showLoading}
-    <InlineNotice surface="floating" class="fixed inset-x-4 bottom-4 z-50">
-      {m.s1_loading_target({ label })}
-      {#snippet actions()}
-        <Button variant="outline" size="sm" onclick={onclose}
-          >{m.s1_cancel()}</Button
-        >
-      {/snippet}
-    </InlineNotice>
-  {/if}
-{:then page}
+{#await pending then page}
   {@render children(page)}
 {:catch}
   <InlineNotice
