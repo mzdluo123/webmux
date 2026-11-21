@@ -6,6 +6,7 @@
   import IconMaximize from "~icons/tabler/maximize";
   import IconMinimize from "~icons/tabler/minimize";
   import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
+  import { Separator } from "$lib/components/ui/separator";
   import { m } from "$lib/paraglide/messages.js";
   import SessionSwitcherTrigger from "../shell/SessionSwitcherTrigger.svelte";
   import SessionPaneMenu from "./SessionPaneMenu.svelte";
@@ -53,13 +54,20 @@
   >
     <IconArrowLeft class="size-4" aria-hidden="true" />
   </Button>
-  <SessionPaneMenu {dock} {closePane} />
   {#if pane?.commands}
-    <div class="flex min-w-0 items-center" data-dock-session-commands={pane.id}>
+    <div
+      class="flex min-w-0 flex-1 items-center justify-end"
+      data-dock-session-commands={pane.id}
+    >
       {#key pane.id}{@render pane.commands()}{/key}
     </div>
+    <Separator
+      orientation="vertical"
+      class="mx-0.5 h-4 data-vertical:self-center max-sm:hidden"
+    />
+  {:else}
+    <div class="flex-1"></div>
   {/if}
-  <div class="flex-1"></div>
   <SessionSwitcherTrigger size="icon-touch-sm" class="sm:hidden" />
   {#if openFiles}<Button
       variant="ghost"
@@ -79,6 +87,11 @@
   >
     <IconLayout aria-hidden="true" />
   </Button>
+  <SessionPaneMenu {dock} {closePane} />
+  <Separator
+    orientation="vertical"
+    class="mx-0.5 h-4 data-vertical:self-center max-sm:hidden"
+  />
   {#if fullscreen.offered}<Button
       variant="ghost"
       size="icon-sm"

@@ -89,6 +89,14 @@
   let fontOpen = $state(false);
   let skipMenuFocus = false;
   const terminalShown = $derived(!hybrid || hybrid.view === "terminal");
+  const showViewTabs = $derived(
+    !!(
+      features.chat &&
+      hybrid &&
+      hybrid.view !== "recovery" &&
+      !compactActions.current
+    ),
+  );
   const menuLabel = $derived(
     terminalShown ? m.s4_terminal_menu() : m.s4_session_menu(),
   );
@@ -105,25 +113,25 @@
 </script>
 
 <div
-  class="terminal-header flex min-w-0 flex-1 items-center gap-1"
+  class="terminal-header flex min-w-0 flex-1 items-center gap-2"
   data-bottom-toolbar={toolbarMode}
 >
-  {#if !compactActions.current}
-    <!-- Keep actions anchored while the session title is loading. -->
-    {@render terminalMenu()}
-    {@render quickCommands()}
-  {/if}
+  <!-- Left: session identity (status dot, title, agent badge). -->
   {#if phone.current}
     <TerminalPaneStatus terminal={t} compact>
       {@render sessionTitle()}
     </TerminalPaneStatus>
   {:else}
     <TerminalPaneStatus terminal={t}>
-      <div class="flex min-w-0 items-center gap-2">
+      <div class="flex min-w-0 items-center gap-1.5">
         <div class="flex min-w-0 flex-col">
           {@render sessionTitle()}
         </div>
         {#if features.chat && chatAgent}
+          <span
+            class="hidden shrink-0 text-xs text-muted-foreground/60 md:inline"
+            aria-hidden="true">·</span
+          >
           <span
             class="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground md:inline-flex"
             role="img"
@@ -133,28 +141,39 @@
           >
             {#if features.chat.hasLaunchIcon(chatAgent.icon)}
               <features.chat.LaunchIcon icon={chatAgent.icon} size="sm" />
+              <span class="max-lg:hidden">{chatAgent.title}</span>
+            {:else}
+              <span>{chatAgent.title}</span>
             {/if}
-            <span>{chatAgent.title}</span>
           </span>
         {/if}
       </div>
     </TerminalPaneStatus>
   {/if}
-  {#if features.chat && hybrid && hybrid.view !== "recovery" && !compactActions.current}
-    <features.chat.ViewTabs
-      hybrid={{
-        side: hybrid.side,
-        target: hybrid.target,
-        switching: hybrid.view === "switching",
-        chatUnavailable: hybrid.chatUnavailable,
-        request: (to) => hybrid.request(to),
-      }}
-    />
+  <!-- Center: hybrid chat/terminal view switch. -->
+  {#if showViewTabs && features.chat && hybrid}
+    <div class="shrink-0">
+      <features.chat.ViewTabs
+        hybrid={{
+          side: hybrid.side,
+          target: hybrid.target,
+          switching: hybrid.view === "switching",
+          chatUnavailable: hybrid.chatUnavailable,
+          request: (to) => hybrid.request(to),
+        }}
+      />
+    </div>
   {/if}
-  {#if compactActions.current}
+  <!-- Right: session quick commands and session/terminal menu. -->
+  <div
+    class={[
+      "flex shrink-0 items-center justify-end gap-1",
+      showViewTabs && "lg:basis-0 lg:grow",
+    ]}
+  >
     {@render quickCommands()}
     {@render terminalMenu()}
-  {/if}
+  </div>
 </div>
 
 {#snippet quickCommands()}
@@ -188,7 +207,7 @@
     </DropdownMenu.Trigger>
     <DropdownMenu.Content
       class={chatActions ? "min-w-48" : undefined}
-      align={compactActions.current ? "end" : "start"}
+      align="end"
       onCloseAutoFocus={(event) => {
         if (skipMenuFocus) {
           event.preventDefault();
