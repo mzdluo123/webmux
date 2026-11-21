@@ -14,12 +14,15 @@ import (
 const (
 	ChatFrameSnapshot = "snapshot"
 	ChatFrameEvents   = "events"
+	ChatFrameBackfill = "backfill"
 	ChatFrameState    = "state"
 )
 
 // ChatFrame is one server-to-client frame. A connection receives one
-// snapshot, then events (the log from the resume point) and afterwards any
-// mix of events and state. Exactly the fields of Type are set.
+// snapshot, then events (the log from the resume point, or the newest tail
+// when ?backfill=tail is requested, followed by backfill frames carrying
+// earlier chunks) and afterwards any mix of events and state. Exactly the
+// fields of Type are set.
 type ChatFrame struct {
 	Type string `json:"type"`
 	// snapshot: Reset tells the client to discard its timeline because the
@@ -32,8 +35,9 @@ type ChatFrame struct {
 	Reset      bool       `json:"reset,omitempty"`
 	Truncated  bool       `json:"truncated,omitempty"`
 	State      *ChatState `json:"state,omitempty"`
-	// events
+	// events / backfill
 	Items []ChatEvent `json:"items,omitempty"`
+	More  bool        `json:"more,omitempty"`
 }
 
 // ChatState is the replaceable, non-timeline state of the chat channel.

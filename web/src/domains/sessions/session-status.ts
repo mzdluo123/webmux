@@ -86,11 +86,14 @@ export function statusSummary(
   return m.s3_status_summary({ active, waiting, exited });
 }
 
-// The five states a sidebar row shows (chat history and the workbench tree):
-// waiting for the user, working, idle, ended (exited, or an archived
-// record), or released (an archived record whose worktree's space was
-// freed). Rows always pair the colour or shape with the label.
-export type RowStatus = "working" | "waiting" | "idle" | "ended" | "released";
+// Sidebar rows pair each mark with a localized label.
+export type RowStatus =
+  | "working"
+  | "waiting"
+  | "idle"
+  | "dormant"
+  | "ended"
+  | "released";
 export const rowStatusLabels: Record<RowStatus, string> = {
   get working() {
     return m.s3_row_status_working();
@@ -100,6 +103,9 @@ export const rowStatusLabels: Record<RowStatus, string> = {
   },
   get idle() {
     return m.s3_row_status_idle();
+  },
+  get dormant() {
+    return m.sessions_resume_on_open();
   },
   get ended() {
     return m.s3_row_status_ended();

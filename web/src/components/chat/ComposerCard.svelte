@@ -126,7 +126,7 @@
     bind:this={card}
     data-composer-card
     class={[
-      "@container rounded-lg border bg-card shadow-sm transition has-[textarea:focus]:border-ring has-[textarea:focus]:ring-3 has-[textarea:focus]:ring-ring/20",
+      "@container rounded-lg border bg-card shadow-sm transition-colors hover:border-input has-[textarea:focus]:border-ring/70 has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-ring/15",
       compact &&
         "composer-mobile:flex composer-mobile:items-center composer-mobile:gap-1 composer-mobile:p-0.5",
     ]}
@@ -136,7 +136,7 @@
     {@render notices?.()}
     <div
       class={[
-        "px-2 pt-1",
+        "px-3 pt-2",
         compact &&
           "composer-mobile:min-w-0 composer-mobile:flex-1 composer-mobile:px-1 composer-mobile:pt-0",
       ]}
@@ -145,12 +145,9 @@
         <Textarea
           bind:ref={textarea}
           variant="bare"
+          {compact}
           rows={compact ? 1 : 2}
-          class={[
-            "min-h-14 resize-none overflow-y-auto",
-            compact &&
-              "composer-mobile:field-sizing-fixed composer-mobile:max-h-9 composer-mobile:min-h-9 composer-mobile:overflow-hidden",
-          ]}
+          class="min-h-14 resize-none overflow-y-auto"
           {placeholder}
           aria-label={label}
           {disabled}
@@ -169,7 +166,7 @@
       />{/if}
     <div
       class={[
-        "flex flex-wrap items-center justify-end gap-1 px-2 pb-2",
+        "flex flex-wrap items-center justify-end gap-1 px-2.5 pb-2.5",
         compact &&
           "composer-mobile:shrink-0 composer-mobile:px-0 composer-mobile:pb-0",
       ]}

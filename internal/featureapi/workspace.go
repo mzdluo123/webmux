@@ -35,7 +35,8 @@ func (s *Server) workspaceStream() transport.Stream {
 func (s *Server) workspaceRoutes(mux transport.Registrar) {
 	const repo = "/api/repositories/{id}"
 	serve(mux, "GET /api/repositories", http.StatusOK, workspaceFailure, func(r *http.Request) ([]contract.Repository, error) {
-		repositories, err := s.Workspace.List(r.Context())
+		opts := workspace.ListOptions{AllowStale: r.URL.Query().Get("stale") == "1"}
+		repositories, err := s.Workspace.ListWithOptions(r.Context(), opts)
 		return wire.Repositories(repositories), err
 	})
 	mux.HandleFunc("POST /api/repositories", func(w http.ResponseWriter, r *http.Request) {

@@ -90,7 +90,7 @@ PERL`;
       .toContain("\x1b[?2031h");
 
     await page.goto(`/s/${id}`);
-    const rgb = theme === "light" ? "ffff/ffff/ffff" : "0d0d/1111/1717";
+    const rgb = theme === "light" ? "ffff/ffff/ffff" : "0d0d/1010/0f0f";
     await expectTerminalLine(page, `LIVE_BG=${rgb}`);
     await expect(page.locator(".xterm-rows")).not.toContainText(
       "UNEXPECTED_STARTUP_COLOR",

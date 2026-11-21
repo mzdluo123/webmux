@@ -10,15 +10,17 @@
   import SwitchChoiceDialog from "../../src/components/chat/SwitchChoiceDialog.svelte";
   import SwitchProgress from "../../src/components/chat/SwitchProgress.svelte";
   import CodeChangesList from "../../src/components/code/CodeChangesList.svelte";
-  import { ListButton } from "$lib/components/ui/list-button";
   import { dockGroup, dockSplit } from "$lib/dock-layout";
   import DockPanel from "../../src/components/shared/DockPanel.svelte";
   import DockWorkspace from "../../src/components/shared/DockWorkspace.svelte";
+  import { m } from "../../src/lib/paraglide/messages.js";
   import ConfirmDialog from "../../src/components/shared/ConfirmDialog.svelte";
   import ConnectorInstallHint from "../../src/components/sessions/ConnectorInstallHint.svelte";
   import HybridCandidatePicker from "../../src/components/sessions/HybridCandidatePicker.svelte";
   import QuickCommandMenu from "../../src/components/settings/QuickCommandMenu.svelte";
   import SoftKeys from "../../src/components/terminal/SoftKeys.svelte";
+  import SessionWorkspaceHeader from "../../src/components/terminal/SessionWorkspaceHeader.svelte";
+  import TerminalPaneStatus from "../../src/components/terminal/TerminalPaneStatus.svelte";
   import TerminalHeader from "../../src/components/terminal/TerminalHeader.svelte";
   import TerminalSplitPanel from "../../src/components/terminal/TerminalSplitPanel.svelte";
   import TerminalNotices from "../../src/components/terminal/TerminalNotices.svelte";
@@ -33,6 +35,7 @@
     ChatUploads,
     UploadProgress,
   } from "../../src/hooks/shared/upload.svelte";
+  import { bottomToolbar } from "../../src/hooks/terminal/bottom-toolbar-preference.svelte";
   import {
     eligibilityText,
     shortId,
@@ -83,6 +86,7 @@
   let candidatePick = $state(claudeCandidates[0]!.agentSessionId);
   let connectorDismissed = $state(false);
   let codeShown = $state(false);
+  let fileInput = $state<{ open(): void }>();
   let dock = $state<DockWorkspace>();
   let pickerOpen = $state(false);
 
@@ -435,13 +439,6 @@
     error: "",
     claim() {},
   };
-  const fullscreen = {
-    offered: true,
-    active: false,
-    busy: false,
-    toggle: async () => {},
-  };
-  let bottomToolbarShown = $state(false);
 </script>
 
 {#snippet quickMenu(
@@ -463,36 +460,36 @@
   />
 {/snippet}
 
-<main
-  class="terminal-page"
-  data-bottom-toolbar={bottomToolbarShown ? "shown" : "auto"}
->
-  <TerminalHeader
+<main class="terminal-page" data-bottom-toolbar={bottomToolbar.mode}>
+  <SessionWorkspaceHeader
+    {dock}
     {pickerOpen}
-    features={{ chat: chatFeature, files: filesFeature }}
-    {terminal}
-    {fullscreen}
-    {draft}
-    draftSaved="已保存在本机"
-    scratchSaved="已保存在本机"
-    uploading={false}
-    sizeLocked={false}
-    setSizeLocked={() => {}}
-    keyboardSizeHold={true}
-    setKeyboardSizeHold={() => {}}
-    {codeShown}
-    bind:bottomToolbarShown
-    {quickMenu}
-    upload={async () => {}}
-    toggleDraft={() => {}}
-    showScratch={() => {}}
-    showFontSize={() => {}}
-    showFind={() => {}}
-    close={() => {}}
-    leave={() => {}}
-    {hybrid}
+    closePane={(panel) => dock?.minimize(panel)}
     openPanels={() => dock?.openPicker()}
+    openFiles={openCode}
+    fileLabel="文件树"
+    onerror={(message) => (notice = message)}
   />
+  <filesFeature.Input bind:this={fileInput} upload={async () => {}} />
+  {#snippet paneHeader()}
+    <TerminalHeader
+      features={{ chat: chatFeature, files: filesFeature }}
+      toolbarMode={bottomToolbar.mode}
+      {terminal}
+      {draft}
+      uploading={false}
+      sizeLocked={false}
+      setSizeLocked={() => {}}
+      {codeShown}
+      {quickMenu}
+      openUpload={() => fileInput?.open()}
+      toggleDraft={() => {}}
+      showScratch={() => {}}
+      showFind={() => {}}
+      close={() => {}}
+      {hybrid}
+    />
+  {/snippet}
   <TerminalNotices
     features={{ chat: chatFeature, files: filesFeature }}
     terminal={noticeTerminal}
@@ -503,8 +500,6 @@
     notice=""
     showScratch={() => {}}
     dismissScratch={() => {}}
-    remove={() => {}}
-    leave={() => {}}
     {notices}
     dismiss={(key) => {
       if (key.startsWith("notice:")) notice = "";
@@ -526,41 +521,40 @@
     initial={dockSplit("horizontal", dockGroup("session"), dockGroup("code"))}
     bind:showPicker={pickerOpen}
     compact={compact.current}
+    edgeRails
     pickerTrigger={false}
   >
-    {#snippet pickerActions(closePanel)}
-      {#if !codeShown}
-        <ListButton
-          variant="action-sheet"
-          onclick={() => {
-            openCode();
-            closePanel();
-          }}>代码</ListButton
-        >
-      {/if}
+    {#snippet pickerActions(closePanel, panel, hide)}
       <TerminalSplitPanel
+        compact={compact.current}
+        oncommand={closePanel}
+        hideLabel={panel ? m.dock_minimize({ title: panel.title }) : undefined}
+        onhide={hide}
         busy={false}
         limit={false}
         ready
         onsplit={() => {
-          closePanel();
           notice = "预览：在真实会话中创建分屏。";
         }}
         oncreate={() => {
-          closePanel();
           notice = "预览：在真实会话中打开新建会话。";
         }}
         onchoose={() => {
-          closePanel();
           notice = "预览：在真实会话中选择已有会话。";
         }}
         onclose={() => {
-          closePanel();
           notice = "预览：在真实会话中关闭当前窗格。";
         }}
       />
     {/snippet}
-    <DockPanel id="session" title={view === "chat" ? "聊天" : "终端"}>
+    <DockPanel
+      id="session"
+      commands={paneHeader}
+      title={terminal.info?.title || (view === "chat" ? "聊天" : "终端")}
+    >
+      {#snippet titleContent(children)}
+        <TerminalPaneStatus {terminal} {children} />
+      {/snippet}
       {#if view === "chat"}
         <div class="h-full min-h-0" use:paneEnter={true}>
           <ChatView

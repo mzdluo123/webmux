@@ -66,7 +66,7 @@ func (s *Service) Prepare(ctx context.Context, in sessioncreate.Input) (out sess
 			if err := s.planWorktree(readCtx, r, nw, &plan); err != nil {
 				return out, err
 			}
-			request := CreateRequest{Path: plan.path, Mode: nw.Mode, Branch: plan.branch, Base: plan.base, UpstreamChoice: nw.UpstreamChoice}
+			request := CreateRequest{Path: plan.path, Mode: nw.Mode, Branch: plan.branch, Base: plan.base, UpstreamChoice: nw.UpstreamChoice, LatestUpstream: nw.LatestUpstream}
 			if _, err := s.checkCreationUpstream(ctx, nw.RepositoryID, request); err != nil {
 				return out, err
 			}

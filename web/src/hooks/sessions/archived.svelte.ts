@@ -5,6 +5,8 @@ import type { ArchivedSession } from "../../contracts/schemas";
 /** Closed and interrupted sessions the shell's pages share. */
 export interface Archived {
   readonly records: readonly ArchivedSession[];
+  /** The first non-superseded read finished, even if it failed. */
+  readonly initialSettled: boolean;
   /**
    * Reloads the records. Resolves to their IDs, or null when they could not
    * be read; a later call supersedes an earlier one still in flight.
@@ -15,11 +17,15 @@ export interface Archived {
 
 export function createArchived(): Archived {
   let records = $state.raw<ArchivedSession[]>([]);
+  let initialSettled = $state(false);
   let request = 0;
   let controller: AbortController | undefined;
   return {
     get records() {
       return records;
+    },
+    get initialSettled() {
+      return initialSettled;
     },
     dispose() {
       request++;
@@ -45,6 +51,8 @@ export function createArchived(): Archived {
           return [];
         }
         return null;
+      } finally {
+        if (current === request) initialSettled = true;
       }
     },
   };

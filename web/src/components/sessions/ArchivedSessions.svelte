@@ -23,6 +23,7 @@
   import { errorMessage } from "../../platform/error";
   import {
     recordTitle,
+    resumesOnOpen,
     type ArchiveActions,
   } from "../../domains/sessions/archived";
   import type { ArchivedSession, Worktree } from "../../contracts/schemas";
@@ -63,12 +64,8 @@
   let removing = $state<ArchivedSession | null>(null);
   let removeOpen = $state(false);
 
-  const dormant = $derived(
-    records.filter((r) => r.archive.resumeOnOpen && !r.released),
-  );
-  const history = $derived(
-    records.filter((r) => !r.archive.resumeOnOpen || r.released),
-  );
+  const dormant = $derived(records.filter(resumesOnOpen));
+  const history = $derived(records.filter((r) => !resumesOnOpen(r)));
   const reveal = $derived(archive.filtering && history.length > 0);
   $effect(() => {
     void reveal;

@@ -303,6 +303,18 @@ export async function backToList(page: Page) {
     .click();
 }
 
+/** Opens the pure session queue on `/` in conversation mode (dismissing the phone drawer if opened). */
+export async function openSessionQueue(page: Page) {
+  const opened = await revealSidebar(page);
+  const scope = page
+    .getByRole("navigation", { name: "导航", exact: true })
+    .getByRole("radiogroup", { name: "会话范围", exact: true });
+  if (await scope.isVisible()) {
+    await scope.getByRole("radio", { name: "全部", exact: true }).click();
+  }
+  if (opened) await page.keyboard.press("Escape");
+}
+
 /** Switches the Workbench grouping and returns whether the drawer was opened. */
 export async function useWorkbenchBranches(page: Page, enabled = true) {
   const opened = await revealSidebar(page);
@@ -418,11 +430,14 @@ export async function createShell(
   cwd?: string,
 ): Promise<string> {
   await page.goto("/");
-  await page
+  const mainNew = page
     .getByRole("main")
     .getByRole("button", { name: "＋ 新建会话", exact: true })
-    .first()
-    .click();
+    .first();
+  const quickStart = page.getByRole("textbox", { name: "任务描述" });
+  await expect(mainNew.or(quickStart).first()).toBeVisible();
+  if (!(await mainNew.isVisible())) await openSessionQueue(page);
+  await mainNew.click();
   await useCustomCommand(page, "/bin/bash --noprofile --norc -i");
   if (cwd) await useDirectory(page, cwd);
   await nameSession(page, name);
@@ -488,14 +503,28 @@ export async function holdTerminalFont(page: Page) {
 
 // A healthy connection shows no text; the status dot names it instead.
 export async function expectConnected(page: Page) {
-  const header = page.locator(".terminal-header");
+  const header = sessionHeader(page);
   await expect(header.getByRole("img", { name: /· 已连接$/ })).toBeVisible();
   await expect(header.getByRole("status")).toHaveCount(0);
 }
 
-const narrowSessionHeader = (page: Page) =>
+export const workspaceRefreshButton = (page: Page) =>
+  page
+    .getByRole("button", { name: /^刷新(?:工作区| Git 状态)$/ })
+    .filter({ visible: true })
+    .first();
+
+export const narrowSessionHeader = (page: Page) =>
   (page.viewportSize()?.width ?? 1280) < 640;
-const sessionHeader = (page: Page) => page.locator(".terminal-header");
+export const sessionPaneHeader = (page: Page) =>
+  page.locator(
+    '[data-dock-panel]:has(.split-terminal[data-active="true"]) > .dock-title',
+  );
+
+export const sessionHeader = (page: Page) =>
+  narrowSessionHeader(page)
+    ? sessionPaneHeader(page).locator(".terminal-header")
+    : page.locator(".session-toolbar .terminal-header");
 
 export const sessionViewTabs = (page: Page) =>
   sessionHeader(page).getByRole("tablist", {
@@ -512,26 +541,19 @@ export async function openSessionMenu(page: Page) {
 
 export async function openSessionSwitcher(page: Page) {
   const name = "快速切换会话";
-  if (new URL(page.url()).pathname.startsWith("/s/")) {
-    if (narrowSessionHeader(page)) {
-      const menu = await openSessionMenu(page);
-      await menu.getByRole("menuitem", { name, exact: true }).click();
-    } else {
-      await sessionHeader(page)
-        .getByRole("button", { name, exact: true })
-        .click();
-    }
-  } else {
-    await page.getByRole("button", { name, exact: true }).click();
-  }
+  await page
+    .getByRole("button", { name, exact: true })
+    .filter({ visible: true })
+    .first()
+    .click();
   return page.getByRole("dialog", { name, exact: true });
 }
 
 type InputSide = "chat" | "terminal";
 
 async function sessionInputChoices(page: Page) {
-  const narrow = narrowSessionHeader(page);
-  const scope = narrow
+  const compact = (page.viewportSize()?.width ?? 1280) < 768;
+  const scope = compact
     ? (await openSessionMenu(page)).getByRole("group", {
         name: "输入端",
         exact: true,
@@ -540,14 +562,14 @@ async function sessionInputChoices(page: Page) {
   return {
     option: (side: InputSide) =>
       scope.getByRole(
-        narrow ? "menuitemradio" : "tab",
-        side === "chat" && !narrow
+        compact ? "menuitemradio" : "tab",
+        side === "chat" && !compact
           ? { name: /^聊天(?:（.+）)?$/ }
           : { name: side === "chat" ? "聊天" : "终端", exact: true },
       ),
-    state: narrow ? "aria-checked" : "aria-selected",
+    state: compact ? "aria-checked" : "aria-selected",
     close: async () => {
-      if (narrow) {
+      if (compact) {
         await page.keyboard.press("Escape");
         await expect(scope).toBeHidden();
       }
@@ -591,16 +613,45 @@ export async function expectChatInputAvailable(page: Page, available = true) {
   await close();
 }
 
-// Below 640px the header moves upload and fullscreen into the terminal menu
-// (scroll-to-latest is the floating button); this opens the menu there and
-// returns the entry.
-export async function headerAction(page: Page, name: string) {
-  if (!narrowSessionHeader(page))
-    return sessionHeader(page).getByRole("button", { name, exact: true });
+export async function uploadAction(page: Page) {
   return (await openSessionMenu(page)).getByRole("menuitem", {
-    name,
+    name: "上传文件",
     exact: true,
   });
+}
+
+async function draftModeControl(page: Page) {
+  const name = /^草稿模式/;
+  const softKeys = page
+    .getByRole("complementary", { name: "终端软键", exact: true })
+    .getByRole("button", { name });
+  if (await softKeys.isVisible())
+    return { control: softKeys, attribute: "aria-pressed" };
+  const menu = await openSessionMenu(page);
+  return {
+    control: menu.getByRole("menuitemcheckbox", { name }),
+    attribute: "aria-checked",
+    menu,
+  };
+}
+
+export async function toggleDraftMode(page: Page) {
+  const { control } = await draftModeControl(page);
+  await control.click();
+}
+
+export async function expectDraftMode(
+  page: Page,
+  enabled: boolean,
+  name?: RegExp,
+) {
+  const { control, attribute, menu } = await draftModeControl(page);
+  await expect(control).toHaveAttribute(attribute, String(enabled));
+  if (name) await expect(control).toHaveAccessibleName(name);
+  if (menu) {
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeHidden();
+  }
 }
 
 export async function runCommand(page: Page | Locator, command: string) {
@@ -613,7 +664,7 @@ export async function runCommand(page: Page | Locator, command: string) {
   await input.press("Enter");
 }
 
-export async function expectTerminalLine(page: Page, line: string) {
+export async function expectTerminalLine(page: Page | Locator, line: string) {
   // The E2E Chromium projects use xterm's built-in DOM renderer. Match a full
   // rendered line, not the echoed printf command or a mocked terminal buffer.
   await expect
@@ -634,7 +685,7 @@ export const quote = (value: string) =>
 
 /** Turns the shell into a raw byte recorder so tests can assert exact PTY input. */
 export async function recordInput(
-  page: Page,
+  page: Page | Locator,
   directory: string,
   bracketed = true,
 ) {
@@ -646,6 +697,14 @@ export async function recordInput(
   await expectTerminalLine(page, "RECORDER_READY");
   await expect.poll(() => readFile(path, "utf8")).toBe("");
   return path;
+}
+
+export async function openDockCommands(panel: Locator) {
+  if (!(await panel.getAttribute("data-dock-active")))
+    await panel.locator(".dock-title-space").click();
+  const page = panel.page();
+  await page.locator("[data-dock-command-menu]").click();
+  return page.getByRole("menu");
 }
 
 export async function openSplitPanel(scope: Locator | Page) {
@@ -694,29 +753,28 @@ export async function closePanelPicker(scope: Locator | Page) {
 export async function toggleCode(scope: Locator | Page) {
   const page = "viewportSize" in scope ? scope : scope.page();
   const files = page.getByRole("region", { name: "文件树", exact: true });
-  const reader = page.getByRole("region", { name: /^预览(?: · .+)?$/ });
+  const reader = page.locator('[data-dock-panel^="reader:"]:visible').first();
   if ((await files.isVisible()) || (await reader.isVisible())) {
     if (narrowSessionHeader(page)) {
       const picker = await openPanelPicker(scope);
       const active = page.locator(".split-terminal[data-active=true]");
       const id = await active.getAttribute("data-session-id");
-      const panel =
-        (await active.getAttribute("data-input-view")) === "chat"
-          ? `chat:${id}`
-          : id;
-      await picker.locator(`[data-dock-picker="${panel}"]`).click();
+      await picker.locator(`[data-dock-picker="${id}"]`).click();
     } else {
       if (await files.isVisible())
-        await files
-          .getByRole("button", { name: "收起「文件树」", exact: true })
+        await (
+          await openDockCommands(files)
+        )
+          .getByRole("menuitem", { name: /^收起(?:「文件树」)?$/ })
           .click();
       if (await reader.isVisible())
-        await reader
-          .getByRole("button", { name: /^收起「预览(?: · .+)?」$/ })
+        await (
+          await openDockCommands(reader)
+        )
+          .getByRole("menuitem", { name: /^收起(?:「.+」)?$/ })
           .click();
     }
   } else {
-    const picker = await openPanelPicker(scope);
-    await picker.getByRole("button", { name: "代码", exact: true }).click();
+    await page.getByRole("button", { name: /^文件树 · / }).click();
   }
 }

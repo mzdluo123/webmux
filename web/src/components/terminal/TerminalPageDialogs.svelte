@@ -61,8 +61,12 @@
 
   $effect(() => {
     if (!creating) return;
-    launchConfigs = { status: "loading" };
-    repositories = [];
+    const cachedLaunch = shell?.launchConfigs?.state;
+    const previousTools =
+      cachedLaunch?.status === "ready" ? cachedLaunch.agentTools : undefined;
+    launchConfigs =
+      cachedLaunch?.status === "ready" ? cachedLaunch : { status: "loading" };
+    repositories = [...(shell?.repositories?.list ?? [])];
     const controller = new AbortController();
     creationController = controller;
     if (featureEnabled("launch") && featureAvailable("launch.configs")) {
@@ -74,7 +78,7 @@
         controller.signal,
       )
         .then((report) => report.tools)
-        .catch(() => undefined);
+        .catch(() => previousTools);
       void api(
         "/launch-configs",
         LaunchConfigsSchema,
@@ -87,7 +91,8 @@
           launchConfigs = {
             status: "ready",
             configs,
-            agentToolsLoading: true,
+            agentTools: previousTools,
+            agentToolsLoading: previousTools === undefined,
           };
           const agentTools = await toolsPromise;
           if (!controller.signal.aborted) {
@@ -126,6 +131,7 @@
 {#if choosing}
   <SplitSessionDialog
     {excluded}
+    initialSessions={feedSessions}
     onclose={() => {
       choosing = false;
       oncancelchoose();

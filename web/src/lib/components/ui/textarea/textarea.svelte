@@ -17,6 +17,10 @@
       mono: {
         true: "font-mono",
       },
+      // Single-line resting bar for the mobile composer card.
+      compact: {
+        true: "composer-mobile:field-sizing-fixed composer-mobile:max-h-9 composer-mobile:min-h-9 composer-mobile:overflow-hidden composer-mobile:leading-7 composer-mobile:whitespace-nowrap composer-mobile:text-ellipsis",
+      },
     },
     defaultVariants: {
       variant: "default",
@@ -39,6 +43,7 @@
     variant = "default",
     mono = false,
     code = false,
+    compact = false,
     "data-slot": dataSlot = "textarea",
     ...restProps
   }: WithoutChildren<WithElementRef<HTMLTextareaAttributes>> & {
@@ -46,13 +51,18 @@
     mono?: boolean;
     /** Commands and terminal text: mono, with autocorrection off. */
     code?: boolean;
+    /** Single-line resting bar on mobile composers. */
+    compact?: boolean;
   } = $props();
 </script>
 
 <textarea
   bind:this={ref}
   data-slot={dataSlot}
-  class={cn(textareaVariants({ variant, mono: mono || code }), className)}
+  class={cn(
+    textareaVariants({ variant, mono: mono || code, compact }),
+    className,
+  )}
   bind:value
   autocapitalize={code ? "off" : undefined}
   autocorrect={code ? "off" : undefined}

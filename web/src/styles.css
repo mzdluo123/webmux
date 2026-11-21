@@ -153,9 +153,11 @@
 }
 .status-running {
   background: var(--success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 20%, transparent);
 }
 .status-waiting {
   background: var(--warning);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 22%, transparent);
 }
 .status-idle {
   background: var(--muted-foreground);
@@ -165,6 +167,7 @@
 }
 .status-failed {
   background: var(--destructive);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--destructive) 22%, transparent);
 }
 .workspace-page {
   background: var(--background);
@@ -265,6 +268,12 @@
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
     env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
+@media (max-width: 639px) {
+  /* Session commands occupy both the workspace bar and the touch pane title. */
+  body:has(.terminal-page) [data-slot="attention-toasts"] {
+    top: calc(env(safe-area-inset-top) + 3rem + var(--control-touch));
+  }
+}
 /* A narrow single-pane chat view in a browser tab flows with the document so
    mobile browsers collapse their URL and toolbar chrome as the transcript
    scrolls; focusing an input removes this attribute and returns to the fixed
@@ -279,10 +288,7 @@
   overflow: visible;
   padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
-.terminal-page[data-document-scroll="true"] .terminal-header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
+.terminal-page[data-document-scroll="true"] .session-toolbar .app-header {
   padding-top: env(safe-area-inset-top);
   min-height: calc(var(--app-header-height) + env(safe-area-inset-top));
 }
@@ -590,9 +596,8 @@
   min-height: 0;
   background: var(--terminal-background);
 }
-.split-terminal:focus-within {
-  outline: 1px solid var(--ring);
-  outline-offset: -1px;
+.split-terminal {
+  overflow: hidden;
 }
 [data-dock-panel],
 [data-dock-preview] {
@@ -762,4 +767,9 @@
   max-width: 85%;
   background: var(--background);
   box-shadow: 4px 0 10px #0002;
+}
+
+::view-transition-group(quick-start-message) {
+  animation-duration: 260ms;
+  animation-timing-function: ease-out;
 }

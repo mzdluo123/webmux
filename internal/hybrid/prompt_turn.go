@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/acp"
+	"github.com/rainchan/webmux/internal/session"
 )
 
 func (a *actor) sendPrompt(text, wireText string, attachments []Attachment, queueItem, titleSource string, check func(string) (string, error), refresh ...bool) (PromptResult, error) {
@@ -27,7 +28,7 @@ func (a *actor) sendBlocks(text string, attachments []Attachment, queueItem, tit
 		if titleSource == "" {
 			titleSource = text
 		}
-		if title := PromptTitle(titleSource); title != "" && a.title == "" {
+		if title := session.AutomaticTitle(titleSource); title != "" && a.title == "" {
 			a.title, a.titleSession = title, a.agentSessionID
 		}
 	}

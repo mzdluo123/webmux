@@ -1,5 +1,4 @@
 <script lang="ts">
-  import IconMessagePlus from "~icons/tabler/message-plus";
   import IconPlus from "~icons/tabler/plus";
   import IconRefresh from "~icons/tabler/refresh";
   import { Button } from "$lib/components/ui/button";
@@ -11,7 +10,6 @@
   import type {
     ArchivedSession,
     HybridRelease,
-    Worktree,
     SessionInfo,
     AgentConnector,
   } from "../../contracts/schemas";
@@ -21,15 +19,16 @@
     openSession,
     shellUi,
   } from "../../hooks/shared/shell.svelte";
-  import { queueLocation } from "../../domains/workspace/session-queue";
+  import { resumesOnOpen } from "../../domains/sessions/archived";
   import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
   import { useLayoutRowsMotion } from "../../hooks/shared/layout-rows-motion.svelte";
   import { useSidebarScrollHandoff } from "../../hooks/shared/sidebar-scroll-handoff.svelte";
-  import { paneEnter } from "../../hooks/shared/pane-enter";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
   import SidebarWorkspaceTree from "./SidebarWorkspaceTree.svelte";
   import WorkbenchSidebarSessions from "./WorkbenchSidebarSessions.svelte";
-  import SidebarLiveSessionRow from "./SidebarLiveSessionRow.svelte";
+  import SidebarSessionRow from "./SidebarSessionRow.svelte";
+  import SidebarPinnedSessions from "./SidebarPinnedSessions.svelte";
   import SidebarFooter from "./SidebarFooter.svelte";
   import SidebarHeader from "./SidebarHeader.svelte";
   import { featureContributions } from "../../features/registry.svelte";
@@ -57,7 +56,7 @@
   }: {
     route: Extract<
       Route,
-      { name: "sessions" | "quick-start" | "terminal" | "handoff" | "git" }
+      { name: "sessions" | "terminal" | "handoff" | "git" }
     >;
     /** Desktop only; the drawer closes on its own. */
     collapsible?: boolean;
@@ -72,20 +71,25 @@
   const queue = $derived(
     Boolean(workspace && workbenchLayout.value === "queue"),
   );
-  const chatHome = $derived(
-    !!chat && (route.name === "quick-start" || route.name === "handoff"),
+  const queueLoading = $derived(
+    !shell.sessions.ready ||
+      shell.repositories?.initialSettled === false ||
+      shell.archived?.initialSettled === false,
   );
   const navigationId = $props.id();
   let navigationRows = $state<HTMLDivElement | null>(null);
   useLayoutRowsMotion(
     () => navigationRows,
-    () => (chatHome ? "" : workbenchLayout.value),
+    () => workbenchLayout.value,
     "[data-sidebar-session-id], [data-layout-row]",
   );
   const showWorkspaces = $derived(
     Boolean(shell.repositories?.settled || shell.repositories?.list.length),
   );
   const pinned = $derived(sessionPins.ordered(live));
+  const records = $derived(
+    shell.archived?.records.filter((record) => !pinnedIDs.has(record.id)) ?? [],
+  );
   const pinnedIDs = $derived(new Set(pinned.map((session) => session.id)));
   const unpinned = $derived(
     live.filter((session) => !pinnedIDs.has(session.id)),
@@ -111,31 +115,6 @@
   function askRemove(record: ArchivedSession) {
     removing = record;
     removeOpen = true;
-  }
-  function askRemoveWithWorktree(record: ArchivedSession, worktree: Worktree) {
-    shell.removeWorktree(worktree, {
-      onremoved: () => void forgetAfterWorktree(record),
-      forgetRecords: [record],
-    });
-  }
-  // The worktree is already gone when this runs; a failed record deletion
-  // leaves a released record behind, which the user can delete again.
-  async function forgetAfterWorktree(record: ArchivedSession) {
-    resumeErrorFn = null;
-    try {
-      await removeRecord(record.id);
-      sessionPins.refreshEnded(record.id);
-      shell.drafts.remove(record.id);
-    } catch (err) {
-      const cause = errorMessage(err);
-      resumeErrorFn = () =>
-        m.s1_worktree_removed_record_delete_failed({
-          title: recordTitle(record),
-          error: cause,
-        });
-    } finally {
-      await shell.archived?.refresh();
-    }
   }
   async function confirmRemove() {
     const record = removing;
@@ -164,6 +143,10 @@
     released: HybridRelease;
   } | null>(null);
   function open(record: ArchivedSession) {
+    if (resumesOnOpen(record)) {
+      openSession(record);
+      return;
+    }
     if (record.released && !workspace)
       resumeErrorFn = () => m.s1_archive_requires_workspace_feature();
     else if (record.released)
@@ -202,16 +185,6 @@
       resuming = "";
     }
   }
-  function revealNavigation(node: HTMLElement, _chatHome: boolean) {
-    const animation = paneEnter(node, false);
-    return {
-      update() {
-        animation.update(false);
-        animation.update(true);
-      },
-      destroy: animation.destroy,
-    };
-  }
   let drawer = $state<HTMLElement | null>(null);
   let navigationViewport = $state<HTMLElement | null>(null);
 
@@ -222,38 +195,40 @@
 
   function filterQueue(attention: boolean) {
     shell.repositories?.select("all");
+    workbenchLayout.queueView = "queue";
     workbenchLayout.attentionOnly = attention;
     if (route.name !== "sessions") openPage("/");
   }
   function scope(next: string, worktreeId?: string) {
     workbenchLayout.attentionOnly = false;
-    shellUi.setMode("workbench");
+    workbenchLayout.queueView = "queue";
     shell.repositories?.select(next, worktreeId);
     openPage("/");
   }
+  function startNewSession() {
+    if (
+      chat &&
+      workspace &&
+      queue &&
+      featureAvailable("workspace.manage") &&
+      shell.repositories
+    ) {
+      shell.repositories.select("all");
+      workbenchLayout.attentionOnly = false;
+      workbenchLayout.queueView = "composer";
+      shellUi.drawerOpen = false;
+      openPage("/");
+      shellUi.requestQuickStartFocus("explicit");
+      return;
+    }
+    shell.start();
+  }
 </script>
-
-{#snippet history()}
-  {#if chat}<chat.History
-      sessions={unpinned}
-      records={shell.archived?.records ?? []}
-      {configs}
-      repositories={shell.repositories?.list ?? []}
-      {current}
-      {resuming}
-      onopen={openSession}
-      onresume={open}
-      onrename={shell.rename}
-      onclose={shell.close}
-      onrelease={shell.releaseWorktree}
-      onremove={askRemove}
-      onremoveworktree={askRemoveWithWorktree}
-    />{/if}
-{/snippet}
 
 {#snippet workspaces()}
   <SidebarWorkspaceTree
     sessions={unpinned}
+    {records}
     showScope={route.name === "sessions"}
     {current}
     {configIcons}
@@ -273,15 +248,17 @@
   <SidebarHeader
     oncollapse={collapsible ? () => shellUi.setCollapsed(true) : undefined}
     {onclose}
-    showSessionSwitcher={collapsible &&
-      route.name === "sessions" &&
-      !!workspace}
+    onhome={() => {
+      workbenchLayout.attentionOnly = false;
+      workbenchLayout.queueView = "composer";
+      openPage("/");
+    }}
+    showSessionSwitcher={collapsible}
     controls={navigationId}
     byBranch={!queue}
     onGroupingChange={workspace
       ? (checked) => {
           workbenchLayout.value = checked ? "workspaces" : "queue";
-          if (chatHome) openPage("/");
         }
       : undefined}
   />
@@ -291,11 +268,18 @@
         variant="outline"
         size="sm-touch"
         class="min-w-0 flex-1"
-        onclick={() => shell.start()}
+        aria-current={route.name === "sessions" &&
+        queue &&
+        workbenchLayout.queueView === "composer" &&
+        Boolean(chat) &&
+        featureAvailable("workspace.manage")
+          ? "page"
+          : undefined}
+        onclick={startNewSession}
       >
         <IconPlus aria-hidden="true" />{m.s1_new_session()}
       </Button>
-      {#if !chatHome && workspace && shell.repositories}
+      {#if workspace && shell.repositories}
         <Button
           variant="outline"
           size="icon-touch"
@@ -315,17 +299,6 @@
         </Button>
       {/if}
     </div>
-    {#if chat}
-      <Button
-        variant="ghost"
-        size="sm-touch"
-        class="w-full justify-start"
-        aria-current={route.name === "quick-start" ? "true" : undefined}
-        onclick={() => openPage("/new")}
-      >
-        <IconMessagePlus aria-hidden="true" />{m.s1_new_chat()}
-      </Button>
-    {/if}
   </div>
   {#if !workspace}
     <div class="px-2 pt-2">
@@ -348,30 +321,13 @@
     class="min-h-0 flex-1 [&_[data-slot=scroll-area-viewport]]:overscroll-contain [&_[data-slot=scroll-area-viewport]>div]:!block"
   >
     <div id={navigationId} class="px-2 py-2" bind:this={navigationRows}>
-      {#if pinned.length && (chatHome || !queue)}
-        <section class="mb-3 border-b pb-3" aria-label={m.s1_pinned_sessions()}>
-          <h2 class="px-3 pb-1 text-xs text-muted-foreground">
-            {m.s1_pinned()}
-          </h2>
-          <ul class="space-y-0.5">
-            {#each pinned as session (session.id)}
-              <SidebarLiveSessionRow
-                {session}
-                {current}
-                icon={session.agent?.icon ??
-                  configIcons.get(session.configId ?? "") ??
-                  ""}
-                pinned
-                location={chatHome
-                  ? queueLocation(session, shell.repositories?.list ?? [])
-                  : undefined}
-                onopen={openSession}
-                onrename={shell.rename}
-                onclose={shell.close}
-              />
-            {/each}
-          </ul>
-        </section>
+      {#if pinned.length && !queue}
+        <SidebarPinnedSessions
+          sessions={pinned}
+          {current}
+          {configIcons}
+          showLocation={false}
+        />
       {/if}
 
       {#if resumeError || sessionPins.error}<p
@@ -380,21 +336,23 @@
         >
           {resumeError || sessionPins.error}
         </p>{/if}
-      <div use:revealNavigation={chatHome}>
-        {#if chatHome}
-          {@render history()}
-        {:else if queue}
+      <div>
+        {#if queue}
           <WorkbenchSidebarSessions
+            loading={queueLoading}
             sessions={live}
+            {records}
             {pinned}
             repositories={shell.repositories?.list ?? []}
             {configIcons}
             {current}
             allCurrent={route.name === "sessions" &&
+              workbenchLayout.queueView === "queue" &&
               !workbenchLayout.attentionOnly &&
               (!shell.repositories?.choice ||
                 shell.repositories.choice === "all")}
             attentionCurrent={route.name === "sessions" &&
+              workbenchLayout.queueView === "queue" &&
               workbenchLayout.attentionOnly}
             onfilter={filterQueue}
             oncreate={(repositoryId) =>
@@ -406,13 +364,14 @@
             onopen={openSession}
             onrename={shell.rename}
             onclose={shell.close}
+            onremove={askRemove}
           />
         {:else if workspace && shell.repositories && !shell.sessions.loading && showWorkspaces}
           {@render workspaces()}
         {:else if !workspace || !shell.repositories}
           <ul class="space-y-0.5">
             {#each unpinned as session (session.id)}
-              <SidebarLiveSessionRow
+              <SidebarSessionRow
                 {session}
                 {current}
                 icon={session.agent?.icon ??

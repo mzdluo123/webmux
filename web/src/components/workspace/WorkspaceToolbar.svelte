@@ -50,21 +50,21 @@
   );
 </script>
 
-<div class="mb-6 space-y-3 border-b pb-4 sm:mb-8 sm:space-y-4">
+<div class="mb-6 space-y-3 sm:mb-7 sm:space-y-4">
+  <p role="status" class="sr-only">
+    {#if loading}{m.s8_toolbar_loading()}
+    {:else if filtering}{m.s8_toolbar_filtering_sessions({
+        visible: String(visibleCount),
+        total: String(sessionCount),
+      })}
+    {:else}{scopeCounts}{/if}{#if refreshing}
+      {m.s8_toolbar_refreshing_git()}{/if}
+  </p>
   <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-    <p role="status" class="sr-only">
-      {#if loading}{m.s8_toolbar_loading()}
-      {:else if filtering}{m.s8_toolbar_filtering_sessions({
-          visible: String(visibleCount),
-          total: String(sessionCount),
-        })}
-      {:else}{scopeCounts}{/if}{#if refreshing}
-        {m.s8_toolbar_refreshing_git()}{/if}
-    </p>
     <div class="min-w-[min(100%,10rem)] flex-1 sm:mr-3">
       <div class="flex min-w-0 items-center gap-1.5">
         <h1
-          class="text-lg leading-tight font-semibold tracking-tight wrap-anywhere sm:text-3xl"
+          class="text-xl leading-tight font-semibold tracking-tight wrap-anywhere sm:text-2xl"
         >
           {resolvedTitle}
         </h1>
@@ -81,7 +81,7 @@
       ><IconPlus aria-hidden="true" />{m.s8_new_session()}</Button
     >
   </div>
-  <div class="flex min-w-0 flex-wrap items-center gap-1 border-b">
+  <div class="flex min-w-0 flex-wrap items-center gap-1 border-b pb-1">
     <span
       aria-current="page"
       class="flex min-h-9 items-center gap-2 border-b-2 border-foreground px-2 text-sm font-medium"

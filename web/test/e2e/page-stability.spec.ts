@@ -5,7 +5,6 @@ import {
   useWorkbenchBranches,
 } from "./fixtures";
 import { openAddRepository } from "./repository-menu";
-import { settled } from "../performance/performance";
 
 // Published UI evidence uses an isolated fixture identity.
 test.beforeEach(async ({ page }) => {
@@ -59,9 +58,9 @@ test("workspace defers settings and management forms until requested", async ({
 });
 
 for (const theme of ["light", "dark"] as const) {
-  test(`${theme}: cancelling a delayed form prevents it from opening after its download`, async ({
+  test(`${theme}: opening a lazy form omits the loading notice while its chunk downloads`, async ({
     page,
-  }, testInfo) => {
+  }) => {
     await page.addInitScript((savedTheme) => {
       localStorage.setItem("webmux.theme", savedTheme);
     }, theme);
@@ -82,21 +81,10 @@ for (const theme of ["light", "dark"] as const) {
     try {
       await expect(
         page.getByRole("status").filter({ hasText: "正在加载创建表单" }),
-      ).toBeVisible();
-      await page.screenshot({
-        path: testInfo.outputPath(`${theme}-pending-form.png`),
-      });
-      await page.getByRole("button", { name: "取消", exact: true }).click();
+      ).toHaveCount(0);
     } finally {
       release.resolve();
     }
-    await settled(page);
-    await expect(page.getByRole("dialog")).toHaveCount(0);
-    await page
-      .getByRole("main")
-      .getByRole("button", { name: "＋ 新建会话", exact: true })
-      .first()
-      .click();
     await expect(page.getByRole("dialog")).toBeVisible();
   });
 

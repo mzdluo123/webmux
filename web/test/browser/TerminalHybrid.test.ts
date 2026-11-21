@@ -365,7 +365,7 @@ test("an agent title refreshes the chat side's header", async () => {
   streams.terminal.drop(4409);
   move(streams, { view: "chat", transition: null });
   await expect
-    .element(page.getByText("creating name", { exact: true }))
+    .element(page.getByRole("button", { name: "creating name", exact: true }))
     .toBeVisible();
 
   // The agent names its session: the header re-reads the server info, whose
@@ -377,7 +377,7 @@ test("an agent title refreshes the chat side's header", async () => {
     items: events({ kind: "info.set", info: { title: "agent title" } }),
   });
   await expect
-    .element(page.getByText("server title", { exact: true }))
+    .element(page.getByRole("button", { name: "server title", exact: true }))
     .toBeVisible();
   await expect
     .element(page.getByText("agent title", { exact: true }))
@@ -516,30 +516,39 @@ test("the chat header names its agent on desktop and gives its title the space o
   expect(badge.title).toBe("Agent：omp");
   expect(badge.querySelector('[data-launch-icon="pi"] svg')).not.toBeNull();
   expect(badge.innerText).toBe("omp");
-  // Wide headers read title, agent, then status; phones reserve that space
-  // for the title and put the status dot first.
+  // Desktop single-pane sessions lift title, agent and status into the
+  // workspace bar and omit the duplicate dock title row.
   await page.viewport(1024, 800);
-  const titleButton = page.getByRole("button", { name: title, exact: true });
-  await expect.element(titleButton).toBeVisible();
-  const heading = titleButton.element();
-  const dot = badge.closest("header")!.querySelector(".status-dot")!;
-  await expect.poll(() => dot.classList.contains("status-failed")).toBe(true);
-  expect(dot.getAttribute("aria-label")).toMatch(/^需要回答 · /);
+  const pane = page.getByRole("region", { name: title, exact: true });
+  const commands = page.elementLocator(
+    badge.closest("[data-dock-session-commands]")!,
+  );
+  const desktopTitle = commands.getByRole("button", {
+    name: title,
+    exact: true,
+  });
+  await expect.element(desktopTitle).toBeVisible();
+  const desktopStatus = commands.getByRole("img", { name: /^需要回答 · / });
+  await expect.element(desktopStatus).toBeVisible();
+  await expect.element(desktopStatus).toHaveClass("status-failed");
   await expect
     .poll(
       () =>
-        heading.getBoundingClientRect().right <=
-          badge.getBoundingClientRect().left &&
-        badge.getBoundingClientRect().right <= dot.getBoundingClientRect().left,
+        desktopTitle.element().getBoundingClientRect().right <=
+        badge.getBoundingClientRect().left,
     )
     .toBe(true);
 
   await page.viewport(390, 844);
   await expect.element(agentBadge()).not.toBeInTheDocument();
+  const titleButton = pane.getByRole("button", { name: title, exact: true });
   await expect.element(titleButton).toBeVisible();
+  // The phone moves the title into the pane, with status before it.
+  const status = pane.getByRole("img", { name: /^需要回答 · / });
+  await expect.element(status).toBeVisible();
   const label = titleButton.getByText(title, { exact: true }).element();
   expect(label.scrollWidth).toBeGreaterThan(label.clientWidth);
-  expect(dot.getBoundingClientRect().right).toBeLessThanOrEqual(
+  expect(status.element().getBoundingClientRect().right).toBeLessThanOrEqual(
     titleButton.element().getBoundingClientRect().left,
   );
   await titleButton.click();

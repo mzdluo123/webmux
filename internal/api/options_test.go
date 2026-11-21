@@ -58,6 +58,7 @@ type testServices struct {
 	Public            *transport.PublicOrigins
 	Guide             *agentguide.Instance
 	DefaultShell      string
+	DefaultCmd        []string
 	InstalledVersion  func() string
 	LocalURL          string
 	Launcher          string
@@ -88,7 +89,7 @@ func testDeps(t testing.TB, d testServices) Deps {
 	if d.Files == nil {
 		d.Files = files.New(d.Config.DefaultCwd)
 	}
-	options := sessioncreate.Options{DefaultCwd: d.Config.DefaultCwd, Locations: d.Workspace, Files: d.Artifacts}
+	options := sessioncreate.Options{DefaultCwd: d.Config.DefaultCwd, DefaultCmd: d.DefaultCmd, Locations: d.Workspace, Files: d.Artifacts}
 	if d.Launch != nil {
 		options.Commands = d.Launch
 	}

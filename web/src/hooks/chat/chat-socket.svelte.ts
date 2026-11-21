@@ -55,6 +55,7 @@ export function createChatSocket(
           query.set("generation", point.generation);
           query.set("seq", String(point.seq));
         }
+        query.set("backfill", "tail");
         const search = query.toString();
         return `/ws/s/${id}/chat${search ? `?${search}` : ""}`;
       },
@@ -68,6 +69,7 @@ export function createChatSocket(
           backlog = false;
           return;
         }
+        if (frame.type === "backfill") return;
         if (frame.type === "snapshot") backlog = true;
         state = frame.state;
       },

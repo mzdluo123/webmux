@@ -278,6 +278,7 @@ func (s *Service) switchWorktreeOnce(ctx context.Context, repositoryID, worktree
 		op.Summary = "已切换至 " + targetDesc
 		op.SanitizedOutput = stderr
 	})
+	r.markSnapshotDirty()
 	s.notifyWorkspaces()
 	return SwitchResult{Worktree: s.withLastCommit(refreshCtx, r, after), OperationID: opID}, nil
 }

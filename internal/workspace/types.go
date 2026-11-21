@@ -230,6 +230,7 @@ type CreateRequest struct {
 	Branch         string
 	Base           string
 	UpstreamChoice *UpstreamChoice
+	LatestUpstream bool
 }
 type RemoveRequest struct {
 	ConfirmationID string

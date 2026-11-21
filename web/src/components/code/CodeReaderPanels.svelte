@@ -7,6 +7,7 @@
 
   let {
     panel,
+    searchAtTop = false,
     query,
     line,
     status,
@@ -17,6 +18,7 @@
     onclose,
   }: {
     panel?: CodeReaderPanel;
+    searchAtTop?: boolean;
     query: SearchSpec;
     line: number;
     status?: string;
@@ -29,7 +31,14 @@
 </script>
 
 {#if panel}
-  <div class="max-h-[45%] shrink-0 overflow-auto border-t bg-background">
+  <div
+    class={[
+      "max-h-[45%] shrink-0 overflow-auto bg-background",
+      searchAtTop && panel === "search"
+        ? "order-first w-full self-end border-b sm:max-w-sm sm:border-l"
+        : "border-t",
+    ]}
+  >
     {#if panel === "search"}
       <CodeSearchPanel {query} {onquery} {onnext} {onprevious} {onclose} />
       {#if status}

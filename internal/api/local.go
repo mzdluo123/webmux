@@ -67,6 +67,9 @@ func NewLocal(d Deps, local Local) http.Handler {
 	mux.HandleFunc("GET "+contract.PathStatus, func(w http.ResponseWriter, r *http.Request) {
 		reply(w, http.StatusOK, local.Status())
 	})
+	if d.Perf != nil {
+		mountLocalPprof(mux)
+	}
 	mux.HandleFunc("POST "+contract.PathShutdown, func(w http.ResponseWriter, r *http.Request) {
 		if local.fromSession(r) {
 			failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot stop the server"))

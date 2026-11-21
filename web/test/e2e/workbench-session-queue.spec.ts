@@ -1,4 +1,83 @@
-import { test, expect, revealSidebar, useWorkbenchBranches } from "./fixtures";
+import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+import {
+  test,
+  expect,
+  openSessionQueue,
+  revealSidebar,
+  useWorkbenchBranches,
+} from "./fixtures";
+
+test("the sidebar waits for project and archive data before showing groups", async ({
+  page,
+  request,
+  workDir,
+}) => {
+  const path = join(workDir, "slow-project");
+  execFileSync("git", ["init", "-b", "main", path]);
+  const registered = await request.post("/api/repositories", {
+    data: { path },
+  });
+  expect(registered.ok()).toBe(true);
+  for (const [name, cwd] of [
+    ["Project shell", path],
+    ["Direct shell", workDir],
+  ]) {
+    const created = await request.post("/api/sessions", {
+      data: { name, cwd, cmd: ["/bin/sh"] },
+    });
+    expect(created.status()).toBe(201);
+  }
+
+  const repositories = Promise.withResolvers<void>();
+  const archive = Promise.withResolvers<void>();
+  const archiveRequested = Promise.withResolvers<void>();
+  await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
+    await repositories.promise;
+    await route.continue();
+  });
+  await page.route("**/api/sessions?state=archived", async (route) => {
+    archiveRequested.resolve();
+    await archive.promise;
+    await route.continue();
+  });
+
+  try {
+    await page.goto("/");
+    await revealSidebar(page);
+    const sidebar = page.getByRole("navigation", { name: "导航", exact: true });
+    const skeleton = sidebar.getByRole("status", { name: "正在加载会话" });
+    const direct = sidebar.getByRole("list", { name: "直接会话", exact: true });
+    const project = sidebar.getByRole("list", { name: "slow-project" });
+    await archiveRequested.promise;
+    await expect(skeleton).toBeVisible();
+    await expect(direct).toHaveCount(0);
+
+    const metadata = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === "/api/repositories",
+    );
+    repositories.resolve();
+    expect((await metadata).ok()).toBe(true);
+    await expect(skeleton).toBeVisible();
+    await expect(project).toHaveCount(0);
+    await expect(direct).toHaveCount(0);
+
+    archive.resolve();
+    await expect(
+      project.getByRole("button", { name: /^Project shell/ }),
+    ).toBeVisible();
+    await expect(
+      direct.getByRole("button", { name: /^Direct shell/ }),
+    ).toBeVisible();
+    await expect(
+      direct.getByRole("button", { name: /^Project shell/ }),
+    ).toHaveCount(0);
+    await expect(skeleton).toHaveCount(0);
+  } finally {
+    repositories.resolve();
+    archive.resolve();
+  }
+});
 
 test("the default queue prioritizes explicit attention and keeps a focused session in place", async ({
   page,
@@ -28,6 +107,7 @@ test("the default queue prioritizes explicit attention and keeps a focused sessi
   expect(attention.status()).toBe(200);
 
   await page.goto("/");
+  await openSessionQueue(page);
   const main = page.getByRole("main");
   const issue = main.locator(`[data-session-id="${urgent}"]`);
   const monitor = main.locator(`[data-session-id="${running}"]`);
@@ -209,6 +289,7 @@ test("closing the docked preview returns focus after a running session exits", a
   expect(response.status()).toBe(201);
   const { session } = await response.json();
   await page.goto("/");
+  await openSessionQueue(page);
   const main = page.getByRole("main");
   const row = main.locator(`[data-session-id="${session.id}"]`);
   await expect(row).toHaveAttribute("data-queue-group", "running");

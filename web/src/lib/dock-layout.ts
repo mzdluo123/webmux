@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export type DockDirection = "horizontal" | "vertical";
 export type DockEdge = "left" | "right" | "top" | "bottom" | "center";
+export type DockRail = "left" | "right" | "bottom";
 export type DockGroup = { kind: "group"; ids: string[]; active: string };
 export type DockSplit = {
   kind: "split";
@@ -79,17 +80,28 @@ export function dockMove(
   id: string,
   target: string,
   edge: DockEdge,
+  activate = true,
 ): DockNode {
   if (id === target) return node;
   if (!dockIds(node).includes(target)) {
     const ids = dockIds(node);
     if (!ids.length) return dockGroup(id);
-    return dockMove(node, id, ids.find((key) => key !== id) ?? id, edge);
+    return dockMove(
+      node,
+      id,
+      ids.find((key) => key !== id) ?? id,
+      edge,
+      activate,
+    );
   }
   return updateGroups(dockRemove(node, id), (group) => {
     if (!group.ids.includes(target)) return group;
     if (edge === "center")
-      return { ...group, ids: [...group.ids, id], active: id };
+      return {
+        ...group,
+        ids: [...group.ids, id],
+        active: activate ? id : group.active,
+      };
     const first = edge === "left" || edge === "top";
     return dockSplit(
       edge === "left" || edge === "right" ? "horizontal" : "vertical",
@@ -213,6 +225,15 @@ export function dockDropEdge(x: number, y: number): DockEdge {
   return min < 0.25 ? dockEdges[distances.indexOf(min)]! : "center";
 }
 
+export function dockRail(rect: DockRect | undefined): DockRail | undefined {
+  if (!rect) return undefined;
+  const left = rect.x < 0.01;
+  const right = rect.x + rect.width > 0.99;
+  if (left !== right) return left ? "left" : "right";
+  if (rect.y > 0.01 && rect.y + rect.height > 0.99) return "bottom";
+  return undefined;
+}
+
 const groupSchema = z.object({
   kind: z.literal("group"),
   ids: z.array(z.string().min(1)),
@@ -234,6 +255,10 @@ const layoutSchema = z.object({
   version: z.literal(1),
   node: treeSchema,
   hidden: z.array(z.string()),
+  rails: z
+    .record(z.string(), z.enum(["left", "right", "bottom"]))
+    .optional()
+    .catch(undefined),
 });
 
 export function restoreDock(value: string | null | undefined) {
@@ -244,6 +269,7 @@ export function restoreDock(value: string | null | undefined) {
     const ids = dockIds(result.data.node);
     if (ids.length !== new Set(ids).size) return undefined;
     return {
+      ...(result.data.rails && { rails: result.data.rails }),
       node: result.data.node,
       hidden: result.data.hidden.filter((id) => ids.includes(id)),
     };

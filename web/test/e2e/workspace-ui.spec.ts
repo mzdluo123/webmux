@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { test, expect } from "./fixtures";
+import { test, expect, openSessionQueue } from "./fixtures";
 
 test("workspace UI audit: touch targets, overflow and session discovery", async ({
   page,
@@ -24,6 +24,7 @@ test("workspace UI audit: touch targets, overflow and session discovery", async 
     expect(response.status()).toBe(201);
   }
   await page.goto("/");
+  await openSessionQueue(page);
   await expect(page.locator("[data-session-id]")).toHaveCount(3);
   const measurements = [];
   const directory = process.env.WEBMUX_UI_AUDIT_DIR
@@ -139,7 +140,9 @@ test("the sidebar footer keeps the host beside its actions", async ({
   const sidebar = page.getByRole("complementary", { name: "侧栏" });
   const host = sidebar.getByRole("button", { name: /^查看主机状态：/ });
   await expect(host).toHaveAttribute("title", /在线(（.+）)?$/);
-  await expect(sidebar.getByRole("status")).toHaveText("已连接");
+  await expect(
+    sidebar.getByRole("status").filter({ hasText: /^已连接$/ }),
+  ).toBeAttached();
   await expect(host).toContainText(hostname);
   await page.evaluate(async () => {
     await document.fonts.ready;

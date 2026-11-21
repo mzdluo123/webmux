@@ -4,6 +4,7 @@ import {
   expect,
   expectConnected,
   revealSidebar,
+  sessionHeader,
   test,
   workspaceLayoutTest,
 } from "./fixtures";
@@ -55,9 +56,10 @@ workspaceLayoutTest(
     expect(info.attention).toMatchObject({ kind: "question", source: "agent" });
 
     await page.goto(`/s/${id}`);
+    await expectConnected(page);
     await expect(page.locator(".restore-overlay")).toBeHidden();
     await expect(page).toHaveTitle("E2E agent · WebMux");
-    await expect(page.locator(".terminal-header .status-dot")).toHaveClass(
+    await expect(sessionHeader(page).locator(".status-dot")).toHaveClass(
       /status-failed/,
     );
     await page.locator(".xterm-helper-textarea").focus();
@@ -281,7 +283,7 @@ test("raises a top-right toast by default while browsing and navigates to the se
     if (new URL(socket.url()).pathname !== "/ws/sessions") return;
     socket.on("framereceived", ({ payload }) => frames.push(String(payload)));
   });
-  await page.goto("/new");
+  await page.goto("/");
   const created = await request.post("/api/sessions", {
     data: {
       cwd: workDir,
@@ -334,7 +336,7 @@ test("shows a script's notify message in the toast and clears it on request", as
     if (new URL(socket.url()).pathname !== "/ws/sessions") return;
     socket.on("framereceived", ({ payload }) => frames.push(String(payload)));
   });
-  await page.goto("/new");
+  await page.goto("/");
   await expect
     .poll(() => frames.some((frame) => frame.includes(`"${id}"`)))
     .toBe(true);

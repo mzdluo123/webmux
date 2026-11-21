@@ -141,7 +141,8 @@ type WorkspaceReference struct {
 
 // CreateSessionRequest is the body of POST /api/sessions, the only way to
 // create a session. The location is one of Cwd, Workspace and NewWorktree;
-// the command is ConfigID or Cmd with Env. View (terminal or chat, default
+// the command is ConfigID, explicit Cmd with Env, or neither to start the
+// server's default login shell. View (terminal or chat, default
 // terminal) chat needs a config with the chat view; AgentConfig and
 // PermissionMode are only valid with View chat, and Attachments need a
 // Prompt. UseInitInstruction needs Workspace or NewWorktree. omitempty only
@@ -198,6 +199,7 @@ type NewWorktree struct {
 	Base           string          `json:"base,omitempty"`
 	Path           string          `json:"path,omitempty"`
 	UpstreamChoice *UpstreamChoice `json:"upstreamChoice,omitempty"`
+	LatestUpstream bool            `json:"latestUpstream,omitempty"`
 }
 
 // CreateSessionResult is the 201 body of POST /api/sessions. Worktree is

@@ -69,11 +69,14 @@ Use `--config vitest.browser.config.ts` for the Chromium component suite. Storyb
 ## CI
 
 - CI classifies changed paths in the `Classify changes` job (`.github/scripts/classify-changes.sh`).
-  - Docs-only changes run the formatting, documentation, persistence and agent/web static guards without the test suites.
-  - Go-only changes skip Vitest, Storybook and performance. Web-only changes skip Go race, the Windows cross-compile and the Windows installer smoke (including native stdin EOF/cancellation tests). E2E still runs for either.
-  - Go wire snapshots also select Vitest because the frontend Zod tests consume them. `test-classify-changes.sh` covers this cross-stack rule.
-  - Unknown paths, `.github/**`, `Makefile`, module/lockfile changes and installer tooling force a full run. The required `Test result` check reports on every pull request.
-  - The job validates the base itself, forces a full run for any `.github/` change, and executes the base revision's classifier so a PR cannot weaken the rules that skip its own tests.
+  - Docs-only changes (and PR evidence under `.github/pr-assets/**`) run the formatting, documentation, persistence and agent/web static guards without the test suites.
+  - Go-only changes (including `go.mod`, `go.sum`, `.golangci.yml`, `install.sh`, `protocol/**` and `web/embed*.go`) skip Vitest, Storybook, performance, `E2E runtime` and the Playwright E2E shards.
+  - Web-only changes (including `web/` dependencies/configs and `.github/pr-assets/**` screenshots) skip `make test-install`, `golangci-lint`, Go race, the Windows cross-compile, the Windows installer smoke and Linux packages, while keeping Vitest, Storybook, performance and E2E.
+  - Cross-stack contract and fixture files select both Go and web (`test-classify-changes.sh` covers every rule):
+    - `internal/api/testdata/wire/**`, `internal/wire/testdata/**`, `internal/acp/testdata/fakeagent/**`
+    - `web/scripts/embed-assets.ts`, `web/public/sw.js`, `web/test/e2e/fake-agent-names.txt`
+  - Unknown paths, `.github/**` (except `.github/pr-assets/**`), `Makefile`, `.nvmrc` and `baseline/**` force a full run. The required `Test result` check reports on every pull request.
+  - The job validates the base itself, forces a full run for any `.github/` change outside `.github/pr-assets/`, and executes the base revision's classifier so a PR cannot weaken the rules that skip its own tests.
   - Every push to main forces the complete suite (classification is skipped), so a merged commit normally has a full result.
     GitHub keeps at most one pending run per concurrency group, so a rapid burst of merges can still cancel an intermediate pending run; the release falls back to `full: true` for such a commit.
   - `release.yml` first runs the `verify` job (`.github/scripts/require-main-test.sh`) for the tagged commit.
@@ -82,8 +85,8 @@ Use `--config vitest.browser.config.ts` for the Chromium component suite. Storyb
     - `sign` and `publish` need one of the two to have passed, so tag releases require the complete suite.
   - The release `Build` job only builds, checksums and verifies the real artifacts (including the deb/rpm install check); it does not rerun Go tests, which `Go race` already covers.
   - Stable and dev release builds install NSIS through `.github/scripts/install-nsis.sh`, using an isolated HTTPS kernel.org Ubuntu source and Ubuntu's archive signing key; the runner's global sources are unchanged, and index download failures stop the build.
-- CI builds the Linux E2E executable, fake agents and frontend output once in the `E2E runtime` job (`.github/scripts/package-e2e-runtime.mjs`).
-  - Go race and every E2E shard depend on that job and reuse its same-run artifact, including locked Playwright and Zod for validating capabilities with the production schemas.
+- CI builds the Linux E2E executable, fake agents and frontend output once in the `E2E runtime` job (`.github/scripts/package-e2e-runtime.mjs`) when `web` is selected.
+  - Every E2E shard depends on that job and reuses its same-run artifact, including locked Playwright and Zod for validating capabilities with the production schemas. `Go race` builds its own embedded frontend directly so it runs independently without waiting on `E2E runtime`.
 - `.github/workflows/test.yml` runs parallel jobs:
   - Ubuntu: formatting/architecture guard/frontend build, Go race, Vitest, Storybook, single-worker 4x CPU performance, and four E2E shards (desktop and iPhone SE phone projects).
   - E2E shards reuse the executable and packaged runtime dependencies; they skip pnpm/frontend dependency installation and Go setup.

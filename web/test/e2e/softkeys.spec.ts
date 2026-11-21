@@ -335,7 +335,9 @@ test("opening the keyboard from the keyboard button keeps the PTY grid until it 
   await page.waitForTimeout(600);
   expect(sizeFrames()).toBe(baseline);
 
-  const menu = page.getByRole("button", { name: "终端菜单", exact: true });
+  const menu = page
+    .locator(".session-toolbar")
+    .getByRole("button", { name: "显示", exact: true });
   const option = page.getByRole("menuitemcheckbox", {
     name: "键盘弹出时保持尺寸",
     exact: true,
@@ -419,7 +421,9 @@ test("desktop devices can toggle the bottom toolbar on and off through the termi
   test.skip(testInfo.project.use.isMobile, "Exercises a non-coarse pointer");
   await createShell(page, "Manual soft-key toolbar", workDir);
   const bar = page.getByRole("complementary", { name: "终端软键" });
-  const menu = page.getByRole("button", { name: "终端菜单", exact: true });
+  const menu = page
+    .locator(".session-toolbar")
+    .getByRole("button", { name: "显示", exact: true });
   const override = page.getByRole("menuitemcheckbox", {
     name: "显示底部工具栏",
     exact: true,
@@ -462,7 +466,9 @@ test("touch devices can hide and restore the bottom toolbar and repeat held arro
   );
   await createShell(page, "Touch toolbar toggle and repeat", workDir);
   const bar = page.getByRole("complementary", { name: "终端软键" });
-  const menu = page.getByRole("button", { name: "终端菜单", exact: true });
+  const menu = page
+    .locator(".session-toolbar")
+    .getByRole("button", { name: "显示", exact: true });
   const toggleItem = page.getByRole("menuitemcheckbox", {
     name: "显示底部工具栏",
     exact: true,

@@ -439,3 +439,50 @@ func TestCloseCancelsInitialTerminalPromptProducer(t *testing.T) {
 		t.Fatal("cancelled first-input producer wrote after shutdown")
 	}
 }
+
+func TestOmittedCommandStartsServerDefaultShell(t *testing.T) {
+	manager, dir := coreManager(t)
+	configured := []string{"/bin/sh", "-c", `printf 'ENV=%s\n' "$EXTRA"; exec cat`}
+	creator := coreCreator(t, manager, Options{DefaultCwd: dir, DefaultCmd: configured})
+	// Mutating the caller's slice must not affect the service's default command.
+	configured[0] = "/mutated"
+
+	result, err := creator.Create(context.Background(), Input{Cwd: dir, Env: map[string]string{"EXTRA": "kept"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitOutput(t, result.Session, "ENV=kept")
+	want := []string{"/bin/sh", "-c", `printf 'ENV=%s\n' "$EXTRA"; exec cat`}
+	if got := result.Session.Info().Cmd; !reflect.DeepEqual(got, want) {
+		t.Fatalf("cmd = %q, want %q", got, want)
+	}
+
+	// Omitting DefaultCmd in Options falls back to /bin/sh -l -i.
+	fallback := coreCreator(t, manager, Options{DefaultCwd: dir})
+	res, err := fallback.Create(context.Background(), Input{Cwd: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := res.Session.Info().Cmd; !reflect.DeepEqual(got, []string{"/bin/sh", "-l", "-i"}) {
+		t.Fatalf("fallback cmd = %q, want [/bin/sh -l -i]", got)
+	}
+}
+
+func TestExplicitEmptyCommandRejectedBeforeSideEffects(t *testing.T) {
+	manager, dir := coreManager(t)
+	locations := &recordedLocations{dir: dir}
+	creator := coreCreator(t, manager, Options{DefaultCwd: dir, Locations: locations})
+	for _, cmd := range [][]string{{}, {""}} {
+		_, err := creator.Create(context.Background(), Input{Cmd: cmd, NewWorktree: &NewWorktree{RepositoryID: "repo", Mode: "new"}})
+		var failed *Error
+		if !errors.As(err, &failed) || failed.Step != StepPrecheck || !errors.Is(err, session.ErrInvalid) {
+			t.Fatalf("cmd %q: err = %v", cmd, err)
+		}
+	}
+	if len(locations.events) != 0 {
+		t.Fatalf("invalid cmd reached location contribution: %v", locations.events)
+	}
+	if len(manager.List()) != 0 {
+		t.Fatal("invalid cmd created a session")
+	}
+}

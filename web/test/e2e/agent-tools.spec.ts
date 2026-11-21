@@ -1,6 +1,6 @@
 import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { expect, test } from "./fixtures";
+import { expect, openSessionQueue, test } from "./fixtures";
 import {
   chooseSessionDirectory,
   chooseSessionProject,
@@ -37,6 +37,7 @@ test("merged launch-configs card fuses tool versions, hides uninstalled agents i
   // Uninstalled preset agent (CodeBuddy Code) is automatically hidden in New Session -> Run,
   // while Shell and installed Claude Code remain selectable.
   await page.goto("/");
+  await openSessionQueue(page);
   await page
     .getByRole("main")
     .getByRole("button", { name: "＋ 新建会话", exact: true })
@@ -132,6 +133,7 @@ test("merged launch-configs card fuses tool versions, hides uninstalled agents i
     await expect(buddyItem.getByText("8.9.10", { exact: true })).toBeVisible();
 
     await page.goto("/");
+    await openSessionQueue(page);
     await page
       .getByRole("main")
       .getByRole("button", { name: "＋ 新建会话", exact: true })

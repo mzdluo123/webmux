@@ -166,6 +166,9 @@ func (s *Service) checkCreationUpstream(ctx context.Context, repositoryID string
 	if err != nil {
 		return check, err
 	}
+	if req.LatestUpstream && (req.Mode != "new" || req.UpstreamChoice != nil) {
+		return check, problemf(ErrInvalid, "自动选择上游仅适用于从基线新建分支")
+	}
 	sourceReq := req
 	var previous upstreamConfirmation
 	if req.UpstreamChoice != nil {
@@ -222,6 +225,17 @@ func (s *Service) checkCreationUpstream(ctx context.Context, repositoryID string
 		after.head = before.head
 		check.source = after
 	}
+	moved := before.ref != after.ref || before.remote != after.remote || before.merge != after.merge || before.upstreamRef != after.upstreamRef || !remoteOnly && before.head != after.head
+	if req.LatestUpstream {
+		if moved || refreshed.Upstream != after.upstream || refreshed.UpstreamHead != after.upstreamHead {
+			return check, problemf(ErrInvalid, "刷新期间上游已变化，请重试")
+		}
+		if refreshed.UpstreamHead == "" || remoteOnly && refreshed.FetchWarning != "" {
+			return check, problemf(ErrInvalid, "无法获取最新上游提交，请重试")
+		}
+		check.base = refreshed.UpstreamHead
+		return check, nil
+	}
 	warning := ""
 	canUse, needs := false, false
 	if refreshed.UpstreamHead == "" || strings.Contains(refreshed.FetchWarning, "失败") || strings.Contains(refreshed.FetchWarning, "无法") || strings.Contains(refreshed.FetchWarning, "不存在") {
@@ -259,7 +273,6 @@ func (s *Service) checkCreationUpstream(ctx context.Context, repositoryID string
 		}
 	}
 	// Config/source movement during fetch always requires a fresh confirmation.
-	moved := before.ref != after.ref || before.remote != after.remote || before.merge != after.merge || before.upstreamRef != after.upstreamRef || !remoteOnly && before.head != after.head
 	if moved {
 		needs = true
 		canUse = false
@@ -305,6 +318,9 @@ func (s *Service) validateCreationUpstream(ctx context.Context, r *repositorySta
 		actual.head = check.source.head
 	}
 	if actual != check.source {
+		if req.LatestUpstream {
+			return problemf(ErrInvalid, "源分支或上游在创建前发生变化，请重试")
+		}
 		return s.upstreamChallenge(r.entry.ID, req, actual, "源分支或上游在创建前发生变化，请重新确认", false)
 	}
 	return ctx.Err()

@@ -233,6 +233,7 @@ type CreateWorktreeRequest struct {
 	Branch         string          `json:"branch"`
 	Base           string          `json:"base"`
 	UpstreamChoice *UpstreamChoice `json:"upstreamChoice,omitempty"`
+	LatestUpstream bool            `json:"latestUpstream,omitempty"`
 }
 
 // RemovalPreviewRequest is the empty body of a removal preview.

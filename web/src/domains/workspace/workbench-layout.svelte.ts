@@ -4,13 +4,16 @@ import { onActiveHostChange, store, stored } from "../../platform/storage";
 
 const layoutSchema = z.enum(["queue", "workspaces"]);
 type WorkbenchLayout = z.infer<typeof layoutSchema>;
+type QueueView = "composer" | "queue";
 let layout = $state(
   layoutSchema.safeParse(stored("workbenchLayout")).data ?? "queue",
 );
+let queueView = $state<QueueView>("composer");
 let attentionOnly = $state(false);
 const collapsedAttentionProjects = new SvelteSet<string>();
 
 function filterAttention(value: boolean) {
+  if (value) queueView = "queue";
   if (value === attentionOnly) return;
   attentionOnly = value;
   collapsedAttentionProjects.clear();
@@ -35,6 +38,7 @@ let collapsedProjects = $state(readCollapsedProjects());
 onActiveHostChange(() => {
   collapsedProjects = readCollapsedProjects();
   filterAttention(false);
+  queueView = "composer";
 });
 
 export const workbenchLayout = {
@@ -44,6 +48,12 @@ export const workbenchLayout = {
   set value(next: WorkbenchLayout) {
     layout = next;
     store("workbenchLayout", next);
+  },
+  get queueView() {
+    return queueView;
+  },
+  set queueView(next: QueueView) {
+    queueView = next;
   },
   isProjectOpen(id: string) {
     return !(

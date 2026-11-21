@@ -65,7 +65,6 @@ async function expectNoWrap(page: Page, label: string) {
 
 for (const path of [
   "/",
-  "/new",
   "/settings",
   "/settings/tunnel",
   "/settings/tailscale",

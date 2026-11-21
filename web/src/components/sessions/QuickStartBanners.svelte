@@ -20,6 +20,7 @@
     repository,
     failure,
     shell,
+    task,
   }: {
     missing: "" | "agent" | "agent-uninstalled" | "repository";
     targetMode: QuickStartTargetMode;
@@ -27,6 +28,7 @@
     repository?: Repository;
     failure?: CreateSessionFailure;
     shell: Shell;
+    task: string;
   } = $props();
 </script>
 
@@ -114,8 +116,11 @@
           <Button
             variant="outline"
             size="sm-touch"
-            onclick={() => openSession({ id })}
-            >{m.s3_qs_enter_session()}</Button
+            onclick={() => {
+              const draft = shell.drafts.get(id);
+              if (!draft.text) shell.drafts.edit(draft, task, task.length);
+              openSession({ id });
+            }}>{m.s3_qs_enter_session()}</Button
           >
         {/if}
       </p>

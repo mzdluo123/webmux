@@ -65,7 +65,7 @@ export function useSessionTerminalChrome(options: {
 }) {
   let findOpen = $state(false);
   let findReturnFocus: HTMLElement | null = null;
-  let sizeLocked = $state(stored("sizeLocked") === "1");
+  let sizeLocked = $state(stored(`sizeLocked.${options.id()}`) === "1");
   let keyboardHeld = $state(false);
   let pasteOperation = $state<DraftOperation | undefined>();
   let pasteOpen = $state(false);
@@ -135,7 +135,7 @@ export function useSessionTerminalChrome(options: {
 
   function setSizeLocked(value: boolean) {
     sizeLocked = value;
-    store("sizeLocked", value ? "1" : "0");
+    store(`sizeLocked.${options.id()}`, value ? "1" : "0");
     void tick().then(() => options.fitTerminal());
   }
 

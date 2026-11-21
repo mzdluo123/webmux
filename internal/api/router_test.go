@@ -229,7 +229,6 @@ func TestSessionCreationRejectsCommandConflicts(t *testing.T) {
 	for _, body := range []string{
 		`{"cmd":[]}`,
 		`{"cmd":[""]}`,
-		`{}`,
 		`{"cmd":["/definitely/missing/webmux-executable"]}`,
 	} {
 		t.Run(body, func(t *testing.T) {
@@ -255,6 +254,27 @@ func TestSessionCreationRejectsCommandConflicts(t *testing.T) {
 	info := createdInfo(t, recorder.Body.Bytes())
 	if !reflect.DeepEqual(info.Cmd, []string{"/bin/echo", "two words", "$HOME"}) {
 		t.Fatalf("command arguments: %+v", info)
+	}
+}
+
+func TestSessionCreationDefaultsToServerShell(t *testing.T) {
+	cwd := t.TempDir()
+	m := session.NewManager(session.Options{DefaultCwd: cwd})
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
+		defer cancel()
+		m.Shutdown(ctx)
+	}()
+	defaultCmd := []string{"/bin/sh", "-c", "sleep 30"}
+	handler := New(testDeps(t, testServices{Config: config.Config{DefaultCwd: cwd}, Manager: m, Workspace: testWorkspace(t, m, cwd), DefaultCmd: defaultCmd}))
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest("POST", "/api/sessions", strings.NewReader(`{}`)))
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("default shell create: status %d: %s", recorder.Code, recorder.Body.String())
+	}
+	info := createdInfo(t, recorder.Body.Bytes())
+	if !reflect.DeepEqual(info.Cmd, defaultCmd) {
+		t.Fatalf("default shell cmd = %q, want %q", info.Cmd, defaultCmd)
 	}
 }
 

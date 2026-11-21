@@ -3,7 +3,7 @@ import {
   expect,
   test,
   backToList,
-  revealSidebar,
+  openSessionQueue,
 } from "./fixtures";
 
 test("the saved dark theme is applied before the application module loads", async ({
@@ -47,7 +47,9 @@ test("reduced motion disables skeleton and dialog animation", async ({
   });
   try {
     await page.goto("/");
-    const skeleton = page.locator('[data-slot="skeleton"]').first();
+    const skeleton = page
+      .locator('.workspace-page [data-slot="skeleton"]')
+      .first();
     await expect(skeleton).toBeVisible();
     expect(
       await skeleton.evaluate(
@@ -59,10 +61,13 @@ test("reduced motion disables skeleton and dialog animation", async ({
         parseFloat(getComputedStyle(node).animationDuration),
       ),
     ).toBeLessThanOrEqual(0.001);
-    // The page body is still a skeleton; the sidebar already offers it.
-    await revealSidebar(page);
-    await page.getByRole("button", { name: "新建会话", exact: true }).click();
-    await expect(page.getByRole("dialog", { name: "导航" })).toHaveCount(0);
+    config.resolve();
+    await openSessionQueue(page);
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: "＋ 新建会话", exact: true })
+      .first()
+      .click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
     expect(
@@ -101,7 +106,7 @@ test("returning to the workspace shows the previous list while settings reload",
     await config.promise;
     await route.continue();
   });
-  await page.route("**/api/repositories", async (route) => {
+  await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     await repositories.promise;
     await route.continue();
   });

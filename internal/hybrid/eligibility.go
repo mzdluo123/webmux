@@ -366,7 +366,7 @@ func (a *actor) listed(ctx context.Context, t target, since time.Time) probeAnsw
 		if i < 0 {
 			return probeAnswer{}
 		}
-		return probeAnswer{listed: true, title: sessionTitle(sessions[i].Title)}
+		return probeAnswer{listed: true, title: sessions[i].Title}
 	}
 	var recent []Candidate
 	for _, c := range candidates(sessions) {
@@ -388,7 +388,12 @@ func (a *actor) sessions(ctx context.Context, cwd, until string) ([]acp.SessionI
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	defer func() { <-a.svc.probes }()
+	releaseProbe := true
+	defer func() {
+		if releaseProbe {
+			<-a.svc.probes
+		}
+	}()
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
 	tools, err := a.prepareACP(ctx)
@@ -402,7 +407,12 @@ func (a *actor) sessions(ctx context.Context, cwd, until string) ([]acp.SessionI
 	}
 	link := &acpLink{sidecar: sidecar}
 	link.conn = acp.NewConn(sidecar.Stdout(), sidecar.Stdin(), acp.Options{Logger: a.svc.log})
-	defer func() { _ = link.stop() }()
+	stopSync := true
+	defer func() {
+		if stopSync {
+			_ = link.stop()
+		}
+	}()
 	init, err := link.conn.Initialize(ctx, acp.Implementation{Name: "webmux", Title: "WebMux", Version: a.svc.version}, nil)
 	if err == nil && init.AgentCapabilities.SessionCapabilities.List == nil {
 		err = errMissingCapability
@@ -410,15 +420,42 @@ func (a *actor) sessions(ctx context.Context, cwd, until string) ([]acp.SessionI
 	if err != nil {
 		a.svc.log.Warn("hybrid probe failed", "id", a.id, "method", acp.MethodInitialize, "error", err)
 		_ = link.stop()
+		stopSync = false
 		if missing := exitedNotFound(a.cmd, sidecar); missing != nil {
 			return nil, missing.err
 		}
 		return nil, agentFailure(acp.MethodInitialize, err, sidecar).err
 	}
+	out, err := a.listSessionsOn(ctx, link.conn, sidecar, cwd, until)
+	if err != nil {
+		return nil, err
+	}
+	// When the caller is verifying a specific session ID that was found, the
+	// read-only probe never opened or locked a session and the actor stays
+	// alive; finish waiting for probe shutdown in the background so TUI resume
+	// does not stall behind graceful exit. If the session was not found, stop
+	// synchronously so an immediate retry with a candidate never sees a
+	// lingering probe process for the same session ID.
+	if until != "" && slices.ContainsFunc(out, func(s acp.SessionInfo) bool { return s.SessionID == until }) {
+		stopSync = false
+		releaseProbe = false
+		_ = link.conn.Close()
+		_ = sidecar.Stdin().Close()
+		a.subtask(func() {
+			defer func() { <-a.svc.probes }()
+			_ = link.stop()
+		})
+	}
+	return out, nil
+}
+
+// listSessionsOn paginates session/list on an already-initialized ACP
+// connection until session until is seen or probePages pages are read.
+func (a *actor) listSessionsOn(ctx context.Context, conn *acp.Conn, sidecar *session.Sidecar, cwd, until string) ([]acp.SessionInfo, error) {
 	var out []acp.SessionInfo
 	cursor := ""
 	for range probePages {
-		resp, err := link.conn.ListSessions(ctx, acp.ListSessionsRequest{Cwd: cwd, Cursor: cursor})
+		resp, err := conn.ListSessions(ctx, acp.ListSessionsRequest{Cwd: cwd, Cursor: cursor})
 		if err != nil {
 			a.svc.log.Warn("hybrid probe failed", "id", a.id, "method", acp.MethodSessionList, "error", err)
 			return nil, agentFailure(acp.MethodSessionList, err, sidecar).err

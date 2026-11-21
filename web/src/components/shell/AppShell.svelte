@@ -2,7 +2,6 @@
   import { onDestroy, untrack, type Snippet } from "svelte";
   import { SvelteSet } from "svelte/reactivity";
   import IconLayoutSidebarLeftExpand from "~icons/tabler/layout-sidebar-left-expand";
-  import IconMessagePlus from "~icons/tabler/message-plus";
   import IconPlus from "~icons/tabler/plus";
   import { Button } from "$lib/components/ui/button";
   import * as Drawer from "$lib/components/ui/drawer";
@@ -31,6 +30,9 @@
     type Shell,
   } from "../../hooks/shared/shell.svelte";
   import { dragWidth, keyWidth } from "../../hooks/shared/splitter";
+  import { provideSidebarProjectAvatars } from "../../hooks/shared/sidebar-project-avatars";
+  import { workbenchLayout } from "../../domains/workspace/workbench-layout.svelte";
+  import { featureAvailable } from "../../platform/feature-host.svelte";
   import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
   import type { RelayReconnection } from "../../platform/relay-auth.svelte";
   import CoreShellDialogs from "./CoreShellDialogs.svelte";
@@ -57,7 +59,7 @@
   }: {
     route: Extract<
       Route,
-      { name: "sessions" | "quick-start" | "terminal" | "handoff" | "git" }
+      { name: "sessions" | "terminal" | "handoff" | "git" }
     >;
     drafts: TerminalDrafts;
     reconnection?: RelayReconnection;
@@ -81,7 +83,7 @@
   } = resources;
   const archiveSignal = createArchiveSignal();
   export function sessionSwitcherSource() {
-    return { sessions, repositories };
+    return { sessions, repositories, archived };
   }
 
   let creating = $state<{
@@ -236,6 +238,7 @@
     },
   };
   setShell(shell);
+  provideSidebarProjectAvatars();
   onDestroy(() => {
     resources.dispose();
     // Leaving the shell (settings) must not reopen the drawer on return.
@@ -299,17 +302,23 @@
     }
   }
 
-  // Explicit quick-start pages retain a return path for sessions launched there.
-  $effect(() => {
-    if (route.name === "sessions" && shellUi.mode !== "workbench") {
-      shellUi.setMode("workbench");
-      void repositories?.refresh();
-    } else if (
-      (route.name === "quick-start" || route.name === "handoff") &&
-      shellUi.mode !== "chat"
-    )
-      shellUi.setMode("chat");
-  });
+  function startFromRail() {
+    if (
+      contributions.chat &&
+      workspace &&
+      workbenchLayout.value === "queue" &&
+      featureAvailable("workspace.manage") &&
+      repositories
+    ) {
+      repositories.select("all");
+      workbenchLayout.attentionOnly = false;
+      workbenchLayout.queueView = "composer";
+      openPage("/");
+      shellUi.requestQuickStartFocus("explicit");
+      return;
+    }
+    shell.start();
+  }
   // Dragging or arrow keys on the sidebar's edge set its width.
   const setWidth = (width: number) => shellUi.setWidth(width);
   function resizeStart(event: PointerEvent) {
@@ -348,23 +357,10 @@
       size="icon-touch"
       aria-label={m.s1_new_session()}
       title={m.s1_new_session()}
-      onclick={() => shell.start()}><IconPlus aria-hidden="true" /></Button
+      onclick={startFromRail}><IconPlus aria-hidden="true" /></Button
     >
-    {#if contributions.chat}
-      <Button
-        variant="ghost"
-        size="icon-touch"
-        aria-label={m.s1_new_chat()}
-        title={m.s1_new_chat()}
-        aria-current={route.name === "quick-start" ? "true" : undefined}
-        onclick={() => openPage("/new")}
-      >
-        <IconMessagePlus aria-hidden="true" />
-      </Button>
-    {/if}
-    {#if route.name === "sessions" && workspace}
-      <SessionSwitcherTrigger size="icon-touch" />
-    {/if}
+
+    <SessionSwitcherTrigger size="icon-touch" />
     <SidebarRailSessions
       sessions={sessions.sessions.filter(
         (item) => item.state === "active" && item.status !== "exited",

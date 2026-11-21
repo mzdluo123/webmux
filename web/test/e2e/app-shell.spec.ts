@@ -1,3 +1,4 @@
+import { codeReader } from "./code-dock";
 import { spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -229,14 +230,15 @@ test.describe("desktop sidebar", () => {
       });
       expect(response.status(), await response.text()).toBe(201);
     }
-    const code = page.getByRole("region", { name: "代码工作区", exact: true });
+    const code = codeReader(page);
     const files = page.getByRole("region", { name: "文件树", exact: true });
     const width = async () => Math.round((await code.boundingBox())!.width);
 
     await page.goto(`/s/${first}`);
     await expectConnected(page);
     await toggleCode(page);
-    await expect(code).toBeVisible();
+    await expect(files).toBeVisible();
+    await expect(code).toBeHidden();
     await files.getByRole("button", { name: "note.txt", exact: true }).click();
     const note = code.getByRole("tab", { name: /^note\.txt · / });
     await expect(note).toBeVisible();
@@ -266,24 +268,31 @@ test.describe("desktop sidebar", () => {
     await expect(page).not.toHaveURL(new RegExp(`/s/${first}$`));
     await expect(code).toBeHidden();
     await toggleCode(page);
-    await expect(code).toBeVisible();
+    await expect(files).toBeVisible();
+    await expect(code).toBeHidden();
+    await files.getByRole("button", { name: "note.txt", exact: true }).click();
     await expect.poll(width).toBe(before);
-    // Open files belong to their own session.
-    await expect(note).toHaveCount(0);
+    // Resizing the first session did not change the second reader.
 
     // Conversation grouping keeps the panel state too.
     await page.getByRole("radio", { name: "按会话" }).click();
     const chats = page.getByRole("navigation", { name: "导航", exact: true });
     await chats.getByRole("button", { name: /^面板甲（/ }).click();
-    await expect(page.locator(".terminal-header")).toContainText("面板甲");
+    await expect(
+      page.getByRole("region", { name: "面板甲", exact: true }),
+    ).toBeVisible();
     await expect(code).toBeHidden();
     await toggleCode(page);
-    await expect(code).toBeVisible();
+    await expect(files).toBeVisible();
+    await expect(code).toBeHidden();
+    await files.getByRole("button", { name: "note.txt", exact: true }).click();
     await expect.poll(width).toBe(before);
     await toggleCode(page);
     await expect(code).toBeHidden();
     await chats.getByRole("button", { name: /^面板乙（/ }).click();
-    await expect(page.locator(".terminal-header")).toContainText("面板乙");
+    await expect(
+      page.getByRole("region", { name: "面板乙", exact: true }),
+    ).toBeVisible();
     await expect(code).toBeHidden();
 
     // Back on the first session, its files are open again.
@@ -302,6 +311,8 @@ test.describe("desktop sidebar", () => {
     await page.reload();
     await expectConnected(page);
     await expect(picker).toBeHidden();
+    await expect(files).toBeVisible();
+    await files.getByRole("button", { name: "note.txt", exact: true }).click();
     await expect(code).toBeVisible();
     await expect.poll(width).toBe(wide);
   });
@@ -379,7 +390,7 @@ test.describe("phone drawer", () => {
       await page.setViewportSize(size);
       const id = await shell(request, "demo-agent", { cwd: workDir });
       await page.goto(`/s/${id}`);
-      const header = page.locator(".terminal-header").first();
+      const header = page.locator(".session-toolbar");
       await expect(header).toBeVisible();
       expect((await header.boundingBox())!.height).toBeLessThanOrEqual(48);
       expect(

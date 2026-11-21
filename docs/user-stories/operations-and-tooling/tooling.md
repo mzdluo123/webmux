@@ -25,10 +25,15 @@
   - `make test` 一次构建前端与 E2E 程序供 E2E/性能复用，本地先并行运行 Go 与 Vitest，再并行运行 Storybook 与 E2E，性能套件随后单独运行；`make test-fast` 并行运行 Go 与 Vitest；
   - 本地 Vitest 浏览器、E2E、Storybook 按可用并行度分别最多 4、8、6 个 worker；CI 的 E2E 与 Storybook 均为 2 个，为长对话布局和滚动检查保留 CPU 余量；`WEBMUX_E2E_WORKERS` 可覆盖 E2E，Go 默认 `-parallel=4`（`GO_TEST_PARALLEL` 可调）；
   - Go 采用 Uber Style Guide 与登记的仓库例外，`make check` 和 CI 在前端构建后执行 `go vet ./...`（CI 另以 `GOOS=darwin` 检查 macOS 构建）及固定 v2.15.0 的 golangci-lint（errcheck/govet/ineffassign/staticcheck/unused），生产零告警，测试仅冻结 errcheck，新增代码零新增告警，豁免只能收紧；
-  - CI 先由 `Classify changes` job 按路径裁剪：仅文档变更只跑格式、文档、持久化与 agent/web 静态守卫，仅 Go 变更跳过前端套件，仅前端变更跳过 Go race 与 Windows 交叉编译，未知路径和工具/依赖变更全量运行；Go wire 快照同时触发前端 Zod 契约测试，分类脚本有独立路径用例；
+  - CI 先由 `Classify changes` job 按路径裁剪（分类脚本有独立路径用例）：
+    - 仅文档或 `.github/pr-assets/**` 证据变更只跑格式、文档、持久化与 agent/web 静态守卫；
+    - 仅 Go 变更（含 `go.mod`、`go.sum`、`.golangci.yml`、`install.sh`、`protocol/**`、`web/embed*.go`）跳过前端检查、Vitest、Storybook、性能与 E2E；
+    - 仅前端变更（含 `web/` 依赖与配置）跳过安装脚本检查、`golangci-lint`、Go race、Windows 交叉编译、Windows 安装程序冒烟与 Linux 安装包，保留前端套件与 E2E；
+    - 跨端契约/夹具（wire 快照、`fakeagent`、`embed-assets.ts`、`sw.js`、`fake-agent-names.txt`）同时触发双端；
+    - 未知路径、非 `pr-assets` 的 `.github/**`、`Makefile`、`.nvmrc` 与 `baseline/**` 强制全量；
   - 每次推送到 `main` 都强制完整运行（跳过分类），供发版复用；GitHub 并发组只保留一个待运行，密集合并仍可能取消中间提交的待运行，该提交发版时回退完整重跑；
-  - 独立的 `E2E runtime` job 按冻结锁文件统一安装并打包 Playwright 与能力契约校验所需的 Zod；
-  - Makefile、CI 与本地 Playwright 从同一清单构建全部 agent 与连接器假程序（含 `agy`、`qoder`、`qodercn`、`kimi`），Qoder/QoderCN 也有双向往返 E2E，供 Ubuntu 4 个 E2E 分片及 Go race job 共用；
+  - 独立的 `E2E runtime` job 仅在前端测试被选中时运行，按冻结锁文件统一安装并打包 Playwright 与能力契约校验所需的 Zod；`Go race` 直接构建内嵌前端并独立运行，不再等待 `E2E runtime`；
+  - Makefile、CI 与本地 Playwright 从同一清单构建全部 agent 与连接器假程序（含 `agy`、`qoder`、`qodercn`、`kimi`），Qoder/QoderCN 也有双向往返 E2E，供 Ubuntu 4 个 E2E 分片共用；
   - 分片仅准备 Node 与浏览器，不重复安装 pnpm、前端依赖、Go 或构建应用；
   - 显式预构建路径无效或缺少假 agent 时失败，本地默认仍从源码构建；
   - CI 不再使用 macOS runner（GitHub macOS arm64 容量不足导致 job 长时间排队后失败），只以 `GOOS=darwin go vet` 检查 macOS 构建；macOS 运行时行为需在 Mac 本机运行 `make test` 验证；
@@ -149,6 +154,12 @@
   - `TestSourceFileSize` 在 `go test ./...` 中要求 `cmd/` 与 `internal/` 下的非测试生产 `.go` 文件少于 500 行（`<= 499` 行），超限时报错指示按职责拆分为同家族 `<family>_<part>.go` 文件并禁止删注释或改用空泛文件名；
   - `web/test/architecture.test.ts` 的 `file naming` 拒绝 camelCase 的 TypeScript 文件、非 PascalCase 的 Svelte 组件，以及 500 行及以上的生产 `.ts`/`.svelte` 文件（排除生成的 `src/lib/components/ui/`、测试与 stories），超限时提示按领域模块、子组件或架构分层拆分；
   - 规则页登记在 [Agent 规则](../../agent-rules.md)，`AGENTS.md` 只保留一行指针。
+- **US-L16 按需开启的前后端运行态性能瓶颈记录与报告**：作为部署者或贡献者，我希望能在本地配置文件中按需开启低开销的前后端性能剖析，记录每个时刻最耗资源与最慢的操作，并用 CLI 一键汇总，以便定位真实使用中的卡顿与高占用瓶颈。
+  验收要点：
+  - `[perf]` 默认关闭；开启后服务端记录慢 HTTP 与 Git 子命令、向响应写入 `Server-Timing` 头、按周期采样 Go 堆/GC/Goroutine/本进程 CPU 与按会话进程树归因的 Top CPU/RSS，并向 `GET /api/config` 下发只读采集提示；
+  - 浏览器仅在服务端返回 `perf.enabled` 时启用 `long-animation-frame`（降级 `longtask`）、慢交互 `event`、意外 `layout-shift`、慢 API（关联 `Server-Timing`）、WebSocket 慢帧/吞吐窗口与 JS 堆/DOM 采样，并批量发送至受认证与 Origin 校验的 `POST /api/perf/events`；
+  - 数据落盘至 `<state_dir>/perf/`（每日 JSONL + 可选 `FlightRecorder` 尖峰 trace），按 `max_bytes_mb` 与 `retention_days` 自动清理，严格不记录终端输入输出、prompt 或凭据；仅在开启时于本机 Unix socket `/local/v1/debug/pprof/` 暴露 pprof；
+  - `webmux perf report [--since] [--top] [--json]` 离线汇总前后端热操作、最慢事件、会话资源峰值与捕获的 trace 路径。
 
 依据：
 

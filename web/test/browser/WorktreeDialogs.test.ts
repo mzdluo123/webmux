@@ -94,6 +94,9 @@ test.each(["release", "remove"] as const)(
 
       const cancel = page.getByRole("button", { name: "取消", exact: true });
       await expect.element(cancel).toBeDisabled();
+      await expect
+        .element(page.getByText("正在处理，请勿重复提交…"))
+        .not.toBeInTheDocument();
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
       );

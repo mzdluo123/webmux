@@ -1,7 +1,6 @@
 import { afterEach, expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
-import WorkbenchTree from "../../src/components/shell/WorkbenchTree.svelte";
 import GitWorkbenchTopBar from "../../src/components/workspace/GitWorkbenchTopBar.svelte";
 import WorkspaceActions from "../../src/components/workspace/WorkspaceActions.svelte";
 import GitWorktreeGuardState from "../../src/components/workspace/GitWorktreeGuardState.svelte";
@@ -13,6 +12,7 @@ import { emptyGitViewState } from "../../src/hooks/workspace/git-workbench-actio
 import { createGitWorkbenchSubControllers } from "../../src/hooks/workspace/git-workbench-subcontrollers.svelte";
 import CodeWorkspaceHeaderHarness from "./CodeWorkspaceHeaderHarness.svelte";
 import GitWorkbenchTopBarHarness from "./GitWorkbenchTopBarHarness.svelte";
+import WorkbenchTreeHarness from "./WorkbenchTreeHarness.svelte";
 import { repository, session, worktree } from "./shell-fixture";
 
 afterEach(async () => {
@@ -58,7 +58,7 @@ test("repository menu and repository panel expose Git workbench entry when avail
     worktrees: [],
   });
 
-  render(WorkbenchTree, {
+  render(WorkbenchTreeHarness, {
     repositories: [repoAvail, repoBroken],
     sessions: [],
     records: [],
@@ -175,14 +175,40 @@ test("worktree menu offers Git workbench entry and only shows commit action when
   expect(onCommitDirty).toHaveBeenCalledTimes(1);
 });
 
-test("session code workspace header renders '在 Git 中查看' button with accessible label", async () => {
+test("session code workspace keeps Git navigation and all file inspectors in the code menu", async () => {
   const onOpenGit = vi.fn();
-  render(CodeWorkspaceHeaderHarness, { onOpenGit });
+  const onInspectGitFile = vi.fn();
+  const inspectablePath = "src/app.ts";
+  render(CodeWorkspaceHeaderHarness, {
+    inspectablePath,
+    onOpenGit,
+    onInspectGitFile,
+  });
 
-  const btn = page.getByRole("button", { name: "在 Git 中查看" });
-  await expect.element(btn).toBeVisible();
-  await expect.element(btn).toHaveAttribute("title", "在 Git 中查看");
-  await userEvent.click(btn);
+  const menuTrigger = page.getByRole("button", {
+    name: "代码菜单",
+    exact: true,
+  });
+  await expect.element(menuTrigger).toHaveAttribute("title", "代码菜单");
+  await expect
+    .element(page.getByRole("button", { name: "在 Git 中查看", exact: true }))
+    .not.toBeInTheDocument();
+
+  for (const [name, tab] of [
+    ["文件历史 (--follow)", "history"],
+    ["逐行溯源 (Blame)", "blame"],
+    ["与分支/提交比较", "compare"],
+  ]) {
+    await menuTrigger.click();
+    await page.getByRole("menuitem", { name, exact: true }).click();
+    expect(onInspectGitFile).toHaveBeenLastCalledWith(inspectablePath, tab);
+  }
+  expect(onInspectGitFile).toHaveBeenCalledTimes(3);
+
+  await menuTrigger.click();
+  await page
+    .getByRole("menuitem", { name: "在 Git 中查看", exact: true })
+    .click();
   expect(onOpenGit).toHaveBeenCalledTimes(1);
 });
 

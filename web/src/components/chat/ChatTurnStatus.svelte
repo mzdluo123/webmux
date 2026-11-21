@@ -108,9 +108,16 @@
   $effect(() => {
     if (mode !== "turn" || !chat?.turn.running || turnStartedAt === undefined)
       return;
-    now = Date.now();
-    const timer = window.setInterval(() => (now = Date.now()), 1000);
-    return () => window.clearInterval(timer);
+    const tick = () => {
+      if (!document.hidden) now = Date.now();
+    };
+    tick();
+    const timer = window.setInterval(tick, 1000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
   });
 </script>
 
@@ -206,8 +213,9 @@
       />
       {m.s3_working()}
       {#if turnElapsed !== undefined}
-        <span class="tabular-nums" aria-hidden="true"
-          >· {formatDuration(turnElapsed)}</span
+        <span
+          class="inline-block tabular-nums [contain:layout_style]"
+          aria-hidden="true">· {formatDuration(turnElapsed)}</span
         >
       {/if}
     </p>

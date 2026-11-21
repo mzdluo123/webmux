@@ -30,12 +30,29 @@ test.describe("English system locale and live switching", () => {
     await page.goto("/");
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await expect(
-      page.getByRole("button", { name: "New session" }).first(),
+      page.getByRole("textbox", { name: "Task description" }),
     ).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
+    // Switch from the dedicated quick-start canvas to the English session queue.
+    const openSidebarBtn = page
+      .getByRole("button", { name: /^(Open|Expand) sidebar$/ })
+      .filter({ visible: true })
+      .first();
+    const openedDrawer = await openSidebarBtn.isVisible();
+    if (openedDrawer) await openSidebarBtn.click();
+    await page
+      .getByRole("radiogroup", { name: "Session scope", exact: true })
+      .getByRole("radio", { name: "All", exact: true })
+      .click();
+    if (openedDrawer) await page.keyboard.press("Escape");
+
     // Open New Session dialog in English and verify no horizontal overflow.
-    await page.getByRole("button", { name: "New session" }).first().click();
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: "+ New session", exact: true })
+      .first()
+      .click();
     await expect(
       page.getByRole("dialog", { name: "New session" }),
     ).toBeVisible();
@@ -158,7 +175,7 @@ test.describe("English system locale and live switching", () => {
     await page.goto("/");
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await expect(
-      page.getByRole("button", { name: "New session" }).first(),
+      page.getByRole("textbox", { name: "Task description" }),
     ).toBeVisible();
     await expectNoHorizontalOverflow(page);
 
@@ -200,7 +217,7 @@ test("token-protected ConnectionGate switches language live before login", async
       .getByRole("button", { name: "Connect to WebMux →", exact: true })
       .click();
     await expect(
-      page.getByRole("button", { name: "New session" }).first(),
+      page.getByRole("textbox", { name: "Task description" }),
     ).toBeVisible();
   } finally {
     await context.close();

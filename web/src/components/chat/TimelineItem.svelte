@@ -75,6 +75,7 @@
 {#if entry.type === "message" && entry.role === "user"}
   <div class="flex justify-end pt-2">
     <div
+      data-user-message={sessionId}
       class="max-w-[85%] min-w-0 space-y-1.5 rounded-lg bg-muted px-4 py-2.5 text-sm leading-relaxed wrap-anywhere"
     >
       {#if entry.text}<p class="whitespace-pre-wrap">

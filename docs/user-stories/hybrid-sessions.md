@@ -25,9 +25,9 @@ Q 组以选择 `chat` 及其 `launch`、`files` 依赖为前提。工作树操�
 - [已归档记录](../../web/src/components/sessions/ArchivedSessions.svelte)、[归位规则](../../web/src/domains/sessions/archived.ts)、[安装提示](../../web/src/components/sessions/ConnectorInstallHint.svelte)、[原生附着](../../internal/attach/attach.go)
 - [使用说明](../hybrid-sessions.md)、[协议](../protocol/http-hybrid.md)、[创建会话协议](../protocol/http-session-create.md)、[端到端测试](../../web/test/e2e/hybrid.spec.ts)。
 - [会话卡片](../../web/src/components/sessions/SessionRow.svelte)、[会话页头部](../../web/src/components/terminal/TerminalHeader.svelte)、[品牌图标](../../web/src/components/settings/LaunchConfigIcon.svelte)、[图标一致性测试](../../internal/launch/presets_test.go)
-- 快速开始：[页面](../../web/src/pages/QuickStart.svelte)、[状态](../../web/src/hooks/sessions/quick-start.ts)、[核心创建编排](../../internal/sessioncreate/service.go)；
+- 快速开始：[集成任务输入框](../../web/src/components/sessions/QuickStartComposer.svelte)、[工作台首页](../../web/src/pages/WorkspaceSessionList.svelte)、[状态](../../web/src/hooks/sessions/quick-start.ts)、[核心创建编排](../../internal/sessioncreate/service.go)；
   [会话接口](../../internal/api/sessions.go)、[按视图输入](../../internal/hybrid/input.go)、[配置项清单](../../internal/hybrid/options.go)。
-- [聊天历史](../../web/src/components/chat/ChatHistory.svelte)、[快速开始浏览器用例](../../web/test/browser/QuickStart.test.ts)、[聊天历史浏览器用例](../../web/test/browser/ChatHistory.test.ts)、[快速开始端到端用例](../../web/test/e2e/quick-start.spec.ts)。
+- [会话队列侧栏](../../web/src/components/shell/WorkbenchSidebarSessions.svelte)、[快速开始浏览器用例](../../web/test/browser/QuickStart.test.ts)、[外壳浏览器用例](../../web/test/browser/AppShell.test.ts)、[快速开始端到端用例](../../web/test/e2e/quick-start.spec.ts)。
 
 - [手机会话选项面板](../../web/src/components/chat/ChatSessionOptions.svelte)、[模型可搜索列表](../../web/src/components/chat/ChatChoiceCommandList.svelte)、[共用输入卡片](../../web/src/components/chat/ComposerCard.svelte)；
 - [聊天浏览器用例](../../web/test/browser/ChatView.test.ts)、[布局验收](../../web/test/storybook/acp-chat.spec.ts)。

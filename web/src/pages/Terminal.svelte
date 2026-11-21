@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { findShell, shellUi } from "../hooks/shared/shell.svelte";
+  import { findShell } from "../hooks/shared/shell.svelte";
   import { onMount, onDestroy, tick, untrack } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import { dockGroup } from "$lib/dock-layout";
-  import { ListButton } from "$lib/components/ui/list-button";
+  import SessionWorkspaceHeader from "../components/terminal/SessionWorkspaceHeader.svelte";
   import { MediaQuery } from "svelte/reactivity";
   import { navigate, store, stored } from "../platform/api";
   import type { SessionInfo } from "../contracts/schemas";
@@ -24,9 +24,12 @@
   import SessionTerminal from "../components/terminal/SessionTerminal.svelte";
   import {
     dockSessionLabels,
+    ownsSessionPanel,
+    panelSession,
     sessionDockTree,
     sessionPanelIds,
   } from "../domains/terminal/session-dock";
+  import { migrateSessionLayout } from "../domains/terminal/session-layout-migration";
   import {
     MAX_PANES,
     createSplitShellSession,
@@ -77,12 +80,14 @@
     return () => shell?.setActivePane("");
   });
 
+  let lastInput = $state(untrack(() => active));
   let info = $state<Record<string, SessionInfo>>({});
   let connections = $state<Record<string, string>>({});
   let revisions = $state<Record<string, number>>({});
   let dock = $state<DockWorkspace>();
-  let toolbar = $state<HTMLDivElement>();
-  let mobilePanel = $state(untrack(() => stored(`${key}.mobile-panel`)));
+  let mobilePanel = $state(
+    untrack(() => stored(`${key}.mobile-panel`).replace(/^chat:/, "")),
+  );
   let showPicker = $state(false);
   const compact = new MediaQuery("(max-width: 639px)");
   let prefix = $state(false);
@@ -106,12 +111,14 @@
     };
   });
   let choosing = $state(false);
+  let joinTarget = "";
   let creating = $state<SessionInfo | null>(null);
   const splitBusy = $derived(busy || creating !== null);
   function createSession(target: string) {
-    if (splitBusy || ids.length >= MAX_PANES || !info[target]) return;
+    const source = info[target];
+    if (splitBusy || ids.length >= MAX_PANES || !source) return;
     active = target;
-    creating = info[target]!;
+    creating = source;
   }
   const desktop = new MediaQuery("(min-width: 1024px)");
   let mounted = false;
@@ -119,8 +126,7 @@
   let messagePanel = $state("");
   $effect(() => {
     const target = messagePanel && terminals[messagePanel];
-    // A reopened pane can mount before the hybrid session registers its chat.
-    if (!target || !dock?.hasPanel(sessionPanelIds(messagePanel).chat)) return;
+    if (!target || !dock?.hasPanel(messagePanel)) return;
     untrack(() => target.revealChat());
     messagePanel = "";
   });
@@ -132,7 +138,7 @@
     const current = firstId ? scrollStates[firstId] : undefined;
     if (!firstId || !current || ids.length !== 1 || !dock) return false;
     const panels = sessionPanelIds(firstId);
-    if (!dock.isVisible(panels.chat) || dock.isVisible(panels.terminal))
+    if (!dock.isVisible(panels.terminal) || info[firstId]?.view !== "chat")
       return false;
     return chatDocumentScroll({
       ...current,
@@ -155,8 +161,6 @@
     layout
       ? sessionDockTree(
           layout,
-          (sid) => !!(feed.byId.get(sid) ?? info[sid])?.views.includes("chat"),
-          (sid) => (info[sid] ?? feed.byId.get(sid))?.view === "chat",
           (availableFeatures?.code?.codePanelState.size() ?? 50) / 100,
         )
       : dockGroup(),
@@ -242,12 +246,12 @@
     if (!layout || !ids.includes(sessionId)) return;
     const next = removePane(layout, sessionId);
     const previous = ids.indexOf(sessionId);
-    for (const panel of Object.values(sessionPanelIds(sessionId)))
-      dock?.remove(panel);
+    for (const panel of dock?.ids() ?? [])
+      if (ownsSessionPanel(sessionId, panel)) dock?.remove(panel);
     layout = next;
     if (!next) {
       active = "";
-      navigate(shellUi.home);
+      navigate("/");
       return;
     }
     if (active === sessionId)
@@ -284,11 +288,10 @@
     layout = layout
       ? splitPane(layout, target, sessionId, direction)
       : { kind: "pane", sessionId };
-    choosing = false;
     await focus(sessionId);
   }
   async function split(direction: SplitDirection, target: string) {
-    if (splitBusy || ids.length >= MAX_PANES) return;
+    if (splitBusy || ids.length >= MAX_PANES || !ids.includes(target)) return;
     const source = info[target];
     if (!source) return;
     active = target;
@@ -306,12 +309,6 @@
       if (mounted) busy = false;
     }
   }
-  function cycle() {
-    void focus(ids[(ids.indexOf(active) + 1) % ids.length]!);
-  }
-  function zoom(sessionId: string) {
-    dock?.toggleZoom(sessionId);
-  }
   function keydown(event: KeyboardEvent) {
     const cmd = parsePrefixKeydown(event, prefix);
     if (cmd.kind === "ignore") return;
@@ -324,8 +321,9 @@
     prefix = false;
     if (cmd.kind === "send-prefix") terminals[active]?.send("\x02");
     else if (cmd.kind === "split") void split(cmd.direction, active);
-    else if (cmd.kind === "cycle") cycle();
-    else if (cmd.kind === "zoom") zoom(active);
+    else if (cmd.kind === "cycle")
+      void focus(ids[(ids.indexOf(active) + 1) % ids.length]!);
+    else if (cmd.kind === "zoom") dock?.toggleZoom(active);
     else if (cmd.kind === "close" && !busy) close(active);
     else if (cmd.kind === "arrow") {
       const panes = ids.flatMap((sessionId) => {
@@ -349,7 +347,20 @@
       style:--viewport-height={`${viewport.height}px`}
       onkeydowncapture={keydown}
     >
-      <div class="session-toolbar shrink-0" bind:this={toolbar}></div>
+      <div class="session-toolbar shrink-0">
+        <SessionWorkspaceHeader
+          {dock}
+          closePane={(panel) =>
+            ids.includes(panel) ? close(panel) : dock?.minimize(panel)}
+          pickerOpen={showPicker}
+          openPanels={() => dock?.openPicker()}
+          fileLabel={`${m.s5_file_tree()} · ${paneTitle(active)}`}
+          openFiles={availableFeatures.code
+            ? () => terminals[active]?.openCode()
+            : undefined}
+          onerror={(message) => (error = message)}
+        />
+      </div>
       {#if prefix}
         <p
           class="shrink-0 border-b px-2 py-1 text-xs text-muted-foreground"
@@ -366,88 +377,78 @@
       />
       <DockWorkspace
         bind:this={dock}
-        storageKey={`session.${id}`}
+        storageKey={`session.v2.${id}`}
+        migrate={() =>
+          migrateSessionLayout(
+            stored(`dock.session.${id}`),
+            ids,
+            (sid) => feed.byId.get(sid)?.view === "chat",
+          )}
         {initial}
         flow={documentScroll}
         compact={compact.current}
         bind:mobilePanel
         bind:showPicker
+        edgeRails
         pickerTrigger={false}
         onSelectPanel={(panel) => {
-          const sessionId = ids.find((sid) =>
-            Object.values(sessionPanelIds(sid)).includes(panel),
-          );
-          if (sessionId) active = sessionId;
+          const session = panelSession(ids, panel);
+          if (session) active = session;
+          if (session === panel) lastInput = panel;
         }}
       >
-        {#snippet pickerActions(closePanel)}
-          {#if availableFeatures.code}
-            <ListButton
-              variant="action-sheet"
-              onclick={() => {
-                terminals[active]?.openCode();
-                closePanel();
-              }}
-            >
-              {m.s4_code()}
-            </ListButton>
-          {/if}
+        {#snippet pickerActions(closePanel, panel, hide)}
+          {@const target = panel ? (panelSession(ids, panel.id) ?? "") : active}
           <TerminalSplitPanel
+            compact={compact.current}
             busy={splitBusy}
             limit={ids.length >= MAX_PANES}
-            ready={!!info[active]}
-            onsplit={(direction) => {
-              closePanel();
-              void split(direction, active);
-            }}
-            oncreate={() => {
-              closePanel();
-              createSession(active);
-            }}
-            onchoose={() => {
-              closePanel();
-              choosing = true;
-            }}
-            onclose={() => {
-              closePanel();
-              close(active);
-            }}
+            ready={!!info[target]}
+            oncommand={closePanel}
+            onsplit={(direction) => void split(direction, target)}
+            oncreate={() => createSession(target)}
+            onchoose={ids.includes(target)
+              ? () => {
+                  joinTarget = target;
+                  choosing = true;
+                }
+              : undefined}
+            onclose={target && (!compact.current || panel?.id === target)
+              ? () => close(target)
+              : undefined}
+            hideLabel={panel && m.dock_minimize({ title: panel.title })}
+            onhide={hide}
           />
         {/snippet}
         {#each ids as sessionId (sessionId)}
           {@const panels = sessionPanelIds(sessionId)}
           {@const dockSession = dockSessions.get(sessionId)}
-          {@const visible =
-            !!dock &&
-            Object.values(panels).some((panel) => dock?.isVisible(panel))}
           {#key `${sessionId}:${revisions[sessionId] ?? 0}`}
             <SessionTerminal
               bind:this={terminals[sessionId]}
               {features}
               id={sessionId}
               {panels}
+              referenceTarget={terminals[lastInput]?.referenceInput}
               dockSessionName={dockSession?.name}
               dockSessionNumber={dockSession?.number}
-              {toolbar}
               desktop={desktop.current}
-              pickerOpen={showPicker}
-              openPanels={() => dock?.openPicker()}
               onactivate={() => {
                 active = sessionId;
                 prefix = false;
               }}
               {drafts}
               {onUploadNotice}
-              {visible}
+              visible={dock?.isAnyVisible((panel) =>
+                ownsSessionPanel(sessionId, panel),
+              ) ?? false}
               {keyboardDismissed}
               keyboardVisibility={() => viewport.keyboard}
               viewportHeight={() => viewport.height}
               active={active === sessionId}
               reopen={(session) => {
                 info[sessionId] = session;
-                dock?.show(
-                  session.view === "chat" ? panels.chat : panels.terminal,
-                );
+                dock?.show(panels.terminal);
                 revisions[sessionId] = (revisions[sessionId] ?? 0) + 1;
               }}
               onremoved={() => removeSession(sessionId)}
@@ -478,7 +479,8 @@
       feedSessions={feed.sessions}
       oncancelchoose={() => void focus(active)}
       onselect={(sessionId, direction) => {
-        void add(sessionId, direction);
+        choosing = false;
+        void add(sessionId, direction, joinTarget);
       }}
       oncreated={(session, direction, targetId) => {
         info[session.id] = session;

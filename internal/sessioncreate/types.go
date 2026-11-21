@@ -50,6 +50,7 @@ func (e *UpstreamConfirmationError) Unwrap() error { return ErrUpstreamConfirmat
 type NewWorktree struct {
 	RepositoryID, Mode, Branch, Base, Path string
 	UpstreamChoice                         *UpstreamChoice
+	LatestUpstream                         bool
 }
 type Input struct {
 	ClientRequestID, Cwd             string
@@ -128,6 +129,9 @@ type Chat interface {
 }
 type Options struct {
 	DefaultCwd string
+	// DefaultCmd is the login shell argv started when a request omits both
+	// ConfigID and Cmd. Empty falls back to ["/bin/sh", "-l", "-i"].
+	DefaultCmd []string
 	Commands   Commands
 	Locations  Locations
 	Files      Files

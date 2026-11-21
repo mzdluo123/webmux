@@ -497,10 +497,10 @@ test("Docked log diff minimize and phone back preserve the reader and selected f
   const diff = page.getByTestId("git-log-diff-panel");
   const diffDock = page.locator('[data-dock-panel="diff"]');
 
-  for (const readerPanel of ["文件内查找", "缩放"]) {
+  for (const codeReader of ["文件内查找", "缩放"]) {
     await expect(diff).toHaveAttribute("data-diff-presentation", "docked");
     const panelToggle = diff.getByRole("button", {
-      name: readerPanel,
+      name: codeReader,
       exact: true,
     });
     await panelToggle.click();
@@ -528,11 +528,11 @@ test("Docked log diff minimize and phone back preserve the reader and selected f
     name: /Merge branch 'feat\/graph-lane' into main/,
   });
   await selectedCommit.click();
-  for (const readerPanel of ["文件内查找", "缩放"]) {
+  for (const codeReader of ["文件内查找", "缩放"]) {
     await selectedFile.click();
     await expect(diff).toHaveAttribute("data-diff-presentation", "mobile");
     const panelToggle = diff.getByRole("button", {
-      name: readerPanel,
+      name: codeReader,
       exact: true,
     });
     await panelToggle.click();
@@ -572,6 +572,14 @@ test("Git mode docks restore independently and the phone selector leaves the wid
     await page.getByRole("tab", { name: mode, exact: true }).click();
     const panel = workspace.locator(`[data-dock-panel="${id}"]`);
     await expect(panel).toBeVisible();
+    await panel.locator("[data-dock-actions]").click();
+    await page
+      .getByRole("menuitem", { name: `放大「${title}」`, exact: true })
+      .click();
+    await panel.locator("[data-dock-actions]").click();
+    await page
+      .getByRole("menuitem", { name: `还原「${title}」布局`, exact: true })
+      .click();
     await panel.getByRole("button", { name: `收起「${title}」` }).click();
     await expect(panel).toBeHidden();
   }

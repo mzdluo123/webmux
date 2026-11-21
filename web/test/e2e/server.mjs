@@ -124,6 +124,13 @@ export async function startE2EServer({
       // Native readers see only this server's synthetic transcripts.
       FAKEAGENT_HISTORY_HOME: home,
     };
+    // /etc/profile on Linux distros can reset PATH, PS1 and PROMPT_COMMAND for
+    // login shells (`bash -l -i`); restore the isolated fixture values after it
+    // runs so E2E shells behave deterministically across hosts.
+    await writeFile(
+      join(home, ".bash_profile"),
+      `export PATH=${JSON.stringify(env.PATH)}\nPS1='webmux-e2e$ '\nunset PROMPT_COMMAND\n`,
+    );
     async function launchBackend(listen) {
       const outputStart = backendOutput.length;
       backend = spawn(

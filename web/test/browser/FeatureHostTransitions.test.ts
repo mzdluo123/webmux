@@ -93,7 +93,6 @@ beforeEach(() => {
   p2pReady = false;
   discoveryReads = 0;
   history.replaceState(null, "", "/");
-  shellUi.setMode("workbench");
   shellUi.setCollapsed(false);
   clearHomeCache();
   root = document.createElement("div");
@@ -210,6 +209,16 @@ async function mount() {
   return feed;
 }
 
+async function openTerminalMenu() {
+  await page.getByRole("button", { name: "终端菜单", exact: true }).click();
+  const menu = page.getByRole("menu");
+  await expect.element(menu).toBeVisible();
+  return menu;
+}
+
+const draftMode = () =>
+  page.getByRole("menuitemcheckbox", { name: "草稿模式", exact: true });
+
 async function reconnect(feed: FakeSocket, index: number) {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   try {
@@ -279,40 +288,33 @@ test("existing terminal recovers optional controls without replacing its owner o
   navigate(`/s/${info.id}`);
   const terminal = await socketAt(`/ws/s/${info.id}`);
   terminal.binary(2, info);
-  await expect
-    .element(page.getByRole("button", { name: "草稿模式", exact: true }))
-    .toBeVisible();
-  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
+  const menu = await openTerminalMenu();
+  const upload = menu.getByRole("menuitem", { name: "上传文件", exact: true });
+  await expect.element(upload).not.toBeInTheDocument();
+  await draftMode().click();
   const draft = page.getByRole("textbox", { name: "草稿内容", exact: true });
   await draft.fill("retain this draft while services recover");
   const owner = document.querySelector(`[data-dock-panel="${info.id}"]`);
   const emulator = document.querySelector(".xterm");
   expect(owner).not.toBeNull();
   expect(emulator).not.toBeNull();
-  for (const name of ["语音输入", "上传文件"])
-    expect(page.getByRole("button", { name, exact: true }).elements()).toEqual(
-      [],
-    );
-  await page.getByRole("button", { name: "打开面板", exact: true }).click();
-  expect(
-    page.getByRole("button", { name: "代码", exact: true }).elements(),
-  ).toEqual([]);
+  const voice = page.getByRole("button", { name: "语音输入", exact: true });
+  await expect.element(voice).not.toBeInTheDocument();
+  await expect
+    .element(page.getByRole("button", { name: /^文件树 · / }))
+    .not.toBeInTheDocument();
 
   // Another browser enables the services; this page only refreshes discovery.
   unavailable = [];
   voiceReady = true;
   await requestFeatureHostRefresh();
   await expect
-    .element(page.getByRole("button", { name: "代码", exact: true }))
+    .element(page.getByRole("button", { name: /^文件树 · / }))
     .toBeVisible();
-  await page
-    .getByRole("dialog", { name: "打开面板", exact: true })
-    .getByRole("button", { name: "取消", exact: true })
-    .click();
-  for (const name of ["语音输入", "上传文件"])
-    await expect
-      .element(page.getByRole("button", { name, exact: true }))
-      .toBeVisible();
+  await expect.element(voice).toBeVisible();
+  await openTerminalMenu();
+  await expect.element(upload).toBeVisible();
+  await userEvent.keyboard("{Escape}");
   expect(document.querySelector(`[data-dock-panel="${info.id}"]`)).toBe(owner);
   expect(document.querySelector(".xterm")).toBe(emulator);
   expect(
@@ -325,9 +327,7 @@ test("existing terminal recovers optional controls without replacing its owner o
 
   voiceReady = false;
   await requestFeatureHostRefresh();
-  expect(
-    page.getByRole("button", { name: "语音输入", exact: true }).elements(),
-  ).toEqual([]);
+  await expect.element(voice).not.toBeInTheDocument();
   expect(document.querySelector(`[data-dock-panel="${info.id}"]`)).toBe(owner);
 });
 
@@ -370,7 +370,8 @@ test("saving a recognizer refreshes availability before returning to terminal an
   navigate("/s/aaaaaaaa");
   const terminal = await socketAt("/ws/s/aaaaaaaa");
   terminal.binary(2, info);
-  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
+  await openTerminalMenu();
+  await draftMode().click();
   await expect
     .element(page.getByRole("button", { name: "语音输入", exact: true }))
     .toBeVisible();
@@ -459,7 +460,8 @@ test("relay recovery keeps the terminal, route and unsent draft without replayin
   navigate("/s/aaaaaaaa?message=retained");
   const terminal = await socketAt("/ws/s/aaaaaaaa");
   terminal.binary(2, info);
-  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
+  await openTerminalMenu();
+  await draftMode().click();
   const draft = page.getByRole("textbox", { name: "草稿内容", exact: true });
   await draft.fill("keep my unsent relay draft");
   const ownerSelector = `[data-dock-panel="${info.id}"]`;

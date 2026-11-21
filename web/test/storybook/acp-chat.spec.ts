@@ -298,38 +298,25 @@ for (const [story, role, control] of stories) {
       await show(page, story, "light");
       await checkEachLayout(
         page,
-        async ({ name, textScale, viewport }) => {
-          const compactInput = role === "tab" && viewport.width < 640;
+        async ({ name, viewport }) => {
+          const compactInput = role === "tab" && viewport.width < 768;
           if (compactInput) {
             await page
               .getByRole("button", { name: /^(终端|会话)菜单$/ })
-              .click();
+              .click({ timeout: 5_000 });
           }
           const target = compactInput
             ? page
                 .getByRole("group", { name: "输入端", exact: true })
                 .getByRole("menuitemradio", { name: control })
             : page.getByRole(role, { name: control });
-          await target.scrollIntoViewIfNeeded();
+          await target.scrollIntoViewIfNeeded({ timeout: 5_000 });
           await expect.soft(target, name).toBeInViewport();
           if (compactInput) {
             await page.keyboard.press("Escape");
             await expect(page.getByRole("menu")).toBeHidden();
           }
-          if (textScale > 1)
-            // The terminal header does not fit 320px at 200% text even for an
-            // ordinary session; this case checks the hybrid page's body.
-            await page
-              .locator("header.terminal-header")
-              .evaluate((header) => (header.style.display = "none"));
-          try {
-            await expectNoOverflow(page, name);
-          } finally {
-            if (textScale > 1)
-              await page
-                .locator("header.terminal-header")
-                .evaluate((header) => (header.style.display = ""));
-          }
+          await expectNoOverflow(page, name);
           expect.soft(errors, name).toEqual([]);
         },
         batch,
@@ -337,6 +324,37 @@ for (const [story, role, control] of stories) {
     });
   }
 }
+
+test("the terminal display menu moves quick commands to the soft-key toolbar", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await show(page, "terminal-side", "light");
+  const display = page.getByRole("button", { name: "显示", exact: true });
+  const toggle = page.getByRole("menuitemcheckbox", {
+    name: "显示底部工具栏",
+  });
+  const softKeys = page.getByRole("complementary", { name: "终端软键" });
+  const quickCommands = page.getByRole("button", { name: "快捷指令" });
+
+  await expect(softKeys).toBeHidden();
+  await expect(quickCommands).toBeVisible();
+  await display.click();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
+  await expect(
+    softKeys.getByRole("button", { name: "快捷指令" }),
+  ).toBeVisible();
+  await expect(quickCommands).toHaveCount(1);
+
+  await display.click();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await page.keyboard.press("Escape");
+  await expect(softKeys).toBeHidden();
+  await expect(quickCommands).toBeVisible();
+});
 
 for (const theme of ["light", "dark"]) {
   test(`long conversation ticks jump to messages and stay out of narrow panes (${theme})`, async ({

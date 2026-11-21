@@ -92,7 +92,7 @@ func createProperties() map[string]any {
 	return map[string]any{
 		"clientRequestId":    requestIDSchema(),
 		"configId":           desc(text(), "Saved launch configuration id from capabilities launchConfigs; mutually exclusive with cmd."),
-		"cmd":                desc(stringsArray(), "Full argv for the process; mutually exclusive with configId."),
+		"cmd":                desc(stringsArray(), "Full argv for the process; mutually exclusive with configId. Omit both cmd and configId to start the server's default login shell."),
 		"env":                desc(stringMap(), "Extra environment variables."),
 		"cwd":                desc(text(), "Working directory."),
 		"name":               desc(text(), "Display name."),

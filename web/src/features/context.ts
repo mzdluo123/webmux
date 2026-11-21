@@ -120,6 +120,7 @@ export interface CreationContributions {
     {},
     "startSide"
   >;
+  QuickStartComposer?: Component;
 }
 
 export type SettingsContribution =

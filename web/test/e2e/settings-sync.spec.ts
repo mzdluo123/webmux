@@ -4,6 +4,8 @@ import {
   createShell,
   runCommand,
   expectTerminalLine,
+  openSessionQueue,
+  workspaceRefreshButton,
 } from "./fixtures";
 import { devices } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
@@ -181,13 +183,12 @@ test("loading and refreshing the home page never rewrites shared pins", async ({
       writes.push(req.url());
   });
   // Phones show the scope as the top bar title, so wait for the page itself.
-  const refresh = page.getByRole("button", {
-    name: "刷新 Git 状态",
-    exact: true,
-  });
+  const refresh = workspaceRefreshButton(page);
   await page.goto("/");
+  await openSessionQueue(page);
   await refresh.waitFor();
   await page.reload();
+  await openSessionQueue(page);
   await refresh.waitFor();
   await expect(refresh).toHaveAttribute("aria-busy", "false");
   const refreshed = page.waitForResponse(

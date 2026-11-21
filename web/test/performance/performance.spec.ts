@@ -10,6 +10,9 @@ import {
   openSessionLink,
   expectTerminalLine,
   expectConnected,
+  openSessionMenu,
+  sessionHeader,
+  toggleDraftMode,
   toggleCode,
   backToList,
   revealSidebar,
@@ -190,9 +193,7 @@ test("4x CPU: create, type, replay, switch, filter and open dialogs remain usabl
   await page.evaluate(() =>
     window.dispatchEvent(new Event("webmux:test-disconnect")),
   );
-  await expect(page.locator(".terminal-header").getByRole("status")).toHaveText(
-    "重连中",
-  );
+  await expect(sessionHeader(page).getByRole("status")).toHaveText("重连中");
   await expectConnected(page);
   await expect(page.locator(".restore-overlay")).toBeHidden();
   await runCommand(page, "printf '\\n%s%s\\n' 'reconnected-' 'ready'");
@@ -215,11 +216,11 @@ test("4x CPU: create, type, replay, switch, filter and open dialogs remain usabl
     contentType: "application/json",
   });
   expect(inputRoundTripMs).toBeLessThan(1500);
-  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
+  await toggleDraftMode(page);
   await expect(page.locator(".terminal-composer textarea")).toBeVisible();
-  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
-  await page.getByRole("button", { name: "终端菜单", exact: true }).click();
-  await page.getByRole("menuitem", { name: "字体大小", exact: true }).click();
+  await toggleDraftMode(page);
+  const menu = await openSessionMenu(page);
+  await menu.getByRole("menuitem", { name: "字体大小", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
   await performanceReport(page, testInfo, "replay-reconnect-and-burst", {
@@ -277,7 +278,7 @@ test("4x CPU: delayed repository discovery and Git refresh stay stable", async (
     },
   });
   expect(created.status()).toBe(201);
-  await page.route("**/api/repositories", async (route) => {
+  await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     await delay(750);
     await route.continue();
   });
@@ -289,7 +290,9 @@ test("4x CPU: delayed repository discovery and Git refresh stay stable", async (
   await settled(page);
   await writeFile(join(workDir, "tracked.txt"), "changed\n");
   await page
-    .getByRole("button", { name: "刷新 Git 状态", exact: true })
+    .getByRole("button", { name: /^刷新(?:工作区| Git 状态)$/ })
+    .filter({ visible: true })
+    .first()
     .click();
   await expect(page.getByText("有修改", { exact: true })).toBeVisible();
   await performanceReport(page, testInfo, "repository-and-refresh");
@@ -311,7 +314,7 @@ test("4x CPU: a stalled repository request cannot block existing terminals", asy
   const { id } = (await created.json()).session;
   const held = Promise.withResolvers<void>();
   let pendingRequests = 0;
-  await page.route("**/api/repositories", async (route) => {
+  await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     if (++pendingRequests === 1) {
       // A lifecycle refresh must reuse the running discovery instead of
       // starting another one that also outlives the stall.
@@ -330,10 +333,10 @@ test("4x CPU: a stalled repository request cannot block existing terminals", asy
     // Slow discovery stays in the background: the session list renders and
     // keeps every session instead of surfacing a startup timeout.
     await expect(page.getByText(/初次读取超时/)).toHaveCount(0);
-    const refresh = page.getByRole("button", {
-      name: "刷新 Git 状态",
-      exact: true,
-    });
+    const refresh = page
+      .getByRole("button", { name: /^刷新(?:工作区| Git 状态)$/ })
+      .filter({ visible: true })
+      .first();
     await expect(refresh).toHaveAttribute("aria-busy", "true");
     expect(pendingRequests).toBe(1);
     await performanceReport(page, testInfo, "repository-stall");

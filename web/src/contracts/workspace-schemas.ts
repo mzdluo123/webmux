@@ -225,6 +225,7 @@ export const CreateWorktreeRequestSchema = z.object({
   mode: z.enum(["new", "existing"]),
   branch: z.string(),
   base: z.string().optional(),
+  latestUpstream: z.boolean().optional(),
   upstreamChoice: UpstreamChoiceSchema.optional(),
 });
 // Whether a commit is contained in a remote-tracking ref of its repository,
@@ -428,11 +429,12 @@ const NewWorktreeSchema = z.object({
   branch: z.string().optional(),
   base: z.string().optional(),
   path: z.string().optional(),
+  latestUpstream: z.boolean().optional(),
   upstreamChoice: UpstreamChoiceSchema.optional(),
 });
 // POST /sessions, the only way to create a session. The location is one of
-// `cwd`, `workspace` and `newWorktree`; the command `configId` or
-// `cmd`/`env`.
+// `cwd`, `workspace` and `newWorktree`; the command is `configId`, explicit
+// `cmd`/`env`, or neither to start the server's default login shell.
 export const CreateSessionRequestSchema = z
   .object({
     // Dedupes retries for ten minutes; omitted never dedupes.

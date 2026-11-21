@@ -7,6 +7,8 @@ import {
   expectTerminalLine,
   recordInput,
   expectConnected,
+  sessionHeader,
+  toggleDraftMode,
 } from "./fixtures";
 
 // Only one entry is rendered visibly at a time; role queries skip the hidden one.
@@ -175,9 +177,7 @@ test("commands are disabled while the terminal cannot send, but drafts still acc
   blockReconnect = true;
   await disconnect!();
   await expect.poll(() => blockedReconnects).toBeGreaterThan(0);
-  await expect(page.locator(".terminal-header").getByRole("status")).toHaveText(
-    "重连中",
-  );
+  await expect(sessionHeader(page).getByRole("status")).toHaveText("重连中");
   await quick(page).click();
   await expect(menu(page).getByText("终端未就绪，暂不能发送")).toBeVisible();
   await expect(item(page, "恢复会话：/resume（并回车）")).toBeDisabled();
@@ -188,15 +188,15 @@ test("commands are disabled while the terminal cannot send, but drafts still acc
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
   await expectConnected(page);
   await request.delete(`/api/sessions/${id}`);
-  await expect(page.locator(".terminal-header").getByRole("status")).toHaveText(
-    "已退出",
+  await expect(sessionHeader(page).getByRole("status")).toHaveText(
+    /^已退出 · 退出码 /,
   );
   await quick(page).click();
   await expect(menu(page).getByText("会话已退出，无法发送")).toBeVisible();
   await expect(item(page, "新会话：/new（并回车）")).toBeDisabled();
   await page.keyboard.press("Escape");
 
-  await page.getByRole("button", { name: "草稿模式", exact: true }).click();
+  await toggleDraftMode(page);
   await quick(page).click();
   await item(page, "新会话：/new").click();
   await expect(draft(page)).toHaveValue("/new");
@@ -364,7 +364,7 @@ test("an open add dialog preserves input when another tab fills the list", async
   }
 });
 
-test("desktop shows the entry beside the draft button until the toolbar is forced", async ({
+test("desktop shows quick commands in the workspace bar until the bottom toolbar is forced", async ({
   page,
   request,
   workDir,
@@ -383,25 +383,18 @@ test("desktop shows the entry beside the draft button until the toolbar is force
     },
   });
   await createShell(page, "Desktop quick commands", workDir);
-  const header = page.locator(".terminal-header");
+  const header = sessionHeader(page);
   const bar = page.getByRole("complementary", { name: "终端软键" });
   const entry = header.getByRole("button", { name: "快捷指令", exact: true });
   await expect(bar).toBeHidden();
   await expect(entry).toBeVisible();
-  const [entryBox, draftBox] = await Promise.all([
-    entry.boundingBox(),
-    header.getByRole("button", { name: "草稿模式", exact: true }).boundingBox(),
-  ]);
-  expect(entryBox!.x + entryBox!.width).toBeLessThanOrEqual(draftBox!.x);
-  expect(draftBox!.x - (entryBox!.x + entryBox!.width)).toBeLessThan(12);
-
   await entry.click();
   await expect(menu(page)).toHaveAttribute("data-side", "bottom");
   await item(page, "打招呼：echo desk-ok（并回车）").click();
   await expectTerminalLine(page, "desk-ok");
   await expect(page.locator(".xterm-helper-textarea")).toBeFocused();
 
-  await page.getByRole("button", { name: "终端菜单", exact: true }).click();
+  await page.getByRole("button", { name: "显示", exact: true }).click();
   await page.getByRole("menuitemcheckbox", { name: "显示底部工具栏" }).click();
   await page.keyboard.press("Escape");
   await expect(bar).toBeVisible();

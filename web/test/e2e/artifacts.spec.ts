@@ -4,7 +4,7 @@ import {
   test,
   expect,
   createShell,
-  headerAction,
+  uploadAction,
   recordInput,
 } from "./fixtures";
 import { codeReader, showFileTree } from "./code-dock";
@@ -25,7 +25,7 @@ test("uploads land in the session folder the code panel browses", async ({
     r.url().endsWith(`/api/sessions/${id}/upload`),
   );
   const chooser = page.waitForEvent("filechooser");
-  await (await headerAction(page, "上传文件")).click();
+  await (await uploadAction(page)).click();
   await (
     await chooser
   ).setFiles({

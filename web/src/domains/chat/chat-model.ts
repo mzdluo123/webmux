@@ -1,99 +1,34 @@
 import type {
-  ChatAttachment,
   ChatContent,
   ChatEvent,
   ChatFrame,
   ChatOption,
   ChatRequest,
-  StopReason,
   ToolStatus,
 } from "../../contracts/schemas";
+import { diffStats, summarizeTurnDiff } from "./chat-diff";
+import { mergePrependedModel } from "./chat-backfill";
+import type {
+  ChatModel,
+  DisplayEntry,
+  TimelineEntry,
+  ToolEntry,
+  WorkEntry,
+  WorkStep,
+} from "./chat-types";
+
+export {
+  diffStats,
+  type ChatModel,
+  type DisplayEntry,
+  type TimelineEntry,
+  type ToolEntry,
+  type WorkStep,
+};
 
 // Pure reducer from the chat channel's frames to the timeline the chat view
 // renders. Non-timeline state (plan, config, queue, requests...) arrives as
 // whole `state` objects and is not tracked here.
-
-type MessageEntry = {
-  type: "message";
-  id: string;
-  role: "user" | "agent" | "thought";
-  text: string;
-  truncated: boolean;
-  attachments?: ChatAttachment[];
-};
-export type ToolEntry = {
-  type: "tool";
-  id: string;
-  kind: string;
-  title: string;
-  status: ToolStatus;
-  content: ChatContent[];
-  locations: { path: string; line?: number }[];
-  /** Owning live turn; late patches keep it until an explicit tool restart. */
-  diffTurnId?: string;
-  /** Created by a patch whose opening event fell out of the cached log. */
-  partial: boolean;
-  /**
-   * Outcome of the permission request attached to this call, if answered;
-   * the chosen option's name and kind when the request was seen.
-   */
-  permission?: {
-    outcome: string;
-    optionId?: string;
-    name?: string;
-    kind?: ChatOption["kind"];
-  };
-};
-export type TimelineEntry =
-  | MessageEntry
-  | ToolEntry
-  | {
-      type: "compaction";
-      id: string;
-      status: "running" | "completed" | "failed";
-      summary: string;
-    }
-  | {
-      type: "notice";
-      id: string;
-      level: "info" | "warning" | "error";
-      text: string;
-    }
-  | {
-      type: "turnEnd";
-      id: string;
-      stopReason: StopReason;
-      error?: string;
-      changes?: readonly ChatContent[];
-    }
-  | {
-      type: "marker";
-      id: string;
-      kind: "loaded" | "switched" | "truncated" | "reconnected";
-      view?: string;
-    };
-
-export type ChatModel = {
-  generation: string;
-  /** Sequence expected next; events below it were already applied. */
-  next: number;
-  /** Older events were dropped by the server's byte limit. */
-  truncated: boolean;
-  title?: string;
-  entries: TimelineEntry[];
-  /** Entry position by "type:id", for upserts. */
-  index: ReadonlyMap<string, number>;
-  /** Diff-bearing tools from the current turn, ordered by latest content update. */
-  turnDiff?: {
-    id: string;
-    tools: ReadonlyMap<string, { status: ToolStatus; diffs: ChatContent[] }>;
-  };
-  /** Tool call and options of each permission request on a tool call. */
-  requestTools: ReadonlyMap<
-    string,
-    { toolCallId: string; options: readonly ChatOption[] }
-  >;
-};
 
 export function emptyChat(): ChatModel {
   return {
@@ -111,7 +46,7 @@ export function emptyChat(): ChatModel {
  * after which the server resends events.
  */
 export function resumePoint(model: ChatModel) {
-  return model.generation
+  return model.generation && !model.backfillPending
     ? { generation: model.generation, seq: Math.max(0, model.next - 1) }
     : undefined;
 }
@@ -131,44 +66,155 @@ export function applyFrame(model: ChatModel, frame: ChatFrame): ChatModel {
     case "events": {
       if (frame.generation && frame.generation !== model.generation)
         return model;
-      let next = model;
-      for (const event of frame.items ?? []) next = applyEvent(next, event);
-      return next;
+      const items = frame.items;
+      const more = !!frame.more;
+      const next = items?.length ? applyEventsBatch(model, items) : model;
+      if (!more) return next;
+      return next.backfillPending ? next : { ...next, backfillPending: true };
+    }
+    case "backfill": {
+      if (frame.generation && frame.generation !== model.generation)
+        return model;
+      const more = !!frame.more;
+      const items = frame.items;
+      if (!items?.length) {
+        return !!model.backfillPending === more
+          ? model
+          : { ...model, backfillPending: more };
+      }
+      const earlier = applyEventsBatch(
+        { ...emptyChat(), generation: model.generation },
+        items,
+      );
+      return mergePrependedModel(earlier, model, more);
     }
     case "state":
       return model;
   }
 }
 
-/** Applies one event; an event at or below the applied sequence is ignored. */
-function applyEvent(model: ChatModel, event: ChatEvent): ChatModel {
-  if (event.seq < model.next) return model;
-  const next = { ...model, next: event.seq + 1 };
+type BatchDraft = {
+  next: number;
+  title: string | undefined;
+  entries: TimelineEntry[];
+  entriesCloned: boolean;
+  ownedEntries: Set<number>;
+  index: Map<string, number> | ReadonlyMap<string, number>;
+  indexCloned: boolean;
+  turnDiff: ChatModel["turnDiff"];
+  turnToolsCloned: boolean;
+  requestTools:
+    | Map<string, { toolCallId: string; options: readonly ChatOption[] }>
+    | ChatModel["requestTools"];
+  requestToolsCloned: boolean;
+  changed: boolean;
+};
+
+function applyEventsBatch(
+  model: ChatModel,
+  items: readonly ChatEvent[],
+): ChatModel {
+  const draft: BatchDraft = {
+    next: model.next,
+    title: model.title,
+    entries: model.entries,
+    entriesCloned: false,
+    ownedEntries: new Set(),
+    index: model.index,
+    indexCloned: false,
+    turnDiff: model.turnDiff,
+    turnToolsCloned: false,
+    requestTools: model.requestTools,
+    requestToolsCloned: false,
+    changed: false,
+  };
+  for (const event of items) applyEventInto(draft, event);
+  if (!draft.changed) return model;
+  return {
+    ...model,
+    next: draft.next,
+    title: draft.title,
+    entries: draft.entries,
+    index: draft.index,
+    turnDiff: draft.turnDiff,
+    requestTools: draft.requestTools,
+  };
+}
+
+function ensureEntries(draft: BatchDraft): TimelineEntry[] {
+  if (!draft.entriesCloned) {
+    draft.entries = draft.entries.slice();
+    draft.entriesCloned = true;
+  }
+  return draft.entries;
+}
+
+function ensureIndex(draft: BatchDraft): Map<string, number> {
+  if (!draft.indexCloned) {
+    draft.index = new Map(draft.index);
+    draft.indexCloned = true;
+  }
+  return draft.index as Map<string, number>;
+}
+
+function upsertInto(
+  draft: BatchDraft,
+  key: string,
+  build: (prev: TimelineEntry | undefined, owned: boolean) => TimelineEntry,
+): TimelineEntry {
+  const at = draft.index.get(key);
+  const entries = ensureEntries(draft);
+  if (at !== undefined) {
+    const entry = build(entries[at], draft.ownedEntries.has(at));
+    entries[at] = entry;
+    draft.ownedEntries.add(at);
+    return entry;
+  }
+  const pos = entries.length;
+  const entry = build(undefined, true);
+  ensureIndex(draft).set(key, pos);
+  entries.push(entry);
+  draft.ownedEntries.add(pos);
+  return entry;
+}
+
+/** Applies one event into a frame-scoped draft; stale sequences are ignored. */
+function applyEventInto(draft: BatchDraft, event: ChatEvent) {
+  if (event.seq < draft.next) return;
+  draft.changed = true;
+  draft.next = event.seq + 1;
   switch (event.kind) {
     case "message.append": {
       const { messageId, role, text, truncated, attachments } = event.message;
-      return upsert(next, `message:${messageId}`, (prev) =>
-        prev?.type === "message"
-          ? {
-              ...prev,
-              text: prev.text + text,
-              truncated: prev.truncated || !!truncated,
-              attachments: attachments ?? prev.attachments,
-            }
-          : {
-              type: "message",
-              id: messageId,
-              role,
-              text,
-              truncated: !!truncated,
-              attachments,
-            },
-      );
+      upsertInto(draft, `message:${messageId}`, (prev, owned) => {
+        if (prev?.type === "message") {
+          if (owned) {
+            prev.text += text;
+            if (truncated) prev.truncated = true;
+            if (attachments !== undefined) prev.attachments = attachments;
+            return prev;
+          }
+          return {
+            ...prev,
+            text: prev.text + text,
+            truncated: prev.truncated || !!truncated,
+            attachments: attachments ?? prev.attachments,
+          };
+        }
+        return {
+          type: "message",
+          id: messageId,
+          role,
+          text,
+          truncated: !!truncated,
+          attachments,
+        };
+      });
+      return;
     }
     case "tool.upsert": {
       const patch = event.tool;
-      const key = `tool:${patch.toolCallId}`;
-      const updated = upsert(next, key, (prev) => {
+      const updated = upsertInto(draft, `tool:${patch.toolCallId}`, (prev) => {
         const base: ToolEntry =
           prev?.type === "tool"
             ? prev
@@ -181,7 +227,7 @@ function applyEvent(model: ChatModel, event: ChatEvent): ChatModel {
                 content: [],
                 locations: [],
                 partial: patch.title === undefined,
-                diffTurnId: next.turnDiff?.id,
+                diffTurnId: draft.turnDiff?.id,
               };
         return {
           ...base,
@@ -194,96 +240,105 @@ function applyEvent(model: ChatModel, event: ChatEvent): ChatModel {
             (patch.status === "pending" || patch.status === "in_progress") &&
             base.status !== "pending" &&
             base.status !== "in_progress"
-              ? next.turnDiff?.id
+              ? draft.turnDiff?.id
               : base.diffTurnId,
         };
       });
-      const tool = updated.entries[updated.index.get(key)!];
-      return tool?.type === "tool"
-        ? trackTurnDiff(updated, patch, tool.status, tool.diffTurnId)
-        : updated;
+      if (updated.type === "tool")
+        trackTurnDiffInto(draft, patch, updated.status, updated.diffTurnId);
+      return;
     }
     case "info.set":
-      return event.info.title === undefined
-        ? next
-        : { ...next, title: event.info.title };
+      if (event.info.title !== undefined) draft.title = event.info.title;
+      return;
     case "compaction.upsert": {
       const { id, status, summary } = event.compaction;
-      return upsert(next, `compaction:${id}`, (prev) => ({
+      upsertInto(draft, `compaction:${id}`, (prev) => ({
         type: "compaction",
         id,
         status,
         summary: summary ?? (prev?.type === "compaction" ? prev.summary : ""),
       }));
+      return;
     }
     case "notice":
-      return append(next, {
+      ensureEntries(draft).push({
         type: "notice",
         id: String(event.seq),
         level: event.notice.level,
         text: event.notice.text,
       });
+      return;
     case "turn.start":
-      return {
-        ...next,
-        turnDiff: { id: event.turnStart.turnId, tools: new Map() },
-      };
+      draft.turnDiff = { id: event.turnStart.turnId, tools: new Map() };
+      draft.turnToolsCloned = true;
+      return;
     case "turn.end": {
       const id = event.turnEnd.turnId;
-      const turn = next.turnDiff?.id === id ? next.turnDiff : undefined;
+      const turn = draft.turnDiff?.id === id ? draft.turnDiff : undefined;
       const changes = turn && summarizeTurnDiff(turn);
-      return append(turn ? { ...next, turnDiff: undefined } : next, {
+      if (turn) {
+        draft.turnDiff = undefined;
+        draft.turnToolsCloned = false;
+      }
+      ensureEntries(draft).push({
         type: "turnEnd",
         id,
         stopReason: event.turnEnd.stopReason,
         ...(event.turnEnd.error ? { error: event.turnEnd.error } : {}),
         ...(changes?.length ? { changes } : {}),
       });
+      return;
     }
     case "marker":
-      return append(next, {
+      ensureEntries(draft).push({
         type: "marker",
         id: String(event.seq),
         kind: event.marker.kind,
         ...(event.marker.view ? { view: event.marker.view } : {}),
       });
+      return;
     case "request.open":
-      return trackRequest(next, event.request);
+      trackRequestInto(draft, event.request);
+      return;
     case "request.close": {
       const { requestId, outcome, optionId } = event.resolved;
-      const request = next.requestTools.get(requestId);
+      const request = draft.requestTools.get(requestId);
       const at = request
-        ? next.index.get(`tool:${request.toolCallId}`)
+        ? draft.index.get(`tool:${request.toolCallId}`)
         : undefined;
-      const tool = at === undefined ? undefined : next.entries[at];
-      if (tool?.type !== "tool") return next;
+      const tool = at === undefined ? undefined : draft.entries[at];
+      if (tool?.type !== "tool") return;
       const option = request?.options.find((o) => o.optionId === optionId);
-      return replaceAt(next, at!, {
+      const entries = ensureEntries(draft);
+      entries[at!] = {
         ...tool,
         permission: {
           outcome,
           ...(optionId ? { optionId } : {}),
           ...(option ? { name: option.name, kind: option.kind } : {}),
         },
-      });
+      };
+      draft.ownedEntries.add(at!);
+      return;
     }
     case "plan.set":
     case "commands.set":
     case "config.set":
     case "usage.set":
       // State frames carry these; the timeline does not show them.
-      return next;
+      return;
   }
 }
 
-function trackTurnDiff(
-  model: ChatModel,
+function trackTurnDiffInto(
+  draft: BatchDraft,
   patch: Extract<ChatEvent, { kind: "tool.upsert" }>["tool"],
   status: ToolStatus,
   owner: string | undefined,
-): ChatModel {
-  const turn = model.turnDiff;
-  if (!turn || turn.id !== owner) return model;
+) {
+  const turn = draft.turnDiff;
+  if (!turn || turn.id !== owner) return;
   const previous = turn.tools.get(patch.toolCallId);
   const diffs = patch.content
     ? patch.content.filter((block) => block.type === "diff" && !!block.path)
@@ -292,90 +347,51 @@ function trackTurnDiff(
     (!previous && !diffs?.length) ||
     (previous && !patch.content && status === previous.status)
   )
-    return model;
-  const tools = new Map(turn.tools);
+    return;
+  let tools: Map<string, { status: ToolStatus; diffs: ChatContent[] }>;
+  if (draft.turnToolsCloned) {
+    tools = turn.tools as Map<
+      string,
+      { status: ToolStatus; diffs: ChatContent[] }
+    >;
+  } else {
+    tools = new Map(turn.tools);
+    draft.turnDiff = { id: turn.id, tools };
+    draft.turnToolsCloned = true;
+  }
   if (patch.content) tools.delete(patch.toolCallId);
   if (diffs?.length) tools.set(patch.toolCallId, { status, diffs });
-  return { ...model, turnDiff: { id: turn.id, tools } };
 }
 
-function summarizeTurnDiff(turn: NonNullable<ChatModel["turnDiff"]>) {
-  const changes = new Map<string, ChatContent[]>();
-  for (const tool of turn.tools.values()) {
-    if (tool.status !== "completed") continue;
-    for (const block of tool.diffs) {
-      // Go omits empty newText and nil oldText (ACP's new-file origin).
-      // Only snapshot content identifies an absent side; patch-only/unknown
-      // blocks must not acquire a fabricated whole-file baseline.
-      const snapshot =
-        !block.text &&
-        !block.truncated &&
-        (block.oldText !== undefined || block.newText !== undefined);
-      const patch = snapshot
-        ? {
-            ...block,
-            oldText: block.oldText ?? "",
-            newText: block.newText ?? "",
-          }
-        : block;
-      const path = block.path!;
-      const patches = changes.get(path) ?? [];
-      const prior = patches.at(-1);
-      if (
-        prior &&
-        prior.oldText !== undefined &&
-        !prior.truncated &&
-        !patch.truncated &&
-        prior.newText === patch.oldText
-      )
-        patches[patches.length - 1] = { ...patch, oldText: prior.oldText };
-      else patches.push(patch);
-      changes.set(path, patches);
-    }
+function trackRequestInto(draft: BatchDraft, request: ChatRequest) {
+  if (!request.toolCallId) return;
+  let requestTools: Map<
+    string,
+    { toolCallId: string; options: readonly ChatOption[] }
+  >;
+  if (draft.requestToolsCloned) {
+    requestTools = draft.requestTools as Map<
+      string,
+      { toolCallId: string; options: readonly ChatOption[] }
+    >;
+  } else {
+    requestTools = new Map(draft.requestTools);
+    draft.requestTools = requestTools;
+    draft.requestToolsCloned = true;
   }
-  return [...changes.values()].flat();
-}
-
-function trackRequest(model: ChatModel, request: ChatRequest): ChatModel {
-  if (!request.toolCallId) return model;
-  const requestTools = new Map(model.requestTools);
   requestTools.set(request.requestId, {
     toolCallId: request.toolCallId,
     options: request.options ?? [],
   });
-  return { ...model, requestTools };
 }
-
-function upsert(
-  model: ChatModel,
-  key: string,
-  build: (prev: TimelineEntry | undefined) => TimelineEntry,
-): ChatModel {
-  const at = model.index.get(key);
-  if (at !== undefined) return replaceAt(model, at, build(model.entries[at]));
-  const index = new Map(model.index);
-  index.set(key, model.entries.length);
-  return { ...model, entries: [...model.entries, build(undefined)], index };
-}
-
-function append(model: ChatModel, entry: TimelineEntry): ChatModel {
-  return { ...model, entries: [...model.entries, entry] };
-}
-
-function replaceAt(model: ChatModel, at: number, entry: TimelineEntry) {
-  const entries = model.entries.slice();
-  entries[at] = entry;
-  return { ...model, entries };
-}
-
-export type WorkStep = ToolEntry | (MessageEntry & { role: "thought" });
-export type DisplayEntry =
-  | TimelineEntry
-  | { type: "work"; id: string; steps: WorkStep[]; calls: ToolEntry[] };
 
 const isWorkStep = (entry: TimelineEntry): entry is WorkStep =>
   entry.type === "tool" ||
   (entry.type === "message" && entry.role === "thought");
+
+// Preserves object identity for unchanged completed work runs across streaming
+// updates so Svelte skips re-evaluating finished tool groups.
+const workGroupCache = new WeakMap<WorkStep, WorkEntry>();
 
 /**
  * Folds each run of the agent's work (thinking and tool calls) into one
@@ -387,13 +403,26 @@ export function groupTimeline(entries: readonly TimelineEntry[]) {
   const out: DisplayEntry[] = [];
   let run: WorkStep[] = [];
   const flush = () => {
-    if (run.length)
-      out.push({
-        type: "work",
-        id: run[0]!.id,
-        steps: run,
-        calls: run.filter((step) => step.type === "tool"),
-      });
+    if (run.length) {
+      const first = run[0]!;
+      const cached = workGroupCache.get(first);
+      if (
+        cached &&
+        cached.steps.length === run.length &&
+        cached.steps.every((step, i) => step === run[i])
+      ) {
+        out.push(cached);
+      } else {
+        const group: WorkEntry = {
+          type: "work",
+          id: first.id,
+          steps: run,
+          calls: run.filter((step) => step.type === "tool"),
+        };
+        workGroupCache.set(first, group);
+        out.push(group);
+      }
+    }
     run = [];
   };
   for (const entry of entries) {
@@ -406,47 +435,4 @@ export function groupTimeline(entries: readonly TimelineEntry[]) {
   }
   flush();
   return out;
-}
-
-const DIFF_CELL_LIMIT = 4_000_000;
-
-/** Added and removed line counts of a diff content block. */
-export function diffStats(content: ChatContent) {
-  const before = content.oldText ? content.oldText.split("\n") : [];
-  const after = content.newText ? content.newText.split("\n") : [];
-  let start = 0;
-  while (
-    start < before.length &&
-    start < after.length &&
-    before[start] === after[start]
-  )
-    start++;
-  let endBefore = before.length;
-  let endAfter = after.length;
-  while (
-    endBefore > start &&
-    endAfter > start &&
-    before[endBefore - 1] === after[endAfter - 1]
-  ) {
-    endBefore--;
-    endAfter--;
-  }
-  const a = before.slice(start, endBefore);
-  const b = after.slice(start, endAfter);
-  if (a.length * b.length > DIFF_CELL_LIMIT)
-    return { added: b.length, removed: a.length };
-  const common = lcsLength(a, b);
-  return { added: b.length - common, removed: a.length - common };
-}
-
-function lcsLength(a: readonly string[], b: readonly string[]) {
-  let prev = new Uint32Array(b.length + 1);
-  for (const line of a) {
-    const row = new Uint32Array(b.length + 1);
-    for (let j = 1; j <= b.length; j++)
-      row[j] =
-        line === b[j - 1] ? prev[j - 1]! + 1 : Math.max(prev[j]!, row[j - 1]!);
-    prev = row;
-  }
-  return prev[b.length]!;
 }

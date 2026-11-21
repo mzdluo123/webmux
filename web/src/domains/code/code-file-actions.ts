@@ -58,6 +58,7 @@ export function buildCodeFileActions(input: {
     trash: Component;
   };
   openFile: (path: string, nodeId: string) => void;
+  openRight?: (path: string, nodeId: string) => void;
   save: (node: FileTarget, archive: boolean) => void;
   openUploadPicker: (node: FileTarget) => void;
   startNaming: (kind: "rename" | "mkdir", node: FileTarget) => void;
@@ -94,6 +95,15 @@ export function buildCodeFileActions(input: {
         group: 0,
         run: () => input.openFile(node.path, node.nodeId),
       },
+      ...(input.openRight
+        ? [
+            {
+              label: m.s5_open_right(),
+              group: 0,
+              run: () => input.openRight?.(node.path, node.nodeId),
+            },
+          ]
+        : []),
       {
         label: m.s5_action_download(),
         icon: icons.download,

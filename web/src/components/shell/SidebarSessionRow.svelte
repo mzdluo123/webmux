@@ -2,6 +2,7 @@
   import { ListButton } from "$lib/components/ui/list-button";
   import type { SessionInfo } from "../../contracts/schemas";
   import {
+    rowStatusLabels,
     rowStatus,
     sessionRowLabel,
     sessionRowTitle,
@@ -23,6 +24,7 @@
     onopen,
     onrename,
     onclose,
+    onremove,
     onmenuopen,
   }: {
     session: SessionInfo;
@@ -35,9 +37,20 @@
     onopen: (session: SessionInfo) => void;
     onrename: (session: SessionInfo) => void;
     onclose: (session: SessionInfo) => void;
+    /** Only supplied for a session that resumes on open. */
+    onremove?: () => void;
     onmenuopen?: (open: boolean) => void;
   } = $props();
   const locationId = $props.id();
+  const dormant = $derived(onremove !== undefined);
+  const title = $derived(
+    dormant ? session.title || session.agent?.name || "" : session.title,
+  );
+  const label = $derived(
+    dormant
+      ? m.s3_session_row_label({ title, status: rowStatusLabels.dormant })
+      : sessionRowLabel(session),
+  );
   let showFullLabel = $state(false);
 
   function onLabelHover(event: PointerEvent & { currentTarget: HTMLElement }) {
@@ -53,14 +66,14 @@
   <ListButton
     variant={compact ? "navigation-compact-action" : "navigation-action"}
     aria-current={session.id === current ? "page" : undefined}
-    aria-label={pinned
-      ? m.s1_pinned_prefix({ label: sessionRowLabel(session) })
-      : sessionRowLabel(session)}
-    title={locationIsBranch
-      ? showFullLabel
-        ? [session.title, location].join("\n")
-        : undefined
-      : sessionRowTitle(session)}
+    aria-label={pinned ? m.s1_pinned_prefix({ label }) : label}
+    title={dormant
+      ? [label, location].filter(Boolean).join("\n")
+      : locationIsBranch
+        ? showFullLabel
+          ? [title, location].join("\n")
+          : undefined
+        : sessionRowTitle(session)}
     onpointerenter={locationIsBranch ? onLabelHover : undefined}
     onpointerleave={locationIsBranch
       ? () => (showFullLabel = false)
@@ -70,19 +83,14 @@
     onclick={() => onopen(session)}
   >
     <LaunchConfigIcon {icon} size={compact ? "xs" : "sm"} />
-    <SidebarSessionName
-      title={session.title}
-      {location}
-      {locationId}
-      {locationIsBranch}
-    />
-    <RowStatus status={rowStatus(session)} />
+    <SidebarSessionName {title} {location} {locationId} {locationIsBranch} />
+    <RowStatus status={dormant ? "dormant" : rowStatus(session)} />
   </ListButton>
   <SidebarSessionMenu
-    label={pinned
-      ? m.s1_pinned_prefix({ label: session.title })
-      : session.title}
-    target={{ kind: "live", session, onrename, onclose }}
+    label={pinned ? m.s1_pinned_prefix({ label: title }) : title}
+    target={onremove
+      ? { kind: "archived", onresume: () => onopen(session), onremove }
+      : { kind: "live", session, onrename, onclose }}
     {onmenuopen}
   />
 </li>

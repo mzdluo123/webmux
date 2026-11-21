@@ -26,12 +26,15 @@ import {
   type CodeWorkspaceSnapshot,
 } from "../../contracts/schemas";
 
+type OpenDocument = (key: string, added: boolean, activate: boolean) => void;
+
 export function useCodeWorkspaceState(options: {
   id: () => string;
   base: () => string;
   shown: () => boolean;
   seed?: CodeWorkspaceSnapshot;
-  closeOverlayNav: () => void;
+  onOpen: OpenDocument;
+  onClose: (key: string) => void;
 }) {
   const seed = options.seed;
   const s = $state({
@@ -106,17 +109,16 @@ export function useCodeWorkspaceState(options: {
     file?: CodeFile,
     diff?: CodeDiff,
     shouldActivate = true,
+    onOpen = options.onOpen,
   ) {
     const outcome = upsertWorkspaceTab(s.tabs, origin, file, diff);
     if (!outcome) return;
     if (outcome.error) {
       s.error = outcome.error;
-      return;
+      return outcome.error;
     }
-    if (shouldActivate) {
-      s.active = outcome.key;
-      if (outcome.added) options.closeOverlayNav();
-    }
+    if (shouldActivate) s.active = outcome.key;
+    onOpen(outcome.key, outcome.added, shouldActivate);
   }
 
   async function load(append = false) {
@@ -213,7 +215,7 @@ export function useCodeWorkspaceState(options: {
   async function read<T>(
     key: string,
     request: () => Promise<T>,
-    done: (value: T) => void,
+    done: (value: T) => string | void,
   ) {
     controllers.get(key)?.abort();
     const c = new AbortController();
@@ -222,10 +224,10 @@ export function useCodeWorkspaceState(options: {
     try {
       const value = await request();
       if (mounted && !c.signal.aborted && controllers.get(key) === c)
-        done(value);
+        return done(value) ?? "";
       return "";
     } catch (e) {
-      if (!mounted || aborted(e)) return "";
+      if (!mounted || c.signal.aborted || aborted(e)) return "";
       s.error = errorMessage(e);
       return s.error;
     } finally {
@@ -237,12 +239,14 @@ export function useCodeWorkspaceState(options: {
     key: string,
     path: string,
     schema: T,
-    done: (value: z.infer<T>, activate: boolean) => void,
+    done: (value: z.infer<T>, activate: boolean) => string | void,
+    onOpen = options.onOpen,
   ) {
     const intent = beginOpen();
     if (s.tabs.some((t) => t.key === key)) {
+      s.error = "";
       s.active = key;
-      options.closeOverlayNav();
+      onOpen(key, false, true);
       void check();
       return "";
     }
@@ -256,8 +260,10 @@ export function useCodeWorkspaceState(options: {
   function close(key: string) {
     controllers.get(key)?.abort();
     controllers.delete(key);
+    if (!s.tabs.some((t) => t.key === key)) return;
     s.tabs = s.tabs.filter((t) => t.key !== key);
     if (s.active === key) activate(s.tabs.at(-1)?.key ?? "");
+    options.onClose(key);
   }
 
   function filesChanged(removed: string[]) {

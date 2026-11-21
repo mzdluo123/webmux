@@ -9,7 +9,7 @@ import {
   revealSidebar,
   toggleCode,
 } from "./fixtures";
-import { codeReader, showFileTree } from "./code-dock";
+import { codeReader, openCodeMenu, showFileTree } from "./code-dock";
 
 function git(root: string, ...args: string[]) {
   execFileSync("git", ["-C", root, ...args], {
@@ -31,16 +31,17 @@ function frameOf(win: Page) {
   return win.frameLocator('iframe[title="代码工作区"]');
 }
 type Scope = Page | FrameLocator;
-function popOutButton(page: Page) {
-  return page.getByRole("button", {
-    name: "在独立窗口中显示代码",
-    exact: true,
-  });
+async function popOut(page: Page) {
+  await openCodeMenu(codeReader(page));
+  await page
+    .getByRole("menuitem", { name: "在独立窗口中显示代码", exact: true })
+    .click();
 }
-function sendButton(scope: Scope, range?: string) {
+function sendButton(scope: Scope, range: string) {
   return scope
     .getByRole("button", {
-      name: range ? `发送位置到终端（${range} 行）` : /^发送位置到/,
+      name: `插入所选位置（第 ${range} 行）`,
+      exact: true,
     })
     .filter({ visible: true });
 }
@@ -82,10 +83,8 @@ async function gotoLine(scope: Scope, line: number) {
   await scope.locator("[data-code-reader]:visible").evaluate(async (reader) => {
     await reader.ownerDocument.fonts.ready;
   });
-  await scope
-    .getByRole("button", { name: "跳转行", exact: true })
-    .filter({ visible: true })
-    .click();
+  await openCodeMenu(scope);
+  await scope.getByRole("menuitem", { name: "跳转行", exact: true }).click();
   const input = scope.locator("[data-code-goto-line] input");
   await input.fill(String(line));
   await input.press("Enter");
@@ -106,13 +105,17 @@ function diffNumber(diff: Locator, line: number) {
     .first();
 }
 async function closeFrom(win: Page) {
+  const frame = frameOf(win);
+  await openCodeMenu(frame);
+  const dock = frame.getByRole("menuitem", {
+    name: "收回代码窗口",
+    exact: true,
+  });
+  await expect(dock).toBeVisible();
   const closed = win.waitForEvent("close");
   // This control closes the window it lives in, so its click response can be
   // lost with the window; the close event is the assertion that matters.
-  void frameOf(win)
-    .getByRole("button", { name: "收回代码窗口", exact: true })
-    .click()
-    .catch(() => undefined);
+  void dock.click().catch(() => undefined);
   await closed;
 }
 
@@ -137,7 +140,9 @@ test("the code panel pops out into a framed window and both ways keeps its readi
   );
   await createShell(page, "Popout state", workDir);
   const files = await showFileTree(page);
-  const panel = codeReader(page);
+  const workspace = codeReader(page).getByRole("region", {
+    name: "代码工作区",
+  });
 
   // A long file scrolled to line 200 with lines 195-198 selected.
   await files.getByRole("button", { name: "long.txt", exact: true }).click();
@@ -167,11 +172,11 @@ test("the code panel pops out into a framed window and both ways keeps its readi
   await expect(sendButton(page, "50")).toBeEnabled();
 
   const opened = page.context().waitForEvent("page");
-  await popOutButton(page).click();
+  await popOut(page);
   const pip = await opened;
   const frame = frameOf(pip);
   await expect(page.getByText("代码已在独立窗口中显示")).toBeVisible();
-  await expect(panel).toHaveCount(0);
+  await expect(workspace).toHaveCount(0);
   const popped = frame.getByRole("region", { name: "代码工作区" });
   await expect(popped).toBeVisible();
   // The frame fills the window.
@@ -215,16 +220,18 @@ test("the code panel pops out into a framed window and both ways keeps its readi
       },
     },
   });
-  await expect(
-    frame.getByRole("button", { name: "显示行号", exact: true }),
-  ).toHaveAttribute("aria-pressed", "false");
+  await openCodeMenu(frame);
+  const lineNumbers = frame.getByRole("menuitemcheckbox", {
+    name: "显示行号",
+    exact: true,
+  });
+  await expect(lineNumbers).toHaveAttribute("aria-checked", "false");
   const latest = await (await request.get("/api/settings")).json();
   await request.patch("/api/settings", {
     data: { baseRevision: latest.revision, changes: { codeReader: null } },
   });
-  await expect(
-    frame.getByRole("button", { name: "显示行号", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+  await expect(lineNumbers).toHaveAttribute("aria-checked", "true");
+  await lineNumbers.press("Escape");
 
   // Menus and dialogs open inside the window, at the pointer.
   await frame.getByRole("tab", { name: "文件", exact: true }).click();
@@ -251,7 +258,7 @@ test("the code panel pops out into a framed window and both ways keeps its readi
   expect(poppedTop).toBeGreaterThan(top);
   await closeFrom(pip);
   await expect(page.getByText("代码已在独立窗口中显示")).toHaveCount(0);
-  await expect(panel).toBeVisible();
+  await expect(workspace).toBeVisible();
   await expect(page.getByRole("tab", { name: /^long\.txt/ })).toHaveAttribute(
     "aria-selected",
     "true",
@@ -277,11 +284,11 @@ test("closing the opener's code view keeps the popped-out panel live", async ({
   );
   await writeFile(join(workDir, "live.txt"), "before\n");
   await createShell(page, "Popout live", workDir);
-  await showFileTree(page);
+  const files = await showFileTree(page);
+  await files.getByRole("button", { name: "live.txt", exact: true }).click();
   const opened = page.context().waitForEvent("page");
-  await popOutButton(page).click();
+  await popOut(page);
   const frame = frameOf(await opened);
-  await frame.getByRole("button", { name: "live.txt", exact: true }).click();
   await expect(
     frame.locator("[data-code-reader]:visible [data-content]"),
   ).toContainText("before");
@@ -311,9 +318,10 @@ test("the popped-out window selects line ranges and inserts references into the 
   const id = await createShell(page, "Popout pick", workDir);
   await page.locator(".xterm-helper-textarea").focus();
   await page.keyboard.type("printf 'reference: %s\\n' ");
-  await showFileTree(page);
+  const files = await showFileTree(page);
+  await files.getByRole("button", { name: "pick.txt", exact: true }).click();
   const opened = page.context().waitForEvent("page");
-  await popOutButton(page).click();
+  await popOut(page);
   const frame = frameOf(await opened);
 
   // File view: line-number gutter.
@@ -368,9 +376,10 @@ test("a narrow pop-out window lays out for its own width", async ({
   );
   await writeFile(join(workDir, "narrow.txt"), "narrow document\n");
   await createShell(page, "Popout narrow", workDir);
-  await showFileTree(page);
+  const files = await showFileTree(page);
+  await files.getByRole("button", { name: "narrow.txt", exact: true }).click();
   const opened = page.context().waitForEvent("page");
-  await popOutButton(page).click();
+  await popOut(page);
   const pip = await opened;
   await pip.setViewportSize({ width: 520, height: 600 });
   const frame = frameOf(pip);
@@ -378,8 +387,13 @@ test("a narrow pop-out window lays out for its own width", async ({
     .getByRole("button", { name: "文件操作 narrow.txt", exact: true })
     .click();
   // Below 640px file actions use a bottom sheet, in the window itself.
-  await expect(frame.getByRole("dialog")).toBeVisible();
+  const actions = frame.getByRole("dialog");
+  await expect(actions).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  await actions.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(actions).toBeHidden();
+  await closeFrom(pip);
+  await expect(codeReader(page)).toBeVisible();
 });
 
 // Drops `name` onto `target` as the system's file manager would.
@@ -425,11 +439,12 @@ test("files dropped on the file tree upload into the folder, in the page and in 
     )
     .toBe("from the page\n");
 
+  await files.getByRole("button", { name: "docs", exact: true }).click();
+  await files.getByRole("button", { name: "a.txt", exact: true }).click();
   const opened = page.context().waitForEvent("page");
-  await popOutButton(page).click();
+  await popOut(page);
   const pip = await opened;
   const frame = frameOf(pip);
-  await frame.getByRole("button", { name: "docs", exact: true }).click();
   const row = frame.getByRole("button", { name: "a.txt", exact: true });
   await expect(row).toBeVisible();
   const context = (await pip.locator("iframe").elementHandle())!;
@@ -474,8 +489,11 @@ test("viewed marks survive switching between the code popup and the main app", a
   await expect(
     files.getByRole("button", { name: "标记为已看：first.txt" }),
   ).toBeVisible();
+  await files
+    .getByRole("button", { name: "未跟踪 first.txt", exact: true })
+    .click();
   const opened = page.waitForEvent("popup");
-  await popOutButton(page).click();
+  await popOut(page);
   const popup = await opened;
   const frame = frameOf(popup);
   await frame.getByRole("tab", { name: "修改", exact: true }).click();
@@ -501,20 +519,22 @@ test("without Picture-in-Picture a desktop browser pops out into an ordinary pop
   await withoutPictureInPicture(page);
   await writeFile(join(workDir, "popup.txt"), "popup document\nsecond\n");
   await createShell(page, "Popup code", workDir);
-  await showFileTree(page);
+  const files = await showFileTree(page);
+  await files.getByRole("button", { name: "popup.txt", exact: true }).click();
   expect(await page.evaluate(() => "documentPictureInPicture" in window)).toBe(
     false,
   );
   const opened = page.waitForEvent("popup");
-  await popOutButton(page).click();
+  await popOut(page);
   const popup = await opened;
   const frame = frameOf(popup);
   await expect(page.getByText("代码已在独立窗口中显示")).toBeVisible();
-  await frame.getByRole("button", { name: "popup.txt", exact: true }).click();
   await expect(
     frame.locator("[data-code-reader]:visible [data-content]"),
   ).toContainText("popup document");
   await expect(frame.locator("[data-code-reader]:visible")).toBeVisible();
+  // A narrow popup restores the navigator as an overlay above the gutter.
+  await frame.getByRole("button", { name: "收起导航", exact: true }).click();
   await gutter(frame, 2).click();
   await expect(sendButton(frame, "2")).toBeEnabled();
 
@@ -528,7 +548,7 @@ test("without Picture-in-Picture a desktop browser pops out into an ordinary pop
 
   // Reloading the opener closes a popup instead of stranding it.
   const again = page.waitForEvent("popup");
-  await popOutButton(page).click();
+  await popOut(page);
   const second = await again;
   const closed = second.waitForEvent("close");
   await page.reload();
@@ -557,5 +577,10 @@ test("mobile browsers without Picture-in-Picture offer no pop-out", async ({
   const files = await showFileTree(page);
   await files.getByRole("button", { name: "mobile.txt", exact: true }).click();
   await expect(codeReader(page)).toBeVisible();
-  await expect(popOutButton(page)).toHaveCount(0);
+  await openCodeMenu(codeReader(page));
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  await expect(
+    menu.getByRole("menuitem", { name: "在独立窗口中显示代码", exact: true }),
+  ).toHaveCount(0);
 });

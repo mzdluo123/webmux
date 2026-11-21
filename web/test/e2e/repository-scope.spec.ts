@@ -3,7 +3,11 @@ import { promisify } from "node:util";
 import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { Page } from "@playwright/test";
-import { workspaceLayoutTest as test, expect } from "./fixtures";
+import {
+  workspaceLayoutTest as test,
+  expect,
+  workspaceRefreshButton,
+} from "./fixtures";
 import { repositoryMenu, worktreeMenu } from "./repository-menu";
 
 const exec = promisify(execFile);
@@ -243,7 +247,7 @@ test("repository scope limits the home list, composes with filters and survives 
   expect(
     (await request.delete(`/api/repositories/${repositories[1].id}`)).status(),
   ).toBe(204);
-  await page.getByRole("button", { name: "刷新 Git 状态" }).click();
+  await workspaceRefreshButton(page).click();
   await expect(scope).toContainText("全部仓库");
   await expect(page.getByRole("link", { name: "API review" })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 700 });
@@ -305,7 +309,7 @@ test("repository refresh failure keeps direct sessions reachable and preserves t
     localStorage.setItem("webmux.homeRepository", "saved-repository"),
   );
   let requests = 0;
-  await page.route("**/api/repositories", async (route) => {
+  await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     requests += 1;
     // Hold the retry so the assertion observes the in-flight refresh, when the
     // previous failure notice is already cleared but no new list exists yet.

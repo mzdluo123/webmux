@@ -178,14 +178,60 @@ export type MarkdownBlock =
   | { kind: "html"; html: string }
   | { kind: "code"; code: string };
 
+const MAX_TOKEN_HTML_CACHE = 256;
+const tokenHtmlCache = new Map<string, string>();
+
+function renderCachedTokenHtml(
+  token: Token,
+  links: TokensList["links"],
+  codeLinks: boolean,
+): string {
+  const key = `${codeLinks ? "1" : "0"}\0${token.raw}`;
+  const cached = tokenHtmlCache.get(key);
+  if (cached !== undefined) {
+    tokenHtmlCache.delete(key);
+    tokenHtmlCache.set(key, cached);
+    return cached;
+  }
+  const list = Object.assign([token], { links }) as TokensList;
+  const html = sanitizeMessageHtml(
+    marked.parser(list, { gfm: true, renderer: messageRenderer }),
+    codeLinks,
+  );
+  if (tokenHtmlCache.size >= MAX_TOKEN_HTML_CACHE) {
+    const oldest = tokenHtmlCache.keys().next().value;
+    if (oldest !== undefined) tokenHtmlCache.delete(oldest);
+  }
+  tokenHtmlCache.set(key, html);
+  return html;
+}
+
 // Prose between fenced code blocks is rendered (and sanitized) as before;
 // the code blocks themselves stay plain text next to their copy buttons.
+// When no reference-link definitions or raw HTML tags span tokens, each
+// top-level prose token is sanitized and cached independently so streaming
+// appends only re-parse and update the trailing block.
 export function renderMessageBlocks(
   source: string,
   codeLinks: boolean,
 ): MarkdownBlock[] {
   const tokens = marked.lexer(source, { gfm: true });
+  const canSplitProse =
+    Object.keys(tokens.links).length === 0 &&
+    !tokens.some((token) => token.type === "html");
   const out: MarkdownBlock[] = [];
+  if (canSplitProse) {
+    for (const token of tokens) {
+      if (token.type === "space") continue;
+      if (token.type === "code") {
+        out.push({ kind: "code", code: token.text });
+        continue;
+      }
+      const html = renderCachedTokenHtml(token, tokens.links, codeLinks);
+      if (html) out.push({ kind: "html", html });
+    }
+    return out;
+  }
   let run: Token[] = [];
   const flush = () => {
     if (!run.length) return;

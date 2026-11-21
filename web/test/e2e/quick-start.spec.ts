@@ -6,6 +6,7 @@ import {
   expect,
   expectSessionInputSide,
   expectTerminalLine,
+  openSessionQueue,
   revealSidebar,
   selectSessionInputSide,
   test,
@@ -88,8 +89,13 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
 
   await page.goto("/");
   const navigation = await sidebar(page);
-  await navigation.getByRole("button", { name: "新聊天", exact: true }).click();
-  await expect(page).toHaveURL(/\/new$/);
+  await expect(
+    navigation.getByRole("button", { name: "新聊天", exact: true }),
+  ).toHaveCount(0);
+  await navigation
+    .getByRole("button", { name: "新建会话", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/$/);
   await expect(
     page.getByRole("dialog", { name: "导航", exact: true }),
   ).toBeHidden();
@@ -97,7 +103,6 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
   const toolbar = page.getByRole("toolbar", { name: "仓库与分支" });
   const input = page.getByRole("textbox", { name: "任务描述" });
   if (phone(page)) {
-    await expect(toolbar).toBeHidden();
     await input.click();
   }
   await expect(
@@ -109,6 +114,16 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
   await expect(
     page.getByRole("checkbox", { name: "使用初始化指令" }),
   ).toBeChecked();
+  if (!phone(page)) {
+    const main = (await page.getByRole("main").last().boundingBox())!;
+    const card = (await page.locator("[data-composer-card]").boundingBox())!;
+    expect(
+      Math.abs(card.x + card.width / 2 - (main.x + main.width / 2)),
+    ).toBeLessThan(4);
+    expect(
+      Math.abs(card.y + card.height / 2 - (main.y + main.height / 2)),
+    ).toBeLessThan(50);
+  }
   await input.fill("修复首页排序");
   await page.getByRole("button", { name: "发送", exact: true }).click();
 
@@ -154,7 +169,7 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
   await expect(conversation(page)).toContainText("echo: 先读 AGENTS.md");
   await expectSessionInputSide(page, "chat");
 
-  // Archived, it stays in the chat history and resumes from there.
+  // Archived, it stays in the conversation timeline on `/` and resumes from there.
   await page.getByRole("button", { name: "会话菜单", exact: true }).click();
   await page
     .getByRole("menuitem", { name: "停止会话并归档", exact: true })
@@ -163,15 +178,16 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
     .getByRole("alertdialog")
     .getByRole("button", { name: "停止并归档", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/new$/);
-  const navAfterArchive = await sidebar(page);
-  await navAfterArchive.getByRole("button", { name: /^已归档/ }).click();
-  const history = navAfterArchive.getByRole("list", { name: "已归档聊天" });
-  const archived = history.getByRole("button", { name: /（已结束）$/ });
-  await expect(archived).toHaveCount(1);
+  await expect(page).toHaveURL(/\/$/);
+  await openSessionQueue(page);
+  const archivedRegion = page
+    .getByRole("region", { name: /的已归档会话$/ })
+    .first();
+  await expect(archivedRegion).toBeVisible();
+  await archivedRegion.getByRole("button", { name: /^已归档/ }).click();
   // Deleting the record and its linked worktree opens the worktree
   // confirmation dialog; deleting only the record would keep the worktree.
-  await history.getByRole("button", { name: /^会话操作：/ }).click();
+  await archivedRegion.getByRole("button", { name: /^更多操作 / }).click();
   await page
     .getByRole("menuitem", { name: "删除记录和工作树", exact: true })
     .click();
@@ -185,28 +201,37 @@ test("one send creates a worktree and starts the chat; the result is an ordinary
   await expect(
     page.getByRole("dialog", { name: "删除 worktree" }),
   ).toBeHidden();
-  // The workbench home shows the same record.
-  await page.goto("/");
-  await expect(
-    page.getByRole("region", { name: /的已归档会话$/ }).first(),
-  ).toBeVisible();
-  // The legacy quick-start archive can still resume the same chat.
+  // Collapsed rail "新建会话" and legacy `/new` both land on `/` with the composer ready.
   if (phone(page)) {
     await page.goto("/new");
+    await expect(page).toHaveURL(/\/$/);
   } else {
     await page.getByRole("button", { name: "收起侧栏", exact: true }).click();
     await page
       .getByRole("navigation", { name: "窄栏导航", exact: true })
-      .getByRole("button", { name: "新聊天", exact: true })
+      .getByRole("button", { name: "新建会话", exact: true })
       .press("Enter");
-    await expect(page).toHaveURL(/\/new$/);
+    await expect(page).toHaveURL(/\/$/);
     await expect(input).toBeVisible();
   }
+  await openSessionQueue(page);
+  const archivedRegion2 = page
+    .getByRole("region", { name: /的已归档会话$/ })
+    .first();
+  if (
+    !(await archivedRegion2
+      .getByRole("button", { name: "恢复", exact: true })
+      .isVisible())
+  ) {
+    await archivedRegion2.getByRole("button", { name: /^已归档/ }).click();
+  }
+  await archivedRegion2
+    .getByRole("button", { name: "恢复", exact: true })
+    .click();
   const nav3 = await sidebar(page);
-  await nav3.getByRole("button", { name: /^已归档/ }).click();
   await nav3
-    .getByRole("list", { name: "已归档聊天" })
-    .getByRole("button", { name: /（已结束）$/ })
+    .getByRole("button", { name: /修复首页排序/ })
+    .first()
     .click();
   await expect(page).toHaveURL(new RegExp(`/s/${id}$`));
   await expect(conversation(page)).toContainText("修复首页排序");
@@ -252,6 +277,7 @@ test("the quick command menu inserts a preset as written and the server fills th
   await hybridConfig(request, "Claude Code");
 
   await page.goto("/new");
+  await expect(page).toHaveURL(/\/$/);
   const input = page.getByRole("textbox", { name: "任务描述" });
   await input.fill("读手册：");
   await page.getByRole("button", { name: "快捷指令", exact: true }).click();
@@ -261,7 +287,7 @@ test("the quick command menu inserts a preset as written and the server fills th
     .click();
   // The page does not expand it: the placeholder is in the box, unsent.
   await expect(input).toHaveValue("读手册：{{webmux}}");
-  await expect(page).toHaveURL(/\/new$/);
+  await expect(page).toHaveURL(/\/$/);
   await input.press("End");
   await input.pressSequentially(" 文件放 {{dir}}");
   await page.getByRole("button", { name: "发送", exact: true }).click();
@@ -288,6 +314,7 @@ test("picking an existing worktree starts the chat directly in it without creati
   await hybridConfig(request, "Claude Code");
 
   await page.goto("/new");
+  await expect(page).toHaveURL(/\/$/);
   const toolbar = page.getByRole("toolbar", { name: "仓库与分支" });
   const input = page.getByRole("textbox", { name: "任务描述" });
   if (phone(page)) {

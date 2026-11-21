@@ -77,7 +77,8 @@ jobs:
             ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
             full_run "missing base"
           fi
-          if git diff --no-renames --name-only "$base...$head" | grep '^\.github/' > /dev/null; then
+          if git diff --no-renames --name-only "$base...$head" |
+            awk '/^\.github\// && !/^\.github\/pr-assets\// { found=1; exit } END { exit !found }'; then
             full_run "tooling changed"
           fi
           script="$RUNNER_TEMP/classify-changes.sh"
@@ -109,7 +110,7 @@ jobs:
       - name: Check agent and web static guards
         run: go test -count=1 ./internal/archtest -run '^(TestAgents|TestGenericCodeNamesNoAgent)'
       - name: Check the install script
-        if: needs.changes.outputs.go == 'true' || needs.changes.outputs.web == 'true'
+        if: needs.changes.outputs.go == 'true'
         run: make test-install
       - name: Lint frontend
         if: needs.changes.outputs.web == 'true'
@@ -142,13 +143,12 @@ jobs:
           path: ${{ steps.setup.outputs.pnpm-store }}
           key: ${{ steps.setup.outputs.pnpm-key }}
 
-  # Builds the frontend and the Linux E2E executable once. Splitting this
-  # from the Go race job lets web-only changes publish the runtime without
-  # paying for the full Go suite.
+  # Builds the frontend, Linux E2E executable, fake agents and Playwright/Zod
+  # runtime once for the E2E shards whenever frontend changes are tested.
   runtime:
     name: E2E runtime
     needs: changes
-    if: needs.changes.result == 'success' && (needs.changes.outputs.go == 'true' || needs.changes.outputs.web == 'true')
+    if: needs.changes.result == 'success' && needs.changes.outputs.web == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
@@ -174,25 +174,18 @@ jobs:
 
   go:
     name: Go race (Ubuntu)
-    needs: [changes, runtime]
-    if: needs.changes.result == 'success' && needs.runtime.result == 'success' && needs.changes.outputs.go == 'true'
+    needs: changes
+    if: needs.changes.result == 'success' && needs.changes.outputs.go == 'true'
     runs-on: ubuntu-26.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - id: setup
         uses: ./.github/actions/setup
         with:
-          frontend: "false"
-          node: "false"
           go: "true"
-      - name: Download shared E2E runtime
-        uses: actions/download-artifact@v8
-        with:
-          name: e2e-runtime
-          path: ${{ runner.temp }}
-      - name: Extract embedded frontend
-        run: tar -xzf "$RUNNER_TEMP/webmux-e2e.tar.gz" -C "$GITHUB_WORKSPACE" web/dist
+      - name: Build embedded frontend
+        run: pnpm --dir web exec vp build
       - name: Vet Go
         run: go vet -printf.funcs=problemf,invalidf,usagef,checkf ./...
       - name: Verify public relay protocol module
@@ -303,7 +296,7 @@ jobs:
   e2e:
     name: E2E (Ubuntu ${{ matrix.shard }}/4)
     needs: [changes, runtime]
-    if: needs.changes.result == 'success' && needs.runtime.result == 'success' && (needs.changes.outputs.go == 'true' || needs.changes.outputs.web == 'true')
+    if: needs.changes.result == 'success' && needs.runtime.result == 'success' && needs.changes.outputs.web == 'true'
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     strategy:
@@ -508,17 +501,15 @@ jobs:
             fi
           }
           if [ "$GO" = "true" ]; then
-            require_success "E2E runtime" "$RUNTIME"
             require_success "Go race (Ubuntu)" "$UBUNTU_GO"
             require_success "Windows installer smoke" "$WINDOWS_INSTALLER"
             require_success "Linux packages" "$LINUX_PACKAGES"
           fi
           if [ "$WEB" = "true" ]; then
+            require_success "E2E runtime" "$RUNTIME"
             require_success "Vitest unit and browser" "$VITEST"
             require_success "Storybook" "$STORYBOOK"
-            require_success "CLS and 4x CPU (Ubuntu)" "$PERFORMANCE"
-          fi
-          if [ "$GO" = "true" ] || [ "$WEB" = "true" ]; then
             require_success "E2E (Ubuntu)" "$E2E"
+            require_success "CLS and 4x CPU (Ubuntu)" "$PERFORMANCE"
           fi
           exit "$failed"

@@ -9,7 +9,6 @@ import type {
 import type { createHeaderTerminalView } from "../../domains/terminal/session-terminal-io";
 import type { TerminalFeatures } from "../../features/terminal";
 import type { HybridSession } from "../../hooks/sessions/hybrid.svelte";
-import type { useFullscreen } from "../../hooks/shared/fullscreen.svelte";
 import type { ChatUploads, useUpload } from "../../hooks/shared/upload.svelte";
 import type { TerminalController } from "../../hooks/terminal/terminal.svelte";
 
@@ -19,14 +18,10 @@ export interface SessionTerminalStageProps {
   panels: ReturnType<typeof sessionPanelIds>;
   dockSessionName?: string;
   dockSessionNumber?: number;
-  toolbar?: HTMLDivElement;
   active: boolean;
-  pickerOpen: boolean;
-  openPanels: () => void;
   onactivate: () => void;
   chatActions?: Snippet;
   headerTerminal: ReturnType<typeof createHeaderTerminalView>;
-  fullscreen: ReturnType<typeof useFullscreen>;
   codeShown: boolean;
   documentScroll: boolean;
   chatVisible: boolean;
@@ -48,7 +43,6 @@ export interface SessionTerminalStageProps {
   dismissCopy: () => void;
   notice: string;
   showScratch: () => void;
-  showFontSize: () => void;
   closeSession: () => void;
   closing: boolean;
   reopen: (session: SessionInfo) => void;
@@ -59,8 +53,6 @@ export interface SessionTerminalStageProps {
   terminalVisible: boolean;
   sizeLocked: boolean;
   setSizeLocked: (value: boolean) => void;
-  keyboardSizeHold: boolean;
-  setKeyboardSizeHold: (value: boolean) => void;
   keyboardHeld: boolean;
   findOpen: boolean;
   showFind: () => void;

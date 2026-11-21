@@ -9,7 +9,7 @@
     href = "/settings",
     label,
     onclick,
-    switcher = false,
+    switcher = true,
   }: {
     href?: string;
     label?: string;

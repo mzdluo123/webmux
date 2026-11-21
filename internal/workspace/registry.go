@@ -51,6 +51,19 @@ type repositoryState struct {
 	gate           chan struct{}
 	flightMu       sync.Mutex
 	flight         *snapshotFlight
+	// statusCache holds per-worktree status entries reused across List calls for
+	// worktrees whose Git/index/ref metadata has not changed.
+	statusCacheMu sync.Mutex
+	statusCache   map[string]cachedWorktreeStatus
+	// snapMu guards the last completed repository snapshot for opt-in SWR reads.
+	snapMu          sync.Mutex
+	lastSnapshot    Repository
+	hasSnapshot     bool
+	lastSnapshotAt  time.Time
+	lastFingerprint uint64
+	snapGen         uint64
+	snapDirty       bool
+	revalidating    bool
 	// fetching is the running FetchRemotes; guarded by fetchMu.
 	fetchMu  sync.Mutex
 	fetching *fetchFlight
@@ -64,6 +77,7 @@ type snapshotFlight struct {
 	err        error
 	cancel     context.CancelFunc
 	waiters    int
+	cached     bool
 }
 type Service struct {
 	projectMu     sync.Mutex
@@ -156,6 +170,13 @@ type Service struct {
 	watchInterval time.Duration
 	watchDebounce time.Duration
 	closed        bool
+
+	swrMu     sync.Mutex
+	swrCtx    context.Context
+	swrCancel context.CancelFunc
+	swrWG     sync.WaitGroup
+	swrClosed bool
+	freshTTL  time.Duration
 }
 
 // New never makes optional Git or storage availability a server startup failure.
@@ -164,7 +185,8 @@ func New(stateDir string, manager *session.Manager, launches *launch.Service, de
 	if stateDir == "" {
 		stateDir = config.DefaultStateDir()
 	}
-	s := &Service{manager: manager, launches: launches, defaultCwd: defaultCwd, stateDir: stateDir, fetchTimeout: branchFetchTimeout, fetchRemoteTimeout: fetchRemoteTimeout, worktreeGate: make(chan struct{}, 4), writeGates: make(map[string]chan struct{}), starts: make(map[string]int), reservations: make(map[string]bool), changed: make(chan struct{}), confirmations: make(map[string]confirmation), opFlights: make(map[string]*opFlight), watchInterval: defaultWatchInterval, watchDebounce: defaultWatchDebounce}
+	swrCtx, swrCancel := context.WithCancel(context.Background())
+	s := &Service{manager: manager, launches: launches, defaultCwd: defaultCwd, stateDir: stateDir, fetchTimeout: branchFetchTimeout, fetchRemoteTimeout: fetchRemoteTimeout, worktreeGate: make(chan struct{}, worktreeConcurrency()), writeGates: make(map[string]chan struct{}), starts: make(map[string]int), reservations: make(map[string]bool), changed: make(chan struct{}), confirmations: make(map[string]confirmation), opFlights: make(map[string]*opFlight), watchInterval: defaultWatchInterval, watchDebounce: defaultWatchDebounce, swrCtx: swrCtx, swrCancel: swrCancel, freshTTL: defaultSnapshotFreshTTL}
 	s.githubPath, _ = exec.LookPath("gh")
 	s.githubTimeout = githubRequestTimeout
 	git, err := exec.LookPath("git")
@@ -206,6 +228,7 @@ func New(stateDir string, manager *session.Manager, launches *launch.Service, de
 }
 func (s *Service) Close() {
 	s.closeWatcher()
+	s.closeSWR()
 	s.closeProjectClones()
 	s.closeProjects()
 	if s.stopAssociations != nil {
@@ -422,53 +445,6 @@ func (s *Service) Unregister(id string) error {
 	}
 	s.notifyWorkspaces()
 	return nil
-}
-func (s *Service) List(ctx context.Context) ([]Repository, error) {
-	s.mu.Lock()
-	if err := s.requireRegistryLocked(); err != nil {
-		s.mu.Unlock()
-		return nil, err
-	}
-	entries := append([]*repositoryState(nil), s.entries...)
-	s.mu.Unlock()
-	// Repositories are independent, so a slow one must not serialize the rest.
-	// Each snapshot keeps its own gate and shared-flight semantics.
-	snapshots := make([]Repository, len(entries))
-	available := make([]bool, len(entries))
-	failures := make([]error, len(entries))
-	var wg sync.WaitGroup
-	for i, r := range entries {
-		wg.Add(1)
-		go func(i int, r *repositoryState) {
-			defer wg.Done()
-			snapshot, err := s.snapshot(ctx, r)
-			if err != nil {
-				failures[i] = err
-				return
-			}
-			if s.registered(r) {
-				snapshots[i], available[i] = snapshot, true
-			}
-		}(i, r)
-	}
-	wg.Wait()
-	out := make([]Repository, 0, len(entries))
-	for i := range entries {
-		if available[i] {
-			out = append(out, snapshots[i])
-		} else if failures[i] != nil {
-			if ctx.Err() != nil {
-				return nil, ctx.Err()
-			}
-			// A single unreadable repository keeps the rest of the list and
-			// its sessions reachable instead of failing the whole response.
-			if s.registered(entries[i]) {
-				out = append(out, s.unavailableRepository(entries[i], failures[i]))
-			}
-		}
-	}
-	s.reassociate(ctx)
-	return out, nil
 }
 func (s *Service) Refresh(ctx context.Context, id string) (Repository, error) {
 	r, err := s.repository(id)

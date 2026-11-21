@@ -106,7 +106,7 @@ func (s *Service) watchLoop(ctx context.Context, done chan struct{}) {
 	if debounce < 0 {
 		debounce = 0
 	}
-	baseline := s.watchFingerprint()
+	baseline := s.watchFingerprints()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -114,8 +114,9 @@ func (s *Service) watchLoop(ctx context.Context, done chan struct{}) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			current := s.watchFingerprint()
-			if current == baseline {
+			current := s.watchFingerprints()
+			changed, dirtyIDs := diffWatchFingerprints(baseline, current)
+			if !changed {
 				continue
 			}
 			// Let multi-step Git worktree checkout or removal settle before
@@ -128,22 +129,40 @@ func (s *Service) watchLoop(ctx context.Context, done chan struct{}) {
 					return
 				case <-timer.C:
 				}
-				current = s.watchFingerprint()
+				current = s.watchFingerprints()
+				_, dirtyIDs = diffWatchFingerprints(baseline, current)
 			}
 			baseline = current
+			s.markRepositoriesDirty(dirtyIDs)
 			s.reassociate(ctx)
 			s.notifyWorkspaces()
 		}
 	}
 }
 
-// watchFingerprint hashes registered repositories and their on-disk Git
-// worktree metadata without spawning git subprocesses or holding service locks.
-func (s *Service) watchFingerprint() uint64 {
+func diffWatchFingerprints(before, after map[string]uint64) (changed bool, dirtyIDs []string) {
+	for id, fp := range after {
+		if prev, ok := before[id]; !ok || prev != fp {
+			changed = true
+			dirtyIDs = append(dirtyIDs, id)
+		}
+	}
+	for id := range before {
+		if _, ok := after[id]; !ok {
+			changed = true
+		}
+	}
+	return changed, dirtyIDs
+}
+
+// watchFingerprints hashes each registered repository's on-disk Git worktree
+// metadata independently without spawning git subprocesses or holding service
+// locks, so changes in one repository only mark that repository dirty.
+func (s *Service) watchFingerprints() map[string]uint64 {
 	s.mu.Lock()
 	if !s.capability.RegistryAvailable {
 		s.mu.Unlock()
-		return 0
+		return nil
 	}
 	entries := make([]registration, len(s.entries))
 	for i, r := range s.entries {
@@ -151,42 +170,48 @@ func (s *Service) watchFingerprint() uint64 {
 	}
 	s.mu.Unlock()
 
-	h := fnv.New64a()
+	out := make(map[string]uint64, len(entries))
 	for _, entry := range entries {
-		writeToken(h, entry.ID)
-		writeToken(h, entry.CommonDir)
-		writeToken(h, entry.AnchorPath)
-		writeDirState(h, entry.AnchorPath)
-		if !writeDirState(h, entry.CommonDir) {
+		out[entry.ID] = repoFingerprint(entry)
+	}
+	return out
+}
+
+func repoFingerprint(entry registration) uint64 {
+	h := fnv.New64a()
+	writeToken(h, entry.ID)
+	writeToken(h, entry.CommonDir)
+	writeToken(h, entry.AnchorPath)
+	writeDirState(h, entry.AnchorPath)
+	if !writeDirState(h, entry.CommonDir) {
+		return h.Sum64()
+	}
+	writeBoundedFile(h, filepath.Join(entry.CommonDir, "HEAD"), maxWatchedHeadBytes)
+	adminRoot := filepath.Join(entry.CommonDir, "worktrees")
+	items, err := os.ReadDir(adminRoot)
+	if err != nil {
+		writeToken(h, "no-worktrees")
+		return h.Sum64()
+	}
+	if len(items) > maxWatchedWorktrees {
+		items = items[:maxWatchedWorktrees]
+	}
+	for _, item := range items {
+		writeToken(h, item.Name())
+		if !item.IsDir() {
+			writeToken(h, "file")
 			continue
 		}
-		writeBoundedFile(h, filepath.Join(entry.CommonDir, "HEAD"), maxWatchedHeadBytes)
-		adminRoot := filepath.Join(entry.CommonDir, "worktrees")
-		items, err := os.ReadDir(adminRoot)
-		if err != nil {
-			writeToken(h, "no-worktrees")
-			continue
-		}
-		if len(items) > maxWatchedWorktrees {
-			items = items[:maxWatchedWorktrees]
-		}
-		for _, item := range items {
-			writeToken(h, item.Name())
-			if !item.IsDir() {
-				writeToken(h, "file")
-				continue
+		adminDir := filepath.Join(adminRoot, item.Name())
+		gitdir := writeBoundedFile(h, filepath.Join(adminDir, "gitdir"), maxWatchedGitdirSize)
+		if gitFile := strings.TrimSpace(gitdir); gitFile != "" {
+			if !filepath.IsAbs(gitFile) {
+				gitFile = filepath.Join(adminDir, gitFile)
 			}
-			adminDir := filepath.Join(adminRoot, item.Name())
-			gitdir := writeBoundedFile(h, filepath.Join(adminDir, "gitdir"), maxWatchedGitdirSize)
-			if gitFile := strings.TrimSpace(gitdir); gitFile != "" {
-				if !filepath.IsAbs(gitFile) {
-					gitFile = filepath.Join(adminDir, gitFile)
-				}
-				writeDirState(h, filepath.Dir(filepath.Clean(gitFile)))
-			}
-			writeBoundedFile(h, filepath.Join(adminDir, "HEAD"), maxWatchedHeadBytes)
-			writeDirOrFileState(h, filepath.Join(adminDir, "locked"))
+			writeDirState(h, filepath.Dir(filepath.Clean(gitFile)))
 		}
+		writeBoundedFile(h, filepath.Join(adminDir, "HEAD"), maxWatchedHeadBytes)
+		writeDirOrFileState(h, filepath.Join(adminDir, "locked"))
 	}
 	return h.Sum64()
 }

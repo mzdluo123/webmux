@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { useWorkbenchBranches, workspaceRefreshButton } from "./fixtures";
 import { startE2EServer, type E2EServer } from "./server.mjs";
 
 const token = "e2e a&b#c";
@@ -23,12 +24,7 @@ test("a #token= link signs in and leaves no token in the address or history", as
     }),
   );
   await page.goto(`${server.baseURL}/#token=${encodeURIComponent(token)}`);
-  await expect(
-    page
-      .getByRole("main")
-      .getByRole("button", { name: "＋ 新建会话", exact: true })
-      .first(),
-  ).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "任务描述" })).toBeVisible();
   expect(page.url()).toBe(`${server.baseURL}/`);
   expect(await page.evaluate(() => localStorage.getItem("webmux.token"))).toBe(
     token,
@@ -69,23 +65,85 @@ test("a mid-session 401 clears workspace state and allows signing in again", asy
   page,
 }) => {
   await page.goto(`${server.baseURL}/#token=${encodeURIComponent(token)}`);
+  if (await useWorkbenchBranches(page)) await page.keyboard.press("Escape");
   await expect(page.getByRole("searchbox", { name: "搜索会话" })).toBeVisible();
   await page.getByRole("searchbox", { name: "搜索会话" }).fill("discard me");
-  await page.route("**/api/repositories", async (route) => {
+  await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     await route.fulfill({ status: 401, json: { error: "token expired" } });
   });
-  await page
-    .getByRole("button", { name: "刷新 Git 状态", exact: true })
-    .click();
+  await workspaceRefreshButton(page).click();
   await expect(page.getByLabel("共享 Token", { exact: true })).toBeVisible();
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page.getByRole("searchbox", { name: "搜索会话" })).toHaveCount(
     0,
   );
-  await page.unroute("**/api/repositories");
+  await page.unroute(/\/api\/repositories(?:\?|$)/);
   await page.getByLabel("共享 Token", { exact: true }).fill(token);
   await page.getByRole("button", { name: "连接 WebMux →" }).click();
   const search = page.getByRole("searchbox", { name: "搜索会话" });
   await expect(search).toBeVisible();
   await expect(search).toHaveValue("");
+});
+
+test("returning browser reloads into the shell skeleton without flashing the login card", async ({
+  page,
+}) => {
+  await page.goto(`${server.baseURL}/#token=${encodeURIComponent(token)}`);
+  await expect(page.getByRole("textbox", { name: "任务描述" })).toBeVisible();
+
+  // Observe every DOM mutation across reload to prove the login headline never flashes.
+  await page.addInitScript(() => {
+    const win = window as unknown as { __sawLoginHeadline?: boolean };
+    win.__sawLoginHeadline = false;
+    const scan = () => {
+      const text = document.body?.textContent ?? "";
+      if (
+        text.includes("你的终端，始终在线。") ||
+        text.includes("Your terminal, always online.")
+      ) {
+        win.__sawLoginHeadline = true;
+      }
+    };
+    const observer = new MutationObserver(scan);
+    const start = () => {
+      scan();
+      if (document.body)
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+          characterData: true,
+        });
+    };
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", start, { once: true });
+    } else {
+      start();
+    }
+  });
+
+  const holdHealth = Promise.withResolvers<void>();
+  let healthRequested = false;
+  await page.route("**/api/health", async (route) => {
+    healthRequested = true;
+    await holdHealth.promise;
+    await route.continue();
+  });
+
+  const reload = page.reload({ waitUntil: "domcontentloaded" });
+  await expect.poll(() => healthRequested).toBe(true);
+  await expect(
+    page.getByRole("main", { name: "正在恢复工作区" }),
+  ).toBeVisible();
+  await expect(page.getByText("你的终端，始终在线。")).toHaveCount(0);
+
+  holdHealth.resolve();
+  await reload;
+  await expect(page.getByRole("textbox", { name: "任务描述" })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { __sawLoginHeadline?: boolean })
+          .__sawLoginHeadline,
+    ),
+  ).toBe(false);
 });

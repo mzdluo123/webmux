@@ -2,6 +2,7 @@
 
 - **US-Q01 开启混合模式**：作为使用者，我希望在启动配置上勾选混合模式，以便之后用这条配置启动的 OpenCode、omp、Codex CLI、Claude Code、Antigravity CLI、Qoder、QoderCN、Kimi 或 Devin 会话能在聊天视图与终端之间切换。
   验收要点：
+  - 会话窗格内切换聊天或终端，其他会话窗格的视图与文件阅读位置保持原状。
   - 本组混合功能需显式选择 `chat` 及其 `launch`、`files` 依赖；仅选择 `launch` 时仍可管理和运行普通启动配置，但不探测聊天支持或加载聊天组件，旧混合字段保留；
   - 新安装预置的 OpenCode、omp、Codex CLI、Claude Code、Antigravity CLI、Qoder、QoderCN、Kimi 与 Devin 配置已勾选混合模式，已有 `launch-configs.json` 不被改写；
   - 设置页编辑器提供“混合模式（聊天 ↔ 终端）”勾选框，可用性只取服务端判定（打开时用配置的 `chatSupport`，改命令后去抖查询 `POST /api/launch-configs/chat-support`）；线上字段为 `chat`/`chatSupport`，请求体中的旧字段 `hybrid`/`hybridSupport` 返回 400；
@@ -19,7 +20,7 @@
   - 选中混合配置时以带说明的单选项显示“从终端开始 / 从聊天开始”，默认终端；每个 agent 在浏览器里记住自己上次的起始端，没用过的 agent 沿用最近一次混合会话的选择；
   - 从终端开始在 PTY 中运行配置命令（OpenCode 注入 `--standalone`，命令中可见）；
   - 从聊天开始启动 ACP 进程并新建 agent 会话，PTY 中没有进程；
-  - 从聊天开始且未命名时，第一条消息一发出就以其文本（折叠空白，最多 80 个字符；勾选初始化指令时只取用户输入，不含指令）作为临时标题，agent 上报标题后被替换，清除标题后回到目录名；只有附件、已命名或由终端切来的会话不设置；从终端开始的会话以首条用户指令为名（US-B07）；
+  - 从聊天开始且未命名时，第一条消息一发出就以用户输入作为临时标题，初始化指令不计入标题；agent 上报标题后被替换，清除标题后回到目录名。两种自动标题均折叠空白，最多 80 个字符，超出加“…”；只有附件、已命名或由终端切来的会话不设置临时标题；从终端开始的会话以首条用户指令为名（US-B07）；
   - 起始端以 `POST /api/sessions` 的 `view: "terminal" | "chat"` 提交，会话信息的 `view` 为所选视图、`views` 为 `["terminal","chat"]`；
   - 普通配置或手动命令带 `view: "chat"` 返回 400，旧字段 `startSide` 作为未知字段返回 400；
   - 记录存储不可用 503、记录已满 409。

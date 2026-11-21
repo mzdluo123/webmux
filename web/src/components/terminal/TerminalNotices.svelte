@@ -40,10 +40,10 @@
     notice = $bindable(),
     showScratch,
     dismissScratch,
-    remove,
     notices = [],
     dismiss = () => {},
     recovery,
+    hideMissing = false,
     session = "",
     listening,
     showForwards,
@@ -63,12 +63,13 @@
     notice: string;
     showScratch: () => void;
     dismissScratch: () => void;
-    remove: () => void;
     /** A hybrid session's switch and identity notices. */
     notices?: HybridNotice[];
     dismiss?: (key: string) => void;
-    /** Resume choices that replace the missing and exited strips. */
+    /** Resume choices that replace the missing-session notice. */
     recovery?: Snippet;
+    /** Suppresses the missing-session strip when recovery renders outside notices. */
+    hideMissing?: boolean;
     /** The session ID whose listening ports get forwarding prompts. */
     session?: string;
     /** Listening ports, or undefined while unknown (see TerminalPortPrompts). */
@@ -171,7 +172,7 @@
       >
     {/snippet}
   </StripNotice>{/if}
-{#if recovery}{@render recovery()}{:else if t.connection === "missing"}<StripNotice
+{#if recovery}{@render recovery()}{:else if !hideMissing && t.connection === "missing"}<StripNotice
     tone="warning"
   >
     {m.s4_session_missing_strip()}
@@ -181,16 +182,3 @@
       >
     {/snippet}
   </StripNotice>{/if}
-{#if t.exitCode !== null && !recovery}
-  <StripNotice>
-    {m.s4_process_exited_strip({ code: String(t.exitCode) })}
-    {#snippet actions()}
-      <Button variant="outline" size="sm" class="shrink-0" onclick={leave}
-        >{m.s4_back_to_list()}</Button
-      >
-      <Button variant="outline" size="sm" class="shrink-0" onclick={remove}
-        >{m.s4_remove_session()}</Button
-      >
-    {/snippet}
-  </StripNotice>
-{/if}

@@ -19,6 +19,8 @@ export interface Repositories {
   readonly list: readonly Repository[];
   /** A read finished (successfully or not) since the last refresh began. */
   readonly settled: boolean;
+  /** A read has finished; stays true during background refreshes. */
+  readonly initialSettled: boolean;
   readonly refreshing: boolean;
   /** The last read's failure; "" after a successful one. */
   readonly error: string;
@@ -57,6 +59,7 @@ export function createRepositories(): Repositories {
   // sessions while Git runs.
   let list = $state.raw<Repository[]>(homeCache.repositories() ?? []);
   let settled = $state(false);
+  let initialSettled = $state(false);
   let refreshing = $state(false);
   let error = $state("");
   let choice = $state(ChoiceSchema.safeParse(stored("homeRepository")).data);
@@ -70,14 +73,14 @@ export function createRepositories(): Repositories {
   let streamState: Connection = "connecting";
   const abort = new AbortController();
 
-  async function read() {
+  async function read(allowStale: boolean) {
     const current = ++generation;
     refreshing = true;
     settled = false;
     error = "";
     try {
       const result = await api(
-        "/repositories",
+        allowStale ? "/repositories?stale=1" : "/repositories",
         RepositoriesSchema,
         "GET",
         undefined,
@@ -94,13 +97,14 @@ export function createRepositories(): Repositories {
       if (!disposed && current === generation) {
         refreshing = false;
         settled = true;
+        initialSettled = true;
       }
     }
   }
 
   function refresh(force = false) {
     if (!force && startup) return startup;
-    const pending = read();
+    const pending = read(!force);
     if (generation === 1) {
       startup = pending;
       void pending.finally(() => {
@@ -114,7 +118,7 @@ export function createRepositories(): Repositories {
     if (disposed || coalesceTimer !== undefined) return;
     coalesceTimer = setTimeout(() => {
       coalesceTimer = undefined;
-      if (!disposed) void refresh(true);
+      if (!disposed) void read(true);
     }, STREAM_COALESCE_MS);
   }
 
@@ -146,6 +150,9 @@ export function createRepositories(): Repositories {
     },
     get settled() {
       return settled;
+    },
+    get initialSettled() {
+      return initialSettled;
     },
     get refreshing() {
       return refreshing;

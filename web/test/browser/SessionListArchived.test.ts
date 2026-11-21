@@ -172,6 +172,7 @@ beforeEach(async () => {
     }),
   );
   await enableHostFeatures();
+  workbenchLayout.queueView = "queue";
 });
 
 afterEach(async () => {
@@ -180,6 +181,7 @@ afterEach(async () => {
     await userEvent.cleanup();
   } finally {
     workbenchLayout.value = "queue";
+    workbenchLayout.queueView = "composer";
     localStorage.removeItem("webmux.workbenchLayout");
     resetHostFeatures();
     vi.unstubAllGlobals();

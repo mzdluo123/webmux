@@ -15,6 +15,7 @@
   import SessionListEmpty from "../components/sessions/SessionListEmpty.svelte";
   import HomeUpdateNotice from "../components/shared/HomeUpdateNotice.svelte";
   import { matchesSessionQuery } from "../domains/sessions/session-location";
+  import { resumesOnOpen } from "../domains/sessions/archived";
   import {
     resetBrowserChrome,
     setBrowserChrome,
@@ -41,8 +42,7 @@
   const dormant = $derived(
     (shell.archived?.records ?? []).filter(
       (record) =>
-        record.archive.resumeOnOpen &&
-        !record.released &&
+        resumesOnOpen(record) &&
         matchesSessionQuery(record, query.trim().toLocaleLowerCase()),
     ),
   );

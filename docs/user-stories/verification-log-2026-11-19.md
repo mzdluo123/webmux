@@ -2,6 +2,12 @@
 
 承接 [verification-log-2026-11-18](verification-log-2026-11-18.md)，收录 2026-11-19 起的局部核对记录；索引见 [WebMux User Stories](../user-stories.md#核对记录)。
 
+## 2026-11-19：单窗格隐藏焦点边框（US-D13、US-D14）
+
+- Playwright 运行 `splits.spec.ts`、`session-pane-files.spec.ts` 和 `git-workbench-route.spec.ts`，桌面与移动项目共 36 项通过，8 项按项目条件跳过。核对分屏焦点、放大与还原、收起、标签合并和窄屏布局。
+- 隔离 Shell 会话在 1280×900、1280×720、768×800、390×844、375×667、320×568 的明暗主题下均通过焦点边框和页面横向溢出检查。截图与放大、还原录屏使用无头 Chromium，实体触屏与真机浏览器未核对。
+- `pnpm --dir web check`、`check:test`、`lint`、`check:arch`（49 项）及 `make format-check docs-check` 通过。
+
 ## 2026-11-19：`InlineNotice` 行尾操作对齐与浮层实心表面统一（US-C01、US-L03、US-L06）
 
 - 故事编号与总数（265）保持不变，同步更新 `US-C01`、`docs/design-system.md` 与 `docs/frontend-architecture.md`：
@@ -239,3 +245,41 @@
   - 在隔离演示服务采集桌面（`1280×900`）、平板（`768×800`）、手机（`390×844`）浅色与深色前后对比截图及桌面交互 GIF，并在 `1280×900`、`1280×720`、`768×800`、`390×844`、`375×667`、`320×568`、`667×375` 视口校验 `scrollWidth <= innerWidth`。
 - 局限：
   - 验证在 Linux 本地隔离实例与无头 Chromium 中完成，未验证物理 `hover`、`any-pointer: coarse` 媒体查询、原生 Windows 托盘交互、真实公网 Relay/TURN 节点及 macOS / iOS / Android 真机浏览器。
+
+## 2026-11-19：手机工作区顶栏统一面板按钮（US-H08）
+
+- 「打开面板」与文件浏览、显示菜单共用无边框图标按钮，窄屏下三者均为 44 × 44 CSS 像素。「打开面板」保留无障碍名称、提示和展开状态。
+- `pnpm --dir web run check`、`check:test`、`lint`、`check:arch`（49 项）、Oxfmt 与 `make docs-check` 通过。
+- `pnpm --dir web exec playwright test test/e2e/compact-chrome.spec.ts test/e2e/session-pane-files.spec.ts` 在预构建的隔离服务上通过 7 项，1 项按项目条件跳过。
+- 隔离服务中使用 Chromium 核对七种视口的浅色与深色主题。页面无横向溢出，面板选择器在视口内可打开和关闭，桌面键盘焦点与鼠标悬停反馈可见。采集桌面、平板与手机顶栏的前后对比截图。触控通过模拟设备核对，未使用实体设备。
+
+## 2026-11-19：窗格活动标签下划线（US-D14、US-I04）
+
+- 活动标签的 2 px 细线与标题栏底边对齐，横跨标题和关闭按钮，并在两侧等距内缩。标签栏出现横向滚动条时，细线位于滚动条上方。
+- `pnpm --dir web check`、`pnpm --dir web lint`、`pnpm --dir web check:arch`、`pnpm --dir web exec vp fmt --check src` 与 `make docs-check` 通过。
+- Playwright 运行 `session-pane-files.spec.ts` 和 `splits.spec.ts`，22 项通过，8 项按项目条件跳过。
+- 在有界面的 Chromium 隔离实例中核对七种视口的浅色与深色主题，验证细线位置、页面横向溢出、鼠标悬停、键盘切换、长文件名截断和标签栏横向滚动。桌面、平板和手机各采集浅色与深色前后截图。触屏使用 Chromium 模拟。
+
+## 2026-11-20：分屏快速新建 Shell 采用服务端默认登录 Shell（US-D13、US-B01）
+
+- 故事编号与总数（265）保持不变，同步更新 `US-D13`、[创建会话 API](../protocol/http-session-create.md) 与[终端使用](../usage/terminal.md)：
+  - `POST /api/sessions` 省略 `cmd` 与 `configId` 时，由服务端 `sessioncreate` 启动注入的默认登录 Shell（`assemble.DefaultShellCmd(os.Getenv("SHELL"))`，即 `[$SHELL, "-l", "-i"]`，未设置 `$SHELL` 时回退 `["/bin/sh", "-l", "-i"]`）；显式传入 `cmd: []` 或 `cmd: [""]` 仍在预检返回 400。
+  - 前端 `createSplitShellSession` 移除硬编码 `cmd: ["/bin/sh", "-i"]`，仅传递 `cwd` 与可选 `workspace`。
+- 已执行验证：
+  - Go `-race` 测试：`go test -race -count=1 ./cmd/internal/assemble ./internal/sessioncreate ./internal/api ./internal/mcpcontrol ./internal/archtest ./internal/docguard` 通过。
+  - 静态与格式门禁：`make format-check`、`make docs-check`、`make persistence-check`、`pnpm --dir web build`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch`（49 项）、`go vet ./...` 与 `GOOS=darwin go vet ./...` 通过。
+  - 前端单元与端到端测试：`test/terminal-layout.test.ts`（6 项）、Playwright `test/e2e/session-creation.spec.ts` 与 `test/e2e/split-background.spec.ts`（22 项通过，含快速分屏验证 `cmd` 为 `["/bin/bash", "-l", "-i"]`）以及 `test/e2e/splits.spec.ts` 中 `stacked panes` 用例通过。
+- 局限：
+  - 本机 `golangci-lint`（以 Go 1.26 编译）低于仓库 `go.mod` 目标版本（Go 1.27.4），`make go-lint` 由 CI 环境复核；本机 `/tmp` 受磁盘配额限制，`cmd/webmux` 依赖 `/tmp` 的子测试与 `splits.spec.ts` 写入 `/tmp` 截图路径的用例由 CI 全量运行覆盖。
+
+## 2026-11-21：单端 PR 跳过另一端 CI 与路径分类收窄（US-L02）
+
+- 故事编号与总数保持不变，同步更新 `US-L02`、[测试规则](../agent-rules/testing.md)、[CI 耗时优化](../ci-performance.md) 与 [CONTRIBUTING.md](../../CONTRIBUTING.md)：
+  - 纯后端（`go=true, web=false`）PR 跳过 `E2E runtime` 与 4 个 Playwright E2E 分片；`Go race` 不再依赖 `E2E runtime`，改为直接构建内嵌前端后独立运行。
+  - 纯前端（`go=false, web=true`）PR 跳过 `make test-install`，保留前端套件与 E2E；`.github/pr-assets/**` 截图证据不再命中 `.github/` 全量兜底。
+  - `go.mod`、`go.sum`、`.golangci.yml`、`install.sh`、`protocol/**` 归入纯后端，`web/` 依赖与配置归入纯前端；跨端契约/夹具（wire 快照、`fakeagent`、`embed-assets.ts`、`sw.js`、`fake-agent-names.txt`）仍同时触发双端。推送到 `main` 继续强制完整套件。
+- 已执行验证：
+  - `bash -n .github/scripts/classify-changes.sh`、`bash -n .github/scripts/test-classify-changes.sh` 与 `bash .github/scripts/test-classify-changes.sh`（覆盖 23 组单路径/组合路径场景）通过。
+  - `.github/workflows/test.yml` YAML 解析、`.github/pr-assets/` 排除过滤回归、`make docs-check`、`make persistence-check`、`go test -count=1 ./internal/archtest -run '^(TestAgents|TestGenericCodeNamesNoAgent)'` 与 `make format-check` 通过。
+- 局限：
+  - 本次修改涉及 `.github/`，PR 自身按安全规则在 GitHub Actions 触发全量运行；单端跳过效果在合入 `main` 后对后续纯前端/纯后端 PR 生效。

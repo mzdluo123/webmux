@@ -1,14 +1,27 @@
-import type { Page } from "@playwright/test";
-import { expect, toggleCode } from "./fixtures";
+import type { FrameLocator, Locator, Page } from "@playwright/test";
+import { expect, narrowSessionHeader, toggleCode } from "./fixtures";
 
 export const fileTree = (page: Page) =>
   page.getByRole("region", { name: "文件树", exact: true });
 
-export const readerPanel = (page: Page) =>
-  page.locator('[data-dock-panel^="reader:"]');
-
 export const codeReader = (page: Page) =>
-  readerPanel(page).getByRole("region", { name: "代码工作区", exact: true });
+  page.locator('[data-dock-panel^="reader:"]:visible');
+
+export async function openCodeMenu(scope: Page | FrameLocator | Locator) {
+  const button = { name: "代码菜单", exact: true };
+  if (
+    "page" in scope &&
+    "getAttribute" in scope &&
+    !narrowSessionHeader(scope.page())
+  ) {
+    await scope.locator(".dock-title-space").click();
+    await scope
+      .page()
+      .locator(".session-toolbar")
+      .getByRole("button", button)
+      .click();
+  } else await scope.getByRole("button", button).click();
+}
 
 export async function showFileTree(page: Page) {
   const tree = fileTree(page);

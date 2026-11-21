@@ -1,9 +1,11 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
   import { errorMessage } from "../../platform/error";
-  import DockPanel from "../shared/DockPanel.svelte";
+  import { fileTabLabels } from "../../domains/code/file-tab-labels";
+  import CodeNavigationPanel from "./CodeNavigationPanel.svelte";
+  import CodeReaderGroup from "./CodeReaderGroup.svelte";
   import { getDock } from "../shared/dock-context";
-  import { dragWidth, keyWidth } from "../../hooks/shared/splitter";
+  import CodeWorkspaceSplit from "./CodeWorkspaceSplit.svelte";
   import { onMount, untrack } from "svelte";
   import { SvelteMap } from "svelte/reactivity";
   import CodeNavigator from "./CodeNavigator.svelte";
@@ -26,12 +28,12 @@
     locateRevealTarget,
   } from "../../domains/code/code-reveal";
   import {
-    codeReaderTitle,
     shouldCloseOverlayNav,
     type CodeTabOrigin,
     type CodeWorkspaceTab,
   } from "../../domains/code/code-workspace";
   import { useCodeWorkspaceState } from "../../hooks/code/code-workspace-state.svelte";
+  import { useCodeReaderDock } from "../../hooks/code/code-reader-dock.svelte";
   import * as Tabs from "$lib/components/ui/tabs";
   import CodeDocumentView from "./CodeDocumentView.svelte";
   import "../../fonts-terminal.css";
@@ -47,6 +49,7 @@
     docked,
     notice = "",
     inert = false,
+    focusRestored = false,
   }: {
     id: string;
     visible: boolean;
@@ -63,120 +66,75 @@
     docked?: { files: string; reader: string };
     notice?: string;
     inert?: boolean;
+    focusRestored?: boolean;
   } = $props();
   const seed = untrack(() => initial);
   const dock = untrack(() => (docked ? getDock() : undefined));
-  const navMin = 120,
-    navMax = 640;
-  let navDivider = $state<HTMLDivElement>();
   let section = $state<HTMLElement>();
-  let inner = $state<HTMLDivElement>();
   let navigationHost = $state<HTMLDivElement>();
   let navigator = $state<CodeNavigator>();
   let dropStatus = $state("");
-  const views = new SvelteMap<CodeWorkspaceTab, CodeDocumentView>();
+  const views = new SvelteMap<string, CodeDocumentView>();
+  const readingAreas = new SvelteMap<string, HTMLElement>();
   const shown = $derived(visible || !!popout?.popped);
   let base = $derived(`/sessions/${id}/code`);
+  const readers = useCodeReaderDock(
+    seed,
+    () => id,
+    untrack(() => docked),
+    dock,
+  );
   const ws = useCodeWorkspaceState({
     id: () => id,
     base: () => base,
     shown: () => shown,
     seed,
-    closeOverlayNav: () => {
-      if (docked) dock?.show(docked.reader);
-      else if (shouldCloseOverlayNav(section)) ws.s.navOpen = false;
+    onOpen: (key, added, activate) => {
+      readers.open(key, added, activate);
+      if (!docked && activate && shouldCloseOverlayNav(section))
+        ws.s.navOpen = false;
     },
+    onClose: (key) => readers.close(key, ws.s.active),
   });
   const activeTab = $derived(ws.s.tabs.find((tab) => tab.key === ws.s.active));
   const activePath = $derived(activeTab?.file?.document.path ?? "");
-  const activeDocumentPath = $derived(
-    activePath || activeTab?.diff?.new.path || activeTab?.diff?.old.path || "",
+  const labels = $derived(fileTabLabels(ws.s.tabs));
+  const filesShown = $derived(!!docked && !!dock?.rect(docked.files));
+  const visibleDocument = (tab: CodeWorkspaceTab) => {
+    const panel = readers.panel(tab.key);
+    return !!panel && !!dock?.rect(panel);
+  };
+  const alertTarget = $derived(
+    (activeTab && visibleDocument(activeTab) ? activeTab : undefined) ??
+      ws.s.tabs.find(visibleDocument),
   );
-  const activeGitPath = $derived(
-    activeTab?.rootKind === "artifacts" ? "" : activeDocumentPath,
-  );
-  const activeMenu = $derived(activeTab?.menu);
-  const readerTitle = $derived(codeReaderTitle(activeDocumentPath));
+  function activateReader(key: string) {
+    readers.select(key);
+    if (ws.s.active !== key) ws.activate(key);
+  }
+  function showRevealError() {
+    if (docked && !shown) dock?.show(docked.files);
+  }
+  function openRight(path: string, opaqueId: string) {
+    const origin = ws.s.context;
+    if (origin)
+      void openFileInOrigin(origin, path, opaqueId, readers.rightAnchor());
+  }
 
   /** The reading state of this workspace, for another instance to restore. */
   export function capture(): CodeWorkspaceSnapshot {
-    return ws.snapshotState(
-      (tab) => views.get(tab)?.capture() ?? $state.snapshot(tab.restore),
+    const snapshot = ws.snapshotState(
+      (tab) => views.get(tab.key)?.capture() ?? $state.snapshot(tab.restore),
       () => navigator?.capture() ?? seed?.navigator,
     );
+    return { ...snapshot, readerGroups: readers.capture() };
   }
   export function bounds() {
-    return section?.getBoundingClientRect();
-  }
-  function setNavWidth(width: number) {
-    const limit = Math.min(navMax, (inner?.clientWidth ?? navMax) - 160);
-    ws.s.navWidth = Math.round(Math.max(navMin, Math.min(limit, width)));
-  }
-  function resizeStart(event: PointerEvent) {
-    dragWidth(event, renderedNavWidth(), setNavWidth);
-  }
-  function resizeKey(event: KeyboardEvent) {
-    keyWidth(
-      event,
-      renderedNavWidth(),
-      { min: navMin, max: navMax },
-      setNavWidth,
-    );
-  }
-  $effect(() => {
-    const divider = navDivider;
-    const container = inner;
-    if (!divider || !container) return;
-
-    let ownedFocus = document.activeElement === divider;
-    let overlayFocus: HTMLElement | undefined;
-    function remember() {
-      ownedFocus = true;
-    }
-    const clear = (event: FocusEvent) => {
-      if (event.relatedTarget || divider.getClientRects().length)
-        ownedFocus = false;
-    };
-    const update = () => {
-      if (divider.getClientRects().length) {
-        if (overlayFocus && document.activeElement === overlayFocus)
-          divider.focus({ preventScroll: true });
-        overlayFocus = undefined;
-      } else if (
-        ownedFocus &&
-        (document.activeElement === divider ||
-          document.activeElement === document.body)
-      ) {
-        const tab = container.querySelector<HTMLElement>(
-          '.code-navigation [role="tab"][aria-selected="true"]',
-        );
-        if (tab?.getClientRects().length) {
-          overlayFocus = tab;
-          tab.focus({ preventScroll: true });
-        }
-        ownedFocus = false;
-      }
-    };
-    const resize = new ResizeObserver(update);
-    resize.observe(container);
-    window.addEventListener("resize", update);
-    divider.addEventListener("focus", remember);
-    divider.addEventListener("blur", clear);
-    return () => {
-      resize.disconnect();
-      window.removeEventListener("resize", update);
-      divider.removeEventListener("focus", remember);
-      divider.removeEventListener("blur", clear);
-    };
-  });
-
-  function renderedNavWidth() {
+    const area = readingAreas.get(ws.s.active);
     return (
-      inner?.querySelector(".code-navigation")?.getBoundingClientRect().width ||
-      ws.s.navWidth
-    );
+      area?.clientWidth ? area : (section ?? navigationHost)
+    )?.getBoundingClientRect();
   }
-
   async function locate(input: string) {
     if (!ws.s.context) return;
     await show(
@@ -190,6 +148,7 @@
     if (target.kind === "file") return openFile(target.path, target.nodeId);
     ws.s.nav = "files";
     ws.s.navOpen = true;
+    if (docked) dock?.show(docked.files);
     ws.s.directory = "";
     ws.s.query = "";
     await ws.load();
@@ -200,12 +159,19 @@
     origin: CodeTabOrigin,
     path: string,
     opaqueId = nodeId(path),
+    rightOf?: string,
   ) {
+    const place = rightOf
+      ? (key: string, added: boolean, activate: boolean) =>
+          readers.open(key, added, activate, activate ? rightOf : undefined)
+      : undefined;
     return ws.openTab(
       `${origin.contextId}:${opaqueId}:worktree`,
       `${base}/file?${ws.params({ contextId: origin.contextId, nodeId: opaqueId })}`,
       CodeFileSchema,
-      (value, activate) => ws.install(origin, value, undefined, activate),
+      (value, activate) =>
+        ws.install(origin, value, undefined, activate, place),
+      place,
     );
   }
   async function openFile(path: string, opaqueId = nodeId(path)) {
@@ -224,17 +190,19 @@
     getTabs: () => ws.s.tabs,
     nextHeadingKey: () => ++headingSequence,
   });
-  async function openDiff(change: CodeChange) {
-    const origin = ws.s.context;
+  async function openDiff(change: CodeChange, origin = ws.s.context) {
     if (!origin) return;
-    await ws.openTab(
+    return ws.openTab(
       `${origin.contextId}:${change.nodeId}:diff:${change.group}`,
-      `${base}/diff?${ws.params({ changeId: change.changeId })}`,
+      `${base}/diff?${ws.params({ contextId: origin.contextId, changeId: change.changeId })}`,
       CodeDiffSchema,
       (value, activate) => ws.install(origin, undefined, value, activate),
     );
   }
-  onMount(() => ws.mountWorkspace());
+  onMount(() => {
+    readers.restore(focusRestored);
+    return ws.mountWorkspace();
+  });
   ws.syncConnectionCheck(() => host.connection);
 
   let revealed = untrack(() => (seed ? (host.reveal?.key ?? 0) : 0));
@@ -246,7 +214,10 @@
       untrack(() => ws.switchRoot("workspace"));
       return;
     }
-    if (!current) return;
+    if (!current) {
+      if (ws.s.error) untrack(showRevealError);
+      return;
+    }
     revealed = target.key;
     untrack(() => void showReveal(target));
   });
@@ -276,7 +247,7 @@
           found.entries.find((entry) => entry.group !== "staged") ??
           found.entries[0];
         if (change) {
-          await openDiff(change);
+          if (await openDiff(change, origin)) showRevealError();
           return;
         }
       }
@@ -285,7 +256,11 @@
         location.path,
         location.nodeId,
       );
-      if (failure || mode !== "file") return;
+      if (failure) {
+        showRevealError();
+        return;
+      }
+      if (mode !== "file") return;
       const tab = ws.s.tabs.find(
         (t) => t.key === `${origin.contextId}:${location.nodeId}:worktree`,
       );
@@ -303,125 +278,95 @@
         tab.jump = { key: ++jumpSequence };
       }
     } catch (e) {
-      if (ws.mounted) ws.s.error = errorMessage(e);
+      if (ws.mounted) {
+        ws.s.error = errorMessage(e);
+        showRevealError();
+      }
     }
   }
 </script>
 
-{#snippet workspace(props: Record<string, unknown>)}
-  <section
-    {...props}
-    bind:this={section}
-    {inert}
-    class="code-panel relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
-    aria-label={m.s5_code_workspace()}
-  >
-    <CodeWorkspaceHeader
-      bind:navOpen={ws.s.navOpen}
-      dockNavigation={docked
-        ? {
-            show: () => dock?.show(docked!.files),
-            shown: !!dock?.rect(docked.files),
-          }
-        : undefined}
-      navStatus={ws.s.navStatus}
-      tabs={ws.s.tabs}
-      context={ws.s.context}
-      pending={ws.s.pending}
-      {popout}
-      {activeMenu}
-      {section}
-      error={notice || ws.s.error}
-      {dropStatus}
-      beginOpen={ws.beginOpen}
-      supersedeOpenOnTabKey={ws.supersedeOpenOnTabKey}
-      close={ws.close}
-      refreshAll={() => {
-        void ws.load();
-        for (const tab of ws.s.tabs) void ws.refresh(tab);
-      }}
-      inspectablePath={activeGitPath}
-      {onOpenGit}
-      {onInspectGitFile}
-    />
-    <div
-      class="code-inner flex min-h-0 flex-1 overflow-hidden"
-      style:--code-nav-width={`${ws.s.navWidth}px`}
-      bind:this={inner}
+{#snippet readerHeader(
+  tabs: CodeWorkspaceTab[],
+  doc?: CodeWorkspaceTab,
+  part: "all" | "tabs" | "commands" = "all",
+)}
+  <CodeWorkspaceHeader
+    {part}
+    bind:navOpen={ws.s.navOpen}
+    dockNavigation={docked
+      ? {
+          show: () => dock?.show(docked!.files),
+          shown: filesShown,
+        }
+      : undefined}
+    navStatus={ws.s.navStatus}
+    {tabs}
+    context={ws.s.context}
+    pending={ws.s.pending}
+    {popout}
+    activeMenu={doc?.menu}
+    {section}
+    activeQuick={doc?.quick}
+    beginOpen={ws.beginOpen}
+    supersedeOpenOnTabKey={ws.supersedeOpenOnTabKey}
+    close={ws.close}
+    refreshAll={() => {
+      void ws.load();
+      for (const tab of ws.s.tabs) void ws.refresh(tab);
+    }}
+    inspectablePath={doc?.rootKind === "artifacts"
+      ? ""
+      : (doc?.file?.document.path ?? doc?.diff?.new.path ?? "")}
+    {onOpenGit}
+    {onInspectGitFile}
+  />
+{/snippet}
+
+{#snippet alert()}
+  {#if notice || ws.s.error}<p
+      role="alert"
+      class="shrink-0 px-2 py-1 text-sm break-all text-destructive"
     >
-      {#if !docked}
-        <div class="contents" class:hidden={!ws.s.navOpen}>
-          {@render navigation()}
-          <!-- A focusable separator with aria-valuenow is an interactive widget (WAI-ARIA window splitter). -->
-          <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-          <div
-            bind:this={navDivider}
-            class="code-nav-divider"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={m.s5_resize_nav_width()}
-            aria-valuemin={navMin}
-            aria-valuemax={navMax}
-            aria-valuenow={ws.s.navWidth}
-            tabindex="0"
-            onpointerdown={resizeStart}
-            onkeydown={resizeKey}
-          ></div>
-        </div>
-      {/if}
-      <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {#each ws.s.tabs as tab (tab.key)}
-          <Tabs.Content value={tab.key} tabindex={-1}>
-            {#snippet child({ props })}
-              <div {...props} class="min-h-0 flex-1 overflow-hidden">
-                <CodeDocumentView
-                  bind:this={
-                    () => views.get(tab),
-                    (view) => (view ? views.set(tab, view) : views.delete(tab))
-                  }
-                  restore={tab.restore}
-                  {id}
-                  active={shown &&
-                    ws.s.active === tab.key &&
-                    (!docked || !!dock?.rect(docked.reader))}
-                  file={tab.file}
-                  diff={tab.diff}
-                  status={tab.status}
-                  paste={(text) => host.paste(text)}
-                  draftEnabled={host.draftEnabled}
-                  refresh={() => void ws.refresh(tab)}
-                  contextId={tab.contextId}
-                  comparison={tab.comparison}
-                  onComparison={(value) => (tab.comparison = value)}
-                  onState={(state) => (tab.status = state)}
-                  beginOpen={ws.beginOpen}
-                  openSide={(file, intent) =>
-                    ws.install(
-                      tab,
-                      file,
-                      undefined,
-                      intent === ws.selectionSequence,
-                    )}
-                  bind:menu={tab.menu}
-                  workspace={tab.contextId === ws.s.context?.contextId
-                    ? markdownWorkspace
-                    : undefined}
-                  heading={tab.heading}
-                  onHeading={() => (tab.heading = undefined)}
-                  jump={tab.jump}
-                  onJump={() => (tab.jump = undefined)}
-                  diffAvailable={tab.rootKind !== "artifacts"}
-                />
-              </div>
-            {/snippet}
-          </Tabs.Content>
-        {/each}
-        {#if !ws.s.tabs.length}<p class="p-4 text-sm text-muted-foreground">
-            {m.s5_workspace_empty_prompt()}
-          </p>{/if}
-      </div>
-    </div>
-  </section>
+      {notice || ws.s.error}
+    </p>{/if}
+{/snippet}
+
+{#snippet documentView(tab: CodeWorkspaceTab, active: boolean)}
+  <CodeDocumentView
+    bind:this={
+      () => views.get(tab.key),
+      (view) => (view ? views.set(tab.key, view) : views.delete(tab.key))
+    }
+    restore={tab.restore}
+    {id}
+    {active}
+    file={tab.file}
+    diff={tab.diff}
+    status={tab.status}
+    paste={(text) => host.paste(text)}
+    draftEnabled={host.draftEnabled}
+    refresh={() => void ws.refresh(tab)}
+    contextId={tab.contextId}
+    comparison={tab.comparison}
+    onComparison={(value) => (tab.comparison = value)}
+    onState={(state) => (tab.status = state)}
+    beginOpen={ws.beginOpen}
+    openSide={(file, intent) => {
+      ws.install(tab, file, undefined, intent === ws.selectionSequence);
+    }}
+    unified
+    bind:quick={tab.quick}
+    bind:menu={tab.menu}
+    workspace={tab.contextId === ws.s.context?.contextId
+      ? markdownWorkspace
+      : undefined}
+    heading={tab.heading}
+    onHeading={() => (tab.heading = undefined)}
+    jump={tab.jump}
+    onJump={() => (tab.jump = undefined)}
+    diffAvailable={tab.rootKind !== "artifacts"}
+  />
 {/snippet}
 
 {#snippet navigation()}
@@ -459,37 +404,92 @@
     bind:changeSearch={ws.s.changeSearch}
     load={(append) => ws.load(append)}
     openFile={(path, opaqueId) => void openFile(path, opaqueId)}
+    openRight={docked ? openRight : undefined}
     {locate}
     openDiff={(change) => void openDiff(change)}
   />
 {/snippet}
 
-<Tabs.Root value={ws.s.active} onValueChange={ws.activate}>
-  {#snippet child({ props })}
-    {#if docked}
-      <DockPanel id={docked.reader} title={readerTitle}>
-        {@render workspace(props)}
-      </DockPanel>
-      <DockPanel id={docked.files} title={m.s5_file_tree()}>
-        <div
-          class="dock-code-navigation flex min-h-0 flex-1"
-          {inert}
-          bind:this={navigationHost}
-        >
-          {@render navigation()}
+{#if docked}
+  {#each ws.s.tabs as doc (doc.key)}
+    <CodeReaderGroup
+      panel={readers.panel(doc.key)!}
+      title={labels.get(doc.key) ?? doc.key}
+      {doc}
+      onclose={() => ws.close(doc.key)}
+      onactivate={() => activateReader(doc.key)}
+    >
+      {#snippet header()}{@render readerHeader(
+          [],
+          doc,
+          dock?.compact() ? "all" : "tabs",
+        )}{/snippet}
+      {#snippet commands()}{@render readerHeader([], doc, "commands")}{/snippet}
+      <section
+        {@attach (element) => {
+          readingAreas.set(doc.key, element);
+          return () => readingAreas.delete(doc.key);
+        }}
+        {inert}
+        class="code-panel relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
+        aria-label={m.s5_code_workspace()}
+      >
+        {#if !filesShown && alertTarget === doc}{@render alert()}{/if}
+        <div class="min-h-0 flex-1 overflow-hidden">
+          {@render documentView(doc, visibleDocument(doc))}
         </div>
-      </DockPanel>
-    {:else}
-      {@render workspace(props)}
-    {/if}
-  {/snippet}
-</Tabs.Root>
-
-<style>
-  .dock-code-navigation :global(.code-navigation) {
-    position: static;
-    width: 100%;
-    max-width: 100%;
-    border-inline-end: 0;
-  }
-</style>
+      </section>
+    </CodeReaderGroup>
+  {/each}
+  <CodeNavigationPanel id={docked.files} {inert} bind:navigationHost>
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+      {#if filesShown}{@render alert()}{/if}
+      {@render navigation()}
+    </div>
+  </CodeNavigationPanel>
+{:else}
+  <Tabs.Root value={ws.s.active} onValueChange={activateReader}>
+    {#snippet child({ props })}
+      <section
+        {...props}
+        bind:this={section}
+        {inert}
+        class="code-panel relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background"
+        aria-label={m.s5_code_workspace()}
+      >
+        {@render readerHeader(ws.s.tabs, activeTab)}
+        {@render alert()}
+        {#if dropStatus && !ws.s.navOpen}<p
+            role="status"
+            class="shrink-0 px-2 py-1 text-xs text-muted-foreground"
+          >
+            {dropStatus}
+          </p>{/if}
+        <CodeWorkspaceSplit
+          bind:width={ws.s.navWidth}
+          open={ws.s.navOpen}
+          {navigation}
+        >
+          <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            {#each ws.s.tabs as tab (tab.key)}
+              <Tabs.Content value={tab.key} tabindex={-1}>
+                {#snippet child({ props })}
+                  <div {...props} class="min-h-0 flex-1 overflow-hidden">
+                    {@render documentView(
+                      tab,
+                      shown && ws.s.active === tab.key,
+                    )}
+                  </div>
+                {/snippet}
+              </Tabs.Content>
+            {:else}
+              <p class="p-4 text-sm text-muted-foreground">
+                {m.s5_workspace_empty_prompt()}
+              </p>
+            {/each}
+          </div>
+        </CodeWorkspaceSplit>
+      </section>
+    {/snippet}
+  </Tabs.Root>
+{/if}

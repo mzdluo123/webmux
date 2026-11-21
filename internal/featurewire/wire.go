@@ -225,7 +225,7 @@ func WorktreeUpstream(value workspace.WorktreeUpstream) *contract.WorktreeUpstre
 }
 
 func CreateWorktree(r contract.CreateWorktreeRequest) workspace.CreateRequest {
-	out := workspace.CreateRequest{Path: r.Path, Mode: r.Mode, Branch: r.Branch, Base: r.Base}
+	out := workspace.CreateRequest{Path: r.Path, Mode: r.Mode, Branch: r.Branch, Base: r.Base, LatestUpstream: r.LatestUpstream}
 	if r.UpstreamChoice != nil {
 		out.UpstreamChoice = &workspace.UpstreamChoice{ConfirmationID: r.UpstreamChoice.ConfirmationID, UseUpstream: r.UpstreamChoice.UseUpstream}
 	}

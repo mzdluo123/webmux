@@ -2,6 +2,8 @@ package relay
 
 import (
 	"context"
+	"errors"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -132,7 +134,10 @@ func TestControlExchangeICEAndOwnerIsolation(t *testing.T) {
 	}
 	grant.OwnerID = "456"
 	response = protocol.ControlMessage{Version: protocol.V1, Type: protocol.ControlGrant, RequestID: request.RequestID, Scope: control.scope, ExpiresAt: time.Now().Add(9 * time.Second).Unix(), Grant: &grant}
-	if err := protocol.WriteFrame(stream, response, protocol.MaxControlBytes); err != nil {
+	// The host can reject the grant and close the connection before smux
+	// returns the write result. Only tolerate that closure: the Forbidden
+	// result from Connect below proves the response reached owner validation.
+	if err := protocol.WriteFrame(stream, response, protocol.MaxControlBytes); err != nil && !errors.Is(err, io.ErrClosedPipe) {
 		t.Fatal(err)
 	}
 	select {
@@ -144,7 +149,10 @@ func TestControlExchangeICEAndOwnerIsolation(t *testing.T) {
 		t.Fatal("invalid grant did not stop RPC")
 	}
 	select {
-	case <-done:
+	case err := <-done:
+		if protocolCode(err) != protocol.Forbidden {
+			t.Fatalf("wrong owner grant closed generation with %v, want %s", err, protocol.Forbidden)
+		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("invalid grant did not close generation")
 	}

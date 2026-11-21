@@ -7,7 +7,9 @@ import {
   chooseLaunch,
   chooseLocation,
   expect,
+  narrowSessionHeader,
   openSplitPanel,
+  openSessionQueue,
   revealSidebar,
   test as queueTest,
   workspaceLayoutTest as test,
@@ -169,7 +171,8 @@ test("full split creation uses saved configs and keeps the launch subdirectory a
   expect(await (await request.get("/api/sessions")).json()).toHaveLength(1);
   await open();
   await chooseLaunch(page, "Project shell");
-  await page.getByRole("radio", { name: "上下分屏", exact: true }).click();
+  if (!narrowSessionHeader(page))
+    await page.getByRole("radio", { name: "上下分屏", exact: true }).click();
   await page
     .getByRole("button", { name: "创建并加入分屏 →", exact: true })
     .click();
@@ -186,11 +189,25 @@ test("full split creation uses saved configs and keeps the launch subdirectory a
   });
   await openSplitPanel(page.locator(".split-terminal").last());
   await page
-    .getByRole("button", { name: "左右分屏 · 新建 Shell", exact: true })
+    .getByRole("button", {
+      name: narrowSessionHeader(page)
+        ? "快速新建 Shell"
+        : "左右分屏 · 新建 Shell",
+      exact: true,
+    })
     .click();
   await expect(page.locator(".split-terminal")).toHaveCount(3);
   const all = await (await request.get("/api/sessions")).json();
   expect(all.every((item: { cwd: string }) => item.cwd === cwd)).toBe(true);
+  const quickShell = all.find(
+    (item: { id: string; configId?: string }) =>
+      item.id !== original.id && item.configId !== config.id,
+  );
+  expect(quickShell).toMatchObject({
+    cwd,
+    cmd: ["/bin/bash", "-l", "-i"],
+    workspace: { repositoryId: repo.id },
+  });
 });
 
 test("split creation retains a new worktree across repository changes after command failure", async ({
@@ -383,8 +400,13 @@ queueTest(
     await revealSidebar(page);
     await expect(heading).toHaveAttribute("aria-expanded", "false");
 
-    await sidebar
-      .getByRole("button", { name: "新建会话", exact: true })
+    if (await page.getByRole("dialog", { name: "导航" }).isVisible())
+      await page.keyboard.press("Escape");
+    await openSessionQueue(page);
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: "＋ 新建会话", exact: true })
+      .first()
       .click();
     await chooseSessionProject(page, "empty-project");
     await expect(sessionLocation(page)).toContainText("主工作区 · main");

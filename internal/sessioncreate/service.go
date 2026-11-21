@@ -11,8 +11,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/rainchan/webmux/internal/pathutil"
 	"github.com/rainchan/webmux/internal/session"
@@ -42,6 +40,11 @@ type Service struct {
 }
 
 func New(manager *session.Manager, options Options) *Service {
+	if len(options.DefaultCmd) == 0 {
+		options.DefaultCmd = []string{"/bin/sh", "-l", "-i"}
+	} else {
+		options.DefaultCmd = slices.Clone(options.DefaultCmd)
+	}
 	lifetime, cancel := context.WithCancel(context.Background())
 	return &Service{manager: manager, options: options, flights: make(map[string]*flight), lifetime: lifetime, cancel: cancel}
 }
@@ -169,6 +172,10 @@ func (s *Service) prepare(ctx context.Context, in Input) (plan, error) {
 		if err != nil {
 			return p, err
 		}
+	} else if in.Cmd == nil {
+		p.command.Cmd = slices.Clone(s.options.DefaultCmd)
+	} else if len(in.Cmd) == 0 || in.Cmd[0] == "" {
+		return p, invalid("command requires an executable")
 	}
 	if err := session.ValidateEnv(p.command.Env); err != nil {
 		return p, invalid("%v", err)
@@ -242,7 +249,7 @@ func (s *Service) prepare(ctx context.Context, in Input) (plan, error) {
 	if in.ExpandPrompt {
 		title = strings.NewReplacer("{{dir}}", "", "{{webmux}}", "").Replace(title)
 	}
-	p.title = promptTitle(title)
+	p.title = session.AutomaticTitle(title)
 	cwd := p.location.Cwd
 	if cwd == "" {
 		cwd = in.Cwd
@@ -447,24 +454,6 @@ func (s *Service) compose(id string, in Input, p plan) (string, error) {
 	}
 	return text, nil
 }
-func promptTitle(text string) string {
-	text = strings.Map(func(r rune) rune {
-		if unicode.IsSpace(r) {
-			return ' '
-		}
-		if unicode.IsControl(r) {
-			return -1
-		}
-		return r
-	}, strings.ToValidUTF8(text, ""))
-	text = strings.Join(strings.Fields(text), " ")
-	if utf8.RuneCountInString(text) <= 80 {
-		return text
-	}
-	runes := []rune(text)
-	return strings.TrimSpace(string(runes[:79])) + "…"
-}
-
 func (s *Service) sendTerminalPrompt(item *session.Session, text string) error {
 	s.mu.Lock()
 	if s.closed {

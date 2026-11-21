@@ -21,8 +21,8 @@
     <h1 class="min-w-0 flex-1 truncate text-base font-medium">
       {m.s1_handoff_to_new_chat()}
     </h1>
-    <Button variant="ghost" size="sm" onclick={() => navigate("/new")}
-      >{m.s1_back_to_new_chat()}</Button
+    <Button variant="ghost" size="sm" onclick={() => navigate("/")}
+      >{m.s1_back_to_workspace()}</Button
     >
   </header>
   <main class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">

@@ -3,7 +3,6 @@ import { z } from "zod";
 import { m } from "$lib/paraglide/messages.js";
 import { navigate, store, stored } from "../../platform/api";
 import { buildGitRouteHref, type GitRouteTarget } from "./route";
-import { featureEnabled } from "../../platform/feature-host.svelte";
 import type { ArchiveSignal } from "../../domains/sessions/archive-signal";
 import type { BranchOperation } from "../../domains/workspace/branch-actions";
 import type { Archived } from "../sessions/archived.svelte";
@@ -21,15 +20,13 @@ import type {
 import type { TerminalDrafts } from "../../domains/terminal/terminal-draft.svelte";
 
 // Sidebar size and the route context shared by the app shell and session pages.
-// Width and collapse survive reloads. A legacy quick-start route can keep its
-// return path while the user is in a session started from that route.
+// Width and collapse survive reloads.
 
-export type ShellMode = "chat" | "workbench";
 /** The sections of the repository panel. */
 export type RepositoryTab = "overview" | "worktrees" | "branches" | "remotes";
+type QuickStartFocusReason = "explicit" | "auto";
 const CollapsedSchema = z.enum(["true", "false"]);
 
-let mode = $state<ShellMode>("workbench");
 let collapsed = $state(
   CollapsedSchema.safeParse(stored("sidebarCollapsed")).data === "true",
 );
@@ -52,15 +49,9 @@ let width = $state(
   storedWidth === undefined ? sidebarWidthDefault : clampWidth(storedWidth),
 );
 let drawerOpen = $state(false);
+let quickStartFocusReason = $state<QuickStartFocusReason | null>(null);
 
 export const shellUi = {
-  get mode(): ShellMode {
-    return mode;
-  },
-  /** The chat context is only active on the explicit quick-start routes. */
-  setMode(next: ShellMode) {
-    mode = next === "chat" && !featureEnabled("chat") ? "workbench" : next;
-  },
   get collapsed() {
     return collapsed;
   },
@@ -82,9 +73,16 @@ export const shellUi = {
   set drawerOpen(next: boolean) {
     drawerOpen = next;
   },
-  /** The current mode's home page. */
-  get home() {
-    return mode === "chat" ? "/new" : "/";
+  get quickStartFocusReason() {
+    return quickStartFocusReason;
+  },
+  requestQuickStartFocus(reason: QuickStartFocusReason = "explicit") {
+    quickStartFocusReason = reason;
+  },
+  consumeQuickStartFocus() {
+    const reason = quickStartFocusReason;
+    quickStartFocusReason = null;
+    return reason;
   },
 };
 

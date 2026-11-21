@@ -60,6 +60,9 @@
     }}
   />
   <InputGroup.Addon align="inline-end" class="hidden md:flex">
-    <kbd class="border px-1" aria-hidden="true">/</kbd>
+    <kbd
+      class="rounded-sm border bg-muted/70 px-1.5 font-mono text-xs text-muted-foreground"
+      aria-hidden="true">/</kbd
+    >
   </InputGroup.Addon>
 </InputGroup.Root>

@@ -423,20 +423,12 @@ func TestCapTextKeepsUTF8(t *testing.T) {
 	}
 }
 
-func TestSessionTitleTrimsAndBounds(t *testing.T) {
-	if got := sessionTitle("  chat title \n"); got != "chat title" {
-		t.Fatalf("trimmed title %q", got)
-	}
-	if got := sessionTitle("   "); got != "" {
-		t.Fatalf("blank title %q", got)
-	}
-	if got := sessionTitle(strings.Repeat("a", maxTitleBytes+10)); len(got) != maxTitleBytes {
-		t.Fatalf("title kept %d bytes", len(got))
-	}
-	// A cut inside a multi-byte rune backs off to the previous boundary.
-	edge := strings.Repeat("a", maxTitleBytes-1) + "é"
-	if got := sessionTitle(edge); len(got) != maxTitleBytes-1 || !utf8.ValidString(got) {
-		t.Fatalf("title cut at %d bytes, valid %v", len(got), utf8.ValidString(got))
+func TestTranslateSessionTitleBounds(t *testing.T) {
+	var tr translator
+	raw := "  " + strings.Repeat("长", 81)
+	events := tr.update(&acp.SessionInfoUpdate{Title: acp.StringPatch{Set: true, Value: &raw}})
+	if got, want := *events[0].Info.Title, strings.Repeat("长", 79)+"…"; got != want {
+		t.Fatalf("title %q, want %q", got, want)
 	}
 }
 
@@ -544,5 +536,162 @@ func TestStopReason(t *testing.T) {
 		if stop, _ := stopReason(row.resp, row.err); stop != row.stop {
 			t.Fatalf("%+v %v: %s", row.resp, row.err, stop)
 		}
+	}
+}
+
+func TestChatLogPrunesSupersededStateEventsButPublishesLive(t *testing.T) {
+	l := newChatLog(1<<20, ChatState{})
+	now := time.Now()
+	live, err := l.subscribe(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer live.Close()
+
+	l.append(now,
+		Event{Kind: EventCommands, Commands: []Command{{Name: "old-cmd"}}},
+		Event{Kind: EventPlan, Plan: &Plan{Entries: []PlanEntry{{Content: "step 1", Status: "in_progress"}}}},
+		chunk("m1", RoleAgent, "hi"),
+		Event{Kind: EventUsage, Usage: &Usage{Used: 10, Size: 100}},
+		Event{Kind: EventCommands, Commands: []Command{{Name: "new-cmd"}}},
+		Event{Kind: EventPlan, Plan: &Plan{Entries: []PlanEntry{{Content: "step 2", Status: "completed"}}}},
+		Event{Kind: EventUsage, Usage: &Usage{Used: 50, Size: 100}},
+		marker(),
+	)
+
+	// Live subscribers still receive every event with contiguous sequence numbers.
+	f := <-live.Out
+	if len(f.Events) != 8 {
+		t.Fatalf("live events = %d, want 8", len(f.Events))
+	}
+	for i, e := range f.Events {
+		if e.Seq != uint64(i+1) {
+			t.Fatalf("live event %d seq = %d, want %d", i, e.Seq, i+1)
+		}
+	}
+
+	// Backlog keeps only the latest event per state-only kind (seqs 3, 5, 6, 7, 8).
+	fresh, err := l.subscribe(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	var gotSeqs []uint64
+	for _, e := range fresh.Events {
+		gotSeqs = append(gotSeqs, e.Seq)
+	}
+	if !slices.Equal(gotSeqs, []uint64{3, 5, 6, 7, 8}) {
+		t.Fatalf("backlog seqs = %v, want [3 5 6 7 8]", gotSeqs)
+	}
+	if fresh.Snapshot.From != 3 || fresh.Snapshot.Next != 9 || fresh.Events[0].Seq != fresh.Snapshot.From {
+		t.Fatalf("snapshot = %+v, first seq = %d", fresh.Snapshot, fresh.Events[0].Seq)
+	}
+	if fresh.Events[1].Commands[0].Name != "new-cmd" || fresh.Events[2].Plan.Entries[0].Content != "step 2" || fresh.Events[3].Usage.Used != 50 {
+		t.Fatalf("expected latest state events in backlog: %+v", fresh.Events)
+	}
+
+	// Resuming within the log works without resetting.
+	resumed, err := l.subscribe(&ResumePoint{Generation: fresh.Snapshot.Generation, Seq: 6})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resumed.Close()
+	if resumed.Snapshot.Reset || len(resumed.Events) != 3 || resumed.Events[0].Seq != 6 {
+		t.Fatalf("resume 6 = %+v %+v", resumed.Snapshot, resumed.Events)
+	}
+}
+
+func TestChatLogMergesConsecutiveToolPatchesAndPreservesResume(t *testing.T) {
+	l := newChatLog(1<<20, ChatState{})
+	now := time.Now()
+	live, _ := l.subscribe(nil)
+	defer live.Close()
+
+	kind, title := "execute", "Run tests"
+	pending, running, done := "pending", "in_progress", "completed"
+	l.append(now,
+		Event{Kind: EventTool, Tool: &Tool{ToolCallID: "t1", Kind: &kind, Title: &title, Status: &pending}},
+		Event{Kind: EventTool, Tool: &Tool{ToolCallID: "t1", Status: &running, Content: []Content{{Type: "text", Text: "partial"}}}},
+		Event{Kind: EventTool, Tool: &Tool{ToolCallID: "t1", Status: &done, Content: []Content{{Type: "text", Text: "final"}}, Locations: []Location{{Path: "a.go"}}}},
+	)
+
+	// Live subscriber gets all three patches unmodified.
+	f := <-live.Out
+	if len(f.Events) != 3 {
+		t.Fatalf("live patches = %d, want 3", len(f.Events))
+	}
+
+	// Backlog stores a single merged tool event carrying Seq=3 and span.first=1.
+	fresh, _ := l.subscribe(nil)
+	defer fresh.Close()
+	if len(fresh.Events) != 1 {
+		t.Fatalf("backlog events = %d, want 1", len(fresh.Events))
+	}
+	got := fresh.Events[0]
+	if got.Seq != 3 || got.Tool == nil || *got.Tool.Kind != kind || *got.Tool.Title != title || *got.Tool.Status != done || toolText(got) != "final" || len(got.Tool.Locations) != 1 {
+		t.Fatalf("merged tool = %+v %+v", got, got.Tool)
+	}
+
+	// Resuming mid-call (Seq=2) replays the merged event idempotently without panic or reset.
+	mid, _ := l.subscribe(&ResumePoint{Generation: fresh.Snapshot.Generation, Seq: 2})
+	defer mid.Close()
+	if mid.Snapshot.Reset || len(mid.Events) != 1 || mid.Events[0].Seq != 3 || *mid.Events[0].Tool.Status != done {
+		t.Fatalf("mid-call resume = %+v %+v", mid.Snapshot, mid.Events)
+	}
+
+	// Restarting a completed tool stays a separate event so turn-diff ownership updates.
+	l.append(now, Event{Kind: EventTool, Tool: &Tool{ToolCallID: "t1", Status: &running}})
+	afterRestart, _ := l.subscribe(nil)
+	defer afterRestart.Close()
+	if len(afterRestart.Events) != 2 || *afterRestart.Events[0].Tool.Status != done || *afterRestart.Events[1].Tool.Status != running {
+		t.Fatalf("after restart = %+v", afterRestart.Events)
+	}
+}
+
+func TestChatLogCompactsInterleavedToolPatchesSafely(t *testing.T) {
+	l := newChatLog(1<<20, ChatState{})
+	now := time.Now()
+	titleA, titleB := "Read A", "Read B"
+	pending, done := "pending", "completed"
+	l.append(now,
+		Event{Kind: EventTurnStart, TurnStart: &TurnStart{TurnID: "turn-1"}},
+		Event{Kind: EventTool, Tool: &Tool{ToolCallID: "a", Title: &titleA, Status: &pending}},
+		Event{Kind: EventTool, Tool: &Tool{ToolCallID: "b", Title: &titleB, Status: &pending}},
+		Event{Kind: EventTool, Tool: &Tool{ToolCallID: "a", Status: &done, Content: []Content{{Type: "text", Text: "A done"}}}},
+		Event{Kind: EventTool, Tool: &Tool{ToolCallID: "b", Status: &done, Content: []Content{{Type: "text", Text: "B done"}}}},
+		Event{Kind: EventTurnEnd, TurnEnd: &TurnEnd{TurnID: "turn-1", StopReason: "end_turn"}},
+	)
+
+	sub, _ := l.subscribe(nil)
+	defer sub.Close()
+	// TurnStart, tool a (folded), tool b (folded), TurnEnd -> 4 events, strictly increasing Seq.
+	if len(sub.Events) != 4 {
+		t.Fatalf("compacted events = %d, want 4", len(sub.Events))
+	}
+	for i := 1; i < len(sub.Events); i++ {
+		if sub.Events[i].Seq <= sub.Events[i-1].Seq {
+			t.Fatalf("non-increasing seq at %d: %d <= %d", i, sub.Events[i].Seq, sub.Events[i-1].Seq)
+		}
+	}
+	if sub.Events[1].Tool.ToolCallID != "a" || *sub.Events[1].Tool.Status != done || toolText(sub.Events[1]) != "A done" {
+		t.Fatalf("tool a = %+v", sub.Events[1].Tool)
+	}
+	if sub.Events[2].Tool.ToolCallID != "b" || *sub.Events[2].Tool.Status != done || toolText(sub.Events[2]) != "B done" {
+		t.Fatalf("tool b = %+v", sub.Events[2].Tool)
+	}
+
+	// Interleaved diff updates across distinct tools are NOT pulled backwards past another tool's diff.
+	l2 := newChatLog(1<<20, ChatState{})
+	l2.append(now,
+		Event{Kind: EventTurnStart, TurnStart: &TurnStart{TurnID: "turn-2"}},
+		Event{Kind: EventTool, Tool: &Tool{ToolCallID: "e1", Status: &pending, Content: []Content{{Type: "diff", Path: "x.go", NewText: "v1"}}}},
+		Event{Kind: EventTool, Tool: &Tool{ToolCallID: "e2", Status: &done, Content: []Content{{Type: "diff", Path: "x.go", NewText: "v2"}}}},
+		Event{Kind: EventTool, Tool: &Tool{ToolCallID: "e1", Status: &done, Content: []Content{{Type: "diff", Path: "x.go", NewText: "v3"}}}},
+		Event{Kind: EventTurnEnd, TurnEnd: &TurnEnd{TurnID: "turn-2", StopReason: "end_turn"}},
+	)
+	sub2, _ := l2.subscribe(nil)
+	defer sub2.Close()
+	if len(sub2.Events) != 5 {
+		t.Fatalf("diff-ordered events = %d, want 5 (must not reorder diffs)", len(sub2.Events))
 	}
 }

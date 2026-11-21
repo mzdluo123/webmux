@@ -41,8 +41,17 @@ export function useTextareaDraft(
     const textarea = getTextarea();
     if (textarea && !composing) {
       // External insertions update the caret without opening the mobile keyboard.
-      textarea.value = text;
-      textarea.setSelectionRange(start ?? text.length, end ?? text.length);
+      const nextStart = start ?? text.length;
+      const nextEnd = end ?? text.length;
+      if (textarea.value !== text) {
+        textarea.value = text;
+        textarea.setSelectionRange(nextStart, nextEnd);
+      } else if (
+        textarea.selectionStart !== nextStart ||
+        textarea.selectionEnd !== nextEnd
+      ) {
+        textarea.setSelectionRange(nextStart, nextEnd);
+      }
     }
   });
 

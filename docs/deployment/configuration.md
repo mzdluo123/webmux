@@ -66,6 +66,7 @@ curl -H 'Authorization: Bearer YOUR_TOKEN' http://127.0.0.1:7681/api/health
 | `webmux stop [--timeout 15s] [--force] [--json]`          | 优先经本机 API 停止，卡死时退回 SIGTERM，超时 SIGKILL；systemd / launchd 实例需 `--force`；没有记录时不向任何进程发信号            |
 | `webmux bridge`                                           | 把本机套接字桥接到标准输入输出，供 Windows 客户端经 `wsl.exe --exec webmux bridge` 使用                                            |
 | `webmux config path\|show\|validate\|check\|init\|listen` | 见下表                                                                                                                             |
+| `webmux perf report [--since 2h] [--top 10] [--json]`     | 汇总 `state_dir/perf/` 中的前后端慢操作、资源峰值、会话占用与 FlightRecorder 快照                                                  |
 | `webmux version [--json]`                                 | 输出版本号；`--json` 另含控制契约版本                                                                                              |
 | `webmux help`                                             | 显示全部命令                                                                                                                       |
 
@@ -215,6 +216,36 @@ stun_servers = [
 | `p2p.enabled`      | `true`                                         | 是否允许浏览器协商 WebRTC DataChannel 直连升级                |
 | `p2p.port_mapping` | `true`                                         | 自动向本地网关申请 UPnP IGD / NAT-PMP / PCP 外部 UDP 端口映射 |
 | `p2p.stun_servers` | 小米、Bilibili、Cloudflare 与 Google 公共 STUN | 仅允许 `stun:` 或 `stuns:` URI，拒绝 `turn:` / `turns:`       |
+
+### 本地性能瓶颈记录（`[perf]`）
+
+默认关闭（无额外磁盘写入）。开启后服务端在 `<state_dir>/perf/` 下按天写入结构化 JSONL（`perf-YYYY-MM-DD.jsonl`）：
+
+- 后端记录慢 HTTP / Git 请求、每周期 CPU / 内存、窗口热路由与按会话归因的子进程资源 Top 榜单；
+- 浏览器记录 LoAF 卡帧、慢交互、CLS、慢 API（关联 `Server-Timing`）、WebSocket 批处理与 JS 堆/DOM 采样；
+- 可选开启 Go `FlightRecorder` 在明显卡顿时自动导出 trace，同时仅在本机 Unix socket `/local/v1/debug/pprof/` 暴露 pprof；
+- 严格不记录终端输入输出、prompt 或凭据；用 `webmux perf report` 查看汇总。
+
+```toml
+[perf]
+enabled = true
+slow_ms = 100
+sample_seconds = 10
+max_bytes_mb = 50
+retention_days = 7
+flight_recorder = true
+spike_ms = 500
+```
+
+| 键                     | 默认值  | 作用                                                               |
+| ---------------------- | ------- | ------------------------------------------------------------------ |
+| `perf.enabled`         | `false` | 开启本地前后端性能瓶颈记录与本机 socket pprof                      |
+| `perf.slow_ms`         | `100`   | 慢 HTTP / Git 与前端慢请求记录阈值（毫秒，`10`–`60000`）           |
+| `perf.sample_seconds`  | `10`    | 后端运行态、窗口热路由与会话进程 CPU/RSS 采样周期（秒）            |
+| `perf.max_bytes_mb`    | `50`    | `<state_dir>/perf/` 日志总容量上限（MiB，`1`–`1024`），超限删旧    |
+| `perf.retention_days`  | `7`     | 日志保留天数（`1`–`90`），过期自动清理                             |
+| `perf.flight_recorder` | `false` | 开启 Go `runtime/trace.FlightRecorder` 滚动黑匣子，尖峰自动落盘    |
+| `perf.spike_ms`        | `500`   | 触发 `FlightRecorder` 快照导出的单次操作耗时阈值（毫秒，限流 30s） |
 
 #### `STDIN / STDOUT` 外部识别协议
 

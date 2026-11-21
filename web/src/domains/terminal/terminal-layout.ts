@@ -13,7 +13,6 @@ export async function createSplitShellSession(source: SessionInfo) {
     CreateSessionResultSchema,
     "POST",
     {
-      cmd: ["/bin/sh", "-i"],
       cwd: source.cwd,
       ...(source.workspace
         ? {

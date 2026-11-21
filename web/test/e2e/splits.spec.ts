@@ -1,21 +1,38 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   test,
   expect,
   createShell,
   chooseDockPanel,
   chooseDockPanelById,
+  expectConnected,
+  expectDraftMode,
   expectSessionInputSide,
+  openDockCommands,
+  narrowSessionHeader,
+  openSessionMenu,
   openSplitPanel,
+  recordInput,
   selectSessionInputSide,
+  sessionHeader,
   toggleCode,
+  toggleDraftMode,
+  uploadAction,
 } from "./fixtures";
+import { showFileTree } from "./code-dock";
 import type { Locator, Page } from "@playwright/test";
 
 async function split(pane: Locator, direction: "左右" | "上下") {
   await openSplitPanel(pane);
   await pane
     .page()
-    .getByRole("button", { name: `${direction}分屏 · 新建 Shell`, exact: true })
+    .getByRole("button", {
+      name: narrowSessionHeader(pane.page())
+        ? "快速新建 Shell"
+        : `${direction}分屏 · 新建 Shell`,
+      exact: true,
+    })
     .click();
 }
 async function command(page: Page, pane: Locator, value: string) {
@@ -31,7 +48,17 @@ async function ready(pane: Locator) {
   await expect(pane.locator(".xterm")).toBeAttached();
 }
 
-test("docking and minimizing a running terminal retain the emulator, layout and output", async ({
+async function expectPaneOutline(panel: Locator, shown: boolean) {
+  await expect
+    .poll(() =>
+      panel.evaluate(
+        (element) => getComputedStyle(element, "::after").content !== "none",
+      ),
+    )
+    .toBe(shown);
+}
+
+test("edge tabs restore the original dock layout and keep it restored", async ({
   page,
   workDir,
 }, testInfo) => {
@@ -39,45 +66,338 @@ test("docking and minimizing a running terminal retain the emulator, layout and 
   const id = await createShell(page, "Dock anchor", workDir);
   const original = page.locator(`[data-session-id="${id}"]`);
   await split(original, "左右");
+  await expect(page.locator(".split-terminal")).toHaveCount(2);
   const second = page.locator(".split-terminal").nth(1);
   const secondId = await second.getAttribute("data-session-id");
   const root = page.locator(`[data-dock-panel="${secondId}"]`);
   const anchor = page.locator(`[data-dock-panel="${id}"]`);
-  await ready(second);
-  const emulator = await second.locator(".xterm").elementHandle();
-  await command(page, second, "sleep 1; printf 'DOCK_%s\\n' COMPLETE");
 
   const header = root.locator("[draggable=true]");
   const box = (await anchor.boundingBox())!;
-  await header.dragTo(anchor, {
+  await header.locator(".dock-title-space").dragTo(anchor, {
     targetPosition: { x: box.width / 2, y: box.height - 10 },
   });
   await expect
     .poll(async () => (await root.boundingBox())!.y)
     .toBeGreaterThan((await anchor.boundingBox())!.y + 100);
-  const placed = await root.boundingBox();
-  await header.dblclick();
+  const divider = page.getByRole("separator", { name: "调整窗格高度" });
+  await divider.press("ArrowDown");
+  await expect(divider).toHaveAttribute("aria-valuenow", "55");
+  const layout = () => Promise.all([anchor.boundingBox(), root.boundingBox()]);
+  const placed = await layout();
+  await header.locator(".dock-title-space").dblclick();
   await expect(anchor).toBeHidden();
-  await expect(root).toHaveAccessibleName(/^终端 · .+$/);
+  await expect(root).toHaveAccessibleName(/.+/);
   const name = (await root.getAttribute("aria-label"))!;
-  await root
-    .getByRole("button", { name: `还原「${name}」布局`, exact: true })
+  await (
+    await openDockCommands(root)
+  )
+    .getByRole("menuitem", { name: /^还原/ })
     .click();
-  expect(await root.boundingBox()).toEqual(placed);
-  await root
-    .getByRole("button", { name: `收起「${name}」`, exact: true })
+  await expect.poll(layout).toEqual(placed);
+
+  const tab = page.locator(`[data-dock-tab="${secondId}"]`);
+  const bottomTab = page.locator('[data-dock-rail="bottom"]').locator(tab);
+  const rightTab = page.locator('[data-dock-rail="right"]').locator(tab);
+  const expectRestored = async () => {
+    await expect(tab).toHaveCount(0);
+    await expect.poll(layout).toEqual(placed);
+  };
+  const rows = second.locator(".xterm-rows");
+  const input = second.locator(".xterm-helper-textarea");
+  const anchorInput = original.locator(".xterm-helper-textarea");
+  const emulator = await second.locator(".xterm").elementHandle();
+  await command(
+    page,
+    second,
+    "printf 'DOCK_%s\\n' STARTED; while [ ! -e dock-release ]; do sleep 0.1; done; printf 'DOCK_%s\\n' COMPLETE; printf done > dock-result",
+  );
+  await expect(rows).toContainText("DOCK_STARTED");
+
+  await (
+    await openDockCommands(root)
+  )
+    .getByRole("menuitem", { name: /^收起(?:「.+」)?$/ })
     .click();
   await expect(root).toBeHidden();
-  await page.getByRole("button", { name, exact: true }).click();
-  await expect(second.locator(".xterm-rows")).toContainText("DOCK_COMPLETE");
+  await expect(bottomTab).toBeVisible();
+  await expectPaneOutline(anchor, false);
+  await expect(bottomTab).toHaveAccessibleName(name);
+  await expect
+    .poll(async () => (await anchor.boundingBox())!.height)
+    .toBeGreaterThan(placed[0]!.height);
+  // Release the command only once minimized, and wait for it to finish there.
+  await writeFile(join(workDir, "dock-release"), "");
+  const result = join(workDir, "dock-result");
+  await expect
+    .poll(() => readFile(result, "utf8").catch(() => ""))
+    .toBe("done");
+  await expect(root).toBeHidden();
+
+  await bottomTab.click();
+  await expectRestored();
+  await expect(rows).toContainText("DOCK_COMPLETE");
   expect(await emulator!.evaluate((element) => element.isConnected)).toBe(true);
+
+  await expect(root).toHaveAttribute("data-dock-active", "true");
+  await anchor.locator(".xterm-screen").click();
+  await expect(anchorInput).toBeFocused();
+  await expectRestored();
+
+  await input.focus();
+  await expect(input).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expectRestored();
+  await page.keyboard.press("Control+b");
+  await page.keyboard.press("o");
+  await expect(anchorInput).toBeFocused();
+  await expectRestored();
+
+  await openDockCommands(root);
+  await page.getByRole("menuitem", { name: "收起到边栏", exact: true }).hover();
+  await page.getByRole("menuitem", { name: "收起到右侧", exact: true }).click();
+  await expect(root).toBeHidden();
+  await expect(bottomTab).toHaveCount(0);
+  await expect(rightTab).toBeVisible();
+  await page.reload();
+  await expect(rightTab).toBeVisible();
+  await expect(root).toBeHidden();
+  const desktopViewport = page.viewportSize()!;
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator("[data-dock-rail]")).toHaveCount(0);
   await chooseDockPanel(page, name);
   await expect(root).toBeVisible();
   await expect(anchor).toBeHidden();
-  await expect(second.locator(".xterm-helper-textarea")).not.toBeFocused();
-  await page.setViewportSize({ width: 1440, height: 900 });
-  expect(await root.boundingBox()).toEqual(placed);
+  await expectPaneOutline(root, false);
+  await expect(input).not.toBeFocused();
+  await chooseDockPanelById(page, id);
+  await openSplitPanel(page);
+  await page
+    .getByRole("dialog", { name: "打开面板", exact: true })
+    .getByRole("button", { name: "收起「Dock anchor」", exact: true })
+    .click();
+  await expect(anchor).toBeHidden();
+  await expect(root).toBeVisible();
+
+  await page.setViewportSize(desktopViewport);
+  await expect(rightTab).toBeVisible();
+  await expect(anchor).toBeVisible();
+  await expect(root).toBeHidden();
+  await rightTab.click();
+  await expectRestored();
+
+  await page.reload();
+  await expectRestored();
+  await root.getByRole("button", { name: /^收起「/ }).click();
+  const target = (await anchor.boundingBox())!;
+  await tab.dragTo(anchor, { targetPosition: { x: 10, y: target.height / 2 } });
+  await expect(tab).toHaveCount(0);
+  await expect
+    .poll(async () => (await root.boundingBox())!.x)
+    .toBeLessThan((await anchor.boundingBox())!.x);
+});
+
+test("a pane minimizes to the rail on its docked edge", async ({
+  page,
+  workDir,
+}, testInfo) => {
+  test.skip(!!testInfo.project.use.isMobile, "Wide docking surface");
+  const id = await createShell(page, "Rail edge", workDir);
+  await page.getByRole("button", { name: "文件树 · Rail edge" }).click();
+  const tree = page.getByRole("region", { name: "文件树", exact: true });
+  await expect(tree).toBeVisible();
+  const terminal = page.locator(`[data-dock-panel="${id}"]`);
+  const railTab = (side: string) =>
+    page.locator(`[data-dock-rail="${side}"] [data-dock-tab="files:${id}"]`);
+  const minimize = () =>
+    tree.getByRole("button", { name: "收起「文件树」", exact: true }).click();
+  const redock = async (edge: string) => {
+    const menu = await openDockCommands(tree);
+    await menu.getByRole("menuitem", { name: "移动或合并" }).hover();
+    await page
+      .getByRole("menuitem", { name: "Rail edge", exact: true })
+      .hover();
+    await page.getByRole("menuitem", { name: edge, exact: true }).click();
+  };
+
+  // The file tree docks at the right edge by default and minimizes right.
+  await minimize();
+  await expect(tree).toBeHidden();
+  await expect(railTab("right")).toBeVisible();
+  await expect(railTab("left")).toHaveCount(0);
+
+  // Redocked to the left edge, the same action minimizes to the left rail.
+  await railTab("right").click();
+  await expect(tree).toBeVisible();
+  await redock("停靠到左侧");
+  await expect
+    .poll(async () => (await tree.boundingBox())!.x)
+    .toBeLessThan((await terminal.boundingBox())!.x);
+  await minimize();
+  await expect(railTab("left")).toBeVisible();
+  await expect(railTab("right")).toHaveCount(0);
+
+  // A full-width bottom strip minimizes to the bottom rail.
+  await railTab("left").click();
+  await expect(tree).toBeVisible();
+  await redock("停靠到下方");
+  await expect
+    .poll(async () => (await tree.boundingBox())!.y)
+    .toBeGreaterThan((await terminal.boundingBox())!.y);
+  await minimize();
+  await expect(railTab("bottom")).toBeVisible();
+});
+
+test("stacked panes reveal the selected tab and keep keyboard focus across switches", async ({
+  page,
+  workDir,
+}, info) => {
+  test.skip(info.project.use.isMobile, "Desktop docking surface");
+  const id = await createShell(page, "Stack anchor", workDir);
+  const first = page.locator(`[data-dock-panel="${id}"]`);
+  await split(first.locator(".split-terminal"), "左右");
+  const terminals = page.locator(".split-terminal");
+  await expect(terminals).toHaveCount(2);
+  const secondId = await terminals.nth(1).getAttribute("data-session-id");
+  const second = page.locator(`[data-dock-panel="${secondId}"]`);
+  await ready(terminals.nth(1));
+  await second.locator("[draggable=true] .dock-title-space").dragTo(first);
+  const list = page.locator("[data-dock-panel]:visible [data-dock-stack]");
+  const chosen = list.getByRole("tab", { selected: true });
+  const firstTitle = (await first.getAttribute("aria-label"))!;
+  const secondTitle = (await second.getAttribute("aria-label"))!;
+  await expect(chosen).toHaveText(secondTitle);
+  await expectPaneOutline(second, false);
+  await list.getByRole("tab", { name: firstTitle, exact: true }).click();
+  await expect(first).toBeVisible();
+  await expect(chosen).toHaveText(firstTitle);
+  await expect(chosen).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(second).toBeVisible();
+  await expect(chosen).toHaveText(secondTitle);
+  await expect(chosen).toBeFocused();
+  await expect(chosen).toBeInViewport();
+  await page.reload();
+  await expect(chosen).toHaveText(secondTitle);
+  const closeTab = (title: string) =>
+    list.getByRole("button", { name: `关闭 ${title}`, exact: true });
+  await closeTab(firstTitle).click();
+  await expect(second).toBeVisible();
+  await expect(first).toBeHidden();
+  await page.locator(`[data-dock-tab="${id}"]`).click();
+  await expect(chosen).toHaveText(firstTitle);
+  await closeTab(firstTitle).click();
+  await expect(second).toBeVisible();
+  await expect(page.locator("[data-dock-command-menu]")).toBeFocused();
+});
+
+test("desktop drag guides dock against a pane or the whole workspace", async ({
+  page,
+  workDir,
+}, testInfo) => {
+  test.skip(!!testInfo.project.use.isMobile, "Wide docking surface");
+  const id = await createShell(page, "Dock target", workDir);
+  const terminals = page.locator(".split-terminal");
+  await split(page.locator(`[data-session-id="${id}"]`), "左右");
+  await expect(terminals).toHaveCount(2);
+  const neighborId = await terminals.nth(1).getAttribute("data-session-id");
+  await split(terminals.nth(1), "上下");
+  await expect(terminals).toHaveCount(3);
+  const sourceId = await terminals.nth(2).getAttribute("data-session-id");
+
+  const panel = (panelId: string | null) =>
+    page.locator(`[data-dock-panel="${panelId}"]`);
+  const target = panel(id);
+  const neighbor = panel(neighborId);
+  const source = panel(sourceId);
+  const panes = [target, neighbor, source];
+  await expect(page.locator("[data-dock-panel]:visible")).toHaveCount(3);
+
+  const preview = page.locator("[data-dock-preview]");
+  const paneGuides = page.locator("[data-guide-scope=pane]");
+  const workspaceGuides = page.locator("[data-guide-scope=workspace]");
+  const decorations = page.locator("[data-guide-scope], [data-dock-preview]");
+  const innerTop = page.locator("[data-guide-scope=pane][data-guide-edge=top]");
+  const outerLeft = page.locator(
+    "[data-guide-scope=workspace][data-guide-edge=left]",
+  );
+  const outerRight = page.locator(
+    "[data-guide-scope=workspace][data-guide-edge=right]",
+  );
+  async function dragOver(locator: Locator) {
+    const { x, y, width, height } = (await locator.boundingBox())!;
+    // The move that starts a native drag can send dragenter before dragover.
+    await page.mouse.move(x + width / 2, y + height / 2);
+    await page.mouse.move(x + width / 2, y + height / 2);
+  }
+  async function startDrag() {
+    await source.locator("[draggable=true] .dock-title-space").hover();
+    await page.mouse.down();
+    await dragOver(source);
+  }
+
+  await startDrag();
+  await expect(workspaceGuides).toHaveCount(4);
+  await expect(paneGuides).toHaveCount(0);
+  await expect(preview).toHaveCount(0);
+
+  await dragOver(target);
+  await expect(paneGuides).toHaveCount(5);
+  const targetBox = (await target.boundingBox())!;
+  const center = (await page
+    .locator("[data-guide-scope=pane][data-guide-edge=center]")
+    .boundingBox())!;
+  expect(center.x + center.width / 2).toBeCloseTo(
+    targetBox.x + targetBox.width / 2,
+    0,
+  );
+  expect(center.y + center.height / 2).toBeCloseTo(
+    targetBox.y + targetBox.height / 2,
+    0,
+  );
+  await dragOver(innerTop);
+  await expect(innerTop).toHaveClass(/\bactive\b/);
+  await expect(preview).toBeVisible();
+  const innerBox = (await preview.boundingBox())!;
+  expect(innerBox.x).toBe(targetBox.x);
+  expect(innerBox.y).toBe(targetBox.y);
+  expect(innerBox.width).toBe(targetBox.width);
+  expect(innerBox.height).toBeLessThan(targetBox.height);
+  await page.mouse.up();
+  await expect(decorations).toHaveCount(0);
+  await expect.poll(() => source.boundingBox()).toEqual(innerBox);
+  expect((await target.boundingBox())!.y).toBeCloseTo(
+    innerBox.y + innerBox.height,
+    0,
+  );
+
+  await startDrag();
+  await dragOver(outerLeft);
+  await expect(outerLeft).toHaveClass(/\bactive\b/);
+  await expect(preview).toBeVisible();
+  const outerBox = (await preview.boundingBox())!;
+  const neighborBox = (await neighbor.boundingBox())!;
+  expect(outerBox.x).toBe(targetBox.x);
+  expect(outerBox.y).toBe(neighborBox.y);
+  expect(outerBox.height).toBe(neighborBox.height);
+  expect(outerBox.height).toBeGreaterThan(innerBox.height);
+  await page.mouse.up();
+  await expect(decorations).toHaveCount(0);
+  await expect.poll(() => source.boundingBox()).toEqual(outerBox);
+  const placed = await Promise.all(panes.map((pane) => pane.boundingBox()));
+  expect(placed[0]!.x).toBeCloseTo(outerBox.x + outerBox.width, 0);
+  expect(placed[1]!.x).toBeGreaterThan(placed[0]!.x);
+
+  await startDrag();
+  await dragOver(outerRight);
+  await expect(outerRight).toHaveClass(/\bactive\b/);
+  await expect(preview).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(decorations).toHaveCount(0);
+  await page.mouse.up();
+  await expect
+    .poll(() => Promise.all(panes.map((pane) => pane.boundingBox())))
+    .toEqual(placed);
 });
 
 test("nested splits preserve terminal state, isolate input and restore layout", async ({
@@ -99,8 +419,7 @@ test("nested splits preserve terminal state, isolate input and restore layout", 
     original,
     "export SPLIT_ORIGINAL=original; printf 'original-pane\\n'",
   );
-  const draftButton = testInfo.project.use.isMobile ? original : page;
-  await draftButton.getByRole("button", { name: "草稿模式" }).click();
+  await toggleDraftMode(page);
   const draftInput = original.locator(".terminal-composer textarea");
   await draftInput.fill("keep this draft");
   await split(original, "左右");
@@ -156,7 +475,7 @@ test("nested splits preserve terminal state, isolate input and restore layout", 
       .toBeGreaterThan(45);
   } else {
     await expect(page.locator(".split-terminal:visible")).toHaveCount(1);
-    await chooseDockPanel(page, "终端 · Primary shell");
+    await chooseDockPanel(page, "Primary shell");
     await expect(original).toBeVisible();
     await expect(draftInput).toHaveValue("keep this draft");
   }
@@ -179,7 +498,7 @@ test("nested splits preserve terminal state, isolate input and restore layout", 
   expect(
     sessions.every((session: { cwd: string }) => session.cwd === workDir),
   ).toBe(true);
-  await chooseDockPanel(page, "终端 · Primary shell");
+  await chooseDockPanel(page, "Primary shell");
   await expect(original.locator(".terminal-composer textarea")).toHaveValue(
     "keep this draft",
   );
@@ -212,7 +531,9 @@ test("the keyboard size hold preference applies to every mounted pane", async ({
   await expect(page.locator(".split-terminal")).toHaveCount(2);
   const second = page.locator(".split-terminal").nth(1);
   await ready(second);
-  const menu = page.getByRole("button", { name: "终端菜单", exact: true });
+  const menu = page
+    .locator(".session-toolbar")
+    .getByRole("button", { name: "显示", exact: true });
   // The dropdown renders in a portal outside the pane.
   const option = page.getByRole("menuitemcheckbox", {
     name: "键盘弹出时保持尺寸",
@@ -228,7 +549,7 @@ test("the keyboard size hold preference applies to every mounted pane", async ({
   await expect(option).not.toBeChecked();
   await page.keyboard.press("Escape");
 
-  await chooseDockPanel(page, "终端 · Hold preference");
+  await chooseDockPanel(page, "Hold preference");
   await expect(first).toBeVisible();
   await menu.click();
   await expect(option).not.toBeChecked();
@@ -244,29 +565,39 @@ test("tmux prefix splits, focuses, zooms and closes only the pane", async ({
     "Keyboard shortcuts use a physical keyboard",
   );
   const id = await createShell(page, "Keyboard shell", workDir);
+  const firstPanel = page.locator(`[data-dock-panel="${id}"]`);
   await page.locator(".xterm-helper-textarea").focus();
+  await expectPaneOutline(firstPanel, false);
   await page.keyboard.press("Control+b");
   await page.keyboard.press("Shift+5");
   await expect(page.locator(".split-terminal")).toHaveCount(2);
   const second = page.locator(".split-terminal").nth(1);
   await ready(second);
   const secondId = await second.getAttribute("data-session-id");
+  const secondPanel = page.locator(`[data-dock-panel="${secondId}"]`);
   await second.locator(".xterm-helper-textarea").focus();
+  await expectPaneOutline(secondPanel, true);
+  await expectPaneOutline(firstPanel, false);
   await page.keyboard.press("Control+b");
   await page.keyboard.press("o");
   await expect(
     page.locator(`[data-session-id="${id}"] .xterm-helper-textarea`),
   ).toBeFocused();
+  await expectPaneOutline(firstPanel, true);
+  await expectPaneOutline(secondPanel, false);
   await page.keyboard.press("Control+b");
   await page.keyboard.press("z");
   await expect(second).toBeHidden();
+  await expectPaneOutline(firstPanel, false);
   await page.keyboard.press("Control+b");
   await page.keyboard.press("z");
   await expect(second).toBeVisible();
+  await expectPaneOutline(firstPanel, true);
   await second.locator(".xterm-helper-textarea").focus();
   await page.keyboard.press("Control+b");
   await page.keyboard.press("x");
   await expect(page.locator(".split-terminal")).toHaveCount(1);
+  await expectPaneOutline(firstPanel, false);
   const retained = await (
     await request.get(`/api/sessions/${secondId}`)
   ).json();
@@ -300,7 +631,8 @@ test("existing sessions can join a split and missing panes can be dismissed", as
   await page
     .getByRole("button", { name: "加入已有会话…", exact: true })
     .click();
-  await page.getByRole("radio", { name: "上下分屏", exact: true }).click();
+  if (!narrowSessionHeader(page))
+    await page.getByRole("radio", { name: "上下分屏", exact: true }).click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: /Existing agent/ })
@@ -368,7 +700,8 @@ test("返回列表 in a split leaves only its own pane", async ({
   await page
     .getByRole("button", { name: "加入已有会话…", exact: true })
     .click();
-  await page.getByRole("radio", { name: "左右分屏", exact: true }).click();
+  if (!narrowSessionHeader(page))
+    await page.getByRole("radio", { name: "左右分屏", exact: true }).click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: /Gone soon/ })
@@ -451,7 +784,7 @@ test("a split preserves hybrid chat and terminal switching beside a shell", asyn
     .getByRole("dialog")
     .getByRole("button", { name: /Chat agent/ })
     .click();
-  const chat = page.locator(`[data-dock-panel="chat:${chatId}"]`);
+  const chat = page.locator(`[data-dock-panel="${chatId}"]`);
   await expect(
     chat.getByRole("textbox", { name: "消息", exact: true }),
   ).toBeEditable();
@@ -486,14 +819,15 @@ test("a split preserves hybrid chat and terminal switching beside a shell", asyn
     "data-retained",
     "yes",
   );
-  await chooseDockPanel(page, "终端 · Shell beside chat");
+  await chooseDockPanel(page, "Shell beside chat");
   await expect(page).toHaveTitle(/Shell beside chat · WebMux$/);
   await expect(page.locator(".split-terminal")).toHaveCount(2);
 
   // Archiving the hybrid pane removes only that pane; the page stays.
-  await chooseDockPanel(page, "终端 · Chat agent");
-  await page.getByRole("button", { name: "终端菜单", exact: true }).click();
-  await page
+  await chooseDockPanel(page, "Chat agent");
+  await (
+    await openSessionMenu(page)
+  )
     .getByRole("menuitem", { name: "停止会话并归档", exact: true })
     .click();
   await page
@@ -508,4 +842,150 @@ test("a split preserves hybrid chat and terminal switching beside a shell", asyn
     "data-retained",
     "yes",
   );
+});
+
+test("the workspace terminal menu and quick commands follow split pane focus", async ({
+  page,
+  workDir,
+}, info) => {
+  test.skip(!!info.project.use.isMobile, "Workspace terminal command bar");
+  const id = await createShell(page, "Draft owner", workDir);
+  const first = page.locator(`.split-terminal[data-session-id="${id}"]`);
+  await split(first, "左右");
+  const second = page.locator(".split-terminal").nth(1);
+  // Let the split's automatic activation finish before moving focus ourselves.
+  await expect(second).toHaveAttribute("data-active", "true");
+  await expectConnected(page);
+  await expect(second.locator(".restore-overlay")).toBeHidden();
+
+  const firstDraft = first.getByRole("textbox", { name: "草稿内容" });
+  const secondDraft = second.getByRole("textbox", { name: "草稿内容" });
+  const title = sessionHeader(page).getByRole("button", {
+    name: "Draft owner",
+    exact: true,
+  });
+
+  await first.locator(".xterm-helper-textarea").focus();
+  await expect(first).toHaveAttribute("data-active", "true");
+  await expect(title).toBeVisible();
+  await toggleDraftMode(page);
+  await firstDraft.fill("keep this first draft");
+  await expect(secondDraft).toBeHidden();
+
+  await second.locator(".xterm-helper-textarea").focus();
+  await expect(second).toHaveAttribute("data-active", "true");
+  await expect(title).toHaveCount(0);
+  await expectDraftMode(page, false);
+  await toggleDraftMode(page);
+  await sessionHeader(page)
+    .getByRole("button", { name: "快捷指令", exact: true })
+    .click();
+  await page
+    .getByRole("menuitem", { name: "新会话：/new", exact: true })
+    .click();
+  await expect(secondDraft).toHaveValue("/new");
+  await expect(firstDraft).toHaveValue("keep this first draft");
+
+  await firstDraft.focus();
+  await expect(first).toHaveAttribute("data-active", "true");
+  await expect(title).toBeVisible();
+  await expectDraftMode(page, true);
+});
+
+test("same-name panes preserve the upload owner after focus moves", async ({
+  page,
+  request,
+  workDir,
+}, info) => {
+  test.skip(!!info.project.use.isMobile, "Simultaneously visible split panes");
+  const id = await createShell(page, "Review", workDir);
+  const response = await request.post("/api/sessions", {
+    data: {
+      name: "Review",
+      cwd: workDir,
+      cmd: ["/bin/bash", "--noprofile", "--norc", "-i"],
+    },
+  });
+  expect(response.status()).toBe(201);
+  const other = (await response.json()).session.id;
+  await openSplitPanel(page);
+  await page.getByRole("button", { name: "加入已有会话…" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /^Review \// })
+    .click();
+  const first = page.locator(`[data-dock-panel="${id}"]`),
+    second = page.locator(`[data-dock-panel="${other}"]`);
+  await expect(first).toHaveAccessibleName("Review · 1");
+  await expect(second).toHaveAccessibleName("Review · 2");
+  await first.locator(".dock-title-space").click();
+  await expect(first.locator(".split-terminal")).toHaveAttribute(
+    "data-active",
+    "true",
+  );
+  const chooser = page.waitForEvent("filechooser");
+  await (await uploadAction(page)).click();
+  const picker = await chooser;
+  await second.locator(".xterm-helper-textarea").focus();
+  await expect(second.locator(".split-terminal")).toHaveAttribute(
+    "data-active",
+    "true",
+  );
+  const upload = page.waitForResponse((r) => r.url().endsWith("/upload"));
+  await picker.setFiles({
+    name: "owned.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("first pane"),
+  });
+  const result = await upload;
+  expect(result.status()).toBe(201);
+  expect((await result.json()).path).toContain(`/${id}/uploads/`);
+  await expect(first.locator(".xterm-rows")).toContainText("owned.txt");
+  await expect(second.locator(".xterm-rows")).not.toContainText("owned.txt");
+});
+
+test("reader location pastes only into the last focused split terminal, without Enter", async ({
+  page,
+  workDir,
+}, info) => {
+  test.skip(!!info.project.use.isMobile, "Simultaneously visible split panes");
+  const path = join(workDir, "selected.txt");
+  await writeFile(path, "first line\nsecond line\n");
+  const ownerDir = join(workDir, "owner-input");
+  const targetDir = join(workDir, "target-input");
+  await Promise.all([mkdir(ownerDir), mkdir(targetDir)]);
+
+  const id = await createShell(page, "Reader owner", workDir);
+  const owner = page.locator(`[data-session-id="${id}"]`);
+  await split(owner, "上下");
+  await expect(page.locator(".split-terminal")).toHaveCount(2);
+  const target = page.locator(".split-terminal").nth(1);
+  const targetInput = await recordInput(target, targetDir);
+  const ownerInput = await recordInput(owner, ownerDir);
+  await expect(owner).toHaveAttribute("data-active", "true");
+
+  const files = await showFileTree(page);
+  await files
+    .getByRole("button", { name: "selected.txt", exact: true })
+    .click();
+  const reader = page.locator(`[data-dock-panel="reader:${id}"]`);
+  await expect(reader).toBeVisible();
+  const insert = reader.getByRole("button", {
+    name: "插入所选位置（第 2 行）",
+    exact: true,
+  });
+  await expect(insert).toHaveCount(0);
+  await target.locator(".xterm-helper-textarea").focus();
+  await expect(target).toHaveAttribute("data-active", "true");
+  await reader.locator('[data-gutter] [data-column-number="2"]').click();
+  await insert.click();
+
+  await expect
+    .poll(async () =>
+      Promise.all([
+        readFile(targetInput, "utf8"),
+        readFile(ownerInput, "utf8"),
+      ]),
+    )
+    .toEqual([`\x1b[200~${path}:2 \x1b[201~`, ""]);
 });

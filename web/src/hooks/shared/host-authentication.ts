@@ -13,7 +13,8 @@ export async function prepareHostAuthentication(
   preferToken: boolean,
   signal: AbortSignal,
   current: () => boolean,
-) {
+  onHealthProbeStart?: () => void,
+): Promise<boolean> {
   const restoreOwner = !preferToken && location.protocol === "https:";
   if (!restoreOwner) resetRelayAuth();
   const authRevision = relayAuthRevision();
@@ -36,6 +37,7 @@ export async function prepareHostAuthentication(
       resetRelayAuth();
     }
   }
+  onHealthProbeStart?.();
   await api("/health", HealthSchema, "GET", undefined, signal);
   return true;
 }
