@@ -347,3 +347,99 @@ test("leaving the session page and returning keeps both the text and pending att
     .toHaveValue("切走再回来");
   await expect.poll(chipNames).toEqual(["kept.png"]);
 });
+
+function fakeChatFileEntry(
+  name: string,
+  type = "text/plain",
+): FileSystemFileEntry {
+  return {
+    isFile: true,
+    isDirectory: false,
+    name,
+    fullPath: `/${name}`,
+    filesystem: {} as FileSystem,
+    getParent: () => {},
+    file(success) {
+      success(new File(["data"], name, { type }));
+    },
+  };
+}
+
+function fakeChatDirEntry(
+  name: string,
+  children: FileSystemEntry[],
+): FileSystemDirectoryEntry {
+  return {
+    isFile: false,
+    isDirectory: true,
+    name,
+    fullPath: `/${name}`,
+    filesystem: {} as FileSystem,
+    getParent: () => {},
+    getFile: () => {},
+    getDirectory: () => {},
+    createReader() {
+      let done = false;
+      return {
+        readEntries(success) {
+          if (done) return success([]);
+          done = true;
+          success(children);
+        },
+      };
+    },
+  };
+}
+
+function dropEntriesOnChat(entries: FileSystemEntry[]) {
+  const view = document.querySelector<HTMLElement>("[data-chat-view]")!;
+  const event = new Event("drop", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "dataTransfer", {
+    value: {
+      types: ["Files"],
+      items: entries.map((entry) => ({
+        kind: "file",
+        webkitGetAsEntry: () => entry,
+      })),
+      files: [],
+    },
+  });
+  view.dispatchEvent(event);
+}
+
+test("dropping a folder on the chat view expands its files into attachments and enforces limits", async () => {
+  await open();
+
+  // Empty folder shows a clear message without calling XHR.
+  dropEntriesOnChat([fakeChatDirEntry("empty-dir", [])]);
+  await expect
+    .poll(() => error().element().textContent)
+    .toBe("文件夹为空，没有可上传的文件");
+  expect(FakeXHR.pending).toHaveLength(0);
+
+  // Oversized folder (>8 files) fails before any bytes move.
+  dropEntriesOnChat([
+    fakeChatDirEntry(
+      "many",
+      Array.from({ length: 9 }, (_, i) => fakeChatFileEntry(`f${i}.txt`)),
+    ),
+  ]);
+  await expect
+    .poll(() => error().element().textContent)
+    .toBe("每条消息最多 8 个附件。");
+  expect(FakeXHR.pending).toHaveLength(0);
+
+  // Small folder expands and uploads its nested files as attachments.
+  dropEntriesOnChat([
+    fakeChatDirEntry("assets", [
+      fakeChatFileEntry("shot.png", "image/png"),
+      fakeChatDirEntry("nested", [fakeChatFileEntry("notes.md")]),
+    ]),
+  ]);
+  await expect.poll(() => FakeXHR.pending.length).toBe(1);
+  finish("/tmp/webmux-upload-1/notes.md");
+  await expect.poll(() => FakeXHR.pending.length).toBe(2);
+  finish("/tmp/webmux-upload-1/shot.png");
+  await expect.poll(chipNames).toEqual(["notes.md", "shot.png"]);
+  expect(error().element().textContent).toBe("");
+});

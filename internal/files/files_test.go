@@ -167,3 +167,72 @@ func TestBoundedCopyAllowsExactLimit(t *testing.T) {
 		}
 	}
 }
+
+func TestCreateUploadDirAndStoreUploadIn(t *testing.T) {
+	base := t.TempDir()
+	outside := t.TempDir()
+	s := New(base)
+
+	first, err := s.CreateUploadDir(base, "", "specs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Path != filepath.Join(base, "specs") || first.RelativePath != "specs" {
+		t.Fatalf("first = %+v", first)
+	}
+	if info, err := os.Stat(first.Path); err != nil || !info.IsDir() || info.Mode().Perm() != 0o700 {
+		t.Fatalf("first dir stat = %v, %v", info, err)
+	}
+
+	// Duplicate top-level directory gets a " (2)" suffix and preserves the first.
+	second, err := s.CreateUploadDir(base, "", "specs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.RelativePath != "specs (2)" || second.Path != filepath.Join(base, "specs (2)") {
+		t.Fatalf("second = %+v", second)
+	}
+
+	// Nested directory and file upload preserve tree structure and 0600 mode.
+	nested, err := s.CreateUploadDir(base, first.RelativePath, "images")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nested.RelativePath != "specs/images" || nested.Path != filepath.Join(base, "specs", "images") {
+		t.Fatalf("nested = %+v", nested)
+	}
+	up, err := s.StoreUploadIn(base, nested.RelativePath, "fig.png", strings.NewReader("png-bytes"), 64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if up.Path != filepath.Join(base, "specs", "images", "fig.png") {
+		t.Fatalf("upload path = %q", up.Path)
+	}
+	if info, err := os.Stat(up.Path); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("upload stat = %v, %v", info, err)
+	}
+	if data, _ := os.ReadFile(up.Path); string(data) != "png-bytes" {
+		t.Fatalf("upload data = %q", data)
+	}
+
+	// Reject traversal, separators, control chars, and symlinks inside base.
+	if err := os.Symlink(outside, filepath.Join(base, "escape")); err != nil {
+		t.Fatal(err)
+	}
+	for _, badName := range []string{"", ".", "..", "a/b", `a\b`, "bad\x00dir"} {
+		if _, err := s.CreateUploadDir(base, "", badName); !errors.Is(err, ErrInvalid) {
+			t.Errorf("CreateUploadDir name %q: got %v, want ErrInvalid", badName, err)
+		}
+	}
+	for _, badParent := range []string{"..", "../outside", "/abs", "specs/", "specs//images", `specs\images`, "missing", "escape", "specs/images/fig.png"} {
+		if _, err := s.CreateUploadDir(base, badParent, "sub"); !errors.Is(err, ErrInvalid) {
+			t.Errorf("CreateUploadDir parent %q: got %v, want ErrInvalid", badParent, err)
+		}
+		if _, err := s.StoreUploadIn(base, badParent, "a.txt", strings.NewReader("x"), 64); !errors.Is(err, ErrInvalid) {
+			t.Errorf("StoreUploadIn relDir %q: got %v, want ErrInvalid", badParent, err)
+		}
+	}
+	if entries, _ := os.ReadDir(outside); len(entries) != 0 {
+		t.Fatalf("outside directory modified: %v", entries)
+	}
+}

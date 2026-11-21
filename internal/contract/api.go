@@ -89,6 +89,18 @@ type UploadResult struct {
 	Path string `json:"path"`
 }
 
+// UploadDirRequest is the body of POST /api/sessions/{id}/uploads/dir.
+type UploadDirRequest struct {
+	Name   string `json:"name"`
+	Parent string `json:"parent,omitempty"`
+}
+
+// UploadDirResult is the body of a successful POST /api/sessions/{id}/uploads/dir.
+type UploadDirResult struct {
+	Path         string `json:"path"`
+	RelativePath string `json:"relativePath"`
+}
+
 // ArtifactsFolder is the body of a successful POST
 // /api/sessions/{id}/artifacts: the session's interaction artifacts folder.
 type ArtifactsFolder struct {

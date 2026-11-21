@@ -2,8 +2,25 @@ import { errorMessage } from "../../platform/error";
 import { m } from "$lib/paraglide/messages.js";
 import { onMount } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
-import { uploadFile } from "../../platform/api";
 import { attachFileDrop } from "./file-drop";
+import {
+  chatAttachmentRefusal,
+  mapChatScanError,
+  MAX_CHAT_ATTACHMENT_BYTES,
+  MAX_CHAT_ATTACHMENTS,
+  pasteDroppedSource,
+  runSessionTreeUploads,
+  runUploads,
+  type UploadProgress,
+  type UploadSend,
+} from "./upload-runner";
+import {
+  captureDroppedSource,
+  filesToDroppedSource,
+  flattenUploadFiles,
+  resolveUploadTree,
+  type DroppedSource,
+} from "../../platform/upload-entries";
 import type { ChatAttachment } from "../../contracts/schemas";
 import type { Connection } from "../../platform/ws-contracts";
 import { allowAutomaticInputFocus } from "./input-focus";
@@ -12,6 +29,8 @@ import type {
   InputDestination,
   TextInsertion,
 } from "../../domains/terminal/terminal-draft.svelte";
+
+export type { UploadProgress, UploadSend };
 
 // Connection state is only required when the operation still targets the PTY.
 interface UploadTerminal {
@@ -27,14 +46,6 @@ export interface UploadInput {
   insert(text: string, operation: DraftOperation): TextInsertion;
 }
 
-export interface UploadProgress {
-  name: string;
-  percent: number;
-  index: number;
-  total: number;
-  waiting: boolean;
-}
-
 export interface ChatUploads {
   readonly progress: UploadProgress | null;
   /** Finished uploads waiting to be sent with the next message. */
@@ -42,6 +53,7 @@ export interface ChatUploads {
   /** Object or data URL for an uploaded image attachment, when available locally. */
   preview?(path: string): string | undefined;
   uploadFiles(files: File[]): Promise<void>;
+  uploadSource(source: DroppedSource): Promise<void>;
   filePaste(event: ClipboardEvent): boolean;
   cancel(): void;
   remove(path: string): void;
@@ -51,66 +63,6 @@ export interface ChatUploads {
   commit(attachments: ChatAttachment[]): void;
   /** Puts a failed send's attachments back in front of newer ones. */
   restore(attachments: ChatAttachment[]): void;
-}
-
-/** Stores one file on the server and returns where it landed. */
-export type UploadSend = (
-  file: File,
-  progress: (percent: number) => void,
-  signal: AbortSignal,
-) => Promise<{ path: string }>;
-
-interface UploadRun {
-  send: UploadSend;
-  files: File[];
-  signal: AbortSignal;
-  /** Progress shows "等待" between upload and insertion while the PTY settles. */
-  waiting: boolean;
-  report(progress: UploadProgress): void;
-  insert(path: string, file: File): Promise<void>;
-}
-
-// Both editors upload files the same way: one at a time, with progress and
-// cancellation; only where the returned path goes differs.
-async function runUploads(run: UploadRun) {
-  for (const [index, file] of run.files.entries()) {
-    const current: UploadProgress = {
-      name: file.name,
-      percent: 0,
-      index: index + 1,
-      total: run.files.length,
-      waiting: false,
-    };
-    run.report(current);
-    const { path } = await run.send(
-      file,
-      (percent) => run.report({ ...current, percent }),
-      run.signal,
-    );
-    if (run.signal.aborted) {
-      throw new Error(
-        m.s1_uploaded_but_not_inserted({
-          path,
-          error: m.s1_operation_cancelled(),
-        }),
-      );
-    }
-    run.report({ ...current, percent: 100, waiting: run.waiting });
-    await run.insert(path, file);
-  }
-}
-
-// File paste is taken over from the editor; plain text keeps its native path.
-function pasteFiles(
-  event: ClipboardEvent,
-  upload: (files: File[]) => Promise<void>,
-) {
-  const files = Array.from(event.clipboardData?.files ?? []);
-  if (!files.length) return false;
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  void upload(files);
-  return true;
 }
 
 // All upload sources share the same operation identity and quoted-path insertion.
@@ -179,8 +131,11 @@ export function useUpload(
     }
   }
 
-  async function uploadFiles(files: File[], operation = input.begin()) {
-    if (!files.length) return;
+  async function uploadSource(
+    source: DroppedSource,
+    operation = input.begin(),
+  ) {
+    if (!source.items.length) return;
     if (!available()) {
       setError(m.s1_upload_unavailable());
       return;
@@ -204,11 +159,23 @@ export function useUpload(
     let pendingPath = "";
     const inserted = { terminal: false };
     try {
-      await runUploads({
-        send: (file, percent, signal) => uploadFile(id, file, percent, signal),
-        files,
+      if (source.hasDirectory) {
+        progress = {
+          name: source.primaryName,
+          percent: 0,
+          index: 0,
+          total: 0,
+          waiting: false,
+          scanning: true,
+        };
+      }
+      const tree = await resolveUploadTree(source, { signal: current.signal });
+      if (!tree.nodes.length) return;
+      await runSessionTreeUploads({
+        sessionId: id,
+        nodes: tree.nodes,
+        fileCount: tree.fileCount,
         signal: current.signal,
-        waiting: true,
         report: (value) => (progress = value),
         insert: async (path) => {
           pendingPath = path;
@@ -251,9 +218,13 @@ export function useUpload(
     }
   }
 
-  // Returns whether the paste carried files and was taken over as an upload.
+  function uploadFiles(files: File[], operation = input.begin()) {
+    return uploadSource(filesToDroppedSource(files), operation);
+  }
+
+  // Returns whether the paste carried files or folders and was taken over as an upload.
   function filePaste(event: ClipboardEvent) {
-    return available() ? pasteFiles(event, uploadFiles) : false;
+    return available() ? pasteDroppedSource(event, uploadSource) : false;
   }
 
   onMount(() => {
@@ -285,7 +256,7 @@ export function useUpload(
       },
       onDrop: (transfer) => {
         dragging = false;
-        void uploadFiles(Array.from(transfer.files));
+        void uploadSource(captureDroppedSource(transfer));
       },
     });
     host.addEventListener("paste", filePaste, true);
@@ -307,6 +278,7 @@ export function useUpload(
       return dragging;
     },
     uploadFiles,
+    uploadSource,
     filePaste,
     cancel() {
       controller?.abort();
@@ -314,11 +286,6 @@ export function useUpload(
   };
 }
 
-// Mirrors the server's per-message bounds so an upload that could never be
-// sent is refused before any bytes move; the server still enforces them.
-const maxAttachments = 8;
-const maxAttachmentBytes = 10 << 20;
-const maxAttachmentTotalBytes = 20 << 20;
 // The kinds the server sends as native image blocks; the server sniffs the
 // stored bytes again and its answer is what the timeline shows.
 const imageTypes: Record<string, true> = {
@@ -354,27 +321,87 @@ export function useChatUpload(
     else localAttachments = next;
   };
 
-  function refusal(files: File[]) {
-    const attachments = currentAttachments();
-    if (attachments.length + files.length > maxAttachments) {
-      return m.s1_max_attachments_per_message({ max: maxAttachments });
+  async function runChatBatch(files: File[], current: AbortController) {
+    const refused = chatAttachmentRefusal(currentAttachments(), files);
+    setError(refused);
+    if (refused) return;
+    await runUploads({
+      send,
+      files,
+      signal: current.signal,
+      waiting: false,
+      report: (value) => (progress = value),
+      insert: async (path, file) => {
+        const isImage = Object.hasOwn(imageTypes, file.type);
+        if (isImage) {
+          const existing = previews.get(path);
+          if (existing) URL.revokeObjectURL(existing);
+          previews.set(path, URL.createObjectURL(file));
+        }
+        writeAttachments([
+          ...currentAttachments(),
+          {
+            path,
+            name: file.name,
+            ...(file.type ? { mimeType: file.type } : {}),
+            size: file.size,
+            kind: isImage ? "image" : "file",
+          },
+        ]);
+      },
+    });
+  }
+
+  async function uploadSource(source: DroppedSource) {
+    if (!source.items.length) return;
+    if (progress) {
+      setError(m.s1_upload_in_progress_wait());
+      return;
     }
-    const oversized = files.find((file) => file.size > maxAttachmentBytes);
-    if (oversized) {
-      return m.s1_attachment_exceeds_limit({
-        name: oversized.name,
-        mib: maxAttachmentBytes >> 20,
+    setError("");
+    const current = new AbortController();
+    controller = current;
+    try {
+      const plainFiles = source.items.every((item) => item.kind === "file")
+        ? source.items.map((item) => item.file)
+        : null;
+      if (plainFiles) {
+        await runChatBatch(plainFiles, current);
+        return;
+      }
+      if (source.hasDirectory) {
+        progress = {
+          name: source.primaryName,
+          percent: 0,
+          index: 0,
+          total: 0,
+          waiting: false,
+          scanning: true,
+        };
+      }
+      const remaining = Math.max(
+        0,
+        MAX_CHAT_ATTACHMENTS - currentAttachments().length,
+      );
+      const tree = await resolveUploadTree(source, {
+        maxEntries: 1000,
+        maxFiles: remaining,
+        maxFileBytes: MAX_CHAT_ATTACHMENT_BYTES,
+        skipGit: true,
+        signal: current.signal,
       });
+      const files = flattenUploadFiles(tree.nodes);
+      if (!files.length) {
+        if (tree.hadDirectory) setError(m.s1_upload_empty_folder());
+        return;
+      }
+      await runChatBatch(files, current);
+    } catch (err) {
+      if (!disposed) setError(mapChatScanError(err));
+    } finally {
+      controller = undefined;
+      progress = null;
     }
-    const total =
-      attachments.reduce((sum, item) => sum + (item.size ?? 0), 0) +
-      files.reduce((sum, file) => sum + file.size, 0);
-    if (total > maxAttachmentTotalBytes) {
-      return m.s1_attachments_total_exceeds_limit({
-        mib: maxAttachmentTotalBytes >> 20,
-      });
-    }
-    return "";
   }
 
   async function uploadFiles(files: File[]) {
@@ -383,37 +410,10 @@ export function useChatUpload(
       setError(m.s1_upload_in_progress_wait());
       return;
     }
-    const refused = refusal(files);
-    setError(refused);
-    if (refused) return;
     const current = new AbortController();
     controller = current;
     try {
-      await runUploads({
-        send,
-        files,
-        signal: current.signal,
-        waiting: false,
-        report: (value) => (progress = value),
-        insert: async (path, file) => {
-          const isImage = Object.hasOwn(imageTypes, file.type);
-          if (isImage) {
-            const existing = previews.get(path);
-            if (existing) URL.revokeObjectURL(existing);
-            previews.set(path, URL.createObjectURL(file));
-          }
-          writeAttachments([
-            ...currentAttachments(),
-            {
-              path,
-              name: file.name,
-              ...(file.type ? { mimeType: file.type } : {}),
-              size: file.size,
-              kind: isImage ? "image" : "file",
-            },
-          ]);
-        },
-      });
+      await runChatBatch(files, current);
     } catch (err) {
       if (!disposed) setError(errorMessage(err));
     } finally {
@@ -440,8 +440,9 @@ export function useChatUpload(
       return previews.get(path);
     },
     uploadFiles,
+    uploadSource,
     filePaste(event) {
-      return pasteFiles(event, uploadFiles);
+      return pasteDroppedSource(event, uploadSource);
     },
     cancel() {
       controller?.abort();

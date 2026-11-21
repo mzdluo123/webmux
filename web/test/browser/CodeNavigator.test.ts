@@ -9,16 +9,63 @@ import type * as Api from "../../src/platform/api";
 
 const uploads = vi.hoisted(() => ({
   calls: [] as { path: string; name: string }[],
+  mkdirs: [] as { contextId: string; parentNodeId: string; name: string }[],
   hold: undefined as Promise<void> | undefined,
 }));
-vi.mock("../../src/platform/api", async (original) => ({
-  ...(await original<typeof Api>()),
-  uploadForm: async (path: string, file: File) => {
-    uploads.calls.push({ path, name: file.name });
-    await uploads.hold;
-    return { nodes: [{ name: file.name }] };
-  },
-}));
+vi.mock("../../src/platform/api", async (original) => {
+  const actual = await original<typeof Api>();
+  return {
+    ...actual,
+    api: async (
+      path: string,
+      schema: unknown,
+      method?: string,
+      body?: unknown,
+      signal?: AbortSignal,
+      requestSchema?: unknown,
+    ) => {
+      if (path.endsWith("/mkdir") && method === "POST") {
+        const req = body as {
+          contextId: string;
+          parentNodeId: string;
+          name: string;
+        };
+        uploads.mkdirs.push(req);
+        const dirPath = req.parentNodeId
+          ? `${req.parentNodeId}/${req.name}`
+          : req.name;
+        return {
+          nodes: [
+            {
+              nodeId: nodeId(dirPath),
+              path: dirPath,
+              name: req.name,
+              kind: "directory",
+              gitStatus: "",
+              ignored: false,
+              referenceable: false,
+              mediaType: "",
+            },
+          ],
+          contentVersion: "v2",
+        };
+      }
+      return actual.api(
+        path,
+        schema as Parameters<typeof actual.api>[1],
+        method,
+        body,
+        signal,
+        requestSchema as Parameters<typeof actual.api>[5],
+      );
+    },
+    uploadForm: async (path: string, file: File) => {
+      uploads.calls.push({ path, name: file.name });
+      await uploads.hold;
+      return { nodes: [{ name: file.name }] };
+    },
+  };
+});
 
 function listing(paths: string[]): CodeListing {
   return {
@@ -104,6 +151,7 @@ afterEach(async () => {
   await cleanup();
   await userEvent.cleanup();
   uploads.calls = [];
+  uploads.mkdirs = [];
   uploads.hold = undefined;
 });
 
@@ -185,7 +233,93 @@ test("a read-only root refuses drops", async () => {
   expect(uploads.calls).toEqual([]);
 });
 
-test("a drop containing a folder uploads nothing", async () => {
+function mockFileEntry(name: string, content = "x"): FileSystemFileEntry {
+  return {
+    isFile: true,
+    isDirectory: false,
+    name,
+    fullPath: `/${name}`,
+    filesystem: {} as FileSystem,
+    getParent: () => {},
+    file(success) {
+      success(new File([content], name));
+    },
+  };
+}
+
+function mockDirEntry(
+  name: string,
+  children: FileSystemEntry[],
+): FileSystemDirectoryEntry {
+  return {
+    isFile: false,
+    isDirectory: true,
+    name,
+    fullPath: `/${name}`,
+    filesystem: {} as FileSystem,
+    getParent: () => {},
+    getFile: () => {},
+    getDirectory: () => {},
+    createReader() {
+      let sent = false;
+      return {
+        readEntries(success) {
+          if (sent) {
+            success([]);
+            return;
+          }
+          sent = true;
+          success(children);
+        },
+      };
+    },
+  };
+}
+
+test("dropping a folder uploads its nested tree, preserves empty subfolders, and skips .git", async () => {
+  const { changed } = await setup();
+  await expect.element(page.getByText("README.md")).toBeVisible();
+  const folderEntry = mockDirEntry("assets", [
+    mockFileEntry("logo.svg", "<svg/>"),
+    mockDirEntry("empty", []),
+    mockDirEntry(".git", [mockFileEntry("HEAD", "ref: main")]),
+    mockDirEntry("icons", [mockFileEntry("check.svg", "<svg/>")]),
+  ]);
+  const event = new Event("drop", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "dataTransfer", {
+    value: {
+      types: ["Files"],
+      items: [
+        { kind: "file", webkitGetAsEntry: () => folderEntry },
+        { kind: "file", webkitGetAsEntry: () => mockFileEntry("x.txt", "x") },
+      ],
+      files: [],
+    },
+  });
+  row("docs").dispatchEvent(event);
+  await expect.element(status).toHaveTextContent("已上传 assets、x.txt");
+  expect(uploads.mkdirs).toEqual([
+    { contextId: "c1", parentNodeId: nodeId("docs"), name: "assets" },
+    {
+      contextId: "c1",
+      parentNodeId: nodeId(`${nodeId("docs")}/assets`),
+      name: "empty",
+    },
+    {
+      contextId: "c1",
+      parentNodeId: nodeId(`${nodeId("docs")}/assets`),
+      name: "icons",
+    },
+  ]);
+  expect(uploads.calls.map((c) => c.name)).toEqual([
+    "check.svg",
+    "logo.svg",
+    "x.txt",
+  ]);
+  expect(changed).toHaveBeenCalledWith([]);
+});
+
+test("dropping only a .git folder reports an error and uploads nothing", async () => {
   await setup();
   await expect.element(page.getByText("README.md")).toBeVisible();
   const event = new Event("drop", { bubbles: true, cancelable: true });
@@ -193,17 +327,19 @@ test("a drop containing a folder uploads nothing", async () => {
     value: {
       types: ["Files"],
       items: [
-        { webkitGetAsEntry: () => ({ isDirectory: true }) },
-        { webkitGetAsEntry: () => ({ isDirectory: false }) },
+        {
+          kind: "file",
+          webkitGetAsEntry: () => mockDirEntry(".git", [mockFileEntry("HEAD")]),
+        },
       ],
-      files: [new File(["x"], "x.txt"), new File(["y"], "folder")],
+      files: [],
     },
   });
   row("docs").dispatchEvent(event);
   await expect
     .element(page.getByRole("alert"))
-    .toHaveTextContent("不支持上传文件夹");
-  await expect.element(status).toHaveTextContent("不支持上传文件夹");
+    .toHaveTextContent("无法上传 .git 目录");
+  expect(uploads.mkdirs).toEqual([]);
   expect(uploads.calls).toEqual([]);
 });
 

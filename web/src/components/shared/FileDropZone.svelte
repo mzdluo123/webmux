@@ -4,6 +4,7 @@
   import { m } from "$lib/paraglide/messages.js";
   import { attachFileDrop } from "../../hooks/shared/file-drop";
   import type { ChatUploads } from "../../hooks/shared/upload.svelte";
+  import { captureDroppedSource } from "../../platform/upload-entries";
 
   // An area that takes files dropped on it as attachments of the next
   // message (the chat view and quick start), with a dashed overlay while
@@ -44,7 +45,7 @@
       },
       onDrop: (transfer) => {
         dragging = false;
-        if (!blocked) void uploads.uploadFiles(Array.from(transfer.files));
+        if (!blocked) void uploads.uploadSource(captureDroppedSource(transfer));
       },
     })}
 >

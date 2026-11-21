@@ -492,7 +492,7 @@
       "count": 1,
       "owner": "user-files"
     },
-    "internal/files/files.go|createUnique|os.OpenFile": {
+    "internal/files/files.go|*UploadDir.Discard|os.Remove": {
       "count": 1,
       "owner": "user-files"
     },

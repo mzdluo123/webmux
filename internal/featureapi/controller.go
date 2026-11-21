@@ -159,6 +159,7 @@ func (s *Server) sessionSnapshot(info session.Info) contract.SessionInfo {
 func (s *Server) fileRoutes(mux transport.Registrar) {
 	mux.HandleFunc("GET /api/sessions/{id}/upload", s.readUpload)
 	mux.HandleFunc("POST /api/sessions/{id}/upload", s.upload)
+	mux.HandleFunc("POST /api/sessions/{id}/uploads/dir", s.uploadDir)
 	mux.HandleFunc("POST /api/sessions/{id}/artifacts", s.ensureArtifacts)
 	mux.HandleFunc("POST /api/sessions/{id}/agent-guide", s.agentGuide)
 	mux.HandleFunc("POST /api/uploads", s.stagedUpload)
