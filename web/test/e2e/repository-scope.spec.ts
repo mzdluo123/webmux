@@ -309,7 +309,7 @@ test("repository refresh failure keeps direct sessions reachable and preserves t
     localStorage.setItem("webmux.homeRepository", "saved-repository"),
   );
   let requests = 0;
-  await page.route("**/api/repositories", async (route) => {
+  await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     requests += 1;
     // Hold the retry so the assertion observes the in-flight refresh, when the
     // previous failure notice is already cleared but no new list exists yet.

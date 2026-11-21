@@ -106,7 +106,7 @@ test("returning to the workspace shows the previous list while settings reload",
     await config.promise;
     await route.continue();
   });
-  await page.route("**/api/repositories", async (route) => {
+  await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     await repositories.promise;
     await route.continue();
   });

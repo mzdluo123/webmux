@@ -32,7 +32,7 @@ test("the sidebar waits for project and archive data before showing groups", asy
   const repositories = Promise.withResolvers<void>();
   const archive = Promise.withResolvers<void>();
   const archiveRequested = Promise.withResolvers<void>();
-  await page.route("**/api/repositories", async (route) => {
+  await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     await repositories.promise;
     await route.continue();
   });
