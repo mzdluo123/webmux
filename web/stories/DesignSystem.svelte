@@ -21,6 +21,7 @@
   import { Switch } from "$lib/components/ui/switch";
   import { Skeleton } from "$lib/components/ui/skeleton";
   import * as Card from "$lib/components/ui/card";
+  import * as Command from "$lib/components/ui/command";
   import * as Empty from "$lib/components/ui/empty";
   import * as Tabs from "$lib/components/ui/tabs";
   import {
@@ -551,16 +552,25 @@
         </div>
         <PickerField id="example-picker" bind:open={pickerOpen}>
           {#snippet trigger()}{repository}{/snippet}
-          <div class="p-2">
-            {#each ["webmux", "demo"] as choice (choice)}
-              <ListButton
-                onclick={() => {
-                  repository = choice;
-                  pickerOpen = false;
-                }}>{choice}</ListButton
-              >
-            {/each}
-          </div>
+          <Command.Root label="示例目录候选项">
+            <Command.Input
+              aria-label="搜索示例目录"
+              placeholder="搜索示例目录…"
+            />
+            <Command.List class="p-1">
+              <Command.Empty>没有匹配的目录</Command.Empty>
+              {#each ["webmux", "demo"] as choice (choice)}
+                <Command.Item
+                  value={choice}
+                  data-checked={repository === choice}
+                  onSelect={() => {
+                    repository = choice;
+                    pickerOpen = false;
+                  }}>{choice}</Command.Item
+                >
+              {/each}
+            </Command.List>
+          </Command.Root>
         </PickerField>
         <AdvancedSection title="高级选项" summary="使用默认配置">
           <Label for="example-note">备注</Label>

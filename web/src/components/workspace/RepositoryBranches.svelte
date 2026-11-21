@@ -126,6 +126,7 @@
 
 <div class="space-y-3">
   <ListSearchInput
+    clearable
     bind:value={query}
     label={m.s8_search_branches_label()}
     placeholder={m.s8_repo_branches_search_placeholder()}

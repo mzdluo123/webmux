@@ -3,7 +3,6 @@
   import IconArrowsSplit2 from "~icons/tabler/arrows-split-2";
   import IconGitBranch from "~icons/tabler/git-branch";
   import { Button } from "$lib/components/ui/button";
-  import { Input } from "$lib/components/ui/input";
   import { ListButton } from "$lib/components/ui/list-button";
   import * as Popover from "$lib/components/ui/popover";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
@@ -16,6 +15,7 @@
     type GitSharedBranchActionKind,
   } from "../../domains/workspace/git-branches-model";
   import GitBranchListItem from "./GitBranchListItem.svelte";
+  import ListSearchInput from "../shared/ListSearchInput.svelte";
 
   let {
     branches,
@@ -95,71 +95,69 @@
       </Button>
     {/snippet}
   </Popover.Trigger>
-  <Popover.Content align="start" class="w-80 max-w-[92vw] p-2">
-    <div class="space-y-2">
-      <Input
-        size="sm"
-        value={query}
-        placeholder={m.s7_topbar_branch_search_placeholder()}
-        aria-label={m.s7_topbar_branch_search_aria()}
-        oninput={(e) => (query = e.currentTarget.value)}
-      />
-
-      <ScrollArea viewportClasses="max-h-80">
-        <div class="space-y-2 pr-0.5">
-          <ListButton
-            variant="compact-row"
-            aria-current={branchFilter === null || undefined}
-            onclick={() => {
-              open = false;
-              onSelectAll();
-            }}
+  <Popover.Content
+    align="start"
+    class="max-h-(--bits-popover-content-available-height) w-80 max-w-[92vw] gap-0 overflow-hidden p-0"
+  >
+    <ListSearchInput
+      bind:value={query}
+      placeholder={m.s7_topbar_branch_search_placeholder()}
+      label={m.s7_topbar_branch_search_aria()}
+    />
+    <ScrollArea class="m-2 min-h-0" viewportClasses="max-h-80">
+      <div class="space-y-2 pr-0.5">
+        <ListButton
+          variant="compact-row"
+          aria-current={branchFilter === null || undefined}
+          onclick={() => {
+            open = false;
+            onSelectAll();
+          }}
+        >
+          <IconGitBranch
+            class="size-3.5 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <span class="min-w-0 flex-1 truncate"
+            >{m.s7_topbar_all_reachable()}</span
           >
-            <IconGitBranch
-              class="size-3.5 shrink-0 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <span class="min-w-0 flex-1 truncate"
-              >{m.s7_topbar_all_reachable()}</span
-            >
-          </ListButton>
+        </ListButton>
 
-          {#if popoverGroups.length === 0}
-            <p class="px-2 py-2 text-xs text-muted-foreground">
-              {query.trim()
-                ? m.s7_topbar_no_matching_branch()
-                : m.s7_topbar_no_branches()}
-            </p>
-          {:else}
-            {#each popoverGroups as grp (grp.key)}
-              <div class="space-y-0.5">
-                <div
-                  class="flex items-center justify-between px-1.5 py-0.5 text-xs font-semibold text-muted-foreground"
-                >
-                  <span>{grp.title}</span>
-                  <span class="font-mono">{grp.rows.length}</span>
-                </div>
-                {#each grp.rows as branch (`${grp.key}:${branch.kind}:${branch.name}`)}
-                  <GitBranchListItem
-                    {branch}
-                    {context}
-                    selected={branchFilter === branch.name}
-                    {branchFilter}
-                    sectionId={grp.key}
-                    {compareBaseOid}
-                    compareTargetLabel={effectiveCompareTargetLabel}
-                    menuLabel={m.s7_topbar_branch_menu_aria({
-                      name: branch.name,
-                    })}
-                    onSelectRow={() => triggerAction("filter-log", branch)}
-                    onAction={triggerAction}
-                  />
-                {/each}
+        {#if popoverGroups.length === 0}
+          <p class="px-2 py-2 text-xs text-muted-foreground">
+            {query.trim()
+              ? m.s7_topbar_no_matching_branch()
+              : m.s7_topbar_no_branches()}
+          </p>
+        {:else}
+          {#each popoverGroups as grp (grp.key)}
+            <div class="space-y-0.5">
+              <div
+                class="flex items-center justify-between px-1.5 py-0.5 text-xs font-semibold text-muted-foreground"
+              >
+                <span>{grp.title}</span>
+                <span class="font-mono">{grp.rows.length}</span>
               </div>
-            {/each}
-          {/if}
-        </div>
-      </ScrollArea>
-    </div>
+              {#each grp.rows as branch (`${grp.key}:${branch.kind}:${branch.name}`)}
+                <GitBranchListItem
+                  {branch}
+                  {context}
+                  selected={branchFilter === branch.name}
+                  {branchFilter}
+                  sectionId={grp.key}
+                  {compareBaseOid}
+                  compareTargetLabel={effectiveCompareTargetLabel}
+                  menuLabel={m.s7_topbar_branch_menu_aria({
+                    name: branch.name,
+                  })}
+                  onSelectRow={() => triggerAction("filter-log", branch)}
+                  onAction={triggerAction}
+                />
+              {/each}
+            </div>
+          {/each}
+        {/if}
+      </div>
+    </ScrollArea>
   </Popover.Content>
 </Popover.Root>

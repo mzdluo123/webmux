@@ -29,6 +29,7 @@
   - 十二款 CLI 的启动命令见 [接入说明](../../cli-agents.md)；
   - Claude Code、Codex CLI、Antigravity CLI、Open Code、omp、Qoder、QoderCN、Kimi 与 Devin 预置配置默认为混合模式（US-Q01）；
   - 命令选择器可用键盘操作（Enter 打开、方向键与搜索、Esc 只关闭选择器），选中行和每个选项同时显示图标、名称与命令，长命令保留完整提示；
+  - 启动方式、工作位置、目录、项目和 GitHub 仓库的选择列表共用通栏搜索样式，聚焦时搜索栏底线高亮。
   - 保存的配置按 ID 启动，临时命令按完整 argv 启动，均创建真实 PTY；
   - Open Code 可通过“加载 shell 启动文件”保存为 Bash（`~/.bashrc`）或 Zsh（`~/.zshrc`）包装，新安装按服务端 `$SHELL` 预选，其他 shell 回退为不包装或手动选择，不自动安装程序；
   - 勾选了混合模式的配置可选择从终端或聊天开始（US-Q02）；

@@ -4,7 +4,6 @@
   import IconTag from "~icons/tabler/tag";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
-  import { Input } from "$lib/components/ui/input";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { m } from "$lib/paraglide/messages.js";
   import type { Remote } from "../../contracts/schemas";
@@ -20,6 +19,7 @@
   import { dockGroup, dockSplit } from "$lib/dock-layout";
   import DockPanel from "../shared/DockPanel.svelte";
   import DockWorkspace from "../shared/DockWorkspace.svelte";
+  import ListSearchInput from "../shared/ListSearchInput.svelte";
   import GitBranchDetailCard from "./GitBranchDetailCard.svelte";
   import GitBranchListItem from "./GitBranchListItem.svelte";
   import GitCompactPanelContent from "./GitCompactPanelContent.svelte";
@@ -190,12 +190,10 @@
         class="flex min-w-0 flex-wrap items-center gap-2 border-b bg-background p-2.5"
       >
         <div class="min-w-0 flex-1 basis-36">
-          <Input
-            size="sm"
-            value={query}
+          <ListSearchInput
+            bind:value={query}
             placeholder={m.s6_branches_search_placeholder()}
-            aria-label={m.s6_branches_search_aria()}
-            oninput={(e) => (query = e.currentTarget.value)}
+            label={m.s6_branches_search_aria()}
           />
         </div>
         {#if onOpenCreateTagFromHead && context.headOid}

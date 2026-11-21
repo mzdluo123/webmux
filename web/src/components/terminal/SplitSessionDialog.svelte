@@ -5,7 +5,7 @@
   import { SessionInfoSchema, type SessionInfo } from "../../contracts/schemas";
   import type { SplitDirection } from "../../domains/terminal/terminal-layout";
   import { Button } from "$lib/components/ui/button";
-  import { Input } from "$lib/components/ui/input";
+  import ListSearchInput from "../shared/ListSearchInput.svelte";
   import { ListButton } from "$lib/components/ui/list-button";
   import { m } from "$lib/paraglide/messages.js";
   import SplitDirectionChoice from "./SplitDirectionChoice.svelte";
@@ -73,9 +73,9 @@
 >
   <div class="space-y-4">
     <SplitDirectionChoice bind:direction />
-    <Input
+    <ListSearchInput
       bind:ref={searchInput}
-      aria-label={m.s4_split_search_aria()}
+      label={m.s4_split_search_aria()}
       placeholder={m.s4_split_search_placeholder()}
       bind:value={query}
     />

@@ -169,7 +169,7 @@
         <ScrollArea
           type="always"
           data-directory-scroll
-          class="mx-2 mb-2 min-h-0 flex-1 overflow-hidden"
+          class="m-2 min-h-0 flex-1 overflow-hidden"
           scrollbarYClasses="bg-muted/50 [&_[data-slot=scroll-area-thumb]]:bg-muted-foreground"
         >
           <Command.List class="max-h-none overflow-visible pr-3">
@@ -223,12 +223,6 @@
         var(--bits-popover-content-available-height, calc(100dvh - 1rem)) - 1px
       )
     );
-  }
-
-  :global([data-directory-picker] [data-slot="command-input-wrapper"]) {
-    margin: 0.5rem;
-    padding: 0;
-    flex-shrink: 0;
   }
 
   :global([data-directory-scroll] [data-slot="scroll-area-viewport"]) {
