@@ -6,6 +6,7 @@ import {
   dockGeometry,
   dockGroup,
   dockMove,
+  dockRail,
   dockRemove,
   dockResize,
   dockSplit,
@@ -108,5 +109,16 @@ describe("dock layout", () => {
     expect(dockDropEdge(0.1, 0.5)).toBe("left");
     expect(dockDropEdge(0.5, 0.1)).toBe("top");
     expect(dockDropEdge(0.5, 0.9)).toBe("bottom");
+  });
+
+  it("derives the minimize rail from the docked edge only", () => {
+    expect(dockRail({ x: 0, y: 0, width: 0.4, height: 1 })).toBe("left");
+    expect(dockRail({ x: 0.6, y: 0, width: 0.4, height: 1 })).toBe("right");
+    expect(dockRail({ x: 0, y: 0.6, width: 1, height: 0.4 })).toBe("bottom");
+    expect(dockRail({ x: 0.6, y: 0.5, width: 0.4, height: 0.5 })).toBe("right");
+    expect(dockRail({ x: 0, y: 0, width: 1, height: 1 })).toBeUndefined();
+    expect(dockRail({ x: 0.4, y: 0, width: 0.2, height: 1 })).toBeUndefined();
+    expect(dockRail({ x: 0, y: 0, width: 1, height: 0.4 })).toBeUndefined();
+    expect(dockRail(undefined)).toBeUndefined();
   });
 });

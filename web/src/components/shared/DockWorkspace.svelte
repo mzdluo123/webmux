@@ -13,6 +13,7 @@
     dockGeometry,
     dockIds,
     dockMove,
+    dockRail,
     dockRemove,
     dockResize,
     restoreDock,
@@ -244,7 +245,8 @@
         onSelectPanel?.(mobile);
       }
     } else {
-      if (destination) rails[id] = destination;
+      rails[id] =
+        destination ?? dockRail(geometry.groups.get(id)?.rect) ?? side(id);
       node = tree;
       hidden = [...hidden.filter((value) => value !== id), id];
       if (zoom === id) zoom = "";

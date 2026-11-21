@@ -197,6 +197,57 @@ test("edge tabs restore the original dock layout and keep it restored", async ({
     .toBeLessThan((await anchor.boundingBox())!.x);
 });
 
+test("a pane minimizes to the rail on its docked edge", async ({
+  page,
+  workDir,
+}, testInfo) => {
+  test.skip(!!testInfo.project.use.isMobile, "Wide docking surface");
+  const id = await createShell(page, "Rail edge", workDir);
+  await page.getByRole("button", { name: "文件树 · Rail edge" }).click();
+  const tree = page.getByRole("region", { name: "文件树", exact: true });
+  await expect(tree).toBeVisible();
+  const terminal = page.locator(`[data-dock-panel="${id}"]`);
+  const railTab = (side: string) =>
+    page.locator(`[data-dock-rail="${side}"] [data-dock-tab="files:${id}"]`);
+  const minimize = () =>
+    tree.getByRole("button", { name: "收起「文件树」", exact: true }).click();
+  const redock = async (edge: string) => {
+    const menu = await openDockCommands(tree);
+    await menu.getByRole("menuitem", { name: "移动或合并" }).hover();
+    await page
+      .getByRole("menuitem", { name: "Rail edge", exact: true })
+      .hover();
+    await page.getByRole("menuitem", { name: edge, exact: true }).click();
+  };
+
+  // The file tree docks at the right edge by default and minimizes right.
+  await minimize();
+  await expect(tree).toBeHidden();
+  await expect(railTab("right")).toBeVisible();
+  await expect(railTab("left")).toHaveCount(0);
+
+  // Redocked to the left edge, the same action minimizes to the left rail.
+  await railTab("right").click();
+  await expect(tree).toBeVisible();
+  await redock("停靠到左侧");
+  await expect
+    .poll(async () => (await tree.boundingBox())!.x)
+    .toBeLessThan((await terminal.boundingBox())!.x);
+  await minimize();
+  await expect(railTab("left")).toBeVisible();
+  await expect(railTab("right")).toHaveCount(0);
+
+  // A full-width bottom strip minimizes to the bottom rail.
+  await railTab("left").click();
+  await expect(tree).toBeVisible();
+  await redock("停靠到下方");
+  await expect
+    .poll(async () => (await tree.boundingBox())!.y)
+    .toBeGreaterThan((await terminal.boundingBox())!.y);
+  await minimize();
+  await expect(railTab("bottom")).toBeVisible();
+});
+
 test("stacked panes reveal the selected tab and keep keyboard focus across switches", async ({
   page,
   workDir,
