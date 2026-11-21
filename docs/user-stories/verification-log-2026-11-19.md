@@ -272,6 +272,17 @@
 - 局限：
   - 本机 `golangci-lint`（以 Go 1.26 编译）低于仓库 `go.mod` 目标版本（Go 1.27.4），`make go-lint` 由 CI 环境复核；本机 `/tmp` 受磁盘配额限制，`cmd/webmux` 依赖 `/tmp` 的子测试与 `splits.spec.ts` 写入 `/tmp` 截图路径的用例由 CI 全量运行覆盖。
 
+## 2026-11-21：精简工作台页头（US-C02、US-C16、US-C17、US-J20）
+
+- Git 与新建会话同排，搜索框同行显示输出预览开关；会话总数保留在「全部」筛选项。
+- `pnpm --dir web build`、`pnpm --dir web lint`、`pnpm --dir web check:arch`（49 项）通过。
+- `pnpm --dir web exec playwright test test/e2e/repository-scope.spec.ts test/e2e/git-workbench-route.spec.ts -g 'repository scope limits the home list|the Git and session views switch in both directions'` 通过 4 项，包含 320px 下 200% 文字放大。
+- 隔离实例用 Chromium 核对桌面、平板、390/375/320px 手机与 667×375 横屏的浅色和深色。搜索与开关同行、Git 打开当前工作树，手机按钮保留至少 44px 高度，页面无横向溢出。触屏为模拟，未使用真机。
+- 390/375/320px 手机模拟分别检查浅色和深色：标题保持单行，主工作区标记在侧栏工作树行可见，侧栏「刷新工作区」发出请求，Git 直达当前工作树。
+- Playwright 对 `repository-scope.spec.ts`、`settings-sync.spec.ts`、`token-link.spec.ts` 和 `worktrees.spec.ts` 按范围、刷新、旧响应和鉴权用例执行 `-g` 筛选，桌面和 iPhone SE 共 12 项通过。`pnpm --dir web check:test` 通过。
+  - 设置同步和鉴权用例曾把关闭动画中的抽屉当作可交互入口。测试夹具改为在手机显式展开侧栏，等待导航稳定后定位刷新按钮。
+  - 手机 390×844 深色演示录制从侧栏刷新并返回的过程。
+
 ## 2026-11-21：单端 PR 跳过另一端 CI 与路径分类收窄（US-L02）
 
 - 故事编号与总数保持不变，同步更新 `US-L02`、[测试规则](../agent-rules/testing.md)、[CI 耗时优化](../ci-performance.md) 与 [CONTRIBUTING.md](../../CONTRIBUTING.md)：
@@ -283,14 +294,3 @@
   - `.github/workflows/test.yml` YAML 解析、`.github/pr-assets/` 排除过滤回归、`make docs-check`、`make persistence-check`、`go test -count=1 ./internal/archtest -run '^(TestAgents|TestGenericCodeNamesNoAgent)'` 与 `make format-check` 通过。
 - 局限：
   - 本次修改涉及 `.github/`，PR 自身按安全规则在 GitHub Actions 触发全量运行；单端跳过效果在合入 `main` 后对后续纯前端/纯后端 PR 生效。
-
-## 2026-11-21：精简工作台页头（US-C02、US-C16、US-C17、US-J20）
-
-- Git 与新建会话同排，搜索框同行显示输出预览开关；会话总数保留在「全部」筛选项。
-- `pnpm --dir web build`、`pnpm --dir web lint`、`pnpm --dir web check:arch`（49 项）通过。
-- `pnpm --dir web exec playwright test test/e2e/repository-scope.spec.ts test/e2e/git-workbench-route.spec.ts -g 'repository scope limits the home list|the Git and session views switch in both directions'` 通过 4 项，包含 320px 下 200% 文字放大。
-- 隔离实例用 Chromium 核对桌面、平板、390/375/320px 手机与 667×375 横屏的浅色和深色。搜索与开关同行、Git 打开当前工作树，手机按钮保留至少 44px 高度，页面无横向溢出。触屏为模拟，未使用真机。
-- 390/375/320px 手机模拟分别检查浅色和深色：标题保持单行，主工作区标记在侧栏工作树行可见，侧栏「刷新工作区」发出请求，Git 直达当前工作树。
-- Playwright 对 `repository-scope.spec.ts`、`settings-sync.spec.ts`、`token-link.spec.ts` 和 `worktrees.spec.ts` 按范围、刷新、旧响应和鉴权用例执行 `-g` 筛选，桌面和 iPhone SE 共 12 项通过。`pnpm --dir web check:test` 通过。
-  - 设置同步和鉴权用例曾把关闭动画中的抽屉当作可交互入口。测试夹具改为在手机显式展开侧栏，等待导航稳定后定位刷新按钮。
-  - 手机 390×844 深色演示录制从侧栏刷新并返回的过程。
