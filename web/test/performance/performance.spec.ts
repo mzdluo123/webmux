@@ -16,6 +16,7 @@ import {
   toggleCode,
   backToList,
   revealSidebar,
+  withWorkspaceRefresh,
 } from "../e2e/fixtures";
 import { observePerformance, performanceReport, settled } from "./performance";
 
@@ -289,11 +290,7 @@ test("4x CPU: delayed repository discovery and Git refresh stay stable", async (
   await expect(page.getByText("已跟踪文件干净", { exact: true })).toBeHidden();
   await settled(page);
   await writeFile(join(workDir, "tracked.txt"), "changed\n");
-  await page
-    .getByRole("button", { name: /^刷新(?:工作区| Git 状态)$/ })
-    .filter({ visible: true })
-    .first()
-    .click();
+  await withWorkspaceRefresh(page);
   await expect(page.getByText("有修改", { exact: true })).toBeVisible();
   await performanceReport(page, testInfo, "repository-and-refresh");
 });
@@ -333,11 +330,9 @@ test("4x CPU: a stalled repository request cannot block existing terminals", asy
     // Slow discovery stays in the background: the session list renders and
     // keeps every session instead of surfacing a startup timeout.
     await expect(page.getByText(/初次读取超时/)).toHaveCount(0);
-    const refresh = page
-      .getByRole("button", { name: /^刷新(?:工作区| Git 状态)$/ })
-      .filter({ visible: true })
-      .first();
-    await expect(refresh).toHaveAttribute("aria-busy", "true");
+    await withWorkspaceRefresh(page, (refresh) =>
+      expect(refresh).toHaveAttribute("aria-busy", "true"),
+    );
     expect(pendingRequests).toBe(1);
     await performanceReport(page, testInfo, "repository-stall");
     // The repository response remains held while the real PTY is opened and
