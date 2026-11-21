@@ -126,7 +126,7 @@ func (s *Service) send(ctx context.Context, e *operationEntry) {
 	if len(p.Pages) > 0 {
 		capability, err := s.imageCapability(ctx, target)
 		if err != nil || capability != "supported" {
-			s.finish(e, "failed", errors.New("目标 agent 未确认支持图片，消息未发送；请选择文本模式重新预览"))
+			s.finish(e, "failed", errors.New("目标 agent 未确认支持图片，消息未发送；请选择支持图片的目标重新预览"))
 			return
 		}
 	}
@@ -142,9 +142,7 @@ func (s *Service) send(ctx context.Context, e *operationEntry) {
 		expectedIdentity = p.targetIdentity
 	}
 	input := hybrid.PromptInput{ClientRequestID: rand.Text(), Text: p.Text, TitleSource: p.UserText, Mode: hybrid.ModeRefuse, ExpectedIdentity: expectedIdentity, AwaitAcknowledgement: true, ExpectedUsage: expectedUsage, ImageTextOffset: p.imageTextOffset}
-	if p.Format == "image" {
-		input.Images = previewImages(p)
-	}
+	input.Images = previewImages(p)
 	_, err = s.options.Hybrid.Prompt(ctx, target, input)
 	if err != nil {
 		if errors.Is(err, hybrid.ErrBusy) || errors.Is(err, hybrid.ErrWrongSide) || errors.Is(err, hybrid.ErrSwitching) || errors.Is(err, hybrid.ErrInvalid) || errors.Is(err, hybrid.ErrConflict) || errors.Is(err, hybrid.ErrTooLarge) {

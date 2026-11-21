@@ -2,6 +2,12 @@
 
 承接 [verification-log-2026-11-18](verification-log-2026-11-18.md)，收录 2026-11-19 起的局部核对记录；索引见 [WebMux User Stories](../user-stories.md#核对记录)。
 
+## 2026-11-21 历史只随图片交接（US-Q20、US-K04）
+
+- `go test -race ./internal/handoff ./internal/historyprojection` 通过。短历史生成一页，长历史首尾及中段正文均留在图片中。目标缺少图片能力或预算无法容纳图片时停止投递。
+- `pnpm --dir web exec playwright test test/e2e/handoff.spec.ts` 在桌面与移动 Chromium 视口验证了短历史新建目标、过期、预算编辑、长历史预览和能力拒绝。短历史用例核对测试 Agent 收到的三个 ACP 块，PNG 字节与预览一致。
+- `pnpm --dir web check:arch`、`make docs-check` 通过。图片 token 数为预算估计，本次验证使用隔离测试 Agent。
+
 ## 2026-11-19：单窗格隐藏焦点边框（US-D13、US-D14）
 
 - Playwright 运行 `splits.spec.ts`、`session-pane-files.spec.ts` 和 `git-workbench-route.spec.ts`，桌面与移动项目共 36 项通过，8 项按项目条件跳过。核对分屏焦点、放大与还原、收起、标签合并和窄屏布局。

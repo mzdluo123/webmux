@@ -5,10 +5,6 @@
   import { Label } from "$lib/components/ui/label";
   import { Textarea } from "$lib/components/ui/textarea";
   import * as Select from "$lib/components/ui/select";
-  import {
-    SegmentedControl,
-    SegmentedControlItem,
-  } from "$lib/components/ui/segmented-control";
   import { m } from "$lib/paraglide/messages.js";
   import {
     emptyHandoffLocation,
@@ -42,14 +38,8 @@
   );
   let worktreeFields = $state<{ isReady: () => boolean }>();
   let managedPath = $state("");
-  let formatFields = $state<HTMLDivElement | null>(null);
   let targetFields = $state<HTMLDivElement | null>(null);
-  const imageFormat = $derived(e.format === "image");
   const existingTarget = $derived(e.targetSessionId !== "");
-  useDockMotion(
-    () => formatFields,
-    () => imageFormat,
-  );
   useDockMotion(
     () => targetFields,
     () => !existingTarget,
@@ -102,54 +92,33 @@
     >{/if}
   <fieldset class="min-w-0" disabled={e.busy || e.active}>
     <div class="space-y-2 pb-3">
-      <Label>{m.handoff_format()}</Label>
-      <SegmentedControl
-        value={e.format}
-        onValueChange={(value) => {
-          if (value === "image" || value === "text") e.format = value;
-        }}
-        aria-label={m.handoff_format()}
-        size="form"
-        wrap
+      <Label for="handoff-pages"
+        >{m.handoff_max_pages({ max: handoffMaxPages })}</Label
       >
-        <SegmentedControlItem value="image"
-          >{m.handoff_format_image()}</SegmentedControlItem
-        >
-        <SegmentedControlItem value="text"
-          >{m.handoff_format_text()}</SegmentedControlItem
-        >
-      </SegmentedControl>
+      <Input
+        id="handoff-pages"
+        inputmode="numeric"
+        autocomplete="off"
+        bind:value={e.maxPagesDraft}
+        onblur={() => e.commitMaxPages()}
+        aria-invalid={!!e.maxPagesError}
+        aria-describedby={e.maxPagesError
+          ? "handoff-pages-help handoff-pages-error"
+          : "handoff-pages-help"}
+      />
+      <p id="handoff-pages-help" class="text-xs text-muted-foreground">
+        {m.handoff_image_reselect()}
+      </p>
     </div>
-    <div bind:this={formatFields} hidden={!imageFormat} inert={!imageFormat}>
-      <div class="space-y-2 pb-3">
-        <Label for="handoff-pages"
-          >{m.handoff_max_pages({ max: handoffMaxPages })}</Label
-        >
-        <Input
-          id="handoff-pages"
-          inputmode="numeric"
-          autocomplete="off"
-          bind:value={e.maxPagesDraft}
-          onblur={() => e.commitMaxPages()}
-          aria-invalid={!!e.maxPagesError}
-          aria-describedby={e.maxPagesError
-            ? "handoff-pages-help handoff-pages-error"
-            : "handoff-pages-help"}
-        />
-        <p id="handoff-pages-help" class="text-xs text-muted-foreground">
-          {m.handoff_image_reselect()}
-        </p>
-      </div>
-      {#if e.maxPagesError}
-        <p
-          id="handoff-pages-error"
-          class="pb-3 text-xs text-destructive"
-          role="alert"
-        >
-          {e.maxPagesError}
-        </p>
-      {/if}
-    </div>
+    {#if e.maxPagesError}
+      <p
+        id="handoff-pages-error"
+        class="pb-3 text-xs text-destructive"
+        role="alert"
+      >
+        {e.maxPagesError}
+      </p>
+    {/if}
     {#if !fork}<div class="space-y-2 pb-3">
         <Label for="handoff-target">{m.handoff_existing_target()}</Label><Input
           id="handoff-target"

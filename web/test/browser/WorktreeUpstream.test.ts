@@ -240,7 +240,7 @@ test.each([true, false, null] as const)(
           previewReads++;
           return Response.json({
             id: "preview",
-            format: "text",
+            format: "image",
             pages: [],
             imageBudget: {
               maxPages: 8,

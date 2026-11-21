@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { APIRequestContext } from "@playwright/test";
 import type {
   HandoffPreview,
@@ -146,6 +148,30 @@ test("concurrent confirmation creates one target and sends one native prompt", a
       ).length;
     })
     .toBe(1);
+  const target = await (
+    await request.get(`/api/sessions/${operation.targetSessionId}`)
+  ).json();
+  const stored = JSON.parse(
+    await readFile(
+      join(
+        server.env.FAKEAGENT_STORE,
+        "sessions",
+        `${target.agent.sessionId}.json`,
+      ),
+      "utf8",
+    ),
+  );
+  const prompt = stored.messages.find(
+    (m: { role: string }) => m.role === "user",
+  );
+  const task = "\n当前用户任务：\n" + p.userText;
+  expect(p.pages).toHaveLength(1);
+  expect(p.text).not.toContain("original source constraint");
+  expect(prompt.blocks).toEqual([
+    { type: "text", text: p.text.slice(0, -task.length) },
+    { type: "image", mimeType: "image/png", data: p.pages[0].data },
+    { type: "text", text: task },
+  ]);
   const original = await request.get(
     `/api/sessions/${src.id}/native-history?snapshotId=${p.snapshotId}`,
   );
@@ -267,11 +293,6 @@ test("image page budget preserves typing and blocks invalid or stale previews", 
   await typeBudget("");
   await pages.blur();
   await expect(budgetError).toBeVisible();
-  await page.getByRole("radio", { name: "文本交接", exact: true }).click();
-  await generatePreview();
-  expect(submittedBudgets).toEqual([1, 8, 2, 2]);
-  await page.getByRole("radio", { name: "压缩归档", exact: true }).click();
-  await expect(pages).toHaveValue("");
   await expect(send).toBeDisabled();
 });
 
@@ -360,18 +381,8 @@ test("handoff form retains preview position and focus across results", async ({
 
   await page.getByRole("button", { name: "补查冻结原文", exact: true }).click();
   await expect(page.locator("pre")).toContainText("original source constraint");
-  await page.getByRole("radio", { name: "文本交接", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "发送交接", exact: true }),
-  ).toBeDisabled();
-  await page.getByRole("button", { name: "生成预览", exact: true }).click();
-  await expect(image).toHaveCount(0);
-  await page.getByText("查看选入历史文本", { exact: true }).click();
-  await expect(
-    page.getByRole("textbox", { name: "查看选入历史文本", exact: true }),
-  ).toHaveValue(/original source constraint/);
-  await page.getByRole("radio", { name: "压缩归档", exact: true }).click();
-  await page.getByRole("button", { name: "生成预览", exact: true }).click();
+  await expect(send).toBeDisabled();
+  await generate.click();
   await expect(image).toBeVisible();
   await page.route("**/api/handoff-previews/*", (route) =>
     route.request().method() === "GET" ? route.abort() : route.continue(),
@@ -407,7 +418,7 @@ test("handoff form retains preview position and focus across results", async ({
   ).toHaveCount(0);
 });
 
-test("image-unsupported targets require an explicitly reviewed text preview", async ({
+test("image-unsupported targets block delivery and text previews are rejected", async ({
   request,
   server,
 }) => {
@@ -427,16 +438,5 @@ test("image-unsupported targets require an explicitly reviewed text preview", as
       data: { ...image.request, format: "text" },
     },
   );
-  expect(response.status(), await response.text()).toBe(201);
-  const text = (await response.json()) as HandoffPreview;
-  expect(text.pages).toEqual([]);
-  expect(text.text).toContain("original source constraint");
-  expect(text.userText).toBe(image.userText);
-  const sent = await request.post(`/api/handoff-previews/${text.id}/send`, {
-    data: { operationId: text.operationId },
-  });
-  expect(sent.status(), await sent.text()).toBe(202);
-  expect((await complete(request, text.operationId)).targetSessionId).toBe(
-    target,
-  );
+  expect(response.status(), await response.text()).toBe(400);
 });

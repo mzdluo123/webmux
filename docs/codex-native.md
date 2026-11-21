@@ -1,6 +1,6 @@
 # 原生历史直读与快照
 
-通过已登记会话的 runtime ID 读取 Agent 原生历史，取得短期冻结范围；交接默认生成首尾文本与中段图片的压缩归档，也可选择机械文本投影。
+通过已登记会话的 runtime ID 读取 Agent 原生历史，取得短期冻结范围；交接将选入的历史正文全部排成图片。
 浏览器交接操作见[原生历史交接](hybrid-sessions/handoff.md)。
 
 ## 最短读取路径
@@ -36,7 +36,7 @@ OpenCode、agy 与 Devin 的 SQLite 由只读读取器访问。
 
 Snapcompact 对可导出用户/助手正文及可见工具调用/结果做机械投影，保留角色、来源顺序和工具关联。
 结构 JSON、记录标题、私有推理和不可导出 provider 状态不替代正文；当前用户任务独立保持原样。
-生产归档按模型选择高密度排版，首尾保持文本、短历史全为文本；容量不足时分级渲染中段并显式报告省略范围。
+生产归档按模型选择高密度排版，短历史同样生成图片。容量不足时报告省略范围。
 图片冻结后按相同字节发送；图片估计与文本共同计入上下文预算，字节限制单独校验。缺字、覆盖不全或能力错误阻止需要图片的发送。
 `action=render` 的显式开发入口仍可查看页面、缺失字形和未覆盖范围。
 历史独立实验见[图片实验](native-image-experiment.md)与[ACP 图片传输记录](native-image-transport.md)，其结果不代表新生产路径已验收。
@@ -104,5 +104,5 @@ Codex 发现保留原有独立预算：元信息 64 KiB、累计 16 MiB、最多
 
 ## 投影与图片
 
-生产默认图片及显式文本共用独立 Snapcompact 核心；格式和预算见[交接 API](protocol/http-handoff.md)。
+生产交接使用 Snapcompact 生成历史图片；格式和预算见[交接 API](protocol/http-handoff.md)。
 保留的[图片实验](native-image-experiment.md)与[ACP 图片传输](native-image-transport.md)只证明各自注明的模型、版本和样本，不代表全部 reader 或跨 Agent 配对已验收。

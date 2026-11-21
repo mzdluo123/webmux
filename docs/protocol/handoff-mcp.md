@@ -10,7 +10,7 @@ snapshotId 来自交接文本中的 Frozen scope；首次位置为字符串 0。
 返回原生 records、nextPosition、nextTextOffset、more、done 和来源信息。
 长项使用同一 snapshotId 与返回的 UTF-8 字节偏移续读。
 原文范围包括预算省略的可导出记录，范围边界与预览一致。
-图片与文本交接共用同一原文范围；`thread_read` 返回文本记录，不返回预览 PNG，也不重新渲染图片。
+交接图片与按需补查共用同一原文范围；`thread_read` 返回文本记录，不返回预览 PNG，也不重新渲染图片。
 
 ## 配置与生命周期
 

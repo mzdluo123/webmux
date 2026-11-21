@@ -37,7 +37,7 @@ func TestDefaultImagePreviewSendsFrozenPages(t *testing.T) {
 	if p.Format != "image" || p.Request.Format != "image" || p.Capability != "supported" || p.BlockedReason != "" || len(p.Pages) == 0 || p.ImageBudget.MaxPages != maxImagePages {
 		t.Fatalf("preview format=%s capability=%s blocked=%q pages=%d budget=%+v", p.Format, p.Capability, p.BlockedReason, len(p.Pages), p.ImageBudget)
 	}
-	if strings.Contains(p.Text, "MIDDLE_ONLY_SENTINEL") || !strings.Contains(p.HistoryText, "MIDDLE_ONLY_SENTINEL") || !strings.Contains(p.Text, "snapshotId="+p.SnapshotID) || !strings.HasSuffix(p.Text, task) || p.imageTextOffset <= 0 {
+	if strings.Contains(p.Text, "early constraint") || strings.Contains(p.Text, "latest correction") || strings.Contains(p.Text, "MIDDLE_ONLY_SENTINEL") || !strings.Contains(p.HistoryText, "MIDDLE_ONLY_SENTINEL") || !strings.Contains(p.Text, "snapshotId="+p.SnapshotID) || !strings.HasSuffix(p.Text, task) || p.imageTextOffset <= 0 {
 		t.Fatalf("text=%q history=%q", p.Text, p.HistoryText)
 	}
 	var total int
@@ -86,7 +86,7 @@ func TestDefaultImagePreviewSendsFrozenPages(t *testing.T) {
 	}
 }
 
-func TestImagePageBudgetPreservesEdgesAndReportsMiddleOmissions(t *testing.T) {
+func TestImagePageBudgetReportsOmissions(t *testing.T) {
 	s, b := newTestService(t)
 	useLongImageHistory(b)
 	for i := range 6 {
@@ -96,12 +96,12 @@ func TestImagePageBudgetPreservesEdgesAndReportsMiddleOmissions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.BlockedReason != "" || len(p.Pages) != 1 || p.OmittedCount == 0 || !strings.Contains(p.Text, "start_marker_0") || !strings.Contains(p.Text, "end_marker_5") || p.ImageBudget.RetainedRunes >= p.ImageBudget.ProjectedRunes {
+	if p.BlockedReason != "" || len(p.Pages) != 1 || p.OmittedCount == 0 || strings.Contains(p.Text, "marker_") || !strings.Contains(p.HistoryText, "end_marker_5") || p.ImageBudget.RetainedRunes >= p.ImageBudget.ProjectedRunes {
 		t.Fatalf("selection=%d omitted=%d pages=%d blocked=%q budget=%+v", p.SelectedCount, p.OmittedCount, len(p.Pages), p.BlockedReason, p.ImageBudget)
 	}
 }
 
-func TestImageFailureRequiresExplicitTextPreview(t *testing.T) {
+func TestImageFailureBlocksTextFallback(t *testing.T) {
 	tests := []struct {
 		name   string
 		change func(*Service, *testBackend)
@@ -127,20 +127,11 @@ func TestImageFailureRequiresExplicitTextPreview(t *testing.T) {
 			if _, err := s.Deliver(context.Background(), p.ID, p.OperationID); !errors.Is(err, ErrInvalid) {
 				t.Fatalf("blocked delivery: %v", err)
 			}
-			text, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", Format: "text"})
-			if err != nil || text.BlockedReason != "" || len(text.Pages) != 0 || text.Format != "text" {
-				t.Fatalf("text preview blocked=%q err=%v", text.BlockedReason, err)
+			if _, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", Format: "text"}); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("text format accepted: %v", err)
 			}
-			if _, err := s.Deliver(context.Background(), text.ID, text.OperationID); err != nil {
-				t.Fatal(err)
-			}
-			if op := awaitOperation(t, s, text.OperationID); op.State != "succeeded" {
-				t.Fatalf("operation %+v", op)
-			}
-			b.mu.Lock()
-			defer b.mu.Unlock()
-			if b.promptCalls != 1 || len(b.images) != 0 {
-				t.Fatalf("calls=%d images=%d", b.promptCalls, len(b.images))
+			if b.promptCalls != 0 {
+				t.Fatal("blocked preview sent a prompt")
 			}
 		})
 	}
@@ -208,7 +199,7 @@ func TestNewSessionImageCapabilityCheckedAfterCreation(t *testing.T) {
 func TestImageTokensParticipateInHistoryBudget(t *testing.T) {
 	s, b := newTestService(t)
 	useLongImageHistory(b)
-	s.options.TokenCap = 1500
+	s.options.TokenCap = 200
 	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", UserText: "preserve task"})
 	if err != nil {
 		t.Fatal(err)
@@ -221,18 +212,17 @@ func TestImageTokensParticipateInHistoryBudget(t *testing.T) {
 	}
 }
 
-func TestShortArchiveKeepsTextWithoutImageCapability(t *testing.T) {
+func TestShortArchiveSendsOnlyImageHistory(t *testing.T) {
 	s, b := newTestService(t)
-	b.image = false
-	b.body = "历史内容\n  code()" + strings.Repeat("\nshort archived record", 600)
-	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", UserText: "任务原文"})
-	if err != nil || p.BlockedReason != "" || len(p.Pages) != 0 || !strings.Contains(p.Text, "code()") || !strings.HasSuffix(p.Text, "任务原文") || p.ImageBudget.RetainedRunes != p.ImageBudget.ProjectedRunes {
-		t.Fatalf("short archive=%+v err=%v", p, err)
+	b.body = "sentinel_short_history"
+	p := previewTarget(t, s)
+	if len(p.Pages) != 1 || strings.Contains(p.Text, b.body) || !strings.Contains(p.HistoryText, b.body) || p.ImageBudget.RetainedRunes != p.ImageBudget.ProjectedRunes {
+		t.Fatalf("short history: pages=%d text=%q audit=%q", len(p.Pages), p.Text, p.HistoryText)
 	}
 	if _, err := s.Deliver(context.Background(), p.ID, p.OperationID); err != nil {
 		t.Fatal(err)
 	}
-	if op := awaitOperation(t, s, p.OperationID); op.State != "succeeded" {
+	if op := awaitOperation(t, s, p.OperationID); op.State != "succeeded" || len(b.images) != 1 || b.images[0].Data != p.Pages[0].Data || b.text != p.Text {
 		t.Fatalf("short archive operation: %+v", op)
 	}
 }

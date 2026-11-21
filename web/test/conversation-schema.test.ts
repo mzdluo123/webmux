@@ -52,8 +52,9 @@ describe("ephemeral handoff protocol", () => {
         .success,
     ).toBe(false);
     expect(
-      HandoffPreviewRequestSchema.parse({ ...request, format: "text" }).format,
-    ).toBe("text");
+      HandoffPreviewRequestSchema.safeParse({ ...request, format: "text" })
+        .success,
+    ).toBe(false);
   });
   it("rejects retired draft controls", () => {
     expect(

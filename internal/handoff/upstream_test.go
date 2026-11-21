@@ -64,7 +64,7 @@ func TestUpstreamConfirmationResumesFrozenDeliveryOnce(t *testing.T) {
 				b.mu.Unlock()
 				return sessioncreate.Result{Session: item}, nil
 			}
-			p, err := s.Preview(context.Background(), "source", Request{ConfigID: "config", Format: "text", Location: Location{RepositoryID: "repo", NewWorktreeBranch: "task", NewWorktreeBase: "main"}, UserText: "current task"})
+			p, err := s.Preview(context.Background(), "source", Request{ConfigID: "config", Location: Location{RepositoryID: "repo", NewWorktreeBranch: "task", NewWorktreeBase: "main"}, UserText: "current task"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -111,7 +111,7 @@ func TestPendingUpstreamCancellationAndExpiryDoNotCreate(t *testing.T) {
 				calls.Add(1)
 				return sessioncreate.Result{}, &sessioncreate.UpstreamConfirmationError{WorktreeUpstream: sessioncreate.WorktreeUpstream{ConfirmationID: "check", CanUseUpstream: true}}
 			}
-			p, err := s.Preview(context.Background(), "source", Request{ConfigID: "config", Format: "text", Location: Location{RepositoryID: "repo", NewWorktreeBranch: "task", NewWorktreeBase: "main"}})
+			p, err := s.Preview(context.Background(), "source", Request{ConfigID: "config", Location: Location{RepositoryID: "repo", NewWorktreeBranch: "task", NewWorktreeBase: "main"}})
 			if err != nil {
 				t.Fatal(err)
 			}

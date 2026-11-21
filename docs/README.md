@@ -65,7 +65,7 @@
 - [架构分层与线上契约](architecture/layers.md)：R0–R11、Relay 公开协议子模块边界与 wire 快照维护。
 - [原生 Agent 历史夹具](native-history-fixtures.md)：真实会话脱敏样本、离线读取器开发与缺失覆盖说明。
 - [API 与协议](protocol.md)：REST、WebSocket 帧与错误码（按主题分页）。
-  - [交接操作](hybrid-sessions/handoff.md)：默认历史图片、显式文本、新聊天位置与单次发送。
+  - [交接操作](hybrid-sessions/handoff.md)：历史图片、新聊天位置与单次发送。
   - [交接预览](protocol/http-handoff.md)：冻结图片页集、独立预算、能力检查与操作状态。
   - [只读历史 MCP](protocol/handoff-mcp.md)：目标 scope、分页恢复、可用性和生命周期。
   - [交接原生身份](protocol/handoff-native.md)：来源身份、冻结内容发送与操作生命周期。
