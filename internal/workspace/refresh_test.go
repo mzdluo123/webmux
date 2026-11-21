@@ -256,3 +256,35 @@ func TestRefreshBranchBaseDoesNotBlockWorktreeCreation(t *testing.T) {
 		t.Fatal("fetch did not finish after release")
 	}
 }
+
+func TestRefreshBranchBaseFetchesOnlyTargetBranch(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	s, r, root, remote := upstreamFixture(t)
+
+	other := filepath.Join(t.TempDir(), "other")
+	gitTest(t, root, "clone", remote, other)
+	gitTest(t, other, "checkout", "-b", "unrelated-heavy-branch")
+	putFile(t, filepath.Join(other, "heavy.txt"), "unrelated\n")
+	gitTest(t, other, "add", "heavy.txt")
+	gitTest(t, other, "commit", "-m", "unrelated branch commit")
+	gitTest(t, other, "push", "origin", "unrelated-heavy-branch")
+
+	gitTest(t, other, "checkout", "main")
+	putFile(t, filepath.Join(other, "main.txt"), "main update\n")
+	gitTest(t, other, "add", "main.txt")
+	gitTest(t, other, "commit", "-m", "main update")
+	gitTest(t, other, "push", "origin", "main")
+	mainRemoteHead := gitTest(t, other, "rev-parse", "HEAD")
+
+	result, err := s.RefreshBranchBase(context.Background(), r.ID, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Base != mainRemoteHead || result.UpstreamHead != mainRemoteHead {
+		t.Fatalf("main refresh = %+v, want %s", result, mainRemoteHead)
+	}
+	if refs := gitTest(t, root, "for-each-ref", "--format=%(refname)", "refs/remotes/origin/unrelated-heavy-branch"); refs != "" {
+		t.Fatalf("single-branch refresh fetched unrelated remote ref: %q", refs)
+	}
+}

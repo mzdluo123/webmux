@@ -40,10 +40,7 @@ func (s *Service) RefreshBranchBase(ctx context.Context, repositoryID, branch st
 		timeout = branchFetchTimeout
 	}
 	fetchCtx, fetchCancel := context.WithTimeout(ctx, timeout)
-	_, fetchErr := s.git(fetchCtx, anchor, "fetch", "--prune", "--no-tags", upstream.remote)
-	if fetchErr != nil {
-		_, fetchErr = s.git(fetchCtx, anchor, "fetch", "--no-tags", upstream.remote, upstream.merge)
-	}
+	fetchErr := s.fetchSingleBranch(fetchCtx, anchor, upstream.remote, upstream.merge, upstream.ref)
 	fetchCancel()
 	if fetchErr != nil {
 		if ctx.Err() != nil {
@@ -87,8 +84,9 @@ func (s *Service) refreshRemoteTrackingBranch(ctx context.Context, repositoryID,
 	if timeout <= 0 {
 		timeout = branchFetchTimeout
 	}
+	remoteBranch := strings.TrimPrefix(branch, upstream.remote+"/")
 	fetchCtx, fetchCancel := context.WithTimeout(ctx, timeout)
-	_, fetchErr := s.git(fetchCtx, anchor, "fetch", "--prune", "--no-tags", upstream.remote)
+	fetchErr := s.fetchSingleBranch(fetchCtx, anchor, upstream.remote, "refs/heads/"+remoteBranch, upstream.ref)
 	fetchCancel()
 	if fetchErr != nil {
 		if ctx.Err() != nil {
@@ -96,6 +94,10 @@ func (s *Service) refreshRemoteTrackingBranch(ctx context.Context, repositoryID,
 		}
 		if result.Base == "" {
 			return result, problemf(ErrNotFound, "分支不存在")
+		}
+		if isMissingRemoteRef(fetchErr) {
+			result.FetchWarning = "远程分支已不存在，保留本地基线"
+			return result, nil
 		}
 		result.FetchWarning = "上游刷新失败或已超时，保留本地基线；请重试"
 		return result, nil
@@ -128,6 +130,25 @@ func (s *Service) refreshRemoteTrackingBranch(ctx context.Context, repositoryID,
 	result.UpstreamHead = remote.Head
 	result.FetchWarning = ""
 	return result, nil
+}
+
+// fetchSingleBranch refreshes only one remote branch into its remote-tracking
+// ref instead of fetching and pruning every ref on the remote.
+func (s *Service) fetchSingleBranch(ctx context.Context, anchor, remote, remoteRef, trackingRef string) error {
+	if !strings.HasPrefix(remoteRef, "refs/") {
+		remoteRef = "refs/heads/" + remoteRef
+	}
+	refspec := "+" + remoteRef + ":" + trackingRef
+	_, err := s.git(ctx, anchor, "fetch", "--no-tags", "--recurse-submodules=no", "--end-of-options", remote, refspec)
+	return err
+}
+
+func isMissingRemoteRef(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "couldn't find remote ref") || strings.Contains(msg, "could not find remote ref")
 }
 
 func (s *Service) branchBaseTarget(ctx context.Context, repositoryID, branch string) (BranchBaseRefresh, branchUpstream, string, bool, error) {
