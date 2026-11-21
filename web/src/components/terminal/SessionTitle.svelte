@@ -45,12 +45,14 @@
     class="min-w-0 max-w-full"
     {title}
   >
-    <span class="min-w-0 max-w-48 truncate">{title}</span>
+    <!-- Keep the chevron anchored before the title so dynamic session title
+         updates (initial load, OSC, or agent renames) never cause CLS shifts. -->
     <IconChevronDown
       class="text-muted-foreground transition-colors group-hover/button:text-foreground"
-      data-icon="inline-end"
+      data-icon="inline-start"
       aria-hidden="true"
     />
+    <span class="min-w-0 max-w-48 truncate">{title}</span>
   </Button>
 {/snippet}
 
