@@ -60,38 +60,38 @@
     {:else}{scopeCounts}{/if}{#if refreshing}
       {m.s8_toolbar_refreshing_git()}{/if}
   </p>
-  <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-    <div class="min-w-[min(100%,10rem)] flex-1 sm:mr-3">
+  <div class="flex flex-wrap items-center gap-3">
+    <div class="min-w-[min(100%,6rem)] flex-1">
       <div class="flex min-w-0 items-center gap-1.5">
         <h1
           class="text-xl leading-tight font-semibold tracking-tight wrap-anywhere sm:text-2xl"
         >
           {resolvedTitle}
         </h1>
-        {#if mainWorktree}<MainWorktreeMark srLabel size="md" />{/if}
+        {#if mainWorktree}
+          <span class="hidden sm:inline-flex">
+            <MainWorktreeMark srLabel size="md" />
+          </span>
+        {/if}
         {#if pinnedWorktree}<PinnedWorktreeMark srLabel size="md" />{/if}
       </div>
       {#if meta}<div class="empty:hidden sm:mt-2">{@render meta()}</div>{/if}
     </div>
-    <Button
-      class="shrink-0"
-      aria-label={m.s8_toolbar_new_session_plus()}
-      disabled={startDisabled}
-      onclick={() => onstart()}
-      ><IconPlus aria-hidden="true" />{m.s8_new_session()}</Button
+    <div
+      class="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-1"
     >
-  </div>
-  <div class="flex min-w-0 flex-wrap items-center gap-1 border-b pb-1">
-    <span
-      aria-current="page"
-      class="flex min-h-9 items-center gap-2 border-b-2 border-foreground px-2 text-sm font-medium"
-    >
-      {m.s1_sessions()}
-      <span class="font-mono text-xs text-muted-foreground tabular-nums">
-        {sessionCount}
-      </span>
-    </span>
-    {@render actions()}
+      {@render actions()}
+      <Button
+        size="sm-touch"
+        aria-label={m.s8_toolbar_new_session_plus()}
+        title={m.s8_new_session()}
+        disabled={startDisabled}
+        onclick={() => onstart()}
+      >
+        <IconPlus aria-hidden="true" />
+        <span class="max-sm:sr-only">{m.s8_new_session()}</span>
+      </Button>
+    </div>
   </div>
   {@render children()}
 </div>

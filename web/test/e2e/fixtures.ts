@@ -508,11 +508,26 @@ export async function expectConnected(page: Page) {
   await expect(header.getByRole("status")).toHaveCount(0);
 }
 
-export const workspaceRefreshButton = (page: Page) =>
-  page
+export async function withWorkspaceRefresh(
+  page: Page,
+  action: (refresh: Locator) => Promise<void> = (refresh) => refresh.click(),
+) {
+  const refresh = page
     .getByRole("button", { name: /^刷新(?:工作区| Git 状态)$/ })
     .filter({ visible: true })
     .first();
+  const onPhone = (page.viewportSize()?.width ?? 1280) < 640;
+  const drawerOpened = onPhone && (await revealSidebar(page));
+  const drawer = page.getByRole("dialog", { name: "导航", exact: true });
+  try {
+    await action(refresh);
+  } finally {
+    if (drawerOpened && (await drawer.isVisible())) {
+      await page.keyboard.press("Escape");
+      await expect(drawer).toBeHidden();
+    }
+  }
+}
 
 export const narrowSessionHeader = (page: Page) =>
   (page.viewportSize()?.width ?? 1280) < 640;

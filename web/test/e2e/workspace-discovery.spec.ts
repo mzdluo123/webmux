@@ -173,9 +173,13 @@ test("search and status filters compose and follow live session changes", async 
   await expect(rows).toHaveCount(2);
   await filters.getByRole("radio", { name: /等待中/ }).click();
   await expect(rows).toHaveCount(0);
-  // Keyboard navigation can reach and clear search without requiring a pointer.
+  // Tab through the search row, then reach the selected status filter.
   await search.focus();
   await page.keyboard.type("nothing");
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("switch", { name: "显示输出预览", exact: true }),
+  ).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(filters.getByRole("radio", { name: /等待中/ })).toBeFocused();
 });

@@ -15,23 +15,11 @@
   } = $props();
 </script>
 
-{#if ongit}
-  <Button
-    variant="ghost"
-    size="sm-touch"
-    aria-label={m.s7_git_workbench()}
-    title={m.s7_git_workbench()}
-    onclick={ongit}
-  >
-    <IconGitBranch aria-hidden="true" /> Git
-  </Button>
-{/if}
-<!-- When the expanded desktop sidebar already exposes workspace refresh,
-     avoid showing a second identical refresh button on the same screen. -->
+<!-- Phones and expanded desktop layouts use the sidebar refresh. -->
 <Button
   variant="quiet"
-  size="icon-touch-sm"
-  class="lg:group-data-[collapsed=false]/shell:hidden"
+  size="icon-touch"
+  class="max-sm:hidden lg:group-data-[collapsed=false]/shell:hidden"
   aria-label={m.s8_refresh_git_status()}
   title={refreshing ? m.s8_refreshing_git_status() : m.s8_refresh_git_status()}
   aria-busy={refreshing}
@@ -41,3 +29,15 @@
     aria-hidden="true"
   /></Button
 >
+{#if ongit}
+  <Button
+    variant="ghost"
+    size="sm-touch"
+    aria-label={m.s7_git_workbench()}
+    title={m.s7_git_workbench()}
+    onclick={ongit}
+  >
+    <IconGitBranch aria-hidden="true" />
+    <span class="max-sm:sr-only">Git</span>
+  </Button>
+{/if}

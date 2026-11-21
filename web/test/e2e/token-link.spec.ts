@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { useWorkbenchBranches, workspaceRefreshButton } from "./fixtures";
+import { useWorkbenchBranches, withWorkspaceRefresh } from "./fixtures";
 import { startE2EServer, type E2EServer } from "./server.mjs";
 
 const token = "e2e a&b#c";
@@ -71,7 +71,7 @@ test("a mid-session 401 clears workspace state and allows signing in again", asy
   await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     await route.fulfill({ status: 401, json: { error: "token expired" } });
   });
-  await workspaceRefreshButton(page).click();
+  await withWorkspaceRefresh(page);
   await expect(page.getByLabel("共享 Token", { exact: true })).toBeVisible();
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page.getByRole("searchbox", { name: "搜索会话" })).toHaveCount(
