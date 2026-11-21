@@ -341,8 +341,11 @@
                 (visible.length > 0 || archivedMatches > 0)}
               shortcutDisabled={Boolean(removing)}
               onclear={clearFilters}
-            />
-            {#if !queue}<WorkbenchPreviewControl />{/if}
+            >
+              {#snippet searchAction()}
+                {#if !queue}<WorkbenchPreviewControl />{/if}
+              {/snippet}
+            </SessionFilters>
           </WorkspaceToolbar>
           <SessionListNotices
             setupError={shell.setup.error}

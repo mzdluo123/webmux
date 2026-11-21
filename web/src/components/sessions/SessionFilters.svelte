@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
   import SessionSearch from "./SessionSearch.svelte";
   import { Button } from "$lib/components/ui/button";
@@ -22,6 +23,7 @@
     filtered,
     shortcutDisabled,
     onclear,
+    searchAction,
   }: {
     // Unfiltered list: the filter counts never depend on the active filter.
     sessions: readonly SessionInfo[];
@@ -35,6 +37,7 @@
     // A dialog or sheet owns the keyboard.
     shortcutDisabled: boolean;
     onclear: () => void;
+    searchAction?: Snippet;
   } = $props();
 
   const wide = new MediaQuery("min-width: 768px");
@@ -64,16 +67,19 @@
 
 <div class="@container">
   <div class="flex flex-col gap-2 @3xl:flex-row @3xl:items-center @3xl:gap-4">
-    <div class="min-w-0 @3xl:flex-1">
-      <SessionSearch
-        bind:query
-        bind:input={searchInput}
-        {shortcutDisabled}
-        {onclear}
-        placeholder={wide.current
-          ? m.s3_search_sessions_wide_placeholder()
-          : m.s3_search_sessions_label()}
-      />
+    <div class="flex min-w-0 items-center gap-3 @3xl:flex-1">
+      <div class="min-w-0 flex-1">
+        <SessionSearch
+          bind:query
+          bind:input={searchInput}
+          {shortcutDisabled}
+          {onclear}
+          placeholder={wide.current
+            ? m.s3_search_sessions_wide_placeholder()
+            : m.s3_search_sessions_label()}
+        />
+      </div>
+      {#if searchAction}{@render searchAction()}{/if}
     </div>
     <SegmentedControl
       bind:ref={group}

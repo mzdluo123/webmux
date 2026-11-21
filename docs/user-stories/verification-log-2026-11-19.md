@@ -283,3 +283,10 @@
   - `.github/workflows/test.yml` YAML 解析、`.github/pr-assets/` 排除过滤回归、`make docs-check`、`make persistence-check`、`go test -count=1 ./internal/archtest -run '^(TestAgents|TestGenericCodeNamesNoAgent)'` 与 `make format-check` 通过。
 - 局限：
   - 本次修改涉及 `.github/`，PR 自身按安全规则在 GitHub Actions 触发全量运行；单端跳过效果在合入 `main` 后对后续纯前端/纯后端 PR 生效。
+
+## 2026-11-21：精简工作台页头（US-C02、US-J20）
+
+- Git 与新建会话同排，搜索框同行显示输出预览开关；会话总数保留在「全部」筛选项。
+- `pnpm --dir web build`、`pnpm --dir web lint`、`pnpm --dir web check:arch`（49 项）通过。
+- `pnpm --dir web exec playwright test test/e2e/repository-scope.spec.ts test/e2e/git-workbench-route.spec.ts -g 'repository scope limits the home list|the Git and session views switch in both directions'` 通过 4 项，包含 320px 下 200% 文字放大。
+- 隔离实例用 Chromium 核对桌面、平板、390/375/320px 手机与 667×375 横屏的浅色和深色。搜索与开关同行、Git 打开当前工作树，手机按钮保留至少 44px 高度，页面无横向溢出。触屏为模拟，未使用真机。

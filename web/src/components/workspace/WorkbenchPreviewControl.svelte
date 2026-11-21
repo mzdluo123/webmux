@@ -7,7 +7,7 @@
   const previewId = $props.id();
 </script>
 
-<div class="flex min-h-9 items-center gap-2">
+<div class="flex min-h-9 max-w-1/2 shrink-0 items-center gap-2">
   <Switch
     id={previewId}
     checked={!homeSessionView.compact}
