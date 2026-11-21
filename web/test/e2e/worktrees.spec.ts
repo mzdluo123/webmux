@@ -716,7 +716,8 @@ test("returning home keeps the cached snapshot until a slow Git refresh finishes
     await expectHomeWorktrees(page, 1, 1);
     const refreshed = page.waitForResponse(
       (response) =>
-        response.url().endsWith("/api/repositories") && response.ok(),
+        new URL(response.url()).pathname === "/api/repositories" &&
+        response.ok(),
     );
     held.resolve();
     await (await refreshed).finished();

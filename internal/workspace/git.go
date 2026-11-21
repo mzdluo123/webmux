@@ -313,12 +313,8 @@ func (s *Service) readRepositoryWithCache(ctx context.Context, r *repositoryStat
 		go func(tree *Worktree) {
 			defer wg.Done()
 			var cacheTTL time.Duration
-			if useCache {
-				if activeTrees[tree.ID] {
-					cacheTTL = activeWorktreeStatusCacheTTL
-				} else {
-					cacheTTL = worktreeStatusCacheTTL
-				}
+			if useCache && !activeTrees[tree.ID] {
+				cacheTTL = worktreeStatusCacheTTL
 			}
 			s.populateWorktreeStatusCached(ctx, r, e.CommonDir, tree, cacheTTL, packedNS, fetchNS, now, limit)
 		}(&trees[i])

@@ -13,13 +13,8 @@ import (
 
 // worktreeStatusCacheTTL bounds how long a dormant worktree (no active session
 // and unchanged Git/index/ref/root-dir metadata) may reuse its last status
-// during List reads. activeWorktreeStatusCacheTTL gives active worktrees a
-// brief cooldown so bursty concurrent refreshes do not re-run `git status`
-// back-to-back. Explicit Refresh and all write operations bypass both caches.
-const (
-	worktreeStatusCacheTTL       = 2 * time.Minute
-	activeWorktreeStatusCacheTTL = 3 * time.Second
-)
+// during List reads. Explicit Refresh and all write operations bypass this cache.
+const worktreeStatusCacheTTL = 2 * time.Minute
 
 func worktreeConcurrency() int {
 	return min(max(runtime.NumCPU(), 4), 16)
