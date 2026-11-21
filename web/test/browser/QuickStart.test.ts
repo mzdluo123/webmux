@@ -318,9 +318,10 @@ test("starting in the terminal drops chat-only controls, keeps attachments and i
   await expect.element(box).toBeChecked();
   await toolbar.getByRole("button", { name: "启动方式：聊天" }).click();
   await page.getByRole("menuitemradio", { name: "终端" }).click();
+  await userEvent.keyboard("{Escape}");
   await expect
     .element(toolbar.getByRole("button", { name: "启动方式：终端" }))
-    .toBeVisible();
+    .toHaveAttribute("aria-expanded", "false");
   // The instruction is usually natural language, so a terminal start leaves
   // it off unless the user asks for it.
   await expect.element(box).not.toBeChecked();
@@ -345,7 +346,9 @@ test("starting in the terminal drops chat-only controls, keeps attachments and i
   await expect
     .element(page.getByRole("list", { name: "待发送附件" }))
     .toHaveTextContent("shot.png");
+  await input.click();
   await input.fill("修复首页排序");
+  await expect.element(input).toHaveFocus();
   await userEvent.keyboard("{Enter}");
   await expect.poll(() => location.pathname).toBe("/s/chataaaa");
   const sent = commands().find((c) => c.path === "/api/sessions");
