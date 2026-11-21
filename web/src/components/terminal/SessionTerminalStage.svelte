@@ -95,17 +95,6 @@
     dockSessionNumber ? `${paneName} · ${dockSessionNumber}` : paneName,
   );
 
-  export function menuRoot() {
-    return (
-      document.querySelector<HTMLElement>(
-        `[data-dock-session-commands="${CSS.escape(id)}"]`,
-      ) ??
-      document.querySelector<HTMLElement>(
-        `[data-dock-panel="${CSS.escape(id)}"]`,
-      ) ??
-      undefined
-    );
-  }
   export function focusFind() {
     findPanel?.focus();
   }

@@ -2,6 +2,11 @@
 
 承接 [verification-log-2026-11-18](verification-log-2026-11-18.md)，收录 2026-11-19 起的局部核对记录；索引见 [WebMux User Stories](../user-stories.md#核对记录)。
 
+## 2026-11-21 两步交接与接收方选择（US-Q20）
+
+- `pnpm --dir web exec playwright test test/e2e/handoff.spec.ts` 在桌面及手机 Chromium 上共通过 12 项。覆盖创建新聊天、搜索已有聊天、返回修改、页数校验、预览图片与按需补查。
+- 隔离 Chromium 在桌面、平板、手机和手机横屏的浅色与深色主题核对预览，页面无横向溢出，底部操作栏位于视口内。真机软键盘未实测。
+
 ## 2026-11-21 历史只随图片交接（US-Q20、US-K04）
 
 - `go test -race ./internal/handoff ./internal/historyprojection` 通过。短历史生成一页，长历史首尾及中段正文均留在图片中。目标缺少图片能力或预算无法容纳图片时停止投递。

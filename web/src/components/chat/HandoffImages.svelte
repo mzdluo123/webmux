@@ -9,38 +9,34 @@
   let actualSize = $state(false);
   let trigger: HTMLElement | undefined;
   let imageViewport = $state<HTMLDivElement>();
-  let enlarged = $state<string | null>(null);
-  const selected = $derived(pages.find((page) => page.sha256 === enlarged));
+  let enlarged = $state<number | null>(null);
+  const selected = $derived(enlarged === null ? undefined : pages[enlarged]);
 </script>
 
 <div class="grid min-w-0 gap-4 sm:grid-cols-2">
-  {#each pages as page (page.sha256)}
-    <figure class="min-w-0 space-y-2">
+  {#each pages as page (page.index)}
+    <Button
+      variant="outline"
+      class="h-auto min-w-0 flex-col items-stretch"
+      aria-label={m.handoff_image_zoom({ page: page.index + 1 })}
+      onclick={(event) => {
+        trigger = event.currentTarget;
+        enlarged = page.index;
+        actualSize = false;
+        open = true;
+      }}
+    >
       <img
         src={`data:${page.mimeType};base64,${page.data}`}
         alt={m.handoff_image_page({ page: page.index + 1 })}
         width={page.width}
         height={page.height}
-        class="aspect-4/3 h-auto w-full rounded-md bg-muted object-contain"
+        class="h-24 w-full rounded-sm bg-muted object-contain"
       />
-      <figcaption class="flex flex-wrap items-center gap-2">
-        <span class="text-xs text-muted-foreground"
-          >{page.width} × {page.height} · {page.bytes} B</span
-        >
-        <Button
-          variant="outline"
-          size="sm"
-          onclick={(event) => {
-            trigger = event.currentTarget;
-            enlarged = page.sha256;
-            actualSize = false;
-            open = true;
-          }}
-        >
-          {m.handoff_image_zoom({ page: page.index + 1 })}
-        </Button>
-      </figcaption>
-    </figure>
+      <span class="text-start text-xs"
+        >{m.handoff_image_page({ page: page.index + 1 })}</span
+      >
+    </Button>
   {/each}
 </div>
 <Dialog.Root open={open && !!selected} onOpenChange={(value) => (open = value)}>

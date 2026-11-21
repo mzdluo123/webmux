@@ -1,136 +1,72 @@
 <script lang="ts">
-  import { tick, untrack } from "svelte";
+  import { m } from "$lib/paraglide/messages.js";
   import { Button } from "$lib/components/ui/button";
   import { Textarea } from "$lib/components/ui/textarea";
-  import { m } from "$lib/paraglide/messages.js";
-  import type { HandoffEditor } from "../../hooks/sessions/handoff.svelte";
-  import { openSession } from "../../hooks/shared/shell.svelte";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
-  import HandoffHistoryReader from "./HandoffHistoryReader.svelte";
   import HandoffImages from "./HandoffImages.svelte";
-  let { editor: e }: { editor: HandoffEditor } = $props();
-  let refreshButton = $state<HTMLButtonElement | null>(null);
-  let cancelButton = $state<HTMLButtonElement | null>(null);
-  let previewViewport = $state<HTMLDivElement>();
-
-  $effect.pre(() => {
-    const preview = e.preview;
-    const operation = e.operation;
-    const uncertain = e.uncertain;
-    const active = document.activeElement;
-    const target = untrack(() => {
-      if (active && active === cancelButton) return refreshButton;
-      if (
-        active &&
-        (active === refreshButton || previewViewport?.contains(active))
-      )
-        return previewViewport;
-    });
-    if (!target) return;
-
-    // Keep focus near the result if the focused page or operation disappears.
-    let current = true;
-    void tick().then(() => {
-      if (
-        current &&
-        preview === e.preview &&
-        operation === e.operation &&
-        uncertain === e.uncertain &&
-        target.isConnected &&
-        !active?.isConnected
-      ) {
-        target.focus({ preventScroll: true });
-      }
-    });
-    return () => {
-      current = false;
-    };
-  });
+  import HandoffHistoryReader from "./HandoffHistoryReader.svelte";
+  import type { HandoffEditor } from "../../hooks/sessions/handoff.svelte";
+  let {
+    editor: e,
+    name,
+    onadjust,
+  }: { editor: HandoffEditor; name: string; onadjust: () => void } = $props();
 </script>
 
-<div
-  class="flex h-[clamp(8rem,34dvh,24rem)] min-w-0 flex-col overflow-clip rounded-lg border"
->
-  {#if (e.source && e.error) || e.operation || e.uncertain || e.preview?.blockedReason}
-    <div class="max-h-1/2 shrink-0 space-y-3 overflow-y-auto border-b p-3">
-      {#if e.source && e.error}
-        <InlineNotice tone="danger" size="compact">{e.error}</InlineNotice>
-      {/if}
-      {#if e.preview?.blockedReason}
-        <InlineNotice tone="warning" size="compact"
-          >{e.preview.blockedReason}</InlineNotice
-        >
-      {/if}
-      {#if e.operation}
-        <section class="space-y-3">
-          <InlineNotice
-            tone={e.operation.state === "succeeded"
-              ? "success"
-              : e.operation.state === "failed" ||
-                  e.operation.state === "unknown"
-                ? "warning"
-                : "info"}
-          >
-            <div class="min-w-0 space-y-1">
-              <p>
-                {e.operation.state === "awaiting_upstream"
-                  ? m.worktree_upstream_waiting()
-                  : m.handoff_operation_state({ state: e.operation.state })}
-              </p>
-              {#if e.operation.error}<p class="break-words">
-                  {e.operation.error}
-                </p>{/if}
-              {#if e.operation.worktreePath}<p class="break-all">
-                  {e.operation.worktreePath}
-                </p>{/if}
-            </div>
-          </InlineNotice>
-        </section>
-      {/if}
-      {#if e.uncertain}
-        <InlineNotice tone="warning">{m.handoff_unknown_result()}</InlineNotice>
-      {/if}
-      {#if e.operation || e.uncertain}
-        <div class="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            bind:ref={refreshButton}
-            aria-disabled={e.busy || undefined}
-            tabindex={e.busy ? -1 : undefined}
-            onclick={() => {
-              if (e.busy) return;
-              void e.refresh();
-            }}>{m.handoff_refresh_result()}</Button
-          >
-          {#if e.active}<Button
-              variant="outline"
-              bind:ref={cancelButton}
-              aria-disabled={e.busy || undefined}
-              tabindex={e.busy ? -1 : undefined}
-              onclick={() => {
-                if (e.busy) return;
-                void e.cancel();
-              }}>{m.handoff_cancel()}</Button
-            >{/if}
-          {#if e.operation?.targetSessionId}<Button
-              variant="outline"
-              onclick={() => openSession({ id: e.operation!.targetSessionId })}
-              >{m.s3_qs_enter_session()}</Button
-            >{/if}
-        </div>
-      {/if}
+{#if e.operation || e.uncertain}
+  <div class="space-y-3" role="status">
+    <InlineNotice tone={e.operation?.state === "succeeded" ? "success" : "info"}
+      >{e.operation?.state === "succeeded"
+        ? m.handoff_sent({ name })
+        : e.operation?.error ||
+          (e.operation
+            ? m.handoff_operation_state({ state: e.operation.state })
+            : m.handoff_unknown_result())}</InlineNotice
+    >
+    {#if e.active || e.uncertain || e.operation?.state === "unknown"}
+      {#if e.operation?.targetSessionId}<Button
+          variant="outline"
+          disabled={e.busy}
+          onclick={() => e.refresh()}>{m.handoff_refresh_result()}</Button
+        >{/if}
+      {#if e.active}<Button
+          variant="outline"
+          disabled={e.busy}
+          onclick={() => e.cancel()}>{m.handoff_cancel()}</Button
+        >{/if}
+    {/if}
+  </div>
+{:else if e.preview}
+  <section class="space-y-5" aria-label={m.s3_preview()}>
+    {#if e.preview.blockedReason}<InlineNotice tone="warning"
+        >{e.preview.blockedReason}</InlineNotice
+      >{/if}
+    <h3 class="font-medium">
+      {m.handoff_history_pages({ count: e.preview.pages.length })}
+    </h3>
+    {#if e.preview.omittedCount || e.preview.gapCount}<InlineNotice
+        tone="warning"
+        >{m.handoff_preview_stats({
+          selected: e.preview.selectedCount,
+          omitted: e.preview.omittedCount,
+          gaps: e.preview.gapCount,
+        })}
+        <Button variant="outline" size="sm" onclick={onadjust}
+          >{m.handoff_adjust()}</Button
+        ></InlineNotice
+      >{/if}
+    <HandoffImages pages={e.preview.pages} />
+    <div class="space-y-2">
+      <h3 class="font-medium">{m.handoff_next_task()}</h3>
+      <p class="whitespace-pre-wrap break-words text-sm">
+        {e.preview.userText || m.handoff_no_task()}
+      </p>
     </div>
-  {/if}
-  <!-- svelte-ignore a11y_no_noninteractive_tabindex (the preview scrolls with keyboard focus) -->
-  <div
-    bind:this={previewViewport}
-    class="min-h-0 flex-1 overflow-y-auto p-3"
-    role="region"
-    aria-label={m.s3_preview()}
-    tabindex={e.preview ? 0 : -1}
-  >
-    {#if e.preview}
-      <section class="min-w-0 space-y-3">
+    <details>
+      <summary class="cursor-pointer text-sm hover:underline"
+        >{m.handoff_details()}</summary
+      >
+      <div class="mt-3 space-y-3">
         <p class="text-sm">
           {m.handoff_preview_stats({
             selected: e.preview.selectedCount,
@@ -169,16 +105,6 @@
           </p>
         {/if}
         <p class="text-xs text-muted-foreground">{m.handoff_image_cost()}</p>
-        <HandoffImages pages={e.preview.pages} />
-        <div class="space-y-2">
-          <p class="text-sm">{m.handoff_task_preview()}</p>
-          <Textarea
-            value={e.preview.userText}
-            readonly
-            rows={4}
-            aria-label={m.handoff_task_preview()}
-          />
-        </div>
         <details>
           <summary class="cursor-pointer text-sm hover:underline"
             >{m.handoff_prompt_preview()}</summary
@@ -205,12 +131,6 @@
           sourceId={e.preview.sourceSessionId}
           snapshotId={e.preview.snapshotId}
         />
-      </section>
-    {/if}
-    {#if !e.preview && !e.operation && !e.uncertain}
-      <p class="text-sm text-muted-foreground" role="status">
-        {e.busy ? m.s1_flow_loading_preview() : m.s3_preview()}
-      </p>
-    {/if}
-  </div>
-</div>
+      </div>
+    </details>
+  </section>{/if}

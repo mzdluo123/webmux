@@ -215,14 +215,18 @@ test("image page budget preserves typing and blocks invalid or stale previews", 
     .getByRole("option", { name: "Handoff source", exact: true })
     .click();
   await page
-    .getByRole("textbox", { name: "用户指令", exact: true })
+    .getByRole("textbox", { name: "下一步任务", exact: true })
     .fill("Continue the original source task");
+  await page.getByText("更多设置", { exact: true }).click();
   const pages = page.getByRole("textbox", {
     name: "图片页数预算（1–8）",
     exact: true,
   });
-  const generate = page.getByRole("button", { name: "生成预览", exact: true });
-  const send = page.getByRole("button", { name: "发送交接", exact: true });
+  const generate = page.getByRole("button", { name: "预览交接", exact: true });
+  const send = page.getByRole("button", {
+    name: "创建聊天并发送",
+    exact: true,
+  });
   const budgetError = page.getByRole("alert").filter({
     hasText: "请输入 1 到 8 之间的整数。",
   });
@@ -241,7 +245,7 @@ test("image page budget preserves typing and blocks invalid or stale previews", 
       await pages.press("Backspace");
     }
     await expect(pages).toHaveValue("");
-    await expect(send).toBeDisabled();
+    await expect(send).toHaveCount(0);
     if (value) await pages.pressSequentially(value);
     await expect(pages).toHaveValue(value);
   }
@@ -253,6 +257,8 @@ test("image page budget preserves typing and blocks invalid or stale previews", 
     await generate.click();
     expect((await response).status()).toBe(201);
     await expect(send).toBeEnabled();
+    await page.getByRole("button", { name: "返回修改" }).click();
+    await page.getByText("更多设置", { exact: true }).click();
   }
 
   await expect(pages).toHaveAttribute("inputmode", "numeric");
@@ -265,7 +271,7 @@ test("image page budget preserves typing and blocks invalid or stale previews", 
 
   for (const invalid of ["", "0", "9", "2.8", "1e0", "abc", "-1"]) {
     await typeBudget(invalid);
-    await expect(send).toBeDisabled();
+    await expect(send).toHaveCount(0);
     await generate.click();
     await expect(budgetError).toBeVisible();
     await expect(pages).toHaveAttribute("aria-invalid", "true");
@@ -281,22 +287,22 @@ test("image page budget preserves typing and blocks invalid or stale previews", 
   await expect(pages).toHaveValue("8");
   await expect(pages).toHaveAttribute("aria-invalid", "false");
   await expect(budgetError).toHaveCount(0);
-  await expect(send).toBeDisabled();
+  await expect(send).toHaveCount(0);
   await generatePreview();
   expect(submittedBudgets).toEqual([1, 8]);
 
   await typeBudget("2");
-  await expect(send).toBeDisabled();
+  await expect(send).toHaveCount(0);
   await generatePreview();
   expect(submittedBudgets).toEqual([1, 8, 2]);
 
   await typeBudget("");
   await pages.blur();
   await expect(budgetError).toBeVisible();
-  await expect(send).toBeDisabled();
+  await expect(send).toHaveCount(0);
 });
 
-test("handoff form retains preview position and focus across results", async ({
+test("review shows the recipient, image and task before creating a chat", async ({
   page,
   request,
   server,
@@ -304,118 +310,51 @@ test("handoff form retains preview position and focus across results", async ({
   const src = await source(request, server.workDir, true);
   await config(request, "UI handoff target");
   await page.goto(`/handoff/${src.id}`);
-  const agent = page.getByRole("combobox", { name: "目标 Agent", exact: true });
-  await agent.click();
+  await page.getByRole("combobox", { name: "目标 Agent" }).click();
+  await page.getByRole("option", { name: "UI handoff target" }).click();
   await page
-    .getByRole("option", { name: "UI handoff target", exact: true })
-    .click();
-  await page
-    .getByRole("textbox", { name: "用户指令", exact: true })
-    .fill("new task\n  preserve indentation");
-  const generate = page.getByRole("button", {
-    name: "生成预览",
-    exact: true,
-  });
-  const send = page.getByRole("button", { name: "发送交接", exact: true });
-  await generate.scrollIntoViewIfNeeded();
-  const confirmBefore = await send.boundingBox();
-  await generate.press("Enter");
+    .getByRole("textbox", { name: "下一步任务" })
+    .fill("Inspect the original constraint");
+  await page.getByRole("button", { name: "预览交接" }).click();
   await expect(
-    page.getByRole("textbox", { name: "当前任务（原样文本）", exact: true }),
-  ).toHaveValue(/new task/);
-  await expect(generate).toBeFocused();
-  const confirmAfter = await send.boundingBox();
-  expect(confirmAfter?.y).toBeCloseTo(confirmBefore!.y, 0);
-  const image = page.getByRole("img", { name: "历史图片第 1 页", exact: true });
-  await expect(image).toBeVisible();
-  expect(
-    await image.evaluate((node: HTMLImageElement) => node.naturalWidth),
-  ).toBeGreaterThan(0);
-  const zoom = page.getByRole("button", { name: "放大第 1 页", exact: true });
-  await zoom.click();
-  const viewer = page.getByRole("dialog", { name: "历史图片第 1 页" });
-  await expect(viewer).toBeVisible();
-  const actualSize = viewer.getByRole("button", { name: "原始尺寸 1:1" });
-  await actualSize.click();
-  await expect(actualSize).toHaveAttribute("aria-pressed", "true");
-  expect(
-    await viewer
-      .locator("img")
-      .evaluate((node: HTMLImageElement) => node.width),
-  ).toBe(
-    await viewer
-      .locator("img")
-      .evaluate((node: HTMLImageElement) => node.naturalWidth),
-  );
-  await page.keyboard.press("Escape");
-  await expect(viewer).toHaveCount(0);
-  await expect(zoom).toBeFocused();
-
-  let releasePreview!: () => void;
-  const holdPreview = new Promise<void>(
-    (resolve) => (releasePreview = resolve),
-  );
-  await page.route(
-    "**/handoff-previews",
-    async (route) => {
-      const response = await route.fetch();
-      const preview: HandoffPreview = await response.json();
-      await holdPreview;
-      await route.fulfill({
-        response,
-        json: {
-          ...preview,
-          pages: [],
-          blockedReason: "目标暂时无法接收图片。",
-        },
-      });
-    },
-    { times: 1 },
-  );
-  await generate.press("Enter");
-  await zoom.focus();
-  releasePreview();
-  await expect(
-    page.getByRole("region", { name: "预览", exact: true }),
+    page.getByRole("heading", { name: "UI handoff target" }),
   ).toBeFocused();
-
+  const zoom = page.getByRole("button", { name: "放大第 1 页" });
+  await zoom.click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(zoom).toBeFocused();
+  await page.getByText("查看详情", { exact: true }).click();
   await page.getByRole("button", { name: "补查冻结原文", exact: true }).click();
   await expect(page.locator("pre")).toContainText("original source constraint");
-  await expect(send).toBeDisabled();
-  await generate.click();
-  await expect(image).toBeVisible();
-  await page.route("**/api/handoff-previews/*", (route) =>
-    route.request().method() === "GET" ? route.abort() : route.continue(),
-  );
-  await expect(send).toBeEnabled();
-  const sent = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" &&
-      response.url().includes("/handoff-previews/") &&
-      response.url().endsWith("/send"),
-  );
-  await send.click();
-  const response = await sent;
-  expect(response.status(), await response.text()).toBe(202);
-  const operation = (await response.json()) as HandoffOperation;
-  expect((await complete(request, operation.id)).state).toBe("succeeded");
-  await page.route(`**/handoff-operations/${operation.id}`, (route) =>
-    route.fulfill({ status: 410, json: { error: "预览已失效，请重新生成。" } }),
-  );
+  await page.getByRole("button", { name: "创建聊天并发送" }).click();
+  await expect(page.getByText("已发送到「UI handoff target」")).toBeVisible();
+  await page.getByRole("button", { name: "打开目标聊天" }).click();
+  await expect(page).toHaveURL(/\/s\//);
+});
+
+test("switch agent searches available chats and delivers to the chosen session", async ({
+  page,
+  request,
+  server,
+}) => {
+  const src = await source(request, server.workDir);
+  const target = await create(request, server.workDir, src.cfg);
+  await page.goto(`/handoff/${src.id}?target=switch`);
+  await expect(page.getByRole("heading", { name: "更换 Agent" })).toBeVisible();
+  await page.getByRole("radio", { name: "已有聊天" }).click();
+  await page.locator("#handoff-target").click();
   await page
-    .getByRole("button", { name: "查看发送结果", exact: true })
-    .press("Enter");
-  await expect(page.getByRole("alert")).toHaveText("预览已失效，请重新生成。");
-  await expect(
-    page.getByRole("region", { name: "预览", exact: true }),
-  ).toBeFocused();
-  await page.reload();
-  await expect(
-    page.getByRole("textbox", { name: "用户指令", exact: true }),
-  ).toHaveValue("");
-  await expect(
-    page.getByRole("textbox", { name: "当前任务（原样文本）", exact: true }),
-  ).toHaveCount(0);
+    .getByPlaceholder("搜索聊天标题、Agent 或目录")
+    .fill(server.workDir);
+  const option = page.getByRole("option").first();
+  await option.click();
+  await page.getByRole("textbox", { name: "下一步任务" }).fill("Continue here");
+  await page.getByRole("button", { name: "预览交接" }).click();
+  await page.getByRole("button", { name: "发送到此聊天" }).click();
+  await expect(page.getByText(/已发送到「/)).toBeVisible();
+  await page.getByRole("button", { name: "打开目标聊天" }).click();
+  await expect(page).toHaveURL(new RegExp("/s/" + target + "$"));
 });
 
 test("image-unsupported targets block delivery and text previews are rejected", async ({

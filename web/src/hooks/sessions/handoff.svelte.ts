@@ -52,7 +52,10 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     maxPages,
     configId: targetSessionId ? "" : configId,
     targetSessionId,
-    agentConfig: (model ? { model } : {}) as Record<string, string>,
+    agentConfig: (!targetSessionId && model ? { model } : {}) as Record<
+      string,
+      string
+    >,
     userText: task,
     location: targetSessionId ? emptyHandoffLocation() : location,
   });
@@ -191,6 +194,17 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       busy = false;
     }
   }
+  function edit() {
+    if (
+      busy ||
+      uncertainOperationId ||
+      (operation && operation.state !== "failed")
+    )
+      return;
+    preview = null;
+    operation = null;
+    error = "";
+  }
   async function cancel() {
     if (!operation || busy) return;
     busy = true;
@@ -241,7 +255,6 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     },
     set targetSessionId(v: string) {
       targetSessionId = v;
-      model = "";
     },
     get model() {
       return model;
@@ -283,6 +296,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       return sealed;
     },
     fork,
+    edit,
     commitMaxPages,
     generate,
     send,
