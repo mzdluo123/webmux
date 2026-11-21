@@ -1213,8 +1213,11 @@ test.describe("hybrid sessions with the fake agent", () => {
     await expectTerminalLine(page, "> history-23");
     await expectTerminalLine(page, "< echo: history-23");
     await switchTo(page, "chat");
-    await expect(conversation(page)).toContainText("history-0");
     await expect(conversation(page)).toContainText("echo: history-23");
+    // Off-screen transcript rows unmount once the conversation passes the
+    // virtualization threshold; scroll back to the first anchor to verify it mounts.
+    await conversation(page).locator("li").first().scrollIntoViewIfNeeded();
+    await expect(conversation(page)).toContainText("history-0");
   });
 
   test("Claude steers a running turn without starting an extra idle turn", async ({
