@@ -113,6 +113,16 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
       }
       await expectOneRow(header(page));
       await expect(title).toBeVisible();
+      const paneTitle = page.locator("[data-dock-panel]:visible > .dock-title");
+      await expect(paneTitle.locator("[data-dock-actions]")).toHaveCount(0);
+      await expect(
+        paneTitle.getByRole("button", { name: /^收起「/ }),
+      ).toHaveCount(0);
+      expect(
+        await header(page)
+          .getByRole("button", { name: "终端菜单", exact: true })
+          .boundingBox(),
+      ).toMatchObject({ width: 44, height: 44 });
       // 393px fits the whole title; 320px may truncate it but keeps it shown.
       if (width === 393)
         expect(
@@ -199,6 +209,11 @@ test("a phone Diff leaves most of the screen to code and reaches document action
   await openDiff(page);
   const tabs = page.getByRole("tablist", { name: "文件标签" });
   await expectOneRow(tabs.locator(".."));
+  const readerTitle = codeReader(page).locator(":scope > .dock-title");
+  await expect(readerTitle.locator("[data-dock-actions]")).toHaveCount(0);
+  await expect(
+    readerTitle.getByRole("button", { name: /^收起「/ }),
+  ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "完整文件", exact: true }),
   ).toBeHidden();
