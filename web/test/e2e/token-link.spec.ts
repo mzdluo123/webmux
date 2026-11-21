@@ -84,3 +84,66 @@ test("a mid-session 401 clears workspace state and allows signing in again", asy
   await expect(search).toBeVisible();
   await expect(search).toHaveValue("");
 });
+
+test("returning browser reloads into the shell skeleton without flashing the login card", async ({
+  page,
+}) => {
+  await page.goto(`${server.baseURL}/#token=${encodeURIComponent(token)}`);
+  await expect(page.getByRole("textbox", { name: "任务描述" })).toBeVisible();
+
+  // Observe every DOM mutation across reload to prove the login headline never flashes.
+  await page.addInitScript(() => {
+    const win = window as unknown as { __sawLoginHeadline?: boolean };
+    win.__sawLoginHeadline = false;
+    const scan = () => {
+      const text = document.body?.textContent ?? "";
+      if (
+        text.includes("你的终端，始终在线。") ||
+        text.includes("Your terminal, always online.")
+      ) {
+        win.__sawLoginHeadline = true;
+      }
+    };
+    const observer = new MutationObserver(scan);
+    const start = () => {
+      scan();
+      if (document.body)
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+          characterData: true,
+        });
+    };
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", start, { once: true });
+    } else {
+      start();
+    }
+  });
+
+  const holdHealth = Promise.withResolvers<void>();
+  let healthRequested = false;
+  await page.route("**/api/health", async (route) => {
+    healthRequested = true;
+    await holdHealth.promise;
+    await route.continue();
+  });
+
+  const reload = page.reload({ waitUntil: "domcontentloaded" });
+  await expect.poll(() => healthRequested).toBe(true);
+  await expect(
+    page.getByRole("main", { name: "正在恢复工作区" }),
+  ).toBeVisible();
+  await expect(page.getByText("你的终端，始终在线。")).toHaveCount(0);
+
+  holdHealth.resolve();
+  await reload;
+  await expect(page.getByRole("textbox", { name: "任务描述" })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { __sawLoginHeadline?: boolean })
+          .__sawLoginHeadline,
+    ),
+  ).toBe(false);
+});
