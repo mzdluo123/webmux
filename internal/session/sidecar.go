@@ -16,8 +16,9 @@ const (
 	// sidecarStderrCapacity bounds the retained stderr tail.
 	sidecarStderrCapacity = 64 << 10
 	// sidecarStopGrace is how long Stop waits after closing stdin before it
-	// hangs up the process group.
-	sidecarStopGrace = 3 * time.Second
+	// hangs up the process group. Keep this short so adapters that ignore stdin
+	// EOF do not stall view switches for seconds before receiving SIGHUP.
+	sidecarStopGrace = 300 * time.Millisecond
 	// sidecarStdoutDrain bounds how long Output waits for inherited stdout
 	// descriptors after the sidecar's process tree has finished.
 	sidecarStdoutDrain = 250 * time.Millisecond
