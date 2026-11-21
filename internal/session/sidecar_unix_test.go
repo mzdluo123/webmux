@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -260,5 +261,47 @@ func TestStopTerminatesDirectSetsidSidecarChild(t *testing.T) {
 		}
 		reapAdopted(procpeek.Processes())
 		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestSidecarHUPHelper(t *testing.T) {
+	if os.Getenv("WEBMUX_TEST_SIDECAR_HUP") != "1" {
+		return
+	}
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGHUP)
+	_, _ = os.Stdout.WriteString("ready\n")
+	<-ch
+	os.Exit(0)
+}
+
+func TestSidecarStopDoesNotWaitSecondsWhenStdinEOFIgnored(t *testing.T) {
+	t.Parallel()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := shellManager(t)
+	s := createShell(t, m, nil)
+	sidecar, err := s.StartSidecar(
+		[]string{exe, "-test.run=^TestSidecarHUPHelper$"},
+		false,
+		map[string]string{"WEBMUX_TEST_SIDECAR_HUP": "1"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	line, err := bufio.NewReader(sidecar.Stdout()).ReadString('\n')
+	if err != nil || strings.TrimSpace(line) != "ready" {
+		t.Fatalf("helper ready line = %q, %v", line, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	start := time.Now()
+	if err := sidecar.Stop(ctx); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed >= 1500*time.Millisecond {
+		t.Fatalf("Sidecar.Stop waited %v for a process ignoring stdin EOF, want < 1.5s", elapsed)
 	}
 }
