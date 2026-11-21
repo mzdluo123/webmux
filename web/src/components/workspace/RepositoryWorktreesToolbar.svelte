@@ -54,6 +54,7 @@
 
 <div class="space-y-3">
   <ListSearchInput
+    clearable
     bind:value={query}
     label={m.s8_wt_search_label()}
     placeholder={m.s8_wt_search_placeholder()}

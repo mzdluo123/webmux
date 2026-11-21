@@ -294,3 +294,15 @@
   - `.github/workflows/test.yml` YAML 解析、`.github/pr-assets/` 排除过滤回归、`make docs-check`、`make persistence-check`、`go test -count=1 ./internal/archtest -run '^(TestAgents|TestGenericCodeNamesNoAgent)'` 与 `make format-check` 通过。
 - 局限：
   - 本次修改涉及 `.github/`，PR 自身按安全规则在 GitHub Actions 触发全量运行；单端跳过效果在合入 `main` 后对后续纯前端/纯后端 PR 生效。
+
+## 2026-11-21：可搜索选择器的通栏搜索
+
+- 范围：启动方式、位置、目录、项目、会话切换、分屏、模型、工作树和分支。故事编号与总数保持不变。
+  - 关联 US-B01、US-B04、US-B06、US-B10、US-B12、US-C18、US-D13、US-Q07、US-Q18、US-J03–US-J05、US-J14–US-J16、US-J21、US-J22。
+- 已执行验证：
+  - `pnpm --dir web check`、`pnpm --dir web lint`、`pnpm --dir web check:arch`（49 项）、`make format-check` 与 `make docs-check` 通过。
+  - 使用 `vp test run --config vitest.browser.config.ts` 运行目录、快速开始、项目、会话切换、分屏、切换分支、工作树创建及分支操作测试，87 项通过。
+  - 使用同一浏览器配置运行 `GitWorkbenchCommitPush.test.ts`，7 项通过，包含顶栏分支浮层。
+  - 使用 `vp test run --config vitest.config.ts` 运行 `home-worktrees.test.ts`、`git-branches-and-staging.test.ts` 与 `commit-choices.test.ts`，16 项通过。
+  - 在 Chromium 中运行快速开始位置选择器，检查桌面、平板、窄屏和横屏下的明暗主题、长分支名、浮层边界、焦点底线，以及按关键字筛选后用 Enter 选择。
+- 局限：视觉验证使用 Chromium 和演示仓库数据，未在真机上执行。

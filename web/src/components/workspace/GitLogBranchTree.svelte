@@ -3,7 +3,6 @@
   import IconChevronRight from "~icons/tabler/chevron-right";
   import IconGitBranch from "~icons/tabler/git-branch";
   import { Button } from "$lib/components/ui/button";
-  import { Input } from "$lib/components/ui/input";
   import { ListButton } from "$lib/components/ui/list-button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { m } from "$lib/paraglide/messages.js";
@@ -17,6 +16,7 @@
     type GitSharedBranchActionKind,
   } from "../../domains/workspace/git-branches-model";
   import { useLayoutRowsMotion } from "../../hooks/shared/layout-rows-motion.svelte";
+  import ListSearchInput from "../shared/ListSearchInput.svelte";
   import GitBranchListItem from "./GitBranchListItem.svelte";
 
   let {
@@ -140,29 +140,25 @@
   class="flex h-full min-h-0 min-w-0 flex-col bg-background"
   aria-label={m.s6_log_tree_aria()}
 >
-  <div class="space-y-1.5 border-b px-2.5 py-2">
-    <div class="flex items-center justify-between gap-2">
-      <span class="text-xs font-semibold text-foreground"
-        >{m.s6_log_tree_heading()}</span
+  <div class="flex items-center justify-between gap-2 px-2.5 pt-2">
+    <span class="text-xs font-semibold text-foreground"
+      >{m.s6_log_tree_heading()}</span
+    >
+    {#if branchFilter}
+      <Button
+        size="sm"
+        variant="ghost"
+        onclick={() => onBranchFilterChange(null)}
       >
-      {#if branchFilter}
-        <Button
-          size="sm"
-          variant="ghost"
-          onclick={() => onBranchFilterChange(null)}
-        >
-          {m.s6_log_tree_clear_filter()}
-        </Button>
-      {/if}
-    </div>
-    <Input
-      size="sm"
-      value={refQuery}
-      placeholder={m.s6_log_tree_search_placeholder()}
-      aria-label={m.s6_log_tree_search_aria()}
-      oninput={(e) => (refQuery = e.currentTarget.value)}
-    />
+        {m.s6_log_tree_clear_filter()}
+      </Button>
+    {/if}
   </div>
+  <ListSearchInput
+    bind:value={refQuery}
+    placeholder={m.s6_log_tree_search_placeholder()}
+    label={m.s6_log_tree_search_aria()}
+  />
 
   <ScrollArea class="min-h-8 flex-1" viewportClasses="[overflow-anchor:none]">
     <div bind:this={treeEl} class="space-y-1.5 p-1.5">

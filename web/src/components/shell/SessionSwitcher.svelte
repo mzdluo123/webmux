@@ -265,7 +265,7 @@
     </Dialog.Close>
     <Command.Root
       label={m.s1_search_all_sessions()}
-      class="min-h-0 [&>[data-slot=command-input-wrapper]]:shrink-0"
+      class="min-h-0"
       filter={scoreItem}
     >
       <Command.Input

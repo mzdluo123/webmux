@@ -66,6 +66,21 @@ for (const story of [
           expect.soft(ratio, `${name} ${pair}`).toBeGreaterThanOrEqual(4.5);
       }
       if (story === "forms") {
+        const picker = page.getByRole("button", {
+          name: "示例目录",
+          exact: true,
+        });
+        await picker.click();
+        const search = page.getByPlaceholder("搜索示例目录…");
+        const row = page.locator('[data-slot="command-input-wrapper"]');
+        await expect(row).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+        await expect(row).toHaveCSS("border-radius", "0px");
+        await search.fill("demo");
+        await expect(row).not.toHaveCSS("box-shadow", "none");
+        await expect(page.getByRole("option")).toHaveCount(1);
+        await search.press("Enter");
+        await expect(search).toBeHidden();
+        await expect(picker).toContainText("demo");
         await page.getByLabel("名称", { exact: true }).fill("测试快捷指令");
         await page.getByRole("button", { name: "保存示例" }).click();
         await expect

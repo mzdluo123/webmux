@@ -207,7 +207,7 @@
     </Popover.Trigger>
     <Popover.Content
       align="start"
-      class="max-h-(--bits-popover-content-available-height) w-72 max-w-(--bits-popover-content-available-width) gap-0 overflow-hidden p-0 [&>[data-slot=command]]:min-h-0 [&_[data-slot=command-input-wrapper]]:shrink-0"
+      class="max-h-(--bits-popover-content-available-height) w-72 max-w-(--bits-popover-content-available-width) gap-0 overflow-hidden p-0 [&>[data-slot=command]]:min-h-0"
     >
       <div class="shrink-0 border-b px-2 py-1.5">
         <SegmentedControl
