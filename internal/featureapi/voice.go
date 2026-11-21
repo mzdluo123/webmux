@@ -44,6 +44,7 @@ func (s *Server) chatStream() transport.Stream {
 		if err != nil {
 			return func(conn hub.MessageConn) { _ = conn.Close(hub.StatusNotFound, "session not found") }, nil, nil
 		}
-		return func(conn hub.MessageConn) { featurehub.Chat(ctx, subscription, conn) }, subscription.Close, nil
+		opts := featurehub.ChatOptions{TailBackfill: featurehub.ChatBackfillTail(r.URL.Query())}
+		return func(conn hub.MessageConn) { featurehub.ChatWithOptions(ctx, subscription, conn, opts) }, subscription.Close, nil
 	}}
 }

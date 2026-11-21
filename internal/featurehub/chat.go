@@ -35,28 +35,81 @@ func ChatResume(q url.Values) *hybrid.ResumePoint {
 // session dropped closes the connection (4408 when it fell behind); ending
 // the connection only releases the subscription.
 func Chat(ctx context.Context, sub *hybrid.Subscription, c hub.MessageConn) {
+	ChatWithOptions(ctx, sub, c, ChatOptions{})
+}
+
+// ChatWithOptions behaves like Chat and, when opts.TailBackfill is set and
+// the backlog exceeds the tail budget, sends the newest tail first followed
+// by earlier chunks as backfill frames interleaved with live updates.
+func ChatWithOptions(ctx context.Context, sub *hybrid.Subscription, c hub.MessageConn, opts ChatOptions) {
 	defer sub.Close()
 	defer func() { _ = c.CloseNow() }()
+	writeChatStream(ctx, sub.Snapshot, sub.Events, sub.Out, sub.Done, sub.Err, c, opts)
+}
+
+func writeChatStream(
+	ctx context.Context,
+	snapshot hybrid.Snapshot,
+	backlog []hybrid.Event,
+	out <-chan hybrid.Frame,
+	done <-chan struct{},
+	subErr func() error,
+	c hub.MessageConn,
+	opts ChatOptions,
+) {
 	ctx = c.CloseRead(ctx)
-	if !writeChat(ctx, c, wire.ChatSnapshot(sub.Snapshot)) || !writeChat(ctx, c, wire.ChatEvents(sub.Snapshot.Generation, sub.Events)) {
+	if !writeChat(ctx, c, wire.ChatSnapshot(snapshot)) {
 		return
+	}
+	var backfill [][]hybrid.Event
+	if opts.TailBackfill {
+		var tail []hybrid.Event
+		tail, backfill = splitBacklogTailFirst(backlog, tailBackfillBudget, tailBackfillMinEvents)
+		if !writeChat(ctx, c, wire.ChatTailEvents(snapshot.Generation, tail, len(backfill) > 0)) {
+			return
+		}
+	} else {
+		if !writeChat(ctx, c, wire.ChatEvents(snapshot.Generation, backlog)) {
+			return
+		}
 	}
 	for {
 		// A dropped subscription ends the connection before its queued
 		// frames: the client resumes from what it has.
 		select {
-		case <-sub.Done:
-			closeChat(c, sub.Err())
+		case <-done:
+			closeChat(c, subErr())
 			return
 		default:
+		}
+		if len(backfill) > 0 {
+			// Prioritize live updates so streaming never waits behind history.
+			select {
+			case <-ctx.Done():
+				return
+			case <-done:
+				closeChat(c, subErr())
+				return
+			case f := <-out:
+				if !writeChat(ctx, c, wire.ChatFrame(f)) {
+					return
+				}
+			default:
+				chunk := backfill[0]
+				backfill = backfill[1:]
+				if !writeChat(ctx, c, wire.ChatBackfill(snapshot.Generation, chunk, len(backfill) > 0)) {
+					return
+				}
+			}
+			continue
 		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-sub.Done:
-			closeChat(c, sub.Err())
+		case <-done:
+			closeChat(c, subErr())
 			return
-		case f := <-sub.Out:
+		case f := <-out:
 			if !writeChat(ctx, c, wire.ChatFrame(f)) {
 				return
 			}

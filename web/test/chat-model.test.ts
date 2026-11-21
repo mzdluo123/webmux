@@ -675,3 +675,108 @@ describe("bounded conversation navigation", () => {
     expect(conversationTurnGroups([item], 0)).toEqual([[item]]);
   });
 });
+
+describe("tail-first backfill reducer", () => {
+  test("prepends chunked backfill in order, reconciles split entries, and gates resumePoint until complete", () => {
+    seq = 1;
+    const all: ChatEvent[] = [
+      ev({
+        kind: "info.set",
+        info: { title: "旧标题" },
+      }),
+      ev({
+        kind: "message.append",
+        message: { messageId: "u1", role: "user", text: "第一轮" },
+      }),
+      ev({
+        kind: "message.append",
+        message: { messageId: "a1", role: "agent", text: "前半段" },
+      }),
+      ev({
+        kind: "message.append",
+        message: { messageId: "a1", role: "agent", text: "后半段" },
+      }),
+      ev({
+        kind: "tool.upsert",
+        tool: {
+          toolCallId: "t1",
+          kind: "read",
+          title: "Read foo.go",
+          status: "in_progress",
+        },
+      }),
+      ev({
+        kind: "tool.upsert",
+        tool: {
+          toolCallId: "t1",
+          status: "completed",
+          content: [{ type: "text", text: "done" }],
+        },
+      }),
+      ev({
+        kind: "info.set",
+        info: { title: "新标题" },
+      }),
+      ev({
+        kind: "message.append",
+        message: { messageId: "u2", role: "user", text: "第二轮" },
+      }),
+      ev({
+        kind: "message.append",
+        message: { messageId: "a2", role: "agent", text: "最新回复" },
+      }),
+    ];
+
+    // Single-pass reference model
+    let reference = applyFrame(emptyChat(), snapshot("g1", { from: 1 }));
+    reference = applyFrame(reference, events(all));
+
+    // Tail-first delivery: tail (last 4 events, splitting tool t1), live event,
+    // then chunk1 (splitting message a1), then chunk0 (oldest).
+    const chunk0 = all.slice(0, 3);
+    const chunk1 = all.slice(3, 5);
+    const tail = all.slice(5);
+    const live = ev({
+      kind: "message.append",
+      message: { messageId: "a3", role: "agent", text: "实时增量" },
+    });
+
+    let m = applyFrame(emptyChat(), snapshot("g1", { from: 1 }));
+    m = applyFrame(m, {
+      type: "events",
+      generation: "g1",
+      items: tail,
+      more: true,
+    });
+    expect(m.backfillPending).toBe(true);
+    expect(resumePoint(m)).toBeUndefined();
+
+    // Interleaved live update arrives while backfill is still pending.
+    m = applyFrame(m, events([live]));
+    expect(resumePoint(m)).toBeUndefined();
+
+    m = applyFrame(m, {
+      type: "backfill",
+      generation: "g1",
+      items: chunk1,
+      more: true,
+    });
+    expect(m.backfillPending).toBe(true);
+    expect(resumePoint(m)).toBeUndefined();
+
+    m = applyFrame(m, {
+      type: "backfill",
+      generation: "g1",
+      items: chunk0,
+      more: false,
+    });
+    expect(m.backfillPending).toBe(false);
+    expect(resumePoint(m)).toEqual({ generation: "g1", seq: live.seq });
+
+    const referenceWithLive = applyFrame(reference, events([live]));
+    expect(m.title).toBe("新标题");
+    expect(m.entries).toEqual(referenceWithLive.entries);
+    expect(m.next).toBe(referenceWithLive.next);
+    expect(m.index.get("tool:t1")).toBe(referenceWithLive.index.get("tool:t1"));
+  });
+});

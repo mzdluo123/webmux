@@ -424,6 +424,13 @@ const ChatStateSchema = z.object({
 });
 export type ChatState = z.infer<typeof ChatStateSchema>;
 
+const chatEventBatchFields = {
+  generation: z.string().optional(),
+  from: z.number().int().nonnegative().optional(),
+  items: z.array(ChatEventSchema).optional(),
+  more: z.boolean().optional(),
+};
+
 export const ChatFrameSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("snapshot"),
@@ -434,12 +441,8 @@ export const ChatFrameSchema = z.discriminatedUnion("type", [
     truncated: z.boolean().optional(),
     state: ChatStateSchema,
   }),
-  z.object({
-    type: z.literal("events"),
-    generation: z.string().optional(),
-    from: z.number().int().nonnegative().optional(),
-    items: z.array(ChatEventSchema).optional(),
-  }),
+  z.object({ type: z.literal("events"), ...chatEventBatchFields }),
+  z.object({ type: z.literal("backfill"), ...chatEventBatchFields }),
   z.object({ type: z.literal("state"), state: ChatStateSchema }),
 ]);
 export type ChatFrame = z.infer<typeof ChatFrameSchema>;
