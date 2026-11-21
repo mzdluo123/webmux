@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { useViewport } from "../hooks/shared/viewport.svelte";
   import { untrack } from "svelte";
   import { Button } from "$lib/components/ui/button";
   import { m } from "$lib/paraglide/messages.js";
@@ -6,33 +7,31 @@
   import { navigate } from "../platform/api";
   import HandoffForm from "../components/chat/HandoffForm.svelte";
   import SidebarButton from "../components/shell/SidebarButton.svelte";
-  let { sourceId }: { sourceId: string } = $props();
+  let { sourceId, fork = true }: { sourceId: string; fork?: boolean } =
+    $props();
+  const viewport = useViewport();
   const editor = createHandoffEditor(
     untrack(() => sourceId),
-    true,
+    untrack(() => fork),
   );
 </script>
 
-<div class="flex h-full min-h-0 min-w-0 flex-col">
+<div
+  class="safe-area-page flex h-(--viewport-height) min-w-0 flex-col overflow-hidden"
+  style:--viewport-height={`${viewport.height}px`}
+>
   <header
     class="app-header flex shrink-0 items-center gap-2 border-b bg-card px-2"
   >
     <SidebarButton class="sm:hidden" />
     <h1 class="min-w-0 flex-1 truncate text-base font-medium">
-      {m.s1_handoff_to_new_chat()}
+      {fork ? m.s1_handoff_to_new_chat() : m.s3_agent_handoff_title()}
     </h1>
-    <Button variant="ghost" size="sm" onclick={() => navigate("/")}
-      >{m.s1_back_to_workspace()}</Button
+    <Button variant="ghost" size="sm" onclick={() => navigate(`/s/${sourceId}`)}
+      >{m.handoff_return_source()}</Button
     >
   </header>
-  <main class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-    <div class="mx-auto max-w-2xl space-y-4">
-      <p class="text-sm text-muted-foreground">
-        {m.handoff_source_dependency()}
-      </p>
-      {#if editor.loading}<p role="status" class="text-sm">
-          {m.handoff_loading_source()}
-        </p>{:else}<HandoffForm {editor} fork />{/if}
-    </div>
-  </main>
+  {#if editor.loading}<p class="p-4" role="status">
+      {m.handoff_loading_source()}
+    </p>{:else}<HandoffForm {editor} {fork} />{/if}
 </div>

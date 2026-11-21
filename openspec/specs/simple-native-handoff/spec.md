@@ -2,7 +2,7 @@
 
 ## Purpose
 
-为单用户 WebMux 提供从 Agent 原生历史读取、默认生成 Snapcompact 混合压缩归档并向目标发送一次的交接能力；文本为显式选项。
+为单用户 WebMux 提供从 Agent 原生历史生成图片并向目标发送一次的交接能力。
 交接状态保存在当前服务进程的有界内存中，原文通过 Agent 原生来源读取。
 
 ## Requirements
@@ -60,42 +60,41 @@
 - **WHEN** 工具输出超过投影限制，当前任务包含代码缩进和中文
 - **THEN** 预览显示省略信息，当前任务保持原样，用户可在有效范围内补查
 
-### Requirement: 默认压缩归档与显式文本
+### Requirement: 仅用图片交接旧对话
 
-请求 `format` SHALL 默认为 `image`，并支持显式 `text`；`maxPages` 省略或为 0 SHALL 采用 8 页上限，显式范围 SHALL 为 1–8。
+请求 `format` SHALL 仅接受 `image` 并以此为默认值。maxPages 省略或为 0 SHALL 采用 8 页上限，显式范围 SHALL 为 1–8。
 图片预览 SHALL 包含按序的 `pages`，每页包含 index、mimeType、base64 data、sha256、width、height、bytes。
 预览 SHALL 提供 `imageBudget` 的页数、字节、正文保留量、图片 token 估计及依据，以及 blockedReason、capability、historyText。
-归档模式 SHALL 按首部文本、中间图片、尾部文本及当前任务发送；短历史 SHALL 完整保留为文本，historyText SHALL 仅供审阅。
-文本模式 SHALL 按文本预算选取完整片段，保持来源顺序并报告省略。
+系统 SHALL 按来源指引、历史图片、原样当前任务的顺序发送。历史正文包括首尾和短历史，均 SHALL 只通过图片投递。historyText SHALL 仅供预览审阅。
 
 #### Scenario: 请求省略格式
 
 - **WHEN** 用户使用默认选项生成交接预览
-- **THEN** 系统生成混合归档预览；短历史无图片，长历史图片按页序显示，任务始终保持独立文本
+- **THEN** 系统生成按页序冻结的图片，短历史也生成图片，当前任务保持文本
 
 ### Requirement: 完整页集与失败阻止
 
-系统 SHALL 以内置 Go 实现应用 OMP Snapcompact 18.22.2 的序列化、规范化、模型排版和布局规划规则。中段容量不足时 SHALL 使用高低密度分页，再省略较旧中段范围。
+系统 SHALL 使用内置 Snapcompact 按目标模型和预算分页，显示省略量。
 预览 SHALL 报告规范化正文的保留与省略字符数。冻结原文 SHALL 继续提供未经归档规范化的正文。
 图片字节、页序和 hash SHALL 在预览时冻结；发送 SHALL 使用相同图片，不重新渲染。
 字体覆盖率低、渲染失败、需要图片时能力不足或附件及编码请求超限 SHALL 阻止发送，并提供 blockedReason。
 图片 SHALL 遵守每条最多 8 张、单张 10 MiB、总原始数据 20 MiB、编码请求 30 MiB 及更低服务配置上限。
-归档首尾文本与图片的 token 估计 SHALL 共同计入上下文预算。可用历史预算 SHALL 参与原版图片页数规划。图片编码字节独立校验，未知费率 SHALL 明确标注。
+来源指引和图片的 token 估计 SHALL 计入历史预算。图片编码字节独立校验，未知费率 SHALL 明确标注。
 
 #### Scenario: 历史超过页数上限
 
 - **WHEN** 完整候选渲染超过 maxPages
-- **THEN** 系统保留首尾文本并按容量规划中段分级页面，显式报告省略范围；成功页面集与文本范围覆盖所有未省略正文
+- **THEN** 系统按容量规划图片并报告省略范围，成功页集覆盖选入的正文
 
 #### Scenario: 新目标尚未确认图片能力
 
 - **WHEN** 预览目标尚未创建
 - **THEN** capability 为 pending；归档含图片时，确认后创建目标并检查实际 ACP 图片能力，能力不足时失败
 
-#### Scenario: 用户改为文本
+#### Scenario: 旧客户端请求文本
 
-- **WHEN** 图片预览被阻止且用户明确选择 text
-- **THEN** 系统生成新的文本预览，旧图片预览不会被隐式转换或发送
+- **WHEN** 客户端提交 format=text
+- **THEN** 系统 SHALL 返回 HTTP 400。
 
 #### Scenario: 手机逐字编辑页数
 
@@ -111,7 +110,7 @@
 
 预览和快照 SHALL 有效五分钟，最多 32 项，manifest、文本和图片表示共同计入 64 MiB 上限。
 系统 SHALL 在请求时惰性清理过期项；发送中的范围 SHALL 计入容量。
-预览 SHALL 绑定确切文本、图片、任务、来源、目标身份和配置；修改任务、目标、格式或页数后发送 SHALL 使用新预览。
+预览 SHALL 绑定确切文本、图片、任务、来源、目标身份和配置；修改任务、目标或页数后发送 SHALL 使用新预览。
 
 #### Scenario: 重启后再次确认旧预览
 
@@ -188,7 +187,7 @@
 #### Scenario: A 到 B 再回 A
 
 - **WHEN** 用户从 A 交接到 B 后再次选择 A 为目标
-- **THEN** 系统针对当前选择生成新预览，并发送用户确认的图片或文本及独立任务
+- **THEN** 系统针对当前选择生成新预览，并发送用户确认的历史图片及独立任务
 
 ### Requirement: WebMux 状态存储清理
 

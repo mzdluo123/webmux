@@ -46,7 +46,9 @@
     label={m.s1_handoff_to_new_chat()}
   >
     {#snippet children(page)}
-      {#key route.name === "handoff" ? route.sourceId : ""}<page.default
+      {@const fork = new URLSearchParams(search).get("target") !== "switch"}
+      {#key (route.name === "handoff" ? route.sourceId : "") + fork}<page.default
+          {fork}
           sourceId={route.name === "handoff" ? route.sourceId : ""}
         />{/key}
     {/snippet}

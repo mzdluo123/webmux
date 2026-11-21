@@ -98,7 +98,7 @@ func newTestService(t *testing.T) (*Service, *testBackend) {
 }
 func previewTarget(t *testing.T, s *Service) Preview {
 	t.Helper()
-	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", Format: "text", UserText: "当前任务\n\tkeep  spacing"})
+	p, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", UserText: "当前任务\n\tkeep  spacing"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +267,7 @@ func TestOperationAndPreviewCapacity(t *testing.T) {
 	for range maxPreviews {
 		previewTarget(t, s)
 	}
-	if _, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target", Format: "text"}); !errors.Is(err, historysource.ErrLimit) && !errors.Is(err, ErrLimit) {
+	if _, err := s.Preview(context.Background(), "source", Request{TargetSessionID: "target"}); !errors.Is(err, historysource.ErrLimit) && !errors.Is(err, ErrLimit) {
 		t.Fatalf("full preview cache: %v", err)
 	}
 	s2, _ := newTestService(t)
@@ -288,7 +288,7 @@ func TestCreationErrorPreservesResourcesAndSingleCall(t *testing.T) {
 		calls.Add(1)
 		return sessioncreate.Result{}, &sessioncreate.Error{Step: sessioncreate.StepSession, Location: &sessioncreate.Location{WorktreeID: "new-tree", Path: "/work/new-tree"}, Err: errors.New("agent startup failed")}
 	}
-	p, err := s.Preview(context.Background(), "source", Request{ConfigID: "config", Format: "text", Location: Location{Cwd: "/work"}, UserText: "task"})
+	p, err := s.Preview(context.Background(), "source", Request{ConfigID: "config", Location: Location{Cwd: "/work"}, UserText: "task"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -13,7 +13,7 @@ const HandoffLocationSchema = z.object({
 });
 export const HandoffPreviewRequestSchema = z
   .object({
-    format: z.enum(["image", "text"]).default("image"),
+    format: z.literal("image").default("image"),
     maxPages: z
       .number()
       .int()
@@ -39,7 +39,7 @@ const HandoffBudgetSchema = z.object({
 });
 export const HandoffPreviewSchema = z.object({
   id: z.string(),
-  format: z.enum(["image", "text"]),
+  format: z.literal("image"),
   pages: z.array(
     z.object({
       index: z.number().int().nonnegative(),

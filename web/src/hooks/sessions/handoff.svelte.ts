@@ -24,7 +24,6 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
   let targetSessionId = $state("");
   let model = $state("");
   let task = $state("");
-  let format = $state<"image" | "text">("image");
   let maxPages = $state<number>(handoffMaxPages);
   let maxPagesDraft = $state(String(handoffMaxPages));
   let maxPagesChecked = $state(false);
@@ -49,18 +48,21 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
   let disposed = false;
   const lifetime = new AbortController();
   const request = $derived({
-    format,
+    format: "image" as const,
     maxPages,
     configId: targetSessionId ? "" : configId,
     targetSessionId,
-    agentConfig: (model ? { model } : {}) as Record<string, string>,
+    agentConfig: (!targetSessionId && model ? { model } : {}) as Record<
+      string,
+      string
+    >,
     userText: task,
     location: targetSessionId ? emptyHandoffLocation() : location,
   });
   const choiceChanged = $derived(
     preview !== null &&
-      ((format === "image" &&
-        (!maxPagesValid || parsedMaxPages !== maxPages)) ||
+      (!maxPagesValid ||
+        parsedMaxPages !== maxPages ||
         reviewedRequestKey !== JSON.stringify(request)),
   );
   const sealed = $derived(operation !== null || uncertainOperationId !== "");
@@ -96,7 +98,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
   }
   async function generate() {
     if (busy || active) return;
-    if (format === "image" && !commitMaxPages()) return;
+    if (!commitMaxPages()) return;
     busy = true;
     error = "";
     try {
@@ -192,6 +194,17 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       busy = false;
     }
   }
+  function edit() {
+    if (
+      busy ||
+      uncertainOperationId ||
+      (operation && operation.state !== "failed")
+    )
+      return;
+    preview = null;
+    operation = null;
+    error = "";
+  }
   async function cancel() {
     if (!operation || busy) return;
     busy = true;
@@ -204,12 +217,6 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     }
   }
   return {
-    get format() {
-      return format;
-    },
-    set format(v: "image" | "text") {
-      format = v;
-    },
     get maxPagesDraft() {
       return maxPagesDraft;
     },
@@ -248,7 +255,6 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
     },
     set targetSessionId(v: string) {
       targetSessionId = v;
-      model = "";
     },
     get model() {
       return model;
@@ -290,6 +296,7 @@ export function createHandoffEditor(sourceId: string, fork: boolean) {
       return sealed;
     },
     fork,
+    edit,
     commitMaxPages,
     generate,
     send,

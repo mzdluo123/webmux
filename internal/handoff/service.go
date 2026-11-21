@@ -132,7 +132,7 @@ func (s *Service) Preview(ctx context.Context, source string, in Request) (Previ
 	if in.MaxPages == 0 {
 		in.MaxPages = maxImagePages
 	}
-	if (in.Format != "image" && in.Format != "text") || in.MaxPages < 1 || in.MaxPages > maxImagePages {
+	if in.Format != "image" || in.MaxPages < 1 || in.MaxPages > maxImagePages {
 		return empty, ErrInvalid
 	}
 	if !utf8.ValidString(in.UserText) || len(in.UserText) > int(s.options.MaxPromptBytes) || len(in.AgentConfig) > 64 {
