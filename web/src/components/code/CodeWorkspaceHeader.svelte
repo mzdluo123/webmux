@@ -67,7 +67,7 @@
     <div class="flex shrink-0 items-center">
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-touch-sm"
         class="relative"
         aria-label={!dockNavigation && navOpen
           ? m.s5_collapse_nav()
@@ -146,7 +146,7 @@
 {/snippet}
 
 {#snippet commands()}
-  <div class="flex shrink-0 items-center">
+  <div class="ml-auto flex shrink-0 items-center">
     {#if activeQuick}<div
         class:quick-actions={part === "all"}
         class="flex items-center"
@@ -158,7 +158,7 @@
         {#snippet child({ props })}<Button
             {...props}
             variant="ghost"
-            size="icon-sm"
+            size="icon-touch-sm"
             aria-label={m.s5_code_menu()}
             title={m.s5_code_menu()}><IconDots aria-hidden="true" /></Button
           >{/snippet}

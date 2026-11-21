@@ -179,7 +179,7 @@
 {#snippet quickCommands()}
   {#if terminalShown && !codeShown}
     <div class="quick-commands-header flex items-center gap-1">
-      {@render quickMenu("bottom", undefined, "ghost")}
+      {@render quickMenu("bottom", "icon-touch-sm", "ghost")}
     </div>
   {/if}
 {/snippet}

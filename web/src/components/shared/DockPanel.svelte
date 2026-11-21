@@ -54,6 +54,12 @@
   const showTabs = $derived(
     (!compact && tabs.length > 1) || (!!onclose && !!tabs.length),
   );
+  // Compact mode exposes no zoom, edge rails or move targets; omit the empty
+  // dock actions menu (and in edge-rail workspaces, the duplicate minimize
+  // button already owned by the panel picker drawer).
+  const showDockActions = $derived(!compact);
+  const showMinimize = $derived(!(compact && edgeRails));
+  const showTitleSpace = $derived(!compact || showTitle || !localHeader);
   // Desktop single-session views already lift their title, status and pane menu
   // into SessionWorkspaceHeader; omit the duplicate pane title bar until splits,
   // tabs or zoom need per-pane chrome.
@@ -136,6 +142,7 @@
     {#if !hideSingleTitle}
       <div
         class="dock-title"
+        data-compact-dock-title={compact || undefined}
         data-session-dock-title={(compact && commands && !onclose) || undefined}
         role="presentation"
         draggable={canMove}
@@ -156,7 +163,7 @@
       >
         {#if compact && dock.canGoBack()}
           <Button
-            size="icon-sm"
+            size="icon-touch-sm"
             variant="ghost"
             aria-label={m.s8_back()}
             title={m.s8_back()}
@@ -167,78 +174,78 @@
           <DockStackTabs {id} {tabs} {canMove} show={dock.show} />
         {/if}
         {@render localHeader?.()}
-        <div
-          class="dock-title-space"
-          class:with-header={!!localHeader && !showTitle}
-        >
-          {#if !compact && titleContent}
-            {@render titleContent(titleLabel)}
-          {:else}
-            {@render titleLabel()}
-          {/if}
-        </div>
-        <Menu.Root>
-          <Menu.Trigger>
-            {#snippet child({ props })}
-              <Button
-                {...props}
-                data-dock-actions
-                variant="ghost"
-                size="icon-sm"
-                aria-label={menuLabel}
-                title={menuLabel}
-              >
-                <IconDots aria-hidden="true" />
-              </Button>
-            {/snippet}
-          </Menu.Trigger>
-          <Menu.Content align="end" class="w-56">
-            <Menu.Label>{title}</Menu.Label>
-            {#if !compact}
+        {#if showTitleSpace}
+          <div
+            class="dock-title-space"
+            class:with-header={!!localHeader && !showTitle}
+          >
+            {#if !compact && titleContent}
+              {@render titleContent(titleLabel)}
+            {:else}
+              {@render titleLabel()}
+            {/if}
+          </div>
+        {/if}
+        {#if showDockActions}
+          <Menu.Root>
+            <Menu.Trigger>
+              {#snippet child({ props })}
+                <Button
+                  {...props}
+                  data-dock-actions
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={menuLabel}
+                  title={menuLabel}
+                >
+                  <IconDots aria-hidden="true" />
+                </Button>
+              {/snippet}
+            </Menu.Trigger>
+            <Menu.Content align="end" class="w-56">
+              <Menu.Label>{title}</Menu.Label>
               <Menu.Item onSelect={() => dock.toggleZoom(id)}>
                 {#if zoomed}<IconArrowsMinimize aria-hidden="true" />
                 {:else}<IconArrowsMaximize aria-hidden="true" />{/if}
                 {zoomLabel}
               </Menu.Item>
-            {:else}
-              <Menu.Item onSelect={() => dock.minimize(id)}
-                >{m.dock_minimize({ title })}</Menu.Item
-              >
-            {/if}
-            {#if !compact && edgeRails}
-              <Menu.Item onSelect={() => dock.minimize(id, "left")}
-                >{m.dock_minimize_left()}</Menu.Item
-              >
-              <Menu.Item onSelect={() => dock.minimize(id, "right")}
-                >{m.dock_minimize_right()}</Menu.Item
-              >
-              <Menu.Item onSelect={() => dock.minimize(id, "bottom")}
-                >{m.dock_minimize_bottom()}</Menu.Item
-              >
-              {#if targets?.length}<Menu.Separator />{/if}
-            {/if}
-            {#each targets as target (target.id)}
-              <Menu.Sub>
-                <Menu.SubTrigger>{target.title}</Menu.SubTrigger>
-                <Menu.SubContent>
-                  {#each dockEdges as edge (edge)}
-                    <Menu.Item onSelect={() => dock.move(id, target.id, edge)}
-                      >{edgeLabel(edge)}</Menu.Item
-                    >
-                  {/each}
-                </Menu.SubContent>
-              </Menu.Sub>
-            {/each}
-          </Menu.Content>
-        </Menu.Root>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={m.dock_minimize({ title })}
-          title={m.dock_minimize({ title })}
-          onclick={() => dock.minimize(id)}
-          ><IconMinus aria-hidden="true" /></Button
-        >
+              {#if edgeRails}
+                <Menu.Item onSelect={() => dock.minimize(id, "left")}
+                  >{m.dock_minimize_left()}</Menu.Item
+                >
+                <Menu.Item onSelect={() => dock.minimize(id, "right")}
+                  >{m.dock_minimize_right()}</Menu.Item
+                >
+                <Menu.Item onSelect={() => dock.minimize(id, "bottom")}
+                  >{m.dock_minimize_bottom()}</Menu.Item
+                >
+                {#if targets?.length}<Menu.Separator />{/if}
+              {/if}
+              {#each targets as target (target.id)}
+                <Menu.Sub>
+                  <Menu.SubTrigger>{target.title}</Menu.SubTrigger>
+                  <Menu.SubContent>
+                    {#each dockEdges as edge (edge)}
+                      <Menu.Item onSelect={() => dock.move(id, target.id, edge)}
+                        >{edgeLabel(edge)}</Menu.Item
+                      >
+                    {/each}
+                  </Menu.SubContent>
+                </Menu.Sub>
+              {/each}
+            </Menu.Content>
+          </Menu.Root>
+        {/if}
+        {#if showMinimize}
+          <Button
+            variant="ghost"
+            size="icon-touch-sm"
+            aria-label={m.dock_minimize({ title })}
+            title={m.dock_minimize({ title })}
+            onclick={() => dock.minimize(id)}
+            ><IconMinus aria-hidden="true" /></Button
+          >
+        {/if}
       </div>
     {/if}
     <div
@@ -312,15 +319,18 @@
     flex: 0 0 1rem;
     padding: 0;
   }
+  .dock-title[data-compact-dock-title] {
+    padding-inline-end: 0.25rem;
+  }
   .dock-title[data-session-dock-title] {
     /* Keep icon targets usable when text zoom doubles rem lengths. */
     --control-sm: min(2rem, 32px);
     --control-touch: min(2.75rem, 44px);
     --control-touch-compact: min(2.25rem, 36px);
+    padding-inline: 0.25rem;
   }
-  .dock-title[data-session-dock-title] .dock-title-space.with-header {
-    flex-basis: min(1rem, 16px);
-    min-inline-size: min(1rem, 16px);
+  .dock-title[data-session-dock-title]:not(:has(> button:first-child)) {
+    padding-inline-start: 0.75rem;
   }
   .dock-title[draggable="true"] {
     user-select: none;
