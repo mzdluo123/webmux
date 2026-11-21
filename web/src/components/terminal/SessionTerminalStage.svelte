@@ -5,6 +5,7 @@
   import DockPanel from "../shared/DockPanel.svelte";
   import { paneEnter } from "../../hooks/shared/pane-enter";
   import { bottomToolbar } from "../../hooks/terminal/bottom-toolbar-preference.svelte";
+  import { resumesOnOpen } from "../../domains/sessions/archived";
   import { m } from "$lib/paraglide/messages.js";
   import DraftToggle from "./DraftToggle.svelte";
   import TerminalFindBar from "./TerminalFindBar.svelte";
@@ -137,7 +138,23 @@
   const noticesInTerminal = $derived(terminalVisible && !hybrid.recoverable);
   // Recovery controls may remount while a failed agent launch is reconciled.
   // Only a new visit to the session should initiate another automatic attempt.
-  let attemptedResume: string | undefined;
+  let attemptedResume = $state<string | undefined>(undefined);
+  let recoveryBusy = $state(false);
+  const recoveryAutoResuming = $derived(
+    !!hybrid.recoverable &&
+      !closing &&
+      resumesOnOpen(hybrid.recoverable) &&
+      attemptedResume !== id,
+  );
+  const recoveryOverlay = $derived(
+    !!features.chat &&
+      !!hybrid.recoverable &&
+      !closing &&
+      (recoveryBusy || recoveryAutoResuming),
+  );
+  $effect(() => {
+    if (!hybrid.recoverable || closing) recoveryBusy = false;
+  });
   function claimAutoResume() {
     if (attemptedResume === id) return false;
     attemptedResume = id;
@@ -204,9 +221,11 @@
   />
 {/snippet}
 {#snippet recovery()}
-  {#if features.chat && hybrid.recoverable}<features.chat.Recovery
+  {#if features.chat && hybrid.recoverable && !closing}<features.chat.Recovery
       record={hybrid.recoverable}
       {claimAutoResume}
+      autoResuming={recoveryAutoResuming}
+      onbusy={(active) => (recoveryBusy = active)}
       onresumed={reopen}
       {leave}
     />{/if}
@@ -234,6 +253,7 @@
 {/snippet}
 {#snippet paneNotices()}
   {#if !noticesInTerminal}{@render sessionNotices()}{/if}
+  {@render recovery()}
   {#if features.chat && hybrid.view === "switching"}
     <features.chat.SwitchProgress
       target={hybrid.target}
@@ -263,7 +283,7 @@
       dismissScratch={() => (draft.scratchUpdatedWhileHidden = false)}
       notices={hybrid.notices}
       dismiss={(key) => hybrid.dismiss(key)}
-      recovery={hybrid.recoverable && !closing ? recovery : undefined}
+      hideMissing={!!hybrid.recoverable && !closing}
       session={id}
       listening={hybrid.view === "chat"
         ? (feedSession?.listeningPorts ?? hybrid.info?.listeningPorts)
@@ -303,7 +323,7 @@
     {#if hybrid.view === "chat"}{@render chatPane()}{/if}
     <div
       class="session-terminal split-terminal relative flex min-h-0 flex-1 flex-col"
-      class:hidden={hybrid.view === "chat"}
+      class:hidden={hybrid.view === "chat" || recoveryOverlay}
       data-bottom-toolbar={bottomToolbar.mode}
       data-session-id={id}
       data-visible={visible}

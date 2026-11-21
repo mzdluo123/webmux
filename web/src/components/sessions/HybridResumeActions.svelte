@@ -31,6 +31,7 @@
     onrebuilt = () => {},
     claimAutoResume,
     disabled = false,
+    hideButton = false,
     onbusy = () => {},
     onerror,
   }: {
@@ -50,6 +51,8 @@
     onrebuilt?: (failure: string) => void;
     claimAutoResume?: () => boolean;
     disabled?: boolean;
+    /** Hides the trigger button while keeping confirmation dialogs mounted. */
+    hideButton?: boolean;
     onbusy?: (busy: boolean) => void;
     /** Reports a failed resume; "" clears it when a new attempt starts. */
     onerror: (message: string) => void;
@@ -172,16 +175,18 @@
   }
 </script>
 
-<Button
-  size="sm"
-  {disabled}
-  aria-busy={!!resumingView}
-  onclick={() => start(record.view)}
-  >{#if resumingView}<IconLoader2
-      class="animate-spin motion-reduce:animate-none"
-      aria-hidden="true"
-    />{/if}{m.s3_resume()}</Button
->
+{#if !hideButton}
+  <Button
+    size="sm"
+    {disabled}
+    aria-busy={!!resumingView}
+    onclick={() => start(record.view)}
+    >{#if resumingView}<IconLoader2
+        class="animate-spin motion-reduce:animate-none"
+        aria-hidden="true"
+      />{/if}{m.s3_resume()}</Button
+  >
+{/if}
 
 {#if rebuildView && record.released}<RebuildWorktreeDialog
     id={record.id}
