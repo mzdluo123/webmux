@@ -65,7 +65,7 @@
       </Button>
     {/snippet}
   </Menu.Trigger>
-  <Menu.Content align="start" class="w-56">
+  <Menu.Content align="end" class="w-56">
     {#if pane}
       {@const title = pane.panel.title}
       <Menu.Label variant="title">
