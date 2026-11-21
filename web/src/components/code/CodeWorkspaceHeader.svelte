@@ -224,17 +224,13 @@
     block-size: var(--control-default);
   }
   .reader-strip.docked-tools {
-    flex: none;
+    flex: 1 0 auto;
     container-type: normal;
   }
   .quick-actions {
     display: none;
   }
   @container reader-strip (min-width: 26rem) {
-    .reader-strip.docked-tools {
-      flex: none;
-      container-type: normal;
-    }
     .quick-actions {
       display: flex;
     }
