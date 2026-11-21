@@ -175,6 +175,9 @@ type CreateInput struct {
 	// Cols and Rows are the PTY's initial size, both zero for the default;
 	// setting only one is invalid.
 	Cols, Rows int
+	// Prepare binds cached feature state before the created event is visible.
+	// It runs without session or manager locks.
+	Prepare func(*Session)
 }
 
 // Create starts a session. Env holds explicit variables added to the server's
@@ -205,6 +208,9 @@ func (m *Manager) Create(in CreateInput) (*Session, error) {
 	s, err := start(id, cwd, in.Name, in.Cmd, m.startOptions(in))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalid, err)
+	}
+	if in.Prepare != nil {
+		in.Prepare(s)
 	}
 	if err = m.register(s); err != nil {
 		return nil, err

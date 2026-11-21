@@ -28,9 +28,9 @@ func (a creationAdapter) Check(ctx context.Context, in sessioncreate.Input, comm
 	return a.service.CheckCreate(ctx, CreateInput{Cwd: cwd, ConfigID: command.ConfigID, Cmd: command.Cmd, Env: command.Env, StartSide: Side(in.Side), Cols: in.Cols, Rows: in.Rows, Attention: command.Attention})
 }
 
-func (a creationAdapter) Create(ctx context.Context, in sessioncreate.Input, command sessioncreate.Command, cwd string, initial func(string) (string, error)) (*session.Session, bool, error) {
+func (a creationAdapter) Create(ctx context.Context, in sessioncreate.Input, command sessioncreate.Command, cwd string, initial func(string) (string, error), prepare func(*session.Session) func()) (*session.Session, bool, error) {
 	sent := false
-	item, err := a.service.Create(ctx, CreateInput{Cwd: cwd, Name: in.Name, ConfigID: command.ConfigID, Cmd: command.Cmd, Env: command.Env, StartSide: Side(in.Side), Cols: in.Cols, Rows: in.Rows, Attention: command.Attention, InitialPrompt: initial, InitialPromptSent: &sent})
+	item, err := a.service.Create(ctx, CreateInput{Cwd: cwd, Name: in.Name, ConfigID: command.ConfigID, Cmd: command.Cmd, Env: command.Env, StartSide: Side(in.Side), Cols: in.Cols, Rows: in.Rows, Attention: command.Attention, InitialPrompt: initial, InitialPromptSent: &sent, Prepare: prepare})
 	return item, sent, err
 }
 

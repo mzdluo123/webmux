@@ -57,6 +57,9 @@ type ResumeInput struct {
 	AgentSessionID  string
 	Env             map[string]string
 	Attention       *session.AttentionPolicy
+	// Prepare binds cached feature state before the resumed shell's created
+	// event is visible, returning an optional rollback invoked if resume fails.
+	Prepare func(*session.Session) func()
 }
 
 // Resume brings closed or interrupted session id back under its ID on
@@ -122,9 +125,13 @@ func (s *Service) resume(id string, in ResumeInput) (*session.Session, error) {
 	}
 	a := newActor(s, cmd, rec.Cwd, rec.ConfigID, side, in.Attention)
 	resumed := false
+	var rollback func()
 	defer func() {
 		if !resumed {
 			s.clearMetadata(a.id)
+			if rollback != nil {
+				rollback()
+			}
 		}
 	}()
 	a.agentSessionID = sid
@@ -146,6 +153,9 @@ func (s *Service) resume(id string, in ResumeInput) (*session.Session, error) {
 		Prepare: func(shell *session.Session) {
 			a.id, a.shell = id, shell
 			a.publishMetadata()
+			if in.Prepare != nil {
+				rollback = in.Prepare(shell)
+			}
 		},
 	}, a)
 	if err != nil {

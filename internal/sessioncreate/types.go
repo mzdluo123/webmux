@@ -111,6 +111,7 @@ type LocationPlan struct {
 	Cwd, Instruction string
 	Create           func(context.Context) (*Location, error)
 	Acquire          func(context.Context, string) (string, func(), error)
+	Stage            func(*session.Session) func()
 	Associate        func(*session.Session)
 }
 type Locations interface {
@@ -123,7 +124,7 @@ type Files interface {
 }
 type Chat interface {
 	Check(context.Context, Input, Command, string) error
-	Create(context.Context, Input, Command, string, func(string) (string, error)) (*session.Session, bool, error)
+	Create(context.Context, Input, Command, string, func(string) (string, error), func(*session.Session) func()) (*session.Session, bool, error)
 	Configure(context.Context, string, Input) ([]string, error)
 	Prompt(context.Context, string, string, string, string, []string) (session.InputResult, error)
 }

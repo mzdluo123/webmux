@@ -23,7 +23,7 @@ type Input struct {
 // Locations protects startup against concurrent worktree removal. It is absent
 // when the workspace feature is disabled; ordinary directory recovery still works.
 type Locations interface {
-	PrepareResume(context.Context, string) (func(*session.Session), func(), error)
+	PrepareResume(context.Context, string) (func(*session.Session) func(), func(*session.Session), func(), error)
 }
 
 type Options struct {
@@ -65,10 +65,11 @@ func (s *Service) Resume(ctx context.Context, id string, in Input) (*session.Ses
 	case !in.ConfirmWithoutEnv:
 		return nil, hybrid.ErrConfigMissing
 	}
+	var stage func(*session.Session) func()
 	var commit func(*session.Session)
 	if s.options.ResumeLocations != nil {
 		var release func()
-		commit, release, err = s.options.ResumeLocations.PrepareResume(ctx, rec.Cwd)
+		stage, commit, release, err = s.options.ResumeLocations.PrepareResume(ctx, rec.Cwd)
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +78,7 @@ func (s *Service) Resume(ctx context.Context, id string, in Input) (*session.Ses
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	item, err := s.hybrids.Resume(ctx, id, hybrid.ResumeInput{ClientRequestID: in.ClientRequestID, Side: hybrid.Side(in.Side), AgentSessionID: in.AgentSessionID, Env: env, Attention: attention})
+	item, err := s.hybrids.Resume(ctx, id, hybrid.ResumeInput{ClientRequestID: in.ClientRequestID, Side: hybrid.Side(in.Side), AgentSessionID: in.AgentSessionID, Env: env, Attention: attention, Prepare: stage})
 	if err != nil {
 		return nil, err
 	}
