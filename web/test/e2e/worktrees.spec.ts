@@ -632,7 +632,7 @@ test("late Git response cannot replace a newer refresh", async ({
     captured = resolve;
   });
   let intercepted = false;
-  await page.route("**/api/repositories", async (route) => {
+  await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     if (intercepted) {
       await route.continue();
       return;
@@ -696,7 +696,7 @@ test("returning home keeps the cached snapshot until a slow Git refresh finishes
   await expect(page).toHaveURL(new RegExp(`/s/${id}$`));
   await expect(page.locator(".xterm-helper-textarea")).toBeAttached();
   const held = Promise.withResolvers<void>();
-  await page.route("**/api/repositories", async (route) => {
+  await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     await held.promise;
     await route.continue();
   });
@@ -716,7 +716,8 @@ test("returning home keeps the cached snapshot until a slow Git refresh finishes
     await expectHomeWorktrees(page, 1, 1);
     const refreshed = page.waitForResponse(
       (response) =>
-        response.url().endsWith("/api/repositories") && response.ok(),
+        new URL(response.url()).pathname === "/api/repositories" &&
+        response.ok(),
     );
     held.resolve();
     await (await refreshed).finished();

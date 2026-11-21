@@ -68,7 +68,7 @@ test("a mid-session 401 clears workspace state and allows signing in again", asy
   if (await useWorkbenchBranches(page)) await page.keyboard.press("Escape");
   await expect(page.getByRole("searchbox", { name: "搜索会话" })).toBeVisible();
   await page.getByRole("searchbox", { name: "搜索会话" }).fill("discard me");
-  await page.route("**/api/repositories", async (route) => {
+  await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     await route.fulfill({ status: 401, json: { error: "token expired" } });
   });
   await workspaceRefreshButton(page).click();
@@ -77,7 +77,7 @@ test("a mid-session 401 clears workspace state and allows signing in again", asy
   await expect(page.getByRole("searchbox", { name: "搜索会话" })).toHaveCount(
     0,
   );
-  await page.unroute("**/api/repositories");
+  await page.unroute(/\/api\/repositories(?:\?|$)/);
   await page.getByLabel("共享 Token", { exact: true }).fill(token);
   await page.getByRole("button", { name: "连接 WebMux →" }).click();
   const search = page.getByRole("searchbox", { name: "搜索会话" });

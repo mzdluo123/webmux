@@ -73,14 +73,14 @@ export function createRepositories(): Repositories {
   let streamState: Connection = "connecting";
   const abort = new AbortController();
 
-  async function read() {
+  async function read(allowStale: boolean) {
     const current = ++generation;
     refreshing = true;
     settled = false;
     error = "";
     try {
       const result = await api(
-        "/repositories",
+        allowStale ? "/repositories?stale=1" : "/repositories",
         RepositoriesSchema,
         "GET",
         undefined,
@@ -104,7 +104,7 @@ export function createRepositories(): Repositories {
 
   function refresh(force = false) {
     if (!force && startup) return startup;
-    const pending = read();
+    const pending = read(!force);
     if (generation === 1) {
       startup = pending;
       void pending.finally(() => {
@@ -118,7 +118,7 @@ export function createRepositories(): Repositories {
     if (disposed || coalesceTimer !== undefined) return;
     coalesceTimer = setTimeout(() => {
       coalesceTimer = undefined;
-      if (!disposed) void refresh(true);
+      if (!disposed) void read(true);
     }, STREAM_COALESCE_MS);
   }
 

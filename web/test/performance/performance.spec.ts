@@ -278,7 +278,7 @@ test("4x CPU: delayed repository discovery and Git refresh stay stable", async (
     },
   });
   expect(created.status()).toBe(201);
-  await page.route("**/api/repositories", async (route) => {
+  await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     await delay(750);
     await route.continue();
   });
@@ -314,7 +314,7 @@ test("4x CPU: a stalled repository request cannot block existing terminals", asy
   const { id } = (await created.json()).session;
   const held = Promise.withResolvers<void>();
   let pendingRequests = 0;
-  await page.route("**/api/repositories", async (route) => {
+  await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     if (++pendingRequests === 1) {
       // A lifecycle refresh must reuse the running discovery instead of
       // starting another one that also outlives the stall.

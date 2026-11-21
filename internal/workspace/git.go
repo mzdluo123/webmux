@@ -266,9 +266,16 @@ func (s *Service) readRepository(ctx context.Context, r *repositoryState) Reposi
 	return s.readRepositoryWithCache(ctx, r, false)
 }
 
-func (s *Service) readRepositoryWithCache(ctx context.Context, r *repositoryState, useCache bool) Repository {
+func (s *Service) readRepositoryWithCache(ctx context.Context, r *repositoryState, useCache bool) (result Repository) {
 	e := r.entry
-	result := repositoryResult(e)
+	startedGen := r.snapshotGen()
+	fp := repoFingerprint(e)
+	defer func() {
+		if ctx.Err() == nil {
+			r.storeSnapshot(result, time.Now(), fp, startedGen)
+		}
+	}()
+	result = repositoryResult(e)
 	result.InitInstruction = s.initInstruction(r)
 	common, err := s.common(ctx, e.AnchorPath)
 	if err == nil && common != e.CommonDir {
@@ -305,8 +312,11 @@ func (s *Service) readRepositoryWithCache(ctx context.Context, r *repositoryStat
 		wg.Add(1)
 		go func(tree *Worktree) {
 			defer wg.Done()
-			allowCache := useCache && !activeTrees[tree.ID]
-			s.populateWorktreeStatusCached(ctx, r, e.CommonDir, tree, allowCache, packedNS, fetchNS, now, limit)
+			var cacheTTL time.Duration
+			if useCache && !activeTrees[tree.ID] {
+				cacheTTL = worktreeStatusCacheTTL
+			}
+			s.populateWorktreeStatusCached(ctx, r, e.CommonDir, tree, cacheTTL, packedNS, fetchNS, now, limit)
 		}(&trees[i])
 	}
 	wg.Wait()

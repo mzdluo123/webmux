@@ -14,7 +14,7 @@ import (
 // worktreeStatusCacheTTL bounds how long a dormant worktree (no active session
 // and unchanged Git/index/ref/root-dir metadata) may reuse its last status
 // during List reads. Explicit Refresh and all write operations bypass this cache.
-const worktreeStatusCacheTTL = 30 * time.Second
+const worktreeStatusCacheTTL = 2 * time.Minute
 
 func worktreeConcurrency() int {
 	return min(max(runtime.NumCPU(), 4), 16)
@@ -130,14 +130,17 @@ func (s *Service) activeWorktreeIDs() map[string]bool {
 	return active
 }
 
-func (r *repositoryState) lookupWorktreeStatus(treeID string, key worktreeStatusKey, now time.Time) (cachedWorktreeStatus, bool) {
+func (r *repositoryState) lookupWorktreeStatus(treeID string, key worktreeStatusKey, now time.Time, ttl time.Duration) (cachedWorktreeStatus, bool) {
+	if ttl <= 0 {
+		return cachedWorktreeStatus{}, false
+	}
 	r.statusCacheMu.Lock()
 	defer r.statusCacheMu.Unlock()
 	if r.statusCache == nil {
 		return cachedWorktreeStatus{}, false
 	}
 	entry, ok := r.statusCache[treeID]
-	if !ok || entry.key != key || now.Sub(entry.storedAt) > worktreeStatusCacheTTL {
+	if !ok || entry.key != key || now.Sub(entry.storedAt) > ttl {
 		return cachedWorktreeStatus{}, false
 	}
 	return entry, true
@@ -206,10 +209,10 @@ func (s *Service) WorktreeInfo(ctx context.Context, repositoryID, worktreeID str
 }
 
 func (s *Service) populateWorktreeStatus(ctx context.Context, commonDir string, tree *Worktree) {
-	s.populateWorktreeStatusCached(ctx, nil, commonDir, tree, false, 0, 0, time.Now(), nil)
+	s.populateWorktreeStatusCached(ctx, nil, commonDir, tree, 0, 0, 0, time.Now(), nil)
 }
 
-func (s *Service) populateWorktreeStatusCached(ctx context.Context, r *repositoryState, commonDir string, tree *Worktree, allowCache bool, packedNS, fetchNS int64, now time.Time, limit chan struct{}) {
+func (s *Service) populateWorktreeStatusCached(ctx context.Context, r *repositoryState, commonDir string, tree *Worktree, cacheTTL time.Duration, packedNS, fetchNS int64, now time.Time, limit chan struct{}) {
 	stat, statErr := os.Stat(tree.Path)
 	if statErr != nil || !stat.IsDir() {
 		tree.Error = fmt.Sprintf("工作树目录不可访问: %v", statErr)
@@ -247,8 +250,8 @@ func (s *Service) populateWorktreeStatusCached(ctx context.Context, r *repositor
 	var key worktreeStatusKey
 	if r != nil {
 		key = buildWorktreeStatusKey(commonDir, gitDir, tree, tree.Operation, packedNS, fetchNS)
-		if allowCache {
-			if cached, ok := r.lookupWorktreeStatus(tree.ID, key, now); ok {
+		if cacheTTL > 0 {
+			if cached, ok := r.lookupWorktreeStatus(tree.ID, key, now, cacheTTL); ok {
 				cached.apply(tree)
 				return
 			}

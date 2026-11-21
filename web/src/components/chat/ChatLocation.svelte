@@ -22,7 +22,7 @@
     class?: string;
   } = $props();
   const repositories = findShell()?.repositories;
-  onMount(() => void repositories?.refresh(true));
+  onMount(() => void repositories?.refresh());
   const repository = $derived(
     repositories?.list.find((repo) => repo.id === workspace?.repositoryId),
   );
