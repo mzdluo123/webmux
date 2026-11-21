@@ -6,7 +6,7 @@ import type { Page } from "@playwright/test";
 import {
   workspaceLayoutTest as test,
   expect,
-  workspaceRefreshButton,
+  withWorkspaceRefresh,
 } from "./fixtures";
 import { repositoryMenu, worktreeMenu } from "./repository-menu";
 
@@ -247,7 +247,7 @@ test("repository scope limits the home list, composes with filters and survives 
   expect(
     (await request.delete(`/api/repositories/${repositories[1].id}`)).status(),
   ).toBe(204);
-  await workspaceRefreshButton(page).click();
+  await withWorkspaceRefresh(page);
   await expect(scope).toContainText("全部仓库");
   await expect(page.getByRole("link", { name: "API review" })).toBeVisible();
   await page.setViewportSize({ width: 320, height: 700 });

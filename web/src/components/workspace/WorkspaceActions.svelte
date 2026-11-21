@@ -15,12 +15,11 @@
   } = $props();
 </script>
 
-<!-- When the expanded desktop sidebar already exposes workspace refresh,
-     avoid showing a second identical refresh button on the same screen. -->
+<!-- Phones and expanded desktop layouts use the sidebar refresh. -->
 <Button
   variant="quiet"
   size="icon-touch"
-  class="lg:group-data-[collapsed=false]/shell:hidden"
+  class="max-sm:hidden lg:group-data-[collapsed=false]/shell:hidden"
   aria-label={m.s8_refresh_git_status()}
   title={refreshing ? m.s8_refreshing_git_status() : m.s8_refresh_git_status()}
   aria-busy={refreshing}

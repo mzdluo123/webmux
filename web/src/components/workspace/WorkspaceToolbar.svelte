@@ -68,7 +68,11 @@
         >
           {resolvedTitle}
         </h1>
-        {#if mainWorktree}<MainWorktreeMark srLabel size="md" />{/if}
+        {#if mainWorktree}
+          <span class="hidden sm:inline-flex">
+            <MainWorktreeMark srLabel size="md" />
+          </span>
+        {/if}
         {#if pinnedWorktree}<PinnedWorktreeMark srLabel size="md" />{/if}
       </div>
       {#if meta}<div class="empty:hidden sm:mt-2">{@render meta()}</div>{/if}
