@@ -8,47 +8,31 @@ afterEach(async () => {
   await userEvent.cleanup();
 });
 
-test("shows the floating loading notice by default until the dialog resolves", async () => {
-  const deferred = Promise.withResolvers<string>();
-  const onclose = vi.fn();
-  await render(Harness, { load: () => deferred.promise, onclose });
-
-  await expect.element(page.getByText("正在加载端口转发…")).toBeVisible();
-  await userEvent.click(page.getByRole("button", { name: "取消" }));
-  expect(onclose).toHaveBeenCalledOnce();
-
-  deferred.resolve("已打开");
-  await expect
-    .element(page.getByRole("dialog", { name: "端口转发" }))
-    .toBeVisible();
-});
-
-test("omits the floating loading notice when showLoading is false", async () => {
+test("omits the floating loading notice while the dialog chunk loads", async () => {
   const deferred = Promise.withResolvers<string>();
   const onclose = vi.fn();
   await render(Harness, {
     load: () => deferred.promise,
-    showLoading: false,
+    label: "创建表单",
     onclose,
   });
 
   await expect
-    .element(page.getByText("正在加载端口转发…"))
+    .element(page.getByText("正在加载创建表单…"))
     .not.toBeInTheDocument();
   await expect.element(page.getByRole("status")).not.toBeInTheDocument();
 
-  deferred.resolve("端口转发内容");
+  deferred.resolve("创建表单内容");
   await expect
-    .element(page.getByRole("dialog", { name: "端口转发" }))
-    .toHaveTextContent("端口转发内容");
+    .element(page.getByRole("dialog", { name: "创建表单" }))
+    .toHaveTextContent("创建表单内容");
 });
 
-test("still shows the error notice on failure when showLoading is false", async () => {
+test("still shows the floating error notice when loading fails", async () => {
   const deferred = Promise.withResolvers<string>();
   const onclose = vi.fn();
   await render(Harness, {
     load: () => deferred.promise,
-    showLoading: false,
     onclose,
   });
 

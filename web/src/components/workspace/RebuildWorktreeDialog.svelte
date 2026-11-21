@@ -92,6 +92,7 @@
 >
   <PreviewForm
     {busy}
+    submitting={busy && preview !== null}
     {error}
     onsubmit={() => void rebuild()}
     {onclose}

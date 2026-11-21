@@ -4,17 +4,15 @@
   let {
     load,
     label = "端口转发",
-    showLoading,
     onclose,
   }: {
     load: () => Promise<string>;
     label?: string;
-    showLoading?: boolean;
     onclose: () => void;
   } = $props();
 </script>
 
-<LazyDialog {load} {label} {showLoading} {onclose}>
+<LazyDialog {load} {label} {onclose}>
   {#snippet children(content)}
     <div role="dialog" aria-label={label}>{content}</div>
   {/snippet}

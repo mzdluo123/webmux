@@ -79,7 +79,6 @@
   "s1_connected": "已连接",
   "s1_connecting": "正在连接",
   "s1_connecting_ellipsis": "正在连接…",
-  "s1_connecting_session_page": "正在连接会话页面…",
   "s1_connecting_short": "连接中",
   "s1_connection_failed_headline": "无法连接到 WebMux",
   "s1_connection_failed_subtitle": "服务暂时不可达，请检查服务状态或网络连接。",

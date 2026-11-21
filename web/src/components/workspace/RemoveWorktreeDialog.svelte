@@ -166,7 +166,14 @@
   drawerFullScreen
   class="h-[min(90dvh,34rem)]"
 >
-  <PreviewForm {formId} {busy} {error} onsubmit={() => void remove()} {onclose}>
+  <PreviewForm
+    {formId}
+    {busy}
+    submitting={busy && preview !== null}
+    {error}
+    onsubmit={() => void remove()}
+    {onclose}
+  >
     {#snippet summary()}
       <div class="rounded-lg border bg-muted/40 p-3 text-sm">
         <p class="font-medium">

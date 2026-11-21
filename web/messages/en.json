@@ -79,7 +79,6 @@
   "s1_connected": "Connected",
   "s1_connecting": "Connecting",
   "s1_connecting_ellipsis": "Connecting…",
-  "s1_connecting_session_page": "Connecting to session page…",
   "s1_connecting_short": "Connecting",
   "s1_connection_failed_headline": "Unable to connect to WebMux",
   "s1_connection_failed_subtitle": "The service is currently unreachable. Check that it is running and your network is available.",

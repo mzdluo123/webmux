@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { z } from "zod";
   import { api } from "../../platform/api";
   import { SessionInfoSchema, type SessionInfo } from "../../contracts/schemas";
@@ -14,17 +14,22 @@
 
   let {
     excluded,
+    initialSessions,
     onclose,
     onselect,
   }: {
     excluded: string[];
+    initialSessions?: readonly SessionInfo[];
     onclose: () => void;
     onselect: (id: string, direction: SplitDirection) => void;
   } = $props();
-  let sessions = $state<SessionInfo[]>([]);
+  const seeded = untrack(() => initialSessions !== undefined);
+  let sessions = $state<SessionInfo[]>(
+    untrack(() => [...(initialSessions ?? [])]),
+  );
   let direction = $state<SplitDirection>("horizontal");
   let query = $state("");
-  let loading = $state(true);
+  let loading = $state(!seeded);
   let error = $state("");
   const choices = $derived(
     sessions.filter(
@@ -37,8 +42,8 @@
   );
   const controller = new AbortController();
   let searchInput = $state<HTMLInputElement | null>(null);
-  async function loadSessions() {
-    loading = true;
+  async function loadSessions(background = false) {
+    if (!background) loading = true;
     error = "";
     try {
       const result = await api(
@@ -50,13 +55,13 @@
       );
       if (!controller.signal.aborted) sessions = result;
     } catch (err) {
-      if (!controller.signal.aborted) error = errorMessage(err);
+      if (!controller.signal.aborted && !background) error = errorMessage(err);
     } finally {
       if (!controller.signal.aborted) loading = false;
     }
   }
   onMount(() => {
-    void loadSessions();
+    void loadSessions(seeded);
     return () => controller.abort();
   });
 </script>
