@@ -187,22 +187,63 @@ func (s *Service) reassociate(ctx context.Context) {
 	}
 }
 
-// PrepareResume preserves worktree-removal exclusion and commits an optional
-// repository association only after the chat coordinator restores its runtime.
-func (s *Service) PrepareResume(ctx context.Context, cwd string) (func(*session.Session), func(), error) {
+// stageAssociation caches a resolved repository association before a new or
+// resumed session's created event is published. The returned rollback removes
+// the staged entry if registration fails before the manager owns the session.
+func (s *Service) stageAssociation(info session.Info, association *Association) func() {
+	if association == nil {
+		return nil
+	}
+	s.associationMu.Lock()
+	s.mu.Lock()
+	s.associationCacheMu.Lock()
+	registered := false
+	for _, r := range s.entries {
+		if r.entry.ID == association.RepositoryID {
+			registered = true
+			break
+		}
+	}
+	if registered {
+		if s.associations == nil {
+			s.associations = make(map[string]Association)
+		}
+		s.associations[info.ID] = *association
+	}
+	s.associationCacheMu.Unlock()
+	s.mu.Unlock()
+	s.associationMu.Unlock()
+	if !registered {
+		return nil
+	}
+	return func() {
+		s.associationMu.Lock()
+		defer s.associationMu.Unlock()
+		if _, err := s.manager.Get(info.ID); err != nil {
+			s.forgetAssociation(info.ID)
+		}
+	}
+}
+
+// PrepareResume preserves worktree-removal exclusion, stages the resolved
+// repository association before the created event is published, and commits
+// it again once the chat coordinator restores its runtime.
+func (s *Service) PrepareResume(ctx context.Context, cwd string) (func(*session.Session) func(), func(*session.Session), func(), error) {
 	if err := s.beginStart(cwd); err != nil {
-		return nil, nil, creationLocationError(err)
+		return nil, nil, nil, creationLocationError(err)
 	}
 	lookup, cancel := context.WithTimeout(ctx, readTimeout)
 	association := s.association(lookup, cwd)
 	cancel()
 	if err := ctx.Err(); err != nil {
 		s.endStart(cwd)
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return func(item *session.Session) {
-		s.commitAssociation(item.Info(), association, false)
-	}, func() { s.endStart(cwd) }, nil
+	return func(item *session.Session) func() {
+			return s.stageAssociation(item.Info(), association)
+		}, func(item *session.Session) {
+			s.commitAssociation(item.Info(), association, false)
+		}, func() { s.endStart(cwd) }, nil
 }
 
 func (s *Service) targetSessions(path string) []session.Info {

@@ -176,7 +176,7 @@ func (c recordedChat) Check(context.Context, Input, Command, string) error {
 	*c.events = append(*c.events, "chat-precheck")
 	return nil
 }
-func (c recordedChat) Create(_ context.Context, in Input, command Command, cwd string, _ func(string) (string, error)) (*session.Session, bool, error) {
+func (c recordedChat) Create(_ context.Context, in Input, command Command, cwd string, _ func(string) (string, error), _ func(*session.Session) func()) (*session.Session, bool, error) {
 	*c.events = append(*c.events, "session")
 	item, err := c.manager.Create(session.CreateInput{Cwd: cwd, Cmd: command.Cmd})
 	return item, false, err

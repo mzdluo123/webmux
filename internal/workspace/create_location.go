@@ -106,6 +106,7 @@ func (s *Service) Prepare(ctx context.Context, in sessioncreate.Input) (out sess
 		}
 		return path, release, nil
 	}
+	out.Stage = func(item *session.Session) func() { return s.stageAssociation(item.Info(), association) }
 	out.Associate = func(item *session.Session) { s.commitAssociation(item.Info(), association, false) }
 	return out, nil
 }

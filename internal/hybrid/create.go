@@ -31,6 +31,9 @@ type CreateInput struct {
 	// Attention configures completion and intervention notifications for both
 	// sides of the hybrid session. Nil uses the global default policy.
 	Attention *session.AttentionPolicy
+	// Prepare binds cached feature state before the created event is visible,
+	// returning an optional rollback invoked if creation fails.
+	Prepare func(*session.Session) func()
 }
 
 // CheckCreate makes the checks of a Create of in before anything exists:
@@ -106,9 +109,13 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*session.Session,
 	}
 	a := newActor(s, cmd, cwd, in.ConfigID, side, in.Attention)
 	created := false
+	var rollback func()
 	defer func() {
 		if !created {
 			s.clearMetadata(a.id)
+			if rollback != nil {
+				rollback()
+			}
 		}
 	}()
 
@@ -123,6 +130,9 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*session.Session,
 		Prepare: func(shell *session.Session) {
 			a.id, a.shell = shell.Info().ID, shell
 			a.publishMetadata()
+			if in.Prepare != nil {
+				rollback = in.Prepare(shell)
+			}
 		},
 	}, a)
 	if err != nil {

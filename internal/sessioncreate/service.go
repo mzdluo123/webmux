@@ -352,9 +352,17 @@ func (s *Service) create(ctx context.Context, in Input) (Result, error) {
 	var item *session.Session
 	sent := false
 	if p.command.Chat {
-		item, sent, err = s.options.Chat.Create(ctx, in, p.command, cwd, initial)
+		item, sent, err = s.options.Chat.Create(ctx, in, p.command, cwd, initial, p.location.Stage)
 	} else {
-		item, err = s.manager.Create(session.CreateInput{Cwd: cwd, Cmd: p.command.Cmd, Env: p.command.Env, Name: in.Name, ConfigID: p.command.ConfigID, Attention: p.command.Attention, Cols: in.Cols, Rows: in.Rows})
+		var rollback func()
+		createIn := session.CreateInput{Cwd: cwd, Cmd: p.command.Cmd, Env: p.command.Env, Name: in.Name, ConfigID: p.command.ConfigID, Attention: p.command.Attention, Cols: in.Cols, Rows: in.Rows}
+		if p.location.Stage != nil {
+			createIn.Prepare = func(created *session.Session) { rollback = p.location.Stage(created) }
+		}
+		item, err = s.manager.Create(createIn)
+		if err != nil && rollback != nil {
+			rollback()
+		}
 	}
 	if err != nil {
 		return fail(StepSession, "", err)

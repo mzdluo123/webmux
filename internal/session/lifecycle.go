@@ -160,6 +160,9 @@ func (m *Manager) CreateShell(in ShellInput, d Driver) (*Session, error) {
 		s.installRunLocked(r, generation)
 		s.startRun(r)
 	}
+	if in.CreateInput.Prepare != nil {
+		in.CreateInput.Prepare(s)
+	}
 	if in.Prepare != nil {
 		in.Prepare(s)
 	}
