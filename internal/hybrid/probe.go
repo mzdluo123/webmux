@@ -27,7 +27,12 @@ func (s *Service) ProbeAgentOptions(ctx context.Context, in CreateInput) ([]Conf
 	if err := s.beginOperation(); err != nil {
 		return nil, err
 	}
-	defer s.starting.Done()
+	releaseStarting := true
+	defer func() {
+		if releaseStarting {
+			s.starting.Done()
+		}
+	}()
 	in.StartSide = SideACP
 	cmd, _, cwd, err := s.admit(in)
 	if err != nil {
@@ -50,7 +55,12 @@ func (s *Service) ProbeAgentOptions(ctx context.Context, in CreateInput) ([]Conf
 	case <-probeCtx.Done():
 		return nil, probeErr(probeCtx.Err())
 	}
-	defer func() { <-s.probes }()
+	releaseProbe := true
+	defer func() {
+		if releaseProbe {
+			<-s.probes
+		}
+	}()
 	shell, err := s.manager.ProbeShell(session.CreateInput{Cwd: cwd, Cmd: cmd.TUIArgv(), Env: in.Env, ConfigID: in.ConfigID})
 	if err != nil {
 		return nil, shellError(err)
@@ -66,15 +76,22 @@ func (s *Service) ProbeAgentOptions(ctx context.Context, in CreateInput) ([]Conf
 	}
 	link := &acpLink{sidecar: sidecar}
 	link.conn = acp.NewConn(sidecar.Stdout(), sidecar.Stdin(), acp.Options{Logger: s.log})
-	defer func() { _ = link.releaseWithin(probeCtx) }()
+	releaseSync := true
+	defer func() {
+		if releaseSync {
+			_ = link.releaseWithin(probeCtx)
+		}
+	}()
 	init, err := link.conn.Initialize(probeCtx, acp.Implementation{Name: "webmux", Title: "WebMux", Version: s.version}, nil)
 	if err != nil {
 		if s.closeCtx.Err() != nil {
 			_ = link.stop()
+			releaseSync = false
 			return nil, probeErr(err)
 		}
 		s.log.Warn("hybrid options probe failed", "config", in.ConfigID, "method", acp.MethodInitialize, "error", err)
 		_ = link.stop()
+		releaseSync = false
 		if missing := exitedNotFound(cmd, sidecar); missing != nil {
 			return nil, missing.err
 		}
@@ -93,6 +110,18 @@ func (s *Service) ProbeAgentOptions(ctx context.Context, in CreateInput) ([]Conf
 	options := configOptions(res.ConfigOptions, cmd.Profile.ModelChoiceValues)
 	applySeeds(options, cmd)
 	s.options.remember(in.ConfigID, options, time.Now())
+	// Release the temporary probe session and sidecar asynchronously so the
+	// caller receives options immediately instead of stalling behind sidecar
+	// shutdown. Service.Close still converges because s.starting and s.probes
+	// stay held until cleanup finishes.
+	releaseSync = false
+	releaseProbe = false
+	releaseStarting = false
+	go func() {
+		defer s.starting.Done()
+		defer func() { <-s.probes }()
+		_ = link.releaseWithin(s.closeCtx)
+	}()
 	return options, nil
 }
 

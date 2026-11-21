@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rainchan/webmux/internal/acp"
 	"github.com/rainchan/webmux/internal/agent/codex"
@@ -219,4 +220,36 @@ func TestProbeAgentOptionsAppliesSeeds(t *testing.T) {
 	if got := configValue(options, "mode"); got != "accept-edits" {
 		t.Fatalf("unseeded mode %q, want the agent's accept-edits", got)
 	}
+}
+
+// ProbeAgentOptions returns as soon as options are read instead of blocking on
+// graceful shutdown of the temporary probe sidecar, while Service.Close still
+// waits for the background cleanup to finish.
+func TestProbeAgentOptionsDoesNotBlockOnProbeShutdown(t *testing.T) {
+	h := newHarness(t, 0)
+	realBin := agentPath(t, omp.Name)
+	wrapper := filepath.Join(t.TempDir(), omp.Name)
+	script := "#!/bin/sh\n'" + realBin + "' \"$@\"\ncode=$?\nsleep 0.8\nexit $code\n"
+	if err := os.WriteFile(wrapper, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	in := h.input(omp.Name, SideTUI)
+	in.Cmd = []string{wrapper}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+	start := time.Now()
+	options, err := h.svc.ProbeAgentOptions(ctx, in)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(options) != 2 || configValue(options, "model") != "fast" {
+		t.Fatalf("probed options %+v", options)
+	}
+	if elapsed >= 650*time.Millisecond {
+		t.Fatalf("ProbeAgentOptions waited %v for probe shutdown, want < 650ms", elapsed)
+	}
+	// Closing the service converges the background probe cleanup without leaks.
+	h.svc.Close()
 }
