@@ -19,22 +19,13 @@
 </script>
 
 <script lang="ts">
+  import AppShellSkeleton from "./components/shell/AppShellSkeleton.svelte";
+  import BootSplash from "./components/shell/BootSplash.svelte";
   import ConnectionGate from "./components/shell/ConnectionGate.svelte";
   import RelayAccessOverlay from "./components/shell/RelayAccessOverlay.svelte";
   import AppOverlays from "./components/shell/AppOverlays.svelte";
-  import {
-    startSettings,
-    stopSettings,
-  } from "./domains/settings/settings.svelte";
-  import { errorMessage } from "./platform/error";
   import { onMount } from "svelte";
-  import {
-    api,
-    consumeTokenFragment,
-    navigate,
-    store,
-    stored,
-  } from "./platform/api";
+  import { navigate } from "./platform/api";
   import { Button } from "$lib/components/ui/button";
   import LazyPage from "./components/shared/LazyPage.svelte";
   import AppShell from "./components/shell/AppShell.svelte";
@@ -55,43 +46,26 @@
   import { openSession, shellUi } from "./hooks/shared/shell.svelte";
   import { createTerminalDrafts } from "./domains/terminal/terminal-draft.svelte";
   import { activeBrowserDraftStorage } from "./domains/terminal/draft-storage";
-  import { clearHomeCache } from "./domains/workspace/home-cache";
   import { workbenchLayout } from "./domains/workspace/workbench-layout.svelte";
   import { sessionPins } from "./domains/sessions/session-pins.svelte";
-  import {
-    clearSessionListSnapshot,
-    sessionListSnapshot,
-  } from "./hooks/sessions/session-list.svelte";
-  import { CapabilitiesSchema } from "./contracts/feature-schemas";
+  import { sessionListSnapshot } from "./hooks/sessions/session-list.svelte";
   import {
     featureEnabled,
     featureAvailable,
-    setFeatureCapabilities,
-    resetFeatureCapabilities,
   } from "./platform/feature-host.svelte";
-  import {
-    loadFeatureContributions,
-    disposeFeatureContributions,
-    featureContributions,
-  } from "./features/registry.svelte";
-  import { watchFeatureHostRefresh } from "./features/host-refresh";
-  import { onActiveHostChange } from "./platform/storage";
+  import { featureContributions } from "./features/registry.svelte";
   import { InlineNotice } from "$lib/components/ui/inline-notice";
-  import { clearRelayAuth, resetRelayAuth } from "./platform/relay-auth";
   import {
-    relayAuth,
     relayBlocked,
     relayGate,
     relayReconnecting,
   } from "./platform/relay-auth.svelte";
-  import { useRelayAuthRecovery } from "./hooks/shared/relay-auth-recovery.svelte";
-  import { prepareHostAuthentication } from "./hooks/shared/host-authentication";
   import { useRouteFocus } from "./hooks/shared/route-focus";
+  import { createAppBootstrap } from "./app/app-bootstrap.svelte";
   import { createAppLinkHandler } from "./app/app-link-navigation";
   import { m } from "$lib/paraglide/messages.js";
 
   const focusRoute = useRouteFocus();
-
   const drafts = createTerminalDrafts({ storage: activeBrowserDraftStorage() });
   let uploadNotice = $state("");
 
@@ -107,20 +81,6 @@
 
   let path = $state(normalizeLegacyNewPath(location.pathname));
   let search = $state(location.search);
-  let ready = $state(false);
-  let rebuildingFeatures = $state(false);
-  let checking = $state(true);
-  let token = $state(stored("token"));
-  let error = $state("");
-  let authFailed = $state(false);
-  let discoveryError = $state("");
-  let discoveryFailureCause = $state("");
-  let bootstrapEpoch = 0;
-  let bootstrapAbort: AbortController | undefined;
-  const reconnect = useRelayAuthRecovery(
-    () => ready,
-    () => void check(),
-  );
   const route = $derived(matchRoute(path));
   const contributions = $derived(featureContributions.entries);
   const requiredFeature = $derived(routeFeature(route));
@@ -132,8 +92,35 @@
   );
   const sessionId = $derived(route.name === "terminal" ? route.id : "");
   const shellRoute = $derived(shellRouteFor(route));
+  let shell = $state<AppShell>();
+  let terminal = $state<TerminalPage>();
+  let switcherOpen = $state(false);
+  let switcherInvoker: HTMLElement | null = null;
+  let pendingSessionOpen = $state("");
+
+  const boot = createAppBootstrap({
+    route: () => route,
+    preloadSessionPage: () => {
+      if (!cachedSessionPage()) void loadSessionPage().catch(() => undefined);
+    },
+    onPathNormalized: () => {
+      path = normalizeLegacyNewPath(location.pathname);
+    },
+    onClearUiForAuth: (relay) => {
+      switcherOpen = false;
+      if (relay) return;
+      drafts.clearAll();
+      uploadNotice = "";
+      pendingSessionOpen = "";
+      switcherInvoker = null;
+    },
+    onRebuilding: (value) => {
+      if (value) switcherOpen = false;
+    },
+  });
+
   const canSwitch = $derived(
-    ready &&
+    boot.ready &&
       !relayGate() &&
       (shellRoute !== null ||
         route.name === "settings" ||
@@ -141,11 +128,6 @@
         route.name === "settings-tunnel" ||
         route.name === "settings-relay"),
   );
-  let shell = $state<AppShell>();
-  let terminal = $state<TerminalPage>();
-  let switcherOpen = $state(false);
-  let switcherInvoker: HTMLElement | null = null;
-  let pendingSessionOpen = $state("");
 
   function openSwitcher(invoker: HTMLElement | null) {
     switcherInvoker = invoker;
@@ -192,63 +174,6 @@
     void sessionId;
     return cachedSessionPage();
   });
-  async function check(preferToken = false) {
-    checking = true;
-    bootstrapAbort?.abort();
-    const controller = new AbortController();
-    bootstrapAbort = controller;
-    const epoch = ++bootstrapEpoch;
-    try {
-      disposeFeatureContributions();
-      resetFeatureCapabilities();
-      if (
-        !(await prepareHostAuthentication(
-          preferToken,
-          controller.signal,
-          () => epoch === bootstrapEpoch,
-        ))
-      ) {
-        if (relayAuth.reason === "reconnecting") reconnect.start();
-        return;
-      }
-      discoveryError = "";
-      discoveryFailureCause = "";
-      try {
-        const capabilities = await api(
-          "/capabilities",
-          CapabilitiesSchema,
-          "GET",
-          undefined,
-          controller.signal,
-        );
-        if (epoch !== bootstrapEpoch) return;
-        setFeatureCapabilities(capabilities);
-        path = normalizeLegacyNewPath(location.pathname);
-        await loadFeatureContributions({
-          forwardAuth: route.name === "forward-auth",
-          codePopout: route.name === "code",
-        });
-      } catch (discoveryFailure) {
-        if (epoch !== bootstrapEpoch) return;
-        resetFeatureCapabilities();
-        disposeFeatureContributions();
-        discoveryFailureCause = errorMessage(discoveryFailure);
-        path = normalizeLegacyNewPath(location.pathname);
-      }
-      if (epoch !== bootstrapEpoch) return;
-      startSettings();
-      ready = true;
-      authFailed = false;
-      error = "";
-    } catch (err) {
-      if (epoch === bootstrapEpoch) {
-        authFailed = false;
-        error = errorMessage(err);
-      }
-    } finally {
-      if (epoch === bootstrapEpoch) checking = false;
-    }
-  }
 
   onMount(() => {
     const change = () => {
@@ -259,37 +184,6 @@
       path = nextPath;
       search = location.search;
       if (pathChanged) focusRoute();
-    };
-    const auth = () => {
-      const relay = relayAuth.relay;
-      if (relay && relayAuth.authenticated) clearRelayAuth("reconnecting");
-      else if (!relay) {
-        reconnect.cancel();
-        clearRelayAuth();
-      }
-      bootstrapEpoch++;
-      bootstrapAbort?.abort();
-      featureRefresh.cancel();
-      stopSettings();
-      checking = false;
-      switcherOpen = false;
-      error = "";
-      if (relay) {
-        if (relayAuth.reason === "reconnecting") reconnect.start();
-        else reconnect.cancel();
-        return;
-      }
-      disposeFeatureContributions();
-      rebuildingFeatures = false;
-      resetFeatureCapabilities();
-      drafts.clearAll();
-      clearHomeCache();
-      clearSessionListSnapshot();
-      uploadNotice = "";
-      pendingSessionOpen = "";
-      ready = false;
-      switcherInvoker = null;
-      authFailed = true;
     };
     const link = createAppLinkHandler({
       sessionId: () => sessionId,
@@ -307,77 +201,53 @@
       () => canSwitch && !switcherOpen,
       openSwitcher,
     );
-    window.addEventListener("webmux:auth", auth);
-    window.addEventListener("webmux:relay-check", auth);
-    const tokenFromFragment = consumeTokenFragment();
-    if (tokenFromFragment) token = stored("token");
     const disconnectPins = sessionPins.connect();
-    const disconnectHost = onActiveHostChange(() => {
-      resetRelayAuth();
-      auth();
-      token = stored("token");
-      void check();
-    });
-    const featureRefresh = watchFeatureHostRefresh({
-      ready: () => ready && !relayBlocked(),
-      epoch: () => bootstrapEpoch,
-      context: () => ({
-        forwardAuth: route.name === "forward-auth",
-        codePopout: route.name === "code",
-      }),
-      onRebuilding: (value) => {
-        rebuildingFeatures = value;
-        if (value) switcherOpen = false;
-      },
-      onError: (message) => (discoveryError = message),
-    });
-    void check(tokenFromFragment);
+    const stopBoot = boot.start();
     return () => {
-      reconnect.cancel();
+      stopBoot();
       disconnectPins();
-      disconnectHost();
-      featureRefresh.dispose();
-      bootstrapAbort?.abort();
-      bootstrapEpoch++;
-      disposeFeatureContributions();
-      resetFeatureCapabilities();
-      stopSettings();
       drafts.clearAll();
       document.removeEventListener("click", link);
       window.removeEventListener("popstate", change);
       disconnectShortcut();
-      window.removeEventListener("webmux:auth", auth);
-      window.removeEventListener("webmux:relay-check", auth);
     };
   });
 </script>
 
-<AppOverlays {ready} bind:uploadNotice />
+<AppOverlays ready={boot.ready} bind:uploadNotice />
 
 <RelayAccessOverlay
-  checking={reconnect.checking}
+  checking={boot.reconnectChecking}
   returnTo={path + search + location.hash}
-  hasShell={ready &&
-    !rebuildingFeatures &&
+  hasShell={boot.ready &&
+    !boot.rebuildingFeatures &&
     !routeUnavailable &&
     shellRoute !== null}
-  onretry={() => reconnect.start()}
+  onretry={boot.retryRelayReconnect}
 />
 
 <div class="contents" inert={relayGate()} aria-hidden={relayGate()}>
-  {#if !ready}
+  {#if !boot.ready}
     {#if !relayBlocked()}
-      <ConnectionGate
-        {checking}
-        error={authFailed ? m.s1_token_invalid() : error}
-        bind:token
-        onconnect={() => {
-          store("token", token);
-          void check(true);
-        }}
-      />
+      {#if boot.gate === "probing"}
+        {#if boot.optimisticBoot && shellRoute !== null}
+          <AppShellSkeleton terminal={route.name === "terminal"} />
+        {:else}
+          <BootSplash />
+        {/if}
+      {:else}
+        <ConnectionGate
+          mode={boot.gate}
+          checking={boot.checking}
+          error={boot.authFailed ? m.s1_token_invalid() : boot.error}
+          bind:token={boot.token}
+          onconnect={boot.connectWithToken}
+          onretry={boot.retryConnection}
+          onusetoken={boot.switchToTokenGate}
+        />
+      {/if}
     {/if}
-  {:else if rebuildingFeatures}
+  {:else if boot.rebuildingFeatures}
     <main class="mx-auto max-w-xl p-6" aria-busy="true">
       <InlineNotice>{m.s1_reconnecting_capabilities()}</InlineNotice>
     </main>
@@ -421,9 +291,9 @@
       {drafts}
       reconnection={relayReconnecting()
         ? {
-            checking: reconnect.checking,
+            checking: boot.reconnectChecking,
             returnTo: path + search + location.hash,
-            onretry: () => reconnect.start(),
+            onretry: boot.retryRelayReconnect,
           }
         : undefined}
     >
@@ -453,16 +323,18 @@
   {/if}
 </div>
 
-{#if ready && (discoveryError || discoveryFailureCause)}
+{#if boot.ready && (boot.discoveryError || boot.discoveryFailureCause)}
   <div class="fixed inset-x-2 bottom-2 z-50">
     <InlineNotice tone="warning" surface="floating"
-      >{discoveryError ||
-        m.s1_discovery_failed({ error: discoveryFailureCause })}</InlineNotice
+      >{boot.discoveryError ||
+        m.s1_discovery_failed({
+          error: boot.discoveryFailureCause,
+        })}</InlineNotice
     >
   </div>
 {/if}
 
-{#if ready}
+{#if boot.ready}
   <FeatureLoadNotices errors={featureContributions.errors} />
 {/if}
 
@@ -477,7 +349,7 @@
       }}
       {drafts}
       onUploadNotice={(message: string) => {
-        if (ready) uploadNotice = message;
+        if (boot.ready) uploadNotice = message;
       }}
     />
   {/key}
