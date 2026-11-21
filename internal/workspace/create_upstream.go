@@ -203,6 +203,24 @@ func (s *Service) checkCreationUpstream(ctx context.Context, repositoryID string
 		}
 		return check, nil
 	}
+	// When the user already confirmed keeping the local commit and the local
+	// source ref/config has not changed since that confirmation, skip a second
+	// network fetch (which would also stall again when offline).
+	if choice := req.UpstreamChoice; choice != nil && !choice.UseUpstream {
+		if time.Now().Before(previous.expires) &&
+			previous.repositoryID == repositoryID &&
+			previous.mode == req.Mode &&
+			previous.branch == req.Branch &&
+			previous.base == req.Base &&
+			previous.source == before {
+			check.checked = true
+			check.useUpstream = false
+			if req.Mode == "new" {
+				check.base = before.head
+			}
+			return check, nil
+		}
+	}
 	refreshed, err := s.RefreshBranchBase(ctx, repositoryID, before.branch)
 	if err != nil {
 		return check, err

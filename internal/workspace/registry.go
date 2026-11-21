@@ -123,6 +123,7 @@ type Service struct {
 	mu                    sync.Mutex
 	associations          map[string]Association
 	upstreamConfirmations map[string]upstreamConfirmation
+	branchRefreshes       map[branchRefreshKey]*branchRefreshFlight
 	// associationMu orders cache commits through their source publication.
 	// Capture reads only associationCacheMu, never registry or process state.
 	associationMu      sync.Mutex

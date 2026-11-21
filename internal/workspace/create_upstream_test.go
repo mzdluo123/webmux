@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -313,5 +314,42 @@ func TestCreateWorktreeLatestUpstream(t *testing.T) {
 				t.Fatalf("expected upstream %s, got %+v, %v", latest, tree, err)
 			}
 		})
+	}
+}
+
+func TestCreateWorktreeKeepLocalConfirmationSkipsSecondFetch(t *testing.T) {
+	isolateGit(t)
+	s, r, root, remote := upstreamFixture(t)
+	local := gitTest(t, root, "rev-parse", "HEAD")
+	advanceUpstream(t, root, remote, "remote ahead")
+
+	realGit := s.gitPath
+	dir := t.TempDir()
+	wrapper := filepath.Join(dir, "git")
+	countFile := filepath.Join(dir, "fetches.log")
+	putFile(t, wrapper, "#!/bin/sh\nif [ \"$3\" = fetch ]; then printf 'fetch\\n' >> '"+countFile+"'; fi\nexec '"+realGit+"' \"$@\"\n")
+	if err := os.Chmod(wrapper, 0700); err != nil {
+		t.Fatal(err)
+	}
+	s.gitPath = wrapper
+
+	req := CreateRequest{Mode: "new", Branch: "keep-local", Base: "main", Path: filepath.Join(t.TempDir(), "tree")}
+	_, err := s.CreateWorktree(context.Background(), r.ID, req)
+	confirmation := upstreamConfirmationFor(t, err)
+
+	req.UpstreamChoice = &UpstreamChoice{ConfirmationID: confirmation.ConfirmationID, UseUpstream: false}
+	tree, err := s.CreateWorktree(context.Background(), r.ID, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tree.Head == nil || *tree.Head != local {
+		t.Fatalf("head = %+v, want local %s", tree, local)
+	}
+	raw, err := os.ReadFile(countFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fetches := len(strings.Fields(string(raw))); fetches != 1 {
+		t.Fatalf("keep-local confirmation ran %d fetches, want 1", fetches)
 	}
 }

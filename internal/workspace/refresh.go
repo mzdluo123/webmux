@@ -14,14 +14,56 @@ type branchUpstream struct {
 	ref    string
 }
 
+type branchRefreshKey struct {
+	repositoryID string
+	branch       string
+}
+
+type branchRefreshFlight struct {
+	done   chan struct{}
+	result BranchBaseRefresh
+	err    error
+}
+
 // RefreshBranchBase fetches the selected local branch's configured upstream, or
 // when branch names a remote-tracking branch (or a remote exists for the ref),
-// fetches that remote and resolves the selected branch. Network failures
-// degrade to the local tip so worktree creation remains usable.
+// fetches that remote and resolves the selected branch. Concurrent refreshes
+// for the same repository and branch share one in-flight fetch. Network
+// failures degrade to the local tip so worktree creation remains usable.
 func (s *Service) RefreshBranchBase(ctx context.Context, repositoryID, branch string) (BranchBaseRefresh, error) {
 	if branch == "" || strings.ContainsRune(branch, '\x00') {
 		return BranchBaseRefresh{}, problemf(ErrInvalid, "请选择明确的分支")
 	}
+	key := branchRefreshKey{repositoryID: repositoryID, branch: branch}
+	s.mu.Lock()
+	if s.branchRefreshes == nil {
+		s.branchRefreshes = make(map[branchRefreshKey]*branchRefreshFlight)
+	}
+	flight := s.branchRefreshes[key]
+	if flight == nil {
+		flight = &branchRefreshFlight{done: make(chan struct{})}
+		s.branchRefreshes[key] = flight
+		runCtx := context.WithoutCancel(ctx)
+		go func() {
+			defer close(flight.done)
+			flight.result, flight.err = s.refreshBranchBaseOnce(runCtx, repositoryID, branch)
+			s.mu.Lock()
+			if s.branchRefreshes[key] == flight {
+				delete(s.branchRefreshes, key)
+			}
+			s.mu.Unlock()
+		}()
+	}
+	s.mu.Unlock()
+	select {
+	case <-flight.done:
+		return flight.result, flight.err
+	case <-ctx.Done():
+		return BranchBaseRefresh{}, ctx.Err()
+	}
+}
+
+func (s *Service) refreshBranchBaseOnce(ctx context.Context, repositoryID, branch string) (BranchBaseRefresh, error) {
 	readCtx, cancel := context.WithTimeout(ctx, readTimeout)
 	result, upstream, anchor, remoteOnly, err := s.branchBaseTarget(readCtx, repositoryID, branch)
 	cancel()
@@ -161,32 +203,24 @@ func (s *Service) branchBaseTarget(ctx context.Context, repositoryID, branch str
 		return result, branchUpstream{}, "", false, err
 	}
 	defer release(r)
-	repository, err := s.current(ctx, r)
-	if err != nil {
-		return result, branchUpstream{}, "", false, err
-	}
-	branches, err := s.branches(ctx, r, repository)
-	if err != nil {
-		return result, branchUpstream{}, "", false, err
-	}
 	localRef := "refs/heads/" + branch
-	for _, candidate := range branches.Bases {
-		if candidate.Name == localRef {
-			result.Base = candidate.Head
-			result.BaseSubject = candidate.Subject
-			break
-		}
+	if base, ok, err := s.readSingleRefBase(ctx, r.entry.AnchorPath, localRef); err != nil {
+		return result, branchUpstream{}, "", false, err
+	} else if ok {
+		result.Base = base.Head
+		result.BaseSubject = base.Subject
 	}
 	if result.Base == "" {
 		remoteRef := "refs/remotes/" + branch
-		for _, candidate := range branches.Bases {
-			if candidate.Name == remoteRef && !strings.HasSuffix(candidate.Name, "/HEAD") {
-				result.Base = candidate.Head
-				result.BaseSubject = candidate.Subject
+		if !strings.HasSuffix(remoteRef, "/HEAD") {
+			if base, ok, err := s.readSingleRefBase(ctx, r.entry.AnchorPath, remoteRef); err != nil {
+				return result, branchUpstream{}, "", false, err
+			} else if ok {
+				result.Base = base.Head
+				result.BaseSubject = base.Subject
 				result.BaseSource = "remote"
 				result.Upstream = branch
-				result.UpstreamHead = candidate.Head
-				break
+				result.UpstreamHead = base.Head
 			}
 		}
 		remote := s.configuredRemote(ctx, r.entry.AnchorPath, branch)
@@ -246,7 +280,28 @@ func (s *Service) configuredRemote(ctx context.Context, anchor, branch string) s
 	return best
 }
 
+// readSingleRefBase resolves one exact ref's commit OID and subject without
+// scanning every worktree or branch in the repository.
+func (s *Service) readSingleRefBase(ctx context.Context, anchor, ref string) (Base, bool, error) {
+	data, err := s.git(ctx, anchor, "for-each-ref", "--count=1", "--format=%(objectname)%00%(contents:subject)", ref)
+	if err != nil {
+		return Base{}, false, err
+	}
+	line := strings.TrimSuffix(string(data), "\n")
+	if line == "" {
+		return Base{}, false, nil
+	}
+	oid, subject, _ := strings.Cut(line, "\x00")
+	if oid == "" {
+		return Base{}, false, nil
+	}
+	return Base{Name: ref, Head: oid, Subject: subject}, true, nil
+}
+
 func (s *Service) readRefBase(ctx context.Context, repositoryID, ref string) (Base, bool, error) {
+	if strings.HasSuffix(ref, "/HEAD") {
+		return Base{}, false, nil
+	}
 	r, err := s.repository(repositoryID)
 	if err != nil {
 		return Base{}, false, err
@@ -255,20 +310,7 @@ func (s *Service) readRefBase(ctx context.Context, repositoryID, ref string) (Ba
 		return Base{}, false, err
 	}
 	defer release(r)
-	repository, err := s.current(ctx, r)
-	if err != nil {
-		return Base{}, false, err
-	}
-	branches, err := s.branches(ctx, r, repository)
-	if err != nil {
-		return Base{}, false, err
-	}
-	for _, candidate := range branches.Bases {
-		if candidate.Name == ref && !strings.HasSuffix(candidate.Name, "/HEAD") {
-			return candidate, true, nil
-		}
-	}
-	return Base{}, false, nil
+	return s.readSingleRefBase(ctx, r.entry.AnchorPath, ref)
 }
 
 func (s *Service) remoteBranchBase(ctx context.Context, repositoryID, localOID, upstreamRef string) (Base, bool, error) {
@@ -280,22 +322,16 @@ func (s *Service) remoteBranchBase(ctx context.Context, repositoryID, localOID, 
 		return Base{}, false, err
 	}
 	defer release(r)
-	repository, err := s.current(ctx, r)
+	candidate, found, err := s.readSingleRefBase(ctx, r.entry.AnchorPath, upstreamRef)
 	if err != nil {
 		return Base{}, false, err
 	}
-	branches, err := s.branches(ctx, r, repository)
-	if err != nil {
+	if !found {
+		return Base{}, false, problemf(ErrInternal, "上游跟踪引用不存在")
+	}
+	_, err = s.git(ctx, r.entry.AnchorPath, "merge-base", "--is-ancestor", localOID, candidate.Head)
+	if err != nil && ctx.Err() != nil {
 		return Base{}, false, err
 	}
-	for _, candidate := range branches.Bases {
-		if candidate.Name == upstreamRef {
-			_, err := s.git(ctx, r.entry.AnchorPath, "merge-base", "--is-ancestor", localOID, candidate.Head)
-			if err != nil && ctx.Err() != nil {
-				return Base{}, false, err
-			}
-			return candidate, err == nil, nil
-		}
-	}
-	return Base{}, false, problemf(ErrInternal, "上游跟踪引用不存在")
+	return candidate, err == nil, nil
 }
