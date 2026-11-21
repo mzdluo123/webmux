@@ -1,4 +1,5 @@
 import "../../src/styles.css";
+import { flushSync } from "svelte";
 import { expect, test, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-svelte/pure";
@@ -2728,6 +2729,77 @@ test("long conversations unmount off-screen message bodies while keeping anchors
       .element(transcript.getByRole("heading", { name: "回复 1", exact: true }))
       .toBeVisible();
   } finally {
+    await page.viewport(1024, 900);
+  }
+});
+
+test("initial large backlog mounts a narrow tail on frame 1 and widens on the next animation frame", async () => {
+  await page.viewport(1280, 900);
+  const originalRaf = window.requestAnimationFrame.bind(window);
+  const originalCancel = window.cancelAnimationFrame.bind(window);
+  let nextHandle = 1;
+  const pending = new Map<number, FrameRequestCallback>();
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+    const handle = nextHandle++;
+    pending.set(handle, cb);
+    return handle;
+  });
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((handle) => {
+    pending.delete(handle);
+  });
+  try {
+    const socket = await open();
+    socket.frame(snapshot(chatState()));
+    socket.frame({
+      type: "events",
+      generation: "g1",
+      items: events(
+        ...Array.from({ length: 80 }, (_, index) => [
+          {
+            kind: "message.append" as const,
+            message: {
+              messageId: `prog-u${index}`,
+              role: "user" as const,
+              text: `第 ${index + 1} 轮提问`,
+            },
+          },
+          {
+            kind: "message.append" as const,
+            message: {
+              messageId: `prog-a${index}`,
+              role: "agent" as const,
+              text: `## 回复 ${index + 1}\n\n${"内容段落。".repeat(20)}`,
+            },
+          },
+        ]).flat(),
+      ),
+    });
+    flushSync();
+
+    const transcript = page.getByRole("list", { name: "对话" }).element();
+    expect(
+      transcript.querySelectorAll('[data-message-id^="prog-"]'),
+    ).toHaveLength(160);
+    // Frame 1 mounts only the bottom 8 entries (4 user + 4 agent -> 4 markdown previews).
+    const frame1Previews =
+      transcript.querySelectorAll(".markdown-preview").length;
+    expect(frame1Previews).toBeGreaterThan(0);
+    expect(frame1Previews).toBeLessThanOrEqual(4);
+
+    // Flush queued RAF callbacks to enter Frame 2 and widen to the full tail buffer.
+    const callbacks = [...pending.values()];
+    pending.clear();
+    for (const cb of callbacks) cb(performance.now());
+    flushSync();
+
+    const frame2Previews =
+      transcript.querySelectorAll(".markdown-preview").length;
+    expect(frame2Previews).toBeGreaterThanOrEqual(12);
+    expect(frame2Previews).toBeLessThan(60);
+  } finally {
+    window.requestAnimationFrame = originalRaf;
+    window.cancelAnimationFrame = originalCancel;
+    vi.restoreAllMocks();
     await page.viewport(1024, 900);
   }
 });
