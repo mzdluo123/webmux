@@ -288,3 +288,72 @@ func TestRefreshBranchBaseFetchesOnlyTargetBranch(t *testing.T) {
 		t.Fatalf("single-branch refresh fetched unrelated remote ref: %q", refs)
 	}
 }
+
+func TestRefreshBranchBaseDeduplicatesConcurrentFetches(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	s, r, root, remote := upstreamFixture(t)
+	remoteHead := advanceUpstream(t, root, remote, "shared fetch")
+
+	realGit := s.gitPath
+	dir := t.TempDir()
+	wrapper := filepath.Join(dir, "git")
+	countFile := filepath.Join(dir, "fetches.log")
+	started := filepath.Join(dir, "fetch-started")
+	release := filepath.Join(dir, "release-fetch")
+	putFile(t, wrapper, fmt.Sprintf(`#!/bin/sh
+if [ "$3" = fetch ]; then
+  printf 'fetch\n' >> %q
+  : > %q
+  while [ ! -e %q ]; do sleep 0.02; done
+fi
+exec %q "$@"
+`, countFile, started, release, realGit))
+	if err := os.Chmod(wrapper, 0700); err != nil {
+		t.Fatal(err)
+	}
+	s.gitPath = wrapper
+	defer func() { _ = os.WriteFile(release, nil, 0600) }()
+
+	type outcome struct {
+		result BranchBaseRefresh
+		err    error
+	}
+	first := make(chan outcome, 1)
+	second := make(chan outcome, 1)
+	go func() {
+		res, err := s.RefreshBranchBase(context.Background(), r.ID, "main")
+		first <- outcome{res, err}
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(started); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("first fetch did not start")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	go func() {
+		res, err := s.RefreshBranchBase(context.Background(), r.ID, "main")
+		second <- outcome{res, err}
+	}()
+	time.Sleep(80 * time.Millisecond)
+	if err := os.WriteFile(release, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	for i, ch := range []chan outcome{first, second} {
+		got := <-ch
+		if got.err != nil || got.result.UpstreamHead != remoteHead {
+			t.Fatalf("caller %d: %+v %v", i+1, got.result, got.err)
+		}
+	}
+	raw, err := os.ReadFile(countFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fetches := len(strings.Fields(string(raw))); fetches != 1 {
+		t.Fatalf("concurrent RefreshBranchBase ran %d fetches, want 1", fetches)
+	}
+}
