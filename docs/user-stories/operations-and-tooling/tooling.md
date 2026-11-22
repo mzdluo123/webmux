@@ -14,6 +14,7 @@
   - Vite+ 开发服务器代理 API/WebSocket 到独立后端并需配置开发 Origin；
   - `make web/build/install` 提供检查、打包与安装；
   - CI 将 pnpm store、Go 模块与 Go 构建/测试缓存分开，构建缓存使用按周滚动且随模块文件变化的 key 在 `main` 刷新。
+  - CI 的格式与构建作业复用依赖安装时生成的 Paraglide 声明，分别检查测试和生产源码类型，再构建前端。
 - **US-L02 分层验证与诊断**：作为贡献者，我希望运行 Go race、前端单元、浏览器与隔离 E2E 测试，以便验证会话、安全和交互行为。
   验收要点：
   - agent 本地验证必须并发启动互不依赖的检查并收集所有退出结果，优先使用已有并行 Make 入口，详见 [本地验证规则](../../agent-rules/testing.md#agent-local-validation)；
