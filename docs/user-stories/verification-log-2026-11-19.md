@@ -330,3 +330,9 @@
   - `GOOS=windows GOARCH=amd64 golangci-lint run ./cmd/webmux-tray/... ./internal/tray/...` 与 `make go-lint` 均 0 告警通过。
   - `make docs-check`、`make persistence-check`、`go test -count=1 ./internal/archtest ./internal/docguard` 通过。
 - 局限：未在本机直接重启 Windows 验证开机真实唤醒链路，Windows 安装与 `quit` 冒烟交由 CI 的 `windows-installer` 作业验证。
+
+## 2026-11-22：主分支 CI 构建与中继撤销用例（US-L01）
+
+- 前端依赖安装生成 Paraglide 声明，CI 两套 `svelte-check --tsrs` 检查复用声明，生产 `vp build` 单独运行。
+- 独立工作树中 `pnpm --dir web install --frozen-lockfile`、两套 `svelte-check --tsrs`、`pnpm --dir web exec vp build` 与 `pnpm --dir web check:arch`（49 项）通过。
+- `go test -race` 定向覆盖 `TestConnectorRevocationClosesEveryPooledPhysical` 的三条结束路径；其中 `peer-fin` 子用例单独重复 100 次通过。

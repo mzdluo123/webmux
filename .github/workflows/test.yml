@@ -115,15 +115,20 @@ jobs:
       - name: Lint frontend
         if: needs.changes.outputs.web == 'true'
         run: pnpm --dir web lint
+      # The install step's prepare script already generated Paraglide's
+      # declarations from this checkout. Reuse them for both type checks.
       - name: Check frontend test types
         if: needs.changes.outputs.web == 'true'
-        run: pnpm --dir web check:test
+        run: pnpm --dir web exec svelte-check --tsrs --tsconfig ./tsconfig.test.json --fail-on-warnings
       - name: Check frontend architecture
         if: needs.changes.outputs.web == 'true'
         run: pnpm --dir web check:arch
-      - name: Check and build frontend
+      - name: Check frontend source types
         if: needs.changes.outputs.web == 'true'
-        run: pnpm --dir web build
+        run: pnpm --dir web exec svelte-check --tsrs --tsconfig ./tsconfig.json --fail-on-warnings
+      - name: Build frontend
+        if: needs.changes.outputs.web == 'true'
+        run: pnpm --dir web exec vp build
       # Go-only runs skip the frontend checks above, but golangci-lint still
       # needs the embedded archive to typecheck packages that import web.
       - name: Build embedded frontend for Go lint

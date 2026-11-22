@@ -690,10 +690,17 @@ func TestConnectorRevocationClosesEveryPooledPhysical(t *testing.T) {
 				<-r.Context().Done()
 			}), true)
 			h := startPoolConnector(t, id, local.Listener.Addr().String(), nil)
-			control := awaitRole(t, h.controls)
-			bulk := awaitRole(t, h.bulks)
-			holdPoolHTTP(t, control)
-			holdPoolHTTP(t, bulk)
+			// Finish authenticating every slot before revocation can cancel dials.
+			roles := []*nodeRole{h.primary, h.bulk}
+			for range protocol.DefaultInteractiveConnections {
+				roles = append(roles, awaitRole(t, h.controls))
+			}
+			for range protocol.DefaultBulkConnections - 1 {
+				roles = append(roles, awaitRole(t, h.bulks))
+			}
+			for _, role := range roles[1:] {
+				holdPoolHTTP(t, role)
+			}
 			revocation := protocol.Revocation{ID: testToken(t), Scope: "connector", HostID: h.primary.scope.HostID, BindingGeneration: h.primary.scope.BindingGeneration, ConnectorGeneration: h.primary.scope.ConnectorGeneration, Reason: "logout"}
 			expires := time.Now().Add(protocol.ControlMessageTTL)
 			if finish == "deadline" {
@@ -736,13 +743,15 @@ func TestConnectorRevocationClosesEveryPooledPhysical(t *testing.T) {
 			}
 			switch finish {
 			case "peer-fin":
-				if err := h.management.CloseWrite(); err != nil {
+				// The connector can receive FIN and close the socket before
+				// smux reports the FIN write result to CloseWrite.
+				if err := h.management.CloseWrite(); err != nil && err != io.ErrClosedPipe {
 					t.Fatal(err)
 				}
 			case "cancel":
 				h.cancel()
 			}
-			awaitPoolClosed(t, h, h.primary, h.bulk, control, bulk)
+			awaitPoolClosed(t, h, roles...)
 			if protocolCode(h.err) != protocol.Forbidden {
 				t.Fatalf("revocation ended as a reconnectable failure: %v", h.err)
 			}
