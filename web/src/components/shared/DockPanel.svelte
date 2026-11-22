@@ -300,7 +300,8 @@
 
   @media (any-pointer: coarse), (max-width: 639px) {
     .dock-title {
-      block-size: var(--dock-touch-height);
+      /* Include the 1px bottom border so 44px touch buttons do not clip by 0.5px. */
+      block-size: calc(var(--dock-touch-height) + 1px);
     }
   }
 
