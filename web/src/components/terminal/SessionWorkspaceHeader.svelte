@@ -39,7 +39,7 @@
 </script>
 
 <header
-  class="app-header flex h-(--app-header-height) items-center gap-2 border-b bg-card px-1 sm:px-2"
+  class="app-header flex h-(--app-header-height) items-center border-b bg-card sm:gap-2 sm:px-2"
 >
   <!-- Phones open the sidebar drawer here (a home-screen app has no back
        button); wider screens return to the current mode's home. -->
@@ -54,13 +54,8 @@
   >
     <IconArrowLeft class="size-4" aria-hidden="true" />
   </Button>
-  {#if pane?.commands}
-    <div
-      class="flex min-w-0 flex-1 items-center justify-end"
-      data-dock-session-commands={pane.id}
-    >
-      {#key pane.id}{@render pane.commands()}{/key}
-    </div>
+  {#if pane && !pane.compact}
+    {@render activeCommands()}
     <Separator
       orientation="vertical"
       class="mx-0.5 h-4 data-vertical:self-center max-sm:hidden"
@@ -87,6 +82,7 @@
   >
     <IconLayout aria-hidden="true" />
   </Button>
+  {#if pane?.compact}{@render activeCommands()}{/if}
   <SessionPaneMenu {dock} {closePane} />
   <Separator
     orientation="vertical"
@@ -152,10 +148,23 @@
   </DropdownMenu.Root>
 </header>
 
+{#snippet activeCommands()}
+  {#if pane?.commands}
+    <div
+      class="flex min-w-0 flex-1 items-center justify-end max-sm:flex-none"
+      data-dock-session-commands={pane.id}
+    >
+      {#key pane.id}{@render pane.commands()}{/key}
+    </div>
+  {/if}
+{/snippet}
+
 <style>
   @media (max-width: 639px) {
     .app-header {
       --control-touch: min(2.75rem, 44px);
+      gap: min(0.375rem, 6px);
+      padding-inline: min(0.25rem, 4px);
     }
   }
 </style>

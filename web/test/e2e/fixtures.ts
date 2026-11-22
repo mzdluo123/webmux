@@ -536,19 +536,20 @@ export const sessionPaneHeader = (page: Page) =>
     '[data-dock-panel]:has(.split-terminal[data-active="true"]) > .dock-title',
   );
 
+const sessionActions = (page: Page) =>
+  page.locator(".session-toolbar .terminal-header");
+
 export const sessionHeader = (page: Page) =>
-  narrowSessionHeader(page)
-    ? sessionPaneHeader(page).locator(".terminal-header")
-    : page.locator(".session-toolbar .terminal-header");
+  narrowSessionHeader(page) ? sessionPaneHeader(page) : sessionActions(page);
 
 export const sessionViewTabs = (page: Page) =>
-  sessionHeader(page).getByRole("tablist", {
+  sessionActions(page).getByRole("tablist", {
     name: "会话视图",
     exact: true,
   });
 
 export async function openSessionMenu(page: Page) {
-  await sessionHeader(page)
+  await sessionActions(page)
     .getByRole("button", { name: /^(会话|终端)菜单$/ })
     .click();
   return page.getByRole("menu");

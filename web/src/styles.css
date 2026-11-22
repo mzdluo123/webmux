@@ -576,16 +576,9 @@
 [data-bottom-toolbar="shown"] .soft-keys {
   display: flex;
 }
-/* The header entry is shown exactly when the soft-key bar is hidden. */
-[data-bottom-toolbar="shown"] .quick-commands-header {
-  display: none;
-}
 @media (any-pointer: coarse) {
   [data-bottom-toolbar="auto"] .soft-keys {
     display: flex;
-  }
-  [data-bottom-toolbar="auto"] .quick-commands-header {
-    display: none;
   }
 }
 .terminal-column {

@@ -10,6 +10,7 @@ import {
   openSessionMenu,
   toggleCode,
   openSplitPanel,
+  sessionHeader,
   sessionViewTabs,
 } from "./fixtures";
 import { codeReader, fileTree } from "./code-dock";
@@ -39,8 +40,6 @@ async function modifiedRepository(workDir: string) {
     original.replace("ordinary line 50\n", "changed line 50\n"),
   );
 }
-
-const header = (page: Page) => page.locator(".terminal-header");
 
 async function expectOneRow(row: Locator) {
   const box = (await row.boundingBox())!;
@@ -74,18 +73,21 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
 }, testInfo) => {
   await page.setViewportSize({ width: 393, height: 851 });
   await createShell(page, "demo-agent", workDir);
-  await expect(page.locator(".session-toolbar .terminal-header")).toHaveCount(
-    0,
-  );
-  await expect(
-    page.locator("[data-dock-panel] .terminal-header"),
-  ).toBeVisible();
-  const title = header(page).getByRole("button", {
+  const header = sessionHeader(page);
+  const toolbar = page.locator(".session-toolbar");
+  const actions = toolbar.getByRole("button", {
+    name: "终端菜单",
+    exact: true,
+  });
+  const title = header.getByRole("button", {
     name: "demo-agent",
     exact: true,
   });
   const label = title.getByText("demo-agent", { exact: true });
-  const toolbar = page.locator(".session-toolbar");
+  const sidebar = toolbar.getByRole("button", {
+    name: "打开侧栏",
+    exact: true,
+  });
   const switcher = toolbar.getByRole("button", {
     name: "快速切换会话",
     exact: true,
@@ -97,62 +99,31 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
   for (const width of [393, 320]) {
     await page.setViewportSize({ width, height: 851 });
     await expectOneRow(toolbar.locator("header"));
-    for (const button of [switcher, files, panels, display]) {
+    for (const button of [sidebar, switcher, files, panels, actions, display]) {
       await expect(button).toBeVisible();
       expect(await button.boundingBox()).toMatchObject({
         width: 44,
         height: 44,
       });
     }
-    for (const codeOpen of [false, true]) {
-      if (codeOpen) {
-        await expect(fileTree(page)).toBeVisible();
-        await expect(header(page)).toBeHidden();
-        await toggleCode(page);
-        continue;
-      }
-      await expectOneRow(header(page));
-      await expect(title).toBeVisible();
-      const paneTitle = page.locator("[data-dock-panel]:visible > .dock-title");
-      await expect(paneTitle.locator("[data-dock-actions]")).toHaveCount(0);
+    await expectOneRow(header);
+    await expect(title).toBeVisible();
+    expect(await label.evaluate((e) => e.scrollWidth)).toBeLessThanOrEqual(
+      await label.evaluate((e) => e.clientWidth),
+    );
+    await expect(header.getByRole("button")).toHaveCount(1);
+    await expect(header.locator("[data-dock-actions]")).toHaveCount(0);
+    for (const name of ["全屏", "上传文件", "滚动到最新位置", "快捷指令"])
       await expect(
-        paneTitle.getByRole("button", { name: /^收起「/ }),
+        toolbar.getByRole("button", { name, exact: true }),
       ).toHaveCount(0);
-      expect(
-        await header(page)
-          .getByRole("button", { name: "终端菜单", exact: true })
-          .boundingBox(),
-      ).toMatchObject({ width: 44, height: 44 });
-      // 393px fits the whole title; 320px may truncate it but keeps it shown.
-      if (width === 393)
-        expect(
-          await label.evaluate((e) => e.scrollWidth <= e.clientWidth),
-        ).toBe(true);
-      for (const name of ["全屏", "上传文件", "滚动到最新位置", "快速切换会话"])
-        await expect(
-          header(page).getByRole("button", { name, exact: true }),
-        ).toBeHidden();
-      // The phone header keeps the sidebar, title, panel picker and terminal menu;
-      // an ordinary session has no side tabs.
-      await expect(
-        header(page).getByRole("button", { name: /^草稿模式/ }),
-      ).toBeHidden();
-      await expect(sessionViewTabs(page)).toHaveCount(0);
-      await expect(
-        page
-          .locator(".session-toolbar")
-          .getByRole("button", { name: "打开侧栏" }),
-      ).toBeVisible();
-      // The file tree replaces the terminal without opening a document.
-      if (codeOpen)
-        await expect(
-          header(page).getByRole("button", { name: "快捷指令" }),
-        ).toBeHidden();
-      if (codeOpen) await expect(fileTree(page)).toBeVisible();
-      else await expect(fileTree(page)).toBeHidden();
-      await expect(codeReader(page)).toBeHidden();
-      await toggleCode(page);
-    }
+    await expect(sessionViewTabs(page)).toHaveCount(0);
+    await toggleCode(page);
+    await expect(fileTree(page)).toBeVisible();
+    await expect(header).toBeHidden();
+    await expect(actions).toHaveCount(0);
+    await expect(codeReader(page)).toBeHidden();
+    await toggleCode(page);
   }
   // Soft keys exist on touch devices; a narrow desktop window has the menu.
   if (testInfo.project.use.isMobile) {
@@ -164,7 +135,7 @@ test("narrow headers keep one row and move rare actions into the menu", async ({
     await draft.click();
     await expect(draft).toHaveAttribute("aria-pressed", "false");
   }
-  await openSplitPanel(header(page));
+  await openSplitPanel(page);
   await expect(
     page
       .getByRole("dialog", { name: "打开面板", exact: true })
@@ -231,7 +202,11 @@ test("a phone Diff leaves most of the screen to code and reaches document action
     ),
   ).toBeLessThanOrEqual(0);
 
-  await page.getByRole("button", { name: "代码菜单", exact: true }).click();
+  const readerMenu = codeReader(page).getByRole("button", {
+    name: "代码菜单",
+    exact: true,
+  });
+  await readerMenu.click();
   const menu = page.getByRole("menu");
   await expect(menu).toContainText(join(workDir, "code.txt"));
   const box = (await menu.boundingBox())!;
@@ -241,7 +216,7 @@ test("a phone Diff leaves most of the screen to code and reaches document action
   await expect(
     page.getByRole("tab", { name: /^code\.txt · index(?: ●)?$/ }),
   ).toHaveAttribute("aria-selected", "true");
-  await page.getByRole("button", { name: "代码菜单", exact: true }).click();
+  await readerMenu.click();
   await page.getByRole("menuitem", { name: "跳转行", exact: true }).click();
   await page.locator("[data-code-goto-line]:visible input").fill("50");
   await page.locator("[data-code-goto-line]:visible input").press("Enter");

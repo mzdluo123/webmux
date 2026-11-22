@@ -22,6 +22,7 @@
   import SessionWorkspaceHeader from "../../src/components/terminal/SessionWorkspaceHeader.svelte";
   import TerminalPaneStatus from "../../src/components/terminal/TerminalPaneStatus.svelte";
   import TerminalHeader from "../../src/components/terminal/TerminalHeader.svelte";
+  import TerminalSessionIdentity from "../../src/components/terminal/TerminalSessionIdentity.svelte";
   import TerminalSplitPanel from "../../src/components/terminal/TerminalSplitPanel.svelte";
   import TerminalNotices from "../../src/components/terminal/TerminalNotices.svelte";
   import * as chatFeature from "../../src/features/terminal-chat";
@@ -442,7 +443,7 @@
 </script>
 
 {#snippet quickMenu(
-  side: "top" | "bottom",
+  side: "top" | "bottom" | "submenu",
   size?: ButtonSize,
   variant?: ButtonVariant,
 )}
@@ -474,7 +475,6 @@
   {#snippet paneHeader()}
     <TerminalHeader
       features={{ chat: chatFeature, files: filesFeature }}
-      toolbarMode={bottomToolbar.mode}
       {terminal}
       {draft}
       uploading={false}
@@ -552,8 +552,12 @@
       commands={paneHeader}
       title={terminal.info?.title || (view === "chat" ? "聊天" : "终端")}
     >
-      {#snippet titleContent(children)}
-        <TerminalPaneStatus {terminal} {children} />
+      {#snippet titleContent(children, compact)}
+        {#if compact}
+          <TerminalSessionIdentity {terminal} compact />
+        {:else}
+          <TerminalPaneStatus {terminal} {children} />
+        {/if}
       {/snippet}
       {#if view === "chat"}
         <div class="h-full min-h-0" use:paneEnter={true}>

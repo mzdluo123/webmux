@@ -30,8 +30,8 @@
     onactivate?: () => void;
     children: Snippet<[boolean]>;
     header?: Snippet;
-    // Decorate the desktop title inside its flexible slot, not beside it.
-    titleContent?: Snippet<[Snippet]>;
+    // Decorate the pane identity inside its flexible title slot.
+    titleContent?: Snippet<[Snippet, boolean]>;
     commands?: Snippet;
     icon?: Component;
     tabLabel?: string;
@@ -43,9 +43,6 @@
   const rect = $derived(dock.rect(id));
   const tabs = $derived(dock.tabs(id));
   const compact = $derived(dock.compact());
-  const localHeader = $derived(
-    compact && commands && !onclose ? commands : header,
-  );
   const showTitle = $derived(!onclose && (commands ? !compact : !header));
   const zoomed = $derived(dock.zoomed(id));
   const edgeRails = $derived(dock.edgeRails());
@@ -59,7 +56,7 @@
   // button already owned by the panel picker drawer).
   const showDockActions = $derived(!compact);
   const showMinimize = $derived(!(compact && edgeRails));
-  const showTitleSpace = $derived(!compact || showTitle || !localHeader);
+  const showTitleSpace = $derived(!compact || showTitle || !header);
   // Desktop single-session views already lift their title, status and pane menu
   // into SessionWorkspaceHeader; omit the duplicate pane title bar until splits,
   // tabs or zoom need per-pane chrome.
@@ -161,7 +158,7 @@
         }}
         ondragend={() => dock.drag(undefined)}
       >
-        {#if compact && dock.canGoBack()}
+        {#if compact && dock.canGoBack() && !(edgeRails && commands)}
           <Button
             size="icon-touch-sm"
             variant="ghost"
@@ -173,14 +170,14 @@
         {#if showTabs}
           <DockStackTabs {id} {tabs} {canMove} show={dock.show} />
         {/if}
-        {@render localHeader?.()}
+        {@render header?.()}
         {#if showTitleSpace}
           <div
             class="dock-title-space"
-            class:with-header={!!localHeader && !showTitle}
+            class:with-header={!!header && !showTitle}
           >
-            {#if !compact && titleContent}
-              {@render titleContent(titleLabel)}
+            {#if titleContent}
+              {@render titleContent(titleLabel, compact)}
             {:else}
               {@render titleLabel()}
             {/if}
@@ -329,9 +326,6 @@
     --control-touch: min(2.75rem, 44px);
     --control-touch-compact: min(2.25rem, 36px);
     padding-inline: 0.25rem;
-  }
-  .dock-title[data-session-dock-title]:not(:has(> button:first-child)) {
-    padding-inline-start: 0.75rem;
   }
   .dock-title[draggable="true"] {
     user-select: none;
