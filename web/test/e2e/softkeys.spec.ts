@@ -5,6 +5,7 @@ import {
   createShell,
   expectTerminalLine,
   recordInput,
+  openSessionMenu,
 } from "./fixtures";
 
 test("mobile soft keys stay in one row with paste visible and all keys reachable", async ({
@@ -473,19 +474,40 @@ test("touch devices can hide and restore the bottom toolbar and repeat held arro
     name: "显示底部工具栏",
     exact: true,
   });
-  const headerQuick = page
-    .locator(".terminal-header")
-    .getByRole("button", { name: "快捷指令", exact: true });
+  const quick = page.getByRole("menuitem", {
+    name: "快捷指令",
+    exact: true,
+  });
 
   // Shown by default on touch devices; hiding moves quick commands to the header.
   await expect(bar).toBeVisible();
-  await expect(headerQuick).toBeHidden();
+  await openSessionMenu(page);
+  await expect(quick).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await menu.tap();
   await expect(toggleItem).toBeChecked();
   await toggleItem.tap();
   await page.keyboard.press("Escape");
   await expect(bar).toBeHidden();
-  await expect(headerQuick).toBeVisible();
+  await openSessionMenu(page);
+  await page.getByRole("menuitemcheckbox", { name: "草稿模式" }).tap();
+  await openSessionMenu(page);
+  await quick.tap();
+  const bounds = (await page
+    .locator('[data-slot="dropdown-menu-sub-content"]')
+    .boundingBox())!;
+  const viewport = page.viewportSize()!;
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
+  expect(bounds.y).toBeGreaterThanOrEqual(0);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
+  await page.getByRole("menuitem", { name: "新会话：/new", exact: true }).tap();
+  const draft = page.getByRole("textbox", { name: "草稿内容" });
+  await expect(draft).toHaveValue("/new");
+  await draft.fill("");
+  await openSessionMenu(page);
+  await page.getByRole("menuitemcheckbox", { name: "草稿模式" }).tap();
+  await expect(draft).toBeHidden();
 
   // Persists across reloads on the same device, and can be turned back on.
   await page.reload();
@@ -495,7 +517,9 @@ test("touch devices can hide and restore the bottom toolbar and repeat held arro
   await toggleItem.tap();
   await page.keyboard.press("Escape");
   await expect(bar).toBeVisible();
-  await expect(headerQuick).toBeHidden();
+  await openSessionMenu(page);
+  await expect(quick).toHaveCount(0);
+  await page.keyboard.press("Escape");
 
   // Holding an arrow key repeats without dismissing focus, and Fn exposes symbols.
   const received = await recordInput(page, workDir);

@@ -336,3 +336,11 @@
 - 前端依赖安装生成 Paraglide 声明，CI 两套 `svelte-check --tsrs` 检查复用声明，生产 `vp build` 单独运行。
 - 独立工作树中 `pnpm --dir web install --frozen-lockfile`、两套 `svelte-check --tsrs`、`pnpm --dir web exec vp build` 与 `pnpm --dir web check:arch`（49 项）通过。
 - `go test -race` 定向覆盖 `TestConnectorRevocationClosesEveryPooledPhysical` 的三条结束路径；其中 `peer-fin` 子用例单独重复 100 次通过。
+
+## 2026-11-23：手机会话操作移到工作区顶栏
+
+- 范围：US-D08、US-D14、US-G02、US-H07、US-H08、US-Q01。手机标题行保留身份与状态；顶栏菜单操作当前会话，「打开面板」收起及恢复窗格。
+- `playwright test` 定向验证 `compact-chrome`、`session-header`、`hybrid`、`splits` 与 `softkeys`，12 项通过；调整快捷指令子菜单定位后，手机软键栏用例再次通过，`session-pane-files` 两项通过。
+- `pnpm --dir web check`、测试和 Storybook 的 `svelte-check`、`pnpm --dir web lint`、`pnpm --dir web check:arch` 的 49 项及 `make docs-check` 通过。
+- 隔离生产构建用 Chromium 核对 1280×900、768×800、667×375、390×844、375×667 与 320×568 的明暗主题。页面无横向溢出；菜单留在视口内，Esc 后焦点回到按钮；手机六枚顶栏按钮均为 44×44px。
+- 录制 390×844 深色视口的混合会话视图切换、快捷指令、收起和恢复；未在 iOS 或 Android 真机验证。

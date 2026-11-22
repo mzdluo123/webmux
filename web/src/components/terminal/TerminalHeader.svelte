@@ -1,7 +1,7 @@
 <script lang="ts">
   import { terminalFont } from "../../hooks/terminal/terminal-font-preference.svelte";
   import TerminalFontDialog from "./TerminalFontDialog.svelte";
-  import { findShell } from "../../hooks/shared/shell.svelte";
+  import { bottomToolbar } from "../../hooks/terminal/bottom-toolbar-preference.svelte";
   import { type Snippet } from "svelte";
   import { MediaQuery } from "svelte/reactivity";
   import IconDots from "~icons/tabler/dots";
@@ -20,8 +20,7 @@
   import type { TerminalDraft } from "../../domains/terminal/terminal-draft.svelte";
   import type { Connection } from "../../platform/ws-contracts";
   import type { TerminalFeatures } from "../../features/terminal";
-  import SessionTitle from "./SessionTitle.svelte";
-  import TerminalPaneStatus from "./TerminalPaneStatus.svelte";
+  import TerminalSessionIdentity from "./TerminalSessionIdentity.svelte";
 
   interface HeaderTerminal {
     readonly info: SessionInfo | undefined;
@@ -42,7 +41,6 @@
 
   let {
     terminal: t,
-    toolbarMode,
     features = {},
     draft,
     uploading,
@@ -58,7 +56,6 @@
     hybrid,
     chatActions,
   }: {
-    toolbarMode?: string;
     features?: TerminalFeatures;
     terminal: HeaderTerminal;
     draft: TerminalDraft;
@@ -66,7 +63,7 @@
     sizeLocked: boolean;
     setSizeLocked: (value: boolean) => void;
     codeShown: boolean;
-    quickMenu: Snippet<["top" | "bottom", ButtonSize?, ButtonVariant?]>;
+    quickMenu: Snippet<["bottom" | "submenu", ButtonSize?, ButtonVariant?]>;
     openUpload?: () => void;
     toggleDraft: () => void;
     showScratch: () => void;
@@ -75,14 +72,6 @@
     hybrid?: HeaderHybrid;
     chatActions?: Snippet;
   } = $props();
-  // A rename reaches the session list first; the list title wins here so
-  // the header follows it on either side.
-  const shell = findShell();
-  const session = $derived(
-    shell?.sessions.sessions.find((session) => session.id === t.info?.id) ??
-      t.info,
-  );
-  const title = $derived(session?.title || m.s4_tab_terminal());
   const phone = new MediaQuery("(max-width: 639px)");
   const compactActions = new MediaQuery("(width < 48rem)");
   let menuTrigger = $state<HTMLButtonElement | null>(null);
@@ -104,6 +93,9 @@
   const chatAgent = $derived(
     hybrid?.view === "chat" ? (t.info?.agent ?? undefined) : undefined,
   );
+  const showQuickCommands = $derived(
+    terminalShown && !codeShown && !bottomToolbar.shown,
+  );
   const uploadDisabled = $derived(
     uploading ||
       (!draft.enabled && t.connection !== "connected") ||
@@ -112,43 +104,13 @@
   );
 </script>
 
-<div
-  class="terminal-header flex min-w-0 flex-1 items-center gap-2"
-  data-bottom-toolbar={toolbarMode}
->
-  <!-- Left: session identity (status dot, title, agent badge). -->
-  {#if phone.current}
-    <TerminalPaneStatus terminal={t} compact>
-      {@render sessionTitle()}
-    </TerminalPaneStatus>
-  {:else}
-    <TerminalPaneStatus terminal={t}>
-      <div class="flex min-w-0 items-center gap-1.5">
-        <div class="flex min-w-0 flex-col">
-          {@render sessionTitle()}
-        </div>
-        {#if features.chat && chatAgent}
-          <span
-            class="hidden shrink-0 text-xs text-muted-foreground/60 md:inline"
-            aria-hidden="true">·</span
-          >
-          <span
-            class="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground md:inline-flex"
-            role="img"
-            aria-label={m.s4_agent_label({ title: chatAgent.title })}
-            title={m.s4_agent_label({ title: chatAgent.title })}
-            data-slot="chat-agent"
-          >
-            {#if features.chat.hasLaunchIcon(chatAgent.icon)}
-              <features.chat.LaunchIcon icon={chatAgent.icon} size="sm" />
-              <span class="max-lg:hidden">{chatAgent.title}</span>
-            {:else}
-              <span>{chatAgent.title}</span>
-            {/if}
-          </span>
-        {/if}
-      </div>
-    </TerminalPaneStatus>
+<div class="terminal-header flex min-w-0 flex-1 items-center gap-2">
+  {#if !phone.current}
+    <TerminalSessionIdentity
+      terminal={t}
+      chat={features.chat}
+      agent={chatAgent}
+    />
   {/if}
   <!-- Center: hybrid chat/terminal view switch. -->
   {#if showViewTabs && features.chat && hybrid}
@@ -171,22 +133,12 @@
       showViewTabs && "lg:basis-0 lg:grow",
     ]}
   >
-    {@render quickCommands()}
+    {#if !phone.current && showQuickCommands}
+      {@render quickMenu("bottom", "icon-touch-sm", "ghost")}
+    {/if}
     {@render terminalMenu()}
   </div>
 </div>
-
-{#snippet quickCommands()}
-  {#if terminalShown && !codeShown}
-    <div class="quick-commands-header flex items-center gap-1">
-      {@render quickMenu("bottom", "icon-touch-sm", "ghost")}
-    </div>
-  {/if}
-{/snippet}
-
-{#snippet sessionTitle()}
-  <SessionTitle {title} {session} agent={chatAgent?.title} />
-{/snippet}
 
 {#snippet terminalMenu()}
   <DropdownMenu.Root>
@@ -245,6 +197,9 @@
           >
         </DropdownMenu.RadioGroup>
         <DropdownMenu.Separator />
+      {/if}
+      {#if phone.current && showQuickCommands}
+        {@render quickMenu("submenu")}
       {/if}
       {#if chatActions}<DropdownMenu.Group
           ><DropdownMenu.GroupHeading

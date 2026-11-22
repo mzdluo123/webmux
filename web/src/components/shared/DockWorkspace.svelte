@@ -136,7 +136,10 @@
   }
 
   export function activeCommands() {
-    return !compact && activePanel ? entries.get(activePanel) : undefined;
+    const id = compact ? mobile : activePanel;
+    const panel = id ? entries.get(id) : undefined;
+    if (panel?.commands)
+      return { id: panel.id, commands: panel.commands, compact };
   }
   export function commandPanel(id: string) {
     const panel = entries.get(id);

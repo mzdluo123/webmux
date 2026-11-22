@@ -335,10 +335,21 @@ test("the terminal display menu moves quick commands to the soft-key toolbar", a
     name: "显示底部工具栏",
   });
   const softKeys = page.getByRole("complementary", { name: "终端软键" });
-  const quickCommands = page.getByRole("button", { name: "快捷指令" });
+  const quickButton = page.getByRole("button", { name: "快捷指令" });
+  const sessionMenu = page.getByRole("button", {
+    name: "终端菜单",
+    exact: true,
+  });
+  const quickItem = page.getByRole("menuitem", {
+    name: "快捷指令",
+    exact: true,
+  });
 
   await expect(softKeys).toBeHidden();
-  await expect(quickCommands).toBeVisible();
+  await expect(quickButton).toHaveCount(0);
+  await sessionMenu.click();
+  await expect(quickItem).toBeVisible();
+  await page.keyboard.press("Escape");
   await display.click();
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-checked", "true");
@@ -346,14 +357,18 @@ test("the terminal display menu moves quick commands to the soft-key toolbar", a
   await expect(
     softKeys.getByRole("button", { name: "快捷指令" }),
   ).toBeVisible();
-  await expect(quickCommands).toHaveCount(1);
+  await expect(quickButton).toHaveCount(1);
+  await sessionMenu.click();
+  await expect(quickItem).toHaveCount(0);
+  await page.keyboard.press("Escape");
 
   await display.click();
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   await page.keyboard.press("Escape");
   await expect(softKeys).toBeHidden();
-  await expect(quickCommands).toBeVisible();
+  await sessionMenu.click();
+  await expect(quickItem).toBeVisible();
 });
 
 for (const theme of ["light", "dark"]) {

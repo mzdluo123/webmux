@@ -11,6 +11,7 @@
   import TerminalFindBar from "./TerminalFindBar.svelte";
   import TerminalPaneStatus from "./TerminalPaneStatus.svelte";
   import TerminalHeader from "./TerminalHeader.svelte";
+  import TerminalSessionIdentity from "./TerminalSessionIdentity.svelte";
   import TerminalInputComposer from "./TerminalInputComposer.svelte";
   import TerminalNotices from "./TerminalNotices.svelte";
   import TerminalViewport from "./TerminalViewport.svelte";
@@ -171,12 +172,12 @@
   {@render voiceButton("top", "icon-sm", "ghost")}
 {/snippet}
 {#snippet quickMenu(
-  side: "top" | "bottom",
+  side: "top" | "bottom" | "submenu",
   size?: ButtonSize,
   variant?: ButtonVariant,
 )}
   <!-- In the terminal view the microphone lives in the draft box only. -->
-  {#if voiceEnabled && hybrid.view === "chat"}
+  {#if side !== "submenu" && voiceEnabled && hybrid.view === "chat"}
     {@render voiceButton(side, size, variant)}
   {/if}
   {#if features.quickCommands}<features.quickCommands.Menu
@@ -222,7 +223,6 @@
 
 {#snippet paneHeader()}
   <TerminalHeader
-    toolbarMode={bottomToolbar.mode}
     {features}
     {chatActions}
     terminal={headerTerminal}
@@ -300,8 +300,16 @@
   {onactivate}
   commands={paneHeader}
 >
-  {#snippet titleContent(children)}
-    <TerminalPaneStatus terminal={headerTerminal} {children} />
+  {#snippet titleContent(children, compact)}
+    {#if compact}
+      <TerminalSessionIdentity
+        terminal={headerTerminal}
+        compact
+        agent={hybrid.view === "chat" ? headerTerminal.info?.agent : undefined}
+      />
+    {:else}
+      <TerminalPaneStatus terminal={headerTerminal} {children} />
+    {/if}
   {/snippet}
   {#snippet children(visible)}
     {#if features.files && uploads}<features.files.Input
