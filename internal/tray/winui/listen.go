@@ -40,9 +40,6 @@ func (a *App) listen() {
 	on(m.autoUpdate, func() { a.changeSettings(func(s *tray.Settings) { s.AutoUpdate = !s.AutoUpdate }) })
 	on(m.channelStable, func() { a.updater.SelectChannel(update.ChannelStable) })
 	on(m.channelDev, func() { a.updater.SelectChannel(update.ChannelDev) })
-	if a.sup == nil {
-		return
-	}
 	on(m.open, a.openLocal)
 	on(m.copyLocal, func() { a.copyLink(a.snapshot().Status.URLs.Local) })
 	for i, it := range m.remoteLinks {
@@ -79,7 +76,11 @@ func (a *App) listen() {
 	on(m.install, a.installWebmux)
 	on(m.lanAccess, a.toggleLANAccess)
 	on(m.lanFirewallAction, a.handleLANFirewallAction)
-	on(m.start, a.sup.Start)
+	on(m.start, func() {
+		if sup := a.supervisor(); sup != nil {
+			sup.Start()
+		}
+	})
 	on(m.stop, a.stopWebMux)
 	on(m.restart, a.restartWebMux)
 	on(m.openConfig, a.openConfig)

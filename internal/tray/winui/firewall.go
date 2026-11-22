@@ -21,7 +21,7 @@ func (a *App) inspectFirewall() tray.FirewallCheck {
 func (a *App) currentNetMode(timeout time.Duration) string {
 	a.mu.Lock()
 	mode := a.netMode
-	noWSL := a.noWSL != ""
+	noWSL := a.sup == nil
 	settings := a.settings
 	a.mu.Unlock()
 	if mode != "" || noWSL {

@@ -90,6 +90,10 @@ func (a *App) copyToken() {
 // toggleTunnel turns the public tunnel off, or on after the risk is
 // confirmed. The server owns persistence; the tray never stores this desire.
 func (a *App) toggleTunnel() {
+	sup := a.supervisor()
+	if sup == nil {
+		return
+	}
 	enable := !a.snapshot().TunnelEnabled()
 	if enable && !confirm(tray.TunnelWarning) {
 		a.kickUI()
@@ -98,7 +102,7 @@ func (a *App) toggleTunnel() {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	_, err := a.svc.Current().SetTunnel(ctx, enable)
 	cancel()
-	a.sup.Refresh()
+	sup.Refresh()
 	if err == nil {
 		return
 	}
@@ -115,6 +119,10 @@ func (a *App) toggleTunnel() {
 }
 
 func (a *App) toggleLANAccess() {
+	sup := a.supervisor()
+	if sup == nil {
+		return
+	}
 	snap := a.snapshot()
 	enable := !snap.LANEnabled()
 	if snap.Actions().Restart && !confirmRestart("切换局域网访问需要重启 WebMux，", snap) {
@@ -134,10 +142,10 @@ func (a *App) toggleLANAccess() {
 		return
 	}
 	if snap.Actions().Restart {
-		a.sup.Restart()
+		sup.Restart()
 		return
 	}
-	a.sup.Refresh()
+	sup.Refresh()
 	if snap.State == tray.StateExternal {
 		a.notifier.Show("WebMux", "已更新监听地址，重启外部运行的 WebMux 后生效")
 	}
@@ -147,6 +155,10 @@ func (a *App) toggleLANAccess() {
 // one click. When detection shows Tailscale is not ready, or applying the
 // entry fails, it offers the web settings page instead.
 func (a *App) toggleTailscale() {
+	sup := a.supervisor()
+	if sup == nil {
+		return
+	}
 	snap := a.snapshot()
 	entry := tray.TailscaleEntry(snap)
 	if !entry.Show {
@@ -157,7 +169,7 @@ func (a *App) toggleTailscale() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		_, err := svc.SetTailscale(ctx, tray.TailscaleDisable(*snap.Status.Tailscale))
 		cancel()
-		a.sup.Refresh()
+		sup.Refresh()
 		if err != nil {
 			a.fail("关闭 Tailscale 失败", err)
 		}
@@ -182,7 +194,7 @@ func (a *App) toggleTailscale() {
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	_, err = svc.SetTailscale(ctx, update)
 	cancel()
-	a.sup.Refresh()
+	sup.Refresh()
 	if err != nil {
 		a.offerTailscaleSettings("开启 Tailscale Serve 失败："+err.Error(), entry.SettingsURL)
 		return
@@ -211,7 +223,9 @@ func (a *App) awaitTailscale(svc *tray.WSLService) contract.TailscaleSummary {
 			break
 		}
 	}
-	a.sup.Refresh()
+	if sup := a.supervisor(); sup != nil {
+		sup.Refresh()
+	}
 	return last
 }
 

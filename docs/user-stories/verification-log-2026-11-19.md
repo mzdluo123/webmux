@@ -317,3 +317,16 @@
   - 使用 `vp test run --config vitest.config.ts` 运行 `home-worktrees.test.ts`、`git-branches-and-staging.test.ts` 与 `commit-choices.test.ts`，16 项通过。
   - 在 Chromium 中运行快速开始位置选择器，检查桌面、平板、窄屏和横屏下的明暗主题、长分支名、浮层边界、焦点底线，以及按关键字筛选后用 Enter 选择。
 - 局限：视觉验证使用 Chromium 和演示仓库数据，未在真机上执行。
+
+## 2026-11-22：Windows 托盘开机 WSL 异步检测与退避重试（US-O04）
+
+- 范围：更新 `US-O04` 验收要点（故事编号与总数不变），将托盘启动阶段的 WSL 检测改为异步执行。
+  对 `wsl.exe` 超时及 `--list --verbose` 瞬态失败按退避自动重试，WSL 就绪后自动接管启动 WebMux；
+  失败后打开菜单也可触发重新检测并恢复。
+- 已执行验证：
+  - `go test -race -count=1 ./internal/tray/...` 通过（含新增 `TestCheckWSLClassification` 与 5 项 `TestWSLBoot*` 用例）。
+  - `GOOS=windows GOARCH=amd64 go build -o /dev/null ./cmd/webmux-tray` 与 `GOARCH=arm64` 交叉构建通过。
+  - `GOOS=windows go vet -printf.funcs=problemf,invalidf,usagef,checkf ./cmd/webmux-tray ./cmd/webmux-windows ./internal/tray/... ./internal/wslclient/... ./internal/attach/... ./internal/clicmd/...` 通过。
+  - `GOOS=windows GOARCH=amd64 golangci-lint run ./cmd/webmux-tray/... ./internal/tray/...` 与 `make go-lint` 均 0 告警通过。
+  - `make docs-check`、`make persistence-check`、`go test -count=1 ./internal/archtest ./internal/docguard` 通过。
+- 局限：未在本机直接重启 Windows 验证开机真实唤醒链路，Windows 安装与 `quit` 冒烟交由 CI 的 `windows-installer` 作业验证。
