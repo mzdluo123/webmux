@@ -17,10 +17,17 @@ func TestAuxiliaryAuthorizationRejectionClosesLogicalConnection(t *testing.T) {
 	key := testKey(t)
 	a := testAssignment(t, id)
 	next, controls, _ := nodeFixture(t, id, key, a)
+	rejectAuxiliary := make(chan struct{})
 	var attempts atomic.Int32
 	remote := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if attempts.Add(1) == 1 {
 			next.ServeHTTP(w, r)
+			return
+		}
+		// Keep the primary alive until the test has read its control acceptance.
+		select {
+		case <-rejectAuxiliary:
+		case <-r.Context().Done():
 			return
 		}
 		ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{Subprotocols: []string{protocol.ConnectorSubprotocol}})
@@ -47,6 +54,7 @@ func TestAuxiliaryAuthorizationRejectionClosesLogicalConnection(t *testing.T) {
 	if result.Error != nil {
 		t.Fatal(result.Error)
 	}
+	close(rejectAuxiliary)
 	select {
 	case err := <-done:
 		var failure protocol.Error
