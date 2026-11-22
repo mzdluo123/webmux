@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -212,9 +213,9 @@ func TestWSLBootRetriesTransientAndRecovers(t *testing.T) {
 	})
 	defer boot.Close()
 
-	// Wait for first retry backoff state.
+	// Wait for first retry backoff state (2s timer is already registered).
 	st := waitWSLStatus(t, statusCh, func(st WSLStatus) bool {
-		return st.State == WSLChecking && st.Reason != "正在检查 WSL"
+		return st.State == WSLChecking && strings.Contains(st.Reason, "2 秒后重试")
 	})
 	if st.State != WSLChecking {
 		t.Fatalf("state = %v, want WSLChecking", st.State)
@@ -222,7 +223,7 @@ func TestWSLBootRetriesTransientAndRecovers(t *testing.T) {
 
 	clock.Advance(2 * time.Second)
 	waitWSLStatus(t, statusCh, func(st WSLStatus) bool {
-		return attempts.Load() >= 2 && st.State == WSLChecking
+		return st.State == WSLChecking && strings.Contains(st.Reason, "4 秒后重试")
 	})
 
 	clock.Advance(4 * time.Second)
@@ -333,7 +334,7 @@ func TestWSLBootExhaustedRetriesThenManualRetry(t *testing.T) {
 	defer boot.Close()
 
 	waitWSLStatus(t, statusCh, func(st WSLStatus) bool {
-		return st.State == WSLChecking && attempts.Load() == 1
+		return st.State == WSLChecking && strings.Contains(st.Reason, "2 秒后重试")
 	})
 	clock.Advance(2 * time.Second)
 	waitWSLStatus(t, statusCh, func(st WSLStatus) bool {
@@ -369,7 +370,7 @@ func TestWSLBootRetryWakesBackoff(t *testing.T) {
 	defer boot.Close()
 
 	waitWSLStatus(t, statusCh, func(st WSLStatus) bool {
-		return st.State == WSLChecking && attempts.Load() == 1
+		return st.State == WSLChecking && strings.Contains(st.Reason, "600 秒后重试")
 	})
 	// Retry wakes the 10-minute backoff immediately without advancing clock.
 	boot.Retry()

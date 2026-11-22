@@ -182,15 +182,16 @@ func (b *WSLBoot) runBootAttempts(ctx context.Context) bool {
 			delay := b.backoffs[attempt-1]
 			b.logf("WSL check attempt %d/%d failed (retrying in %s): %v", attempt, maxAttempts, delay, err)
 			seconds := max(1, int((delay+time.Second-1)/time.Second))
+			wait := b.clock.After(delay)
+			b.drainRetry()
 			b.setStatus(WSLStatus{
 				State:  WSLChecking,
 				Reason: fmt.Sprintf("WSL 正在启动，%d 秒后重试", seconds),
 			})
-			b.drainRetry()
 			select {
 			case <-ctx.Done():
 				return true
-			case <-b.clock.After(delay):
+			case <-wait:
 			case <-b.retryCh:
 				b.logf("WSL check retry requested during boot wait")
 			}
