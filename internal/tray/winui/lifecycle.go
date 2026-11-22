@@ -14,14 +14,20 @@ import (
 	"github.com/rainchan/webmux/internal/tray"
 )
 
-// shutdown stops the supervisor (and WebMux when stop is set), forwarding
-// and pending clipboard secrets. It runs once.
+// shutdown stops WSL boot retries, the supervisor (and WebMux when stop is
+// set), forwarding and pending clipboard secrets. It runs once.
 func (a *App) shutdown(stop bool) {
 	a.quitOnce.Do(func() {
 		a.log.Printf("tray exiting (stop WebMux: %v)", stop)
+		a.mu.Lock()
+		a.closing = true
+		a.mu.Unlock()
+		if a.wslBoot != nil {
+			a.wslBoot.Close()
+		}
 		a.updater.Close()
-		if a.sup != nil {
-			a.sup.Quit(stop)
+		if sup := a.supervisor(); sup != nil {
+			sup.Quit(stop)
 		}
 		close(a.done)
 		a.relays.closeAll()
@@ -37,8 +43,8 @@ func (a *App) shutdown(stop bool) {
 
 func (a *App) quit() {
 	stop := false
-	if a.sup != nil {
-		if snap := a.sup.Snapshot(); snap.Managed() {
+	if sup := a.supervisor(); sup != nil {
+		if snap := sup.Snapshot(); snap.Managed() {
 			switch askQuit(snap.Sessions, a.relays.any()) {
 			case quitCancel:
 				return
@@ -85,11 +91,12 @@ func (a *App) initConfig() {
 	}
 	a.log.Printf("webmux config init succeeded")
 	a.notifier.Show("WebMux", "已生成配置与 Token，重启 WebMux 后生效")
-	if a.sup == nil {
+	sup := a.supervisor()
+	if sup == nil {
 		return
 	}
-	a.sup.Refresh()
-	snap := a.sup.Snapshot()
+	sup.Refresh()
+	snap := sup.Snapshot()
 	if !snap.Actions().Restart {
 		return
 	}
@@ -98,7 +105,7 @@ func (a *App) initConfig() {
 		text += "\n\n" + note
 	}
 	if confirm(text + "\n\n现在重启 WebMux 吗？") {
-		a.sup.Restart()
+		sup.Restart()
 	}
 }
 
@@ -106,7 +113,9 @@ func (a *App) initConfig() {
 // supervisor then rechecks. A running server keeps its old binary until
 // restarted.
 func (a *App) installWebmux() {
-	a.sup.Install(func(err error) { go a.installed(err) })
+	if sup := a.supervisor(); sup != nil {
+		sup.Install(func(err error) { go a.installed(err) })
+	}
 }
 
 func (a *App) installed(err error) {
@@ -115,7 +124,11 @@ func (a *App) installed(err error) {
 		return
 	}
 	a.notifier.Show("WebMux", "已安装 webmux "+a.o.Version)
-	snap := a.sup.Snapshot()
+	sup := a.supervisor()
+	if sup == nil {
+		return
+	}
+	snap := sup.Snapshot()
 	if !snap.HasStatus || snap.Status.State != contract.StateRunning {
 		return
 	}
@@ -128,7 +141,7 @@ func (a *App) installed(err error) {
 		text += "\n\n" + note
 	}
 	if confirm(text + "\n\n现在重启 WebMux 吗？") {
-		a.sup.Restart()
+		sup.Restart()
 	}
 }
 
@@ -153,15 +166,23 @@ func (a *App) updateTray() {
 }
 
 func (a *App) stopWebMux() {
-	snap := a.sup.Snapshot()
+	sup := a.supervisor()
+	if sup == nil {
+		return
+	}
+	snap := sup.Snapshot()
 	if confirmStop("停止 WebMux ", snap) {
-		a.sup.Stop()
+		sup.Stop()
 	}
 }
 
 func (a *App) restartWebMux() {
-	snap := a.sup.Snapshot()
+	sup := a.supervisor()
+	if sup == nil {
+		return
+	}
+	snap := sup.Snapshot()
 	if confirmRestart("重启 WebMux ", snap) {
-		a.sup.Restart()
+		sup.Restart()
 	}
 }

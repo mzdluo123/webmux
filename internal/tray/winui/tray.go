@@ -91,7 +91,7 @@ type App struct {
 	o        Options
 	log      *tray.Log
 	svc      *tray.TargetService
-	sup      *tray.Supervisor
+	wslBoot  *tray.WSLBoot
 	updater  *tray.SelfUpdater
 	menu     *menu
 	notifier *Notifier
@@ -105,10 +105,11 @@ type App struct {
 	firewallMu sync.Mutex // serializes firewall dialogs and UAC elevation
 
 	mu           sync.Mutex
+	sup          *tray.Supervisor
+	closing      bool
 	settings     tray.Settings
 	settingsWarn string
 	stamp        fileStamp
-	noWSL        string
 	distros      []wslclient.Distro
 	netMode      string
 	detection    tray.Detection
@@ -233,37 +234,22 @@ func (a *App) updateIdle() bool {
 }
 
 func (a *App) onReady() {
-	systray.SetIcon(iconStopped)
+	systray.SetIcon(iconStarting)
+	a.lastIcon = iconStarting
 	systray.SetTooltip("WebMux · 正在检查 WSL")
 	a.hwnd = findTrayWindow()
 	if a.hwnd == 0 {
 		a.log.Printf("tray window not found; notifications and menu refresh are unavailable")
 	}
 	a.menu = buildMenu()
-
-	distros, err := tray.CheckWSL(context.Background(), a.o.Runner)
-	if err != nil {
-		a.log.Printf("WSL check failed: %v", err)
-		a.noWSL = err.Error()
-	} else {
-		a.distros = distros
-		a.mu.Lock()
-		settings := a.settings
-		a.mu.Unlock()
-		a.sup = tray.NewSupervisor(tray.Options{
-			Service:     a.svc,
-			Reach:       a.o.Reach,
-			Settings:    settings,
-			Publish:     func(tray.Snapshot) { a.kickUI() },
-			Version:     a.o.Version,
-			AutoUpgrade: update.IsRelease() && tray.BuiltinDigests() != nil,
-			Notify:      a.notifier.Show,
-			Logf:        a.log.Printf,
-		})
-		a.probe(true)
-	}
 	a.listen()
 	systray.SetOnTapped(func() { go a.openLocal() })
+	a.wslBoot = tray.NewWSLBoot(tray.WSLBootOptions{
+		Runner:  a.o.Runner,
+		Publish: func(tray.WSLStatus) { a.kickUI() },
+		OnReady: a.onWSLReady,
+		Logf:    a.log.Printf,
+	})
 	if a.hwnd != 0 {
 		subclass(a.hwnd, windows.NewCallback(a.wndProc), &a.prevProc)
 	}
@@ -274,6 +260,36 @@ func (a *App) onReady() {
 	go a.uiLoop()
 	go a.watchSettings()
 	a.updater.Start()
+	a.kickUI()
+}
+
+func (a *App) supervisor() *tray.Supervisor {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.sup
+}
+
+func (a *App) onWSLReady(distros []wslclient.Distro) {
+	a.mu.Lock()
+	if a.closing || a.sup != nil {
+		a.mu.Unlock()
+		return
+	}
+	a.distros = distros
+	settings := cloneSettings(a.settings)
+	sup := tray.NewSupervisor(tray.Options{
+		Service:     a.svc,
+		Reach:       a.o.Reach,
+		Settings:    settings,
+		Publish:     func(tray.Snapshot) { a.kickUI() },
+		Version:     a.o.Version,
+		AutoUpgrade: update.IsRelease() && tray.BuiltinDigests() != nil,
+		Notify:      a.notifier.Show,
+		Logf:        a.log.Printf,
+	})
+	a.sup = sup
+	a.mu.Unlock()
+	a.probe(true)
 	a.kickUI()
 }
 
@@ -294,15 +310,19 @@ func (a *App) wndProc(hwnd windows.HWND, msg uint32, wParam, lParam uintptr) uin
 
 func (a *App) onMenuOpen() {
 	a.updater.MenuOpened()
-	if a.sup != nil {
-		a.sup.Refresh()
+	if sup := a.supervisor(); sup != nil {
+		sup.Refresh()
 		// A blocked or incompatible tray never polls the installed file;
 		// opening the menu is the user's retry.
-		if snap := a.sup.Snapshot(); snap.Blocker != "" || snap.Compat.Incompatible() {
-			a.sup.Recheck()
+		if snap := sup.Snapshot(); snap.Blocker != "" || snap.Compat.Incompatible() {
+			sup.Recheck()
 		}
+		a.probe(false)
+		return
 	}
-	a.probe(false)
+	if a.wslBoot != nil {
+		a.wslBoot.Retry()
+	}
 }
 
 func (a *App) kickUI() {
@@ -313,12 +333,26 @@ func (a *App) kickUI() {
 }
 
 func (a *App) snapshot() tray.Snapshot {
-	if a.sup != nil {
-		return a.sup.Snapshot()
-	}
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	return tray.Snapshot{State: tray.StateFailed, Reason: a.noWSL, Mode: a.settings.Mode, Settings: a.settings}
+	sup := a.sup
+	settings := cloneSettings(a.settings)
+	a.mu.Unlock()
+	return a.snapshotFor(sup, settings)
+}
+
+func (a *App) snapshotFor(sup *tray.Supervisor, settings tray.Settings) tray.Snapshot {
+	if sup != nil {
+		return sup.Snapshot()
+	}
+	st := tray.WSLStatus{State: tray.WSLChecking, Reason: "正在检查 WSL"}
+	if a.wslBoot != nil {
+		st = a.wslBoot.Status()
+	}
+	state := tray.StateFailed
+	if st.State != tray.WSLUnavailable {
+		state = tray.StateStarting
+	}
+	return tray.Snapshot{State: state, Reason: st.Reason, Mode: settings.Mode, Settings: settings}
 }
 
 func (a *App) uiLoop() {
@@ -345,21 +379,22 @@ func idle(snap tray.Snapshot) bool {
 
 // update reconciles forwarding with the latest state and redraws.
 func (a *App) update() {
-	snap := a.snapshot()
-	if a.sup != nil && idle(snap) && a.svc.Settle() {
-		go a.sup.Refresh()
-	}
 	a.mu.Lock()
+	sup := a.sup
 	v := view{
 		settings:     cloneSettings(a.settings),
 		settingsWarn: a.settingsWarn,
-		noWSL:        a.noWSL != "",
+		noWSL:        sup == nil,
 		distros:      a.distros,
 		detection:    a.detection,
 		detected:     a.detected,
 	}
 	netMode := a.netMode
 	a.mu.Unlock()
+	snap := a.snapshotFor(sup, v.settings)
+	if sup != nil && idle(snap) && a.svc.Settle() {
+		go sup.Refresh()
+	}
 	if !v.noWSL && netMode != "" {
 		v.plan = tray.PlanForward(netMode, snap, a.windowsInterfaces(snap.LANEnabled()))
 		if snap.LANEnabled() && v.plan.Needed {
@@ -372,7 +407,7 @@ func (a *App) update() {
 		v.autostart = a.o.AutostartEnabled(a.o.Executable)
 	}
 	v.installSupported = a.svc.Current().Digests != nil
-	if a.sup != nil {
+	if sup != nil {
 		a.updater.Observe(snap)
 	}
 	v.selfUpdate = a.updater.View()
@@ -424,7 +459,7 @@ func (a *App) reconcileForward(snap tray.Snapshot, v view) {
 // forced.
 func (a *App) probe(force bool) {
 	a.mu.Lock()
-	if a.noWSL != "" || a.probing || (!force && time.Since(a.lastProbe) < probeInterval) {
+	if a.sup == nil || a.probing || (!force && time.Since(a.lastProbe) < probeInterval) {
 		a.mu.Unlock()
 		return
 	}

@@ -2,6 +2,7 @@ package tray
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -142,6 +143,15 @@ func ListQuiet() Invocation   { return Invocation{Argv: []string{wslExe, "--list
 func ListVerbose() Invocation { return Invocation{Argv: []string{wslExe, "--list", "--verbose"}} }
 func WSLVersion() Invocation  { return Invocation{Argv: []string{wslExe, "--version"}} }
 
+var errWSLList = errors.New("wsl.exe --list --verbose")
+
+// TransientWSLError reports a WSL readiness check error that may clear as
+// Windows and WSL finish booting, such as a command timeout or a distribution
+// listing failure after wsl.exe --version already succeeded.
+func TransientWSLError(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, errWSLList)
+}
+
 // Distros lists installed distributions: names from --list --quiet (exact,
 // including spaces) and the default from --list --verbose.
 func Distros(ctx context.Context, r Runner) ([]wslclient.Distro, error) {
@@ -153,7 +163,7 @@ func Distros(ctx context.Context, r Runner) ([]wslclient.Distro, error) {
 		return nil, err
 	}
 	if res.Code != 0 {
-		return nil, fmt.Errorf("wsl.exe --list --verbose: exit %d: %s", res.Code, strings.TrimSpace(wslclient.DecodeOutput(res.Stdout)))
+		return nil, fmt.Errorf("%w: exit %d: %s", errWSLList, res.Code, strings.TrimSpace(wslclient.DecodeOutput(res.Stdout)))
 	}
 	verbose := wslclient.ParseListVerbose(res.Stdout)
 	quietInv := ListQuiet()
@@ -182,14 +192,20 @@ func CheckWSL(ctx context.Context, r Runner) ([]wslclient.Distro, error) {
 	res, err := r.Run(versionCtx, inv.Argv, inv.Env)
 	cancel()
 	if err != nil {
-		return nil, fmt.Errorf("%w：%v", ErrNoWSL, err)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, fmt.Errorf("%w：%w", ErrNoWSL, err)
 	}
 	if res.Code != 0 {
 		return nil, fmt.Errorf("%w（wsl.exe --version 失败，需要 Microsoft Store 版 WSL）", ErrNoWSL)
 	}
 	distros, err := Distros(ctx, r)
 	if err != nil {
-		return nil, fmt.Errorf("%w：%v", ErrNoWSL, err)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, fmt.Errorf("%w：%w", ErrNoWSL, err)
 	}
 	if len(distros) == 0 {
 		return nil, ErrNoWSL

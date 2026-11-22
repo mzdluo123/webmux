@@ -90,8 +90,9 @@ func (a *App) apply(next tray.Settings, fromFile bool) bool {
 	if reflect.DeepEqual(old, next) {
 		return true
 	}
+	sup := a.supervisor()
 	snap := a.snapshot()
-	if a.sup != nil && (old.Distro != next.Distro || old.Mode != next.Mode) && snap.Actions().Stop {
+	if sup != nil && (old.Distro != next.Distro || old.Mode != next.Mode) && snap.Actions().Stop {
 		prefix := "切换启动方式需要停止 WebMux，"
 		if old.Distro != next.Distro {
 			prefix = "切换发行版需要停止 WebMux，"
@@ -109,13 +110,16 @@ func (a *App) apply(next tray.Settings, fromFile bool) bool {
 	if old.Distro != next.Distro {
 		a.netMode, a.detected = "", false
 	}
+	sup = a.sup
 	a.mu.Unlock()
-	if a.sup != nil {
+	if sup != nil {
 		// The supervisor refreshes the new distribution at once unless it
 		// first stops the instance running in the old one.
 		now := (old.Distro != next.Distro && !snap.Actions().Stop) || idle(snap)
 		a.svc.Retarget(next, now)
-		a.sup.SetSettings(next)
+		sup.SetSettings(next)
+	} else {
+		a.svc.Retarget(next, true)
 	}
 	if old.Distro != next.Distro {
 		a.probe(true)
