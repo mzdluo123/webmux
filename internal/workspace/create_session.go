@@ -42,7 +42,7 @@ func (s *Service) planWorktree(ctx context.Context, r *repositoryState, nw *sess
 	}
 	parent := filepath.Join(filepath.Dir(r.entry.AnchorPath), filepath.Base(r.entry.AnchorPath)+".worktrees")
 	if nw.Mode == "new" && (plan.branch == "" || plan.base == "") {
-		repository, err := s.current(ctx, r)
+		repository, err := s.currentWorktrees(ctx, r)
 		if err != nil {
 			return err
 		}

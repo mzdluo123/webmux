@@ -223,7 +223,7 @@ func (s *Service) RecentCommits(ctx context.Context, id string, from []string) (
 		return nil, err
 	}
 	defer release(r)
-	if _, err := s.current(ctx, r); err != nil {
+	if err := s.verifyIdentity(ctx, r); err != nil {
 		return nil, err
 	}
 	for _, oid := range from {

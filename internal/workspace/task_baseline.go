@@ -285,7 +285,7 @@ func (s *Service) DeleteTaskBaseline(ctx context.Context, repositoryID, worktree
 		return err
 	}
 	defer release(r)
-	repository, err := s.current(ctx, r)
+	repository, err := s.currentWorktrees(ctx, r)
 	if err != nil {
 		return err
 	}

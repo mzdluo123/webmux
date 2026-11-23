@@ -376,7 +376,7 @@ func (s *Service) ReleaseWorktree(ctx context.Context, repositoryID, worktreeID 
 // failed read counts as not registered, which keeps a release's mark and
 // ref rather than risk losing its commit.
 func (s *Service) stillRegistered(ctx context.Context, r *repositoryState, path string) bool {
-	repository, err := s.current(ctx, r)
+	repository, err := s.currentWorktrees(ctx, r)
 	if err != nil {
 		return false
 	}

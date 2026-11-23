@@ -194,7 +194,7 @@ func (s *Service) createTagOnce(ctx context.Context, repositoryID, name, targetO
 
 	refreshCtx, refreshCancel := context.WithTimeout(context.Background(), readTimeout)
 	defer refreshCancel()
-	repo, err := s.current(refreshCtx, r)
+	repo, err := s.currentWorktrees(refreshCtx, r)
 	if err != nil {
 		repo = Repository{ID: repositoryID}
 	}
@@ -308,7 +308,7 @@ func (s *Service) deleteTagOnce(ctx context.Context, repositoryID, name, expecte
 
 	refreshCtx, refreshCancel := context.WithTimeout(context.Background(), readTimeout)
 	defer refreshCancel()
-	repo, rErr := s.current(refreshCtx, r)
+	repo, rErr := s.currentWorktrees(refreshCtx, r)
 	if rErr != nil {
 		repo = Repository{ID: repositoryID}
 	}
