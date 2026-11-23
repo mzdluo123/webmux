@@ -64,7 +64,7 @@ func (s *Service) rebuildPlan(ctx context.Context, r *repositoryState, rel hybri
 		plan.Blockers = append(plan.Blockers, "仓库未登记，请重新登记仓库后再重建")
 		return plan, Worktree{}, nil
 	}
-	repository, err := s.current(ctx, r)
+	repository, err := s.currentWorktrees(ctx, r)
 	if err != nil {
 		if ctx.Err() != nil {
 			return plan, Worktree{}, ctx.Err()
@@ -79,10 +79,13 @@ func (s *Service) rebuildPlan(ctx context.Context, r *repositoryState, rel hybri
 		}
 	}
 	if _, err := os.Lstat(rel.Path); !errors.Is(err, os.ErrNotExist) {
-		if err == nil && registered != nil && registered.Kind == "linked" && registered.Available &&
+		if err == nil && registered != nil && registered.Kind == "linked" &&
 			registered.Head != nil && *registered.Head == rel.Commit {
-			plan.Mode = RebuildReuse
-			return plan, *registered, nil
+			s.populateWorktreeStatus(ctx, r.entry.CommonDir, registered)
+			if registered.Available {
+				plan.Mode = RebuildReuse
+				return plan, *registered, nil
+			}
 		}
 		plan.Blockers = append(plan.Blockers, "原路径已被占用，请先清理后再重建: "+rel.Path)
 		return plan, Worktree{}, nil

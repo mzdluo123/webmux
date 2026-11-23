@@ -468,19 +468,6 @@ func (s *Service) currentTreesListed(ctx context.Context, r *repositoryState, id
 	}
 	return selected, trees, nil
 }
-func (s *Service) current(ctx context.Context, r *repositoryState) (Repository, error) {
-	if !s.registered(r) {
-		return Repository{}, problemf(ErrNotFound, "仓库已移除")
-	}
-	repository := s.readRepository(ctx, r)
-	if repository.Availability != "available" {
-		if ctx.Err() != nil {
-			return repository, ctx.Err()
-		}
-		return repository, problemf(ErrUnavailable, "%s", repository.Error)
-	}
-	return repository, nil
-}
 func findTree(repository Repository, id string) (Worktree, error) {
 	for _, tree := range repository.Worktrees {
 		if tree.ID == id {

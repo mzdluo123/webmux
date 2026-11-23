@@ -22,7 +22,7 @@ func (s *Service) CreateWorktree(ctx context.Context, repositoryID string, req C
 		return Worktree{}, err
 	}
 	defer release(r)
-	repository, err := s.current(ctx, r)
+	repository, err := s.currentWorktrees(ctx, r)
 	if err != nil {
 		return Worktree{}, err
 	}

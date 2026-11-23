@@ -119,7 +119,7 @@ func (s *Service) buildBranchRenameStateLocked(ctx context.Context, r *repositor
 	if newName == "" {
 		return branchRenameState{}, problemf(ErrInvalid, "新分支名称不能为空")
 	}
-	repo, err := s.current(ctx, r)
+	repo, err := s.currentWorktrees(ctx, r)
 	if err != nil {
 		return branchRenameState{}, err
 	}
@@ -159,6 +159,7 @@ func (s *Service) buildBranchRenameStateLocked(ctx context.Context, r *repositor
 	seenSess := make(map[string]bool)
 	for _, tree := range repo.Worktrees {
 		if tree.Branch != nil && *tree.Branch == oldName {
+			s.populateWorktreeStatus(ctx, r.entry.CommonDir, &tree)
 			affected = append(affected, tree)
 			if tree.Operation != nil {
 				blockers = append(blockers, Issue{
