@@ -626,3 +626,57 @@ func TestRecentCommitsAndTagsSkipWorktreeStatus(t *testing.T) {
 		t.Fatalf("RecentCommits ran git status %d times, want 0", len(strings.Fields(string(raw))))
 	}
 }
+
+func TestCreateWorktreeSkipsPostCreateFullRepositoryStatus(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	root := initRepo(t)
+	other := filepath.Join(t.TempDir(), "existing-wt")
+	gitTest(t, root, "worktree", "add", "-b", "feature/existing", other)
+
+	s, _ := testService(t, t.TempDir(), root)
+	r := registerTest(t, s, root)
+
+	realGit := s.gitPath
+	dir := t.TempDir()
+	wrapper := filepath.Join(dir, "git")
+	statusLog := filepath.Join(dir, "status.log")
+	// Record "<cwd>" whenever git -C <cwd> status runs.
+	putFile(t, wrapper, "#!/bin/sh\nif [ \"$3\" = status ]; then printf '%s\\n' \"$2\" >> '"+statusLog+"'; fi\nexec '"+realGit+"' \"$@\"\n")
+	if err := os.Chmod(wrapper, 0700); err != nil {
+		t.Fatal(err)
+	}
+	s.gitPath = wrapper
+
+	target := filepath.Join(t.TempDir(), "created-wt")
+	tree, err := s.CreateWorktree(context.Background(), r.ID, CreateRequest{
+		Path:   target,
+		Mode:   "new",
+		Branch: "feature/created",
+		Base:   "HEAD",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	canonTarget := canonicalPath(t, target)
+	if !tree.Available || tree.Path != canonTarget || tree.Head == nil || *tree.Head == "" || tree.LastCommit == nil {
+		t.Fatalf("created worktree missing populated metadata: %+v", tree)
+	}
+	raw, err := os.ReadFile(statusLog)
+	if err != nil {
+		t.Fatalf("expected status log for newly created worktree: %v", err)
+	}
+	counts := map[string]int{}
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		if line != "" {
+			counts[line]++
+		}
+	}
+	if counts[canonTarget] != 1 {
+		t.Fatalf("newly created worktree status count = %d, want 1 (counts=%v)", counts[canonTarget], counts)
+	}
+	canonOther := canonicalPath(t, other)
+	if counts[canonOther] != 0 {
+		t.Fatalf("existing worktree %s was scanned during CreateWorktree (%d times, want 0)", canonOther, counts[canonOther])
+	}
+}
