@@ -552,3 +552,44 @@ func TestBranchesTimingWithManyTrackedBranches(t *testing.T) {
 		t.Errorf("Branches took %v, over the 1s budget", elapsed)
 	}
 }
+
+func TestBranchesSkipsWorktreeStatus(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	root := initRepo(t)
+	linked := filepath.Join(t.TempDir(), "linked-wt")
+	gitTest(t, root, "worktree", "add", "-b", "feature/fast-branches", linked)
+
+	s, _ := testService(t, t.TempDir(), root)
+	r := registerTest(t, s, root)
+
+	realGit := s.gitPath
+	dir := t.TempDir()
+	wrapper := filepath.Join(dir, "git")
+	statusLog := filepath.Join(dir, "status.log")
+	putFile(t, wrapper, "#!/bin/sh\nif [ \"$3\" = status ]; then printf 'status\\n' >> '"+statusLog+"'; fi\nexec '"+realGit+"' \"$@\"\n")
+	if err := os.Chmod(wrapper, 0700); err != nil {
+		t.Fatal(err)
+	}
+	s.gitPath = wrapper
+
+	result, err := s.Branches(context.Background(), r.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.DefaultBranch == nil || *result.DefaultBranch != "main" || result.DefaultBase == nil || *result.DefaultBase == "" {
+		t.Fatalf("default branch/base missing: %+v", result)
+	}
+	foundLinked := false
+	for _, b := range result.Branches {
+		if b.Name == "feature/fast-branches" && len(b.WorktreePaths) == 1 && b.WorktreePaths[0] == canonicalPath(t, linked) {
+			foundLinked = true
+		}
+	}
+	if !foundLinked {
+		t.Fatalf("linked worktree path missing in Branches: %+v", result.Branches)
+	}
+	if raw, err := os.ReadFile(statusLog); err == nil && len(strings.Fields(string(raw))) > 0 {
+		t.Fatalf("Branches ran git status %d times, want 0", len(strings.Fields(string(raw))))
+	}
+}

@@ -151,11 +151,44 @@ func (s *Service) Branches(ctx context.Context, id string) (Branches, error) {
 		return Branches{}, err
 	}
 	defer release(r)
-	repository, err := s.current(ctx, r)
+	repository, err := s.currentWorktrees(ctx, r)
 	if err != nil {
 		return Branches{}, err
 	}
 	return s.branches(ctx, r, repository)
+}
+
+// currentWorktrees reads only the repository's worktree list (Kind, Path,
+// Branch, Head) without running per-worktree git status or commit lookups.
+// Branches only needs worktree paths and the main worktree's head, so skipping
+// status avoids holding the repository lock across O(worktrees) git status calls.
+func (s *Service) currentWorktrees(ctx context.Context, r *repositoryState) (Repository, error) {
+	if err := s.verifyIdentity(ctx, r); err != nil {
+		return Repository{}, err
+	}
+	data, err := s.git(ctx, r.entry.AnchorPath, "worktree", "list", "--porcelain", "-z")
+	if err != nil {
+		if ctx.Err() != nil {
+			return Repository{}, ctx.Err()
+		}
+		return Repository{}, problemf(ErrUnavailable, "%s", err.Error())
+	}
+	trees, err := parseWorktrees(data, r.entry.ID)
+	if err != nil {
+		return Repository{}, problemf(ErrUnavailable, "%s", err.Error())
+	}
+	sort.SliceStable(trees, func(i, j int) bool {
+		if trees[i].Kind != "linked" {
+			return true
+		}
+		if trees[j].Kind != "linked" {
+			return false
+		}
+		return trees[i].Path < trees[j].Path
+	})
+	result := repositoryResult(r.entry)
+	result.Availability, result.Worktrees = "available", trees
+	return result, nil
 }
 
 // recentCommitLimit bounds the start-commit history offered to the browser.
