@@ -127,13 +127,14 @@ type Service struct {
 	remoteBudgetOverride time.Duration
 	now                  func() time.Time
 
-	mu              sync.Mutex
-	localCached     *localSnapshot
-	localFlight     *flight[localSnapshot]
-	versionCache    map[string]cachedBinaryVersion
-	remoteCached    map[agentprofile.UpstreamSource]remoteEntry
-	remoteCheckedAt *time.Time
-	remoteFlight    *flight[struct{}]
+	mu               sync.Mutex
+	localCached      *localSnapshot
+	localFlight      *flight[localSnapshot]
+	versionCache     map[string]cachedBinaryVersion
+	versionReprobing map[string]bool
+	remoteCached     map[agentprofile.UpstreamSource]remoteEntry
+	remoteCheckedAt  *time.Time
+	remoteFlight     *flight[struct{}]
 }
 
 // New constructs an in-memory agent tool inspection service.
@@ -193,6 +194,7 @@ func New(opts Options) *Service {
 		remoteBudgetOverride: opts.RemoteBudget,
 		now:                  nowFn,
 		versionCache:         make(map[string]cachedBinaryVersion),
+		versionReprobing:     make(map[string]bool),
 		remoteCached:         make(map[agentprofile.UpstreamSource]remoteEntry),
 	}
 }
