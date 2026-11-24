@@ -18,7 +18,7 @@ func (s *Service) view(ctx context.Context, id string) (*actor, Side, error) {
 	}
 	side, err := call(ctx, a, func() (Side, error) {
 		switch {
-		case a.state != StateActive || a.closing:
+		case a.state != StateActive || a.isClosing():
 			return "", ErrNotActive
 		case a.side == SideSwitching:
 			return "", ErrSwitching

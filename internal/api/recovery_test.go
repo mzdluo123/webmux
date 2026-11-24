@@ -302,6 +302,14 @@ func TestArchiveWhileChatReplyingHidesFromActiveListImmediately(t *testing.T) {
 		ClientRequestID: chatRID(),
 		Text:            "late prompt",
 	}, "not_active")
+	h.expectConflict("POST", "/api/sessions/"+id+"/view", contract.ViewChangeRequest{
+		ClientRequestID: chatRID(),
+		To:              contract.ViewTerminal,
+	}, "not_active")
+	h.expectConflict("PUT", "/api/sessions/"+id+"/chat/permission-mode", contract.ChatPermissionModeRequest{
+		ClientRequestID: chatRID(),
+		Mode:            contract.ChatPermissionAsk,
+	}, "not_active")
 
 	// Once finishClose completes, the archived list and single-session endpoint expose the archive record.
 	waitAPI(t, "archived "+id, func() bool {
@@ -315,4 +323,13 @@ func TestArchiveWhileChatReplyingHidesFromActiveListImmediately(t *testing.T) {
 	if archivedInfo.State != contract.SessionStateClosed || archivedInfo.Archive == nil {
 		t.Fatalf("final GET /api/sessions/%s = %+v, want archived record", id, archivedInfo)
 	}
+	// Chat/view endpoints on an already-archived hybrid session also return 409 not_active instead of 404.
+	h.expectConflict("POST", "/api/sessions/"+id+"/view", contract.ViewChangeRequest{
+		ClientRequestID: chatRID(),
+		To:              contract.ViewTerminal,
+	}, "not_active")
+	h.expectConflict("PUT", "/api/sessions/"+id+"/chat/permission-mode", contract.ChatPermissionModeRequest{
+		ClientRequestID: chatRID(),
+		Mode:            contract.ChatPermissionAsk,
+	}, "not_active")
 }

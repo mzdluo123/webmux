@@ -86,7 +86,7 @@ func FormValue(raw []byte) (any, error) {
 func (a *actor) ready() error {
 
 	switch {
-	case a.state != StateActive || a.closing:
+	case a.state != StateActive || a.isClosing():
 		return fmt.Errorf("%w: 会话已结束", ErrConflict)
 	case a.switching != nil:
 		return ErrSwitching

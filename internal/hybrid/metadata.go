@@ -43,7 +43,7 @@ func (a *actor) publishMetadata() {
 		side, to = a.switching.from, a.switching.to
 	}
 	state := a.state
-	if a.closing || a.closeAfterStart {
+	if a.isClosing() {
 		state = StateClosed
 	}
 	m := &Metadata{

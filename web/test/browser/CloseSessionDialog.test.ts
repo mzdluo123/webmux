@@ -181,3 +181,32 @@ test("closing a plain session ignores 404 during exit removal polling", async ()
   await vi.waitFor(() => expect(onclose).toHaveBeenCalledOnce());
   expect(onremoved).toHaveBeenCalledOnce();
 });
+
+test("archiving a hybrid session that was already deleted treats 404 + missing record as removed", async () => {
+  const target: SessionInfo = {
+    ...shell,
+    id: "hybrid23",
+    title: "已删除对话",
+    views: ["terminal", "chat"],
+    view: "chat",
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ error: "session not found" }, { status: 404 }),
+    ),
+  );
+  const onarchived = vi.fn();
+  const onremoved = vi.fn();
+  const onclose = vi.fn();
+  render(CloseSessionDialog, {
+    session: target,
+    onclose,
+    onarchived,
+    onremoved,
+  });
+  await page.getByRole("button", { name: "停止并归档", exact: true }).click();
+  await vi.waitFor(() => expect(onclose).toHaveBeenCalledOnce());
+  expect(onremoved).toHaveBeenCalledOnce();
+  expect(onarchived).not.toHaveBeenCalled();
+});

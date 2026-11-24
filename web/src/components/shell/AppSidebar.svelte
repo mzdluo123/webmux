@@ -3,7 +3,9 @@
   import IconRefresh from "~icons/tabler/refresh";
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
+  import { APIError } from "../../platform/api";
   import { errorMessage } from "../../platform/error";
+  import { sessionConflict } from "../../domains/sessions/session-conflict";
   import { sessionPins } from "../../domains/sessions/session-pins.svelte";
   import type { Route } from "../../hooks/shared/route";
   import type { RelayReconnection } from "../../platform/relay-auth.svelte";
@@ -178,6 +180,14 @@
           });
       } else openPage(`/s/${record.id}`);
     } catch (err) {
+      if (sessionConflict(err)?.reason === "not_archived") {
+        void shell.archived?.refresh();
+        openPage(`/s/${record.id}`);
+        return;
+      }
+      if (err instanceof APIError && err.status === 404) {
+        void shell.archived?.refresh();
+      }
       const cause = errorMessage(err);
       resumeErrorFn = () =>
         m.s1_resume_session_failed({ title: record.title, error: cause });

@@ -115,7 +115,7 @@ func (a *actor) onUpdateDirect(epoch int, n acp.SessionNotification, attachments
 }
 
 func (a *actor) openRequest(p *pending) {
-	if p.epoch != a.epoch || a.closing || a.stopped {
+	if p.epoch != a.epoch || a.isClosing() || a.stopped {
 		p.answer <- cancelledAnswer(p.kind)
 		return
 	}
@@ -225,7 +225,7 @@ func (a *actor) answer(requestID string, ans Answer) error {
 // either side but not during a switch.
 func (a *actor) setPermissionMode(mode PermissionMode) error {
 	switch {
-	case a.state != StateActive || a.closing:
+	case a.state != StateActive || a.isClosing():
 		return fmt.Errorf("%w: 会话已结束", ErrConflict)
 	case a.switching != nil:
 		return ErrSwitching

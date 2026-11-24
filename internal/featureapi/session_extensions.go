@@ -120,7 +120,7 @@ func (s *Server) chatTarget(id string) error {
 	switch {
 	case !chat && err == nil:
 		return hybrid.ErrNoChatView
-	case !chat:
+	case err != nil:
 		return err
 	case s.Hybrid == nil:
 		return hybrid.ErrNotFound

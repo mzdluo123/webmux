@@ -128,7 +128,7 @@ func (a *actor) observeLoop() {
 // observe follows the terminal side's agent: its session ID (an ID change
 // is shown and recorded) and the switch eligibility.
 func (a *actor) observe() {
-	if a.side != SideTUI || a.state != StateActive || a.closing || a.starting || a.switching != nil {
+	if a.side != SideTUI || a.state != StateActive || a.isClosing() || a.starting || a.switching != nil {
 		return
 	}
 	id, ident, known := a.identify()
@@ -306,7 +306,7 @@ func (a *actor) scheduleProbe() {
 // probeDue starts the debounced probe of key unless the target moved on;
 // with one running it runs again afterwards.
 func (a *actor) probeDue(key target) {
-	if key != a.probe.key || a.side != SideTUI || a.closing || a.stopped {
+	if key != a.probe.key || a.side != SideTUI || a.isClosing() || a.stopped {
 		return
 	}
 	a.probe.timer = nil

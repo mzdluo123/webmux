@@ -319,6 +319,8 @@ func (a *actor) watchShell() {
 	}
 }
 
+func (a *actor) isClosing() bool { return a.closing || a.closeAfterStart }
+
 // flush publishes the state and overlay after a change. Leaving the chat
 // side drops its latched attention: the terminal's signals decide there.
 func (a *actor) flush() {
@@ -334,7 +336,7 @@ func (a *actor) flush() {
 		a.termTitle, a.termTitleSeq = "", 0
 	}
 	effectiveState := a.state
-	if a.closing || a.closeAfterStart {
+	if a.isClosing() {
 		effectiveState = StateClosed
 	}
 	if a.side != SideTUI || effectiveState != StateActive {
@@ -373,7 +375,7 @@ func (a *actor) overlay() *session.Overlay {
 		// sides; a live terminal run's own OSC 0/2 title still wins over it.
 		o.Title = a.title
 	}
-	if a.side == SideACP && a.state == StateActive && !a.closing && !a.closeAfterStart {
+	if a.side == SideACP && a.state == StateActive && !a.isClosing() {
 		o.Attention = a.currentAttention()
 		o.Preview = a.preview.text
 		switch {
@@ -439,7 +441,7 @@ func (a *actor) scheduleOrLatchDone(startedAt *time.Time, now time.Time) {
 				return
 			}
 			a.doneDelayTimer = nil
-			if a.side != SideACP || a.state != StateActive || a.closing || a.closeAfterStart || a.turn != nil || len(a.requests) > 0 || a.attention != nil {
+			if a.side != SideACP || a.state != StateActive || a.isClosing() || a.turn != nil || len(a.requests) > 0 || a.attention != nil {
 				return
 			}
 			a.attention = &session.Attention{Kind: attentionkind.Done, Source: session.SourceAgent, Since: time.Now().UTC()}

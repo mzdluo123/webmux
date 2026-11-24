@@ -351,3 +351,39 @@ func TestFinishClosePreservesClosedMetadataWhenShellRemovalFails(t *testing.T) {
 		t.Fatalf("metadata after failed shell removal = %+v, want StateClosed", meta)
 	}
 }
+
+func TestCloseAfterStartRejectsCommandsAndFinishesClosedOnReopenFailure(t *testing.T) {
+	h := newHarness(t, 0)
+	h.fast()
+	s := h.create(h.input(omp.Name, SideACP, "FAKEAGENT_DELAY=session/load=300ms"))
+	id := s.Info().ID
+	a, err := h.svc.actor(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Trigger a reconnect by ending the current ACP link.
+	_, _ = call(ctxT(t), a, func() (struct{}, error) {
+		a.reopen(a.link)
+		return struct{}{}, nil
+	})
+	waitFor(t, "reopening", func() bool {
+		opening, _ := call(ctxT(t), a, func() (bool, error) { return a.opening, nil })
+		return opening
+	})
+	if err := h.manager.Close(id); err != nil {
+		t.Fatal(err)
+	}
+	// Commands arriving while closeAfterStart is pending are rejected rather than queued.
+	if _, err := h.svc.Prompt(ctxT(t), id, PromptInput{ClientRequestID: rid(), Text: "late"}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("Prompt during closeAfterStart = %v, want ErrConflict", err)
+	}
+	if _, err := h.svc.Switch(ctxT(t), id, SwitchInput{ClientRequestID: rid(), To: SideTUI}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("Switch during closeAfterStart = %v, want ErrConflict", err)
+	}
+	// Even if reconnect reports a failure, closeAfterStart finishes as StateClosed (not StateInterrupted).
+	a.post(func() { a.reopened(openResult{fail: &failure{err: ErrAgent, public: "reconnect failed"}}, true) })
+	waitFor(t, "closed after reopen failure", func() bool {
+		rec, err := h.svc.Record(id)
+		return err == nil && rec.State == StateClosed
+	})
+}

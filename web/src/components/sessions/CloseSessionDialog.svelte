@@ -52,7 +52,7 @@
     const target = session;
     const isRemoving = removing;
     const isPlain = plain;
-    const isArchiving = archiving;
+    const isHybridClose = !isRemoving && !isPlain;
     try {
       await api(
         `/sessions/${target.id}${isRemoving ? "?remove=1" : ""}`,
@@ -65,10 +65,14 @@
           onremoved?.();
           return;
         }
-        if (isArchiving) {
+        if (isHybridClose) {
           const state = await lookupSessionRecord(target.id).catch(() => null);
           if (state?.kind === "record") {
             onarchived?.(target);
+            return;
+          }
+          if (state?.kind === "missing") {
+            onremoved?.();
             return;
           }
         }
@@ -80,7 +84,7 @@
     if (isRemoving || isPlain) onremoved?.();
     // The user ended it on purpose: a page showing it leaves rather than
     // offering to resume or showing an exit banner.
-    if (isArchiving) onarchived?.(target);
+    if (isHybridClose) onarchived?.(target);
   }
 </script>
 
