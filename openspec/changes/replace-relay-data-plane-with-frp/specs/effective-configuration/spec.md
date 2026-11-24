@@ -7,15 +7,15 @@
 configured/effective 诊断 SHALL 包含官方 Relay 分组，区分默认开关、网页启用覆盖、配对状态和固定公共地址。
 configured SHALL 标明 `controlEndpoint`、控制受众、CA-only/TLS 1.3 策略及官方内置或自建覆盖来源，不输出控制 SPKI pin/key ID 或 `controlTrustPins`；effective SHALL 单独标明已认证控制面分配的 `connectorUrl`、数据面 origin、受众公开标识及分配版本/来源，不把它们当成手工第二端点。
 
-运行诊断 SHALL 区分固定 wss 基线与每浏览器会话的实际交互路径（wss、webrtc-direct 或 webrtc-turn），包含当前连接状态、实际 dataPlane、管理与业务就绪证据、可观测的实际 TCP 算法与脱敏重连原因；无法读取算法时 SHALL 明示 unknown。
+运行诊断 SHALL 以 `transport=wss` 表示固定基线，分别报告当前 `controlReady`（已认证管理流及有效租约）和 `dataReady`（当前分配经网关验证的实际回源）、连接状态、可观测的实际 TCP 算法与脱敏重连原因；无法读取算法时 SHALL 明示 unknown。诊断 MUST NOT 返回传输模式鉴别字段、`bulkReady` 或旧角色计数。
 配置来源 SHALL 按真实解析元数据标记 default、toml、web 或安全降级；有效数据面分配 SHALL 另标记 authenticated-control 来源，包含关联配置版本，不伪装成本机 TOML 或网页设置。
 
 诊断 SHALL 分别显示配置的控制面 origin 与有效数据面端点的可达性、认证/信任状态及脱敏错误；未探测或没有有效分配时显示 unknown 或 unassigned，MUST NOT 以一个端点可达推断另一个可达。
 公开控制 HTTPS 的信任状态 SHALL 表示系统 CA（可追加 RootCA）、域名、有效期与 TLS 1.3 校验，不表示额外控制 pin；分配 WSS 的状态 SHALL 仍包含严格 TLS 与分配 pin 校验，节点 mTLS/SPKI 策略 MUST NOT 因控制 CDN 而放宽。
 诊断 SHALL 显示优化是否启用、TURN 配置是否可用及来自已配对控制面的来源、相关公开 nodeId/节点标签与 capabilities、探测/未升级/回落原因；WSS 节点和获授权 TURN 节点可以不同，MUST NOT 将 TURN-only 节点标为 WSS 目标。
-多浏览器路径不同 SHALL 按会话区分，不能把一个会话的 TURN 路径描述成全宿主传输；默认不输出候选 IP 或凭据化 URL。
+每浏览器会话 SHALL 单独报告实际交互路径（wss、webrtc-direct 或 webrtc-turn），不能把一个会话的 TURN 路径描述成全宿主传输；不输出候选 IP 或凭据化 URL。
 
-诊断 MUST 使用安全 allowlist DTO；私钥、配对码、轮询句柄、GitHub 凭据、会话 Cookie、跳转 code、PKCE verifier、TURN 长期密钥/短期用户名和密码及 WebMux Token 只能以 configured 等布尔元数据表示，MUST NOT 输出原值。
+诊断 MUST 使用安全 allowlist DTO；私钥、配对码、轮询句柄、GitHub 凭据、会话 Cookie、跳转 code、PKCE verifier、TURN 长期密钥/短期用户名和密码、WebMux Token、frp JWT、桥接密钥及回源私钥 MUST NOT 输出原值。
 控制面加密主密钥、节点身份私钥、节点服务 TLS 私钥及任何下发秘密 MUST NOT 进入宿主诊断；只允许相关公开节点、能力、配置/分配版本及公开 key ID，不暴露节点秘密快照或原始配置对象。
 存储损坏时 SHALL 显示 fail-closed 后的关闭状态和安全错误，不得声称 TOML 的启用值已生效。
 
@@ -39,7 +39,7 @@ configured SHALL 标明 `controlEndpoint`、控制受众、CA-only/TLS 1.3 策�
 
 #### Scenario: TURN 故障但 WSS 正常
 
-- **WHEN** TURN 不可达或凭据刷新失败而 管理连接与业务回源均就绪
+- **WHEN** TURN 不可达或凭据刷新失败，而管理连接与 frp 回源均就绪
 - **THEN** 诊断显示优化不可用或回落原因，不把基线标成离线，不泄露短期认证材料
 
 #### Scenario: 控制面可达但数据面不可达
@@ -49,30 +49,35 @@ configured SHALL 标明 `controlEndpoint`、控制受众、CA-only/TLS 1.3 策�
 
 #### Scenario: 数据面仍通而控制面不可达
 
-- **WHEN** 已有数据面连接仍可观测，但配置的控制面暂不可达
-- **THEN** 诊断分别记录两个端点状态，不把已有 WSS 可达当成控制面授权同步成功，也不据此绕过既有断线撤权规则
+- **WHEN** 已有数据连接仍可观测，但配置的控制面暂不可达
+- **THEN** 诊断分别记录两个端点状态，不把 WSS 可达当成控制面授权同步成功，也不据此绕过既有失联撤权规则
+
+#### Scenario: 数据连接仍通而管理失效
+
+- **WHEN** frp 工作连接仍可观测，但管理 WSS 失效或租约过期
+- **THEN** 诊断显示管理失效且入口未就绪，不把工作连接仍可达当成有效回源授权，不据此绕过断线撤权规则
 
 #### Scenario: 独立 TURN 节点与秘密脱敏
 
 - **WHEN** WSS 节点与当前浏览器获授权的 TURN-only 节点不同，用户查询 effective 诊断
 - **THEN** 仅显示各自相关公开节点标识、能力、版本及脱敏可用性，不把 TURN 节点当成宿主连接器目标，不输出节点主密钥、TLS 私钥、TURN 共享密钥或短期认证材料
 
-#### Scenario: 新旧数据模式可区分
+#### Scenario: frpc 已启动但实际回源未验证
 
-- **WHEN** 宿主选择经受信分配的 frp WSS，frpc 已启动但网关尚未完成专用入口探针
-- **THEN** 输出 dataPlane=frp-wss、controlReady 的实测结果和 dataReady=false；不显示旧角色计数或宣告基线可用。
+- **WHEN** 管理流已认证且租约有效，`frpc` 已启动或注册，但网关对当前分配的专用入口探针尚未成功
+- **THEN** 诊断报告 `transport=wss`、`controlReady=true`、`dataReady=false`；不宣告入口可用
 
 ## ADDED Requirements
 
-### Requirement: 配置代际与故障分类
+### Requirement: 旧业务配置删除与故障分类
 
-旧 interactive_connections 与 bulk_connections SHALL 仅在旧协议生效；灰度时若显式设置，应在新模式的 configured 中呈现来源，在 effective 中明确标注不适用。最终移除旧协议时工具 SHALL 给出需删除的准确字段，不误使本机 PTY 或非 Relay 入口停机。
+宿主 SHALL 删除 `interactive_connections` 与 `bulk_connections` 的解析、默认值和诊断映射；升级说明 SHALL 准确列出须删除的键，不提供别名、空操作兼容或按绑定的模式开关。
 运行诊断 SHALL 区分未分配、发行物缺失或版本错误、DNS/TCP 超时、显式代理拒绝、TLS 信任失败、Upgrade 被拒、注册/续期拒绝、回源 mTLS 失败和管理撤权。无可观测原因时报告 unknown；不从单个超时推断运营商拦截。
 
-#### Scenario: 用户配置旧连接数
+#### Scenario: 查看旧池参数的升级处理
 
-- **WHEN** 已启用新模式的宿主 TOML 中仍设置了旧连接数
-- **THEN** 显示旧字段对当前模式不生效，不以其值启动并行 frpc、重复注册或伪造就绪数。
+- **WHEN** 管理员准备将仍含旧连接数键的宿主 TOML 升级到配套版本
+- **THEN** 升级说明列出应删除的两个准确键；切换后的配置参考、解析和诊断不再提供这两个字段
 
 #### Scenario: 证书被替换或 Upgrade 被拒
 
