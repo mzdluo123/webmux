@@ -119,6 +119,7 @@
   - 首次启动且未配置遗留静态 token 时，服务进入 `needs_onboarding` 状态并打印 `http://localhost:<port>/onboarding#setup=<code>` 与一次性安装码（30 分钟有效）；浏览器读取 `#setup=` 后立即从地址栏和历史记录移除；
   - 访问 `127.0.0.1` 或 `::1` 时提示 WebAuthn 要求域名并提供一键跳转 `localhost`（保留片段）；非安全上下文 HTTP IP 地址给出明确提示，不静默降级；
   - 引导流程依次完成：校验安装码 → 注册首个 Passkey（后端使用纯 Go 标准库校验 WebAuthn `attestationObject`/COSE 公钥与签名，支持 ES256/EdDSA/RS256，校验 `rpIdHash` 与 `signCount`）并展示一次性恢复码（支持复制/下载）→ 确认默认工作目录 → 远程访问说明（后两步可跳过）；
+  - 引导完成后进入工作台时，引导卡片柔和退场，桌面展开侧栏下品牌图标平滑衔接至侧栏顶栏，侧栏与主工作区依次入场（开启「减少动态效果」时直接切换）；
   - 凭据与可撤销会话持久化于 `<state_dir>/auth.json`（文件锁保护、损坏或不可读时 fail-closed 返回 503），不采用 Cookie 认证，改用每设备独立的 `Authorization: Bearer` 与 WebSocket 子协议令牌；
   - 登录页在已初始化状态下默认展示 Passkey 一键登录、新域名配对指引与折叠的一次性恢复码兜底入口；
   - “设置 → 安全与登录”支持管理 Passkey（添加/删除，禁止删除最后一枚）、跨设备/跨域名 5 分钟一次性配对（`/pair#code=`）及查看/撤销已登录设备会话；
@@ -128,7 +129,7 @@
 依据：
 
 - [Passkey 认证服务](../../../internal/auth/service.go)、[WebAuthn 校验](../../../internal/auth/webauthn.go)、[认证接口](../../../internal/api/auth.go)、[认证 CLI](../../../cmd/webmux/authcmd.go)
-- [首次引导页](../../../web/src/pages/OnboardingPage.svelte)、[设备配对页](../../../web/src/pages/PairDevicePage.svelte)、[安全与登录设置](../../../web/src/components/settings/SecuritySettings.svelte)
+- [首次引导页](../../../web/src/pages/OnboardingPage.svelte)、[引导进入动效](../../../web/src/hooks/shared/onboarding-enter-transition.ts)、[设备配对页](../../../web/src/pages/PairDevicePage.svelte)、[安全与登录设置](../../../web/src/components/settings/SecuritySettings.svelte)
 
 - [统一品牌标识](../../../web/src/components/shell/Brand.svelte)、[品牌图标](../../../web/public/icon.svg)、[浏览器图标入口](../../../web/index.html)
 - [应用入口](../../../web/src/App.svelte)、[Token 说明](../../../web/src/components/shared/TokenHelp.svelte)、[配置命令](../../../cmd/webmux/configcmd.go)

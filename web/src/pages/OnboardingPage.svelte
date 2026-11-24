@@ -36,7 +36,7 @@
     oncomplete,
   }: {
     authStatus: AuthStatus | null;
-    oncomplete: () => void;
+    oncomplete: () => void | Promise<void>;
   } = $props();
 
   type Step = 1 | 2 | 3 | 4;
@@ -133,7 +133,7 @@
     error = "";
     try {
       await completeOnboarding();
-      oncomplete();
+      await oncomplete();
     } catch (err) {
       error = errorMessage(err);
     } finally {
