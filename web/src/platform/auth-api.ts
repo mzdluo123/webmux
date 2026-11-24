@@ -95,8 +95,20 @@ async function authRequest<T extends z.ZodType>(
 
 const VoidSchema = z.undefined();
 
-export function fetchAuthStatus(signal?: AbortSignal): Promise<AuthStatus> {
-  return authRequest("/auth/status", AuthStatusSchema, { signal });
+let lastAuthStatus: AuthStatus | null = null;
+
+export function cachedAuthStatus(): AuthStatus | null {
+  return lastAuthStatus;
+}
+
+export async function fetchAuthStatus(
+  signal?: AbortSignal,
+): Promise<AuthStatus> {
+  const status = await authRequest("/auth/status", AuthStatusSchema, {
+    signal,
+  });
+  lastAuthStatus = status;
+  return status;
 }
 
 export function verifyOnboardingCode(code: string) {

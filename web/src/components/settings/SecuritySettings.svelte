@@ -23,6 +23,7 @@
   } from "../../contracts/auth-schemas";
   import {
     addPasskey,
+    cachedAuthStatus,
     createPairingCode,
     deletePasskey,
     fetchAuthStatus,
@@ -43,11 +44,12 @@
   import { m } from "$lib/paraglide/messages.js";
   import ApiTokensSection from "./ApiTokensSection.svelte";
 
-  let status = $state<AuthStatus | null>(null);
+  const initialStatus = cachedAuthStatus();
+  let status = $state<AuthStatus | null>(initialStatus);
   let passkeys = $state<AuthPasskey[]>([]);
   let sessions = $state<AuthSession[]>([]);
   let apiTokens = $state<AuthAPIToken[]>([]);
-  let loading = $state(true);
+  let loading = $state(initialStatus === null);
   let busy = $state(false);
   let error = $state("");
 
@@ -58,7 +60,7 @@
   let newRecoveryCodes = $state<string[]>([]);
 
   async function refresh() {
-    loading = true;
+    if (status === null) loading = true;
     error = "";
     try {
       const st = await fetchAuthStatus();

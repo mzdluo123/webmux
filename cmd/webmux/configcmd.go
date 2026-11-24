@@ -201,7 +201,6 @@ var (
 	tokenLine       = regexp.MustCompile(`(?m)^token = .*$`)
 	listenLine      = regexp.MustCompile(`(?m)^listen = .*$`)
 	listenEditLine  = regexp.MustCompile(`(?m)^[ \t]*listen[ \t]*=.*$`)
-	emptyTokenLine  = regexp.MustCompile(`(?m)^[ \t]*token[ \t]*=[ \t]*(""|'')[ \t]*(#.*)?$`)
 	tableHeaderLine = regexp.MustCompile(`(?m)^[ \t]*\[`)
 )
 
@@ -343,10 +342,8 @@ func writeConfigListen(path, addr, host string) error {
 	line := "listen = " + strconv.Quote(addr)
 	if loc := listenEditLine.FindStringIndex(text[:rootEnd]); loc != nil {
 		text = text[:loc[0]] + line + text[loc[1]:]
-		rootEnd += len(line) - (loc[1] - loc[0])
 	} else {
 		text = line + "\n" + text
-		rootEnd += len(line) + 1
 	}
 	_ = host
 	return publishConfig(path, text, false, false)

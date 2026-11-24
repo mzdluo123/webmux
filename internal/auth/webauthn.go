@@ -307,12 +307,15 @@ func parseCOSEPublicKey(val any) (int64, crypto.PublicKey, error) {
 		if !ok1 || !ok2 || len(xBytes) != 32 || len(yBytes) != 32 {
 			return 0, nil, errors.New("ES256 key missing valid P-256 coordinates")
 		}
-		x := new(big.Int).SetBytes(xBytes)
-		y := new(big.Int).SetBytes(yBytes)
-		if !elliptic.P256().IsOnCurve(x, y) {
+		uncompressed := make([]byte, 1+len(xBytes)+len(yBytes))
+		uncompressed[0] = 0x04
+		copy(uncompressed[1:], xBytes)
+		copy(uncompressed[1+len(xBytes):], yBytes)
+		pub, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), uncompressed)
+		if err != nil {
 			return 0, nil, errors.New("ES256 public key is not on P-256")
 		}
-		return alg, &ecdsa.PublicKey{Curve: elliptic.P256(), X: x, Y: y}, nil
+		return alg, pub, nil
 	case AlgEdDSA:
 		if kty != 1 { // OKP
 			return 0, nil, errors.New("EdDSA requires OKP key type")

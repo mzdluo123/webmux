@@ -179,8 +179,8 @@ func (s *Service) StorageError() error {
 	return nil
 }
 
-// Ready reports whether Passkey authentication (or an explicit legacy token) is
-// initialized and healthy enough to expose remote entry points.
+// Ready reports whether Passkey authentication is initialized and healthy
+// enough to expose remote entry points without relying on a legacy static token.
 func (s *Service) Ready() bool {
 	if s == nil {
 		return false
@@ -190,7 +190,7 @@ func (s *Service) Ready() bool {
 	if s.opts.Disabled || s.storageFailedLocked() {
 		return false
 	}
-	return len(s.doc.Passkeys) > 0 || s.opts.LegacyToken != ""
+	return len(s.doc.Passkeys) > 0
 }
 
 // State reports the overall auth lifecycle state without host-specific details.

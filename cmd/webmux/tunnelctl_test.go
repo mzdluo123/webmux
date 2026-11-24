@@ -240,7 +240,7 @@ func TestRuntimeTunnelRequiresStrongToken(t *testing.T) {
 			defer cancel()
 			_, err := r.client(t).SetTunnel(ctx, true)
 			var apiErr *localclient.APIError
-			if !errors.As(err, &apiErr) || apiErr.Status != http.StatusConflict || !strings.Contains(apiErr.Message, "webmux config init") {
+			if !errors.As(err, &apiErr) || apiErr.Status != http.StatusConflict || !strings.Contains(apiErr.Message, "Passkey authentication") {
 				t.Fatalf("weak token start: %v", err)
 			}
 			if got := r.tunnel(t); got.State != contract.TunnelOff {
