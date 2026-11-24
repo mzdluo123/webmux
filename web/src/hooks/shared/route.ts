@@ -53,6 +53,8 @@ export type Route =
   | { name: "settings-tailscale" }
   | { name: "settings-tunnel" }
   | { name: "settings-relay" }
+  | { name: "onboarding" }
+  | { name: "pair" }
   // Exchanges a ticket for the port-forward gateway cookie, then leaves.
   | { name: "forward-auth" }
   | { name: "sessions" };
@@ -100,6 +102,8 @@ export function matchRoute(pathname: string): Route {
   if (pathname === "/settings/tailscale") return { name: "settings-tailscale" };
   if (pathname === "/settings/tunnel") return { name: "settings-tunnel" };
   if (pathname === "/settings/relay") return { name: "settings-relay" };
+  if (pathname === "/onboarding") return { name: "onboarding" };
+  if (pathname === "/pair") return { name: "pair" };
   if (pathname === "/forward-auth") return { name: "forward-auth" };
   if (pathname === "/settings") return { name: "settings" };
   return { name: "sessions" };

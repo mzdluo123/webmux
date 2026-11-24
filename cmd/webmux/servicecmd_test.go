@@ -52,8 +52,8 @@ func TestServiceConfigUsesExistingInitializer(t *testing.T) {
 	if err := c.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if len(c.Token) < minTunnelTokenLength {
-		t.Fatal("service configuration lacks a strong token")
+	if c.Token != "" {
+		t.Fatalf("service configuration should default to Passkey onboarding without hardcoded token, got %q", c.Token)
 	}
 	info, err := os.Stat(path)
 	if err != nil || info.Mode().Perm() != 0600 {
@@ -64,14 +64,11 @@ func TestServiceConfigUsesExistingInitializer(t *testing.T) {
 	}
 	kept, err := config.Load(path, true)
 	if err != nil || kept.Token != c.Token {
-		t.Fatal("service installation changed the existing token")
+		t.Fatal("service installation changed the existing config")
 	}
 	var out, stderr bytes.Buffer
 	if code := dispatch([]string{"config", "check", "--config", path}, &out, &stderr); code != contract.ExitOK || !strings.Contains(out.String(), "OK") {
 		t.Fatalf("config check alias failed: %d %s %s", code, &out, &stderr)
-	}
-	if strings.Contains(out.String()+stderr.String(), c.Token) {
-		t.Fatal("config check exposed the token")
 	}
 }
 

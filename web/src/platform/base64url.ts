@@ -6,8 +6,9 @@ const byteArray = Uint8Array as typeof Uint8Array & {
   fromBase64?(value: string): Uint8Array<ArrayBuffer>;
 };
 
-export function encodeBase64Url(text: string): string {
-  const bytes: Base64Bytes = new TextEncoder().encode(text);
+export function encodeBase64UrlBytes(input: ArrayBuffer | Uint8Array): string {
+  const bytes: Base64Bytes =
+    input instanceof Uint8Array ? input : new Uint8Array(input);
   if (bytes.toBase64)
     return bytes.toBase64({ alphabet: "base64url", omitPadding: true });
 
@@ -17,6 +18,10 @@ export function encodeBase64Url(text: string): string {
     .replaceAll("+", "-")
     .replaceAll("/", "_")
     .replace(/=+$/, "");
+}
+
+export function encodeBase64Url(text: string): string {
+  return encodeBase64UrlBytes(new TextEncoder().encode(text));
 }
 
 export function decodeBase64Url(value: string): Uint8Array<ArrayBuffer> {

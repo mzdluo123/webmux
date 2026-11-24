@@ -20,7 +20,7 @@ import (
 
 func TestWorkspaceDegradedServerProcess(t *testing.T) {
 	if configPath := os.Getenv("WEBMUX_TEST_DEGRADED_CONFIG"); configPath != "" {
-		if err := run([]string{"--config", configPath}); err != nil {
+		if err := run([]string{"--config", configPath, "--insecure-no-auth"}); err != nil {
 			t.Fatal(err)
 		}
 		return

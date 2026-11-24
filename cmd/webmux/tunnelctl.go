@@ -25,6 +25,7 @@ type tunnelController struct {
 	web                                 bool
 	enabledSource, defaultEnabledSource string
 	local, token                        string
+	authReady                           func() bool
 	public                              *transport.PublicOrigins
 	locate                              func(context.Context) (string, error)
 	out                                 io.Writer
@@ -40,24 +41,28 @@ type tunnelController struct {
 
 // tunnelControllerOptions are the launch-time inputs for a tunnelController.
 type tunnelControllerOptions struct {
-	Cfg    config.TunnelConfig
-	Store  *tunnelsettings.Service
-	Local  string
-	Token  string
-	Public *transport.PublicOrigins
-	Locate func(context.Context) (string, error)
-	Out    io.Writer
-	Logger *slog.Logger
+	Cfg       config.TunnelConfig
+	Store     *tunnelsettings.Service
+	Local     string
+	Token     string
+	AuthReady func() bool
+	Public    *transport.PublicOrigins
+	Locate    func(context.Context) (string, error)
+	Out       io.Writer
+	Logger    *slog.Logger
 }
 
 func newTunnelController(o tunnelControllerOptions) *tunnelController {
 	_, web := o.Store.Effective()
-	return &tunnelController{cfg: o.Cfg, store: o.Store, web: web, local: o.Local, token: o.Token, public: o.Public, locate: o.Locate, out: o.Out, logger: o.Logger, state: contract.TunnelOff}
+	return &tunnelController{cfg: o.Cfg, store: o.Store, web: web, local: o.Local, token: o.Token, authReady: o.AuthReady, public: o.Public, locate: o.Locate, out: o.Out, logger: o.Logger, state: contract.TunnelOff}
 }
 
 func (tc *tunnelController) enableErrorLocked() error {
+	if tc.authReady != nil && tc.authReady() {
+		return nil
+	}
 	if len(tc.token) < minTunnelTokenLength {
-		return fmt.Errorf("%w: a public tunnel requires a WebMux token of at least %d characters; run `webmux config init` or set a strong token, then restart WebMux", tunnelsettings.ErrEnableBlocked, minTunnelTokenLength)
+		return fmt.Errorf("%w: a public tunnel requires Passkey authentication (complete onboarding first) or a legacy token of at least %d characters", tunnelsettings.ErrEnableBlocked, minTunnelTokenLength)
 	}
 	return nil
 }

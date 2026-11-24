@@ -201,7 +201,6 @@ var (
 	tokenLine       = regexp.MustCompile(`(?m)^token = .*$`)
 	listenLine      = regexp.MustCompile(`(?m)^listen = .*$`)
 	listenEditLine  = regexp.MustCompile(`(?m)^[ \t]*listen[ \t]*=.*$`)
-	emptyTokenLine  = regexp.MustCompile(`(?m)^[ \t]*token[ \t]*=[ \t]*(""|'')[ \t]*(#.*)?$`)
 	tableHeaderLine = regexp.MustCompile(`(?m)^[ \t]*\[`)
 )
 
@@ -217,11 +216,10 @@ func renderConfigTemplate(template, token, listen string) (string, error) {
 	return out, nil
 }
 
-// newConfigContent renders the shipped template with a fresh random token.
-// Every entry point that creates a configuration uses it so the contents and
-// permissions do not drift from `webmux config init`.
+// newConfigContent renders the shipped template without a hardcoded static token;
+// authentication is established via Passkey onboarding (<state_dir>/auth.json).
 func newConfigContent(listen string) (string, error) {
-	return renderConfigTemplate(deploy.ConfigExample, generateToken(), listen)
+	return renderConfigTemplate(deploy.ConfigExample, "", listen)
 }
 
 // ensureDefaultConfig creates path from the embedded template when it does not
@@ -344,21 +342,10 @@ func writeConfigListen(path, addr, host string) error {
 	line := "listen = " + strconv.Quote(addr)
 	if loc := listenEditLine.FindStringIndex(text[:rootEnd]); loc != nil {
 		text = text[:loc[0]] + line + text[loc[1]:]
-		rootEnd += len(line) - (loc[1] - loc[0])
 	} else {
 		text = line + "\n" + text
-		rootEnd += len(line) + 1
 	}
-	ip := net.ParseIP(host)
-	loopback := strings.EqualFold(host, "localhost") || ip.IsLoopback()
-	if existing.Token == "" && !loopback {
-		token := "token = " + strconv.Quote(generateToken())
-		if loc := emptyTokenLine.FindStringIndex(text[:rootEnd]); loc != nil {
-			text = text[:loc[0]] + token + text[loc[1]:]
-		} else {
-			text = token + "\n" + text
-		}
-	}
+	_ = host
 	return publishConfig(path, text, false, false)
 }
 

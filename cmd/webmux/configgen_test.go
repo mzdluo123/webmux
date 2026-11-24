@@ -30,8 +30,8 @@ func TestLoadConfigCreatesDefaultConfig(t *testing.T) {
 	if !c.ConfigCreated || !c.ConfigFound || c.ConfigExplicit {
 		t.Fatalf("created=%v found=%v explicit=%v", c.ConfigCreated, c.ConfigFound, c.ConfigExplicit)
 	}
-	if c.ConfigPath != path || c.TokenGenerated || len(c.Token) != 43 {
-		t.Fatalf("path=%q tokenGenerated=%v tokenLength=%d", c.ConfigPath, c.TokenGenerated, len(c.Token))
+	if c.ConfigPath != path || c.TokenGenerated || c.Token != "" {
+		t.Fatalf("path=%q tokenGenerated=%v token=%q", c.ConfigPath, c.TokenGenerated, c.Token)
 	}
 	info, err := os.Stat(path)
 	if err != nil || info.Mode().Perm() != 0600 {
@@ -45,9 +45,8 @@ func TestLoadConfigCreatesDefaultConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	match := tokenValue.FindSubmatch(first)
-	if match == nil || string(match[1]) != c.Token {
-		t.Fatalf("generated token not persisted: %q", first)
+	if !bytes.Contains(first, []byte(`token = ""`)) {
+		t.Fatalf("generated config should leave token empty for Passkey onboarding: %q", first)
 	}
 	if !bytes.Contains(first, []byte(`listen = "127.0.0.1:7681"`)) {
 		t.Fatalf("generated config lost the default listen:\n%s", first)
@@ -104,9 +103,8 @@ func TestDefaultConfigWithFlagsKeepsOverridesPerProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	match := tokenValue.FindSubmatch(content)
-	if match == nil || len(match[1]) != 43 || string(match[1]) == "flag-token" {
-		t.Fatalf("generated file did not keep its own random token: %q", content)
+	if !bytes.Contains(content, []byte(`token = ""`)) || bytes.Contains(content, []byte("flag-token")) {
+		t.Fatalf("generated file should keep empty token without persisting flag override: %q", content)
 	}
 	if !bytes.Contains(content, []byte(`listen = "127.0.0.1:7681"`)) {
 		t.Fatalf("command-line listen was written to the generated file:\n%s", content)
@@ -222,8 +220,7 @@ func TestEnsureDefaultConfigConcurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	match := tokenValue.FindSubmatch(content)
-	if match == nil || len(match[1]) != 43 {
+	if !bytes.Contains(content, []byte(`token = ""`)) || !bytes.Contains(content, []byte(`listen = "127.0.0.1:7681"`)) {
 		t.Fatalf("concurrent creation published an incomplete file: %q", content)
 	}
 	loaded, err := config.Load(path, true)

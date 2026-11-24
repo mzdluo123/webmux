@@ -33,10 +33,10 @@ func TestTunnelFlagAndGeneratedToken(t *testing.T) {
 		token     string // "generated", "persisted", "" or an exact token
 		generated bool
 	}{
-		{"default auto config", nil, false, "persisted", false},
-		{"flag enables", []string{"--config", plain, "--tunnel"}, true, "generated", true},
+		{"default auto config", nil, false, "", false},
+		{"flag enables", []string{"--config", plain, "--tunnel"}, true, "", false},
 		{"flag disables file", []string{"--config", enabled, "--tunnel=false"}, false, "", false},
-		{"file enables", []string{"--config", enabled}, true, "generated", true},
+		{"file enables", []string{"--config", enabled}, true, "", false},
 		{"configured token kept", []string{"--config", enabled, "--tunnel", "--token", tunnelTestToken}, true, tunnelTestToken, false},
 	} {
 		t.Run(row.name, func(t *testing.T) {
@@ -189,7 +189,7 @@ func startServe(t *testing.T, startupTunnel bool, token string, features ...[]st
 		cancel()
 		<-r.result
 	})
-	pattern := `WebMux local:  (http://127\.0\.0\.1:\d+)\n`
+	pattern := `WebMux local:  (http://(?:127\.0\.0\.1|localhost):\d+)\n`
 	if startupTunnel {
 		eventually(t, "public URL", func() bool { return strings.Contains(r.out.String(), "WebMux public:") })
 	} else {
@@ -280,7 +280,7 @@ func TestServePrintsTokenFragmentOnlyWithTunnel(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- serve(ctx, serverRun{Config: c}, out) }()
 	eventually(t, "local URL", func() bool {
-		return strings.Contains(out.String(), "WebMux local:  http://127.0.0.1:")
+		return strings.Contains(out.String(), "WebMux local:  http://localhost:") || strings.Contains(out.String(), "WebMux local:  http://127.0.0.1:")
 	})
 	cancel()
 	if err := <-done; err != nil {

@@ -11,28 +11,25 @@
   - 非认证类连接失败（网络不可达、服务离线或 5xx）显示独立的连接失败与重试界面，并提供手动切换共享 Token 登录入口；
   - 未设置 token 的服务可直接进入；
   - 按需加载的页面在极短延迟内不闪现加载文字，超时后显示加载状态，下载失败时提示刷新重试。
-- **US-A02 共享 token 登录**：作为使用者，我希望输入并在本机记住共享 token，以便以后方便地访问自己的会话。
+- **US-A02 共享 token 登录（遗留兼容）**：作为已有静态配置或自动化测试的使用者，我希望继续通过配置中的共享 token 登录，以便平滑迁移而不破坏旧部署。
   验收要点：
-  - 登录页在共享 Token 右侧提供问号提示，默认收起说明；
-  - 鼠标悬停、键盘激活或手机点击可查看，指针可移入说明，Escape 或点击外部可关闭；
-  - 说明涵盖共享密码用途、初始化生成与保存、配置路径及启动参数覆盖；
-  - 配置路径独立成行、窄屏可换行且无横向溢出；
-  - 启用认证后，正确 token 才能访问 HTTP API 与 WebSocket；HTTP 只接受 `Authorization: Bearer`，WebSocket 只接受 Bearer 或 token 子协议，`webmux_token` Cookie 与 URL 参数都不能认证；
+  - 新安装的默认 `config.toml` 不再写入硬编码随机 token（保持 `token = ""`），改由 US-A11 的 Passkey 首次引导完成认证初始化；
+  - 仅当配置或 `--token` 显式设置了非空静态 token 时，登录页才呈现共享 token 表单及说明（问号提示默认收起，鼠标悬停/键盘激活/手机点击展开，Escape 或外部点击关闭，配置路径窄屏可换行且无横向溢出）；
+  - 启用认证后，正确 token（Passkey 签发的会话令牌、可选命名 API 令牌或显式遗留共享 token）才能访问 HTTP API 与 WebSocket；HTTP 只接受 `Authorization: Bearer`，WebSocket 只接受 Bearer 或 token 子协议，`webmux_token` Cookie 与 URL 参数都不能认证；
   - 端口转发凭据 Cookie `webmux_forward` 独立于 token，只能访问 `/forward/` 网关，不能认证 `/api/` 与 `/ws/`，见 US-R01；
-  - 当前浏览器保存 token；
-  - 错误或变更后的 token 触发重新认证提示；
-  - 本机套接字采用同用户身份校验，见 US-M08。
+  - 当前浏览器保存当前会话或遗留 token；
+  - 错误、过期或已撤销的凭据触发重新认证提示；
+  - 本机套接字采用同用户身份校验，见 US-M08；
   - 启用网络 MCP 时 `/mcp` 只接受同一 owner Bearer；会话 ID、Cookie 和 URL 不能认证，凭据仍可调用完整 REST 并启动任意 argv，不是工具级权限。
 - **US-A03 可信网络访问**：作为部署者，我希望控制监听地址和允许的浏览器来源，以便只从预期的本机或可信 VPN 入口操作终端。
   验收要点：
-  - 默认仅监听本机回环（127.0.0.1:7681），局域网或可信 VPN 访问可改为 0.0.0.0:7681；
-  - 未显式指定配置且默认文件缺失时，首次启动生成并保存 256 位随机 token，非隧道启动不打印该 token，可经本机状态显式查询；
-  - 已有配置的 token 为空且监听地址不是 loopback 时，每次启动生成临时随机 token；启动链接与二维码不携带 token，通过 `webmux status --json --reveal-token` 查看；
-  - 只有 loopback 且未启用隧道时允许无 token；
-  - 隧道启动链接与二维码同样不含 token，持久 token 不因重启失效；
-  - 监听 loopback 时校验请求 Host（防止无 token 下的 DNS 重绑定），非 loopback 监听（强制要求 token）接受任意合法 Host（如局域网主机名或 Tailscale MagicDNS），并始终校验 Origin（同源、allowed_origins 或受控公网来源）；
-  - 认证和来源检查同时覆盖终端与文件、仓库、代码接口。
-  - 网络 MCP 默认关闭；`[mcp] enabled=true` 必须已有非空根 token，空值在自动生成启动 Token 前失败，loopback 也不豁免。
+  - 默认仅监听本机回环（127.0.0.1:7681），终端启动输出使用 `http://localhost:<port>`（满足 WebAuthn RP ID 要求），局域网或可信 VPN 访问可改为 0.0.0.0:7681；
+  - 默认启动与 `config init` / `config listen` 不写入硬编码随机 token；未完成 Passkey 初始化时服务处于 `needs_onboarding` 状态，保护全部业务接口；
+  - 只有显式传入 `--insecure-no-auth` 且监听 loopback 且未启用 Tunnel/Tailscale 时才允许无认证访问；
+  - 隧道与 Tailscale Serve/Funnel 启动链接与二维码不含 token，且支持 Passkey 已就绪的实例；
+  - 监听 loopback 时校验请求 Host（防止 DNS 重绑定），非 loopback 监听接受任意合法 Host（如局域网主机名或 Tailscale MagicDNS），并始终校验 Origin（同源、allowed_origins 或受控公网来源）；
+  - 认证和来源检查同时覆盖终端与文件、仓库、代码接口；
+  - 网络 MCP 默认关闭；`[mcp] enabled=true` 必须已有非空根 token，空值失败，loopback 也不豁免；
   - 所有 MCP 方法保留 Host / Origin 校验，仅在 TCP 精确 `/mcp` 开放，不暴露 Unix / P2P 端点；详见 US-S25。
 - **US-A04 查看服务与能力**：作为部署者，我希望知道服务是否在线、会话数量及 Git/仓库能力是否可用，以便定位连接或环境问题。
   验收要点：
@@ -117,8 +114,21 @@
   - 公网 HTTPS 上游模板来自镜像 `/app/nginx.conf.sigil`，保留 Host、WebSocket 与 Origin/CSRF，不改全局 Nginx 或占用 UDP 443；
   - 服务证书持久 P-256 同 key 续签；节点 CA 签发私钥离线，运行容器仅最小私密挂载；宿主既有 BBR/cake 策略不由容器更改；
   - 公共文档只记录授权公开的地址、客户端接入前提与真实上线阶段；管理员配置和秘密交付留在受限服务端指南，不能以 CI、应用创建或计划端口冒充生产可用，见[部署记录](../../deployment/official-relay.md)。
+- **US-A11 Passkey 首次引导、多设备配对与凭据管理**：作为使用者，我希望首次启动 WebMux 时通过一次性安装码注册自己的 Passkey 并获取恢复码，之后在任意可信设备用 Passkey 登录、配对新域名或撤销设备会话，而无需在 `config.toml` 里保存硬编码静态 token。
+  验收要点：
+  - 首次启动且未配置遗留静态 token 时，服务进入 `needs_onboarding` 状态并打印 `http://localhost:<port>/onboarding#setup=<code>` 与一次性安装码（30 分钟有效）；浏览器读取 `#setup=` 后立即从地址栏和历史记录移除；
+  - 访问 `127.0.0.1` 或 `::1` 时提示 WebAuthn 要求域名并提供一键跳转 `localhost`（保留片段）；非安全上下文 HTTP IP 地址给出明确提示，不静默降级；
+  - 引导流程依次完成：校验安装码 → 注册首个 Passkey（后端使用纯 Go 标准库校验 WebAuthn `attestationObject`/COSE 公钥与签名，支持 ES256/EdDSA/RS256，校验 `rpIdHash` 与 `signCount`）并展示一次性恢复码（支持复制/下载）→ 确认默认工作目录 → 远程访问说明（后两步可跳过）；
+  - 凭据与可撤销会话持久化于 `<state_dir>/auth.json`（文件锁保护、损坏或不可读时 fail-closed 返回 503），不采用 Cookie 认证，改用每设备独立的 `Authorization: Bearer` 与 WebSocket 子协议令牌；
+  - 登录页在已初始化状态下默认展示 Passkey 一键登录、新域名配对指引与折叠的一次性恢复码兜底入口；
+  - “设置 → 安全与登录”支持管理 Passkey（添加/删除，禁止删除最后一枚）、跨设备/跨域名 5 分钟一次性配对（`/pair#code=`）及查看/撤销已登录设备会话；
+  - 同一设置区支持重新生成恢复码与为外部自动化脚本创建/吊销可选命名 API 令牌；敏感变更（添加/删除 Passkey、生成配对码、重生成恢复码、创建 API 令牌）要求 5 分钟内 Passkey 二次验证（Step-Up）；
+  - 本机 CLI 提供 `webmux auth status|setup|pair|reset`（经同用户 Unix 套接字操作运行中实例，`reset --force` 支持在线与离线恢复；禁止 WebMux 会话内进程调用任何 `/local/v1/auth/*` 或 `/api/auth/*` 写操作）。
 
 依据：
+
+- [Passkey 认证服务](../../../internal/auth/service.go)、[WebAuthn 校验](../../../internal/auth/webauthn.go)、[认证接口](../../../internal/api/auth.go)、[认证 CLI](../../../cmd/webmux/authcmd.go)
+- [首次引导页](../../../web/src/pages/OnboardingPage.svelte)、[设备配对页](../../../web/src/pages/PairDevicePage.svelte)、[安全与登录设置](../../../web/src/components/settings/SecuritySettings.svelte)
 
 - [统一品牌标识](../../../web/src/components/shell/Brand.svelte)、[品牌图标](../../../web/public/icon.svg)、[浏览器图标入口](../../../web/index.html)
 - [应用入口](../../../web/src/App.svelte)、[Token 说明](../../../web/src/components/shared/TokenHelp.svelte)、[配置命令](../../../cmd/webmux/configcmd.go)

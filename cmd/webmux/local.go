@@ -14,6 +14,7 @@ import (
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/featureapi"
 	"github.com/rainchan/webmux/internal/runtime"
+	"github.com/rainchan/webmux/internal/wire"
 )
 
 // localRuntime is the runtime record and local API of the instance that
@@ -138,6 +139,10 @@ func localStatus(record runtime.Record, c serverRun, deps api.Deps, features *fe
 				s.Push.PublicOrigin = "https://" + host
 			}
 		}
+	}
+	if deps.Auth != nil {
+		summary := wire.AuthSummary(deps.Auth.Summary())
+		s.Auth = &summary
 	}
 	if deps.InstalledVersion != nil {
 		s.InstalledVersion = deps.InstalledVersion()

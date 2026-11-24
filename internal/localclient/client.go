@@ -380,6 +380,27 @@ func (c *Client) Token(ctx context.Context) (string, error) {
 	return token.Token, err
 }
 
+// AuthSetup returns or refreshes the one-time onboarding setup code while uninitialized.
+func (c *Client) AuthSetup(ctx context.Context, refresh bool) (contract.LocalAuthSetupResponse, error) {
+	var resp contract.LocalAuthSetupResponse
+	err := c.Do(ctx, http.MethodPost, contract.PathAuthSetup, contract.LocalAuthSetupRequest{Refresh: refresh}, &resp)
+	return resp, err
+}
+
+// AuthPair creates a 5-minute single-use pairing code for another device or domain.
+func (c *Client) AuthPair(ctx context.Context, targetURL string) (contract.PairCreateResponse, error) {
+	var resp contract.PairCreateResponse
+	err := c.Do(ctx, http.MethodPost, contract.PathAuthPair, contract.PairCreateRequest{TargetURL: targetURL}, &resp)
+	return resp, err
+}
+
+// AuthReset revokes all passkeys and sessions on a running server and returns a fresh setup grant.
+func (c *Client) AuthReset(ctx context.Context) (contract.LocalAuthSetupResponse, error) {
+	var resp contract.LocalAuthSetupResponse
+	err := c.Do(ctx, http.MethodPost, contract.PathAuthReset, contract.LocalAuthResetRequest{Confirm: true}, &resp)
+	return resp, err
+}
+
 // SetTunnel starts or stops the server's Cloudflare Tunnel. It returns
 // *APIError with 409 when the token is too weak and 403 for callers inside
 // a WebMux session.

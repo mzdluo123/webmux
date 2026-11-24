@@ -227,7 +227,7 @@ func (p *featureServices) openAccess(ctx context.Context, c serverRun, public *t
 			cfg.Enabled, web = c.Tunnel.Enabled, false
 		}
 		locator := tunnel.Locator{Explicit: cfg.Cloudflared, StateDir: c.StateDir, Mirrors: cfg.DownloadMirrors}
-		p.tunnel = newTunnelController(tunnelControllerOptions{Cfg: cfg, Store: p.tunnelStore, Local: local, Token: c.Token, Public: public, Locate: locator.Find, Out: out, Logger: slog.Default()})
+		p.tunnel = newTunnelController(tunnelControllerOptions{Cfg: cfg, Store: p.tunnelStore, Local: local, Token: c.Token, AuthReady: p.authReady, Public: public, Locate: locator.Find, Out: out, Logger: slog.Default()})
 		p.tunnel.defaultEnabledSource, p.tunnel.enabledSource = c.BaseSource("tunnel.enabled"), c.Source("tunnel.enabled")
 		if web {
 			p.tunnel.enabledSource = "web"
@@ -249,7 +249,7 @@ func (p *featureServices) openAccess(ctx context.Context, c serverRun, public *t
 		}
 		cfg := c.Config
 		cfg.Tailscale, _ = p.tailscaleStore.Effective()
-		p.tailscale = newTailscaleController(tailscaleControllerOptions{Cfg: cfg.Tailscale, Store: p.tailscaleStore, Service: tailscale.New(assemble.TailscaleOptions(cfg)), StateDir: c.StateDir, Public: public, Token: c.Token, TokenGenerated: c.TokenGenerated, Out: out, Logger: slog.Default(), IsWSL: wsl.Detected, NetworkingMode: wsl.NetworkingMode})
+		p.tailscale = newTailscaleController(tailscaleControllerOptions{Cfg: cfg.Tailscale, Store: p.tailscaleStore, Service: tailscale.New(assemble.TailscaleOptions(cfg)), StateDir: c.StateDir, Public: public, Token: c.Token, TokenGenerated: c.TokenGenerated, AuthReady: p.authReady, Out: out, Logger: slog.Default(), IsWSL: wsl.Detected, NetworkingMode: wsl.NetworkingMode})
 		if err := p.tailscale.Prepare(ctx, c.Listen); err != nil {
 			return err
 		}

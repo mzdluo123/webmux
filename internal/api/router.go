@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/rainchan/webmux/internal/agentguide"
+	"github.com/rainchan/webmux/internal/auth"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/hoststat"
@@ -27,6 +28,7 @@ import (
 // Optional controllers and business services are constructed by cmd, not here.
 type Deps struct {
 	Config            config.Config
+	Auth              *auth.Service
 	Manager           *session.Manager
 	Create            *sessioncreate.Service
 	Settings          *settings.Service
@@ -113,6 +115,7 @@ func (s *Server) coreRoutes(registrar transport.Registrar) {
 	s.sessionMetaRoutes(mux)
 	s.guideRoutes(mux)
 	s.settingsRoutes(mux)
+	s.authRoutes(mux)
 	s.relayRoutes(mux)
 	s.perfRoutes(mux)
 	// The same core stream descriptions are also used by the P2P bridge.
@@ -195,12 +198,22 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 			return
 		}
 		if mcpPath || strings.HasPrefix(r.URL.Path, "/api/") || strings.HasPrefix(r.URL.Path, "/ws/") {
-			if r.URL.Path != "/api/relay/auth/session" && !s.authorized(r) {
-				if mcpPath {
-					w.Header().Set("WWW-Authenticate", `Bearer realm="webmux"`)
+			if r.URL.Path != "/api/relay/auth/session" && !isPublicAuthPath(r.URL.Path) {
+				if s.Auth != nil && s.Auth.State() == auth.StateStorageError {
+					failure(w, http.StatusServiceUnavailable, auth.ErrStorageUnavailable)
+					return
 				}
-				failure(w, 401, errors.New("authentication required"))
-				return
+				principal, ok := s.authenticate(r)
+				if !ok {
+					if mcpPath {
+						w.Header().Set("WWW-Authenticate", `Bearer realm="webmux"`)
+					}
+					failure(w, 401, errors.New("authentication required"))
+					return
+				}
+				if principal.Kind != "" {
+					r = r.WithContext(withPrincipal(r.Context(), principal))
+				}
 			}
 			if !s.originAllowed(r) {
 				failure(w, 403, errors.New("origin not allowed"))
@@ -210,12 +223,9 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		timed.ServeHTTP(w, r)
 	})
 }
-func (s *Server) authorized(r *http.Request) bool {
+func (s *Server) authenticate(r *http.Request) (auth.Principal, bool) {
 	if _, ok := relayPrincipal(r); ok {
-		return true
-	}
-	if s.Config.Token == "" {
-		return true
+		return auth.Principal{}, true
 	}
 	token := ""
 	scheme, credential, found := strings.Cut(r.Header.Get("Authorization"), " ")
@@ -225,9 +235,23 @@ func (s *Server) authorized(r *http.Request) bool {
 	if token == "" && strings.HasPrefix(r.URL.Path, "/ws/") {
 		token = protocolToken(r)
 	}
+	if s.Auth != nil {
+		return s.Auth.AuthenticateBearer(token)
+	}
+	if s.Config.Token == "" {
+		return auth.Principal{Kind: auth.PrincipalDisabled}, true
+	}
 	want := sha256.Sum256([]byte(s.Config.Token))
 	got := sha256.Sum256([]byte(token))
-	return subtle.ConstantTimeCompare(want[:], got[:]) == 1
+	if subtle.ConstantTimeCompare(want[:], got[:]) == 1 {
+		return auth.Principal{Kind: auth.PrincipalLegacyToken}, true
+	}
+	return auth.Principal{}, false
+}
+
+func (s *Server) authorized(r *http.Request) bool {
+	_, ok := s.authenticate(r)
+	return ok
 }
 
 // wsProtocol is the subprotocol the server selects. Browsers cannot set

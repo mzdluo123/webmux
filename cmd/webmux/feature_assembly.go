@@ -28,6 +28,7 @@ import (
 // container. A disabled feature has no service instance or lifetime to release.
 type featureServices struct {
 	agents            *agentprofile.Registry
+	authReady         func() bool
 	launch            *launch.Service
 	agentTools        *agentcheck.Service
 	workspace         *workspace.Service

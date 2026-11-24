@@ -4,6 +4,7 @@ package statefile
 type ID string
 
 const (
+	Auth               ID = "auth"
 	Launch             ID = "launch"
 	Repositories       ID = "repositories"
 	Projects           ID = "projects"
@@ -43,6 +44,7 @@ type Descriptor struct {
 func (d Descriptor) LockPath() string { return d.Path + ".lock" }
 
 var catalog = []Descriptor{
+	{Auth, "auth.json", "internal/auth", "fail_closed", "passkeys/session-hashes", 1, "v", 256 << 10, true, "", 0},
 	{Launch, "launch-configs.json", "internal/launch", "unavailable", "command/env", 2, "v", 4 << 20, true, "", 0},
 	{ProjectClones, "project-clones.json", "internal/workspace", "unavailable", "paths/urls", 1, "version", 4 << 20, true, "", 0},
 	{Projects, "projects.json", "internal/workspace", "unavailable", "paths", 1, "version", 4 << 20, true, "", 0},

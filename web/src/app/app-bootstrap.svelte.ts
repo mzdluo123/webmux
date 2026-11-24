@@ -2,10 +2,18 @@ import {
   APIError,
   api,
   consumeTokenFragment,
+  navigate,
   store,
   stored,
 } from "../platform/api";
+import {
+  clearCachedStepUp,
+  fetchAuthStatus,
+  loginWithPasskey,
+  loginWithRecoveryCode,
+} from "../platform/auth-api";
 import { errorMessage } from "../platform/error";
+import type { AuthStatus } from "../contracts/auth-schemas";
 import {
   CapabilitiesSchema,
   type Capabilities,
@@ -34,10 +42,20 @@ import {
 
 const BOOT_CONNECTED_KEY = "connected";
 
-export type BootGate = "probing" | "auth" | "offline";
+export type BootGate =
+  | "probing"
+  | "auth"
+  | "offline"
+  | "onboarding"
+  | "pair"
+  | "storage_error";
+
+function isAuthFlowPath(pathname: string): boolean {
+  return pathname === "/onboarding" || pathname === "/pair";
+}
 
 function hasReturningSession(tokenFromFragment: boolean): boolean {
-  if (tokenFromFragment) return false;
+  if (tokenFromFragment || isAuthFlowPath(location.pathname)) return false;
   return stored(BOOT_CONNECTED_KEY) === "1" || stored("token") !== "";
 }
 
@@ -49,12 +67,13 @@ export interface AppBootstrapCallbacks {
   onRebuilding: (value: boolean) => void;
 }
 
-/** Coordinates initial authentication, capability discovery, relay recovery and host switching. */
+/** Coordinates initial authentication, Passkey onboarding, capability discovery, relay recovery and host switching. */
 export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
   let ready = $state(false);
   let rebuildingFeatures = $state(false);
   let checking = $state(true);
   let gate = $state<BootGate>("probing");
+  let authStatus = $state<AuthStatus | null>(null);
   let optimisticBoot = $state(
     hasReturningSession(location.hash.startsWith("#token=")),
   );
@@ -73,11 +92,28 @@ export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
     () => void check(),
   );
 
+  async function probeAuthStatus(
+    signal: AbortSignal,
+  ): Promise<AuthStatus | null> {
+    try {
+      const st = await fetchAuthStatus(signal);
+      authStatus = st;
+      return st;
+    } catch (err) {
+      if (err instanceof APIError && err.status === 404) {
+        authStatus = null;
+        return null;
+      }
+      throw err;
+    }
+  }
+
   async function check(preferToken = false) {
     checking = true;
     submittedToken = preferToken;
+    const currentRoute = callbacks.route();
     const optimistic = !preferToken && optimisticBoot;
-    if (optimistic && callbacks.route().name === "terminal") {
+    if (optimistic && currentRoute.name === "terminal") {
       callbacks.preloadSessionPage();
     }
     bootstrapAbort?.abort();
@@ -87,6 +123,37 @@ export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
     try {
       disposeFeatureContributions();
       resetFeatureCapabilities();
+
+      // Always inspect auth status first when not on optimistic fast path, or
+      // when entering /onboarding or /pair directly.
+      if (!optimistic || isAuthFlowPath(location.pathname)) {
+        const st = await probeAuthStatus(controller.signal);
+        if (epoch !== bootstrapEpoch) return;
+        if (st?.state === "needs_onboarding") {
+          optimisticBoot = false;
+          store(BOOT_CONNECTED_KEY, null);
+          gate = "onboarding";
+          error = "";
+          authFailed = false;
+          return;
+        }
+        if (st?.state === "storage_error") {
+          optimisticBoot = false;
+          store(BOOT_CONNECTED_KEY, null);
+          gate = "storage_error";
+          error = st.error ?? "";
+          authFailed = false;
+          return;
+        }
+        if (currentRoute.name === "pair" && st?.state === "ready") {
+          optimisticBoot = false;
+          gate = "pair";
+          error = "";
+          authFailed = false;
+          return;
+        }
+      }
+
       let capabilitiesPromise: Promise<Capabilities> | undefined;
       const authenticated = await prepareHostAuthentication(
         preferToken,
@@ -101,7 +168,6 @@ export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
                 undefined,
                 controller.signal,
               );
-              // Prevent an unhandled rejection if /health fails before capabilities is awaited.
               void capabilitiesPromise.catch(() => undefined);
             }
           : undefined,
@@ -124,10 +190,13 @@ export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
         if (epoch !== bootstrapEpoch) return;
         setFeatureCapabilities(capabilities);
         callbacks.onPathNormalized();
-        const currentRoute = callbacks.route();
+        const latestRoute = callbacks.route();
+        if (latestRoute.name === "onboarding" || latestRoute.name === "pair") {
+          navigate("/");
+        }
         await loadFeatureContributions({
-          forwardAuth: currentRoute.name === "forward-auth",
-          codePopout: currentRoute.name === "code",
+          forwardAuth: latestRoute.name === "forward-auth",
+          codePopout: latestRoute.name === "code",
         });
       } catch (discoveryFailure) {
         if (epoch !== bootstrapEpoch) return;
@@ -150,9 +219,44 @@ export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
         optimisticBoot = false;
         if (err instanceof APIError && err.status === 401) {
           store(BOOT_CONNECTED_KEY, null);
-          gate = "auth";
-          authFailed = submittedToken || token.length > 0;
-          error = authFailed ? "" : errorMessage(err);
+          try {
+            const st = await probeAuthStatus(controller.signal);
+            if (epoch !== bootstrapEpoch) return;
+            if (st?.state === "needs_onboarding") {
+              gate = "onboarding";
+              error = "";
+              authFailed = false;
+              return;
+            }
+            if (st?.state === "storage_error") {
+              gate = "storage_error";
+              error = st.error ?? "";
+              authFailed = false;
+              return;
+            }
+          } catch {
+            // Keep 401 gate below.
+          }
+          gate = callbacks.route().name === "pair" ? "pair" : "auth";
+          authFailed =
+            authStatus?.state !== "ready" &&
+            (submittedToken || token.length > 0);
+          error = authFailed ? "" : "";
+        } else if (err instanceof APIError && err.status === 503) {
+          try {
+            const st = await probeAuthStatus(controller.signal);
+            if (epoch !== bootstrapEpoch) return;
+            if (st?.state === "storage_error") {
+              gate = "storage_error";
+              error = st.error ?? "";
+              return;
+            }
+          } catch {
+            // Fall through to offline gate.
+          }
+          gate = "offline";
+          authFailed = false;
+          error = errorMessage(err);
         } else {
           gate = "offline";
           authFailed = false;
@@ -194,6 +298,7 @@ export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
       bootstrapAbort?.abort();
       featureRefresh.cancel();
       stopSettings();
+      clearCachedStepUp();
       checking = false;
       error = "";
       callbacks.onClearUiForAuth(relay);
@@ -211,8 +316,29 @@ export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
       if (clearSavedConnection) {
         store(BOOT_CONNECTED_KEY, null);
         optimisticBoot = false;
-        gate = "auth";
-        authFailed = wasReady || submittedToken || token.length > 0;
+        void fetchAuthStatus()
+          .then((st) => {
+            authStatus = st;
+            if (st.state === "needs_onboarding") {
+              gate = "onboarding";
+              authFailed = false;
+              return;
+            }
+            if (st.state === "storage_error") {
+              gate = "storage_error";
+              error = st.error ?? "";
+              authFailed = false;
+              return;
+            }
+            gate = "auth";
+            authFailed =
+              st.state !== "ready" &&
+              (wasReady || submittedToken || token.length > 0);
+          })
+          .catch(() => {
+            gate = "auth";
+            authFailed = wasReady || submittedToken || token.length > 0;
+          });
       }
     };
 
@@ -228,6 +354,7 @@ export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
       resetRelayAuth();
       resetAuth(false);
       token = stored("token");
+      authStatus = null;
       authFailed = false;
       submittedToken = false;
       gate = "probing";
@@ -262,6 +389,9 @@ export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
     get gate() {
       return gate;
     },
+    get authStatus() {
+      return authStatus;
+    },
     get optimisticBoot() {
       return optimisticBoot;
     },
@@ -292,6 +422,49 @@ export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
       error = "";
       authFailed = false;
       void check(true);
+    },
+    async signInWithPasskey() {
+      checking = true;
+      error = "";
+      authFailed = false;
+      try {
+        await loginWithPasskey();
+        token = stored("token");
+        await check(true);
+      } catch (err) {
+        error = errorMessage(err);
+        checking = false;
+      }
+    },
+    async signInWithRecoveryCode(code: string) {
+      checking = true;
+      error = "";
+      authFailed = false;
+      try {
+        await loginWithRecoveryCode(code);
+        token = stored("token");
+        await check(true);
+      } catch (err) {
+        error = errorMessage(err);
+        checking = false;
+      }
+    },
+    completeOnboarding() {
+      token = stored("token");
+      navigate("/");
+      void check(true);
+    },
+    openPairPage() {
+      error = "";
+      authFailed = false;
+      gate = "pair";
+      if (location.pathname !== "/pair") navigate("/pair");
+    },
+    backToLogin() {
+      error = "";
+      authFailed = false;
+      gate = "auth";
+      if (location.pathname === "/pair") navigate("/");
     },
     retryConnection() {
       error = "";

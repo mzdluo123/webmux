@@ -11,6 +11,7 @@
 | ID                  | 路径                     | 锁                            | 所有者                       | 损坏或冲突            | 网页可改 |
 | ------------------- | ------------------------ | ----------------------------- | ---------------------------- | --------------------- | -------- |
 | bootstrap           | config.toml              | none                          | internal/config + cmd/webmux | 配置错误阻止启动      | 否       |
+| auth                | auth.json                | auth.json.lock                | internal/auth                | fail_closed           | 是       |
 | launch              | launch-configs.json      | launch-configs.json.lock      | internal/launch              | unavailable           | 是       |
 | repositories        | repositories.json        | repositories.json.lock        | internal/workspace           | unavailable           | 是       |
 | projects            | projects.json            | projects.json.lock            | internal/workspace           | unavailable           | 是       |

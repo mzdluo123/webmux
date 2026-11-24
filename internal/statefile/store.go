@@ -244,6 +244,33 @@ func (h *Handle[T]) Remove() error {
 	}
 	return nil
 }
+
+// ForceRemove removes the backing file while holding the store lock even if the
+// previous contents failed to decode (e.g. explicit operator `auth reset`).
+// It still rejects non-regular files/symlinks and requires directory sync.
+func (h *Handle[T]) ForceRemove() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.lock == nil {
+		return fault(h.desc, h.path, "remove", Closed, nil)
+	}
+	if info, err := os.Lstat(h.path); err == nil && !info.Mode().IsRegular() {
+		return fault(h.desc, h.path, "remove", Corrupt, nil)
+	} else if errors.Is(err, os.ErrNotExist) {
+		h.broken = nil
+		return nil
+	} else if err != nil {
+		return fault(h.desc, h.path, "remove", IO, err)
+	}
+	if err := h.remove(h.path); err != nil {
+		return h.commitError("remove", err)
+	}
+	if err := h.syncDir(filepath.Dir(h.path)); err != nil {
+		return h.commitError("remove", &DirSyncError{Err: err})
+	}
+	h.broken = nil
+	return nil
+}
 func (h *Handle[T]) commitError(op string, err error) error {
 	if err == nil {
 		return nil

@@ -68,8 +68,8 @@ func TestConfigurationPrecedence(t *testing.T) {
 		{"flags", []string{"--config", file, "--listen", "127.0.0.1:9001", "--token", "flag-token"}, "127.0.0.1:9001", "flag-token", false},
 		{"explicit empty token on loopback", []string{"--config", file, "--token="}, "127.0.0.1:9000", "", false},
 		{"explicit empty token on localhost", []string{"--config", file, "--listen", "localhost:9002", "--token="}, "localhost:9002", "", false},
-		{"explicit empty token on IPv6 wildcard", []string{"--config", file, "--listen", "[::]:9003", "--token="}, "[::]:9003", "", true},
-		{"explicit empty token on VPN address", []string{"--config", file, "--listen", "100.64.0.5:9004", "--token="}, "100.64.0.5:9004", "", true},
+		{"explicit empty token on IPv6 wildcard", []string{"--config", file, "--listen", "[::]:9003", "--token="}, "[::]:9003", "", false},
+		{"explicit empty token on VPN address", []string{"--config", file, "--listen", "100.64.0.5:9004", "--token="}, "100.64.0.5:9004", "", false},
 	} {
 		t.Run(row.name, func(t *testing.T) {
 			c, err := loadConfig(row.args)

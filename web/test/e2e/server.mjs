@@ -47,10 +47,11 @@ async function stopChild(child) {
 // server that survives its restarts. Connector-missing cases use an isolated
 // per-config PATH instead of changing this shared agent directory.
 // All built-in features run enabled; stateFiles optionally pre-populates state_dir.
-/** @param {{noGit?: boolean, token?: string, stateFiles?: Record<string, string>, tunnel?: {cloudflared: string, enabled?: boolean}}} options @returns {Promise<E2EServer>} */
+/** @param {{noGit?: boolean, token?: string, onboarding?: boolean, stateFiles?: Record<string, string>, tunnel?: {cloudflared: string, enabled?: boolean}}} options @returns {Promise<E2EServer & {setupCode?: string, setupURL?: string}>} */
 export async function startE2EServer({
   noGit = false,
   token = "",
+  onboarding = false,
   tunnel,
   stateFiles,
 } = {}) {
@@ -133,11 +134,14 @@ export async function startE2EServer({
     );
     async function launchBackend(listen) {
       const outputStart = backendOutput.length;
-      backend = spawn(
-        binary,
-        ["--config", config, ...(listen ? ["--listen", listen] : [])],
-        { cwd: workDir, stdio: ["ignore", "pipe", "pipe"], env },
-      );
+      const extraArgs = [];
+      if (!token && !onboarding) extraArgs.push("--insecure-no-auth");
+      if (listen) extraArgs.push("--listen", listen);
+      backend = spawn(binary, ["--config", config, ...extraArgs], {
+        cwd: workDir,
+        stdio: ["ignore", "pipe", "pipe"],
+        env,
+      });
       backend.stdout.on("data", (chunk) => (backendOutput += chunk));
       backend.stderr.on("data", (chunk) => (backendOutput += chunk));
       let spawnError;
@@ -156,6 +160,21 @@ export async function startE2EServer({
           throw new Error("Timed out waiting for Go backend address");
         await delay(50);
       }
+      if (onboarding) {
+        const setupDeadline = Date.now() + 10_000;
+        while (
+          !backendOutput.slice(outputStart).includes("Setup code:") &&
+          Date.now() < setupDeadline
+        ) {
+          await delay(50);
+        }
+        const statusResp = await fetch(`http://${address}/api/auth/status`, {
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!statusResp.ok)
+          throw new Error(`Backend auth status returned ${statusResp.status}`);
+        return address;
+      }
       const health = await fetch(`http://${address}/api/health`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         signal: AbortSignal.timeout(10_000),
@@ -165,8 +184,11 @@ export async function startE2EServer({
       return address;
     }
     const address = await launchBackend();
+    const port = address.split(":")[1];
     const apiURL = `http://${address}`;
-    const baseURL = apiURL;
+    const baseURL = onboarding ? `http://localhost:${port}` : apiURL;
+    const setupCode = backendOutput.match(/Setup code:\s+(\S+)/)?.[1];
+    const setupURL = backendOutput.match(/WebMux setup:\s+(\S+)/)?.[1];
     return {
       baseURL,
       apiURL,
@@ -174,6 +196,8 @@ export async function startE2EServer({
       stateDir,
       config,
       env,
+      setupCode,
+      setupURL,
       logs,
       async restart() {
         await stopChild(backend);

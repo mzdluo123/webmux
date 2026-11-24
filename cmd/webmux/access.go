@@ -27,6 +27,20 @@ func localOrigin(addr net.Addr) string {
 	return "http://" + net.JoinHostPort(host, strconv.Itoa(tcp.Port))
 }
 
+// browserOrigin returns an origin suitable for WebAuthn Passkeys on the bound
+// listener: loopback and wildcard addresses use "localhost" because browsers
+// reject IP literals such as 127.0.0.1 as WebAuthn RP IDs.
+func browserOrigin(addr net.Addr) string {
+	tcp, ok := addr.(*net.TCPAddr)
+	if !ok {
+		return localOrigin(addr)
+	}
+	if tcp.IP.IsUnspecified() || tcp.IP.IsLoopback() {
+		return "http://" + net.JoinHostPort("localhost", strconv.Itoa(tcp.Port))
+	}
+	return localOrigin(addr)
+}
+
 // loopbackListen reports whether listen binds only a loopback address;
 // wildcards, interface addresses and other host names reach the network.
 func loopbackListen(listen string) bool {

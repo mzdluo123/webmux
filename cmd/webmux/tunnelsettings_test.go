@@ -210,8 +210,8 @@ func TestTunnelStartupWebPrecedenceFlagsAndShortToken(t *testing.T) {
 				if c.Tunnel.Enabled != row.wantEnabled || c.TunnelWebManaged != row.wantWeb {
 					t.Fatalf("startup flags enabled=%v web=%v", c.Tunnel.Enabled, c.TunnelWebManaged)
 				}
-				if row.token == "" && len(c.Token) != minTunnelTokenLength {
-					t.Fatal("web startup did not generate login token")
+				if row.token == "" && c.Token != "" {
+					t.Fatalf("web startup unexpectedly generated static token %q", c.Token)
 				}
 				tc := newTunnelController(tunnelControllerOptions{
 					Cfg: c.Tunnel, Store: c.TunnelSettings, Local: "http://127.0.0.1:1", Token: c.Token,
@@ -243,7 +243,7 @@ func startLoadedTunnel(t *testing.T, c serverRun) *tunnelRun {
 		}
 	})
 	eventually(t, "local listener", func() bool { return strings.Contains(r.out.String(), "WebMux local:") })
-	matches := regexp.MustCompile(`WebMux local:  (http://127\.0\.0\.1:\d+)`).FindStringSubmatch(r.out.String())
+	matches := regexp.MustCompile(`WebMux local:  (http://(?:127\.0\.0\.1|localhost):\d+)`).FindStringSubmatch(r.out.String())
 	if len(matches) != 2 {
 		t.Fatal("local listener URL absent")
 	}

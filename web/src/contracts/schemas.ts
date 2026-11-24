@@ -1,3 +1,4 @@
+export * from "./auth-schemas";
 export * from "./chat-schemas";
 export * from "./session-schemas";
 export * from "./settings-schemas";
