@@ -93,7 +93,9 @@ frps 仍有有界请求/工作队列和补充行为，不能把无预热解释�
 先登记待确认的 Login 和对应入口 socket，只有 stock 完成认证、正确注册且探测成功才对外就绪；失败/超时释放登记，迟到事件不得复用旧 ID 或重开已撤销分配。
 
 `NewWorkConn` 的插件数据没有工作连接源地址或代理名，不从其中推断业务分流；其关联依据是 frps 给出的控制会话、报文 ID 和同 scope 的 JWT。公网升级路由另以分配密钥和实时状态准入。
-节点用 Login `client_address` 与其到 frps 的受控 loopback 拨号源地址关联并跟踪控制 socket；此关联、插件改写及重连顺序必须用实际发行件证明，失败即 no-go。
+节点在授权每条公网 Upgrade 后登记分配、代际和该连接的关闭句柄；撤权先取消该代际准入，再关闭其全部管理和工作 socket。并发拨号完成时必须重新核对代际。
+节点向私有 frps 转发 Upgrade 时覆盖 `Origin`，使用仅本次连接有效的随机标识。原版 v0.72.0 的 WebSocket Login 钩子 `client_address` 返回该 Origin，不是 TCP 对端地址。
+Login 只消费节点登记且仍存活的一次性标识，将服务端 run ID 和已验证 JWT 对应到同一分配。标识不替代认证，不记录原值；连接失败、关闭和撤权均清理。两宿主真实收发与单宿主撤权是发布门禁。
 
 拒绝分别触发 stock `LoginResp.Error`、`NewProxyResp.Error`、`StartWorkConn.Error` 或 `Pong.Error`；节点关闭详细客户端错误。Ping 拒绝不等于即时终止，不能用心跳超时替代撤权。
 
