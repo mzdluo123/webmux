@@ -3,7 +3,11 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { cleanup, render } from "vitest-browser-svelte/pure";
 import ArchivedSessions from "../../src/components/sessions/ArchivedSessions.svelte";
 import type { ArchiveActions } from "../../src/domains/sessions/archived";
-import type { ResumeOutcome } from "../../src/domains/sessions/recoverable";
+import {
+  removeRecord as forgetArchivedRecord,
+  type ResumeOutcome,
+} from "../../src/domains/sessions/recoverable";
+import { APIError } from "../../src/platform/api";
 import type {
   ArchivedSession,
   SessionInfo,
@@ -636,4 +640,50 @@ test("the refresh after a rebuild waits for the questions the resume asks", asyn
   expect(onrebuilt).not.toHaveBeenCalled();
   await question.getByRole("button", { name: "取消" }).click();
   await vi.waitFor(() => expect(onrebuilt).toHaveBeenCalledExactlyOnceWith(""));
+});
+
+test("resuming a record already resumed elsewhere fetches the active session instead of failing", async () => {
+  const { archive: _archive, ...base } = record;
+  const activeSession: SessionInfo = {
+    ...base,
+    status: "idle",
+    state: "active",
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof globalThis.fetch>(async (input, init) => {
+      if (
+        String(input).endsWith("/sessions/hybrid22") &&
+        (init?.method ?? "GET") === "GET"
+      )
+        return Response.json(activeSession);
+      return Response.json({ error: "unexpected" }, { status: 500 });
+    }),
+  );
+  const onresumed = vi.fn();
+  const resume = vi.fn(async () =>
+    Promise.reject(
+      new APIError(409, "会话仍在运行", "not_archived", undefined, {
+        error: "会话仍在运行",
+        reason: "not_archived",
+      }),
+    ),
+  );
+  show([record], resume, { onresumed });
+  await expand();
+  await page.getByRole("button", { name: "恢复", exact: true }).click();
+  await vi.waitFor(() =>
+    expect(onresumed).toHaveBeenCalledExactlyOnceWith(activeSession),
+  );
+  expect(page.getByRole("alert").elements()).toEqual([]);
+});
+
+test("removeRecord treats 404 as already deleted", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ error: "session not found" }, { status: 404 }),
+    ),
+  );
+  await expect(forgetArchivedRecord("hybrid22")).resolves.toBeUndefined();
 });

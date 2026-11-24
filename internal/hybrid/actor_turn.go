@@ -239,6 +239,9 @@ func (a *actor) turnEnded(t *turn, resp acp.PromptResponse, err error) {
 	}
 	a.dirty = true
 	a.emit(Event{Kind: EventTurnEnd, TurnEnd: &TurnEnd{TurnID: t.id, StopReason: stop, Error: text, Unfinished: unfinished}})
+	if a.isClosing() || a.stopped {
+		return
+	}
 	now := time.Now().UTC()
 	switch stop {
 	case acp.StopEndTurn:
@@ -362,7 +365,7 @@ func (a *actor) Close() error {
 // (D23). During a switch the switch notices it instead.
 func (a *actor) RunExited(code int) {
 	a.post(func() {
-		if a.closing || a.stopped || a.side != SideTUI || a.state != StateActive || a.switching != nil {
+		if a.isClosing() || a.stopped || a.side != SideTUI || a.state != StateActive || a.switching != nil {
 			return
 		}
 		a.svc.log.Info("hybrid terminal exited", "id", a.id, "exitCode", code)
@@ -381,10 +384,14 @@ func (a *actor) beginClose() {
 	}
 	if a.starting || a.opening {
 		a.closeAfterStart = true
+		a.dirty = true
 		return
 	}
 	a.closing = true
+	a.dirty = true
 	a.stopTimers()
+	a.stopBackgroundWatch()
+	a.clearAttention()
 	a.withdrawAll()
 	var turnDone chan struct{}
 	if a.turn != nil {

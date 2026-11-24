@@ -276,9 +276,11 @@
         t.exitCode === null &&
         !!t.info?.views.includes("chat") &&
         t.info.state === "active"}
+      {@const closeDisabled =
+        !t.info || (t.exitCode === null && t.info.state !== "active")}
       <DropdownMenu.Item
         variant={archivable ? "default" : "destructive"}
-        disabled={!t.info}
+        disabled={closeDisabled}
         onSelect={close}
         >{t.exitCode !== null
           ? m.s4_remove_session()

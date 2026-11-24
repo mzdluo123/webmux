@@ -95,7 +95,7 @@ func (a *actor) retire() (struct{}, error) {
 		return struct{}{}, nil
 	case a.switching != nil:
 		return struct{}{}, ErrSwitching
-	case a.state == StateActive || a.closing || a.starting || a.opening:
+	case a.state == StateActive || a.isClosing() || a.starting || a.opening:
 		return struct{}{}, fmt.Errorf("%w: 会话仍在运行或正在关闭", ErrConflict)
 	}
 	a.stopTimers()

@@ -96,3 +96,117 @@ test("an ordinary session keeps the close wording", async () => {
   await vi.waitFor(() => expect(onclose).toHaveBeenCalledOnce());
   expect(onarchived).not.toHaveBeenCalled();
 });
+
+test("archiving still fires onarchived when session prop flips to closed mid-request", async () => {
+  let resolveDelete!: (response: Response) => void;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof globalThis.fetch>(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveDelete = resolve;
+        }),
+    ),
+  );
+  const onarchived = vi.fn();
+  const onclose = vi.fn();
+  const view = await render(CloseSessionDialog, {
+    session: hybrid,
+    onclose,
+    onarchived,
+  });
+  await page.getByRole("button", { name: "停止并归档", exact: true }).click();
+  // Simulate live state update arriving before DELETE resolves.
+  await view.rerender({
+    session: { ...hybrid, state: "closed" },
+    onclose,
+    onarchived,
+  });
+  resolveDelete(new Response(null, { status: 204 }));
+  await vi.waitFor(() => expect(onclose).toHaveBeenCalledOnce());
+  expect(onarchived).toHaveBeenCalledWith(hybrid);
+});
+
+test("archiving a session already archived elsewhere treats 404 + archived record as success", async () => {
+  const target: SessionInfo = { ...hybrid, id: "hybrid22" };
+  const archivedRecord = {
+    ...target,
+    generation: "",
+    status: "exited",
+    state: "closed",
+    cols: 0,
+    rows: 0,
+    clients: 0,
+    archive: {
+      configMissing: false,
+      previousAgentSessionIds: [],
+      queuedCount: 0,
+      interruptedAt: null,
+      updatedAt: "2026-10-28T00:00:00Z",
+    },
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof globalThis.fetch>(async (input, init) => {
+      const method = init?.method ?? "GET";
+      if (method === "DELETE")
+        return Response.json({ error: "session not found" }, { status: 404 });
+      if (String(input).endsWith("/sessions/hybrid22") && method === "GET")
+        return Response.json(archivedRecord);
+      return Response.json({ error: "unexpected" }, { status: 500 });
+    }),
+  );
+  const onarchived = vi.fn();
+  const onclose = vi.fn();
+  render(CloseSessionDialog, { session: target, onclose, onarchived });
+  await page.getByRole("button", { name: "停止并归档", exact: true }).click();
+  await vi.waitFor(() => expect(onclose).toHaveBeenCalledOnce());
+  expect(onarchived).toHaveBeenCalledWith(target);
+});
+
+test("closing a plain session ignores 404 during exit removal polling", async () => {
+  let calls = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof globalThis.fetch>(async () => {
+      calls++;
+      if (calls === 1) return new Response(null, { status: 204 });
+      return Response.json({ error: "session not found" }, { status: 404 });
+    }),
+  );
+  const onremoved = vi.fn();
+  const onclose = vi.fn();
+  render(CloseSessionDialog, { session: shell, onclose, onremoved });
+  await page.getByRole("button", { name: "确认关闭" }).click();
+  await vi.waitFor(() => expect(onclose).toHaveBeenCalledOnce());
+  expect(onremoved).toHaveBeenCalledOnce();
+});
+
+test("archiving a hybrid session that was already deleted treats 404 + missing record as removed", async () => {
+  const target: SessionInfo = {
+    ...shell,
+    id: "hybrid23",
+    title: "已删除对话",
+    views: ["terminal", "chat"],
+    view: "chat",
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ error: "session not found" }, { status: 404 }),
+    ),
+  );
+  const onarchived = vi.fn();
+  const onremoved = vi.fn();
+  const onclose = vi.fn();
+  render(CloseSessionDialog, {
+    session: target,
+    onclose,
+    onarchived,
+    onremoved,
+  });
+  await page.getByRole("button", { name: "停止并归档", exact: true }).click();
+  await vi.waitFor(() => expect(onclose).toHaveBeenCalledOnce());
+  expect(onremoved).toHaveBeenCalledOnce();
+  expect(onarchived).not.toHaveBeenCalled();
+});

@@ -9,13 +9,14 @@ import {
   buildHybridNotices,
   deriveHybridHeaderInfo,
   eligibilityText,
+  hybridEndKey,
+  resolveHybridView,
+  resolveSwitchProgressPhase,
   switchConfirmations,
   switchSteps,
   switchTarget,
   type HybridAmbiguous,
   type HybridConfirm,
-  type HybridView,
-  type SwitchProgressPhase,
   type SwitchTarget,
 } from "../../domains/sessions/hybrid";
 export type { HybridNotice, HybridView } from "../../domains/sessions/hybrid";
@@ -115,13 +116,18 @@ export function useHybrid(
   const moving = $derived(
     !!phase || (!!requesting && where !== requesting) || arriving,
   );
-  const view = $derived.by<HybridView>(() => {
-    if (!known) return "terminal";
-    if (terminal.connection === "missing" && !state)
-      return record ? "recovery" : "terminal";
-    if (moving || lingering) return "switching";
-    return where === "terminal" ? "terminal" : "chat";
-  });
+  const view = $derived(
+    resolveHybridView({
+      known,
+      terminalConnection: terminal.connection,
+      chatConnection: chat.connection,
+      hasChatState: !!state,
+      hasRecord: !!record,
+      moving,
+      lingering,
+      where,
+    }),
+  );
   const target = $derived(
     view === "switching"
       ? (requesting ??
@@ -143,15 +149,18 @@ export function useHybrid(
       terminal.drawn === run
     );
   });
-  const ended = $derived(
-    terminal.connection === "missing" ||
-      chat.connection === "missing" ||
-      chat.connection === "exited" ||
-      (current?.state ?? "active") !== "active" ||
-      !!state?.recovery,
+  const endKey = $derived(
+    hybridEndKey({
+      terminalConnection: terminal.connection,
+      chatConnection: chat.connection,
+      state: current?.state,
+      hasRecovery: !!state?.recovery,
+    }),
   );
+  const ended = $derived(endKey !== undefined);
   const info = $derived(
-    deriveHybridHeaderInfo(where, fromServer, current, terminal.info, state),
+    record ??
+      deriveHybridHeaderInfo(where, fromServer, current, terminal.info, state),
   );
   // While the stream is not attached, the session's view, transition and
   // header are read from the server on every change the chat channel or the
@@ -159,7 +168,12 @@ export function useHybrid(
   // name precedence still applies.
   const readKey = $derived.by(() => {
     if (!known || terminal.connection === "connected") return undefined;
-    return [state, chat.model.title, terminal.connection] as const;
+    return [
+      state,
+      chat.model.title,
+      terminal.connection,
+      chat.connection,
+    ] as const;
   });
 
   $effect(() => {
@@ -307,7 +321,7 @@ export function useHybrid(
     recordController?.abort();
   });
   $effect(() => {
-    if (!available() || !ended) return;
+    if (!available() || !endKey) return;
     untrack(refreshRecord);
     return () => {
       ++recordEpoch;
@@ -351,13 +365,9 @@ export function useHybrid(
     }
   }
 
-  const progressPhase = $derived.by<SwitchProgressPhase | undefined>(() => {
-    if (view !== "switching") return undefined;
-    if (phase) return phase;
-    if (where === "terminal" && target === "terminal") return "arriving";
-    if (where === "chat" && target === "chat") return "loading";
-    return "requested";
-  });
+  const progressPhase = $derived(
+    resolveSwitchProgressPhase({ view, phase, where, target }),
+  );
   const steps = $derived(
     progressPhase ? switchSteps(target, progressPhase) : [],
   );
@@ -421,6 +431,9 @@ export function useHybrid(
     },
     get missing() {
       return lookup === "absent";
+    },
+    get checkingRecord() {
+      return available() && ended && lookup === "none";
     },
     get connector() {
       return connector;

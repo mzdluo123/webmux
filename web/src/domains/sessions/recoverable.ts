@@ -115,8 +115,13 @@ export async function resumeSession(
 }
 
 /** Deletes an archived session's record and its temporary folder. */
-export function removeRecord(id: string) {
-  return api(`/sessions/${id}?forget=1`, NoContentSchema, "DELETE");
+export async function removeRecord(id: string) {
+  try {
+    await api(`/sessions/${id}?forget=1`, NoContentSchema, "DELETE");
+  } catch (err) {
+    if (err instanceof APIError && err.status === 404) return;
+    throw err;
+  }
 }
 
 function worktreeRoute(worktree: Worktree) {

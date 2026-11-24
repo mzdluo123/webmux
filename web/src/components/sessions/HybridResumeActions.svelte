@@ -8,18 +8,22 @@
   import ConnectorInstallHint from "./ConnectorInstallHint.svelte";
   import HybridCandidatePicker from "./HybridCandidatePicker.svelte";
   import RebuildWorktreeDialog from "../workspace/RebuildWorktreeDialog.svelte";
+  import { api, APIError } from "../../platform/api";
   import { errorMessage } from "../../platform/error";
+  import { findShell } from "../../hooks/shared/shell.svelte";
   import { resumesOnOpen } from "../../domains/sessions/archived";
+  import { sessionConflict } from "../../domains/sessions/session-conflict";
   import type {
     ResumeChoice,
     ResumeOutcome,
   } from "../../domains/sessions/recoverable";
-  import type {
-    AgentCandidate,
-    AgentConnector,
-    ArchivedSession,
-    SessionInfo,
-    SessionView,
+  import {
+    SessionInfoSchema,
+    type AgentCandidate,
+    type AgentConnector,
+    type ArchivedSession,
+    type SessionInfo,
+    type SessionView,
   } from "../../contracts/schemas";
 
   // Resume on the recorded view, after any required worktree, agent session,
@@ -70,6 +74,7 @@
   let pendingOpen = $state(false);
   let picked = $state("");
 
+  const shell = findShell();
   // Resumes in flight; the refresh after a rebuild waits for them.
   let running = 0;
   // The side whose resume is in flight, for its button's spinner.
@@ -100,6 +105,24 @@
       picked = pending.candidates[0]?.agentSessionId ?? "";
       pendingOpen = true;
     } catch (err) {
+      if (sessionConflict(err)?.reason === "not_archived") {
+        void shell?.archived?.refresh();
+        try {
+          const live = await api(
+            `/sessions/${record.id}`,
+            SessionInfoSchema,
+            "GET",
+          );
+          if (live.state === "active") {
+            onresumed(live);
+            return;
+          }
+        } catch {
+          // Fall through to report the conflict error.
+        }
+      } else if (err instanceof APIError && err.status === 404) {
+        void shell?.archived?.refresh();
+      }
       const message = m.s3_resume_failed({
         title: record.title,
         error: errorMessage(err),

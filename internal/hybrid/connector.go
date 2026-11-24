@@ -254,7 +254,7 @@ func (a *actor) connectorReason() string {
 
 // checkConnector looks for the connector in a subtask.
 func (a *actor) checkConnector() {
-	if a.connector.running || a.closing || a.stopped {
+	if a.connector.running || a.isClosing() || a.stopped {
 		return
 	}
 	a.connector.running = true
@@ -271,7 +271,7 @@ func (a *actor) checkConnector() {
 // list probe find out.
 func (a *actor) connectorChecked(err error) {
 	a.connector.running = false
-	if errors.Is(err, context.Canceled) {
+	if a.isClosing() || a.stopped || errors.Is(err, context.Canceled) {
 		return
 	}
 	a.setConnector(err)
@@ -281,7 +281,7 @@ func (a *actor) connectorChecked(err error) {
 // setConnector applies what an ACP start or check found out about the
 // connector.
 func (a *actor) setConnector(err error) {
-	if a.cmd.Profile.Connector == nil {
+	if a.cmd.Profile.Connector == nil || a.isClosing() || a.stopped {
 		return
 	}
 	if !errors.Is(err, ErrConnectorMissing) {

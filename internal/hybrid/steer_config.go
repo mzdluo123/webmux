@@ -67,7 +67,7 @@ func (a *actor) steer(text string, attachments []Attachment) (agentCall, error) 
 			return fmt.Errorf("%w: agent 未能插话", ErrAgentCall)
 		}
 		_, err = call(ctx, a, func() (struct{}, error) {
-			if a.epoch != epoch || a.stopped {
+			if a.epoch != epoch || a.stopped || a.isClosing() {
 				return struct{}{}, nil
 			}
 			switch resp.Outcome {

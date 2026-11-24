@@ -36,7 +36,7 @@ func (a *actor) linkLost(link *acpLink) {
 	if a.turn != nil {
 		a.turnEnded(a.turn, acp.PromptResponse{}, acp.ErrDisconnected)
 	}
-	if a.state != StateActive || a.closing {
+	if a.state != StateActive || a.isClosing() {
 		a.subtask(func() { _ = link.stop() })
 		return
 	}
@@ -82,6 +82,10 @@ func (a *actor) reopened(res openResult, oldGone bool) {
 	a.opening = false
 	a.dirty = true
 	if res.fail != nil {
+		if a.closeAfterStart {
+			a.afterTransition()
+			return
+		}
 		a.emit(Event{Kind: EventNotice, Notice: &Notice{Level: acp.NoticeError, Text: res.fail.public}})
 		a.noteConnector(res.fail.err)
 		a.interrupt("idle", oldGone)
@@ -94,6 +98,10 @@ func (a *actor) reopened(res openResult, oldGone bool) {
 	process := processIdentity(pid)
 	a.record(true, func(r *Record) { r.PID, r.Process = pid, process })
 	a.svc.log.Info("hybrid acp reopened", "id", a.id, "resumed", res.resumed)
+	if a.closeAfterStart {
+		a.afterTransition()
+		return
+	}
 	a.checkLink()
 	a.drain()
 	a.afterTransition()

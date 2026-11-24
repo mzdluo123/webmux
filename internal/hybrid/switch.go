@@ -121,7 +121,7 @@ func (s *Service) Switch(ctx context.Context, id string, in SwitchInput) (Switch
 func (a *actor) beginSwitch(to Side, pick string) (<-chan switchOutcome, error) {
 
 	switch {
-	case a.state != StateActive || a.closing:
+	case a.state != StateActive || a.isClosing():
 		return nil, fmt.Errorf("%w: 会话已结束", ErrConflict)
 	case a.switching != nil:
 		return nil, ErrSwitching

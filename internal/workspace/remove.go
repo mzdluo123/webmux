@@ -309,6 +309,7 @@ func (s *Service) executeLockedRemoval(ctx context.Context, r *repositoryState, 
 		return err
 	}
 	closed := make(map[string]bool)
+	closedHybridSet := make(map[string]bool)
 	if mode == "force" {
 		active := make([]*session.Session, 0, len(current.sessions))
 		for _, info := range current.sessions {
@@ -319,12 +320,17 @@ func (s *Service) executeLockedRemoval(ctx context.Context, r *repositoryState, 
 			if err != nil {
 				return problemf(ErrConflict, "会话集合已变化，请重新预览")
 			}
+			if s.hybrids != nil && (s.hybrids.Metadata(info.ID) != nil || s.hybrids.HasChatView(info.ID)) {
+				closedHybridSet[info.ID] = true
+			}
 			active = append(active, item)
 		}
 		// Manager.Close hands a hybrid shell to its driver, which records the
 		// close and removes the shell; Done closes either way.
 		for _, item := range active {
-			_ = s.manager.Close(item.Info().ID)
+			if err := s.manager.Close(item.Info().ID); err != nil && !errors.Is(err, session.ErrNotFound) {
+				return problemf(ErrConflict, "无法关闭会话，工作树未删除: %v", err)
+			}
 		}
 		for _, item := range active {
 			select {
@@ -375,7 +381,7 @@ func (s *Service) executeLockedRemoval(ctx context.Context, r *repositoryState, 
 	// removal closed, stay restorable.
 	var closedHybrids []string
 	for _, info := range current.sessions {
-		if closed[info.ID] && s.hybrids != nil && s.hybrids.Metadata(info.ID) != nil {
+		if closed[info.ID] && s.hybrids != nil && (closedHybridSet[info.ID] || s.hybrids.HasChatView(info.ID)) {
 			closedHybrids = append(closedHybrids, info.ID)
 		}
 	}

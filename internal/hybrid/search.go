@@ -62,7 +62,7 @@ type searchChunk struct {
 func (l *chatLog) snapshotMessageChunks() []searchChunk {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.state.Side != SideACP || l.ended || len(l.events) == 0 {
+	if l.state.Side != SideACP || l.state.Recovery != nil || l.ended || len(l.events) == 0 {
 		return nil
 	}
 	chunks := make([]searchChunk, 0, len(l.events))

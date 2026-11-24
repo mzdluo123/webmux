@@ -4,6 +4,9 @@ import {
   connectorNoticeText,
   eligibilityText,
   chatSupportReason,
+  hybridEndKey,
+  resolveHybridView,
+  resolveSwitchProgressPhase,
   sessionPageLabel,
   sessionViewLabel,
   outdatedText,
@@ -171,5 +174,87 @@ describe("switch progress", () => {
     expect(switchSteps(null, "stopping")).toEqual([
       { label: "退出中", state: "current" },
     ]);
+  });
+});
+
+describe("hybrid view and end-signal resolution", () => {
+  test("moved terminal with ended chat and no chat snapshot enters recovery", () => {
+    expect(
+      resolveHybridView({
+        known: true,
+        terminalConnection: "moved",
+        chatConnection: "missing",
+        hasChatState: false,
+        hasRecord: true,
+        moving: false,
+        lingering: false,
+        where: "chat",
+      }),
+    ).toBe("recovery");
+    expect(
+      resolveHybridView({
+        known: true,
+        terminalConnection: "moved",
+        chatConnection: "exited",
+        hasChatState: false,
+        hasRecord: true,
+        moving: false,
+        lingering: false,
+        where: "chat",
+      }),
+    ).toBe("recovery");
+  });
+
+  test("endKey changes when close transitions from recovery tip to chat exit", () => {
+    const closing = hybridEndKey({
+      terminalConnection: "moved",
+      chatConnection: "connected",
+      state: "active",
+      hasRecovery: true,
+    });
+    const closed = hybridEndKey({
+      terminalConnection: "moved",
+      chatConnection: "exited",
+      state: "active",
+      hasRecovery: true,
+    });
+    expect(closing).toBeDefined();
+    expect(closed).toBeDefined();
+    expect(closed).not.toBe(closing);
+    expect(
+      hybridEndKey({
+        terminalConnection: "moved",
+        chatConnection: "connected",
+        state: "active",
+        hasRecovery: false,
+      }),
+    ).toBeUndefined();
+  });
+
+  test("switch progress phase resolves arriving, loading and requested states", () => {
+    expect(
+      resolveSwitchProgressPhase({
+        view: "switching",
+        phase: undefined,
+        where: "terminal",
+        target: "terminal",
+      }),
+    ).toBe("arriving");
+    expect(
+      resolveSwitchProgressPhase({
+        view: "switching",
+        phase: undefined,
+        where: "chat",
+        target: "chat",
+      }),
+    ).toBe("loading");
+    expect(
+      resolveSwitchProgressPhase({
+        view: "chat",
+        phase: undefined,
+        where: "chat",
+        target: null,
+      }),
+    ).toBeUndefined();
   });
 });

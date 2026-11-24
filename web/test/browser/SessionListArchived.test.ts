@@ -396,3 +396,18 @@ test("returning home after archiving leaves the archived section collapsed", asy
   await expect.element(region.getByText("修复排序")).not.toBeVisible();
   expect(page.getByText("刚归档").elements()).toEqual([]);
 });
+
+test("canonical removed event after the live row left refreshes archived records", async () => {
+  records = [];
+  render(ShellHarness, { drafts: createTerminalDrafts() });
+  const socket = await connected();
+  socket.message({ type: "snapshot", sessions: [active], forwards: [] });
+  // beginClose hides the live row before finishClose commits the closed record.
+  socket.message({ type: "removed", id: "hybrid33" });
+  const region = page.getByRole("region", { name: "会话历史 的已归档会话" });
+  await expect.element(region).not.toBeInTheDocument();
+  // finishClose commits the durable closed record and publishes NotifyRemoved.
+  records = [{ ...record, id: "hybrid33", title: "进行中" }];
+  socket.message({ type: "removed", id: "hybrid33" });
+  await expect.element(region).toMatchTextContent(/已归档\s*1/);
+});
