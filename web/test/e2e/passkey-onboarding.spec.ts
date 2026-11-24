@@ -78,12 +78,17 @@ test.describe("Passkey onboarding and login", () => {
     await expect(
       page.getByText(/手机与远程访问|Connect from your phone/),
     ).toBeVisible();
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await page
       .getByRole("button", { name: /进入 WebMux|Enter WebMux/ })
       .click();
 
-    // Workspace is now accessible without any hardcoded config.toml token.
+    // Workspace is now accessible without any hardcoded config.toml token, and
+    // the onboarding enter transition finishes cleanly without leaving state behind.
     await expect(page.getByRole("textbox", { name: "任务描述" })).toBeVisible();
+    await expect(page.locator("html")).not.toHaveAttribute(
+      "data-onboarding-transition",
+    );
 
     // 4. Open Settings -> Security & Login, verify passkey & session appear, then sign out.
     await page.goto(`${server.baseURL}/settings`);

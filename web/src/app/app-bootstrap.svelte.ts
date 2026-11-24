@@ -25,6 +25,7 @@ import {
 import { clearHomeCache } from "../domains/workspace/home-cache";
 import { clearSessionListSnapshot } from "../hooks/sessions/session-list.svelte";
 import { prepareHostAuthentication } from "../hooks/shared/host-authentication";
+import { runOnboardingEnterTransition } from "../hooks/shared/onboarding-enter-transition";
 import { useRelayAuthRecovery } from "../hooks/shared/relay-auth-recovery.svelte";
 import type { Route } from "../hooks/shared/route";
 import {
@@ -84,6 +85,7 @@ export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
   let discoveryFailureCause = $state("");
 
   let submittedToken = false;
+  let pendingOnboardingTransition = false;
   let bootstrapEpoch = 0;
   let bootstrapAbort: AbortController | undefined;
 
@@ -206,16 +208,26 @@ export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
         callbacks.onPathNormalized();
       }
       if (epoch !== bootstrapEpoch) return;
+      const animateOnboardingEnter = pendingOnboardingTransition;
+      pendingOnboardingTransition = false;
+      const commitReady = () => {
+        ready = true;
+        gate = "probing";
+        optimisticBoot = true;
+        authFailed = false;
+        submittedToken = false;
+        error = "";
+      };
       store(BOOT_CONNECTED_KEY, "1");
       startSettings();
-      ready = true;
-      gate = "probing";
-      optimisticBoot = true;
-      authFailed = false;
-      submittedToken = false;
-      error = "";
+      if (animateOnboardingEnter) {
+        await runOnboardingEnterTransition(commitReady);
+      } else {
+        commitReady();
+      }
     } catch (err) {
       if (epoch === bootstrapEpoch) {
+        pendingOnboardingTransition = false;
         optimisticBoot = false;
         if (err instanceof APIError && err.status === 401) {
           store(BOOT_CONNECTED_KEY, null);
@@ -294,6 +306,7 @@ export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
         clearRelayAuth();
       }
       const wasReady = ready;
+      pendingOnboardingTransition = false;
       bootstrapEpoch++;
       bootstrapAbort?.abort();
       featureRefresh.cancel();
@@ -449,10 +462,11 @@ export function createAppBootstrap(callbacks: AppBootstrapCallbacks) {
         checking = false;
       }
     },
-    completeOnboarding() {
+    async completeOnboarding() {
+      pendingOnboardingTransition = gate === "onboarding";
       token = stored("token");
       navigate("/");
-      void check(true);
+      await check(true);
     },
     openPairPage() {
       error = "";

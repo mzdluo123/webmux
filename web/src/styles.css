@@ -123,6 +123,111 @@
   }
 }
 
+:root[data-onboarding-transition]::view-transition {
+  pointer-events: none;
+}
+:root[data-onboarding-transition]::view-transition-group(root),
+:root[data-onboarding-transition]::view-transition-old(root),
+:root[data-onboarding-transition]::view-transition-new(root),
+:root[data-onboarding-transition]::view-transition-old(onboarding-brand),
+:root[data-onboarding-transition]::view-transition-new(onboarding-brand) {
+  mix-blend-mode: normal;
+}
+:root[data-onboarding-transition]::view-transition-group(root) {
+  z-index: 0;
+}
+:root[data-onboarding-transition]::view-transition-group(onboarding-main) {
+  z-index: 1;
+}
+:root[data-onboarding-transition]::view-transition-group(onboarding-sidebar) {
+  z-index: 2;
+}
+:root[data-onboarding-transition]::view-transition-group(onboarding-card) {
+  z-index: 3;
+}
+:root[data-onboarding-transition]::view-transition-group(onboarding-brand) {
+  z-index: 4;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-onboarding-transition]::view-transition-old(root) {
+    animation: onboarding-fade-out 200ms ease-out both;
+  }
+  :root[data-onboarding-transition]::view-transition-new(root) {
+    animation: onboarding-fade-in 240ms ease-out both;
+  }
+  :root[data-onboarding-transition]::view-transition-old(onboarding-card) {
+    animation: onboarding-card-out 280ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+  :root[data-onboarding-transition]::view-transition-group(onboarding-brand) {
+    animation-duration: 480ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  :root[data-onboarding-transition]::view-transition-old(onboarding-brand) {
+    animation: onboarding-fade-out 120ms ease-out both;
+  }
+  :root[data-onboarding-transition]::view-transition-new(onboarding-brand) {
+    animation: none;
+  }
+  :root[data-onboarding-transition]::view-transition-old(onboarding-brand):only-child {
+    animation: onboarding-card-out 280ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+  :root[data-onboarding-transition]::view-transition-new(onboarding-sidebar) {
+    animation: onboarding-sidebar-in 440ms cubic-bezier(0.16, 1, 0.3, 1) 40ms
+      both;
+  }
+  :root[data-onboarding-transition]::view-transition-new(onboarding-main) {
+    animation: onboarding-main-in 480ms cubic-bezier(0.16, 1, 0.3, 1) 90ms both;
+  }
+}
+@keyframes onboarding-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes onboarding-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes onboarding-card-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.955);
+    filter: blur(4px);
+  }
+}
+@keyframes onboarding-sidebar-in {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes onboarding-main-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .font-mono,
 .xterm {
   font-variant-ligatures: none;
