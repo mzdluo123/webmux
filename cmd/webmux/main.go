@@ -9,8 +9,10 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -22,6 +24,7 @@ import (
 	"github.com/rainchan/webmux/internal/agentprofile"
 	"github.com/rainchan/webmux/internal/agentprofile/agents"
 	"github.com/rainchan/webmux/internal/api"
+	"github.com/rainchan/webmux/internal/auth"
 	"github.com/rainchan/webmux/internal/clicmd"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/perf"
@@ -150,7 +153,25 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 		}
 	}
 	preferences := settings.Open(c.StateDir)
-	features := &featureServices{agents: registry}
+	hostname, _ := os.Hostname()
+	rpName := "WebMux"
+	if hostname != "" {
+		rpName = "WebMux (" + hostname + ")"
+	}
+	userName := "webmux"
+	if currentUser, uErr := user.Current(); uErr == nil && currentUser.Username != "" {
+		userName = currentUser.Username
+		if hostname != "" {
+			userName += "@" + hostname
+		}
+	}
+	authSvc := auth.Open(c.StateDir, auth.Options{
+		Disabled:      c.InsecureNoAuth,
+		LegacyToken:   c.Token,
+		RPDisplayName: rpName,
+		UserName:      userName,
+	})
+	features := &featureServices{agents: registry, authReady: authSvc.Ready}
 	var server *http.Server
 	var rt *localRuntime
 	defer func() {
@@ -171,6 +192,7 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 			rt.close(shutdown)
 		}
 		features.release()
+		authSvc.Close()
 		preferences.Close()
 	}()
 	public := &transport.PublicOrigins{}
@@ -198,9 +220,10 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 		features.p2pControl.relayAuth = relayControl.auth
 	}
 	deps := features.bind(c.Config, m, preferences, public, guide, localOrigin(listener.Addr()))
+	deps.Auth = authSvc
 	deps.DefaultShell = agentprofile.DefaultShell(os.Getenv("SHELL"))
 	deps.InstalledVersion = update.NewInstalledVersion(version).Pending
-	deps.LocalURL = localOrigin(listener.Addr())
+	deps.LocalURL = browserOrigin(listener.Addr())
 	deps.Guide = guide
 	deps.Launcher = runtime.Launcher(os.Getenv)
 	deps.Relay = &api.Relay{Control: relayControl, Auth: relayControl.auth}
@@ -244,7 +267,18 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	slog.Info("webmux listening", "address", listener.Addr(), "version", version)
 	printConfigNotice(out, c)
 	local := localOrigin(listener.Addr())
-	_, _ = fmt.Fprintln(out, "WebMux local:  "+local)
+	browser := browserOrigin(listener.Addr())
+	_, _ = fmt.Fprintln(out, "WebMux local:  "+browser)
+	if c.InsecureNoAuth {
+		slog.Warn("authentication disabled via --insecure-no-auth (loopback only)")
+	} else if authSvc.State() == auth.StateNeedsOnboarding {
+		if grant, setupErr := authSvc.SetupInfo(); setupErr == nil {
+			_, _ = fmt.Fprintln(out, "WebMux setup:  "+browser+"/onboarding#setup="+url.QueryEscape(grant.Code))
+			_, _ = fmt.Fprintln(out, "Setup code:    "+grant.DisplayCode)
+		}
+	} else if authSvc.State() == auth.StateStorageError {
+		slog.Error("auth storage unavailable (fail-closed); run 'webmux auth status' or 'webmux auth reset'", "error", authSvc.StorageError())
+	}
 	if features.tunnel != nil && features.tunnel.Settings().Enabled {
 		features.tunnel.startLocated(features.tunnelPath)
 	}

@@ -48,6 +48,7 @@ type tailscaleController struct {
 	lockPath       string
 	token          string
 	tokenGenerated bool
+	authReady      func() bool
 	out            io.Writer
 	logger         *slog.Logger
 	isWSL          func() bool
@@ -84,6 +85,7 @@ type tailscaleControllerOptions struct {
 	Public         *transport.PublicOrigins
 	Token          string
 	TokenGenerated bool
+	AuthReady      func() bool
 	Out            io.Writer
 	Logger         *slog.Logger
 	IsWSL          func() bool
@@ -104,7 +106,7 @@ func newTailscaleController(o tailscaleControllerOptions) *tailscaleController {
 	return &tailscaleController{
 		cfg: cfg, web: web, store: o.Store, svc: o.Service, public: o.Public, dir: o.StateDir,
 		path: filepath.Join(o.StateDir, tailscaleStateFile), lockPath: filepath.Join(o.StateDir, tailscaleLockFile),
-		token: o.Token, tokenGenerated: o.TokenGenerated, out: o.Out, logger: o.Logger,
+		token: o.Token, tokenGenerated: o.TokenGenerated, authReady: o.AuthReady, out: o.Out, logger: o.Logger,
 		isWSL: o.IsWSL, networkingMode: o.NetworkingMode,
 		state: state,
 	}
@@ -112,8 +114,8 @@ func newTailscaleController(o tailscaleControllerOptions) *tailscaleController {
 
 // enableErrorLocked reports why this process may not publish an entry.
 func (tc *tailscaleController) enableErrorLocked() error {
-	if len(tc.token) < minTunnelTokenLength {
-		return fmt.Errorf("%w: Tailscale Serve/Funnel requires a WebMux token of at least %d characters; run `webmux config init` or set a strong token, then restart WebMux", tailscalesettings.ErrEnableBlocked, minTunnelTokenLength)
+	if (tc.authReady == nil || !tc.authReady()) && len(tc.token) < minTunnelTokenLength {
+		return fmt.Errorf("%w: Tailscale Serve/Funnel requires Passkey authentication (complete onboarding first) or a legacy token of at least %d characters", tailscalesettings.ErrEnableBlocked, minTunnelTokenLength)
 	}
 	if tc.listenBlocked != "" {
 		return fmt.Errorf("%w: %s", tailscalesettings.ErrEnableBlocked, tc.listenBlocked)

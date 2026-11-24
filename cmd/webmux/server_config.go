@@ -27,7 +27,10 @@ type serverRun struct {
 	ConfigCreated bool
 	LogFile       string
 	// TokenGenerated marks a per-process token absent from the config.
-	TokenGenerated   bool
+	TokenGenerated bool
+	// InsecureNoAuth disables TCP authentication for explicit loopback-only
+	// local development and automated test suites.
+	InsecureNoAuth   bool
 	TunnelSettings   *tunnelsettings.Service
 	TunnelWebManaged bool
 	// TailscaleSettings holds the web override of [tailscale].
@@ -66,7 +69,8 @@ func parseServerRun(name string, args []string, stderr io.Writer) (serverRun, er
 	flags.SetOutput(stderr)
 	path := flags.String("config", config.DefaultPath(), "TOML configuration path")
 	listen := flags.String("listen", "", "HTTP listen address")
-	token := flags.String("token", "", "optional shared token")
+	token := flags.String("token", "", "legacy static access token (deprecated; prefer Passkey onboarding)")
+	insecureNoAuth := flags.Bool("insecure-no-auth", false, "disable TCP authentication (loopback only; for local dev/tests)")
 	tunnelFlag := flags.Bool("tunnel", false, "expose webmux through a Cloudflare Tunnel")
 	logFile := flags.String("log-file", "", "write stdout and stderr to this file, keeping the previous one as .1")
 	if err := flags.Parse(args); err != nil {
@@ -147,6 +151,17 @@ func parseServerRun(name string, args []string, stderr io.Writer) (serverRun, er
 		run.P2PSettings = p2psettings.Open(c.StateDir, c.P2P)
 		c.P2P, run.P2PWebManaged = run.P2PSettings.Effective()
 	}
+	run.InsecureNoAuth = *insecureNoAuth
+	if run.InsecureNoAuth {
+		if !loopbackListen(c.Listen) {
+			closeSettings()
+			return run, errors.New("--insecure-no-auth is only allowed on loopback listen addresses")
+		}
+		if (c.Features.Has("cloudflare") && c.Tunnel.Enabled) || (c.Features.Has("tailscale") && c.Tailscale.Enabled()) {
+			closeSettings()
+			return run, errors.New("--insecure-no-auth cannot be combined with Cloudflare Tunnel or Tailscale Serve/Funnel")
+		}
+	}
 	hadToken := c.Token != ""
 	if err = ensureStartupToken(&c, run.TunnelWebManaged, run.TailscaleWebManaged); err != nil {
 		closeSettings()
@@ -159,33 +174,32 @@ func parseServerRun(name string, args []string, stderr io.Writer) (serverRun, er
 
 var errMCPOwnerToken = errors.New("mcp.enabled requires a configured nonempty owner token")
 
-// ensureStartupToken refuses a weak token only for TOML-enabled exposure.
-// Web-managed exposure keeps local access and fails closed in its controller.
+// ensureStartupToken validates legacy token constraints when an explicit static
+// token is set. Without a static token, Passkey authentication (<state_dir>/auth.json)
+// protects network listeners without generating a hardcoded token.
 func ensureStartupToken(c *config.Config, tunnelWeb, tailscaleWeb bool) error {
 	if c.Features.Has("mcp") && c.MCP.Enabled && c.Token == "" {
 		return errMCPOwnerToken
 	}
+	if c.Token == "" {
+		return nil
+	}
 	tomlExposure := (c.Features.Has("cloudflare") && c.Tunnel.Enabled && !tunnelWeb) ||
 		(c.Features.Has("tailscale") && c.Tailscale.Enabled() && !tailscaleWeb)
-	if !tomlExposure && c.Token != "" && len(c.Token) < minTunnelTokenLength {
+	if !tomlExposure && len(c.Token) < minTunnelTokenLength {
 		return nil
 	}
 	return ensureToken(c)
 }
 
-// ensureToken keeps every network entry point authenticated: an empty token
-// is generated for this process unless the server listens only on loopback
-// without a tunnel, and a tunnel token must not be weaker than that form.
+// ensureToken enforces minimum length when an explicit static token is combined
+// with TOML-enabled public exposure.
 func ensureToken(c *config.Config) error {
 	if c.Token == "" {
-		if (c.Features.Has("cloudflare") && c.Tunnel.Enabled) || (c.Features.Has("tailscale") && c.Tailscale.Enabled()) || !loopbackListen(c.Listen) {
-			c.Token = generateToken()
-			c.SetSource("token", "generated")
-		}
 		return nil
 	}
 	if ((c.Features.Has("cloudflare") && c.Tunnel.Enabled) || (c.Features.Has("tailscale") && c.Tailscale.Enabled())) && len(c.Token) < minTunnelTokenLength {
-		return fmt.Errorf("tunnel and Tailscale Serve/Funnel require the webmux token to be at least %d characters; leave it empty to generate one, or create one with openssl rand -base64 32", minTunnelTokenLength)
+		return fmt.Errorf("tunnel and Tailscale Serve/Funnel require the webmux token to be at least %d characters; leave it empty to use Passkey auth, or create one with openssl rand -base64 32", minTunnelTokenLength)
 	}
 	return nil
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/rainchan/webmux/internal/api"
+	"github.com/rainchan/webmux/internal/auth"
 	"github.com/rainchan/webmux/internal/client"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
@@ -148,6 +149,8 @@ func configuredView(path string, c config.Config) contract.Configuration {
 		var err error
 		inspected := true
 		switch description.ID {
+		case statefile.Auth:
+			_, err = auth.Inspect(c.StateDir)
 		case statefile.Launch:
 			err = launch.Inspect(c.StateDir)
 		case statefile.ProjectClones:
@@ -277,6 +280,10 @@ func effectiveView(c serverRun, record runtime.Record, deps api.Deps, features *
 		var err error
 		var tailscaleOwnership *statefile.Handle[tailscaleState]
 		switch description.ID {
+		case statefile.Auth:
+			if deps.Auth != nil {
+				err = deps.Auth.StorageError()
+			}
 		case statefile.Launch:
 			err = features.launch.Unavailable()
 		case statefile.ProjectClones:

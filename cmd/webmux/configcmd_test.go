@@ -106,14 +106,12 @@ func TestConfigInit(t *testing.T) {
 		}
 	}
 	first, _ := os.ReadFile(path)
-	match := tokenValue.FindSubmatch(first)
-	if match == nil || len(match[1]) != 43 || strings.Contains(stdout, string(match[1])) {
-		t.Fatalf("generated token in %s", first)
+	if !bytes.Contains(first, []byte(`token = ""`)) {
+		t.Fatalf("expected empty token for Passkey onboarding in %s", first)
 	}
-	expected := tokenLine.ReplaceAllLiteralString(deploy.ConfigExample, `token = "`+string(match[1])+`"`)
-	expected = listenLine.ReplaceAllLiteralString(expected, `listen = "100.64.0.5:7681"`)
+	expected := listenLine.ReplaceAllLiteralString(deploy.ConfigExample, `listen = "100.64.0.5:7681"`)
 	if string(first) != expected {
-		t.Fatalf("template changed beyond token and listen:\n%s", first)
+		t.Fatalf("template changed beyond listen:\n%s", first)
 	}
 	if _, _, code := runConfig(t, "validate", "--config", path); code != 0 {
 		t.Fatal("generated configuration does not validate")
@@ -123,8 +121,8 @@ func TestConfigInit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Contains(first, []byte("[features]")) || c.Features.Enabled != nil || c.MCP.Enabled {
-		t.Fatalf("generated features = %v, network MCP enabled = %t", c.Features.Enabled, c.MCP.Enabled)
+	if bytes.Contains(first, []byte("[features]")) || c.Features.Enabled != nil || c.MCP.Enabled || c.Token != "" {
+		t.Fatalf("generated features = %v, network MCP enabled = %t, token = %q", c.Features.Enabled, c.MCP.Enabled, c.Token)
 	}
 
 	_, stderr, code = runConfig(t, "init", "--config", path)
@@ -134,8 +132,7 @@ func TestConfigInit(t *testing.T) {
 	stdout, _, code = runConfig(t, "init", "--config", path, "--force")
 	second, _ := os.ReadFile(path)
 	backup, _ := os.ReadFile(path + ".bak")
-	next := tokenValue.FindSubmatch(second)
-	if code != 0 || stdout != path+"\n" || !bytes.Equal(backup, first) || next == nil || bytes.Equal(next[1], match[1]) {
+	if code != 0 || stdout != path+"\n" || !bytes.Equal(backup, first) || !bytes.Contains(second, []byte(`token = ""`)) {
 		t.Fatalf("forced init %d backup=%v", code, bytes.Equal(backup, first))
 	}
 	if strings.Contains(string(second), "100.64.0.5") {
@@ -148,32 +145,35 @@ func TestConfigListen(t *testing.T) {
 	t.Setenv("HOME", dir)
 	path := filepath.Join(dir, "webmux", "config.toml")
 
-	// Creating from scratch when missing populates a token and the requested listen.
+	// Creating from scratch when missing writes the requested listen with Passkey-first empty token.
 	stdout, stderr, code := runConfig(t, "listen", "--listen", "0.0.0.0:7681", "--config", path)
 	if code != 0 || stdout != path+"\n" || stderr != "" {
 		t.Fatalf("listen create %d %q %q", code, stdout, stderr)
 	}
 	first, _ := os.ReadFile(path)
-	match := tokenValue.FindSubmatch(first)
-	if match == nil || len(match[1]) != 43 || !bytes.Contains(first, []byte(`listen = "0.0.0.0:7681"`)) {
+	if !bytes.Contains(first, []byte(`token = ""`)) || !bytes.Contains(first, []byte(`listen = "0.0.0.0:7681"`)) {
 		t.Fatalf("created config:\n%s", first)
 	}
 
-	// Updating an existing file preserves the token and comments.
-	stdout, stderr, code = runConfig(t, "listen", "127.0.0.1:7681", "--config", path)
-	if code != 0 || stdout != path+"\n" || stderr != "" {
+	// Updating an existing file with a legacy token preserves the token and comments.
+	legacyPath := filepath.Join(dir, "legacy.toml")
+	if err := os.WriteFile(legacyPath, []byte("listen = \"0.0.0.0:7681\"\ntoken = \""+tunnelTestToken+"\"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code = runConfig(t, "listen", "127.0.0.1:7681", "--config", legacyPath)
+	if code != 0 || stdout != legacyPath+"\n" || stderr != "" {
 		t.Fatalf("listen update %d %q %q", code, stdout, stderr)
 	}
-	second, _ := os.ReadFile(path)
+	second, _ := os.ReadFile(legacyPath)
 	next := tokenValue.FindSubmatch(second)
-	if next == nil || !bytes.Equal(next[1], match[1]) || !bytes.Contains(second, []byte(`listen = "127.0.0.1:7681"`)) {
+	if next == nil || string(next[1]) != tunnelTestToken || !bytes.Contains(second, []byte(`listen = "127.0.0.1:7681"`)) {
 		t.Fatalf("updated config:\n%s", second)
 	}
-	if _, err := os.Stat(path + ".bak"); !os.IsNotExist(err) {
+	if _, err := os.Stat(legacyPath + ".bak"); !os.IsNotExist(err) {
 		t.Fatal("config listen created an unexpected .bak file")
 	}
 
-	// Switching an empty-token config to non-loopback populates a persistent token.
+	// Switching an empty-token config to non-loopback keeps token empty for Passkey auth.
 	emptyTok := filepath.Join(dir, "empty-token.toml")
 	if err := os.WriteFile(emptyTok, []byte("listen = \"127.0.0.1:7681\"\ntoken = \"\"\n"), 0600); err != nil {
 		t.Fatal(err)
@@ -182,8 +182,8 @@ func TestConfigListen(t *testing.T) {
 		t.Fatalf("empty-token listen update %d %q", code, stderr)
 	}
 	updatedEmpty, _ := os.ReadFile(emptyTok)
-	if m := tokenValue.FindSubmatch(updatedEmpty); m == nil || len(m[1]) != 43 {
-		t.Fatalf("expected token to be populated:\n%s", updatedEmpty)
+	if !bytes.Contains(updatedEmpty, []byte(`token = ""`)) || !bytes.Contains(updatedEmpty, []byte(`listen = "0.0.0.0:7681"`)) {
+		t.Fatalf("unexpected empty-token update:\n%s", updatedEmpty)
 	}
 
 	// Missing root token with `[tunnel] token = ""` must not overwrite tunnel.token.
@@ -201,7 +201,7 @@ func TestConfigListen(t *testing.T) {
 	if err := loaded.Validate(); err != nil {
 		t.Fatalf("tunnel-empty config invalid after listen update: %v", err)
 	}
-	if len(loaded.Token) != 43 || loaded.Tunnel.Token != "" {
+	if loaded.Token != "" || loaded.Tunnel.Token != "" {
 		t.Fatalf("tunnel-empty tokens: root=%q tunnel=%q", loaded.Token, loaded.Tunnel.Token)
 	}
 

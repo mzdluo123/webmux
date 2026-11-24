@@ -45,6 +45,13 @@ describe("route matching", () => {
     expect(matchRoute("/settings/relay")).toEqual({ name: "settings-relay" });
   });
 
+  test("matches the onboarding and pair pages", () => {
+    expect(matchRoute("/onboarding")).toEqual({ name: "onboarding" });
+    expect(matchRoute("/pair")).toEqual({ name: "pair" });
+    expect(routeFeature(matchRoute("/onboarding"))).toBeUndefined();
+    expect(routeFeature(matchRoute("/pair"))).toBeUndefined();
+  });
+
   test("matches the forward authentication page", () => {
     expect(matchRoute("/forward-auth")).toEqual({ name: "forward-auth" });
     expect(matchRoute("/forward-auth/")).toEqual({ name: "sessions" });

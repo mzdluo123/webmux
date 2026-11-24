@@ -38,6 +38,8 @@
     provideSessionSwitcher,
   } from "./hooks/shared/session-switcher";
   import SessionList from "./pages/SessionList.svelte";
+  import OnboardingPage from "./pages/OnboardingPage.svelte";
+  import PairDevicePage from "./pages/PairDevicePage.svelte";
   import {
     matchRoute,
     routeFeature,
@@ -235,15 +237,30 @@
         {:else}
           <BootSplash />
         {/if}
+      {:else if boot.gate === "onboarding"}
+        <OnboardingPage
+          authStatus={boot.authStatus}
+          oncomplete={boot.completeOnboarding}
+        />
+      {:else if boot.gate === "pair"}
+        <PairDevicePage
+          authStatus={boot.authStatus}
+          onpaired={boot.completeOnboarding}
+          onback={boot.backToLogin}
+        />
       {:else}
         <ConnectionGate
           mode={boot.gate}
+          authStatus={boot.authStatus}
           checking={boot.checking}
           error={boot.authFailed ? m.s1_token_invalid() : boot.error}
           bind:token={boot.token}
           onconnect={boot.connectWithToken}
           onretry={boot.retryConnection}
           onusetoken={boot.switchToTokenGate}
+          onpasskeylogin={boot.signInWithPasskey}
+          onrecoverylogin={boot.signInWithRecoveryCode}
+          onopenpair={boot.openPairPage}
         />
       {/if}
     {/if}

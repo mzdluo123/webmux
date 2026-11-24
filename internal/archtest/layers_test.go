@@ -22,6 +22,7 @@ var webmux = manifest{
 		"internal/featurewire": controller,
 
 		// Business rules, state, filesystem and processes.
+		"internal/auth":              service,
 		"internal/session":           service,
 		"internal/sessioncreate":     service,
 		"internal/hybridresume":      service,

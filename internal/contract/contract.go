@@ -9,10 +9,13 @@ const V = 1
 
 // Local-only endpoints. They are served on the Unix socket and never on TCP.
 const (
-	PathStatus   = "/local/v1/status"
-	PathShutdown = "/local/v1/shutdown"
-	PathToken    = "/local/v1/token"
-	PathTunnel   = "/local/v1/tunnel"
+	PathStatus    = "/local/v1/status"
+	PathShutdown  = "/local/v1/shutdown"
+	PathToken     = "/local/v1/token"
+	PathTunnel    = "/local/v1/tunnel"
+	PathAuthSetup = "/local/v1/auth/setup"
+	PathAuthPair  = "/local/v1/auth/pair"
+	PathAuthReset = "/local/v1/auth/reset"
 )
 
 // State is the overall result of `webmux status`.
@@ -126,6 +129,9 @@ type StatusV1 struct {
 	// Tailscale is present when the running server manages Tailscale
 	// Serve/Funnel; older servers omit it.
 	Tailscale *TailscaleSummary `json:"tailscale,omitempty"`
+	// Auth describes the Passkey authentication and onboarding state; older
+	// servers omit it.
+	Auth *AuthSummary `json:"auth,omitempty"`
 }
 
 // PushStatus describes Web Push on a running server. It never carries

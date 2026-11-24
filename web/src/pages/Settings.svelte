@@ -1,5 +1,6 @@
 <script lang="ts">
   import AppearanceSettings from "../components/settings/AppearanceSettings.svelte";
+  import SecuritySettings from "../components/settings/SecuritySettings.svelte";
   import SettingsPageHeader from "../components/settings/SettingsPageHeader.svelte";
   import ShortcutsSettings from "../components/settings/ShortcutsSettings.svelte";
   import {
@@ -50,6 +51,7 @@
   );
   const sections = $derived([
     { id: "appearance", label: m.s1_settings_nav_appearance() },
+    { id: "security", label: m.settings_nav_security() },
     ...launchSections,
     { id: "drafts", label: m.s1_settings_nav_drafts() },
     { id: "shortcuts", label: m.s1_settings_nav_shortcuts() },
@@ -158,6 +160,7 @@
       </div>
       {#if pendingUpdate}<PendingUpdateNotice update={pendingUpdate} />{/if}
       <AppearanceSettings />
+      <SecuritySettings />
       {#each launchSections as section (section.id)}
         {#if section.id === "launch-configs"}
           <section.Component {defaultShell} />

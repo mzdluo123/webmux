@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
+	"time"
 
+	"github.com/rainchan/webmux/internal/auth"
 	"github.com/rainchan/webmux/internal/contract"
 	"github.com/rainchan/webmux/internal/runtime"
 	"github.com/rainchan/webmux/internal/transport"
@@ -100,6 +103,84 @@ func NewLocal(d Deps, local Local) http.Handler {
 		}
 		reply(w, http.StatusOK, contract.TokenResponse{Token: c.Token})
 	})
+	if d.Auth != nil {
+		mux.HandleFunc("POST "+contract.PathAuthSetup, func(w http.ResponseWriter, r *http.Request) {
+			if local.fromSession(r) {
+				failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot manage auth setup"))
+				return
+			}
+			var req contract.LocalAuthSetupRequest
+			if !decodeOptional(w, r, &req) {
+				return
+			}
+			var grant auth.SetupGrant
+			var err error
+			if req.Refresh {
+				grant, err = d.Auth.RefreshSetupCode()
+			} else {
+				grant, err = d.Auth.SetupInfo()
+			}
+			if err != nil {
+				authFailure(w, err)
+				return
+			}
+			setupURL := ""
+			if d.LocalURL != "" {
+				setupURL = strings.TrimRight(d.LocalURL, "/") + "/onboarding#setup=" + url.QueryEscape(grant.Code)
+			}
+			reply(w, http.StatusOK, contract.LocalAuthSetupResponse{
+				Code:        grant.Code,
+				DisplayCode: grant.DisplayCode,
+				SetupURL:    setupURL,
+				ExpiresAt:   grant.ExpiresAt.UTC().Format(time.RFC3339Nano),
+			})
+		})
+		mux.HandleFunc("POST "+contract.PathAuthPair, func(w http.ResponseWriter, r *http.Request) {
+			if local.fromSession(r) {
+				failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot create pairing codes"))
+				return
+			}
+			var req contract.PairCreateRequest
+			if !decodeOptional(w, r, &req) {
+				return
+			}
+			grant, err := d.Auth.CreatePairingCode(req.TargetURL)
+			if err != nil {
+				authFailure(w, err)
+				return
+			}
+			reply(w, http.StatusOK, pairResponse(grant))
+		})
+		mux.HandleFunc("POST "+contract.PathAuthReset, func(w http.ResponseWriter, r *http.Request) {
+			if local.fromSession(r) {
+				failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot reset auth"))
+				return
+			}
+			var req contract.LocalAuthResetRequest
+			if !decode(w, r, &req) {
+				return
+			}
+			if !req.Confirm {
+				failure(w, http.StatusBadRequest, errors.New("confirm: true is required to reset authentication"))
+				return
+			}
+			grant, err := d.Auth.Reset()
+			if err != nil {
+				authFailure(w, err)
+				return
+			}
+			setupURL := ""
+			if d.LocalURL != "" {
+				setupURL = strings.TrimRight(d.LocalURL, "/") + "/onboarding#setup=" + url.QueryEscape(grant.Code)
+			}
+			reply(w, http.StatusOK, contract.LocalAuthSetupResponse{
+				Code:        grant.Code,
+				DisplayCode: grant.DisplayCode,
+				SetupURL:    setupURL,
+				ExpiresAt:   grant.ExpiresAt.UTC().Format(time.RFC3339Nano),
+			})
+		})
+	}
 	if local.Tunnel != nil && c.Features.Has("cloudflare") {
 		mux.HandleFunc("POST "+contract.PathTunnel, func(w http.ResponseWriter, r *http.Request) {
 			if local.fromSession(r) {
@@ -135,6 +216,10 @@ func NewLocal(d Deps, local Local) http.Handler {
 		}
 		if strings.HasPrefix(r.URL.Path, "/local/") {
 			mux.ServeHTTP(w, r)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/auth/") && r.Method != http.MethodGet && local.fromSession(r) {
+			failure(w, http.StatusForbidden, errors.New("processes inside a WebMux session cannot modify authentication"))
 			return
 		}
 		if (r.URL.Path == "/api/relay" || strings.HasPrefix(r.URL.Path, "/api/relay/")) && local.fromSession(r) {

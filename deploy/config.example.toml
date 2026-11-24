@@ -1,8 +1,8 @@
 # Default listens on loopback only; use "0.0.0.0:7681" to listen on all interfaces.
 # Restrict access with a firewall/VPN when listening on non-loopback addresses.
 listen = "127.0.0.1:7681"
-# First start or `webmux config init` fills a random token here; if left empty,
-# non-loopback or tunnel listeners generate a temporary token on each start.
+# Authentication uses Passkeys managed through the browser onboarding flow
+# (<state_dir>/auth.json). Leave token empty; static config tokens are legacy only.
 token = ""
 scrollback_bytes = 2097152
 # Conservative historical context budget; allowed range: 1024-64000.

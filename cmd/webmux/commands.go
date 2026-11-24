@@ -20,7 +20,8 @@ var configOption = func(fs *flag.FlagSet) {
 func serverFlags(fs *flag.FlagSet) clicmd.Action {
 	configOption(fs)
 	fs.String("listen", "", "HTTP listen `HOST:PORT`, overriding the configuration")
-	fs.String("token", "", "shared access `TOKEN`, overriding the configuration")
+	fs.String("token", "", "legacy static access `TOKEN`, overriding the configuration")
+	fs.Bool("insecure-no-auth", false, "disable TCP authentication (loopback only; for local dev/tests)")
 	fs.Bool("tunnel", false, "expose WebMux through a Cloudflare Tunnel")
 	fs.String("log-file", "", "write stdout and stderr to this `PATH`, keeping the previous one as .1")
 	return nil
@@ -164,6 +165,66 @@ func opsCommands() clicmd.Registry {
 			Description: "Started by a handoff target provider. Scope is fixed by argv; no file paths or SQL are accepted as tool input.",
 			Examples:    []clicmd.Example{{Command: "webmux mcp-serve --socket /path/webmux.sock --session ID", Text: "Serve a fixed handoff source through the local API."}, {Command: "webmux help mcp-serve", Text: "Show the fixed scope options."}},
 			SeeAlso:     []string{"webmux bridge"},
+		},
+		{Name: "auth", Group: g, Summary: "Inspect Passkey authentication, print onboarding/pairing codes, or reset auth."},
+		{
+			Name: "auth status", Group: g, NoGlobal: true, Bind: configJSON("print JSON"),
+			Summary: "Show Passkey count, domains, active sessions and recovery code status.",
+			Env:     configEnv, Output: "A non-sensitive auth summary, or JSON with --json.", Exit: exitClient,
+			Examples: []clicmd.Example{
+				{Command: "webmux auth status", Text: "Show Passkey authentication status for this instance."},
+				{Command: "webmux auth status --json", Text: "Print the auth summary as JSON."},
+			},
+			SeeAlso: []string{"webmux auth setup", "webmux auth pair", "webmux auth reset"},
+		},
+		{
+			Name: "auth setup", Group: g, NoGlobal: true,
+			Summary: "Show or rotate the one-time onboarding setup link while uninitialized.",
+			Bind: func(fs *flag.FlagSet) clicmd.Action {
+				configOption(fs)
+				fs.Bool("json", false, "print JSON")
+				fs.Bool("refresh", false, "rotate the current setup code")
+				return nil
+			},
+			Env: configEnv, Output: "The one-time onboarding URL and setup code.", Exit: exitClient,
+			Examples: []clicmd.Example{
+				{Command: "webmux auth setup", Text: "Print the current onboarding URL and setup code."},
+				{Command: "webmux auth setup --refresh", Text: "Rotate the one-time setup code and print a new link."},
+			},
+			SeeAlso: []string{"webmux auth status", "webmux auth reset"},
+		},
+		{
+			Name: "auth pair", Group: g, NoGlobal: true,
+			Summary: "Create a 5-minute single-use pairing code for another device or domain.",
+			Bind: func(fs *flag.FlagSet) clicmd.Action {
+				configOption(fs)
+				fs.Bool("json", false, "print JSON")
+				fs.String("url", "", "target HTTPS origin for the pairing link")
+				fs.Bool("qr", false, "print a QR code for the pairing link")
+				return nil
+			},
+			Env: configEnv, Output: "The pairing code, optional pairing URL and optional QR code.", Exit: exitClient,
+			Examples: []clicmd.Example{
+				{Command: "webmux auth pair", Text: "Generate a 5-minute single-use pairing code."},
+				{Command: "webmux auth pair --url https://webmux.example.com --qr", Text: "Generate a pairing link and terminal QR code for a remote HTTPS domain."},
+			},
+			SeeAlso: []string{"webmux auth status", "webmux auth reset"},
+		},
+		{
+			Name: "auth reset", Group: g, NoGlobal: true,
+			Summary: "Revoke all passkeys and sessions and return to onboarding.",
+			Bind: func(fs *flag.FlagSet) clicmd.Action {
+				configOption(fs)
+				fs.Bool("json", false, "print JSON")
+				fs.Bool("force", false, "confirm resetting all passkeys and active sessions")
+				return nil
+			},
+			Env: configEnv, Output: "Confirmation and fresh onboarding setup link when running.", Exit: exitClient,
+			Examples: []clicmd.Example{
+				{Command: "webmux auth reset --force", Text: "Revoke all passkeys and sessions and start fresh onboarding."},
+				{Command: "webmux auth reset --force --json", Text: "Reset authentication and print the result as JSON."},
+			},
+			SeeAlso: []string{"webmux auth status", "webmux auth setup"},
 		},
 		{Name: "config", Group: g, Summary: "Initialize, locate, show or validate configuration."},
 		{

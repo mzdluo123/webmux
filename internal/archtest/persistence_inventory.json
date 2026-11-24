@@ -10,6 +10,15 @@
       "source": "cmd/webmux/configcmd.go"
     },
     {
+      "id": "auth",
+      "path": "auth.json",
+      "lock": "auth.json.lock",
+      "owner": "internal/auth",
+      "failure": "fail_closed",
+      "web": "是",
+      "source": "internal/auth/store.go"
+    },
+    {
       "id": "launch",
       "path": "launch-configs.json",
       "lock": "launch-configs.json.lock",
@@ -963,6 +972,22 @@
     "internal/perf/flight.go|pruneTraces|os.Remove": {
       "count": 1,
       "owner": "perf-logs"
+    },
+    "internal/statefile/catalog.go|path|auth.json": {
+      "count": 1,
+      "owner": "auth"
+    },
+    "internal/auth/service.go|Open|github.com/rainchan/webmux/internal/statefile.Open": {
+      "count": 1,
+      "owner": "auth"
+    },
+    "internal/auth/store.go|Inspect|github.com/rainchan/webmux/internal/statefile.ReadSnapshot": {
+      "count": 1,
+      "owner": "auth"
+    },
+    "internal/auth/store.go|ResetOffline|github.com/rainchan/webmux/internal/statefile.Open": {
+      "count": 1,
+      "owner": "auth"
     }
   }
 }
