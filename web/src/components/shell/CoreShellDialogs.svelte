@@ -93,12 +93,12 @@
     onclose={() => (renaming = null)}
   />{/if}
 {#if closing}
+  {@const target = closing}
   <CloseSessionDialog
-    session={closing}
+    session={target}
     onremoved={() => {
-      if (!closing) return;
-      shell.drafts.remove(closing.id);
-      shell.archiveSignal.emit(closing.id);
+      if (!target.views.includes("chat")) shell.drafts.remove(target.id);
+      shell.archiveSignal.emit(target.id);
     }}
     onarchived={(session) => {
       if (archived) void archived.refresh();

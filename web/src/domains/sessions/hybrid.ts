@@ -311,3 +311,57 @@ export function deriveHybridHeaderInfo(
         : restInfo.status;
   return { ...restInfo, status } satisfies SessionInfo;
 }
+
+/** Pure view selection for a hybrid session pane. */
+export function resolveHybridView(input: {
+  known: boolean;
+  terminalConnection: string;
+  chatConnection: string;
+  hasChatState: boolean;
+  hasRecord: boolean;
+  moving: boolean;
+  lingering: boolean;
+  where: SessionView | undefined;
+}): HybridView {
+  if (!input.known) return "terminal";
+  if (
+    (input.terminalConnection === "missing" ||
+      input.chatConnection === "missing" ||
+      input.chatConnection === "exited") &&
+    !input.hasChatState
+  )
+    return input.hasRecord ? "recovery" : "terminal";
+  if (input.moving || input.lingering) return "switching";
+  return input.where === "terminal" ? "terminal" : "chat";
+}
+
+/** Stable key that changes when a hybrid session reaches a new end signal. */
+export function hybridEndKey(input: {
+  terminalConnection: string;
+  chatConnection: string;
+  state: SessionInfo["state"] | undefined;
+  hasRecovery: boolean;
+}): string | undefined {
+  const terminalMissing = input.terminalConnection === "missing";
+  const chatEnded =
+    input.chatConnection === "missing" || input.chatConnection === "exited";
+  const inactive = (input.state ?? "active") !== "active";
+  if (!terminalMissing && !chatEnded && !inactive && !input.hasRecovery)
+    return undefined;
+  return `${terminalMissing}:${chatEnded}:${inactive}:${input.hasRecovery}`;
+}
+
+/** Pure progress phase for a hybrid switch screen. */
+export function resolveSwitchProgressPhase(input: {
+  view: HybridView;
+  phase: TransitionPhase | undefined;
+  where: SessionView | undefined;
+  target: SwitchTarget | null;
+}): SwitchProgressPhase | undefined {
+  if (input.view !== "switching") return undefined;
+  if (input.phase) return input.phase;
+  if (input.where === "terminal" && input.target === "terminal")
+    return "arriving";
+  if (input.where === "chat" && input.target === "chat") return "loading";
+  return "requested";
+}

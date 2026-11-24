@@ -239,6 +239,9 @@ func (a *actor) turnEnded(t *turn, resp acp.PromptResponse, err error) {
 	}
 	a.dirty = true
 	a.emit(Event{Kind: EventTurnEnd, TurnEnd: &TurnEnd{TurnID: t.id, StopReason: stop, Error: text, Unfinished: unfinished}})
+	if a.closing || a.closeAfterStart || a.stopped {
+		return
+	}
 	now := time.Now().UTC()
 	switch stop {
 	case acp.StopEndTurn:
@@ -381,10 +384,14 @@ func (a *actor) beginClose() {
 	}
 	if a.starting || a.opening {
 		a.closeAfterStart = true
+		a.dirty = true
 		return
 	}
 	a.closing = true
+	a.dirty = true
 	a.stopTimers()
+	a.stopBackgroundWatch()
+	a.clearAttention()
 	a.withdrawAll()
 	var turnDone chan struct{}
 	if a.turn != nil {

@@ -54,6 +54,8 @@ export interface HybridSession {
   readonly recoverable: ArchivedSession | undefined;
   /** Neither the session nor a record exists: its drafts can go. */
   readonly missing: boolean;
+  /** True while checking whether a missing/ended session has an archive record. */
+  readonly checkingRecord?: boolean;
   /** The chat side's connector is not installed; undefined once dismissed. */
   readonly connector: AgentConnector | undefined;
   /** A switch to chat waiting for the user to pick the agent session. */

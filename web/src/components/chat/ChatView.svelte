@@ -123,7 +123,7 @@
   const preview = (path: string) => uploads.preview?.(path);
   const blocked = $derived(
     unavailable ||
-      (chat?.recovery
+      (chat?.recovery || connection === "exited" || connection === "missing"
         ? m.s3_blocked_interrupted_resume()
         : connection !== "connected" || !chat
           ? m.s3_connecting_chat()

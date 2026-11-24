@@ -71,7 +71,7 @@ func (a *actor) stopBackgroundWatch() {
 // reconnect or closing the session ends the watch.
 func (a *actor) watchBackground() {
 	link, base := a.link, a.bgBase
-	if link == nil || base == nil {
+	if link == nil || base == nil || a.closing || a.closeAfterStart || a.stopped || a.state != StateActive {
 		return
 	}
 	ctx, cancel := context.WithTimeout(a.probeCtx, bgMaxWatch)
@@ -119,7 +119,7 @@ func hasNewProcess(pid int, base map[int]bool) bool {
 // backgroundDone starts a profile-specific status refresh, or latches done
 // directly for agents that need no extra prompt.
 func (a *actor) backgroundDone(link *acpLink) {
-	if a.link != link || a.turn != nil || a.attention != nil {
+	if a.link != link || a.turn != nil || a.attention != nil || a.closing || a.closeAfterStart || a.stopped || a.state != StateActive {
 		return
 	}
 	prompt := a.cmd.Profile.BackgroundStatusPrompt

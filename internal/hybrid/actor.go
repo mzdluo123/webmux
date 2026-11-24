@@ -333,7 +333,11 @@ func (a *actor) flush() {
 	if a.side != SideTUI {
 		a.termTitle, a.termTitleSeq = "", 0
 	}
-	if a.side != SideTUI || a.state != StateActive {
+	effectiveState := a.state
+	if a.closing || a.closeAfterStart {
+		effectiveState = StateClosed
+	}
+	if a.side != SideTUI || effectiveState != StateActive {
 		a.chat.Eligibility = Eligibility{}
 	}
 	a.chat.Side = a.side
@@ -342,8 +346,8 @@ func (a *actor) flush() {
 		a.chat.AgentSessionID = &id
 	}
 	a.chat.Recovery = nil
-	if a.state != StateActive {
-		a.chat.Recovery = &RecoveryTip{State: a.state}
+	if effectiveState != StateActive {
+		a.chat.Recovery = &RecoveryTip{State: effectiveState}
 	}
 	a.publishMetadata()
 	a.shell.SetOverlay(a.overlay())
@@ -369,7 +373,7 @@ func (a *actor) overlay() *session.Overlay {
 		// sides; a live terminal run's own OSC 0/2 title still wins over it.
 		o.Title = a.title
 	}
-	if a.side == SideACP && a.state == StateActive {
+	if a.side == SideACP && a.state == StateActive && !a.closing && !a.closeAfterStart {
 		o.Attention = a.currentAttention()
 		o.Preview = a.preview.text
 		switch {
@@ -435,7 +439,7 @@ func (a *actor) scheduleOrLatchDone(startedAt *time.Time, now time.Time) {
 				return
 			}
 			a.doneDelayTimer = nil
-			if a.side != SideACP || a.state != StateActive || a.turn != nil || len(a.requests) > 0 || a.attention != nil {
+			if a.side != SideACP || a.state != StateActive || a.closing || a.closeAfterStart || a.turn != nil || len(a.requests) > 0 || a.attention != nil {
 				return
 			}
 			a.attention = &session.Attention{Kind: attentionkind.Done, Source: session.SourceAgent, Since: time.Now().UTC()}

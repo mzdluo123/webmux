@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { HybridSession } from "../../hooks/sessions/hybrid.svelte";
+  import { findShell } from "../../hooks/shared/shell.svelte";
+  import type { SessionInfo } from "../../contracts/schemas";
   import type { useSessionTerminalChrome } from "../../hooks/terminal/session-terminal-chrome.svelte";
   import type {
     DraftOperation,
@@ -48,10 +50,18 @@
     scratchOpen: boolean;
   } = $props();
 
+  const shell = findShell();
   // The agent session picked when a switch to chat found several.
   let ambiguousPick = $derived(
     hybrid.ambiguous?.candidates[0]?.agentSessionId ?? "",
   );
+  // Freeze the target snapshot while the close/archive dialog is open so a
+  // live state update during DELETE cannot unmount or mutate the dialog.
+  let closingSession = $state.raw<SessionInfo | null>(null);
+  $effect.pre(() => {
+    if (!closing) closingSession = null;
+    else if (!closingSession && hybrid.info) closingSession = hybrid.info;
+  });
 </script>
 
 <TerminalPasteDialog
@@ -84,8 +94,8 @@
     <span class="block">{m.s4_open_link_warning()}</span>
   </span>
 </ConfirmDialog>
-{#if closing && hybrid.info}<CloseSessionDialog
-    session={hybrid.info}
+{#if closing && closingSession}<CloseSessionDialog
+    session={closingSession}
     onclose={() => {
       closing = false;
     }}
@@ -94,7 +104,10 @@
       if (!hybrid.known) drafts.remove(id);
       onremoved();
     }}
-    {onarchived}
+    onarchived={() => {
+      void shell?.archived?.refresh();
+      onarchived();
+    }}
   />{/if}
 {#if features.chat}
   <ConfirmDialog

@@ -62,12 +62,10 @@ export function createShellSessionResources(
           if (records) reconcile([...ids, ...records]);
         });
       } else if (event.type === "removed") {
-        if (
-          previous
-            .find((session) => session.id === event.id)
-            ?.views.includes("chat")
-        )
-          void archived.refresh();
+        const removed = previous.find((session) => session.id === event.id);
+        // A removed event for an ID already absent from the active list is a
+        // canonical archive commit or remote record removal from NotifyRemoved.
+        if (!removed || removed.views.includes("chat")) void archived.refresh();
       } else if (
         event.type !== "forwards" &&
         event.session.views.includes("chat") &&

@@ -354,9 +354,19 @@ func (a *actor) finishClose(gone bool) {
 			}
 		})
 	}
+	a.publishMetadata()
+	a.shell.SetOverlay(a.overlay())
+	a.svc.manager.Notify(a.id)
 	a.end()
 	if err := a.svc.manager.Remove(a.id); err != nil {
 		a.svc.log.Warn("hybrid shell removal failed", "id", a.id, "error", err)
+		a.shell.Close()
+	} else {
+		a.svc.clearMetadata(a.id)
 	}
+	// Publish a canonical removal after the closed record is committed, because
+	// beginClose already hid the live row in hub.activeView (which absorbs
+	// Remove's removed event).
+	a.svc.manager.NotifyRemoved(a.id)
 	a.svc.log.Info("hybrid session closed", "id", a.id)
 }

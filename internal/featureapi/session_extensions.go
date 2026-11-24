@@ -100,7 +100,7 @@ func (s *Server) sessionKind(id string) (bool, error) {
 		if s.Hybrid == nil || !s.Hybrid.HasChatView(id) {
 			return false, nil
 		}
-		if item.Info().Status == session.StatusExited {
+		if item.Info().Status == session.StatusExited || s.sessionSnapshot(item.Info()).State != contract.SessionStateActive {
 			return true, hybrid.ErrNotActive
 		}
 		return true, nil

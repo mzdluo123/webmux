@@ -262,3 +262,57 @@ func TestResumeHybridSession(t *testing.T) {
 		t.Fatalf("record file %s: %v", file, err)
 	}
 }
+
+func TestArchiveWhileChatReplyingHidesFromActiveListImmediately(t *testing.T) {
+	h := newHybridAPI(t, nil)
+	agent := fakeAgentPath(t, omp.Name)
+	t.Setenv("FAKEAGENT_STORE", t.TempDir())
+	saved, err := h.store.Create(launch.Input{
+		Name: "omp-slow-reply", Cmd: []string{agent}, Hybrid: true,
+		Env: map[string]string{"FAKEAGENT_TURN_DELAY": "2s"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := h.createSide(saved.ID, contract.ViewChat)
+
+	// Start a slow chat reply turn.
+	h.expectCommand("POST", "/api/sessions/"+id+"/input", contract.SessionInputRequest{
+		ClientRequestID: chatRID(),
+		Text:            "reply slowly",
+	}, http.StatusOK)
+
+	// Archive while the turn is actively replying.
+	h.expectCommand("DELETE", "/api/sessions/"+id, nil, http.StatusNoContent)
+
+	// Immediately after DELETE returns 204, the active list must already exclude the session
+	// and GET /api/sessions/{id} must report closed (never 404 or stale active).
+	if running := h.records(""); len(running) != 0 {
+		t.Fatalf("closing session still shown in active list: %+v", running)
+	}
+	var closingInfo contract.SessionInfo
+	if err := json.Unmarshal(h.expectCommand("GET", "/api/sessions/"+id, nil, http.StatusOK), &closingInfo); err != nil {
+		t.Fatal(err)
+	}
+	if closingInfo.State != contract.SessionStateClosed {
+		t.Fatalf("GET /api/sessions/%s during close = %+v, want state closed", id, closingInfo)
+	}
+	// Commands during close fail with 409 not_active rather than 404 session not found.
+	h.expectConflict("POST", "/api/sessions/"+id+"/input", contract.SessionInputRequest{
+		ClientRequestID: chatRID(),
+		Text:            "late prompt",
+	}, "not_active")
+
+	// Once finishClose completes, the archived list and single-session endpoint expose the archive record.
+	waitAPI(t, "archived "+id, func() bool {
+		archived := h.records("?state=archived")
+		return len(archived) == 1 && archived[0].ID == id
+	})
+	var archivedInfo contract.SessionInfo
+	if err := json.Unmarshal(h.expectCommand("GET", "/api/sessions/"+id, nil, http.StatusOK), &archivedInfo); err != nil {
+		t.Fatal(err)
+	}
+	if archivedInfo.State != contract.SessionStateClosed || archivedInfo.Archive == nil {
+		t.Fatalf("final GET /api/sessions/%s = %+v, want archived record", id, archivedInfo)
+	}
+}

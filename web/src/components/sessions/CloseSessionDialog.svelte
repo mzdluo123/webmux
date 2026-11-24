@@ -1,6 +1,7 @@
 <script lang="ts">
   import { m } from "$lib/paraglide/messages.js";
   import { api, APIError } from "../../platform/api";
+  import { lookupSessionRecord } from "../../domains/sessions/recoverable";
   import { NoContentSchema, type SessionInfo } from "../../contracts/schemas";
   import ConfirmDialog from "../shared/ConfirmDialog.svelte";
 
@@ -31,16 +32,13 @@
   const REMOVE_ATTEMPTS = 25;
   const REMOVE_INTERVAL_MS = 200;
 
-  async function removeWhenExited() {
+  async function removeWhenExited(id: string) {
     for (let attempt = 1; ; attempt++) {
       try {
-        await api(
-          `/sessions/${session.id}?remove=1`,
-          NoContentSchema,
-          "DELETE",
-        );
+        await api(`/sessions/${id}?remove=1`, NoContentSchema, "DELETE");
         return;
       } catch (err) {
+        if (err instanceof APIError && err.status === 404) return;
         const running = err instanceof APIError && err.status === 409;
         if (!running || attempt >= REMOVE_ATTEMPTS) throw err;
         await new Promise((resolve) => setTimeout(resolve, REMOVE_INTERVAL_MS));
@@ -49,17 +47,40 @@
   }
 
   async function submit() {
-    await api(
-      `/sessions/${session.id}${removing ? "?remove=1" : ""}`,
-      NoContentSchema,
-      "DELETE",
-    );
+    // Snapshot reactive props before awaiting network I/O so live state updates
+    // arriving while DELETE is in flight cannot skip onarchived/onremoved.
+    const target = session;
+    const isRemoving = removing;
+    const isPlain = plain;
+    const isArchiving = archiving;
+    try {
+      await api(
+        `/sessions/${target.id}${isRemoving ? "?remove=1" : ""}`,
+        NoContentSchema,
+        "DELETE",
+      );
+    } catch (err) {
+      if (err instanceof APIError && err.status === 404) {
+        if (isRemoving || isPlain) {
+          onremoved?.();
+          return;
+        }
+        if (isArchiving) {
+          const state = await lookupSessionRecord(target.id).catch(() => null);
+          if (state?.kind === "record") {
+            onarchived?.(target);
+            return;
+          }
+        }
+      }
+      throw err;
+    }
     // A plain terminal closed on purpose is not kept as an exited record.
-    if (plain) await removeWhenExited();
-    if (removing || plain) onremoved?.();
+    if (isPlain) await removeWhenExited(target.id);
+    if (isRemoving || isPlain) onremoved?.();
     // The user ended it on purpose: a page showing it leaves rather than
     // offering to resume or showing an exit banner.
-    if (archiving) onarchived?.(session);
+    if (isArchiving) onarchived?.(target);
   }
 </script>
 

@@ -272,7 +272,8 @@
       dismissScratch={() => (draft.scratchUpdatedWhileHidden = false)}
       notices={hybrid.notices}
       dismiss={(key) => hybrid.dismiss(key)}
-      hideMissing={!!hybrid.recoverable && !closing}
+      hideMissing={(!!hybrid.recoverable && !closing) ||
+        !!hybrid.checkingRecord}
       session={id}
       listening={hybrid.view === "chat"
         ? (feedSession?.listeningPorts ?? hybrid.info?.listeningPorts)

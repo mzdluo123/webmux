@@ -42,16 +42,20 @@ func (a *actor) publishMetadata() {
 	if a.side == SideSwitching && a.switching != nil {
 		side, to = a.switching.from, a.switching.to
 	}
+	state := a.state
+	if a.closing || a.closeAfterStart {
+		state = StateClosed
+	}
 	m := &Metadata{
 
-		Side: string(side), To: string(to), Phase: string(a.chat.Phase), State: string(a.state),
+		Side: string(side), To: string(to), Phase: string(a.chat.Phase), State: string(state),
 		Agent: a.cmd.Profile.Name, AgentTitle: a.cmd.Profile.Title, AgentIcon: a.cmd.Profile.Icon,
 	}
 	if a.agentSessionID != "" {
 		id := a.agentSessionID
 		m.AgentSessionID = &id
 	}
-	if a.side == SideACP && a.state == StateActive && a.turn != nil {
+	if a.side == SideACP && state == StateActive && a.turn != nil {
 		m.Work = a.workLine
 	}
 	a.svc.metadataMu.Lock()
