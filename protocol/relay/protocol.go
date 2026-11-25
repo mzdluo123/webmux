@@ -34,10 +34,6 @@ const (
 	RequestTimeout                        = 10 * time.Second
 	ControlMessageTTL                     = 60 * time.Second
 	StreamAdmissionTimeout                = 15 * time.Second
-	MaxRoleConnections                    = 16
-	DefaultInteractiveConnections         = 2
-	DefaultBulkConnections                = 4
-	MaxPendingStreams                     = 128
 	StreamOpenTimeout                     = 10 * time.Second
 	KeepAliveInterval                     = 10 * time.Second
 	ControlLease                          = 30 * time.Second
@@ -159,13 +155,10 @@ func (c Capabilities) Validate() error {
 
 type Role string
 
-const (
-	RoleControl     Role = "control"
-	RoleBulk        Role = "bulk"
-	RoleInteractive Role = "interactive"
-)
+const RoleControl Role = "control"
 
-func (r Role) Valid() bool { return r == RoleControl || r == RoleBulk || r == RoleInteractive }
+// Valid reports whether this is the authenticated management role.
+func (r Role) Valid() bool { return r == RoleControl }
 
 // MachineID is a random installation identifier, not an authentication secret.
 // Only an independently authenticated owner may use it to match a binding.

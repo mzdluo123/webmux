@@ -36,14 +36,10 @@ func (s Scope) Validate() error {
 
 type StreamKind string
 
-const (
-	StreamHTTP    StreamKind = "http"
-	StreamControl StreamKind = "control"
-)
+const StreamControl StreamKind = "control"
 
-// StreamHeader is a uint32 big-endian JSON byte length then exactly that many
-// UTF-8 bytes. HTTP streams carry ordinary HTTP/1.1 after a StreamResult prefix;
-// no destination, URL, port, Cookie or proxy identity can be supplied here.
+// StreamHeader opens the one management stream. It is a uint32 big-endian
+// JSON byte length then exactly that many UTF-8 bytes.
 type StreamHeader struct {
 	Version   Version    `json:"version"`
 	Kind      StreamKind `json:"kind"`
@@ -65,7 +61,7 @@ func (h StreamHeader) Validate(expected Scope, role Role) error {
 	if h.Scope != expected {
 		return Error{Code: StaleGeneration}
 	}
-	if !role.Valid() || h.Role != role || h.Kind != StreamHTTP && h.Kind != StreamControl || h.Kind == StreamControl && role != RoleControl || h.Kind == StreamHTTP && role == RoleControl {
+	if role != RoleControl || h.Role != RoleControl || h.Kind != StreamControl {
 		return Error{Code: Invalid}
 	}
 	return nil
@@ -80,16 +76,20 @@ type StreamResult struct {
 type ControlType string
 
 const (
-	ControlExchange   ControlType = "login.exchange"
-	ControlResume     ControlType = "login.resume"
-	ControlGrant      ControlType = "login.grant"
-	ControlICERequest ControlType = "ice.request"
-	ControlICEConfig  ControlType = "ice.config"
-	ControlRevoke     ControlType = "revoke"
-	ControlRevokeAck  ControlType = "revoke.ack"
-	ControlFailure    ControlType = "error"
-	ControlPing       ControlType = "ping"
-	ControlPong       ControlType = "pong"
+	ControlExchange    ControlType = "login.exchange"
+	ControlResume      ControlType = "login.resume"
+	ControlGrant       ControlType = "login.grant"
+	ControlICERequest  ControlType = "ice.request"
+	ControlICEConfig   ControlType = "ice.config"
+	ControlRevoke      ControlType = "revoke"
+	ControlRevokeAck   ControlType = "revoke.ack"
+	ControlFailure     ControlType = "error"
+	ControlPing        ControlType = "ping"
+	ControlPong        ControlType = "pong"
+	ControlFRPAllocate ControlType = "frp.allocate"
+	ControlFRPRenew    ControlType = "frp.renew"
+	ControlFRPGrant    ControlType = "frp.grant"
+	ControlFRPStatus   ControlType = "frp.status"
 )
 
 type Revocation struct {
@@ -163,19 +163,23 @@ type RevocationAck struct {
 // stream. Exactly one matching payload is present, except ping/pong (none).
 // Responses echo RequestID; events use independent IDs. No implicit retries.
 type ControlMessage struct {
-	Version       Version        `json:"version"`
-	Type          ControlType    `json:"type"`
-	RequestID     Token          `json:"requestId"`
-	Scope         Scope          `json:"scope"`
-	ExpiresAt     int64          `json:"expiresAt"`
-	Exchange      *LoginExchange `json:"exchange,omitempty"`
-	Resume        *LoginResume   `json:"resume,omitempty"`
-	Grant         *BrowserGrant  `json:"grant,omitempty"`
-	ICERequest    *ICERequest    `json:"iceRequest,omitempty"`
-	ICEConfig     *ICEConfig     `json:"iceConfig,omitempty"`
-	Revocation    *Revocation    `json:"revocation,omitempty"`
-	RevocationAck *RevocationAck `json:"revocationAck,omitempty"`
-	Error         *Error         `json:"error,omitempty"`
+	Version           Version             `json:"version"`
+	Type              ControlType         `json:"type"`
+	RequestID         Token               `json:"requestId"`
+	Scope             Scope               `json:"scope"`
+	ExpiresAt         int64               `json:"expiresAt"`
+	Exchange          *LoginExchange      `json:"exchange,omitempty"`
+	Resume            *LoginResume        `json:"resume,omitempty"`
+	Grant             *BrowserGrant       `json:"grant,omitempty"`
+	ICERequest        *ICERequest         `json:"iceRequest,omitempty"`
+	ICEConfig         *ICEConfig          `json:"iceConfig,omitempty"`
+	Revocation        *Revocation         `json:"revocation,omitempty"`
+	RevocationAck     *RevocationAck      `json:"revocationAck,omitempty"`
+	Error             *Error             `json:"error,omitempty"`
+	AllocationRequest *AllocationRequest `json:"allocationRequest,omitempty"`
+	AllocationRenew   *AllocationRenew   `json:"allocationRenew,omitempty"`
+	AllocationGrant   *AllocationGrant   `json:"allocationGrant,omitempty"`
+	AllocationStatus  *AllocationStatus  `json:"allocationStatus,omitempty"`
 }
 
 func (m ControlMessage) Validate(expected Scope, now time.Time) error {
@@ -195,7 +199,11 @@ func (m ControlMessage) Validate(expected Scope, now time.Time) error {
 		return Error{Code: Expired}
 	}
 	count := 0
-	for _, present := range []bool{m.Exchange != nil, m.Resume != nil, m.Grant != nil, m.ICERequest != nil, m.ICEConfig != nil, m.Revocation != nil, m.RevocationAck != nil, m.Error != nil} {
+	for _, present := range [...]bool{
+		m.Exchange != nil, m.Resume != nil, m.Grant != nil, m.ICERequest != nil, m.ICEConfig != nil,
+		m.Revocation != nil, m.RevocationAck != nil, m.Error != nil,
+		m.AllocationRequest != nil, m.AllocationRenew != nil, m.AllocationGrant != nil, m.AllocationStatus != nil,
+	} {
 		if present {
 			count++
 		}
@@ -254,6 +262,22 @@ func (m ControlMessage) Validate(expected Scope, now time.Time) error {
 				return Error{Code: Invalid}
 			}
 			return nil
+		}
+	case ControlFRPAllocate:
+		if m.AllocationRequest != nil {
+			return m.AllocationRequest.validate(false)
+		}
+	case ControlFRPRenew:
+		if m.AllocationRenew != nil {
+			return validateAllocationRef(m.AllocationRenew.AllocationID, m.AllocationRenew.GrantRevision)
+		}
+	case ControlFRPGrant:
+		if m.AllocationGrant != nil {
+			return m.AllocationGrant.validate(now, false)
+		}
+	case ControlFRPStatus:
+		if m.AllocationStatus != nil {
+			return m.AllocationStatus.validate()
 		}
 	case ControlFailure:
 		if m.Error != nil && m.Error.Code.Valid() {

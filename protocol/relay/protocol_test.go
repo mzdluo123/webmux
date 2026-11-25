@@ -79,7 +79,7 @@ func TestCanonicalConnectorVector(t *testing.T) {
 		{"host", func(c *ConnectorChallenge) { c.HostID = "00112233445566778899aabbccddeefe" }, InvalidSignature},
 		{"binding", func(c *ConnectorChallenge) { c.BindingGeneration++ }, InvalidSignature},
 		{"connector", func(c *ConnectorChallenge) { c.ConnectorGeneration++ }, InvalidSignature},
-		{"role", func(c *ConnectorChallenge) { c.Role = RoleBulk }, InvalidSignature},
+		{"role", func(c *ConnectorChallenge) { c.Role = "bulk" }, Invalid},
 		{"nonce", func(c *ConnectorChallenge) {
 			c.Nonce = Token(base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{1}, 32)))
 		}, Unauthenticated},
@@ -185,6 +185,52 @@ func testConfig() ConfigPayload {
 		WSS:          &WSSConfig{ListenAddress: "127.0.0.1:443", ConnectorURL: "wss://connector.example.test/v1/connector", PublicHostSuffix: "hosts.example.test", Audience: "node-test", Trust: ServiceTrust{Algorithm: ServiceAlgorithm, Pins: []string{string(vectorToken)}}, TLSSecret: SecretRef{Purpose: SecretTLS, KeyID: "tls", Version: 1}},
 		Limits:       Limits{MaxStreamsPerHost: 8, MaxStreamsPerAccount: 8, ConnectionBufferBytes: 4194304, StreamBufferBytes: 1048576, AccountBytesPerSecond: 1048576},
 	}}
+}
+
+func TestNodeConfigReservesPrivateFRPPorts(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*NodeConfig)
+		fails  bool
+	}{
+		{"WSS range minimum", func(c *NodeConfig) { c.WSS.ListenAddress = "127.0.0.1:30000" }, true},
+		{"WSS range maximum", func(c *NodeConfig) { c.WSS.ListenAddress = "[::1]:39999" }, true},
+		{"WSS outside range", func(c *NodeConfig) { c.WSS.ListenAddress = "127.0.0.1:40000" }, false},
+		{"TURN TCP", func(c *NodeConfig) { c.TURN.TCPPort = FRPPortMin }, true},
+		{"TURN TLS", func(c *NodeConfig) { c.TURN.TLSPort = FRPPortMax }, true},
+		{"TURN UDP", func(c *NodeConfig) { c.TURN.UDPPort = FRPPortMin }, false},
+		{"TURN range contains FRP range", func(c *NodeConfig) { c.TURN.RelayMinPort, c.TURN.RelayMaxPort = FRPPortMin-1, FRPPortMax+1 }, true},
+		{"TURN range shares lower boundary", func(c *NodeConfig) { c.TURN.RelayMinPort, c.TURN.RelayMaxPort = FRPPortMin-5, FRPPortMin }, true},
+		{"TURN range shares upper boundary", func(c *NodeConfig) { c.TURN.RelayMinPort, c.TURN.RelayMaxPort = FRPPortMax, FRPPortMax+5 }, true},
+		{"TURN range outside", func(c *NodeConfig) { c.TURN.RelayMinPort, c.TURN.RelayMaxPort = FRPPortMax+1, FRPPortMax+5 }, false},
+		{"TURN-only unchanged", func(c *NodeConfig) {
+			c.Capabilities, c.WSS = Capabilities{CapabilityTURN}, nil
+			c.TURN.TCPPort, c.TURN.TLSPort = FRPPortMin, FRPPortMin+1
+			c.TURN.RelayMinPort, c.TURN.RelayMaxPort = FRPPortMin+2, FRPPortMax
+		}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := testConfig().Config
+			c.Capabilities = Capabilities{CapabilityTURN, CapabilityWSS}
+			c.TURN = &TURNConfig{
+				ListenIP: "127.0.0.1", AdvertisedPublicIP: "203.0.113.1",
+				UDPPort: 3478, TCPPort: 3478, TLSPort: 5349, RelayMinPort: 49152, RelayMaxPort: 49200,
+				URLs: []string{"turn:turn.example.test:3478?transport=udp"}, Realm: "turn.example.test",
+				AuthSecret: SecretRef{Purpose: SecretTURN, KeyID: "turn", Version: 1},
+				TLSSecret:  &SecretRef{Purpose: SecretTLS, KeyID: "tls", Version: 1},
+			}
+			c.Limits.AccountTURNAllocations, c.Limits.NodeTURNAllocations = 2, 32
+			c.Limits.TURNSessionMaxBPS, c.Limits.TURNNodeCapacityBPS = 1000, 32000
+			c.Limits.TURNMaxAllocationSeconds, c.Limits.ICETTLSeconds = 60, 30
+			tc.change(&c)
+			err := c.Validate()
+			if tc.fails {
+				requireCode(t, err, InvalidConfig)
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }
 
 func TestConfigReplayAndActivation(t *testing.T) {
@@ -343,13 +389,9 @@ func TestControlMessageExpiry(t *testing.T) {
 	}
 }
 
-func TestAuxiliaryConnectorHello(t *testing.T) {
-	for _, role := range []Role{RoleInteractive, RoleBulk} {
+func TestControlConnectorHello(t *testing.T) {
+	for _, role := range []Role{"interactive", "bulk"} {
 		hello := ConnectorHello{Version: V1, HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, Role: role}
-		if err := hello.Validate(); err != nil {
-			t.Fatal(err)
-		}
-		hello.ConnectorGeneration = 0
 		requireCode(t, hello.Validate(), Invalid)
 	}
 	hello := ConnectorHello{Version: V1, HostID: vectorHost, BindingGeneration: 1, Role: RoleControl}
@@ -370,33 +412,6 @@ func TestIndependentSignatureVector(t *testing.T) {
 	const want = "qiP-QeQU3CDl9mUhnH2Y-y2ORvH5o3qqbFKhUBf0LI13dAMYAP015YZtD2IwcbRf7HxRIB0oS3LD61ovQhZeAw"
 	if p.Signature != want {
 		t.Fatalf("signature vector mismatch: %s", p.Signature)
-	}
-}
-
-func TestStreamFramingPreservesHTTPBoundary(t *testing.T) {
-	scope := Scope{HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, ControlEpoch: vectorToken, NodeEpoch: vectorToken}
-	h := StreamHeader{Version: V1, Kind: StreamHTTP, RequestID: vectorToken, Scope: scope, Role: RoleBulk}
-	var wire bytes.Buffer
-	if err := WriteFrame(&wire, h, MaxStreamHeaderBytes); err != nil {
-		t.Fatal(err)
-	}
-	const http = "GET /api/sessions HTTP/1.1\r\nHost: test\r\n\r\n"
-	wire.WriteString(http)
-	var got StreamHeader
-	if err := ReadFrame(&wire, &got, MaxStreamHeaderBytes); err != nil {
-		t.Fatal(err)
-	}
-	if got != h || wire.String() != http {
-		t.Fatal("header consumed or changed HTTP bytes")
-	}
-	if err := got.Validate(scope, RoleBulk); err != nil {
-		t.Fatal(err)
-	}
-	got.Kind = StreamControl
-	requireCode(t, got.Validate(scope, RoleBulk), Invalid)
-	requireCode(t, ReadFrame(bytes.NewReader([]byte{0x7f, 0xff, 0xff, 0xff}), &got, MaxStreamHeaderBytes), Invalid)
-	if err := ReadFrame(bytes.NewReader([]byte{0, 0, 0, 10, '{'}), &got, MaxStreamHeaderBytes); err == nil {
-		t.Fatal("accepted truncated frame")
 	}
 }
 
@@ -455,25 +470,18 @@ func TestNodeHelloUsesAuthenticatedIdentity(t *testing.T) {
 	requireCode(t, decoded.Validate("node-a", "webmux-control", "", vectorToken, vectorNow), Invalid)
 }
 
-func TestManagementAndHTTPRolesAreSeparated(t *testing.T) {
+func TestManagementRejectsRetiredWireRoles(t *testing.T) {
 	scope := Scope{HostID: vectorHost, BindingGeneration: 1, ConnectorGeneration: 2, ControlEpoch: vectorToken, NodeEpoch: vectorToken}
-	for _, role := range []Role{RoleControl, RoleInteractive, RoleBulk} {
-		header := StreamHeader{Version: V1, Kind: StreamHTTP, RequestID: vectorToken, Scope: scope, Role: role}
-		if role == RoleControl {
-			requireCode(t, header.Validate(scope, role), Invalid)
-		} else if err := header.Validate(scope, role); err != nil {
-			t.Fatal(err)
-		}
-		header.Kind = StreamControl
-		if role != RoleControl {
-			requireCode(t, header.Validate(scope, role), Invalid)
-		} else if err := header.Validate(scope, role); err != nil {
-			t.Fatal(err)
-		}
+	header := StreamHeader{Version: V1, Kind: "http", RequestID: vectorToken, Scope: scope, Role: RoleControl}
+	requireCode(t, header.Validate(scope, RoleControl), Invalid)
+	for _, role := range []Role{"interactive", "bulk"} {
+		header.Kind, header.Role = StreamControl, role
+		requireCode(t, header.Validate(scope, role), Invalid)
+		requireCode(t, header.Validate(scope, RoleControl), Invalid)
 	}
 	legacy := ControlMessage{Version: V1, Type: "transport.grow", RequestID: vectorToken, Scope: scope, ExpiresAt: vectorNow.Add(ControlMessageTTL).Unix()}
 	requireCode(t, legacy.Validate(scope, vectorNow), Invalid)
 	if ConnectorSubprotocol != "webmux-relay.v2" {
-		t.Fatal("breaking connector semantics need explicit subprotocol version")
+		t.Fatal("management WSS subprotocol changed")
 	}
 }

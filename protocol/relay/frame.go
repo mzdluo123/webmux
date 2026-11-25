@@ -6,8 +6,8 @@ import (
 	"io"
 )
 
-// ReadFrame reads one length-prefixed JSON protocol frame without buffering any
-// following HTTP/body bytes. max MUST be the limit for that frame kind. The
+// ReadFrame reads one length-prefixed JSON protocol frame without consuming any
+// bytes of the next frame. max MUST be the limit for that frame kind. The
 // transport sets deadlines/cancellation before calling; this codec has no clock.
 func ReadFrame(r io.Reader, dst any, max int) error {
 	var prefix [4]byte

@@ -164,6 +164,9 @@ func (c NodeConfig) Validate() error {
 		if err != nil || parseErr != nil || n == 0 || net.ParseIP(host) == nil {
 			return Error{Code: InvalidConfig}
 		}
+		if n >= FRPPortMin && n <= FRPPortMax {
+			return Error{Code: InvalidConfig}
+		}
 		u, err := secureURL(w.ConnectorURL, "wss", false)
 		if err != nil || u.Path != PathConnector || !dnsName(w.PublicHostSuffix) || len(w.PublicHostSuffix) > 218 || !audience(w.Audience) || w.TLSSecret.Purpose != SecretTLS {
 			return Error{Code: InvalidConfig}
@@ -177,6 +180,13 @@ func (c NodeConfig) Validate() error {
 	}
 	if t := c.TURN; t != nil {
 		if net.ParseIP(t.ListenIP) == nil || net.ParseIP(t.AdvertisedPublicIP) == nil || t.MappedLocalIP != "" && net.ParseIP(t.MappedLocalIP) == nil || t.UDPPort == 0 && t.TCPPort == 0 && t.TLSPort == 0 || t.RelayMinPort == 0 || t.RelayMaxPort < t.RelayMinPort || !dnsName(t.Realm) || t.AuthSecret.Purpose != SecretTURN {
+			return Error{Code: InvalidConfig}
+		}
+		// Reserve the private frp range only on nodes that run frps. A TURN
+		// UDP listener is independent of the frps TCP listeners.
+		if c.WSS != nil && (t.TCPPort >= FRPPortMin && t.TCPPort <= FRPPortMax ||
+			t.TLSPort >= FRPPortMin && t.TLSPort <= FRPPortMax ||
+			t.RelayMinPort <= FRPPortMax && t.RelayMaxPort >= FRPPortMin) {
 			return Error{Code: InvalidConfig}
 		}
 		if err := validateTURNURLs(t.URLs); err != nil {
