@@ -4,37 +4,37 @@
 
 - [ ] 1.1 私有 Relay 仓库记录实际生产镜像摘要、Dokku 包装提交、二进制构建信息与可恢复制品；在隔离环境恢复实际镜像和 PostgreSQL 17 副本，验证现行管理握手、登录、断线 resume、撤权及 TURN，不公开秘密或备份内容。
 - [ ] 1.2 对齐私有 `master`、恢复分支和运行行为，将已验证的恢复实现合入可发布分支并固定两仓提交；运行 `scripts/test-host-integration.sh <host-root>`，以干净构建和实际收发证明管理基线，不只对比 Git SHA。
-- [ ] 1.3 固定上游 frp v0.72.0、平台 SHA-256、许可和构建来源。在两个隔离宿主和一个自营测试节点用原版发行件与真实反代验证单代理、关闭 `tcpMux` 后的独立 work socket、二进制 Upgrade、Login 改写 run ID 及连接归属；不使用私有补丁或假代理。
+- [x] 1.3 固定上游 frp v0.72.0、平台 SHA-256、许可和构建来源。在两个隔离宿主和一个自营测试节点用原版发行件与真实反代验证单代理、关闭 `tcpMux` 后的独立 work socket、二进制 Upgrade、Login 改写 run ID 及连接归属；不使用私有补丁或假代理。
 - [ ] 1.4 列出两仓增删的协议、状态机、密钥、外部依赖和运维步骤；由另一位维护者按手册完成整版升级、撤权和回滚演练。若不能删除旧业务路径、必须维护 frp 私有补丁或不能保持隔离/撤权，禁止发布。
 
 ## 2. 管理协议与分配权威
 
-- [ ] 2.1 两仓保留 `webmux-relay.v2`、现有持钥握手、`control` 角色、smux v2、单条管理流及其 `StreamHeader`/`StreamResult` 开流和 `ReadFrame`/`WriteFrame` 帧编码。
+- [x] 2.1 两仓保留 `webmux-relay.v2`、现有持钥握手、`control` 角色、smux v2、单条管理流及其 `StreamHeader`/`StreamResult` 开流和 `ReadFrame`/`WriteFrame` 帧编码。
   仅扩展 `ControlMessage` 的 `frp.allocate`、`frp.renew`、`frp.grant`、`frp.status`。
   以 wire fixtures 回归现有管理帧，测试未知版本、错代际、过期、超长/不匹配负载及重复管理流被拒。
-- [ ] 2.2 保留经认证的 `Assignment` 节点归属、版本和信任；在私有 `internal/control` 与 `internal/store` 为当前 Scope 原子分配唯一代理名、私有端口和授权，分配/续约通过现有节点同步且获确认后生效。测试并发分配、重复请求、旧修订、迟到状态与换代始终至多一个公开路由；不新增传输模式字段、混跑或协商。
-- [ ] 2.3 在既有管理流实现授权、续约和 `frp.status` 有效性检查，回归 `login.exchange`、`login.resume`、ICE、ping/pong、`revoke`/`revoke.ack`。检查断开立即撤权、未检出断连最长 30 秒、数据故障时管理仍可撤权；确认只有实际关闭派生访问后才应答，且不误报 PTY 或 coturn allocation 已销毁。
-- [ ] 2.4 实现用途分离的 JWT 签发、OIDC/JWKS、受限登录许可与回源 CSR 签发，验证 `kid` 重叠、普通令牌续约和回源证书换代、整代回收；业务票不能获取浏览器/ICE/管理权限，过期、错 audience、错 scope、旧代际的票据与证书均不得放行。
+- [x] 2.2 保留经认证的 `Assignment` 节点归属、版本和信任；在私有 `internal/control` 与 `internal/store` 为当前 Scope 原子分配唯一代理名、私有端口和授权，分配/续约通过现有节点同步且获确认后生效。测试并发分配、重复请求、旧修订、迟到状态与换代始终至多一个公开路由；不新增传输模式字段、混跑或协商。
+- [x] 2.3 在既有管理流实现授权、续约和 `frp.status` 有效性检查，回归 `login.exchange`、`login.resume`、ICE、ping/pong、`revoke`/`revoke.ack`。检查断开立即撤权、未检出断连最长 30 秒、数据故障时管理仍可撤权；确认只有实际关闭派生访问后才应答，且不误报 PTY 或 coturn allocation 已销毁。
+- [x] 2.4 实现用途分离的 JWT 签发、OIDC/JWKS、受限登录许可与回源 CSR 签发，验证 `kid` 重叠、普通令牌续约和回源证书换代、整代回收；业务票不能获取浏览器/ICE/管理权限，过期、错 audience、错 scope、旧代际的票据与证书均不得放行。
 
 ## 3. 自营节点与宿主管理
 
 - [ ] 3.1 在节点镜像固定 frps，只监听 loopback 与受控私有端口范围；既有 HTTPS 入口按精确域名/路径区分浏览器、原管理 WSS 与 frp。核对 IPv4/IPv6 实际监听和 Dokku 映射，不公开插件、回源端口、dashboard 或指标；保留 TURN 原监听、公布地址、防火墙/NAT 映射、凭据签发/刷新和节点选择。
-- [ ] 3.2 在节点代理实现 Login/NewProxy/NewWorkConn/Ping 私有钩子，验证时效、当前分配、角色、修订与登录/连接归属；用两台各自合法的宿主验证跨分配、重复登录、错名/端口均被拒绝，OIDC/JWKS 或插件故障不放行，已有合法连接不被非法操作替换。
+- [x] 3.2 在节点代理实现 Login/NewProxy/NewWorkConn/Ping 私有钩子，验证时效、当前分配、角色、修订与登录/连接归属；用两台各自合法的宿主验证跨分配、重复登录、错名/端口均被拒绝，OIDC/JWKS 或插件故障不放行，已有合法连接不被非法操作替换。
 - [ ] 3.3 宿主发行、安装、更新和整版回滚流程交付受签名清单约束的 `frpc`，分别验证 Linux/macOS amd64、arm64 和 WSL 内的 Linux 制品。篡改、缺件或版本不符仅关闭 Relay 业务，不启动替代程序，本机 PTY 仍可用。
 - [ ] 3.4 实现宿主受限运行目录、JWT 原子更新、固定目标 WSS 桥、每条实际连接 TLS/pin 验证和每 Scope 单子进程监督，管理 WSS 保持独立不变。
   验证普通续期不中断终端，frpc/frps 异常时分别清理、限速恢复并重新探测。
   验证关闭、禁用落盘失败、重启竞争及迟到事件不会遗留可用路由、重复进程或凭据，frps 故障不重启健康 coturn。
-- [ ] 3.5 实现分配专属的网关/宿主 mTLS 和回源就绪；成功探针必须经实际注册端口和工作连接从专用入口取得 204。验证端口重用、错 EKU/SAN、公钥或旧代际均不发送业务数据；公网不能访问专用探针，组件探针不能替代它。
-- [ ] 3.6 在私有 `internal/dataplane` 将网关业务拨号切到 frp 回源；保留 Host、Origin、CSRF、反代头清理、流式收发、取消与单点配额。
+- [x] 3.5 实现分配专属的网关/宿主 mTLS 和回源就绪；成功探针必须经实际注册端口和工作连接从专用入口取得 204。验证端口重用、错 EKU/SAN、公钥或旧代际均不发送业务数据；公网不能访问专用探针，组件探针不能替代它。
+- [x] 3.6 在私有 `internal/dataplane` 将网关业务拨号切到 frp 回源；保留 Host、Origin、CSRF、反代头清理、流式收发、取消与单点配额。
   验证 64 个普通流中 bulk 至多 56、每账号最多 128 个等待者且最长 15 秒，超限返 429 及 `Retry-After`，离线 503，回源失败 502。
   单工作连接失败不重放上传或终端输入，不驱逐健康交互。
 
 ## 4. 旧业务路径删除、诊断与运维
 
-- [ ] 4.1 在同一发布候选移除两仓的 interactive/bulk 连接器角色、业务池、槽位重连、`StreamHTTP` 和业务帧/复制分支。
+- [x] 4.1 在同一发布候选移除两仓的 interactive/bulk 连接器角色、业务池、槽位重连、`StreamHTTP` 和业务帧/复制分支。
   保留网关 interactive/bulk 准入分类、管理 smux 依赖和配置、`StreamHeader`/`StreamResult` 的控制用途、帧帮助函数、开流/RPC 上限与测试。
   删除退役调用点和仅覆盖旧业务池的夹具，用单路径与原管理回归替换。
-- [ ] 4.2 从 TOML、配置合并/组装、默认值和诊断映射删除 `interactive_connections`、`bulk_connections`；升级说明列出须删除的键，不留别名或空操作兼容。
+- [x] 4.2 从 TOML、配置合并/组装、默认值和诊断映射删除 `interactive_connections`、`bulk_connections`；升级说明列出须删除的键，不留别名或空操作兼容。
   所有状态生产者和消费者一次切换：`internal/contract`、wire 快照、schema、设置页、CLI 与托盘验证单个 `relay` 对象、`controlReady`/`dataReady`、`transport=wss`、固定链接和脱敏来源。
   移除 `bulkReady` 与角色计数，不增加 `dataPlane` 或第二状态对象。按浏览器会话显示实际路径与脱敏回落原因。
 - [ ] 4.3 更新 US-A08、US-A09、US-A10 涉及受管传输和整版切换的行为，更新相关部署及安装说明。

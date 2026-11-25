@@ -26,7 +26,6 @@ import (
 type testIdentity struct {
 	roots  *x509.CertPool
 	server tls.Certificate
-	client tls.Certificate
 	trust  protocol.ServiceTrust
 }
 
@@ -48,16 +47,12 @@ func newTestIdentity(t *testing.T) testIdentity {
 	}
 	roots := x509.NewCertPool()
 	roots.AddCert(ca)
-	issue := func(serial int64, client bool) tls.Certificate {
+	issue := func(serial int64) tls.Certificate {
 		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
 			t.Fatal(err)
 		}
-		cert := &x509.Certificate{SerialNumber: big.NewInt(serial), NotBefore: now.Add(-time.Minute), NotAfter: now.Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, DNSNames: []string{"relay.example", "webmux-relay-loopback"}, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
-		if client {
-			cert.DNSNames = nil
-			cert.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
-		}
+		cert := &x509.Certificate{SerialNumber: big.NewInt(serial), NotBefore: now.Add(-time.Minute), NotAfter: now.Add(time.Hour), KeyUsage: x509.KeyUsageDigitalSignature, DNSNames: []string{"relay.example"}, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
 		der, err := x509.CreateCertificate(rand.Reader, cert, ca, &key.PublicKey, caKey)
 		if err != nil {
 			t.Fatal(err)
@@ -76,13 +71,9 @@ func newTestIdentity(t *testing.T) testIdentity {
 		}
 		return pair
 	}
-	server := issue(2, false)
+	server := issue(2)
 	pin := sha256.Sum256(server.Leaf.RawSubjectPublicKeyInfo)
-	return testIdentity{roots: roots, server: server, client: issue(3, true), trust: protocol.ServiceTrust{Algorithm: protocol.ServiceAlgorithm, Pins: []string{base64.RawURLEncoding.EncodeToString(pin[:])}}}
-}
-
-func (id testIdentity) localTLS() *tls.Config {
-	return &tls.Config{MinVersion: tls.VersionTLS13, RootCAs: id.roots, ServerName: "webmux-relay-loopback", Certificates: []tls.Certificate{id.client}}
+	return testIdentity{roots: roots, server: server, trust: protocol.ServiceTrust{Algorithm: protocol.ServiceAlgorithm, Pins: []string{base64.RawURLEncoding.EncodeToString(pin[:])}}}
 }
 
 func testBinding() protocol.Binding {
@@ -111,9 +102,9 @@ func testAssignment(t *testing.T, id testIdentity) protocol.Assignment {
 	return protocol.Assignment{Version: protocol.V1, Revision: 1, ControlEpoch: testToken(t), ControlAudience: "control.example", Source: "authenticated-control", ExpiresAt: time.Now().Add(25 * time.Second).Unix(), Binding: testBinding(), NodeID: "test-node", Capabilities: protocol.Capabilities{protocol.CapabilityWSS}, ConfigRevision: 1, ConnectorURL: "wss://relay.example/v1/connector", DataOrigin: "https://relay.example", NodeAudience: "node.example", Trust: id.trust}
 }
 
-func newTestClient(t *testing.T, id testIdentity, target, loopback string) *Client {
+func newTestClient(t *testing.T, id testIdentity, target string) *Client {
 	t.Helper()
-	c, err := New(Config{ControlEndpoint: "https://relay.example", ControlAudience: "control.example", LoopbackAddress: loopback, TLSConfig: &tls.Config{RootCAs: id.roots}, LoopbackTLSConfig: id.localTLS()})
+	c, err := New(Config{ControlEndpoint: "https://relay.example", ControlAudience: "control.example", TLSConfig: &tls.Config{RootCAs: id.roots}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,14 +119,10 @@ func newTestClient(t *testing.T, id testIdentity, target, loopback string) *Clie
 	return c
 }
 
-func tlsTestServer(t *testing.T, id testIdentity, handler http.Handler, local bool) *httptest.Server {
+func tlsTestServer(t *testing.T, id testIdentity, handler http.Handler) *httptest.Server {
 	t.Helper()
 	s := httptest.NewUnstartedServer(handler)
 	s.TLS = &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{id.server}}
-	if local {
-		s.TLS.ClientAuth = tls.RequireAndVerifyClientCert
-		s.TLS.ClientCAs = id.roots
-	}
 	s.StartTLS()
 	t.Cleanup(s.Close)
 	return s

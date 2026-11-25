@@ -8,10 +8,10 @@
 MCP 本机连接、能力发现、会话列表与详情：US-S20；创建、发送和中断：US-S21；增量历史与终端回放：US-S22；按回合或进程退出等待：US-S23。
 URL+owner Bearer 网络控制、握手/生命周期/取消与重连：US-S25；默认关闭及配置和安全边界：US-A02–US-A03、US-K09。
 
-官方 Relay 配对、显式启用、角色隔离与来源诊断：US-A10；GitHub 所有者后台、一次性跳转、断线重授权、Cookie/CSRF 与逐 Scope 撤权：US-A08；节点集中配置、秘密交付、能力隔离、Docker 初始化及 stock coturn 配额边界：US-A09。交互 WebRTC 与批量 WSS 分流：US-H12。
-Dokku 隔离、HTTPS 上游、离线节点 CA、同 key 续签与公开上线状态：US-A09。
-固定多 TCP 池、Relay 单点准入及控制 CDN/宿主 CA-only、WSS pin 与 v3 绑定状态：US-A10，见[官方 Relay 部署记录](../deployment/official-relay.md)。
-机器 ID 独立持久化、v2 全新配对、旧绑定破坏性清理及所有者直接删除：US-A08–US-A10；机器 ID 不替代账号授权，删除记录不冒充旧 P2P 访问关闭。
+官方 Relay 配对、显式启用、分开验证管理与回源以及来源诊断：US-A10；GitHub 所有者登录、一次性跳转、断线重授权、Cookie/CSRF 与逐 Scope 撤权：US-A08；节点集中配置、秘密交付及 coturn 隔离：US-A09。逐流 WebRTC 优化：US-H12。
+Dokku 隔离、HTTPS 上游、离线节点 CA、同 key 续签与配套制品验收：US-A09。
+受管 frp、整版切换与回滚、Relay 单点准入、公开控制 CA 和分配 WSS pin：US-A08–US-A10，见[官方 Relay 部署与切换](../deployment/official-relay.md)。现有 v3 绑定在业务传输切换时保留。
+独立机器 ID、v2 全新配对及所有者直接删除：US-A08–US-A10；机器 ID 不替代账号授权，删除记录不代表旧 P2P 访问已关闭。
 Relay 页内配对、宿主权威流程、导航恢复与操作核对：US-A10；用户码仅经鉴权专用接口返回，诊断与危险操作作为次级入口。
 
 原生历史冻结、历史图片预览、完整页集、能力门禁、单次发送与进程内状态：US-Q20；原生正文/工具提取与归档恢复：US-Q12、US-Q19；文本及图片预算边界：US-K04。

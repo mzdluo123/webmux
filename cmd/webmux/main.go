@@ -205,12 +205,7 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	if err := features.open(ctx, c, m, preferences, public, listener.Addr(), guide, localAPI.Load, &bridge, out); err != nil {
 		return err
 	}
-	relayListener, relayTLS, err := relayLoopback(ctx)
-	if err != nil {
-		return fmt.Errorf("relay loopback: %w", err)
-	}
-	defer func() { _ = relayListener.Close() }()
-	relayControl, err := newRelayController(ctx, c.Config, public, relayListener.Addr().String(), relayTLS)
+	relayControl, err := newRelayController(ctx, c.Config, public)
 	if err != nil {
 		return fmt.Errorf("relay settings: %w", err)
 	}
@@ -237,9 +232,8 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 		defer closeMCP()
 	}
 	bridge = api.NewBridge(deps)
-	providers := features.accessProviders()
-	providers = append(providers, relayControl)
-	rt = startRuntime(ctx, c, listener.Addr(), deps, cancel, features, providers)
+	relayControl.setOriginHandler(bridge.HTTPHandler)
+	rt = startRuntime(ctx, c, listener.Addr(), deps, cancel, features, features.accessProviders())
 	localAPI.Store(rt)
 	server = &http.Server{
 		Handler:           bridge.HTTPHandler,
@@ -251,18 +245,6 @@ func serve(ctx context.Context, c serverRun, out io.Writer) error {
 	ended := make(chan error, 1)
 	go func() { ended <- server.Serve(listener) }()
 	rt.serve()
-	relayServer := relayHTTPServer(ctx, bridge.HTTPHandler)
-	relayEnded := make(chan struct{})
-	go func() {
-		defer close(relayEnded)
-		if err := relayServer.Serve(relayListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("relay loopback stopped")
-		}
-	}()
-	defer func() {
-		_ = relayServer.Close()
-		<-relayEnded
-	}()
 	relayControl.Start()
 	slog.Info("webmux listening", "address", listener.Addr(), "version", version)
 	printConfigNotice(out, c)

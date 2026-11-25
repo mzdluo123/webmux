@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -78,23 +80,16 @@ func TestRelayRejectsPartialAndMalformedBootstrap(t *testing.T) {
 	}
 }
 
-func TestRelayFixedPoolCounts(t *testing.T) {
-	for _, count := range []int{-1, 17} {
-		cfg := DefaultRelayConfig()
-		cfg.InteractiveConnections = count
-		if _, err := cfg.Validated(); err == nil {
-			t.Fatalf("interactive count %d accepted", count)
-		}
-		cfg = DefaultRelayConfig()
-		cfg.BulkConnections = count
-		if _, err := cfg.Validated(); err == nil {
-			t.Fatalf("bulk count %d accepted", count)
-		}
-	}
-	cfg := DefaultRelayConfig()
-	cfg.InteractiveConnections, cfg.BulkConnections = 0, 0
-	got, err := cfg.Validated()
-	if err != nil || got.InteractiveConnections != 2 || got.BulkConnections != 4 {
-		t.Fatalf("default fixed pool counts: %+v %v", got, err)
+func TestRelayRejectsRemovedPoolKeys(t *testing.T) {
+	for _, key := range []string{"interactive_connections", "bulk_connections"} {
+		t.Run(key, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			if err := os.WriteFile(path, []byte("[relay]\n"+key+" = 0\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Load(path, true); err == nil || !strings.Contains(err.Error(), "relay."+key) {
+				t.Fatalf("removed configuration key %s did not produce a migration error: %v", key, err)
+			}
+		})
 	}
 }

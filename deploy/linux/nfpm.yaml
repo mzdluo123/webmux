@@ -37,6 +37,11 @@ contents:
     dst: /usr/share/licenses/webmux/Snapcompact-Go-NOTICES.txt
     file_info:
       mode: 0644
+  - src: bin/.frpc/linux-${ARCH}/LICENSE
+    dst: /usr/share/licenses/webmux/frpc.LICENSE
+    expand: true
+    file_info:
+      mode: 0644
   - src: deploy/linux/webmux.service
     dst: /usr/lib/systemd/user/webmux.service
     file_info:

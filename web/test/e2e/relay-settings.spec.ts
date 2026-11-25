@@ -94,8 +94,7 @@ async function relayFixture(page: Page, initial = relayStatus) {
         enabled: true,
         state: "ready",
         controlReady: true,
-        bulkReady: true,
-        readyConnections: 2,
+        dataReady: true,
         publicUrl,
       };
     }

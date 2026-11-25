@@ -22,9 +22,8 @@ concurrency:
   group: test-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Every suite runs on Ubuntu. There is no macOS runner: GitHub's macOS arm64
-# capacity left jobs queued until they failed. The Ubuntu Go job still vets
-# the darwin build, but macOS-only runtime behaviour is untested in CI.
+# The main Go suite runs on Ubuntu and vets the darwin build. The managed
+# frpc check below also exercises the pinned binary on its native platforms.
 jobs:
   # Conservative change detection lives in a job rather than on.pull_request
   # paths: the workflow must always start so the required `Test result` check
@@ -198,8 +197,7 @@ jobs:
         run: |
           go vet ./...
           go test -race -count=1 ./...
-      # No macOS runner: vet its build tags here so the *_darwin.go files
-      # are still checked.
+      # Vet the darwin build tags here even though this job runs on Linux.
       - name: Vet the macOS build
         run: GOOS=darwin go vet -printf.funcs=problemf,invalidf,usagef,checkf ./...
       - name: Run Go race tests with coverage
@@ -415,6 +413,33 @@ jobs:
           $sha = (Get-FileHash "$bin\webmux-linux-amd64" -Algorithm SHA256).Hash
           & .github\scripts\windows-installer-smoke.ps1 -Setup "$bin\webmux-setup-windows-amd64.exe" -SetupOtherArch "$bin\webmux-setup-windows-arm64.exe" -ServerSha256 $sha -Version 0.0.1 -Arch amd64
 
+  managed-frpc:
+    name: Managed frpc (${{ matrix.platform }})
+    needs: changes
+    if: needs.changes.result == 'success' && needs.changes.outputs.go == 'true'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-26.04, platform: linux-amd64 }
+          - { runner: ubuntu-24.04-arm, platform: linux-arm64 }
+          - { runner: macos-15-intel, platform: darwin-amd64 }
+          - { runner: macos-15, platform: darwin-arm64 }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Extract and run the pinned helper
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          [ "$(go env GOHOSTOS)-$(go env GOHOSTARCH)" = "$PLATFORM" ]
+          make frpc-test
+
   # The deb and rpm packages built from a stand-in server are installed,
   # checked and removed in clean Debian and Fedora containers.
   linux-packages:
@@ -457,6 +482,7 @@ jobs:
         e2e,
         performance,
         windows-installer,
+        managed-frpc,
         linux-packages,
       ]
     runs-on: ubuntu-26.04
@@ -496,6 +522,7 @@ jobs:
           E2E: ${{ needs.e2e.result }}
           PERFORMANCE: ${{ needs.performance.result }}
           WINDOWS_INSTALLER: ${{ needs.windows-installer.result }}
+          MANAGED_FRPC: ${{ needs.managed-frpc.result }}
           LINUX_PACKAGES: ${{ needs.linux-packages.result }}
         run: |
           failed=0
@@ -508,6 +535,7 @@ jobs:
           if [ "$GO" = "true" ]; then
             require_success "Go race (Ubuntu)" "$UBUNTU_GO"
             require_success "Windows installer smoke" "$WINDOWS_INSTALLER"
+            require_success "Managed frpc" "$MANAGED_FRPC"
             require_success "Linux packages" "$LINUX_PACKAGES"
           fi
           if [ "$WEB" = "true" ]; then

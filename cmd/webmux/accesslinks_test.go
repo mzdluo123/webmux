@@ -35,3 +35,21 @@ func TestAccessLinksReportOnlyReadyEntryPoints(t *testing.T) {
 		t.Fatalf("unready entry points listed %+v", got)
 	}
 }
+
+func TestRelayAccessLinkRequiresBothReadinessChecks(t *testing.T) {
+	const origin = "https://host.relay.example"
+	for _, controlReady := range []bool{false, true} {
+		for _, dataReady := range []bool{false, true} {
+			link, ok := relayAccessLink(contract.RelayStatus{ControlReady: controlReady, DataReady: dataReady, PublicURL: origin})
+			if ok != (controlReady && dataReady) {
+				t.Fatalf("controlReady=%t dataReady=%t returned %+v, %t", controlReady, dataReady, link, ok)
+			}
+			if ok && link != (contract.AccessLink{Provider: "relay", Label: "Official Relay", URL: origin, Public: true}) {
+				t.Fatalf("wrong Relay entry point: %+v", link)
+			}
+		}
+	}
+	if _, ok := relayAccessLink(contract.RelayStatus{ControlReady: true, DataReady: true, BoundPublicURL: origin}); ok {
+		t.Fatal("bound address must not be substituted for a confirmed entry point")
+	}
+}

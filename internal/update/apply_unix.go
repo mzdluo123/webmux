@@ -39,6 +39,8 @@ type ApplyOptions struct {
 // never touches any user's webmux.service; running servers keep the old
 // process until their users restart them. Cancelling ctx stops the check and
 // download; once dpkg or rpm has started it always runs to completion.
+// The managed frpc and its license are covered by the package's signed digest
+// and change with the WebMux executable.
 func Apply(ctx context.Context, o ApplyOptions) error {
 	if !IsRelease() {
 		return ErrNotRelease

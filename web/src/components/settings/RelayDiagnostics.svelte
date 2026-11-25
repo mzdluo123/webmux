@@ -31,15 +31,15 @@
     <section class="space-y-2" aria-label={m.relay_health()}>
       <h3 class="text-sm font-medium">{m.relay_health()}</h3>
       <dl class="grid min-w-0 grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-        <dt>
-          {m.relay_baseline_count({ count: String(status.readyConnections) })}
-        </dt>
+        <dt>{m.relay_baseline_transport()}</dt>
+        <dd>{status.transport.toUpperCase()}</dd>
+        <dt>{m.relay_control_readiness()}</dt>
         <dd>
-          {m.relay_channels()} · {status.controlReady
-            ? m.relay_state_ready()
-            : m.relay_reach_unknown()} / {status.bulkReady
-            ? m.relay_state_ready()
-            : m.relay_reach_unknown()}
+          {status.controlReady ? m.relay_state_ready() : m.relay_not_ready()}
+        </dd>
+        <dt>{m.relay_data_readiness()}</dt>
+        <dd>
+          {status.dataReady ? m.relay_state_ready() : m.relay_not_ready()}
         </dd>
         <dt>{m.relay_control_reachability()}</dt>
         <dd>{reachability[status.controlReachability]}</dd>

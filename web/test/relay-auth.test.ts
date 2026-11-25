@@ -197,5 +197,20 @@ test("Relay status without public control pins preserves authenticated WSS assig
     capabilities: ["wss", "turn"],
   };
 
-  expect(RelayStatusSchema.parse(status)).toEqual(status);
+  const decoded = RelayStatusSchema.parse(status);
+  expect(decoded).toEqual(status);
+  expect(decoded).not.toHaveProperty("publicUrl");
+  expect(
+    RelayStatusSchema.safeParse({ ...status, dataReady: undefined }).success,
+  ).toBe(false);
+  expect(
+    RelayStatusSchema.safeParse({ ...status, state: "degraded" }).success,
+  ).toBe(false);
+  const ready = {
+    ...status,
+    state: "ready",
+    dataReady: true,
+    publicUrl: "https://host.relay.example",
+  };
+  expect(RelayStatusSchema.parse(ready)).toEqual(ready);
 });

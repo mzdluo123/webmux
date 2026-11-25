@@ -123,6 +123,9 @@ func localStatus(record runtime.Record, c serverRun, deps api.Deps, features *fe
 	if deps.Relay != nil {
 		state := deps.Relay.Control.Status()
 		s.Relay = &state
+		if link, ok := relayAccessLink(state); ok {
+			s.URLs.Access = append(s.URLs.Access, link)
+		}
 	}
 	if features.tailscale != nil {
 		ts := features.tailscale.Summary()

@@ -17,8 +17,7 @@ const ready: RelayStatus = {
   enabled: true,
   state: "ready",
   controlReady: true,
-  bulkReady: true,
-  readyConnections: 2,
+  dataReady: true,
   hybridSupported: true,
   hybridUnavailableReason: "",
   publicUrl: paired.boundPublicUrl,
@@ -255,16 +254,17 @@ export const DeleteUncertainRetained: Story = operation("uncertain", {
   accessClosed: false,
   error: "unavailable",
 });
-export const BulkDegraded: Story = {
+export const OriginUnavailable: Story = {
   args: {
     view: {
       ...baseView,
       status: {
         ...ready,
-        state: "degraded",
-        bulkReady: false,
-        readyConnections: 1,
-        reconnectReason: "bulk-unavailable",
+        state: "failed",
+        dataReady: false,
+        dataReachability: "unavailable",
+        publicUrl: undefined,
+        readinessError: "data-probe-failed",
       },
     },
   },

@@ -121,6 +121,48 @@ func TestAuthSuspendResumePreservesCookieAndAbsoluteExpiry(t *testing.T) {
 	}
 }
 
+func TestAuthOriginRotationClosesAccessAndResumesOnlyOnNewScope(t *testing.T) {
+	auth, control, _ := newAuthTest(t, AuthConfig{SessionTTL: time.Minute})
+	finish := finishAuthLogin(t, auth, control, 10)
+	before, err := auth.Status(finish.Principal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed := make(chan struct{})
+	release, err := auth.RegisterAccess(finish.Principal, func() { close(closed) }, closed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	revocation := authTestRevocation(control, "connector", "")
+	revocation.Reason = "expired"
+	if err := auth.Revoke(t.Context(), revocation); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-closed:
+	default:
+		t.Fatal("rotation acknowledged while old application access was open")
+	}
+	origin := finish.Principal.Session.grant.Origin
+	status := auth.Probe(finish.Cookie.Value, origin)
+	if finish.Principal.Context.Err() == nil || status.Authenticated || status.Reason != "reconnecting" || status.ExpiresAt != before.ExpiresAt {
+		t.Fatalf("rotation left old authority usable or retired the browser grant: %+v", status)
+	}
+	auth.mu.Lock()
+	resumingOldScope := finish.Principal.Session.resuming
+	auth.mu.Unlock()
+	if resumingOldScope {
+		t.Fatal("rotation attempted to restore a grant on the expired connector")
+	}
+	nextAuthScope(control)
+	resumed := recoverAuth(t, auth, finish)
+	after, err := auth.Status(resumed)
+	if err != nil || resumed.GrantID != finish.Principal.GrantID || after.ExpiresAt != before.ExpiresAt || after.CSRFToken != before.CSRFToken {
+		t.Fatalf("rotation did not preserve browser identity and absolute lifetime: %+v %v", after, err)
+	}
+}
+
 func TestAuthResumeSingleFlightAndJoinsOldAccess(t *testing.T) {
 	auth, control, _ := newAuthTest(t, AuthConfig{})
 	finish := finishAuthLogin(t, auth, control, 10)

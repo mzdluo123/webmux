@@ -22,12 +22,19 @@ aarch64 | arm64) deb_arch=arm64 rpm_arch=aarch64 ;;
 esac
 deb=webmux_${version}-1_${deb_arch}.deb
 rpm=webmux-${version}-1.${rpm_arch}.rpm
-for file in "$deb" "$rpm"; do
+case $version in
+*-dev.*) server=webmux-$version-linux-$deb_arch ;;
+*) server=webmux-linux-$deb_arch ;;
+esac
+for file in "$deb" "$rpm" "$server"; do
 	[ -f "$dir/$file" ] || {
 		printf 'test-linux-packages: missing %s/%s\n' "$dir" "$file" >&2
 		exit 1
 	}
 done
+server_sha=$(sha256sum "$dir/$server" | cut -d' ' -f1)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+license_sha=$(awk '$1 == "license" { print $2 }' "$repo/internal/frphelper/pins.txt")
 
 # A development version X.Y.Z-dev.N is packaged as X.Y.Z~dev.N, which dpkg
 # and rpm sort before X.Y.Z; file names keep the "-".
@@ -40,11 +47,14 @@ esac
 # commands and the version the binary reports.
 checks='
 	test "$(stat -c %a /usr/bin/webmux)" = 755
+	test "$(sha256sum /usr/bin/webmux | cut -d" " -f1)" = "$SERVER_SHA"
 	test "$(stat -c %a /usr/lib/systemd/user/webmux.service)" = 644
 	test "$(stat -c %a /usr/lib/systemd/system/webmux-update.service)" = 644
 	test "$(stat -c %a /usr/lib/systemd/system/webmux-update.timer)" = 644
 	test "$(stat -c %a /usr/share/licenses/webmux/OFL-NotoSansCJK.txt)" = 644
 	test "$(stat -c %a /usr/share/licenses/webmux/Snapcompact-Go-NOTICES.txt)" = 644
+	test "$(stat -c %a /usr/share/licenses/webmux/frpc.LICENSE)" = 644
+	test "$(sha256sum /usr/share/licenses/webmux/frpc.LICENSE | cut -d" " -f1)" = "$LICENSE_SHA"
 	grep -q "SIL OPEN FONT LICENSE Version 1.1" /usr/share/licenses/webmux/OFL-NotoSansCJK.txt
 	grep -q "Copyright (c) 2014-2021 Adobe" /usr/share/licenses/webmux/OFL-NotoSansCJK.txt
 	grep -q "MIT License" /usr/share/licenses/webmux/Snapcompact-Go-NOTICES.txt
@@ -55,6 +65,7 @@ checks='
 removed='
 	test ! -e /usr/share/licenses/webmux/OFL-NotoSansCJK.txt
 	test ! -e /usr/share/licenses/webmux/Snapcompact-Go-NOTICES.txt
+	test ! -e /usr/share/licenses/webmux/frpc.LICENSE
 	test ! -e /usr/bin/webmux
 	test ! -e /usr/lib/systemd/user/webmux.service
 	test ! -e /usr/lib/systemd/system/webmux-update.service
@@ -78,10 +89,10 @@ timer_calls='
 	never_user_service() { ! grep -q "webmux.service" /tmp/systemctl.log; }
 '
 
-docker run --rm -e VERSION="$version" -v "$dir:/pkgs:ro" "$debian_image" sh -euc "
+docker run --rm -e VERSION="$version" -e SERVER_SHA="$server_sha" -e LICENSE_SHA="$license_sha" -v "$dir:/pkgs:ro" "$debian_image" sh -euc "
 	test -z \"\$(dpkg-deb -f /pkgs/$deb Depends)\"
 	test \"\$(dpkg-deb -f /pkgs/$deb Version)\" = '$package_version'
-	test \"\$(dpkg-deb -c /pkgs/$deb | awk '\$1 !~ /^d/ {print \$6}' | sort | tr '\n' ' ')\" = './usr/bin/webmux ./usr/lib/systemd/system/webmux-update.service ./usr/lib/systemd/system/webmux-update.timer ./usr/lib/systemd/user/webmux.service ./usr/share/licenses/webmux/OFL-NotoSansCJK.txt ./usr/share/licenses/webmux/Snapcompact-Go-NOTICES.txt '
+	test \"\$(dpkg-deb -c /pkgs/$deb | awk '\$1 !~ /^d/ {print \$6}' | LC_ALL=C sort | tr '\n' ' ')\" = './usr/bin/webmux ./usr/lib/systemd/system/webmux-update.service ./usr/lib/systemd/system/webmux-update.timer ./usr/lib/systemd/user/webmux.service ./usr/share/licenses/webmux/OFL-NotoSansCJK.txt ./usr/share/licenses/webmux/Snapcompact-Go-NOTICES.txt ./usr/share/licenses/webmux/frpc.LICENSE '
 
 	# Without systemd: installs and removes quietly, enabling nothing.
 	dpkg -i /pkgs/$deb >/dev/null
@@ -112,8 +123,8 @@ docker run --rm -e VERSION="$version" -v "$dir:/pkgs:ro" "$debian_image" sh -euc
 }
 printf 'ok - %s installs, upgrades, runs and removes on Debian\n' "$deb"
 
-docker run --rm -e VERSION="$version" -v "$dir:/pkgs:ro" "$fedora_image" sh -euc "
-	test \"\$(rpm -qpl /pkgs/$rpm | tr '\n' ' ')\" = '/usr/bin/webmux /usr/lib/systemd/system/webmux-update.service /usr/lib/systemd/system/webmux-update.timer /usr/lib/systemd/user/webmux.service /usr/share/licenses/webmux/OFL-NotoSansCJK.txt /usr/share/licenses/webmux/Snapcompact-Go-NOTICES.txt '
+docker run --rm -e VERSION="$version" -e SERVER_SHA="$server_sha" -e LICENSE_SHA="$license_sha" -v "$dir:/pkgs:ro" "$fedora_image" sh -euc "
+	test \"\$(rpm -qpl /pkgs/$rpm | LC_ALL=C sort | tr '\n' ' ')\" = '/usr/bin/webmux /usr/lib/systemd/system/webmux-update.service /usr/lib/systemd/system/webmux-update.timer /usr/lib/systemd/user/webmux.service /usr/share/licenses/webmux/OFL-NotoSansCJK.txt /usr/share/licenses/webmux/Snapcompact-Go-NOTICES.txt /usr/share/licenses/webmux/frpc.LICENSE '
 	test -z \"\$(rpm -qpR /pkgs/$rpm | grep -v '^rpmlib(' | grep -v '^/bin/sh' || true)\"
 	test \"\$(rpm -qp --qf '%{VERSION}-%{RELEASE}' /pkgs/$rpm)\" = '$package_version'
 

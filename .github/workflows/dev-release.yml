@@ -118,6 +118,7 @@ jobs:
         working-directory: bin
         run: |
           sha256sum -c SHA256SUMS
+          sh ../.github/scripts/test-release-frpc.sh . "$VERSION"
           [ "$("./webmux-$VERSION-linux-amd64" version)" = "webmux $VERSION" ]
           sh ../.github/scripts/test-linux-packages.sh . "$VERSION"
       - name: Upload release artifacts

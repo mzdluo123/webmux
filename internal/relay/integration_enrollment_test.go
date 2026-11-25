@@ -44,8 +44,7 @@ func TestRelayIntegrationEnrollment(t *testing.T) {
 	}
 	roots := x509.NewCertPool()
 	roots.AddCert(cert)
-	id := newTestIdentity(t)
-	c, err := New(Config{ControlEndpoint: "https://example.com", ControlAudience: "test-control", LoopbackAddress: "127.0.0.1:12345", TLSConfig: &tls.Config{RootCAs: roots}, LoopbackTLSConfig: id.localTLS()})
+	c, err := New(Config{ControlEndpoint: "https://example.com", ControlAudience: "test-control", TLSConfig: &tls.Config{RootCAs: roots}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -163,18 +163,18 @@ type RevocationAck struct {
 // stream. Exactly one matching payload is present, except ping/pong (none).
 // Responses echo RequestID; events use independent IDs. No implicit retries.
 type ControlMessage struct {
-	Version           Version             `json:"version"`
-	Type              ControlType         `json:"type"`
-	RequestID         Token               `json:"requestId"`
-	Scope             Scope               `json:"scope"`
-	ExpiresAt         int64               `json:"expiresAt"`
-	Exchange          *LoginExchange      `json:"exchange,omitempty"`
-	Resume            *LoginResume        `json:"resume,omitempty"`
-	Grant             *BrowserGrant       `json:"grant,omitempty"`
-	ICERequest        *ICERequest         `json:"iceRequest,omitempty"`
-	ICEConfig         *ICEConfig          `json:"iceConfig,omitempty"`
-	Revocation        *Revocation         `json:"revocation,omitempty"`
-	RevocationAck     *RevocationAck      `json:"revocationAck,omitempty"`
+	Version           Version            `json:"version"`
+	Type              ControlType        `json:"type"`
+	RequestID         Token              `json:"requestId"`
+	Scope             Scope              `json:"scope"`
+	ExpiresAt         int64              `json:"expiresAt"`
+	Exchange          *LoginExchange     `json:"exchange,omitempty"`
+	Resume            *LoginResume       `json:"resume,omitempty"`
+	Grant             *BrowserGrant      `json:"grant,omitempty"`
+	ICERequest        *ICERequest        `json:"iceRequest,omitempty"`
+	ICEConfig         *ICEConfig         `json:"iceConfig,omitempty"`
+	Revocation        *Revocation        `json:"revocation,omitempty"`
+	RevocationAck     *RevocationAck     `json:"revocationAck,omitempty"`
 	Error             *Error             `json:"error,omitempty"`
 	AllocationRequest *AllocationRequest `json:"allocationRequest,omitempty"`
 	AllocationRenew   *AllocationRenew   `json:"allocationRenew,omitempty"`

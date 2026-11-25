@@ -123,6 +123,11 @@ func (a *Auth) resumeLocked(s *AuthSession, binding AuthBinding, now time.Time) 
 		a.retireLocked(s, "revoked")
 		return
 	}
+	// A suspended grant cannot restore authority on the transport generation
+	// whose access was closed, even if a stale snapshot still reports it ready.
+	if binding.Scope == s.binding.Scope {
+		return
+	}
 	s.resuming = true
 	generation := a.generation
 	ctx, cancel := context.WithTimeout(context.Background(), protocol.RequestTimeout)

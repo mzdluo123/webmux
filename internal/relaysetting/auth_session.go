@@ -344,7 +344,17 @@ func (a *Auth) Revoke(ctx context.Context, revocation protocol.Revocation) error
 		}
 		matches := revocation.Scope == "binding" || revocation.Scope == "connector" && g.ConnectorGeneration == revocation.ConnectorGeneration || revocation.Scope == "console-session" && g.ConsoleSessionID == revocation.ConsoleSessionID || revocation.Scope == "grant" && g.ID == revocation.GrantID
 		if matches {
-			a.retireLocked(s, "revoked")
+			if revocation.Scope == "connector" && revocation.Reason == "expired" {
+				// Planned origin certificate rotation closes only this transport
+				// generation. The authority may resume the original browser grant
+				// on a newly authenticated scope without extending its deadline.
+				a.suspendLocked(s)
+				if s.resumeCancel != nil {
+					s.resumeCancel()
+				}
+			} else {
+				a.retireLocked(s, "revoked")
+			}
 			sessions = append(sessions, s)
 		}
 	}

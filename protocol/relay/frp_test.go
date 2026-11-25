@@ -277,7 +277,9 @@ func TestFRPPrivateNodeAllocation(t *testing.T) {
 		NodeID: "node-a", Audience: "webmux-control", ControlEpoch: vectorToken, NodeEpoch: vectorToken, Sequence: 1, ExpiresAt: vectorNow.Add(RequestTimeout).Unix(),
 		AllocationRequest: &AllocationRequest{HostServerCSR: fixtureCSR, NodeClientCSR: fixtureCSR},
 	}
-	check := func(m NodeMessage) error { return m.Validate("node-a", "webmux-control", vectorToken, vectorToken, vectorNow) }
+	check := func(m NodeMessage) error {
+		return m.Validate("node-a", "webmux-control", vectorToken, vectorToken, vectorNow)
+	}
 	b, err := json.Marshal(m)
 	if err != nil {
 		t.Fatal(err)

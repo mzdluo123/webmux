@@ -56,10 +56,9 @@ func (tc *tailscaleController) AccessLinks() []contract.AccessLink {
 	return []contract.AccessLink{{Provider: "tailscale", Label: label, URL: tc.url, Public: funnel}}
 }
 
-func (rc *relayController) AccessLinks() []contract.AccessLink {
-	status := rc.Status()
-	if !status.ControlReady || status.PublicURL == "" {
-		return nil
+func relayAccessLink(status contract.RelayStatus) (contract.AccessLink, bool) {
+	if !status.ControlReady || !status.DataReady || status.PublicURL == "" {
+		return contract.AccessLink{}, false
 	}
-	return []contract.AccessLink{{Provider: "relay", Label: "Official Relay", URL: status.PublicURL, Public: true}}
+	return contract.AccessLink{Provider: "relay", Label: "Official Relay", URL: status.PublicURL, Public: true}, true
 }

@@ -23,47 +23,27 @@ import (
 	protocol "github.com/mzdluo123/webmux/protocol/relay"
 )
 
-// Config contains the control authority and startup-fixed WebMux listener.
+// Config contains the authenticated control authority.
 // TLSConfig may supply additional RootCAs, never a verification bypass.
 type Config struct {
-	InteractiveConnections int
-	BulkConnections        int
-	ControlEndpoint        string
-	ControlAudience        string
-	LoopbackAddress        string
-	TLSConfig              *tls.Config
-	LoopbackTLSConfig      *tls.Config
+	ControlEndpoint string
+	ControlAudience string
+	TLSConfig       *tls.Config
 }
 
 // Client owns at most one running connector. It never persists credentials.
 type Client struct {
-	config          Config
-	http            *http.Client
-	dialContext     func(context.Context, string, string) (net.Conn, error)
-	stableThreshold time.Duration
-	mu              sync.Mutex
-	assignment      *protocol.Assignment
-	active          *connection
-	connecting      bool
+	config      Config
+	http        *http.Client
+	dialContext func(context.Context, string, string) (net.Conn, error)
+	mu          sync.Mutex
+	assignment  *protocol.Assignment
+	active      *connection
+	connecting  bool
 }
 
 func New(cfg Config) (*Client, error) {
-	if cfg.InteractiveConnections == 0 {
-		cfg.InteractiveConnections = protocol.DefaultInteractiveConnections
-	}
-	if cfg.BulkConnections == 0 {
-		cfg.BulkConnections = protocol.DefaultBulkConnections
-	}
-	if cfg.InteractiveConnections < 1 || cfg.InteractiveConnections > protocol.MaxRoleConnections || cfg.BulkConnections < 1 || cfg.BulkConnections > protocol.MaxRoleConnections {
-		return nil, protocol.Error{Code: protocol.InvalidConfig}
-	}
 	if !validOrigin(cfg.ControlEndpoint) || !validAudience(cfg.ControlAudience) {
-		return nil, protocol.Error{Code: protocol.InvalidConfig}
-	}
-	host, port, err := net.SplitHostPort(cfg.LoopbackAddress)
-	ip := net.ParseIP(host)
-	p, portErr := strconv.ParseUint(port, 10, 16)
-	if err != nil || ip == nil || !ip.IsLoopback() || portErr != nil || p == 0 {
 		return nil, protocol.Error{Code: protocol.InvalidConfig}
 	}
 	if cfg.TLSConfig != nil {
@@ -77,16 +57,6 @@ func New(cfg Config) (*Client, error) {
 			cfg.TLSConfig.RootCAs = t.RootCAs.Clone()
 		}
 	}
-	local := cfg.LoopbackTLSConfig
-	if local == nil || local.InsecureSkipVerify || local.VerifyConnection != nil || local.VerifyPeerCertificate != nil || local.RootCAs == nil || local.ServerName == "" || len(local.Certificates) != 1 || local.GetClientCertificate != nil || local.MaxVersion != 0 && local.MaxVersion < tls.VersionTLS13 {
-		return nil, protocol.Error{Code: protocol.InvalidConfig}
-	}
-	if len(local.Certificates[0].Certificate) == 0 || local.Certificates[0].PrivateKey == nil {
-		return nil, protocol.Error{Code: protocol.InvalidConfig}
-	}
-	cfg.LoopbackTLSConfig = local.Clone()
-	cfg.LoopbackTLSConfig.RootCAs = local.RootCAs.Clone()
-	cfg.LoopbackTLSConfig.MinVersion = tls.VersionTLS13
 	c := &Client{config: cfg, dialContext: (&net.Dialer{Timeout: protocol.AuthTimeout, KeepAlive: protocol.KeepAliveInterval}).DialContext}
 	c.http = c.httpClient(nil)
 	return c, nil

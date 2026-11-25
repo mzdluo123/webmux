@@ -25,7 +25,7 @@ func storageTestSettings() Settings {
 	pending := make([]byte, ed25519.SeedSize)
 	pending[0] = 1
 	return Settings{
-		Config:      config.RelayConfig{InteractiveConnections: 2, BulkConnections: 4, Enabled: true, Transport: "wss", ControlEndpoint: "https://control.example.com", ControlAudience: "webmux-control"},
+		Config:      config.RelayConfig{Enabled: true, Transport: "wss", ControlEndpoint: "https://control.example.com", ControlAudience: "webmux-control"},
 		Seed:        base64.RawURLEncoding.EncodeToString(seed),
 		PendingSeed: base64.RawURLEncoding.EncodeToString(pending),
 		Binding:     &protocol.Binding{HostID: "0123456789abcdef0123456789abcdef", OwnerID: "12345", BindingGeneration: 7, PublicURL: "https://h-0123456789abcdef0123456789abcdef.hosts.example.com"},
@@ -146,7 +146,7 @@ func TestRelayV3PreservesBindingAndPairingState(t *testing.T) {
 				want.Config.Enabled = false
 				want.Seed, want.Binding, want.OwnerLogin, want.Confirmed = "", nil, "", false
 			case "unconfigured":
-				want = Settings{Config: config.RelayConfig{InteractiveConnections: 2, BulkConnections: 4, Transport: "wss"}}
+				want = Settings{Config: config.RelayConfig{Transport: "wss"}}
 			}
 			dir := t.TempDir()
 			path := filepath.Join(dir, "relay-settings.json")
@@ -524,26 +524,5 @@ func TestRelayUnconfiguredStorageAdoptsDefaultsWithoutRedirectingIdentity(t *tes
 				t.Fatal("loading defaults rewrote persisted evidence")
 			}
 		})
-	}
-}
-
-func TestRelayRestoresConfiguredPoolSizes(t *testing.T) {
-	want := storageTestSettings()
-	want.Config.InteractiveConnections = 3
-	want.Config.BulkConnections = 7
-	dir := t.TempDir()
-	s := Open(dir, want.Config)
-	if err := s.Save(want); err != nil {
-		t.Fatal(err)
-	}
-	s.Close()
-	got, web, err := Inspect(dir, want.Config)
-	if err != nil || !web || !reflect.DeepEqual(got, want) {
-		t.Fatalf("pool configuration lost on restore: got=%+v err=%v", got.Config, err)
-	}
-	want.Config.InteractiveConnections = 5
-	got, _, err = Inspect(dir, want.Config)
-	if err != nil || got.Config.InteractiveConnections != 5 {
-		t.Fatalf("updated local pool configuration ignored: got=%+v err=%v", got.Config, err)
 	}
 }

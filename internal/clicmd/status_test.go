@@ -23,3 +23,27 @@ func TestPrintStatusInstalledVersion(t *testing.T) {
 		t.Fatalf("missing %q:\n%s", notice, out.String())
 	}
 }
+
+func TestPrintStatusSeparatesRelayReadiness(t *testing.T) {
+	const origin = "https://host.relay.example"
+	status := contract.StatusV1{State: contract.StateRunning, Health: contract.Health{Status: contract.HealthOK},
+		Relay: &contract.RelayStatus{
+			Enabled: true, Paired: true, State: "failed", Transport: "wss", ControlReady: true,
+			BoundPublicURL: origin, Error: "relay origin probe failed",
+		},
+	}
+	var out bytes.Buffer
+	PrintStatus(&out, status)
+	if text := out.String(); !strings.Contains(text, "baseline=wss, controlReady=true, dataReady=false") ||
+		!strings.Contains(text, "relay origin probe failed") || strings.Contains(text, origin) {
+		t.Fatalf("management-only Relay: %s", text)
+	}
+	status.Relay.State, status.Relay.DataReady, status.Relay.PublicURL, status.Relay.Error = "ready", true, origin, ""
+	status.URLs.Access = []contract.AccessLink{{Provider: "relay", Label: "Official Relay", URL: origin, Public: true}}
+	out.Reset()
+	PrintStatus(&out, status)
+	if text := out.String(); !strings.Contains(text, "baseline=wss, controlReady=true, dataReady=true") ||
+		!strings.Contains(text, origin+" (Official Relay)") || strings.Contains(text, "relay origin probe failed") {
+		t.Fatalf("ready Relay: %s", text)
+	}
+}

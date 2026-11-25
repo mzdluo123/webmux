@@ -53,6 +53,7 @@ type Installer struct {
 // Install downloads, verifies and installs the server, then checks that the
 // installed file reports the tray version. The existing file in WSL is
 // untouched unless a verified download is ready.
+// The managed frpc and its license travel inside those same Linux bytes.
 func (i Installer) Install(ctx context.Context) error {
 	if _, ok := update.ParseVersion(i.Version); i.Digests == nil || !ok {
 		return ErrInstallUnsupported
