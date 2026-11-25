@@ -19,12 +19,13 @@ const (
 )
 
 type Callbacks struct {
-	Ready        func(protocol.Scope)
-	DataReady    func(ready bool, reason protocol.Code)
-	Disconnected func()
+	Ready          func(protocol.Scope)
+	TransportReady func(scope protocol.Scope, ready bool, reason protocol.Code)
+	DataObserved   func(protocol.Scope, DataObservation)
+	Disconnected   func()
 	// Revoke returns only after the targeted HTTP/WS/P2P/forward access is closed.
 	Revoke func(context.Context, protocol.Revocation) error
-	// Origin handles requests only after scope-bound mTLS and data readiness.
+	// Origin handles requests after scope-bound mTLS and live grant checks.
 	Origin http.Handler
 }
 
@@ -69,7 +70,7 @@ type connection struct {
 
 // Connect runs one authenticated management generation until loss or cancellation.
 func (c *Client) Connect(ctx context.Context, key ed25519.PrivateKey, a protocol.Assignment, callbacks Callbacks) error {
-	if callbacks.Ready == nil || callbacks.DataReady == nil || callbacks.Disconnected == nil || callbacks.Revoke == nil || callbacks.Origin == nil {
+	if callbacks.Ready == nil || callbacks.TransportReady == nil || callbacks.DataObserved == nil || callbacks.Disconnected == nil || callbacks.Revoke == nil || callbacks.Origin == nil {
 		return protocol.Error{Code: protocol.InvalidConfig}
 	}
 	if len(key) != ed25519.PrivateKeySize {
@@ -171,7 +172,7 @@ func (s *connection) publishReady(rpc *controlRPC) bool {
 	return true
 }
 
-func (s *connection) publishData(ready bool, reason protocol.Code) {
+func (s *connection) publishTransport(ready bool, reason protocol.Code) {
 	s.eventMu.Lock()
 	defer s.eventMu.Unlock()
 	if s.stopped || s.ctx.Err() != nil {
@@ -181,7 +182,21 @@ func (s *connection) publishData(ready bool, reason protocol.Code) {
 	denied := s.denied
 	s.mu.Unlock()
 	if !ready || !denied {
-		s.callbacks.DataReady(ready, reason)
+		s.callbacks.TransportReady(s.scope, ready, reason)
+	}
+}
+
+func (s *connection) publishObservation(observation DataObservation) {
+	s.eventMu.Lock()
+	defer s.eventMu.Unlock()
+	if s.stopped || s.ctx.Err() != nil {
+		return
+	}
+	s.mu.Lock()
+	denied := s.denied
+	s.mu.Unlock()
+	if !denied {
+		s.callbacks.DataObserved(s.scope, observation)
 	}
 }
 
@@ -220,7 +235,7 @@ func (s *connection) stop(err error) {
 	s.eventMu.Unlock()
 
 	s.control.close()
-	<-s.dataDone
 	s.callbacks.Disconnected()
+	<-s.dataDone
 	close(s.shutdownDone)
 }

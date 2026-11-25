@@ -42,6 +42,7 @@ type relayController struct {
 	tokenStrong        bool
 	settings           relaysetting.Settings
 	status             contract.RelayStatus
+	observation        relay.DataObservation
 	generation         uint64
 	cancel             context.CancelFunc
 	done               chan struct{}
@@ -83,7 +84,7 @@ func newRelayController(ctx context.Context, c config.Config, public *transport.
 			rc.pairing.Error = "storage-unavailable"
 		}
 	}
-	rc.status = contract.RelayStatus{State: "off", Transport: "wss", TCPAlgorithm: "unknown", ControlSource: source, ControlReachability: "unknown", DataReachability: "unassigned", AssignmentRevision: "0", ConfigRevision: "0", AppliedRevision: "0", AssignmentSource: "unassigned", Capabilities: []string{}, Sessions: []contract.RelaySessionDiagnostic{}}
+	rc.status = contract.RelayStatus{State: "off", Transport: "wss", TCPAlgorithm: "unknown", ControlSource: source, ControlReachability: "unknown", AssignmentRevision: "0", ConfigRevision: "0", AppliedRevision: "0", AssignmentSource: "unassigned", Capabilities: []string{}, Sessions: []contract.RelaySessionDiagnostic{}}
 	rc.status.Operation = contract.RelayOperation{Kind: "idle", Phase: "idle"}
 	rc.status.HybridUnavailableReason = "p2p-feature-unavailable"
 	client, err := relay.New(assemble.RelayOptions(settings.Config))
@@ -106,7 +107,7 @@ func (rc *relayController) setOriginHandler(h http.Handler) {
 	rc.mu.Lock()
 	rc.origin = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// The connector only invokes this handler after authenticating its
-		// dedicated mTLS listener and confirming current data readiness.
+		// dedicated mTLS listener and confirming the grant is active.
 		h.ServeHTTP(w, r.WithContext(transport.TrustedRelayContext(r.Context())))
 	})
 	rc.mu.Unlock()
@@ -125,6 +126,7 @@ func (rc *relayController) Status() contract.RelayStatus {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 	s := rc.status
+	rc.projectData(&s)
 	s.Enabled = rc.settings.Config.Enabled
 	s.Paired = rc.settings.Binding != nil
 	s.Pairing = activeRelayPairing(rc.pairing.Phase)
@@ -258,15 +260,13 @@ func (rc *relayController) stop(ctx context.Context) {
 func (rc *relayController) stopTransport() {
 	rc.mu.Lock()
 	rc.generation++
-	rc.public.Clear("relay")
+	rc.resetData()
 	rc.settings.Config.Enabled = false
 	if rc.cancel != nil {
 		rc.cancel()
 		rc.cancel = nil
 	}
 	rc.status.ControlReady = false
-	rc.status.DataReady = false
-	rc.status.PublicURL = ""
 	rc.status.State = "off"
 	rc.scope = protocol.Scope{}
 	done := rc.done
@@ -285,12 +285,11 @@ func (rc *relayController) restart() {
 		return
 	}
 	rc.status.ControlReady = false
-	rc.status.DataReady = false
-	rc.status.PublicURL = ""
+	rc.scope = protocol.Scope{}
+	rc.resetData()
 	if rc.cancel != nil {
 		rc.cancel()
 	}
-	rc.public.Clear("relay")
 	rc.generation++
 	gen := rc.generation
 	ctx, cancel := context.WithCancel(rc.ctx)
@@ -338,7 +337,6 @@ func (rc *relayController) run(ctx context.Context, gen uint64, settings relayse
 			}
 			rc.assignment = assignment
 			rc.status.ControlReachability = "reachable"
-			rc.status.DataReachability = "unknown"
 			rc.status.ConnectorURL = assignment.ConnectorURL
 			rc.status.DataOrigin = assignment.DataOrigin
 			rc.status.AssignmentRevision = strconv.FormatUint(uint64(assignment.Revision), 10)
@@ -358,7 +356,12 @@ func (rc *relayController) run(ctx context.Context, gen uint64, settings relayse
 					}
 					rc.connected(ctx, gen, scope)
 				},
-				DataReady:    func(ready bool, reason protocol.Code) { rc.dataReady(ctx, gen, ready, reason) },
+				TransportReady: func(scope protocol.Scope, ready bool, reason protocol.Code) {
+					rc.dataTransport(ctx, gen, scope, ready, reason)
+				},
+				DataObserved: func(scope protocol.Scope, observation relay.DataObservation) {
+					rc.dataObserved(ctx, gen, scope, observation)
+				},
 				Disconnected: func() { rc.disconnected(gen) },
 				Revoke:       func(ctx context.Context, r protocol.Revocation) error { return rc.revoke(ctx, gen, r) },
 				Origin:       origin,
@@ -399,7 +402,6 @@ func (rc *relayController) run(ctx context.Context, gen uint64, settings relayse
 			rc.status.ReadinessError = "management-identity-rejected"
 			rc.status.ReconnectReason = "identity-rejected"
 		}
-		rc.status.DataReachability = "unavailable"
 		rc.mu.Unlock()
 		if !rc.waitReconnect(ctx, &backoff, err) {
 			return
@@ -416,9 +418,7 @@ func (rc *relayController) connected(ctx context.Context, gen uint64, scope prot
 	rc.scope = scope
 	rc.status.ControlReady = true
 	rc.status.State = "connecting"
-	rc.status.DataReady = false
-	rc.status.PublicURL = ""
-	rc.status.DataReachability = "unknown"
+	rc.resetData()
 	rc.status.Error = ""
 	rc.status.ReadinessError = ""
 	rc.status.ReconnectReason = ""
@@ -430,10 +430,8 @@ func (rc *relayController) disconnected(gen uint64) {
 		rc.mu.Unlock()
 		return
 	}
-	rc.public.Clear("relay")
+	rc.resetData()
 	rc.status.ControlReady = false
-	rc.status.DataReady = false
-	rc.status.PublicURL = ""
 	rc.scope = protocol.Scope{}
 	rc.mu.Unlock()
 	if rc.auth != nil {
@@ -447,10 +445,8 @@ func (rc *relayController) revoke(ctx context.Context, gen uint64, r protocol.Re
 	if r.Scope == "binding" || r.Scope == "connector" {
 		rc.mu.Lock()
 		if gen == rc.generation {
-			rc.public.Clear("relay")
+			rc.resetData()
 			rc.status.ControlReady = false
-			rc.status.DataReady = false
-			rc.status.PublicURL = ""
 			rc.scope = protocol.Scope{}
 		}
 		rc.mu.Unlock()

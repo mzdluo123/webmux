@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -23,10 +24,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	protocol "github.com/mzdluo123/webmux/protocol/relay"
 )
 
-func TestOriginRequiresScopedMTLSAndFreshDataStatus(t *testing.T) {
+func TestOriginRequiresScopedMTLSAndLiveGrant(t *testing.T) {
 	id := testToken(t)
 	binding := testBinding()
 	scope := protocol.Scope{HostID: binding.HostID, BindingGeneration: binding.BindingGeneration, ConnectorGeneration: 2, ControlEpoch: testToken(t), NodeEpoch: testToken(t)}
@@ -74,7 +76,9 @@ func TestOriginRequiresScopedMTLSAndFreshDataStatus(t *testing.T) {
 	node := issuePeer(3, scope, nodeKey)
 	pin := sha256.Sum256(node.Leaf.RawSubjectPublicKeyInfo)
 	grant := protocol.AllocationGrant{AllocationID: id, ExpiresAt: now.Add(30 * time.Second).Unix(), Origin: protocol.AllocationOrigin{HostServerCertPEM: hostPEM, TrustCertPEM: caPEM, NodeClientSPKI: protocol.Digest(hex.EncodeToString(pin[:]))}}
-	access := &frpAccess{ctx: t.Context()}
+	runtimeCtx, stopRuntime := context.WithCancel(t.Context())
+	defer stopRuntime()
+	access := &frpAccess{ctx: runtimeCtx}
 	access.grant.Store(time.Unix(grant.ExpiresAt, 0).UnixNano())
 	if _, _, err := originTLS(scope, newKey(), grant, access); protocolCode(err) != protocol.Unauthenticated {
 		t.Fatal("accepted host certificate not issued to the local CSR key")
@@ -91,6 +95,20 @@ func TestOriginRequiresScopedMTLSAndFreshDataStatus(t *testing.T) {
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.TLS == nil || len(r.TLS.VerifiedChains) != 1 || !r.TLS.PeerCertificates[0].Equal(node.Leaf) {
 			t.Error("missing authenticated origin peer")
+		}
+		if r.URL.Path == "/ws/sessions" {
+			conn, err := websocket.Accept(w, r, nil)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			defer conn.CloseNow()
+			if err := conn.Write(r.Context(), websocket.MessageText, []byte("snapshot")); err != nil {
+				t.Error(err)
+				return
+			}
+			_, _, _ = conn.Read(r.Context())
+			return
 		}
 		served.Add(1)
 		w.WriteHeader(http.StatusOK)
@@ -134,23 +152,41 @@ func TestOriginRequiresScopedMTLSAndFreshDataStatus(t *testing.T) {
 	if got := request(peer, http.MethodGet, publicHost, frpOriginReadyPath); got != http.StatusNotFound {
 		t.Fatalf("non-probe method got %d", got)
 	}
-	if got := request(peer, http.MethodGet, publicHost, "/api/sessions"); got != http.StatusServiceUnavailable {
-		t.Fatalf("unverified application request got %d", got)
-	}
-	access.status.Store(time.Now().Add(frpStatusTTL).UnixNano())
+	// The gateway owns the first-probe gate. No node status has reached the
+	// host, so fresh origin requests must depend only on mTLS and the grant.
 	if got := request(peer, http.MethodGet, "wrong.example", "/api/sessions"); got != http.StatusNotFound {
 		t.Fatalf("wrong public Host got %d", got)
 	}
 	if got := request(peer, http.MethodGet, publicHost, "/api/sessions"); got != http.StatusOK || served.Load() != 1 {
 		t.Fatalf("authenticated application got %d; served %d", got, served.Load())
 	}
-	access.status.Store(time.Now().Add(-time.Second).UnixNano())
-	if got := request(peer, http.MethodGet, publicHost, "/api/sessions"); got != http.StatusServiceUnavailable {
-		t.Fatalf("expired status left application open: %d", got)
+	tr := &http.Transport{TLSClientConfig: &tls.Config{RootCAs: roots, ServerName: name, Certificates: peer}, DisableKeepAlives: true}
+	defer tr.CloseIdleConnections()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	ws, _, err := websocket.Dial(ctx, "wss://"+ln.Addr().String()+"/ws/sessions", &websocket.DialOptions{
+		Host: publicHost, HTTPHeader: http.Header{"Origin": {binding.PublicURL}}, HTTPClient: &http.Client{Transport: tr},
+	})
+	if err != nil {
+		t.Fatalf("new WebSocket with no status notification: %v", err)
 	}
-	access.end()
+	defer ws.CloseNow()
+	if _, data, err := ws.Read(ctx); err != nil || string(data) != "snapshot" {
+		t.Fatalf("WebSocket snapshot: %q %v", data, err)
+	}
+	access.grant.Store(time.Now().UnixNano())
+	if got := request(peer, http.MethodGet, publicHost, "/api/sessions"); got != 0 {
+		t.Fatalf("expired grant still accepted origin handshake: %d", got)
+	}
+	// Expiration closes all of the runtime's origin sockets, including the
+	// upgraded connection which net/http no longer tracks.
+	runtime := &frpRuntime{access: access, cancel: stopRuntime, originLn: ln, originHTTP: server}
+	runtime.close()
+	if _, _, err := ws.Read(ctx); err == nil || ctx.Err() != nil {
+		t.Fatalf("grant expiry did not close the WebSocket: %v", err)
+	}
 	if got := request(peer, http.MethodHead, publicHost, frpOriginReadyPath); got != 0 {
-		t.Fatalf("ended allocation still accepted origin handshake: %d", got)
+		t.Fatalf("stopped runtime still accepted origin handshake: %d", got)
 	}
 }
 

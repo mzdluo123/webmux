@@ -16,11 +16,32 @@ import (
 	"github.com/rainchan/webmux/internal/frphelper"
 )
 
-const frpStatusTTL = 6 * time.Second
+const frpObservationTTL = 6 * time.Second
 
 type timedFRPStatus struct {
 	protocol.AllocationStatus
 	until time.Time
+}
+
+// DataObservation reports a node probe for the current grant. A zero value
+// invalidates the result without replacing the last sampled time.
+type DataObservation struct {
+	CheckedAt  time.Time
+	ValidUntil time.Time
+	Ready      bool
+}
+
+func (st timedFRPStatus) observation(now time.Time, grant *protocol.AllocationGrant) (DataObservation, bool) {
+	if st.AllocationID != grant.AllocationID || st.GrantRevision != grant.GrantRevision || !now.Before(st.until) {
+		return DataObservation{}, false
+	}
+	if st.CheckedAt == 0 {
+		return DataObservation{}, true
+	}
+	checkedAt := time.UnixMilli(st.CheckedAt).UTC()
+	until := minTime(st.until, time.Unix(grant.ExpiresAt, 0))
+	until = minTime(until, minTime(checkedAt.Add(frpObservationTTL), now.Add(frpObservationTTL)))
+	return DataObservation{CheckedAt: checkedAt, ValidUntil: until, Ready: st.DataReady}, true
 }
 
 type frpGrantResult struct {
@@ -92,12 +113,12 @@ func (s *connection) runFRP(ctx context.Context) {
 		return
 	}
 	if err := frphelper.Available(); err != nil {
-		s.publishData(false, protocol.InvalidConfig)
+		s.publishTransport(false, protocol.InvalidConfig)
 		return
 	}
 	dir, err := os.MkdirTemp("", "webmux-frpc-")
 	if err != nil {
-		s.publishData(false, protocol.InvalidConfig)
+		s.publishTransport(false, protocol.InvalidConfig)
 		return
 	}
 	defer func(owned string) {
@@ -107,17 +128,17 @@ func (s *connection) runFRP(ctx context.Context) {
 	}(dir)
 	dir, err = filepath.Abs(dir)
 	if err != nil {
-		s.publishData(false, protocol.InvalidConfig)
+		s.publishTransport(false, protocol.InvalidConfig)
 		return
 	}
 	executable, err := frphelper.Materialize(dir)
 	if err != nil {
-		s.publishData(false, protocol.InvalidConfig)
+		s.publishTransport(false, protocol.InvalidConfig)
 		return
 	}
 	key, csr, err := newOriginCSR()
 	if err != nil {
-		s.publishData(false, protocol.Unavailable)
+		s.publishTransport(false, protocol.Unavailable)
 		return
 	}
 	var (
@@ -127,41 +148,26 @@ func (s *connection) runFRP(ctx context.Context) {
 		lost, exited   <-chan struct{}
 		badTLS         <-chan struct{}
 		latestStatus   timedFRPStatus
-		readyUntil     time.Time
-		readySince     time.Time
+		runningSince   time.Time
 		nextRequest    = time.Now()
-		reportedReady  bool
 		reportedReason protocol.Code
 		failures       int
 		rpcFailures    int
 	)
-	report := func(ready bool, reason protocol.Code, until time.Time) {
-		readyUntil = until
-		if data != nil && !ready {
-			data.access.status.Store(0)
-		}
-		if ready && readySince.IsZero() {
-			readySince = time.Now()
-		} else if !ready {
-			readySince = time.Time{}
-		}
-		if ready != reportedReady || reason != reportedReason {
-			reportedReady, reportedReason = ready, reason
-			s.publishData(ready, reason)
-		}
-		if data != nil && ready {
-			data.access.status.Store(until.UnixNano())
-		}
+	reportFailure := func(reason protocol.Code) {
+		reportedReason = reason
+		s.publishTransport(false, reason)
 	}
 	stop := func(reason protocol.Code) {
 		if data != nil {
 			data.access.end()
 		}
-		report(false, reason, time.Time{})
+		reportFailure(reason)
 		if data != nil {
 			data.close()
 		}
 		data, lost, exited, badTLS = nil, nil, nil, nil
+		runningSince = time.Time{}
 	}
 	defer func() {
 		stop(protocol.Unavailable)
@@ -170,28 +176,16 @@ func (s *connection) runFRP(ctx context.Context) {
 		}
 	}()
 	applyStatus := func(st timedFRPStatus) {
-		if current == nil || st.AllocationID != current.AllocationID || st.GrantRevision != current.GrantRevision || data == nil {
-			return
-		}
 		now := time.Now()
-		until := minTime(st.until, time.Unix(current.ExpiresAt, 0))
-		if !now.Before(until) || !data.access.active(now) {
+		if data == nil || !data.access.active(now) {
 			return
 		}
-		if st.DataReady {
-			if data.bridge.login.Load() {
-				report(true, "", until)
-			}
-		} else {
-			reason := protocol.Unavailable
-			if st.Reason == protocol.AllocationStatusProbeFailed {
-				reason = protocol.UpstreamFailed
-			}
-			report(false, reason, time.Time{})
+		if observation, ok := st.observation(now, current); ok {
+			s.publishObservation(observation)
 		}
 	}
 	restart := func(reason protocol.Code) {
-		if !readySince.IsZero() && time.Since(readySince) >= protocol.ControlLease {
+		if data != nil && data.bridge.login.Load() && time.Since(runningSince) >= protocol.ControlLease {
 			failures = 0
 		}
 		stop(reason)
@@ -211,8 +205,6 @@ func (s *connection) runFRP(ctx context.Context) {
 				restart(protocol.Unavailable)
 			} else if !data.access.active(now) {
 				stop(protocol.Unavailable)
-			} else if reportedReady && !now.Before(readyUntil) {
-				report(false, protocol.Unavailable, time.Time{})
 			}
 		}
 		if pending == nil && !now.Before(nextRequest) {
@@ -230,9 +222,6 @@ func (s *connection) runFRP(ctx context.Context) {
 			if wake.IsZero() || expires.Before(wake) {
 				wake = expires
 			}
-			if reportedReady {
-				wake = minTime(wake, readyUntil)
-			}
 		}
 		var alarm <-chan time.Time
 		if !wake.IsZero() {
@@ -249,7 +238,7 @@ func (s *connection) runFRP(ctx context.Context) {
 			restart(protocol.Unavailable)
 		case <-exited:
 			code := protocol.Unavailable
-			if reportedReason == protocol.Unauthenticated {
+			if reportedReason == protocol.Unauthenticated && !data.bridge.login.Load() {
 				code = protocol.Unauthenticated
 			}
 			select {
@@ -259,8 +248,8 @@ func (s *connection) runFRP(ctx context.Context) {
 			}
 			restart(code)
 		case <-badTLS:
-			if !reportedReady {
-				report(false, protocol.Unauthenticated, time.Time{})
+			if data != nil && !data.bridge.login.Load() {
+				reportedReason = protocol.Unauthenticated
 			}
 		case st := <-s.status:
 			applyStatus(st)
@@ -274,7 +263,7 @@ func (s *connection) runFRP(ctx context.Context) {
 			}
 			if result.err != nil {
 				if data == nil && reportedReason != protocol.Unauthenticated {
-					report(false, protocol.Unavailable, time.Time{})
+					reportFailure(protocol.Unavailable)
 				}
 				rpcFailures++
 				delay := frpBackoff(rpcFailures)
@@ -314,7 +303,7 @@ func (s *connection) runFRP(ctx context.Context) {
 				if err != nil {
 					code := protocolCode(err)
 					if code == protocol.InvalidConfig || code == protocol.Unauthenticated {
-						report(false, code, time.Time{})
+						reportFailure(code)
 						<-ctx.Done()
 						return
 					}
@@ -322,6 +311,8 @@ func (s *connection) runFRP(ctx context.Context) {
 					continue
 				}
 				lost, exited, badTLS = data.bridge.lost, data.exited, data.bridge.badTLS
+				reportedReason = ""
+				runningSince = time.Now()
 			} else {
 				if time.Unix(g.ExpiresAt, 0).After(data.originUntil) || replaceFRPToken(data.tokenFile, g.JWT) != nil {
 					stop(protocol.InvalidConfig)
@@ -332,10 +323,10 @@ func (s *connection) runFRP(ctx context.Context) {
 					restart(protocol.Unavailable)
 					continue
 				}
-				// Keep the child and existing application sockets. Only the
-				// new revision's mTLS probe can enable fresh origin requests.
-				report(false, protocol.Unavailable, time.Time{})
+				// Ordinary renewal preserves origin authorization and sockets.
+				// The next diagnostic sample must belong to the new revision.
 				data.access.grant.Store(time.Unix(g.ExpiresAt, 0).UnixNano())
+				s.publishObservation(DataObservation{})
 			}
 			applyStatus(latestStatus)
 		}

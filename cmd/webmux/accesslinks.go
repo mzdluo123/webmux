@@ -57,7 +57,7 @@ func (tc *tailscaleController) AccessLinks() []contract.AccessLink {
 }
 
 func relayAccessLink(status contract.RelayStatus) (contract.AccessLink, bool) {
-	if !status.ControlReady || !status.DataReady || status.PublicURL == "" {
+	if !status.ControlReady || status.PublicURL == "" {
 		return contract.AccessLink{}, false
 	}
 	return contract.AccessLink{Provider: "relay", Label: "Official Relay", URL: status.PublicURL, Public: true}, true

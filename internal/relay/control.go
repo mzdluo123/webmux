@@ -115,7 +115,7 @@ func (r *controlRPC) readLoop() {
 		}
 		if err := message.Validate(r.session.scope, time.Now()); err != nil {
 			// Delayed data-plane evidence must not tear down a healthy
-			// management stream. It has no authority after expiration.
+			// management stream. Expired observations are discarded.
 			if protocolCode(err) == protocol.Expired && message.Type == protocol.ControlFRPStatus {
 				continue
 			}
@@ -151,7 +151,7 @@ func (r *controlRPC) readLoop() {
 				return
 			}
 		case protocol.ControlFRPStatus:
-			status := timedFRPStatus{AllocationStatus: *message.AllocationStatus, until: minTime(time.Now().Add(frpStatusTTL), time.Unix(message.ExpiresAt, 0))}
+			status := timedFRPStatus{AllocationStatus: *message.AllocationStatus, until: time.Unix(message.ExpiresAt, 0)}
 			// Drop the oldest unhandled observation rather than backpressure RPCs.
 			select {
 			case r.session.status <- status:
@@ -207,7 +207,10 @@ func (r *controlRPC) heartbeat() {
 	defer r.heartbeatCancel()
 	ticker := time.NewTicker(protocol.KeepAliveInterval)
 	defer ticker.Stop()
-	lease := time.NewTimer(protocol.ControlLease)
+	r.mu.Lock()
+	expires := r.lastPong.Add(protocol.ControlLease)
+	r.mu.Unlock()
+	lease := time.NewTimer(time.Until(expires))
 	defer lease.Stop()
 	for {
 		select {

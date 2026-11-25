@@ -6,6 +6,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +46,7 @@ func TestRelayDisableRevokesWhenPersistenceFails(t *testing.T) {
 	rc.settings = settings
 	rc.status.State = "ready"
 	rc.status.ControlReady = true
-	rc.status.DataReady = true
+	rc.observation = relay.DataObservation{CheckedAt: time.Now(), ValidUntil: time.Now().Add(time.Minute), Ready: true}
 	rc.status.PublicURL = origin
 	if err := public.Set("relay", origin); err != nil {
 		t.Fatal(err)
@@ -66,7 +68,7 @@ func TestRelayDisableRevokesWhenPersistenceFails(t *testing.T) {
 	if !errors.Is(err, relaysetting.ErrNotPersisted) {
 		t.Fatalf("disable error=%v, want not persisted", err)
 	}
-	if state.Enabled || state.ControlReady || state.DataReady || state.PublicURL != "" || public.SourceOrigin("relay") != "" {
+	if state.Enabled || state.ControlReady || state.DataReady || state.DataCheckedAt != nil || state.PublicURL != "" || public.SourceOrigin("relay") != "" {
 		t.Fatalf("failed save retained public access: %+v", state)
 	}
 	if receipt := state.Operation; receipt.Kind != "disable" || receipt.Phase != "failed" || receipt.Error != "storage-unavailable" {
@@ -89,30 +91,113 @@ func TestRelayDisableRevokesWhenPersistenceFails(t *testing.T) {
 	}
 }
 
-func TestRelayReadinessRequiresCurrentOriginProbe(t *testing.T) {
+func TestRelayObservationDoesNotChangeOriginAuthorization(t *testing.T) {
 	const origin = "https://h-0123456789abcdef0123456789abcdef.example.com"
+	host := strings.TrimPrefix(origin, "https://")
+	ctx := t.Context()
+	now := time.Now()
+	scope := protocol.Scope{ConnectorGeneration: 1}
 	public := &transport.PublicOrigins{}
-	rc := &relayController{public: public, generation: 1, status: contract.RelayStatus{ControlReady: true},
+	rc := &relayController{public: public, generation: 1, pairingNow: func() time.Time { return now },
 		settings: relaysetting.Settings{Binding: &protocol.Binding{PublicURL: origin}}, store: relaysetting.Open(t.TempDir(), config.RelayConfig{})}
 	defer rc.store.Close()
-	rc.dataReady(t.Context(), 1, false, protocol.UpstreamFailed)
-	if _, linked := relayAccessLink(rc.Status()); !rc.status.ControlReady || rc.status.DataReady || rc.status.ReadinessError != "data-probe-failed" || linked {
-		t.Fatalf("failed origin probe published access: %+v", rc.status)
+	rc.setOriginHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !transport.IsTrustedRelay(r.Context()) || !public.HostAllowed(r.Host) || !transport.OriginAllowed(config.Config{}, public, r) {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	request := func(method, path, requestOrigin string) int {
+		t.Helper()
+		r := httptest.NewRequest(method, "https://"+host+path, nil)
+		r.Header.Set("Origin", requestOrigin)
+		if strings.HasPrefix(path, "/ws/") {
+			r.Header.Set("Connection", "Upgrade")
+			r.Header.Set("Upgrade", "websocket")
+		}
+		w := httptest.NewRecorder()
+		rc.origin.ServeHTTP(w, r)
+		return w.Code
 	}
-	rc.dataReady(t.Context(), 1, true, "")
-	if link, linked := relayAccessLink(rc.Status()); rc.status.State != "ready" || !rc.status.ControlReady || !rc.status.DataReady || public.SourceOrigin("relay") != origin || !linked || link.URL != origin {
-		t.Fatalf("recovered origin probe did not publish access: %+v", rc.status)
+	assertRoute := func() {
+		t.Helper()
+		if link, ok := relayAccessLink(rc.Status()); !ok || link.URL != origin {
+			t.Fatal("authorized allocation lost its access link")
+		}
+		if got := request(http.MethodPost, "/api/example", origin); got != http.StatusNoContent {
+			t.Fatalf("authorized HTTP request returned %d", got)
+		}
+		if got := request(http.MethodGet, "/ws/example", origin); got != http.StatusNoContent {
+			t.Fatalf("authorized WebSocket upgrade request returned %d", got)
+		}
+		if got := request(http.MethodGet, "/ws/example", "https://wrong.example"); got != http.StatusForbidden {
+			t.Fatalf("incorrect Origin returned %d", got)
+		}
 	}
-	rc.dataReady(t.Context(), 0, false, protocol.Unavailable)
-	if !rc.status.DataReady {
-		t.Fatal("stale generation changed readiness")
+	assertObservation := func(reachability string, checkedAt time.Time) {
+		t.Helper()
+		s := rc.Status()
+		if s.DataReachability != reachability || s.DataReady != (reachability == "reachable") ||
+			checkedAt.IsZero() != (s.DataCheckedAt == nil) || s.DataCheckedAt != nil && !s.DataCheckedAt.Equal(checkedAt) {
+			t.Fatalf("wrong observation: %+v", s)
+		}
 	}
-	rc.dataReady(t.Context(), 1, false, protocol.Unavailable)
-	if _, linked := relayAccessLink(rc.Status()); rc.status.DataReady || public.SourceOrigin("relay") != "" || linked {
-		t.Fatalf("probe loss retained access: %+v", rc.status)
+	rc.connected(ctx, 1, scope)
+	rc.dataTransport(ctx, 1, scope, true, "")
+	rc.dataObserved(ctx, 1, scope, relay.DataObservation{})
+	assertObservation("unknown", time.Time{})
+	assertRoute()
+
+	first := now.Add(-time.Second)
+	rc.dataObserved(ctx, 1, scope, relay.DataObservation{CheckedAt: first, ValidUntil: now.Add(time.Second), Ready: true})
+	assertObservation("reachable", first)
+	rc.dataObserved(ctx, 0, scope, relay.DataObservation{})
+	assertObservation("reachable", first)
+	now = now.Add(2 * time.Second)
+	assertObservation("unknown", first)
+	assertRoute()
+
+	second := now.Add(-time.Second)
+	rc.dataObserved(ctx, 1, scope, relay.DataObservation{CheckedAt: second, ValidUntil: now.Add(2 * time.Second), Ready: true})
+	assertObservation("reachable", second)
+	rc.dataObserved(ctx, 1, scope, relay.DataObservation{CheckedAt: first, ValidUntil: now.Add(time.Second)})
+	assertObservation("reachable", second)
+	rc.dataObserved(ctx, 1, scope, relay.DataObservation{CheckedAt: now, ValidUntil: now.Add(time.Second)})
+	assertObservation("unavailable", now)
+	if rc.Status().ReadinessError != "data-probe-failed" {
+		t.Fatal("fresh failed probe lost its diagnostic")
 	}
+	assertRoute()
+	failedAt := now
+	now = now.Add(time.Second)
+	assertObservation("unknown", failedAt)
+	if s := rc.Status(); s.State == "failed" || s.ReadinessError != "" {
+		t.Fatalf("aged failure still presented as current: %+v", s)
+	}
+	assertRoute()
 	if _, ok := rc.authSnapshot(); !ok {
 		t.Fatal("data loss invalidated independent management authorization")
+	}
+
+	rc.dataTransport(ctx, 1, scope, false, protocol.Unavailable)
+	assertObservation("unknown", failedAt)
+	if got := request(http.MethodPost, "/api/example", origin); got != http.StatusForbidden {
+		t.Fatalf("transport loss retained origin registration: %d", got)
+	}
+	rc.disconnected(1)
+	assertObservation("unknown", time.Time{})
+	rc.dataTransport(ctx, 1, scope, true, "")
+	if s := rc.Status(); s.ControlReady || s.PublicURL != "" || public.SourceOrigin("relay") != "" {
+		t.Fatalf("old allocation returned after management disconnect: %+v", s)
+	}
+	next := scope
+	next.ConnectorGeneration++
+	rc.connected(ctx, 1, next)
+	rc.dataTransport(ctx, 1, scope, true, "")
+	rc.dataObserved(ctx, 1, scope, relay.DataObservation{CheckedAt: now, ValidUntil: now.Add(time.Second), Ready: true})
+	if s := rc.Status(); !s.ControlReady || s.PublicURL != "" || s.DataCheckedAt != nil {
+		t.Fatalf("old allocation returned after a new management scope: %+v", s)
 	}
 }
 
@@ -147,7 +232,7 @@ func TestRelayConnectedClearsFailureOnlyForActiveGeneration(t *testing.T) {
 					rc.status.State != "connecting" || rc.status.PublicURL != "" ||
 					rc.status.Error != "" || rc.status.ReadinessError != "" ||
 					rc.status.ReconnectReason != "" || public.SourceOrigin("relay") != "" {
-					t.Fatalf("management recovery retained failure or published before probing: %+v", rc.status)
+					t.Fatalf("management recovery retained failure or published before transport registration: %+v", rc.status)
 				}
 			} else if rc.status.ControlReady || public.SourceOrigin("relay") != "" ||
 				rc.status.ReconnectReason != "connection-lost" || rc.status.State != "failed" {

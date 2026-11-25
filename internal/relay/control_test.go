@@ -39,7 +39,7 @@ func TestControlExchangeICEAndOwnerIsolation(t *testing.T) {
 	}
 	// A delayed FRP probe expires independently of the management RPC stream.
 	expired := protocol.ControlMessage{Version: protocol.V1, Type: protocol.ControlFRPStatus, RequestID: testToken(t), Scope: control.scope,
-		ExpiresAt: time.Now().Add(-time.Second).Unix(), AllocationStatus: &protocol.AllocationStatus{AllocationID: testToken(t), GrantRevision: 1, DataReady: true}}
+		ExpiresAt: time.Now().Add(-time.Second).Unix(), AllocationStatus: &protocol.AllocationStatus{AllocationID: testToken(t), GrantRevision: 1, DataReady: true, CheckedAt: time.Now().Add(-2 * time.Second).UnixMilli()}}
 	if err := protocol.WriteFrame(stream, expired, protocol.MaxControlBytes); err != nil {
 		t.Fatal(err)
 	}
@@ -155,5 +155,38 @@ func TestControlExchangeICEAndOwnerIsolation(t *testing.T) {
 	}
 	if _, ok := c.Scope(); ok {
 		t.Fatal("invalid owner left active scope")
+	}
+}
+
+func TestFRPObservationUsesActualProbeTime(t *testing.T) {
+	now := time.Unix(1_800_000_000, 0).UTC()
+	grant := protocol.AllocationGrant{AllocationID: testToken(t), GrantRevision: 2, ExpiresAt: now.Add(time.Minute).Unix()}
+	st := timedFRPStatus{AllocationStatus: protocol.AllocationStatus{
+		AllocationID: grant.AllocationID, GrantRevision: grant.GrantRevision,
+		DataReady: true, CheckedAt: now.Add(-time.Second).UnixMilli(),
+	}, until: now.Add(time.Minute)}
+	got, ok := st.observation(now, &grant)
+	checkedAt := time.UnixMilli(st.CheckedAt)
+	if !ok || !got.Ready || !got.CheckedAt.Equal(checkedAt) || !got.ValidUntil.Equal(checkedAt.Add(frpObservationTTL)) {
+		t.Fatalf("fresh observation: %+v, matched=%t", got, ok)
+	}
+	st.CheckedAt = now.Add(-frpObservationTTL - time.Second).UnixMilli()
+	got, ok = st.observation(now, &grant)
+	if !ok || got.CheckedAt.UnixMilli() != st.CheckedAt || now.Before(got.ValidUntil) {
+		t.Fatalf("delayed receipt made an old probe fresh: %+v, matched=%t", got, ok)
+	}
+	st.CheckedAt = 0
+	got, ok = st.observation(now, &grant)
+	if !ok || got != (DataObservation{}) {
+		t.Fatalf("unsampled notification invented a result: %+v, matched=%t", got, ok)
+	}
+	st.GrantRevision--
+	if _, ok := st.observation(now, &grant); ok {
+		t.Fatal("older grant supplied the current observation")
+	}
+	st.GrantRevision++
+	st.until = now
+	if _, ok := st.observation(now, &grant); ok {
+		t.Fatal("expired envelope supplied an observation")
 	}
 }

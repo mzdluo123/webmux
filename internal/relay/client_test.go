@@ -202,7 +202,11 @@ func TestEnrollmentPendingCancelAndBounds(t *testing.T) {
 }
 
 func testCallbacks() Callbacks {
-	return Callbacks{Ready: func(protocol.Scope) {}, DataReady: func(bool, protocol.Code) {}, Disconnected: func() {}, Revoke: func(context.Context, protocol.Revocation) error { return nil }, Origin: http.NotFoundHandler()}
+	return Callbacks{
+		Ready: func(protocol.Scope) {}, TransportReady: func(protocol.Scope, bool, protocol.Code) {},
+		DataObserved: func(protocol.Scope, DataObservation) {}, Disconnected: func() {},
+		Revoke: func(context.Context, protocol.Revocation) error { return nil }, Origin: http.NotFoundHandler(),
+	}
 }
 
 func TestEnrollmentCarriesMachineIdentityAcrossKeyRotation(t *testing.T) {
