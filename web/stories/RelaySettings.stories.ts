@@ -18,6 +18,7 @@ const ready: RelayStatus = {
   state: "ready",
   controlReady: true,
   dataReady: true,
+  dataCheckedAt: "2026-11-25T10:42:16Z",
   hybridSupported: true,
   hybridUnavailableReason: "",
   publicUrl: paired.boundPublicUrl,
@@ -198,6 +199,34 @@ export const PendingConfirmation: Story = {
   args: { view: { ...baseView, status: paired } },
 };
 export const Ready: Story = { args: { view: { ...baseView, status: ready } } };
+export const ProbeObservationExpired: Story = {
+  args: {
+    view: {
+      ...baseView,
+      status: {
+        ...ready,
+        state: "connecting",
+        dataReady: false,
+        dataReachability: "unknown",
+      },
+    },
+  },
+};
+export const OriginNotYetProbed: Story = {
+  args: {
+    view: {
+      ...baseView,
+      status: {
+        ...ready,
+        state: "connecting",
+        dataReady: false,
+        dataCheckedAt: undefined,
+        dataReachability: "unknown",
+        sessions: [],
+      },
+    },
+  },
+};
 export const Submitting: Story = {
   args: {
     view: { ...baseView, status: paired, phase: "submitting", busy: true },
@@ -263,7 +292,6 @@ export const OriginUnavailable: Story = {
         state: "failed",
         dataReady: false,
         dataReachability: "unavailable",
-        publicUrl: undefined,
         readinessError: "data-probe-failed",
       },
     },

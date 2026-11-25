@@ -41,7 +41,7 @@ export const relayStatus: RelayStatus = {
   controlEndpoint: "https://control.example.test",
   controlSource: "toml",
   controlReachability: "unknown",
-  dataReachability: "unassigned",
+  dataReachability: "unknown",
   connectorUrl: "",
   dataOrigin: "",
   assignmentRevision: "0",

@@ -5,9 +5,9 @@
 ### Requirement: 连接状态机与公网来源撤权
 
 Relay 客户端 SHALL 区分关闭、连接中、就绪和失败状态，并单独表示未配对、配对中与已配对。
-`controlReady` SHALL 来自当前认证管理流和有效租约，`dataReady` SHALL 来自当前授权分配经网关验证的实际 frp 回源。只有两者均有效才登记固定 HTTPS 来源为允许的 Host/Origin 并公布访问地址。
+`controlReady` SHALL 来自当前认证管理流和有效租约。宿主按当前授权回源生命周期登记固定 HTTPS 来源并校验 Host/Origin；节点独立把关首次 mTLS 回源验证。`dataReady` 仅报告最近有效观测成功。
 control 断开、绑定撤销、关闭或服务退出时，客户端 SHALL 立即撤销该来源的 Host/Origin 授权并关闭相应业务和派生连接。新连接认证失败 MUST NOT 替换或撤销既有合法 control。
-单条工作连接的失败 SHALL 隔离受影响请求，不影响其他健康的交互或管理连接。失去当前回源就绪证据时，宿主 SHALL 撤销该来源授权；仍有效的管理流可处理撤权和业务恢复。
+单条工作连接失败 SHALL 隔离受影响请求。宿主发现状态通知过期时 SHALL 报告观测未知，保留仍有效的回源授权、地址与已建立连接。
 启用状态下的意外断线 SHALL 按有界指数退避和随机抖动重连。本机服务、持久 PTY 与其他入口不受影响；代际检查 SHALL 阻止重复连接器、迟到就绪和旧配置重新授权。
 
 #### Scenario: 断线后恢复
@@ -22,8 +22,13 @@ control 断开、绑定撤销、关闭或服务退出时，客户端 SHALL 立�
 
 #### Scenario: 管理已认证但回源未就绪
 
-- **WHEN** 管理 WSS 在线且 `frpc` 已登录或已注册，但当代网关回源检查尚未通过，或通过后到期
-- **THEN** `controlReady=true`、`dataReady=false`，不发布固定访问地址或允许该 Relay 来源；管理连接仍能处理撤销
+- **WHEN** 管理 WSS 在线且 `frpc` 已登录，但当代网关尚未通过首次回源验证
+- **THEN** 节点不转发业务；管理连接仍可处理撤销。取得首次 `204` 后，每个业务连接仍须通过独立 mTLS 和应用鉴权。
+
+#### Scenario: 仅诊断通知迟到
+
+- **WHEN** 真实路由已经验证且控制租约有效，新探针通知迟到或丢失
+- **THEN** 显示观测未知并保留最近实际检查时间；新请求和已有终端连接不因诊断通知缺失被拒绝或关闭
 
 #### Scenario: 管理失效时数据连接仍通
 
@@ -34,7 +39,7 @@ control 断开、绑定撤销、关闭或服务退出时，客户端 SHALL 立�
 
 Relay 就绪后，固定公共地址 SHALL 出现在现有访问 URL 汇总、本机状态和 Relay 设置页，且地址与二维码 MUST NOT 自动附带 WebMux Token。Windows 托盘 SHALL 通过现有通用访问入口展示该地址，无需新增 Relay 专属菜单协议。
 配对的固定 HTTPS 来源 SHALL 纳入现有 Web Push 来源管理。新订阅只能从当前通过 Host/Origin 校验的入口开启；Relay 离线期间已有通知可以保留，点击后等待入口恢复。
-`/local/v1/status` 和 `webmux status --json` SHALL 保持单个可选 `relay`，以 `transport=wss` 表示基线，报告 `controlReady`、`dataReady` 和脱敏失败原因；浏览器实际交互路径单独按会话报告，不返回第二个 Relay 对象、`dataPlane`、`bulkReady` 或角色就绪计数。
+`/local/v1/status` 和 `webmux status --json` SHALL 在同一个 `relay` 对象内报告 `controlReady`、`dataReady`、三态 `dataReachability`、可选 `dataCheckedAt` 与脱敏原因；最近一次实际探针完成时间按节点采样，代际切换清空旧观测。
 状态与错误输出 MUST NOT 包含私钥、配对材料、GitHub 凭据、WebMux Token、业务 JWT、桥接密钥、回源私钥或携带凭据的 URL。
 
 #### Scenario: 查看远程访问入口

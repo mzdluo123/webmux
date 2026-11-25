@@ -22,7 +22,6 @@
     unknown: m.relay_reach_unknown(),
     reachable: m.relay_reach_reachable(),
     unavailable: m.relay_reach_unavailable(),
-    unassigned: m.relay_unassigned(),
   });
 </script>
 
@@ -33,18 +32,8 @@
       <dl class="grid min-w-0 grid-cols-1 gap-2 text-sm sm:grid-cols-2">
         <dt>{m.relay_baseline_transport()}</dt>
         <dd>{status.transport.toUpperCase()}</dd>
-        <dt>{m.relay_control_readiness()}</dt>
-        <dd>
-          {status.controlReady ? m.relay_state_ready() : m.relay_not_ready()}
-        </dd>
-        <dt>{m.relay_data_readiness()}</dt>
-        <dd>
-          {status.dataReady ? m.relay_state_ready() : m.relay_not_ready()}
-        </dd>
         <dt>{m.relay_control_reachability()}</dt>
         <dd>{reachability[status.controlReachability]}</dd>
-        <dt>{m.relay_data_reachability()}</dt>
-        <dd>{reachability[status.dataReachability]}</dd>
         <dt>{m.relay_tcp_algorithm()}</dt>
         <dd>{relayDiagnostic(status.tcpAlgorithm) || m.relay_unknown()}</dd>
       </dl>

@@ -51,7 +51,7 @@
 | `frp.allocate` | 宿主 → 节点 → 控制；`allocationRequest:{hostServerCsr}`。已认证 scope 每次只能有一个分配，节点通过私有通道附自己的回源客户端 CSR。 |
 | `frp.renew` | 宿主 → 节点 → 控制；`allocationRenew:{allocationId, grantRevision}`。只续当前分配；不接受客户端报送路径、端口、算法或期限。 |
 | `frp.grant` | 控制 → 节点 → 宿主；`allocationGrant:{allocationId, grantRevision, proxyName, remotePort, transportUrl, bridgeKey, jwt, issuedAt, notBefore, expiresAt, renewAfter, origin}`。`origin` 含宿主证书链、回源信任链和网关客户端公钥标识；不含任何回源私钥。 |
-| `frp.status` | 节点 → 宿主；`allocationStatus:{allocationId, grantRevision, dataReady, reason?}`。仅当前 scope 和分配有效；`reason` 只使用枚举，不反射上游内容。 |
+| `frp.status` | 节点 → 宿主；`allocationStatus:{allocationId, grantRevision, dataReady, reason?, checkedAt?}`。`checkedAt` 为节点实际完成探针的 Unix 毫秒；未采样时省略。观测仅匹配当前 scope 和分配。 |
 
 `transportUrl` 由分配绑定到已验证连接域名的 `wss://…:443/v1/frp/<allocationId>`（省略默认端口亦可）；拒绝 userinfo、query、fragment、转义路径、跳转和任意后端。
 节点先经私有通道得到对应分配、回源公钥和 JWT `jti` 授权记录，安装完成才允许下发和上线；无确认即不放行业务。
@@ -130,8 +130,8 @@ Login 只消费节点登记且仍存活的一次性标识，将服务端 run ID 
 
 业务请求各用独立 TCP/TLS 回源连接；HTTP 流式和 Upgrade 不缓冲全体，也不建业务连接池或走旧业务逐流协议。授权/准入/预算待机、拨号、请求头和空闲阶段各自有界；连接活跃期间保留请求/连接所有权到取消或结束。独立 work sockets 消除业务共享 smux 写队列，不等于绕开物理链路拥塞，饱和 bulk 时必须实测交互延迟。
 
-`controlReady` 来自当前认证管理流和有效租约。网关对实际注册端口拨号、完成当代 mTLS 并 `HEAD /_webmux/relay-origin/ready`；仅收到当代专用入口的 `204` 才置 `dataReady`，失败或探测过期则清除。
-宿主只接受当前 `Scope`、分配和修订的未过期 `frp.status`；仅两项均就绪才授权固定公网 Host/Origin 并公布访问链接。
+`controlReady` 来自认证管理流和有效租约。节点在当前注册的真实 frp 工作连接上完成当代 mTLS，首次取得专用 `HEAD` 探针的 `204` 后开放业务；重新注册、代际更替须重新验证。
+宿主按当前授权分配登记回源，继续校验 mTLS、Host、Origin、Cookie 和 CSRF。`frp.status` 只更新诊断；失败或过期分别表示最近回源失败或观测未知，不撤销授权，不重试已发送的请求。
 该路径只在已认证回源上存在，不创建浏览器 grant 或读取 Cookie，公网网关对它返回 `404`。节点现有 `/live`、`/ready/wss`、`/ready/turn` 的组件级成功也是 `204`，但不能代替逐 scope 实际回源探测。
 
 `/local/v1/status` 和 `webmux status --json` 使用现有的单个可选 `relay` 对象，保留启用、配对、固定访问地址、来源与脱敏错误等字段，使用 `controlReady`、`dataReady` 取代旧池状态。

@@ -69,7 +69,8 @@ WebMux SHALL 随安装和更新交付原版 `frpc` v0.72.0、许可证及签名�
 
 宿主 SHALL 为当前代际提供专用 loopback HTTPS 入口，frpc 仅转至该入口。网关只拨已分配的节点 loopback 端口，经 TLS 1.3 双向验证专用 CA、期限、用途、角色、Scope 和确切对端公钥；两端私钥不交给 frp，不复用配对、WSS 或 OIDC 密钥。
 宿主 SHALL 仅在已验证回源上接受可信网关上下文，继续执行 Host、Origin、Cookie、CSRF 和会话校验；头部和端口可达性不证明授权。代际撤销关闭现有连接。
-网关 SHALL 经当前分配的实际 frp 工作连接完成当代 mTLS，在专用入口执行 `HEAD /_webmux/relay-origin/ready` 并收到 204。宿主仅接受当前认证管理流上同 Scope、分配、修订且未过期的 `frp.status`；失败或过期即清 `dataReady`。探针不创建用户 grant，公网请求返回 404。
+网关 SHALL 在当前注册首次取得真实工作连接上的 mTLS `HEAD /_webmux/relay-origin/ready` 响应 `204` 后才允许业务；注册或分配重建须重新验证。周期探测失败或通知迟到只改变诊断，单个业务请求失败不重放。探针不创建用户 grant，公网请求返回 404。
+宿主 SHALL 仅展示来自当前认证管理流、匹配 Scope、分配和修订的有效观测。观测过期不改变独立的管理租约、传输票据、回源身份或应用会话期限。
 
 #### Scenario: 私有端口可达但回源身份错误
 

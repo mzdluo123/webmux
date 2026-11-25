@@ -397,6 +397,8 @@ test("WSS-only enable requires explicit consent; locale changes preserve confirm
         state: "ready",
         controlReady: true,
         dataReady: true,
+        dataCheckedAt: new Date().toISOString(),
+        dataReachability: "reachable",
         publicUrl: paired.boundPublicUrl,
         operation: {
           ...relayStatus.operation,
@@ -423,45 +425,138 @@ test("WSS-only enable requires explicit consent; locale changes preserve confirm
   ).toHaveLength(1);
 });
 
-test("management readiness does not publish an unverified application origin", async () => {
+test("expired observations retain the probe time, published link and owner login", async () => {
+  const host = installHost();
+  const checkedAt = "2026-11-25T10:42:16Z";
+  host.status = {
+    ...paired,
+    enabled: true,
+    state: "ready",
+    controlReady: true,
+    dataReady: true,
+    dataCheckedAt: checkedAt,
+    dataReachability: "reachable",
+    publicUrl: paired.boundPublicUrl,
+  };
+  render(RelayManager);
+  const probeTime = page.getByRole("time");
+  const open = () => page.getByRole("link", { name: m.relay_open_owner() });
+  const copy = () => page.getByRole("button", { name: m.relay_copy_address() });
+  await expect
+    .element(page.getByText(m.relay_reach_reachable(), { exact: true }))
+    .toBeVisible();
+  await expect.element(probeTime).toHaveAttribute("datetime", checkedAt);
+  applyRelayAuth(
+    {
+      authenticated: true,
+      csrfToken: "owner-csrf",
+      expiresAt: Math.floor(Date.now() / 1000) + 600,
+    },
+    relayAuthRevision(),
+  );
+
+  host.status = {
+    ...host.status,
+    state: "connecting",
+    dataReady: false,
+    dataReachability: "unknown",
+  };
+  observeNow();
+  await expect
+    .element(page.getByText(m.relay_unknown(), { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(page.getByText(m.relay_state_ready(), { exact: true }))
+    .toBeVisible();
+  await expect.element(probeTime).toHaveAttribute("datetime", checkedAt);
+  locale.setPreference("en");
+  await expect
+    .element(page.getByText(m.relay_origin_probe(), { exact: true }))
+    .toBeVisible();
+  await expect.element(probeTime).toHaveTextContent(
+    new Intl.DateTimeFormat("en", {
+      dateStyle: "medium",
+      timeStyle: "medium",
+    }).format(Date.parse(checkedAt)),
+  );
+  await expect
+    .element(open())
+    .toHaveAttribute("href", `${paired.boundPublicUrl}/auth/relay/start`);
+  await expect.element(copy()).toBeVisible();
+  expect(relayOwnerAuthenticated()).toBe(true);
+
+  const failedAt = "2026-11-25T10:42:22Z";
+  host.status = {
+    ...host.status,
+    state: "failed",
+    dataCheckedAt: failedAt,
+    dataReachability: "unavailable",
+    readinessError: "data-probe-failed",
+  };
+  observeNow();
+  await expect
+    .element(page.getByText(m.relay_reach_unavailable(), { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(page.getByText(m.relay_diag_data_probe(), { exact: true }))
+    .toBeVisible();
+  await expect.element(probeTime).toHaveAttribute("datetime", failedAt);
+  await expect.element(open()).toBeVisible();
+  await expect.element(copy()).toBeVisible();
+  expect(relayOwnerAuthenticated()).toBe(true);
+
+  host.status = {
+    ...host.status,
+    dataReachability: "unknown",
+    publicUrl: undefined,
+    readinessError: "data-unavailable",
+  };
+  observeNow();
+  await expect
+    .element(page.getByText(m.relay_diag_data_unavailable(), { exact: true }))
+    .toBeVisible();
+  await expect.element(open()).not.toBeInTheDocument();
+  await expect.element(copy()).not.toBeInTheDocument();
+  await expect
+    .element(page.getByText(paired.boundPublicUrl, { exact: true }))
+    .toBeVisible();
+  await expect.element(probeTime).toHaveAttribute("datetime", failedAt);
+  expect(relayOwnerAuthenticated()).toBe(true);
+
+  host.status = {
+    ...paired,
+    state: "failed",
+    readinessError: "authorization-revoked",
+  };
+  observeNow();
+  await expect
+    .element(page.getByText(m.relay_diag_revoked(), { exact: true }))
+    .toBeVisible();
+  await expect.element(open()).not.toBeInTheDocument();
+  await expect.element(probeTime).not.toBeInTheDocument();
+  expect(relayOwnerAuthenticated()).toBe(false);
+});
+
+test("a probe report without an actual timestamp is shown as unknown", async () => {
   const host = installHost();
   host.status = {
     ...paired,
     enabled: true,
-    state: "failed",
+    state: "connecting",
     controlReady: true,
-    dataReady: false,
-    dataReachability: "unavailable",
-    readinessError: "data-probe-failed",
+    publicUrl: paired.boundPublicUrl,
+    dataReachability: "reachable",
   };
   render(RelayManager);
   await expect
-    .element(page.getByText(m.relay_diag_data_probe(), { exact: true }))
+    .element(page.getByText(m.relay_unknown(), { exact: true }))
     .toBeVisible();
   await expect
-    .element(page.getByText(paired.boundPublicUrl, { exact: true }))
+    .element(page.getByText(m.relay_probe_no_sample(), { exact: true }))
     .toBeVisible();
+  await expect.element(page.getByRole("time")).not.toBeInTheDocument();
   await expect
     .element(page.getByRole("link", { name: m.relay_open_owner() }))
-    .not.toBeInTheDocument();
-  await expect
-    .element(page.getByRole("button", { name: m.relay_copy_address() }))
-    .not.toBeInTheDocument();
-  await page
-    .getByRole("button", { name: m.relay_effective_diagnostics(), exact: true })
-    .click();
-  const health = page.getByRole("region", { name: m.relay_health() });
-  await expect
-    .element(health.getByText(m.relay_control_readiness(), { exact: true }))
-    .toBeVisible();
-  await expect
-    .element(health.getByText(m.relay_state_ready(), { exact: true }))
-    .toBeVisible();
-  await expect
-    .element(health.getByText(m.relay_data_readiness(), { exact: true }))
-    .toBeVisible();
-  await expect
-    .element(health.getByText(m.relay_not_ready(), { exact: true }))
     .toBeVisible();
 });
 
