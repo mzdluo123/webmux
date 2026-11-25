@@ -72,6 +72,9 @@ func configSecrets(c NodeConfig, component Component) []SecretRef {
 	var refs []SecretRef
 	if component == ComponentRelay && c.WSS != nil {
 		refs = append(refs, c.WSS.TLSSecret)
+		if c.QUIC != nil {
+			refs = append(refs, c.QUIC.TLSSecret)
+		}
 	}
 	if component == ComponentCoturn && c.TURN != nil {
 		refs = append(refs, c.TURN.AuthSecret)

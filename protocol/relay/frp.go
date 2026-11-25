@@ -27,20 +27,21 @@ func FRPAudience(nodeID NodeID) string { return "webmux-frp:" + string(nodeID) }
 // FRPClaims is the signed payload for stock frp OIDC and the node's own
 // allocation admission. The node checks the signature and current grant.
 type FRPClaims struct {
-	Issuer        string  `json:"iss"`
-	Audience      string  `json:"aud"`
-	Subject       string  `json:"sub"`
-	ID            Token   `json:"jti"`
-	IssuedAt      int64   `json:"iat"`
-	NotBefore     int64   `json:"nbf"`
-	ExpiresAt     int64   `json:"exp"`
-	Scope         Scope   `json:"scope"`
-	NodeID        NodeID  `json:"nodeId"`
-	AllocationID  Token   `json:"allocationId"`
-	GrantRevision Counter `json:"grantRevision"`
-	Role          string  `json:"role"`
-	ProxyName     string  `json:"proxyName"`
-	RemotePort    uint16  `json:"remotePort"`
+	Issuer        string          `json:"iss"`
+	Audience      string          `json:"aud"`
+	Subject       string          `json:"sub"`
+	ID            Token           `json:"jti"`
+	IssuedAt      int64           `json:"iat"`
+	NotBefore     int64           `json:"nbf"`
+	ExpiresAt     int64           `json:"exp"`
+	Scope         Scope           `json:"scope"`
+	NodeID        NodeID          `json:"nodeId"`
+	AllocationID  Token           `json:"allocationId"`
+	GrantRevision Counter         `json:"grantRevision"`
+	Role          string          `json:"role"`
+	ProxyName     string          `json:"proxyName"`
+	RemotePort    uint16          `json:"remotePort"`
+	Transport     *TransportGrant `json:"transport,omitempty"`
 }
 
 // FRPOriginServerName is the internal DNS SAN for a validated allocation ID.
@@ -131,22 +132,38 @@ type AllocationGrant struct {
 	RenewAfter    int64                 `json:"renewAfter"`
 	Origin        AllocationOrigin      `json:"origin"`
 	NodeOrigin    *AllocationNodeOrigin `json:"nodeOrigin,omitempty"` // Strip before sending to host.
+	Transport     *TransportGrant       `json:"transport,omitempty"`
+}
+
+func (g AllocationGrant) Protocol() FRPTransport {
+	if g.Transport != nil {
+		return g.Transport.Protocol
+	}
+	return FRPTransportWSS
 }
 
 func (g AllocationGrant) validate(now time.Time, private bool) error {
 	if err := validateAllocationRef(g.AllocationID, g.GrantRevision); err != nil {
 		return err
 	}
-	if err := g.BridgeKey.Validate(); err != nil {
-		return err
+	if g.Transport != nil {
+		if err := g.Transport.Validate(); err != nil {
+			return err
+		}
 	}
 	if !identifier(g.ProxyName, 128) || g.RemotePort == 0 || private != (g.NodeOrigin != nil) {
 		return Error{Code: Invalid}
 	}
-	u, err := secureURL(g.TransportURL, "wss", false)
-	if err != nil || !strings.HasPrefix(g.TransportURL, "wss://") || strings.Contains(g.TransportURL, "#") ||
-		u.Host != u.Hostname() && u.Port() != "443" || u.Path != "/v1/frp/"+string(g.AllocationID) {
-		return Error{Code: Invalid}
+	if g.Protocol() == FRPTransportQUIC {
+		if g.TransportURL != "" || g.BridgeKey != "" {
+			return Error{Code: Invalid}
+		}
+	} else {
+		u, err := secureURL(g.TransportURL, "wss", false)
+		if g.BridgeKey.Validate() != nil || err != nil || !strings.HasPrefix(g.TransportURL, "wss://") || strings.Contains(g.TransportURL, "#") ||
+			u.Host != u.Hostname() && u.Port() != "443" || u.Path != "/v1/frp/"+string(g.AllocationID) {
+			return Error{Code: Invalid}
+		}
 	}
 	if g.IssuedAt <= 0 || g.NotBefore <= 0 || g.RenewAfter <= g.IssuedAt || g.RenewAfter <= g.NotBefore || g.ExpiresAt <= g.RenewAfter {
 		return Error{Code: Invalid}

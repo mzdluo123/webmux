@@ -56,7 +56,9 @@ const (
 	NodeFRPGrant       NodeType = "frp.grant"
 	// NodeFRPConfirm acknowledges installation of a prepared grant. Control
 	// echoes the exact allocation and revision before the node releases it.
-	NodeFRPConfirm NodeType = "frp.confirm"
+	NodeFRPConfirm       NodeType = "frp.confirm"
+	NodeTransportRequest NodeType = "frp.transport.request"
+	NodeTransportResult  NodeType = "frp.transport.result"
 )
 
 // NodeMessage is UTF-8 JSON in one WSS text message, bounded by
@@ -93,6 +95,8 @@ type NodeMessage struct {
 	AllocationRequest *AllocationRequest `json:"allocationRequest,omitempty"`
 	AllocationRenew   *AllocationRenew   `json:"allocationRenew,omitempty"`
 	AllocationGrant   *AllocationGrant   `json:"allocationGrant,omitempty"`
+	TransportRequest  *TransportRequest  `json:"transportRequest,omitempty"`
+	TransportResult   *TransportResult   `json:"transportResult,omitempty"`
 }
 
 // Validate checks envelope and closed payload selection. Receivers must also
@@ -136,7 +140,7 @@ func (m NodeMessage) Validate(node NodeID, controlAudience string, controlEpoch,
 		}
 	}
 	switch m.Type {
-	case NodeFRPAllocate, NodeFRPRenew, NodeFRPGrant, NodeFRPConfirm:
+	case NodeFRPAllocate, NodeFRPRenew, NodeFRPGrant, NodeFRPConfirm, NodeTransportRequest, NodeTransportResult:
 		if m.Scope == nil {
 			return Error{Code: Invalid}
 		}
@@ -156,6 +160,7 @@ func (m NodeMessage) Validate(node NodeID, controlAudience string, controlEpoch,
 		m.Hello != nil, m.Config != nil, m.ConfigAck != nil, m.Activate != nil, m.Sync != nil, m.SyncAck != nil,
 		m.Authorize != nil, m.Authorized != nil, m.Forward != nil, m.Revocation != nil, m.RevocationAck != nil,
 		m.Error != nil, m.AllocationRequest != nil, m.AllocationRenew != nil, m.AllocationGrant != nil,
+		m.TransportRequest != nil, m.TransportResult != nil,
 	} {
 		if present {
 			count++
@@ -213,7 +218,7 @@ func (m NodeMessage) Validate(node NodeID, controlAudience string, controlEpoch,
 	case NodeForwardType:
 		if m.Forward != nil && m.Forward.Scope.ControlEpoch == m.ControlEpoch && m.Forward.Scope.NodeEpoch == m.NodeEpoch {
 			switch m.Forward.Type {
-			case ControlFRPAllocate, ControlFRPRenew, ControlFRPGrant, ControlFRPStatus:
+			case ControlFRPAllocate, ControlFRPRenew, ControlFRPGrant, ControlFRPStatus, ControlTransportRequest, ControlTransportResult:
 				return Error{Code: Invalid}
 			}
 			return m.Forward.Validate(m.Forward.Scope, now)
@@ -227,8 +232,16 @@ func (m NodeMessage) Validate(node NodeID, controlAudience string, controlEpoch,
 			return validateAllocationRef(m.AllocationRenew.AllocationID, m.AllocationRenew.GrantRevision)
 		}
 	case NodeFRPGrant:
-		if m.AllocationGrant != nil {
+		if m.AllocationGrant != nil && m.AllocationGrant.Transport == nil {
 			return m.AllocationGrant.validate(now, true)
+		}
+	case NodeTransportRequest:
+		if m.TransportRequest != nil {
+			return m.TransportRequest.Validate(true)
+		}
+	case NodeTransportResult:
+		if m.TransportResult != nil {
+			return m.TransportResult.validate(now, true)
 		}
 	case NodeRevokeType:
 		if m.Revocation != nil {
