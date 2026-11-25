@@ -134,7 +134,9 @@ export function createRepositories(): Repositories {
     (state) => {
       // A cached HTTP read can finish revalidating before the first
       // subscription opens. Catch up on that gap as well as on reconnect.
-      if (state === "connected" && generation > 0) scheduleStreamRefresh();
+      if (state !== "connected" || generation === 0) return;
+      if (startup) void startup.then(scheduleStreamRefresh);
+      else scheduleStreamRefresh();
     },
     () => {
       // Explicit HTTP reads report repository errors; background stream drops retry silently.
