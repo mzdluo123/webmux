@@ -13,7 +13,7 @@
     "controlReady": false,
     "controlSource": "default",
     "dataOrigin": "",
-    "dataReachability": "unassigned",
+    "dataReachability": "unknown",
     "dataReady": false,
     "enabled": false,
     "error": "",

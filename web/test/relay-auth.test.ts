@@ -200,16 +200,27 @@ test("Relay status without public control pins preserves authenticated WSS assig
   const decoded = RelayStatusSchema.parse(status);
   expect(decoded).toEqual(status);
   expect(decoded).not.toHaveProperty("publicUrl");
+  expect(decoded).not.toHaveProperty("dataCheckedAt");
   expect(
     RelayStatusSchema.safeParse({ ...status, dataReady: undefined }).success,
   ).toBe(false);
   expect(
     RelayStatusSchema.safeParse({ ...status, state: "degraded" }).success,
   ).toBe(false);
+  expect(
+    RelayStatusSchema.safeParse({ ...status, dataReachability: "unassigned" })
+      .success,
+  ).toBe(false);
+  expect(
+    RelayStatusSchema.safeParse({ ...status, dataCheckedAt: "yesterday" })
+      .success,
+  ).toBe(false);
   const ready = {
     ...status,
     state: "ready",
     dataReady: true,
+    dataCheckedAt: "2026-11-25T18:42:16.123+08:00",
+    dataReachability: "reachable",
     publicUrl: "https://host.relay.example",
   };
   expect(RelayStatusSchema.parse(ready)).toEqual(ready);

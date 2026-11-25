@@ -108,7 +108,7 @@ func (c *relayEnrollmentControl) Status() contract.RelayStatus {
 	return contract.RelayStatus{
 		Operation: operation, State: "off", Transport: "wss",
 		TCPAlgorithm: "unknown", ControlSource: "default",
-		ControlReachability: "unknown", DataReachability: "unassigned",
+		ControlReachability: "unknown", DataReachability: "unknown",
 		AssignmentRevision: "0", ConfigRevision: "0", AppliedRevision: "0",
 		AssignmentSource: "unassigned", Capabilities: []string{},
 		Sessions: []contract.RelaySessionDiagnostic{},
@@ -196,9 +196,12 @@ func TestWireSnapshotsRelay(t *testing.T) {
 	control.status.ControlReady = true
 	control.status.ControlReachability = "reachable"
 	control.status.DataReachability = "unavailable"
+	checkedAt := time.Date(2026, time.November, 25, 10, 42, 16, 0, time.UTC)
+	control.status.DataCheckedAt = &checkedAt
 	control.status.ReadinessError = "data-probe-failed"
 	control.status.Error = "relay origin probe failed"
 	control.status.BoundPublicURL = "https://host.relay.example"
+	control.status.PublicURL = control.status.BoundPublicURL
 	s := &Server{Deps: Deps{Relay: &Relay{Control: control}}}
 	mux := http.NewServeMux()
 	s.relayRoutes(mux)

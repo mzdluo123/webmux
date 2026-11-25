@@ -1,6 +1,10 @@
 package contract
 
-import protocol "github.com/mzdluo123/webmux/protocol/relay"
+import (
+	"time"
+
+	protocol "github.com/mzdluo123/webmux/protocol/relay"
+)
 
 // Relay protocol types retain their versioned cross-service wire shape.
 type RelayICEEndpoint = protocol.ICEEndpoint
@@ -15,6 +19,7 @@ type RelayStatus struct {
 	Transport               string                   `json:"transport"`
 	ControlReady            bool                     `json:"controlReady"`
 	DataReady               bool                     `json:"dataReady"`
+	DataCheckedAt           *time.Time               `json:"dataCheckedAt,omitempty"`
 	PublicURL               string                   `json:"publicUrl,omitempty"`
 	BoundPublicURL          string                   `json:"boundPublicUrl"`
 	HybridSupported         bool                     `json:"hybridSupported"`

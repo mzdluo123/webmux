@@ -95,6 +95,8 @@ async function relayFixture(page: Page, initial = relayStatus) {
         state: "ready",
         controlReady: true,
         dataReady: true,
+        dataCheckedAt: new Date().toISOString(),
+        dataReachability: "reachable",
         publicUrl,
       };
     }

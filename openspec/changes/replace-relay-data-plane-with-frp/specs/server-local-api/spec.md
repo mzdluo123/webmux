@@ -38,7 +38,7 @@ MUST NOT 返回第二个 Relay 对象、`dataPlane`、`bulkReady`、角色就绪
 公开控制信任状态 SHALL 表示 CA-only/TLS 1.3 校验，MUST NOT 包含 `controlTrustPins` 或旧控制 pin 字段；分配 WSS 的 TLS/pin 与节点 mTLS/SPKI 策略不变。
 仅在与当前连接或获授权 ICE 有关时 SHALL 展示公开 nodeId、capabilities 和配置/分配版本，并区分 WSS 节点与可能独立的 TURN-only 节点；这些字段不是可编辑的节点管理状态。
 
-`controlReady` SHALL 反映当前管理流认证与租约有效性；`dataReady` SHALL 反映当前分配经网关验证的实际回源。只有两者就绪才公布 `publicUrl`；管理失效 SHALL 撤销公共地址及派生访问授权。frp 进程存活、单次 WSS 握手、注册成功或 TURN 可用均不能代替回源就绪。
+`controlReady` SHALL 反映当前管理流认证与租约有效性；`dataReachability` SHALL 区分最近回源探测成功、失败与未知，`dataReady` 仅在观测有效且成功时为真。`dataCheckedAt` 记录实际探针时间，尚未探测时省略。当前授权分配决定 `publicUrl`，不受探针通知时效影响；管理失效 SHALL 撤销公共地址及派生访问授权。
 
 `transport` SHALL 表示固定 wss 基线；额外状态 SHALL 按浏览器会话区分交互实际路径 wss、webrtc-direct 或 webrtc-turn，以及脱敏探测/回落原因和 TURN 配置可用性，MUST NOT 把某一浏览器路径当作整个宿主连接器传输。
 
@@ -84,7 +84,7 @@ MUST NOT 返回第二个 Relay 对象、`dataPlane`、`bulkReady`、角色就绪
 #### Scenario: 管理在线而业务未就绪
 
 - **WHEN** 管理流仍有效，但实际 frp 回源探针失败或过期，客户端读取本机状态或 CLI JSON
-- **THEN** 单个 `relay` 报告 `controlReady=true`、`dataReady=false` 与脱敏原因，不返回 `publicUrl` 或旧池状态；通用状态字段及 v1 版本不变
+- **THEN** 单个 `relay` 报告 `controlReady=true`、`dataReady=false`；失败记录脱敏原因，过期显示未知。授权仍有效时保留 `publicUrl`；通用状态字段及 v1 版本不变
 
 #### Scenario: 会话进程申请业务授权
 

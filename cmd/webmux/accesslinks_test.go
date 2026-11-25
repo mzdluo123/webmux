@@ -36,12 +36,12 @@ func TestAccessLinksReportOnlyReadyEntryPoints(t *testing.T) {
 	}
 }
 
-func TestRelayAccessLinkRequiresBothReadinessChecks(t *testing.T) {
+func TestRelayAccessLinkUsesAuthorizedPublicURL(t *testing.T) {
 	const origin = "https://host.relay.example"
 	for _, controlReady := range []bool{false, true} {
 		for _, dataReady := range []bool{false, true} {
 			link, ok := relayAccessLink(contract.RelayStatus{ControlReady: controlReady, DataReady: dataReady, PublicURL: origin})
-			if ok != (controlReady && dataReady) {
+			if ok != controlReady {
 				t.Fatalf("controlReady=%t dataReady=%t returned %+v, %t", controlReady, dataReady, link, ok)
 			}
 			if ok && link != (contract.AccessLink{Provider: "relay", Label: "Official Relay", URL: origin, Public: true}) {

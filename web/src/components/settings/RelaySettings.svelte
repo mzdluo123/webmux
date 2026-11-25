@@ -12,6 +12,7 @@
   import { InlineNotice } from "$lib/components/ui/inline-notice";
   import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
   import RelayDiagnostics from "./RelayDiagnostics.svelte";
+  import RelayReadiness from "./RelayReadiness.svelte";
   import type { RelaySettingsView } from "../../hooks/settings/relay-settings.svelte";
   import {
     relayDiagnostic,
@@ -53,6 +54,8 @@
   let copied = $state<"code" | "address" | "failed" | null>(null);
   let copiedValue = $state("");
   const status = $derived(view.status);
+  const publicUrl = $derived(status?.controlReady ? status.publicUrl : "");
+  const address = $derived(publicUrl || status?.boundPublicUrl);
   const pairing = $derived(view.pairing);
   const active = $derived(
     !status?.paired &&
@@ -73,12 +76,6 @@
   const codeVisible = $derived(
     active && !!pairing?.userCode && !!pairing.verificationUrl,
   );
-  const stateLabel = $derived({
-    off: m.relay_state_off(),
-    connecting: m.s1_connecting_short(),
-    ready: m.relay_state_ready(),
-    failed: m.relay_state_failed(),
-  });
   const pairingMessage = $derived(
     pairing?.phase === "denied"
       ? m.relay_error_denied()
@@ -373,17 +370,16 @@
                   !status.controlEndpoint))}
           />
         </div>
-        <p role="status" class="text-sm">{stateLabel[status.state]}</p>
-        {#if status.boundPublicUrl}
+        <RelayReadiness {status} />
+        {#if address}
           <div class="space-y-2">
             <p class="text-xs text-muted-foreground">
               {m.relay_bound_address()}
             </p>
             <p class="text-sm wrap-anywhere">
-              {relayEndpoint(status.boundPublicUrl)}
+              {relayEndpoint(address)}
             </p>
-            {#if status.controlReady && status.dataReady && status.publicUrl}
-              {@const publicUrl = status.publicUrl}
+            {#if publicUrl}
               <div class="flex flex-wrap gap-3">
                 <Button
                   variant="outline"

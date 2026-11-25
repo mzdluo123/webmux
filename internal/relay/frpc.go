@@ -114,6 +114,12 @@ func (s *connection) startFRP(ctx context.Context, dir, executable string, key *
 	if err := frphelper.Verify(executable); err != nil {
 		return nil, protocol.Error{Code: protocol.InvalidConfig}
 	}
+	if !r.access.active(time.Now()) {
+		return nil, protocol.Error{Code: protocol.Expired}
+	}
+	// Register Host and Origin before the child can receive any gateway work.
+	// The gateway still gates public traffic on its own authenticated probe.
+	s.publishTransport(true, "")
 	cmd := exec.CommandContext(ctx, executable, "-c", configPath)
 	cmd.Dir = dir
 	cmd.Env = []string{}

@@ -23,10 +23,9 @@ import (
 const frpOriginReadyPath = "/_webmux/relay-origin/ready"
 
 type frpAccess struct {
-	ctx    context.Context
-	ended  atomic.Bool
-	grant  atomic.Int64
-	status atomic.Int64
+	ctx   context.Context
+	ended atomic.Bool
+	grant atomic.Int64
 }
 
 func (a *frpAccess) active(now time.Time) bool {
@@ -170,10 +169,6 @@ func originHandler(publicURL string, origin http.Handler, access *frpAccess, ori
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		if now.UnixNano() >= access.status.Load() {
-			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
 		origin.ServeHTTP(w, r)

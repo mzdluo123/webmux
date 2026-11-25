@@ -222,6 +222,44 @@ func TestManagementRejectsExtraAndRetiredStreams(t *testing.T) {
 	}
 }
 
+func TestManagementLeaseExpiryFencesCurrentScope(t *testing.T) {
+	id, key := newTestIdentity(t), testKey(t)
+	a := testAssignment(t, id)
+	h, nodes := nodeFixture(t, key, a)
+	c := newTestClient(t, id, tlsTestServer(t, id, h).Listener.Addr().String())
+	c.assignment = &a
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	cb := testCallbacks()
+	ready := make(chan protocol.Scope, 1)
+	disconnected := make(chan struct{})
+	cb.Ready = func(scope protocol.Scope) { ready <- scope }
+	cb.Disconnected = func() { close(disconnected) }
+	done := make(chan error, 1)
+	go func() { done <- c.Connect(ctx, key, a, cb) }()
+	node := awaitRole(t, nodes)
+	_, result := openNodeStream(t, node, protocol.StreamControl, protocol.RoleControl, node.scope)
+	if result.Error != nil || awaitManagement(t, ready) != node.scope {
+		t.Fatal("management did not become ready")
+	}
+	rpc, err := c.activeRPC()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Start the watchdog with its last pong at the hard lease boundary.
+	watchdog := newControlRPC(rpc.session, rpc.stream)
+	watchdog.lastPong = time.Now().Add(-protocol.ControlLease)
+	go watchdog.heartbeat()
+	awaitManagement(t, disconnected)
+	if _, ok := c.Scope(); ok || rpc.session.ctx.Err() == nil {
+		t.Fatal("lease expiry retained the active scope or origin context")
+	}
+	if err := awaitManagement(t, done); protocolCode(err) != protocol.Expired {
+		t.Fatalf("management lease returned %v", err)
+	}
+	awaitManagement(t, watchdog.heartbeatDone)
+}
+
 func TestRevocationACKWaitsForClosedAccess(t *testing.T) {
 	id, key := newTestIdentity(t), testKey(t)
 	a := testAssignment(t, id)
@@ -231,7 +269,9 @@ func TestRevocationACKWaitsForClosedAccess(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	entered, release := make(chan struct{}), make(chan struct{})
+	ready := make(chan struct{})
 	cb := testCallbacks()
+	cb.Ready = func(protocol.Scope) { close(ready) }
 	cb.Revoke = func(ctx context.Context, _ protocol.Revocation) error {
 		close(entered)
 		select {
@@ -248,6 +288,11 @@ func TestRevocationACKWaitsForClosedAccess(t *testing.T) {
 	if result.Error != nil {
 		t.Fatal(result.Error)
 	}
+	awaitManagement(t, ready)
+	rpc, err := c.activeRPC()
+	if err != nil {
+		t.Fatal(err)
+	}
 	message := protocol.ControlMessage{Version: protocol.V1, Type: protocol.ControlRevoke, RequestID: testToken(t), Scope: node.scope,
 		ExpiresAt: time.Now().Add(9 * time.Second).Unix(), Revocation: &protocol.Revocation{ID: testToken(t), Scope: "connector", HostID: a.Binding.HostID,
 			BindingGeneration: a.Binding.BindingGeneration, ConnectorGeneration: node.scope.ConnectorGeneration, Reason: "disconnected"}}
@@ -255,6 +300,11 @@ func TestRevocationACKWaitsForClosedAccess(t *testing.T) {
 		t.Fatal(err)
 	}
 	awaitManagement(t, entered)
+	select {
+	case <-rpc.session.dataDone:
+	default:
+		t.Fatal("revocation callback preceded data worker shutdown")
+	}
 	if _, ok := c.Scope(); ok {
 		t.Fatal("revoked scope still ready before ACK")
 	}
