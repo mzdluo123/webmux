@@ -277,7 +277,7 @@ func (m ControlMessage) Validate(expected Scope, now time.Time) error {
 		}
 	case ControlFRPStatus:
 		if m.AllocationStatus != nil {
-			return m.AllocationStatus.validate()
+			return m.AllocationStatus.validate(m.ExpiresAt)
 		}
 	case ControlFailure:
 		if m.Error != nil && m.Error.Code.Valid() {

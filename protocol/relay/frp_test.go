@@ -158,7 +158,7 @@ func TestFRPControlWireFixtures(t *testing.T) {
 	allocation := fixtureAllocationGrant()
 	grant.AllocationGrant = &allocation
 	status := fixtureControl(ControlFRPStatus)
-	status.AllocationStatus = &AllocationStatus{AllocationID: vectorToken, GrantRevision: 1, Reason: AllocationStatusProbeFailed}
+	status.AllocationStatus = &AllocationStatus{AllocationID: vectorToken, GrantRevision: 1, Reason: AllocationStatusProbeFailed, CheckedAt: 1800000000123}
 
 	for _, tc := range []struct {
 		message ControlMessage
@@ -167,7 +167,7 @@ func TestFRPControlWireFixtures(t *testing.T) {
 		{allocate, `"allocationRequest":{"hostServerCsr":"-----BEGIN CERTIFICATE REQUEST-----\nYQ==\n-----END CERTIFICATE REQUEST-----\n"}`},
 		{renew, `"allocationRenew":{"allocationId":"` + string(vectorToken) + `","grantRevision":"9007199254740993"}`},
 		{grant, `"allocationGrant":{"allocationId":"` + string(vectorToken) + `","grantRevision":"1","proxyName":"frp-proxy","remotePort":20123,"transportUrl":"` + fixtureFRPURL + `","bridgeKey":"` + string(vectorToken) + `","jwt":"aGVhZGVy.Y2xhaW1z.c2ln","issuedAt":1800000000,"notBefore":1800000000,"expiresAt":1800000120,"renewAfter":1800000060,"origin":{"hostServerCertPem":"-----BEGIN CERTIFICATE-----\nYQ==\n-----END CERTIFICATE-----\n","trustCertPem":"-----BEGIN CERTIFICATE-----\nYQ==\n-----END CERTIFICATE-----\n","nodeClientSpki":"` + string(fixtureSPKI) + `"}}`},
-		{status, `"allocationStatus":{"allocationId":"` + string(vectorToken) + `","grantRevision":"1","dataReady":false,"reason":"probe_failed"}`},
+		{status, `"allocationStatus":{"allocationId":"` + string(vectorToken) + `","grantRevision":"1","dataReady":false,"reason":"probe_failed","checkedAt":1800000000123}`},
 	} {
 		t.Run(string(tc.message.Type), func(t *testing.T) {
 			var got ControlMessage
@@ -226,6 +226,9 @@ func TestFRPControlRejectsInvalidWire(t *testing.T) {
 	requireCode(t, status.Validate(fixtureScope, vectorNow), Invalid)
 	status.AllocationStatus.DataReady = true
 	status.AllocationStatus.Reason = AllocationStatusProbeFailed
+	requireCode(t, status.Validate(fixtureScope, vectorNow), Invalid)
+	status.AllocationStatus.Reason = ""
+	status.AllocationStatus.CheckedAt = status.ExpiresAt * 1000
 	requireCode(t, status.Validate(fixtureScope, vectorNow), Invalid)
 }
 

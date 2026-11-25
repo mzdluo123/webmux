@@ -186,6 +186,7 @@ type AllocationStatus struct {
 	GrantRevision Counter                `json:"grantRevision"`
 	DataReady     bool                   `json:"dataReady"`
 	Reason        AllocationStatusReason `json:"reason,omitempty"`
+	CheckedAt     int64                  `json:"checkedAt,omitempty"` // Unix milliseconds at probe completion; zero if no measurement.
 }
 
 func (s *AllocationStatus) UnmarshalJSON(b []byte) error {
@@ -204,9 +205,12 @@ func (s *AllocationStatus) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (s AllocationStatus) validate() error {
+func (s AllocationStatus) validate(expiresAt int64) error {
 	if err := validateAllocationRef(s.AllocationID, s.GrantRevision); err != nil {
 		return err
+	}
+	if s.CheckedAt < 0 || s.CheckedAt/1000 >= expiresAt || s.CheckedAt > 253402300799999 {
+		return Error{Code: Invalid}
 	}
 	switch s.Reason {
 	case "":
