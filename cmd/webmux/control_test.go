@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -175,6 +176,8 @@ func TestServerLocalAPIStatusAndStop(t *testing.T) {
 	stdout, _, code := f.run(t, "status", "--json")
 	if status := decodeStatus(t, stdout); code != contract.ExitNotRunning || status.State != contract.StateStopped {
 		t.Fatalf("before start: %d %+v", code, status)
+	} else if status.Relay != nil {
+		t.Fatal("stopped instance carries Relay state")
 	}
 	srv := f.start(t, nil, true, "--config", f.config)
 	record := f.record(t)
@@ -202,6 +205,26 @@ func TestServerLocalAPIStatusAndStop(t *testing.T) {
 	status := decodeStatus(t, stdout)
 	if code != 0 || !status.LocalAPI || !status.Record || status.State != contract.StateRunning || status.Sessions == nil || *status.Sessions != 1 || status.Listen != record.Listen || status.Token != "" {
 		t.Fatalf("status %d %+v", code, status)
+	}
+	var localStatus contract.StatusV1
+	if err := client.Do(ctx, http.MethodGet, contract.PathStatus, nil, &localStatus); err != nil {
+		t.Fatal(err)
+	}
+	if relay := status.Relay; relay == nil || relay.Transport != "wss" || relay.State != "off" ||
+		relay.ControlReady || relay.DataReady || relay.PublicURL != "" || !reflect.DeepEqual(relay, localStatus.Relay) {
+		t.Fatalf("Relay v1 status differs between CLI and local API: CLI=%+v, API=%+v", relay, localStatus.Relay)
+	}
+	var fields struct{ Relay map[string]json.RawMessage }
+	if err := json.Unmarshal([]byte(stdout), &fields); err != nil {
+		t.Fatal(err)
+	}
+	if string(fields.Relay["controlReady"]) != "false" || string(fields.Relay["dataReady"]) != "false" {
+		t.Fatalf("missing Relay readiness fields: %s", stdout)
+	}
+	for _, key := range []string{"publicUrl", "bulkReady", "readyConnections", "dataPlane"} {
+		if _, exists := fields.Relay[key]; exists {
+			t.Errorf("unexpected Relay field %q: %s", key, stdout)
+		}
 	}
 	if strings.Contains(stdout+stderr, fixtureToken) {
 		t.Fatal("status printed the token without --reveal-token")

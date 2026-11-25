@@ -88,7 +88,7 @@ func (h ConnectorHello) Validate() error {
 	if err := h.HostID.Validate(); err != nil {
 		return err
 	}
-	if h.BindingGeneration == 0 || !h.Role.Valid() || h.Role != RoleControl && h.ConnectorGeneration == 0 || h.Role == RoleControl && h.ConnectorGeneration != 0 {
+	if h.BindingGeneration == 0 || !h.Role.Valid() || h.ConnectorGeneration != 0 {
 		return Error{Code: Invalid}
 	}
 	return nil

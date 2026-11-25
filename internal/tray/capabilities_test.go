@@ -27,6 +27,7 @@ func TestTrayUsesDiscoveredCapabilitiesIndependently(t *testing.T) {
 		cloudflare, tailscale, push, invalid bool
 		pushReason                           string
 		providersOff                         bool
+		relay, controlReady, dataReady       bool
 	}{
 		{name: "core only"},
 		{name: "cloudflare only", cloudflare: true},
@@ -37,6 +38,10 @@ func TestTrayUsesDiscoveredCapabilitiesIndependently(t *testing.T) {
 		{name: "push storage unavailable", push: true, pushReason: contract.CapabilityReasonStorageUnavailable},
 		{name: "access providers configured off", cloudflare: true, tailscale: true, providersOff: true},
 		{name: "invalid discovery", cloudflare: true, tailscale: true, push: true, invalid: true},
+		{name: "Relay ready", relay: true, controlReady: true, dataReady: true},
+		{name: "Relay management only", relay: true, controlReady: true},
+		{name: "Relay management lost", relay: true, dataReady: true},
+		{name: "Relay ready without optional discovery", relay: true, controlReady: true, dataReady: true, invalid: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			enabled := map[string]bool{"cloudflare": tc.cloudflare, "tailscale": tc.tailscale, "notifications": tc.push}
@@ -80,6 +85,15 @@ func TestTrayUsesDiscoveredCapabilitiesIndependently(t *testing.T) {
 			t.Cleanup(service.Close)
 			remote := []contract.RemoteURL{{URL: "http://192.168.1.2:8080", Kind: "lan"}, {URL: "http://100.64.0.1:8080", Kind: "tailscale"}}
 			links := []contract.AccessLink{{Provider: "cloudflare", URL: "https://tunnel.example"}, {Provider: "tailscale", URL: "https://device.example"}}
+			const relayOrigin = "https://host.relay.example"
+			links = append(links,
+				contract.AccessLink{Provider: "relay", Label: "Official Relay", URL: relayOrigin, Public: true},
+				contract.AccessLink{Provider: "relay", Label: "Official Relay", URL: "https://stale.relay.example", Public: true},
+			)
+			var relay *contract.RelayStatus
+			if tc.relay {
+				relay = &contract.RelayStatus{ControlReady: tc.controlReady, DataReady: tc.dataReady, PublicURL: relayOrigin, Transport: "wss"}
+			}
 			tunnel := &contract.TunnelStatus{State: contract.TunnelReady, PublicURL: links[0].URL, SettingsAvailable: true}
 			tailscale := &contract.TailscaleSummary{}
 			if tc.providersOff {
@@ -95,6 +109,7 @@ func TestTrayUsesDiscoveredCapabilitiesIndependently(t *testing.T) {
 				Tunnel:    tunnel,
 				Tailscale: tailscale,
 				Push:      push,
+				Relay:     relay,
 				URLs:      contract.URLs{Local: "http://localhost", Remote: remote, Access: links},
 			})
 			wantCloudflare, wantTailscale, wantPush := tc.cloudflare && !tc.invalid, tc.tailscale && !tc.invalid, tc.push && !tc.invalid
@@ -107,6 +122,9 @@ func TestTrayUsesDiscoveredCapabilitiesIndependently(t *testing.T) {
 			}
 			if wantTailscale {
 				wantLinks = append(wantLinks, links[1])
+			}
+			if tc.controlReady && tc.dataReady {
+				wantLinks = append(wantLinks, links[2])
 			}
 			if !reflect.DeepEqual(status.URLs.Access, wantLinks) {
 				t.Fatalf("provider links=%+v, want %+v", status.URLs.Access, wantLinks)

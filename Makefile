@@ -37,17 +37,27 @@ ASSET_PREFIX = webmux-$(if $(DEV_VERSION),$(VERSION)-)
 SIGNING_KEY_ENV = $(if $(DEV_VERSION),WEBMUX_DEV_SIGNING_KEY,WEBMUX_RELEASE_SIGNING_KEY)
 LINUX_PACKAGES = webmux_$(VERSION)-1_amd64.deb webmux_$(VERSION)-1_arm64.deb \
 	webmux-$(VERSION)-1.x86_64.rpm webmux-$(VERSION)-1.aarch64.rpm
-RELEASE_FILES = $(addprefix $(ASSET_PREFIX),linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 \
+HOST_PLATFORMS := linux-amd64 linux-arm64 darwin-amd64 darwin-arm64
+HOST_TARS = $(addsuffix .tar.gz,$(addprefix $(ASSET_PREFIX),$(HOST_PLATFORMS)))
+FRPC_FILES = $(addprefix $(ASSET_PREFIX),frpc-pins.txt frpc-LICENSE.txt)
+RELEASE_FILES = $(addprefix $(ASSET_PREFIX),$(HOST_PLATFORMS) \
 	windows-amd64.exe windows-arm64.exe tray-windows-amd64.exe tray-windows-arm64.exe \
-	setup-windows-amd64.exe setup-windows-arm64.exe) $(LINUX_PACKAGES)
+	setup-windows-amd64.exe setup-windows-arm64.exe) $(HOST_TARS) $(FRPC_FILES) $(LINUX_PACKAGES)
+FRPC_PREPARE = sh .github/scripts/prepare-frpc.sh "$(GO)"
 
-.PHONY: web build tray installer linux-packages release release-build release-sign check docs-check persistence-check go-lint test test-fast test-go test-frontend test-unit test-browser test-storybook test-e2e test-e2e-built test-performance test-browsers-install cover cover-go cover-web frontend e2e-runtime format format-check install baseline test-install
+.PHONY: web build tray installer frpc-test linux-packages release release-hosts release-build release-sign check docs-check persistence-check go-lint test test-fast test-go test-frontend test-unit test-browser test-storybook test-e2e test-e2e-built test-performance test-browsers-install cover cover-go cover-web frontend e2e-runtime format format-check install baseline test-install
 web:
 	$(PNPM) --dir web install --frozen-lockfile
 	$(PNPM) --dir web build
 
 build: web
 	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/webmux ./cmd/webmux
+
+frpc-test:
+	platform=$$($(GO) env GOHOSTOS)-$$($(GO) env GOHOSTARCH) && \
+	$(FRPC_PREPARE) $$platform && \
+	GOOS=$${platform%-*} GOARCH=$${platform#*-} $(GO) test -count=1 \
+		-tags=webmux_frpc -overlay=bin/.frpc/$$platform/overlay.json ./internal/frphelper
 
 # The Windows tray needs no frontend build; its icon and version resources
 # come from the committed cmd/webmux-tray/rsrc_windows_*.syso files. A plain
@@ -56,8 +66,8 @@ tray:
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build -trimpath -ldflags "$(LDFLAGS) $(TRAY_LDFLAGS) -H=windowsgui" -o bin/$(ASSET_PREFIX)tray-windows-amd64.exe ./cmd/webmux-tray
 	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 $(GO) build -trimpath -ldflags "$(LDFLAGS) $(TRAY_LDFLAGS) -H=windowsgui" -o bin/$(ASSET_PREFIX)tray-windows-arm64.exe ./cmd/webmux-tray
 
-# Packages bin/<prefix>tray-windows-<arch>.exe and bin/<prefix>linux-<arch>
-# as they are, so each installer holds the release artifacts byte for byte.
+# Packages the tray and its release Linux server (including frpc and its license)
+# byte for byte. The tray installs that same Linux file inside WSL.
 # Needs NSIS 3 (`makensis`); see deploy/windows/webmux.nsi.
 installer:
 	for arch in amd64 arm64; do \
@@ -69,11 +79,12 @@ installer:
 			deploy/windows/webmux.nsi || exit 1; \
 	done
 
-# Packages bin/<prefix>linux-<arch> as /usr/bin/webmux plus the systemd
-# units into $(LINUX_PACKAGES); see deploy/linux/nfpm.yaml. The file names
-# are given explicitly: nfpm's own names would carry the "~" of a
-# development package version, which GitHub rewrites on upload.
+# Packages the release Linux server as /usr/bin/webmux, with its embedded frpc,
+# plus the frp license and systemd units; see deploy/linux/nfpm.yaml. Explicit
+# file names avoid nfpm's "~" in development package versions, which GitHub
+# rewrites on upload.
 linux-packages:
+	$(FRPC_PREPARE) linux-amd64 linux-arm64
 	for arch in amd64 arm64; do \
 		case $$arch in amd64) rpm_arch=x86_64 ;; arm64) rpm_arch=aarch64 ;; esac; \
 		VERSION=$(VERSION) ARCH=$$arch SERVER=bin/$(ASSET_PREFIX)linux-$$arch $(NFPM) package --config deploy/linux/nfpm.yaml \
@@ -97,12 +108,15 @@ release:
 	env -u WEBMUX_RELEASE_SIGNING_KEY -u WEBMUX_DEV_SIGNING_KEY $(MAKE) release-build WEBMUX_RELEASE_SIGNING_KEY= WEBMUX_DEV_SIGNING_KEY=
 	$(MAKE) release-sign
 
-release-build:
-	$(MAKE) web
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GO) build -trimpath -ldflags "$(RELEASE_LDFLAGS)" -o bin/$(ASSET_PREFIX)linux-amd64 ./cmd/webmux
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GO) build -trimpath -ldflags "$(RELEASE_LDFLAGS)" -o bin/$(ASSET_PREFIX)linux-arm64 ./cmd/webmux
-	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GO) build -trimpath -ldflags "$(RELEASE_LDFLAGS)" -o bin/$(ASSET_PREFIX)darwin-amd64 ./cmd/webmux
-	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GO) build -trimpath -ldflags "$(RELEASE_LDFLAGS)" -o bin/$(ASSET_PREFIX)darwin-arm64 ./cmd/webmux
+release-hosts: web
+	$(FRPC_PREPARE) $(HOST_PLATFORMS)
+	for platform in $(HOST_PLATFORMS); do \
+		CGO_ENABLED=0 GOOS=$${platform%-*} GOARCH=$${platform#*-} $(GO) build -trimpath \
+			-tags=webmux_frpc -overlay=bin/.frpc/$$platform/overlay.json \
+			-ldflags "$(RELEASE_LDFLAGS)" -o bin/$(ASSET_PREFIX)$$platform ./cmd/webmux || exit 1; \
+	done
+
+release-build: release-hosts
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build -trimpath -ldflags "$(RELEASE_LDFLAGS)" -o bin/$(ASSET_PREFIX)windows-amd64.exe ./cmd/webmux-windows
 	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 $(GO) build -trimpath -ldflags "$(RELEASE_LDFLAGS)" -o bin/$(ASSET_PREFIX)windows-arm64.exe ./cmd/webmux-windows
 	amd64=$$(sha256sum bin/$(ASSET_PREFIX)linux-amd64 | cut -d' ' -f1) && \
@@ -113,6 +127,16 @@ release-build:
 	done
 	$(MAKE) installer
 	$(MAKE) linux-packages
+	set -e; stage=$$(mktemp -d bin/.frpc/tar.XXXXXXXX); trap 'rm -rf "$$stage"' EXIT; \
+	for platform in $(HOST_PLATFORMS); do \
+		cp bin/$(ASSET_PREFIX)$$platform "$$stage/webmux"; \
+		cp bin/.frpc/$$platform/LICENSE "$$stage/frpc.LICENSE"; \
+		chmod 755 "$$stage/webmux"; chmod 644 "$$stage/frpc.LICENSE"; \
+		tar --owner=0 --group=0 --numeric-owner --mtime=@0 -czf bin/$(ASSET_PREFIX)$$platform.tar.gz \
+			-C "$$stage" webmux frpc.LICENSE; \
+	done
+	cp internal/frphelper/pins.txt bin/$(ASSET_PREFIX)frpc-pins.txt
+	cp bin/.frpc/linux-amd64/LICENSE bin/$(ASSET_PREFIX)frpc-LICENSE.txt
 	cp install.sh bin/install.sh
 	cd bin && sha256sum $(RELEASE_FILES) install.sh > SHA256SUMS
 

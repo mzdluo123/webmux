@@ -12,35 +12,22 @@ import (
 // RelayConfig selects the public control authority. Data endpoints and their
 // pinned trust are assigned by authenticated control, never configured here.
 type RelayConfig struct {
-	InteractiveConnections int    `toml:"interactive_connections"`
-	BulkConnections        int    `toml:"bulk_connections"`
-	Enabled                bool   `toml:"enabled"`
-	ControlEndpoint        string `toml:"control_endpoint"`
-	ControlAudience        string `toml:"control_audience"`
-	Transport              string `toml:"transport"`
+	Enabled         bool   `toml:"enabled"`
+	ControlEndpoint string `toml:"control_endpoint"`
+	ControlAudience string `toml:"control_audience"`
+	Transport       string `toml:"transport"`
 }
 
 // DefaultRelayConfig selects the official control service without enabling access.
 func DefaultRelayConfig() RelayConfig {
 	return RelayConfig{
-		InteractiveConnections: protocol.DefaultInteractiveConnections,
-		BulkConnections:        protocol.DefaultBulkConnections,
-		ControlEndpoint:        "https://webmux-relay.rainbit.net",
-		ControlAudience:        "webmux-relay-control",
-		Transport:              "wss",
+		ControlEndpoint: "https://webmux-relay.rainbit.net",
+		ControlAudience: "webmux-relay-control",
+		Transport:       "wss",
 	}
 }
 
 func (c RelayConfig) Validated() (RelayConfig, error) {
-	if c.InteractiveConnections == 0 {
-		c.InteractiveConnections = protocol.DefaultInteractiveConnections
-	}
-	if c.BulkConnections == 0 {
-		c.BulkConnections = protocol.DefaultBulkConnections
-	}
-	if c.InteractiveConnections < 1 || c.InteractiveConnections > protocol.MaxRoleConnections || c.BulkConnections < 1 || c.BulkConnections > protocol.MaxRoleConnections {
-		return RelayConfig{}, errors.New("relay connection counts must be between 1 and 16")
-	}
 	if c.Transport == "" {
 		c.Transport = "wss"
 	}

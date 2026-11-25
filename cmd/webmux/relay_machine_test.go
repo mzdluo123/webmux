@@ -168,13 +168,8 @@ func machineReceive[T any](t *testing.T, ch <-chan T) T {
 
 func machineTestController(t *testing.T, dir string, client *machineEnrollmentClient) (*relayController, *machinePairingClock) {
 	t.Helper()
-	listener, localTLS, err := relayLoopback(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = listener.Close() })
 	cfg := config.Config{StateDir: dir, Token: strings.Repeat("x", 43), Relay: config.RelayConfig{Transport: "wss", ControlEndpoint: "https://control.example.com", ControlAudience: "control.example.com"}}
-	rc, err := newRelayController(t.Context(), cfg, &transport.PublicOrigins{}, listener.Addr().String(), localTLS)
+	rc, err := newRelayController(t.Context(), cfg, &transport.PublicOrigins{})
 	if err != nil {
 		t.Fatal(err)
 	}

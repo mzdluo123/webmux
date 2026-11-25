@@ -14,18 +14,8 @@ import (
 	"github.com/xtaci/smux"
 )
 
-// ctx owns the physical lifetime; authCtx may impose a shorter growth budget.
-func (c *Client) dial(ctx, authCtx context.Context, key ed25519.PrivateKey, a protocol.Assignment, role protocol.Role, expected protocol.Scope) (_ *physical, err error) {
-	// Only a new primary depends on discovery expiry. Every auxiliary is
-	// independently authorized within its exact, still-live logical scope.
-	if role == protocol.RoleControl && expected.ConnectorGeneration == 0 {
-		if err := a.Validate(time.Now()); err != nil {
-			return nil, err
-		}
-	} else if err := expected.Validate(); err != nil {
-		return nil, err
-	}
-	authCtx, cancel := context.WithTimeout(authCtx, protocol.AuthTimeout)
+func (c *Client) dial(ctx context.Context, key ed25519.PrivateKey, a protocol.Assignment) (_ *physical, err error) {
+	authCtx, cancel := context.WithTimeout(ctx, protocol.AuthTimeout)
 	defer cancel()
 	httpClient := c.httpClient(&a.Trust)
 	defer httpClient.CloseIdleConnections()
@@ -53,10 +43,7 @@ func (c *Client) dial(ctx, authCtx context.Context, key ed25519.PrivateKey, a pr
 		return nil, protocol.Error{Code: protocol.Incompatible}
 	}
 	ws.SetReadLimit(protocol.MaxAuthBytes)
-	hello := protocol.ConnectorHello{Version: protocol.V1, HostID: a.Binding.HostID, BindingGeneration: a.Binding.BindingGeneration, Role: role}
-	if expected.ConnectorGeneration > 0 {
-		hello.ConnectorGeneration = expected.ConnectorGeneration
-	}
+	hello := protocol.ConnectorHello{Version: protocol.V1, HostID: a.Binding.HostID, BindingGeneration: a.Binding.BindingGeneration, Role: protocol.RoleControl}
 	if err := writeAuth(authCtx, ws, hello); err != nil {
 		return nil, err
 	}
@@ -64,7 +51,7 @@ func (c *Client) dial(ctx, authCtx context.Context, key ed25519.PrivateKey, a pr
 	if err := readAuth(authCtx, ws, &challenge); err != nil {
 		return nil, err
 	}
-	if err := checkChallenge(challenge, a, role, expected, time.Now()); err != nil {
+	if err := checkChallenge(challenge, a, time.Now()); err != nil {
 		return nil, err
 	}
 	proof, err := protocol.SignConnector(key, challenge, time.Now())
@@ -79,7 +66,7 @@ func (c *Client) dial(ctx, authCtx context.Context, key ed25519.PrivateKey, a pr
 		return nil, err
 	}
 	scope := protocol.Scope{HostID: challenge.HostID, BindingGeneration: challenge.BindingGeneration, ConnectorGeneration: challenge.ConnectorGeneration, ControlEpoch: challenge.ControlEpoch, NodeEpoch: challenge.NodeEpoch}
-	if ready.Version != protocol.V1 || ready.HostID != scope.HostID || ready.BindingGeneration != scope.BindingGeneration || ready.ConnectorGeneration != scope.ConnectorGeneration || ready.ControlEpoch != scope.ControlEpoch || ready.NodeEpoch != scope.NodeEpoch || ready.Role != role {
+	if ready.Version != protocol.V1 || ready.HostID != scope.HostID || ready.BindingGeneration != scope.BindingGeneration || ready.ConnectorGeneration != scope.ConnectorGeneration || ready.ControlEpoch != scope.ControlEpoch || ready.NodeEpoch != scope.NodeEpoch || ready.Role != protocol.RoleControl {
 		return nil, protocol.Error{Code: protocol.StaleGeneration}
 	}
 	conn := websocket.NetConn(ctx, ws, websocket.MessageBinary)
@@ -92,15 +79,12 @@ func (c *Client) dial(ctx, authCtx context.Context, key ed25519.PrivateKey, a pr
 	return &physical{ws: ws, mux: mux, scope: scope}, nil
 }
 
-func checkChallenge(challenge protocol.ConnectorChallenge, a protocol.Assignment, role protocol.Role, expected protocol.Scope, now time.Time) error {
+func checkChallenge(challenge protocol.ConnectorChallenge, a protocol.Assignment, now time.Time) error {
 	if err := challenge.Validate(now); err != nil {
 		return err
 	}
-	if challenge.Audience != a.NodeAudience || challenge.HostID != a.Binding.HostID || challenge.BindingGeneration != a.Binding.BindingGeneration || challenge.Role != role || challenge.ControlEpoch != a.ControlEpoch {
+	if challenge.Audience != a.NodeAudience || challenge.HostID != a.Binding.HostID || challenge.BindingGeneration != a.Binding.BindingGeneration || challenge.Role != protocol.RoleControl || challenge.ControlEpoch != a.ControlEpoch {
 		return protocol.Error{Code: protocol.WrongAudience}
-	}
-	if expected.ConnectorGeneration > 0 && (challenge.HostID != expected.HostID || challenge.BindingGeneration != expected.BindingGeneration || challenge.ConnectorGeneration != expected.ConnectorGeneration || challenge.NodeEpoch != expected.NodeEpoch || challenge.ControlEpoch != expected.ControlEpoch) {
-		return protocol.Error{Code: protocol.StaleGeneration}
 	}
 	return nil
 }

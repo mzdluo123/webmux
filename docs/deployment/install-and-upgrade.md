@@ -75,6 +75,7 @@ curl -fsSL https://ghfast.top/https://github.com/mzdluo123/webmux/releases/downl
 - 需要后台服务时再执行 `webmux service install`，首次启动会自动生成配置与 Token。
 - 全部 13 项内置功能默认随服务启动；公网入口与外部服务按各自配置项开启，详见 [内置功能选择](configuration.md#内置功能选择)。
 - 重复执行脚本会升级二进制；正在运行的服务需手动重启，重启会结束现有会话。
+- 配套版本的签名发行物内置对应架构的受管 `frpc`。官方 Relay 缺少该组件、摘要不符或版本不匹配时保持未就绪，本机 PTY 仍可使用；无需另装系统 frp。
 
 ### 手动下载
 
@@ -89,6 +90,8 @@ curl -LO https://github.com/mzdluo123/webmux/releases/latest/download/SHA256SUMS
 sha256sum --check --ignore-missing SHA256SUMS   # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
 install -m 755 webmux-linux-amd64 ~/.local/bin/webmux
 ```
+
+启用官方 Relay 时使用完整签名发行物并验证发布签名及摘要；只从源码构建 WebMux 或仅下载另一个 frp 程序不会提供可用的受管 Relay 组件。
 
 ### Linux 安装包（deb / rpm）
 
@@ -117,6 +120,8 @@ Windows 不使用 `install.sh` 或这些安装包：请使用 `webmux-setup-wind
 能力快照自 `version: 2` 起改名（`features` 字段），服务端不再发送 v1；旧版本地客户端（`webmux` CLI、托盘、Windows 控制台）连接 v2 服务端会按“不支持的能力响应”关闭可选入口，升级时请与服务器同步更新本机二进制。新版客户端仍可解码旧服务端的 v1 快照，先升级客户端再升级服务端不受影响。
 
 deb / rpm 与安装版托盘的自动更新、`webmux update check` 与发布签名验证见[自动更新](updates.md)。
+
+将已配对的 Relay 迁移到受管 frp 前，从 `[relay]` 删除 `interactive_connections` 和 `bulk_connections`，保留现有 v3 绑定和宿主密钥。不要用常规客户端滚动升级来切换 Relay 传输；按[整版切换步骤](official-relay.md#从旧-relay-传输升级)在同一维护窗口更新配套宿主、控制面与节点。
 
 ## 持久化升级与诊断
 

@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,6 +15,7 @@ import (
 	"testing"
 
 	protocol "github.com/mzdluo123/webmux/protocol/relay"
+	"github.com/rainchan/webmux/internal/frphelper"
 )
 
 // TestRelayIntegrationHost is a subprocess entrypoint for webmux-relay's real
@@ -22,6 +24,9 @@ func TestRelayIntegrationHost(t *testing.T) {
 	path := os.Getenv("WEBMUX_RELAY_HOST_FIXTURE")
 	if path == "" {
 		t.Skip("entrypoint for relay cross-repository integration")
+	}
+	if err := frphelper.Available(); err != nil {
+		t.Fatal("cross-repository host fixture requires the embedded stock frpc")
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -42,8 +47,18 @@ func TestRelayIntegrationHost(t *testing.T) {
 	}
 	roots := x509.NewCertPool()
 	roots.AddCert(cert)
-	id := newTestIdentity(t)
-	local := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	callbacks := testCallbacks()
+	var revoked bool
+	callbacks.Revoke = func(_ context.Context, r protocol.Revocation) error {
+		revoked = r.Scope == "connector" && r.Reason == "disconnected"
+		return nil
+	}
+	callbacks.Origin = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 {
+			t.Error("frp request did not arrive through the authenticated origin")
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		if r.URL.Path == "/hold" {
 			w.WriteHeader(http.StatusOK)
 			w.(http.Flusher).Flush()
@@ -51,17 +66,19 @@ func TestRelayIntegrationHost(t *testing.T) {
 			return
 		}
 		_, _ = io.WriteString(w, strings.Repeat("asset", 256))
-	}), true)
-	c, err := New(Config{ControlEndpoint: "https://example.com", ControlAudience: "test-control", LoopbackAddress: local.Listener.Addr().String(), TLSConfig: &tls.Config{RootCAs: roots}, LoopbackTLSConfig: id.localTLS()})
+	})
+	c, err := New(Config{ControlEndpoint: "https://example.com", ControlAudience: "test-control", TLSConfig: &tls.Config{RootCAs: roots}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.dialContext = newTestClient(t, id, fixture.Target, local.Listener.Addr().String()).dialContext
+	c.dialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, fixture.Target)
+	}
 	c.assignment = &fixture.Assignment
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
-	err = c.Connect(ctx, ed25519.PrivateKey(fixture.Key), fixture.Assignment, testCallbacks())
-	if ctx.Err() == nil {
-		t.Fatalf("connector exited before test shutdown: %v", err)
+	err = c.Connect(ctx, ed25519.PrivateKey(fixture.Key), fixture.Assignment, callbacks)
+	if ctx.Err() == nil && (!revoked || protocolCode(err) != protocol.Forbidden) {
+		t.Fatalf("connector exited before test shutdown or revocation: %v", err)
 	}
 }

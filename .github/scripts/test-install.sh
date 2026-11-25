@@ -145,6 +145,11 @@ for build in 0.10.3-dev.3 0.10.3-dev.4; do
 		chmod 755 "$dev_dir/$asset"
 	done
 done
+# Signed development releases also list standalone tarballs and frp notices;
+# install.sh must still resolve the single matching bare WebMux file.
+for extra in linux-amd64.tar.gz frpc-pins.txt frpc-LICENSE.txt; do
+	printf '%s\n' "$extra" > "$dev_dir/webmux-0.10.3-dev.4-$extra"
+done
 cp "$repo/install.sh" "$dev_dir/install.sh"
 (
 	cd "$dev_dir"

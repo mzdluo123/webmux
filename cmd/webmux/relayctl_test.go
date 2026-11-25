@@ -22,15 +22,10 @@ import (
 
 func TestRelayDisableRevokesWhenPersistenceFails(t *testing.T) {
 	ctx := t.Context()
-	listener, localTLS, err := relayLoopback(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer listener.Close()
 	dir := filepath.Join(t.TempDir(), "state")
 	cfg := config.Config{StateDir: dir, Token: strings.Repeat("x", 43), Relay: config.RelayConfig{Transport: "wss", ControlEndpoint: "https://control.example.com", ControlAudience: "control.example.com"}}
 	public := &transport.PublicOrigins{}
-	rc, err := newRelayController(ctx, cfg, public, listener.Addr().String(), localTLS)
+	rc, err := newRelayController(ctx, cfg, public)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,6 +44,7 @@ func TestRelayDisableRevokesWhenPersistenceFails(t *testing.T) {
 	rc.settings = settings
 	rc.status.State = "ready"
 	rc.status.ControlReady = true
+	rc.status.DataReady = true
 	rc.status.PublicURL = origin
 	if err := public.Set("relay", origin); err != nil {
 		t.Fatal(err)
@@ -70,7 +66,7 @@ func TestRelayDisableRevokesWhenPersistenceFails(t *testing.T) {
 	if !errors.Is(err, relaysetting.ErrNotPersisted) {
 		t.Fatalf("disable error=%v, want not persisted", err)
 	}
-	if state.Enabled || state.ControlReady || state.PublicURL != "" || public.SourceOrigin("relay") != "" {
+	if state.Enabled || state.ControlReady || state.DataReady || state.PublicURL != "" || public.SourceOrigin("relay") != "" {
 		t.Fatalf("failed save retained public access: %+v", state)
 	}
 	if receipt := state.Operation; receipt.Kind != "disable" || receipt.Phase != "failed" || receipt.Error != "storage-unavailable" {
@@ -93,30 +89,30 @@ func TestRelayDisableRevokesWhenPersistenceFails(t *testing.T) {
 	}
 }
 
-func TestRelayReadinessRequiresInteractivePool(t *testing.T) {
-	rc := &relayController{generation: 1, status: contract.RelayStatus{ControlReady: true}, settings: relaysetting.Settings{Binding: &protocol.Binding{}}}
-	rc.poolsReady(1, false, true)
-	if rc.status.State != "failed" || !rc.status.ControlReady || !rc.status.BulkReady || rc.status.ReadyConnections != 1 {
-		t.Fatalf("bulk-only transport reported healthy: %+v", rc.status)
+func TestRelayReadinessRequiresCurrentOriginProbe(t *testing.T) {
+	const origin = "https://h-0123456789abcdef0123456789abcdef.example.com"
+	public := &transport.PublicOrigins{}
+	rc := &relayController{public: public, generation: 1, status: contract.RelayStatus{ControlReady: true},
+		settings: relaysetting.Settings{Binding: &protocol.Binding{PublicURL: origin}}, store: relaysetting.Open(t.TempDir(), config.RelayConfig{})}
+	defer rc.store.Close()
+	rc.dataReady(t.Context(), 1, false, protocol.UpstreamFailed)
+	if _, linked := relayAccessLink(rc.Status()); !rc.status.ControlReady || rc.status.DataReady || rc.status.ReadinessError != "data-probe-failed" || linked {
+		t.Fatalf("failed origin probe published access: %+v", rc.status)
 	}
-	rc.poolsReady(1, true, true)
-	if rc.status.State != "ready" || !rc.status.ControlReady || rc.status.ReadyConnections != 2 {
-		t.Fatalf("recovered interactive pool not ready: %+v", rc.status)
+	rc.dataReady(t.Context(), 1, true, "")
+	if link, linked := relayAccessLink(rc.Status()); rc.status.State != "ready" || !rc.status.ControlReady || !rc.status.DataReady || public.SourceOrigin("relay") != origin || !linked || link.URL != origin {
+		t.Fatalf("recovered origin probe did not publish access: %+v", rc.status)
 	}
-	rc.poolsReady(0, false, false)
-	if rc.status.State != "ready" {
-		t.Fatal("old generation changed readiness")
+	rc.dataReady(t.Context(), 0, false, protocol.Unavailable)
+	if !rc.status.DataReady {
+		t.Fatal("stale generation changed readiness")
 	}
-	rc.poolsReady(1, false, true)
-	if rc.status.State != "failed" || !rc.status.ControlReady || rc.status.ReadyConnections != 1 {
-		t.Fatalf("interactive loss retained ready state: %+v", rc.status)
+	rc.dataReady(t.Context(), 1, false, protocol.Unavailable)
+	if _, linked := relayAccessLink(rc.Status()); rc.status.DataReady || public.SourceOrigin("relay") != "" || linked {
+		t.Fatalf("probe loss retained access: %+v", rc.status)
 	}
 	if _, ok := rc.authSnapshot(); !ok {
-		t.Fatal("interactive loss invalidated browser authorization")
-	}
-	rc.poolsReady(1, true, false)
-	if rc.status.State != "degraded" || rc.status.Error != "" || rc.status.ReadinessError != "" {
-		t.Fatalf("bulk-only degradation retained interactive failure: %+v", rc.status)
+		t.Fatal("data loss invalidated independent management authorization")
 	}
 }
 
@@ -137,7 +133,6 @@ func TestRelayConnectedClearsFailureOnlyForActiveGeneration(t *testing.T) {
 			if tt.canceled {
 				cancel()
 			}
-			const origin = "https://h-0123456789abcdef0123456789abcdef.example.com"
 			public := &transport.PublicOrigins{}
 			rc := &relayController{
 				public: public, generation: 5,
@@ -146,14 +141,13 @@ func TestRelayConnectedClearsFailureOnlyForActiveGeneration(t *testing.T) {
 					ReadinessError: "connection-unavailable", ReconnectReason: "connection-lost",
 				},
 			}
-			settings := relaysetting.Settings{Binding: &protocol.Binding{PublicURL: origin}}
-			rc.connected(ctx, tt.gen, settings, protocol.Scope{})
+			rc.connected(ctx, tt.gen, protocol.Scope{})
 			if tt.wantReady {
-				if !rc.status.ControlReady || rc.status.ReadyConnections != 0 ||
-					rc.status.State != "connecting" || rc.status.PublicURL != origin ||
+				if !rc.status.ControlReady || rc.status.DataReady ||
+					rc.status.State != "connecting" || rc.status.PublicURL != "" ||
 					rc.status.Error != "" || rc.status.ReadinessError != "" ||
-					rc.status.ReconnectReason != "" || public.SourceOrigin("relay") != origin {
-					t.Fatalf("recovery retained failure or did not authorize origin: %+v", rc.status)
+					rc.status.ReconnectReason != "" || public.SourceOrigin("relay") != "" {
+					t.Fatalf("management recovery retained failure or published before probing: %+v", rc.status)
 				}
 			} else if rc.status.ControlReady || public.SourceOrigin("relay") != "" ||
 				rc.status.ReconnectReason != "connection-lost" || rc.status.State != "failed" {

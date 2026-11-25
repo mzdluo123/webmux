@@ -396,6 +396,7 @@ test("WSS-only enable requires explicit consent; locale changes preserve confirm
         enabled: true,
         state: "ready",
         controlReady: true,
+        dataReady: true,
         publicUrl: paired.boundPublicUrl,
         operation: {
           ...relayStatus.operation,
@@ -420,6 +421,48 @@ test("WSS-only enable requires explicit consent; locale changes preserve confirm
   expect(
     host.requests.filter((request) => request.method === "POST"),
   ).toHaveLength(1);
+});
+
+test("management readiness does not publish an unverified application origin", async () => {
+  const host = installHost();
+  host.status = {
+    ...paired,
+    enabled: true,
+    state: "failed",
+    controlReady: true,
+    dataReady: false,
+    dataReachability: "unavailable",
+    readinessError: "data-probe-failed",
+  };
+  render(RelayManager);
+  await expect
+    .element(page.getByText(m.relay_diag_data_probe(), { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(page.getByText(paired.boundPublicUrl, { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(page.getByRole("link", { name: m.relay_open_owner() }))
+    .not.toBeInTheDocument();
+  await expect
+    .element(page.getByRole("button", { name: m.relay_copy_address() }))
+    .not.toBeInTheDocument();
+  await page
+    .getByRole("button", { name: m.relay_effective_diagnostics(), exact: true })
+    .click();
+  const health = page.getByRole("region", { name: m.relay_health() });
+  await expect
+    .element(health.getByText(m.relay_control_readiness(), { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(health.getByText(m.relay_state_ready(), { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(health.getByText(m.relay_data_readiness(), { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(health.getByText(m.relay_not_ready(), { exact: true }))
+    .toBeVisible();
 });
 
 test.each(["zh-CN", "en"] as const)(

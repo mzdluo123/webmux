@@ -77,7 +77,6 @@
     off: m.relay_state_off(),
     connecting: m.s1_connecting_short(),
     ready: m.relay_state_ready(),
-    degraded: m.relay_state_degraded(),
     failed: m.relay_state_failed(),
   });
   const pairingMessage = $derived(
@@ -122,7 +121,7 @@
                       ? m.relay_error_persist()
                       : m.relay_operation_failed()
               : !active && (status?.error || status?.readinessError)
-                ? relayDiagnostic(status.error || status.readinessError)
+                ? relayDiagnostic(status.readinessError || status.error)
                 : ""),
   );
   const isPreparingOnly = $derived(
@@ -383,17 +382,18 @@
             <p class="text-sm wrap-anywhere">
               {relayEndpoint(status.boundPublicUrl)}
             </p>
-            {#if status.controlReady && status.publicUrl}
+            {#if status.controlReady && status.dataReady && status.publicUrl}
+              {@const publicUrl = status.publicUrl}
               <div class="flex flex-wrap gap-3">
                 <Button
                   variant="outline"
-                  onclick={() => void copy(status.publicUrl, "address")}
-                  >{copied === "address" && copiedValue === status.publicUrl
+                  onclick={() => void copy(publicUrl, "address")}
+                  >{copied === "address" && copiedValue === publicUrl
                     ? m.relay_copied()
                     : m.relay_copy_address()}</Button
                 >
                 <Button
-                  href={new URL("/auth/relay/start", status.publicUrl).href}
+                  href={new URL("/auth/relay/start", publicUrl).href}
                   variant="outline">{m.relay_open_owner()}</Button
                 >
               </div>
@@ -402,9 +402,6 @@
         {/if}
         {#if !status.tokenStrong}<InlineNotice tone="warning"
             >{m.relay_token_requirement()}</InlineNotice
-          >{/if}
-        {#if status.state === "degraded"}<InlineNotice tone="warning"
-            >{m.relay_bulk_warning()}</InlineNotice
           >{/if}
       {/if}
       {#if status && !status.controlEndpoint}<InlineNotice tone="warning"

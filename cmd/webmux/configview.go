@@ -253,9 +253,6 @@ func effectiveView(c serverRun, record runtime.Record, deps api.Deps, features *
 		state := deps.Relay.Control.Status()
 		view.Fields["relay.enabled"] = contract.ConfigField{Value: state.Enabled, Source: state.ControlSource}
 		view.Fields["relay.runtime"] = contract.ConfigField{Value: state, Source: "runtime"}
-	}
-	if deps.Relay != nil {
-		state := deps.Relay.Control.Status()
 		for _, key := range []string{"relay.control_endpoint", "relay.control_audience", "relay.transport"} {
 			field := view.Fields[key]
 			field.Source = state.ControlSource

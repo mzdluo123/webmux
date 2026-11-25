@@ -1,5 +1,7 @@
 ; WebMux Windows installer: a per-user install of the tray plus the Linux
 ; server of the same build, pre-seeded where the tray looks for downloads.
+; The Linux server carries frpc and its license; the tray installs that
+; exact file into the selected WSL distribution.
 ;
 ; Built by `make installer`; every input comes from -D:
 ;   VERSION  release version, x.y.z or x.y.z-dev.n

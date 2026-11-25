@@ -1,5 +1,7 @@
 #!/bin/sh
 # Install WebMux from GitHub Releases on Linux or macOS.
+# Release binaries carry the managed frpc and its license inside the same
+# verified file; installing or replacing it needs no separate helper asset.
 #
 # Usage:
 #   curl -fsSL <install.sh URL> | sh

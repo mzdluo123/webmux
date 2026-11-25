@@ -41,6 +41,12 @@ func PrintStatus(w io.Writer, s contract.StatusV1) {
 		for _, access := range s.URLs.Access {
 			line("Access:   %s (%s)", access.URL, access.Label)
 		}
+		if r := s.Relay; r != nil && (r.Enabled || r.Paired) {
+			line("Relay:    %s (baseline=%s, controlReady=%t, dataReady=%t)", r.State, r.Transport, r.ControlReady, r.DataReady)
+			if reason := valueOr(r.Error, r.ReconnectReason); reason != "" {
+				line("Relay reason: %s", reason)
+			}
+		}
 	}
 	if s.Config.Path != "" {
 		exists := ""

@@ -330,6 +330,9 @@ func Load(path string, required bool) (Config, error) {
 	if metadata.IsDefined("voice", "provider") {
 		return c, errors.New("voice.provider was removed: WebMux ships no recognizer; set voice.cmd to your own program")
 	}
+	if metadata.IsDefined("relay", "interactive_connections") || metadata.IsDefined("relay", "bulk_connections") {
+		return c, errors.New("relay.interactive_connections and relay.bulk_connections were removed: delete them from the TOML configuration")
+	}
 	for _, key := range metadata.Keys() {
 		c.SetSource(key.String(), "toml")
 	}

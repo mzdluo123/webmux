@@ -44,8 +44,8 @@ func TestAssignmentRejectsChangedChallengeBeforeSigning(t *testing.T) {
 				}
 				proofs.Add(1)
 				w.WriteHeader(http.StatusInternalServerError)
-			}), false)
-			c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+			}))
+			c := newTestClient(t, id, srv.Listener.Addr().String())
 			if _, err := c.Assignment(context.Background(), key, binding); err == nil {
 				t.Fatal("changed challenge accepted")
 			}
@@ -100,8 +100,8 @@ func TestSignedAssignmentAndDeletion(t *testing.T) {
 			return
 		}
 		w.WriteHeader(400)
-	}), false)
-	c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+	}))
+	c := newTestClient(t, id, srv.Listener.Addr().String())
 	got, err := c.Assignment(context.Background(), key, assignment.Binding)
 	if err != nil || !sameAssignment(got, assignment) {
 		t.Fatalf("assignment = %#v, %v", got, err)
@@ -129,7 +129,7 @@ func TestTLSAndRedirectNeverExposeEnrollment(t *testing.T) {
 	srv := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
 		http.Redirect(w, r, "https://attacker.example/steal", http.StatusTemporaryRedirect)
-	}), false)
+	}))
 	key := testKey(t)
 	tests := []struct {
 		name   string
@@ -140,7 +140,7 @@ func TestTLSAndRedirectNeverExposeEnrollment(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+			c := newTestClient(t, id, srv.Listener.Addr().String())
 			tt.change(c)
 			c.http.CloseIdleConnections()
 			c.http = c.httpClient(nil)
@@ -155,7 +155,7 @@ func TestTLSAndRedirectNeverExposeEnrollment(t *testing.T) {
 	if requests.Load() != 0 {
 		t.Fatal("credentials sent before TLS identity verification")
 	}
-	c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+	c := newTestClient(t, id, srv.Listener.Addr().String())
 	_, err := c.Enroll(context.Background(), key, protocol.MachineID(strings.Repeat("A", 43)))
 	if err == nil || requests.Load() != 1 {
 		t.Fatalf("redirect followed: requests=%d err=%v", requests.Load(), err)
@@ -183,8 +183,8 @@ func TestEnrollmentPendingCancelAndBounds(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = io.WriteString(w, strings.Repeat("x", protocol.MaxControlBytes+1))
-	}), false)
-	c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+	}))
+	c := newTestClient(t, id, srv.Listener.Addr().String())
 	_, err := c.Poll(context.Background(), handle)
 	var failure protocol.Error
 	if !errors.As(err, &failure) || failure.Code != protocol.Pending || failure.RetryAfterSeconds != 5 {
@@ -202,7 +202,7 @@ func TestEnrollmentPendingCancelAndBounds(t *testing.T) {
 }
 
 func testCallbacks() Callbacks {
-	return Callbacks{Ready: func(protocol.Scope) {}, PoolsReady: func(bool, bool) {}, Disconnected: func() {}, Revoke: func(context.Context, protocol.Revocation) error { return nil }}
+	return Callbacks{Ready: func(protocol.Scope) {}, DataReady: func(bool, protocol.Code) {}, Disconnected: func() {}, Revoke: func(context.Context, protocol.Revocation) error { return nil }, Origin: http.NotFoundHandler()}
 }
 
 func TestEnrollmentCarriesMachineIdentityAcrossKeyRotation(t *testing.T) {
@@ -239,8 +239,8 @@ func TestEnrollmentCarriesMachineIdentityAcrossKeyRotation(t *testing.T) {
 			t.Error("enrollment lost public key or exposed private seed")
 		}
 		mustJSON(t, w, http.StatusCreated, protocol.Enrollment{Version: protocol.BindingAPIVersion, Handle: handle, UserCode: "ABCD", VerificationURL: "https://relay.example/activate", ExpiresAt: time.Now().Add(time.Minute).Unix(), PollIntervalSeconds: 1})
-	}), false)
-	c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+	}))
+	c := newTestClient(t, id, srv.Listener.Addr().String())
 	for _, key := range keys {
 		if _, err := c.Enroll(t.Context(), key, machineID); err != nil {
 			t.Fatal(err)
@@ -266,8 +266,8 @@ func TestEnrollmentExpiryAcrossClocks(t *testing.T) {
 			expiry := time.Now().Add(tt.ttl).Unix()
 			srv := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				mustJSON(t, w, http.StatusCreated, protocol.Enrollment{Version: protocol.BindingAPIVersion, Handle: testToken(t), UserCode: "ABCD", VerificationURL: "https://github.com/login/device", ExpiresAt: expiry, PollIntervalSeconds: 1})
-			}), false)
-			c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+			}))
+			c := newTestClient(t, id, srv.Listener.Addr().String())
 			got, err := c.Enroll(t.Context(), testKey(t), protocol.MachineID(testToken(t)))
 			if tt.want != "" {
 				var failure protocol.Error
@@ -289,8 +289,8 @@ func TestEnrollmentRejectsInvalidMachineIdentityBeforeRequest(t *testing.T) {
 	srv := tlsTestServer(t, id, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
 		w.WriteHeader(http.StatusInternalServerError)
-	}), false)
-	c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+	}))
+	c := newTestClient(t, id, srv.Listener.Addr().String())
 	key := testKey(t)
 	for _, machineID := range []protocol.MachineID{"", "invalid", protocol.MachineID(strings.Repeat("A", 42) + "B")} {
 		_, err := c.Enroll(t.Context(), key, machineID)
@@ -332,8 +332,8 @@ func TestBindingDeletionRequiresV2RecordRemovalEvidence(t *testing.T) {
 				}
 				deletions.Add(1)
 				mustJSON(t, w, http.StatusOK, result)
-			}), false)
-			c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+			}))
+			c := newTestClient(t, id, srv.Listener.Addr().String())
 			got, err := c.Delete(t.Context(), key, binding)
 			if tc.valid {
 				if err != nil || got != result {
@@ -362,8 +362,8 @@ func TestEnrollmentRejectsRetiredResponseVersions(t *testing.T) {
 			t.Error("poll did not use the binding API version")
 		}
 		mustJSON(t, w, http.StatusOK, protocol.EnrollmentResult{Version: protocol.V1, Binding: testBinding(), OwnerLogin: "owner"})
-	}), false)
-	c := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+	}))
+	c := newTestClient(t, id, srv.Listener.Addr().String())
 	if _, err := c.Enroll(t.Context(), testKey(t), protocol.MachineID(strings.Repeat("A", 43))); err == nil {
 		t.Fatal("retired enrollment response accepted")
 	}
@@ -413,8 +413,8 @@ func TestEnrollmentPollRetainsHTTPRetryAfterWithoutReplay(t *testing.T) {
 				w.Header().Set("Retry-After", "7")
 				w.WriteHeader(http.StatusTooManyRequests)
 				_, _ = io.WriteString(w, tt.body)
-			}), false)
-			client := newTestClient(t, id, srv.Listener.Addr().String(), "127.0.0.1:12345")
+			}))
+			client := newTestClient(t, id, srv.Listener.Addr().String())
 			_, err := client.Poll(t.Context(), testToken(t))
 			var remote protocol.Error
 			if !errors.As(err, &remote) || remote.Code != tt.code || remote.RetryAfterSeconds != tt.want || requests.Load() != 1 {

@@ -94,6 +94,7 @@ var webmux = manifest{
 		"internal/settingsstore":            shared,
 		"internal/fetch":                    shared,
 		"internal/update":                   shared,
+		"internal/frphelper":                shared,
 		"internal/pathutil":                 shared,
 		"internal/attentionkind":            shared,
 		"internal/procpeek":                 shared,

@@ -20,6 +20,9 @@ type AuthorizationSync struct {
 type SyncAck struct {
 	Revision         Counter `json:"revision"`
 	AccessReconciled bool    `json:"accessReconciled"`
+	// FRPReconciled confirms prior-channel frp registrations are physically
+	// closed. Control may honor it only on the first correlated sync ack.
+	FRPReconciled bool `json:"frpReconciled,omitempty"`
 }
 
 // NodeHello carries no self-asserted identity revision. The control service
@@ -48,6 +51,12 @@ const (
 	NodeFailureType    NodeType = "error"
 	NodePingType       NodeType = "ping"
 	NodePongType       NodeType = "pong"
+	NodeFRPAllocate    NodeType = "frp.allocate"
+	NodeFRPRenew       NodeType = "frp.renew"
+	NodeFRPGrant       NodeType = "frp.grant"
+	// NodeFRPConfirm acknowledges installation of a prepared grant. Control
+	// echoes the exact allocation and revision before the node releases it.
+	NodeFRPConfirm NodeType = "frp.confirm"
 )
 
 // NodeMessage is UTF-8 JSON in one WSS text message, bounded by
@@ -77,6 +86,13 @@ type NodeMessage struct {
 	Revocation    *Revocation             `json:"revocation,omitempty"`
 	RevocationAck *RevocationAck          `json:"revocationAck,omitempty"`
 	Error         *Error                  `json:"error,omitempty"`
+
+	// Scope fences private frp requests and replies. It is absent on
+	// existing messages, which carry any scope in their own payload.
+	Scope             *Scope             `json:"scope,omitempty"`
+	AllocationRequest *AllocationRequest `json:"allocationRequest,omitempty"`
+	AllocationRenew   *AllocationRenew   `json:"allocationRenew,omitempty"`
+	AllocationGrant   *AllocationGrant   `json:"allocationGrant,omitempty"`
 }
 
 // Validate checks envelope and closed payload selection. Receivers must also
@@ -119,8 +135,28 @@ func (m NodeMessage) Validate(node NodeID, controlAudience string, controlEpoch,
 			return Error{Code: StaleGeneration}
 		}
 	}
+	switch m.Type {
+	case NodeFRPAllocate, NodeFRPRenew, NodeFRPGrant, NodeFRPConfirm:
+		if m.Scope == nil {
+			return Error{Code: Invalid}
+		}
+		if err := m.Scope.Validate(); err != nil {
+			return err
+		}
+		if m.Scope.ControlEpoch != m.ControlEpoch || m.Scope.NodeEpoch != m.NodeEpoch {
+			return Error{Code: StaleGeneration}
+		}
+	default:
+		if m.Scope != nil {
+			return Error{Code: Invalid}
+		}
+	}
 	count := 0
-	for _, present := range []bool{m.Hello != nil, m.Config != nil, m.ConfigAck != nil, m.Activate != nil, m.Sync != nil, m.SyncAck != nil, m.Authorize != nil, m.Authorized != nil, m.Forward != nil, m.Revocation != nil, m.RevocationAck != nil, m.Error != nil} {
+	for _, present := range [...]bool{
+		m.Hello != nil, m.Config != nil, m.ConfigAck != nil, m.Activate != nil, m.Sync != nil, m.SyncAck != nil,
+		m.Authorize != nil, m.Authorized != nil, m.Forward != nil, m.Revocation != nil, m.RevocationAck != nil,
+		m.Error != nil, m.AllocationRequest != nil, m.AllocationRenew != nil, m.AllocationGrant != nil,
+	} {
 		if present {
 			count++
 		}
@@ -176,7 +212,23 @@ func (m NodeMessage) Validate(node NodeID, controlAudience string, controlEpoch,
 		}
 	case NodeForwardType:
 		if m.Forward != nil && m.Forward.Scope.ControlEpoch == m.ControlEpoch && m.Forward.Scope.NodeEpoch == m.NodeEpoch {
+			switch m.Forward.Type {
+			case ControlFRPAllocate, ControlFRPRenew, ControlFRPGrant, ControlFRPStatus:
+				return Error{Code: Invalid}
+			}
 			return m.Forward.Validate(m.Forward.Scope, now)
+		}
+	case NodeFRPAllocate:
+		if m.AllocationRequest != nil {
+			return m.AllocationRequest.validate(true)
+		}
+	case NodeFRPRenew, NodeFRPConfirm:
+		if m.AllocationRenew != nil {
+			return validateAllocationRef(m.AllocationRenew.AllocationID, m.AllocationRenew.GrantRevision)
+		}
+	case NodeFRPGrant:
+		if m.AllocationGrant != nil {
+			return m.AllocationGrant.validate(now, true)
 		}
 	case NodeRevokeType:
 		if m.Revocation != nil {

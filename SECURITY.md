@@ -38,13 +38,15 @@ WebMux 以启动服务的系统用户身份执行任意命令，**等同于把�
 
 - Relay 会终止公网 TLS，运营者可接触 Cookie、转发凭据与终端内容；这不是端到端加密。只信任明确配置的服务及其运营者。
 - 宿主访问公开控制 HTTPS 时校验 Go 系统 CA（可追加 RootCA）、域名、有效期与 TLS 1.3，允许 CDN，不额外固定控制 SPKI；已认证分配的 WSS 仍强制校验 pin，TURN 服务身份校验不变。
+- 宿主只运行签名发行物内的受管 frpc；基线只需 DNS 和出站 TCP/443，端点须通过证书校验和 WebSocket Upgrade。失败时保持未就绪，不绕过信任校验，不降级到明文、原生 frp 或旧传输。
 - 节点管理链路仍经预登记 CA 客户端身份、mTLS 与 SPKI 认证，不绕经 CDN。不能从首次连接、自报地址或普通代理头学习身份。
 - GitHub 以稳定数字 ID 绑定所有者，显示名不是权限。固定回调、浏览器绑定 state、PKCE 和一次性短期 code 共同保护跳转；短期 access token 使用后丢弃。
 - 宿主仅为固定公共 Origin 签发 Secure、HttpOnly、SameSite=Lax Cookie，期限最多 12 小时且不滑动续期。Cookie 写请求验证精确 Origin 与 CSRF，WebSocket 验证 Origin；传统 Token 和网络 MCP 的权限规则保持独立。
-- 连接器访问宿主使用独立短命 mTLS 回环入口，不把身份代理头当作认证。转发到其他应用前移除 Relay 认证 Cookie 和 CSRF 头。
+- 业务回源仅允许当前授权分配，经专用 mTLS 入口重用宿主 Host、Origin、Cookie 和 CSRF 检查。frp 短期传输凭据不能登录应用、签发 TURN 凭据或替代管理认证；代理头不授予回源身份。转发到其他应用前移除 Relay 认证 Cookie 和 CSRF 头。
 - TURN 仅向当前所有者浏览器会话及绑定的 PeerConnection 签发短期凭据；设备密钥、普通本机 Token、会话内进程或公开 STUN Binding 不能单独获得中继授权。
 - TURN 凭据是持有者凭证；到期限制新认证，不保证既有 allocation 立即消失。原版 coturn 的账号 allocation 数、每会话带宽及节点容量不等于共享账号带宽桶或累计流量额度。
 - 退出、撤销、重新绑定和失去控制监督会关闭派生访问，但不终止 PTY。全局完成须取得每个相关完整 Scope 的真实宿主关闭 ACK；失联、超时和其他代际的 ACK 不能替代证据。
+- 管理流和实际回源均就绪才开启固定公网来源；发现管理断开即撤销整个代际，未检测到的失联受管理租约约束。整版切换及回滚先停入口、确认旧代际已关闭，再按当前数据库权限重新授权。
 - 节点冷启动必须在线取得配置、秘密及完整授权；禁止持久秘密缓存恢复离线权限。控制面业务 PostgreSQL 与数据面分离，服务私钥和 TURN 密钥按节点加密交付，不进入客户端、镜像或普通诊断。
 - 宿主关闭立即停用公网，即使设置保存失败仍保持关闭；存储损坏或锁冲突不能回退为自动重开。操作与上线前提见[官方 Relay](docs/deployment/remote-access.md#官方-relay)。
 

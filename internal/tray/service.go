@@ -200,7 +200,8 @@ func (s *WSLService) Status(ctx context.Context) (contract.StatusV1, error) {
 }
 
 // capabilityStatus hides optional controls when discovery fails, without making
-// the PTY instance look unhealthy. Older/invalid snapshots never grant access.
+// the PTY instance look unhealthy. Core Relay links require a matching
+// ready status from the host, independently of optional capability discovery.
 func (s *WSLService) capabilityStatus(ctx context.Context, status contract.StatusV1) contract.StatusV1 {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -222,9 +223,24 @@ func (s *WSLService) capabilityStatus(ctx context.Context, status contract.Statu
 	}
 	access := make([]contract.AccessLink, 0, len(status.URLs.Access))
 	for _, item := range status.URLs.Access {
-		if item.Provider == "cloudflare" && available("cloudflare.manage") || item.Provider == "tailscale" && available("tailscale.manage") {
-			access = append(access, item)
+		switch item.Provider {
+		case "cloudflare":
+			if !available("cloudflare.manage") {
+				continue
+			}
+		case "tailscale":
+			if !available("tailscale.manage") {
+				continue
+			}
+		case "relay":
+			relay := status.Relay
+			if relay == nil || !relay.ControlReady || !relay.DataReady || !item.Public || item.URL == "" || item.URL != relay.PublicURL {
+				continue
+			}
+		default:
+			continue
 		}
+		access = append(access, item)
 	}
 	status.URLs.Access = access
 	return status

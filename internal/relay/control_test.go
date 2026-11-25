@@ -15,27 +15,33 @@ func TestControlExchangeICEAndOwnerIsolation(t *testing.T) {
 	id := newTestIdentity(t)
 	key := testKey(t)
 	a := testAssignment(t, id)
-	handler, controls, bulks := nodeFixture(t, id, key, a)
-	remote := tlsTestServer(t, id, handler, false)
-	c := newTestClient(t, id, remote.Listener.Addr().String(), "127.0.0.1:12345")
+	handler, controls := nodeFixture(t, key, a)
+	remote := tlsTestServer(t, id, handler)
+	c := newTestClient(t, id, remote.Listener.Addr().String())
 	owned := cloneAssignment(a)
 	c.assignment = &owned
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan error, 1)
-	go func() { done <- c.Connect(ctx, key, a, testCallbacks()) }()
+	callbacks := testCallbacks()
+	ready := make(chan struct{})
+	callbacks.Ready = func(protocol.Scope) { close(ready) }
+	go func() { done <- c.Connect(ctx, key, a, callbacks) }()
 	control := awaitRole(t, controls)
-	stream, result := openNodeStream(t, control, protocol.StreamControl, control.scope)
+	stream, result := openNodeStream(t, control, protocol.StreamControl, protocol.RoleControl, control.scope)
 	if result.Error != nil {
 		t.Fatal(result.Error)
 	}
-	// Finish auxiliary authentication before the invalid-owner response closes
-	// the generation, so the node fixture sees no interrupted handshakes.
-	for range c.config.InteractiveConnections {
-		awaitRole(t, controls)
+	select {
+	case <-ready:
+	case <-time.After(time.Second):
+		t.Fatal("framed stream did not publish control readiness")
 	}
-	for range c.config.BulkConnections {
-		awaitRole(t, bulks)
+	// A delayed FRP probe expires independently of the management RPC stream.
+	expired := protocol.ControlMessage{Version: protocol.V1, Type: protocol.ControlFRPStatus, RequestID: testToken(t), Scope: control.scope,
+		ExpiresAt: time.Now().Add(-time.Second).Unix(), AllocationStatus: &protocol.AllocationStatus{AllocationID: testToken(t), GrantRevision: 1, DataReady: true}}
+	if err := protocol.WriteFrame(stream, expired, protocol.MaxControlBytes); err != nil {
+		t.Fatal(err)
 	}
 	exchange := protocol.LoginExchange{Code: testToken(t), Verifier: strings.Repeat("a", 43), RedirectURI: a.Binding.PublicURL + protocol.HostLoginCallback}
 	type grantResult struct {
@@ -44,10 +50,7 @@ func TestControlExchangeICEAndOwnerIsolation(t *testing.T) {
 	}
 	granted := make(chan grantResult, 1)
 	go func() { grant, err := c.Exchange(ctx, exchange); granted <- grantResult{grant, err} }()
-	var request protocol.ControlMessage
-	if err := protocol.ReadFrame(stream, &request, protocol.MaxControlBytes); err != nil {
-		t.Fatal(err)
-	}
+	request := readManagement(t, stream, control.scope)
 	if request.Type != protocol.ControlExchange || request.Exchange == nil || *request.Exchange != exchange {
 		t.Fatal("exchange payload not preserved")
 	}
@@ -69,9 +72,7 @@ func TestControlExchangeICEAndOwnerIsolation(t *testing.T) {
 		grant, err := c.Resume(ctx, protocol.LoginResume{GrantID: grant.ID})
 		granted <- grantResult{grant, err}
 	}()
-	if err := protocol.ReadFrame(stream, &request, protocol.MaxControlBytes); err != nil {
-		t.Fatal(err)
-	}
+	request = readManagement(t, stream, control.scope)
 	if request.Type != protocol.ControlResume || request.Resume == nil || request.Resume.GrantID != grant.ID {
 		t.Fatal("resume grant identity not preserved")
 	}
@@ -95,9 +96,7 @@ func TestControlExchangeICEAndOwnerIsolation(t *testing.T) {
 	}
 	configured := make(chan iceResult, 1)
 	go func() { config, err := c.ICE(ctx, iceRequest); configured <- iceResult{config, err} }()
-	if err := protocol.ReadFrame(stream, &request, protocol.MaxControlBytes); err != nil {
-		t.Fatal(err)
-	}
+	request = readManagement(t, stream, control.scope)
 	if request.Type != protocol.ControlICERequest || request.ICERequest == nil || *request.ICERequest != iceRequest {
 		t.Fatal("ICE owner request not preserved")
 	}
@@ -129,9 +128,7 @@ func TestControlExchangeICEAndOwnerIsolation(t *testing.T) {
 	// A structurally valid grant for a different owner is NOT usable, even
 	// though all connector scope fields and its public host are correct.
 	go func() { grant, err := c.Exchange(ctx, exchange); granted <- grantResult{grant, err} }()
-	if err := protocol.ReadFrame(stream, &request, protocol.MaxControlBytes); err != nil {
-		t.Fatal(err)
-	}
+	request = readManagement(t, stream, control.scope)
 	grant.OwnerID = "456"
 	response = protocol.ControlMessage{Version: protocol.V1, Type: protocol.ControlGrant, RequestID: request.RequestID, Scope: control.scope, ExpiresAt: time.Now().Add(9 * time.Second).Unix(), Grant: &grant}
 	// The host can reject the grant and close the connection before smux

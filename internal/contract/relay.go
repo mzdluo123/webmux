@@ -13,10 +13,9 @@ type RelayStatus struct {
 	Pairing                 bool                     `json:"pairing"`
 	State                   string                   `json:"state"`
 	Transport               string                   `json:"transport"`
-	BulkReady               bool                     `json:"bulkReady"`
 	ControlReady            bool                     `json:"controlReady"`
-	ReadyConnections        int                      `json:"readyConnections"`
-	PublicURL               string                   `json:"publicUrl"`
+	DataReady               bool                     `json:"dataReady"`
+	PublicURL               string                   `json:"publicUrl,omitempty"`
 	BoundPublicURL          string                   `json:"boundPublicUrl"`
 	HybridSupported         bool                     `json:"hybridSupported"`
 	HybridUnavailableReason string                   `json:"hybridUnavailableReason"`

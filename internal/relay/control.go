@@ -114,8 +114,17 @@ func (r *controlRPC) readLoop() {
 			return
 		}
 		if err := message.Validate(r.session.scope, time.Now()); err != nil {
-			r.session.stop(err)
-			return
+			// Delayed data-plane evidence must not tear down a healthy
+			// management stream. It has no authority after expiration.
+			if protocolCode(err) == protocol.Expired && message.Type == protocol.ControlFRPStatus {
+				continue
+			}
+			if protocolCode(err) != protocol.Expired || message.Type != protocol.ControlFRPGrant {
+				r.session.stop(err)
+				return
+			}
+			message.Type, message.AllocationGrant = protocol.ControlFailure, nil
+			message.Error = &protocol.Error{Code: protocol.Expired}
 		}
 		switch message.Type {
 		case protocol.ControlPing:
@@ -127,8 +136,9 @@ func (r *controlRPC) readLoop() {
 			r.mu.Lock()
 			sent, found := r.pings[message.RequestID]
 			delete(r.pings, message.RequestID)
-			if found && time.Since(sent) <= protocol.ControlLease {
-				r.lastPong = time.Now()
+			now := time.Now()
+			if found && now.Sub(sent) <= protocol.ControlLease && now.Sub(r.lastPong) < protocol.ControlLease {
+				r.lastPong = now
 			}
 			r.mu.Unlock()
 			if !found {
@@ -140,7 +150,19 @@ func (r *controlRPC) readLoop() {
 				r.session.stop(err)
 				return
 			}
-		case protocol.ControlGrant, protocol.ControlICEConfig, protocol.ControlFailure:
+		case protocol.ControlFRPStatus:
+			status := timedFRPStatus{AllocationStatus: *message.AllocationStatus, until: minTime(time.Now().Add(frpStatusTTL), time.Unix(message.ExpiresAt, 0))}
+			// Drop the oldest unhandled observation rather than backpressure RPCs.
+			select {
+			case r.session.status <- status:
+			default:
+				select {
+				case <-r.session.status:
+				default:
+				}
+				r.session.status <- status
+			}
+		case protocol.ControlGrant, protocol.ControlICEConfig, protocol.ControlFRPGrant, protocol.ControlFailure:
 			r.mu.Lock()
 			pending, found := r.pending[message.RequestID]
 			if found {
@@ -185,20 +207,37 @@ func (r *controlRPC) heartbeat() {
 	defer r.heartbeatCancel()
 	ticker := time.NewTicker(protocol.KeepAliveInterval)
 	defer ticker.Stop()
+	lease := time.NewTimer(protocol.ControlLease)
+	defer lease.Stop()
 	for {
 		select {
 		case <-r.heartbeatCtx.Done():
 			return
-		case now := <-ticker.C:
+		case now := <-lease.C:
+			if r.heartbeatCtx.Err() != nil {
+				return
+			}
 			r.mu.Lock()
-			expired := now.Sub(r.lastPong) >= protocol.ControlLease
+			until := r.lastPong.Add(protocol.ControlLease)
+			r.mu.Unlock()
+			if !now.Before(until) {
+				r.session.stop(protocol.Error{Code: protocol.Expired})
+				return
+			}
+			lease.Reset(time.Until(until))
+		case now := <-ticker.C:
+			if r.heartbeatCtx.Err() != nil {
+				return
+			}
+			r.mu.Lock()
+			until := r.lastPong.Add(protocol.ControlLease)
 			for id, sent := range r.pings {
 				if now.Sub(sent) >= protocol.ControlLease {
 					delete(r.pings, id)
 				}
 			}
 			r.mu.Unlock()
-			if expired {
+			if !now.Before(until) {
 				r.session.stop(protocol.Error{Code: protocol.Expired})
 				return
 			}
@@ -210,7 +249,10 @@ func (r *controlRPC) heartbeat() {
 			r.mu.Lock()
 			r.pings[id] = now
 			r.mu.Unlock()
-			if err := r.send(r.heartbeatCtx, r.message(protocol.ControlPing, id)); err != nil {
+			ctx, cancel := context.WithDeadline(r.heartbeatCtx, until)
+			err = r.send(ctx, r.message(protocol.ControlPing, id))
+			cancel()
+			if err != nil {
 				if r.heartbeatCtx.Err() != nil {
 					return
 				}
@@ -228,11 +270,10 @@ func (r *controlRPC) revoke(m protocol.ControlMessage) error {
 	}
 	whole := revocation.Scope == "binding" || revocation.Scope == "connector"
 	if whole {
-		// Deny new streams before closing access or invoking consumer callbacks.
-		r.session.closeHTTP()
-		// Once access is denied, stop and join heartbeat writes before the
-		// final ACK/FIN. No ping may write to the half-closed management stream.
+		// Stop heartbeat writes before the final ACK/FIN. Deny ingress and
+		// join the child and its sockets before acknowledging revocation.
 		r.heartbeatCancel()
+		r.session.denyData()
 		<-r.heartbeatDone
 	}
 	ctx, cancel := context.WithDeadline(r.session.ctx, time.Unix(m.ExpiresAt, 0))

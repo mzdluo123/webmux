@@ -15,36 +15,32 @@ import (
 type Version uint16
 
 const (
-	V1                            Version = 1
-	HostAlgorithm                         = "Ed25519"
-	ServiceAlgorithm                      = "ECDSA-P256"
-	ConnectorSubprotocol                  = "webmux-relay.v2"
-	NodeSubprotocol                       = "webmux-relay-node.v1"
-	MaxAuthBytes                          = 4096
-	MaxControlBytes                       = 65536
-	MaxSnapshotBytes                      = 1048576
-	MaxStreamHeaderBytes                  = 1024
-	MaxURLBytes                           = 2048
-	MaxPins                               = 4
-	MaxTURNURLs                           = 8
-	MaxBindings                           = 4096
-	MaxPendingRequests                    = 32
-	AuthTimeout                           = 10 * time.Second
-	NonceTTL                              = 30 * time.Second
-	RequestTimeout                        = 10 * time.Second
-	ControlMessageTTL                     = 60 * time.Second
-	StreamAdmissionTimeout                = 15 * time.Second
-	MaxRoleConnections                    = 16
-	DefaultInteractiveConnections         = 2
-	DefaultBulkConnections                = 4
-	MaxPendingStreams                     = 128
-	StreamOpenTimeout                     = 10 * time.Second
-	KeepAliveInterval                     = 10 * time.Second
-	ControlLease                          = 30 * time.Second
-	LoginCodeTTL                          = 60 * time.Second
-	BrowserTransactionTTL                 = 5 * time.Minute
-	BrowserSessionTTL                     = 12 * time.Hour
-	MaxICETTL                             = 10 * time.Minute
+	V1                     Version = 1
+	HostAlgorithm                  = "Ed25519"
+	ServiceAlgorithm               = "ECDSA-P256"
+	ConnectorSubprotocol           = "webmux-relay.v2"
+	NodeSubprotocol                = "webmux-relay-node.v1"
+	MaxAuthBytes                   = 4096
+	MaxControlBytes                = 65536
+	MaxSnapshotBytes               = 1048576
+	MaxStreamHeaderBytes           = 1024
+	MaxURLBytes                    = 2048
+	MaxPins                        = 4
+	MaxTURNURLs                    = 8
+	MaxBindings                    = 4096
+	MaxPendingRequests             = 32
+	AuthTimeout                    = 10 * time.Second
+	NonceTTL                       = 30 * time.Second
+	RequestTimeout                 = 10 * time.Second
+	ControlMessageTTL              = 60 * time.Second
+	StreamAdmissionTimeout         = 15 * time.Second
+	StreamOpenTimeout              = 10 * time.Second
+	KeepAliveInterval              = 10 * time.Second
+	ControlLease                   = 30 * time.Second
+	LoginCodeTTL                   = 60 * time.Second
+	BrowserTransactionTTL          = 5 * time.Minute
+	BrowserSessionTTL              = 12 * time.Hour
+	MaxICETTL                      = 10 * time.Minute
 )
 
 type Code string
@@ -159,13 +155,10 @@ func (c Capabilities) Validate() error {
 
 type Role string
 
-const (
-	RoleControl     Role = "control"
-	RoleBulk        Role = "bulk"
-	RoleInteractive Role = "interactive"
-)
+const RoleControl Role = "control"
 
-func (r Role) Valid() bool { return r == RoleControl || r == RoleBulk || r == RoleInteractive }
+// Valid reports whether this is the authenticated management role.
+func (r Role) Valid() bool { return r == RoleControl }
 
 // MachineID is a random installation identifier, not an authentication secret.
 // Only an independently authenticated owner may use it to match a binding.

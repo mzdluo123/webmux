@@ -79,6 +79,7 @@ type relayEnrollmentControl struct {
 	RelayControl
 	requests  []contract.RelayEnrollmentRequest
 	operation contract.RelayOperation
+	status    contract.RelayStatus
 }
 
 func (c *relayEnrollmentControl) Enroll(_ context.Context, req contract.RelayEnrollmentRequest) (contract.RelayPairing, error) {
@@ -98,6 +99,11 @@ func (c *relayEnrollmentControl) Status() contract.RelayStatus {
 	operation := c.operation
 	if operation.Kind == "" {
 		operation = contract.RelayOperation{Kind: "idle", Phase: "idle"}
+	}
+	if c.status.State != "" {
+		status := c.status
+		status.Operation = operation
+		return status
 	}
 	return contract.RelayStatus{
 		Operation: operation, State: "off", Transport: "wss",
@@ -183,6 +189,16 @@ func TestRelayPairingObservationAndCancellationContract(t *testing.T) {
 
 func TestWireSnapshotsRelay(t *testing.T) {
 	control := &relayEnrollmentControl{}
+	control.status = control.Status()
+	control.status.Enabled = true
+	control.status.Paired = true
+	control.status.State = "failed"
+	control.status.ControlReady = true
+	control.status.ControlReachability = "reachable"
+	control.status.DataReachability = "unavailable"
+	control.status.ReadinessError = "data-probe-failed"
+	control.status.Error = "relay origin probe failed"
+	control.status.BoundPublicURL = "https://host.relay.example"
 	s := &Server{Deps: Deps{Relay: &Relay{Control: control}}}
 	mux := http.NewServeMux()
 	s.relayRoutes(mux)
@@ -202,6 +218,7 @@ func TestWireSnapshotsRelay(t *testing.T) {
 		mux.ServeHTTP(w, httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body)))
 		recorder.record(tt.name, w.Code, w.Body.Bytes())
 	}
+	control.status = contract.RelayStatus{}
 	for _, closed := range []bool{false, true} {
 		control.operation = contract.RelayOperation{Kind: "delete", Phase: "completed", Deleted: true, AccessClosed: closed}
 		w := httptest.NewRecorder()

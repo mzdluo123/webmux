@@ -2,7 +2,6 @@ import { z } from "zod";
 import { api, store, stored } from "../../platform/api";
 import { errorMessage } from "../../platform/error";
 import { connect } from "../../platform/ws";
-import type { Connection } from "../../platform/ws-contracts";
 import {
   reloadSettings,
   settings,
@@ -70,7 +69,6 @@ export function createRepositories(): Repositories {
   let generation = 0;
   let disposed = false;
   let coalesceTimer: ReturnType<typeof setTimeout> | undefined;
-  let streamState: Connection = "connecting";
   const abort = new AbortController();
 
   async function read(allowStale: boolean) {
@@ -134,10 +132,11 @@ export function createRepositories(): Repositories {
       }
     },
     (state) => {
-      const reconnected =
-        state === "connected" && streamState === "reconnecting";
-      streamState = state;
-      if (reconnected) scheduleStreamRefresh();
+      // A cached HTTP read can finish revalidating before the first
+      // subscription opens. Catch up on that gap as well as on reconnect.
+      if (state !== "connected" || generation === 0) return;
+      if (startup) void startup.then(scheduleStreamRefresh);
+      else scheduleStreamRefresh();
     },
     () => {
       // Explicit HTTP reads report repository errors; background stream drops retry silently.
