@@ -46,4 +46,16 @@ func TestPrintStatusSeparatesRelayReadiness(t *testing.T) {
 		!strings.Contains(text, origin+" (Official Relay)") || strings.Contains(text, "relay origin probe failed") {
 		t.Fatalf("ready Relay: %s", text)
 	}
+	status.Relay.TransportSelection = &contract.RelayTransportSelection{Preferred: "quic", Pending: "quic", Active: "wss"}
+	out.Reset()
+	PrintStatus(&out, status)
+	if !strings.Contains(out.String(), "baseline=wss,") {
+		t.Fatal("unconfirmed preference changed the reported data protocol")
+	}
+	status.Relay.TransportSelection.Active = "quic"
+	out.Reset()
+	PrintStatus(&out, status)
+	if !strings.Contains(out.String(), "baseline=quic,") {
+		t.Fatal("management WSS masked the active QUIC route")
+	}
 }

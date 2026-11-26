@@ -50,7 +50,7 @@ func TestRelayLocalSessionProcessDeniedAllSensitiveRoutes(t *testing.T) {
 	t.Cleanup(func() { manager.Shutdown(context.Background()) })
 	handler := NewLocal(Deps{Manager: manager}, Local{InSession: func(int) bool { return true }})
 	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodDelete} {
-		for _, path := range []string{"/api/relay", "/api/relay/enrollments", "/api/relay/ice", "/api/relay/auth/session", "/api/relay/reconnect", "/api/relay/binding"} {
+		for _, path := range []string{"/api/relay", "/api/relay/enrollments", "/api/relay/ice", "/api/relay/auth/session", "/api/relay/reconnect", "/api/relay/transport", "/api/relay/binding"} {
 			r := httptest.NewRequest(method, "http://localhost"+path, strings.NewReader("{}"))
 			r = r.WithContext(context.WithValue(r.Context(), peerKey{}, 123))
 			w := httptest.NewRecorder()
@@ -112,6 +112,19 @@ func (c *relayEnrollmentControl) Status() contract.RelayStatus {
 		AssignmentRevision: "0", ConfigRevision: "0", AppliedRevision: "0",
 		AssignmentSource: "unassigned", Capabilities: []string{},
 		Sessions: []contract.RelaySessionDiagnostic{},
+	}
+}
+
+func TestRelayTransportRejectsUnassignedDialTargets(t *testing.T) {
+	s := &Server{Deps: Deps{Relay: &Relay{Control: &relayEnrollmentControl{}}}}
+	mux := http.NewServeMux()
+	s.relayRoutes(mux)
+	for _, body := range []string{`{"protocol":"quic","address":"127.0.0.1:8000"}`, `{"protocol":"auto"}`, `{}`} {
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/relay/transport", strings.NewReader(body)))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("%s returned %d", body, w.Code)
+		}
 	}
 }
 
