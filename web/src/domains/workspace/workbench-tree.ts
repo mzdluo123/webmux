@@ -90,7 +90,13 @@ function counted(
   return {
     ...node,
     count: sessions.length,
-    waiting: sessions.filter((s) => rowStatus(s) === "waiting").length,
+    waiting: sessions.filter((session) => {
+      const status = rowStatus(session);
+      return (
+        status === "waiting" ||
+        (status === "failed" && session.status !== "exited")
+      );
+    }).length,
   };
 }
 

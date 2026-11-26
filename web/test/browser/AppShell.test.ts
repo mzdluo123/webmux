@@ -741,6 +741,96 @@ test("shows a top-right toast when a session raises attention and navigates on c
   await expect.element(region).not.toBeInTheDocument();
 });
 
+test("sidebar updates the failure light from live session state without reloading", async () => {
+  const task = chat({
+    id: "chataaaa",
+    title: "审阅分支",
+    status: "waiting",
+    workspace: {
+      repositoryId: "repo1",
+      worktreeId: "main",
+      worktreePath: "/repos/webmux",
+    },
+  });
+  render(ShellHarness, { drafts: createTerminalDrafts() });
+  const socket = await snapshot([task]);
+  const tree = sidebar().getByRole("tree", { name: "仓库与会话" });
+  const expectLight = async (
+    row: Pick<typeof page, "getByTitle">,
+    label: string,
+    tone: string,
+  ) => {
+    const light = row.getByTitle(label, { exact: true });
+    const color = getComputedStyle(document.documentElement)
+      .getPropertyValue(tone)
+      .trim();
+    await expect.element(light).toBeVisible();
+    expect(light.element().firstElementChild).toHaveStyle({
+      backgroundColor: color,
+    });
+  };
+
+  await expectLight(
+    tree.getByRole("treeitem", { name: "审阅分支（等待）" }),
+    "等待",
+    "--warning",
+  );
+  socket.frame({
+    type: "updated",
+    session: {
+      ...task,
+      attention: {
+        kind: "error",
+        source: "agent",
+        since: "2026-11-05T12:00:00Z",
+      },
+    },
+  } as never);
+  await expectLight(
+    tree.getByRole("treeitem", { name: "审阅分支（出错停止）" }),
+    "出错停止",
+    "--destructive",
+  );
+  await expect
+    .element(
+      tree.getByRole("treeitem", {
+        name: "main，主工作区，1 个会话，1 个等待",
+      }),
+    )
+    .toBeVisible();
+
+  await page.getByRole("button", { name: "收起侧栏" }).click();
+  const rail = page.getByRole("navigation", { name: "窄栏导航" });
+  await expect
+    .element(rail.getByRole("button", { name: /审阅分支.*出错停止/ }))
+    .toBeVisible();
+  await expectLight(
+    rail.getByRole("list", { name: "运行中的会话" }),
+    "出错停止",
+    "--destructive",
+  );
+  socket.frame({ type: "updated", session: task } as never);
+  await expectLight(
+    rail.getByRole("list", { name: "运行中的会话" }),
+    "等待",
+    "--warning",
+  );
+
+  await rail.getByRole("button", { name: "展开侧栏" }).click();
+  socket.frame({
+    type: "updated",
+    session: { ...task, status: "exited", exitCode: 1 },
+  } as never);
+  await expectLight(
+    tree.getByRole("treeitem", { name: "审阅分支（出错停止）" }),
+    "出错停止",
+    "--destructive",
+  );
+  await expect
+    .element(tree.getByRole("treeitem", { name: /^main，主工作区，1 个会话$/ }))
+    .toBeVisible();
+});
+
 test("workbench sidebar offers a workspace refresh button and follows /ws/repositories changes", async () => {
   let reads = 0;
   const linked = worktree({
