@@ -17,6 +17,7 @@ type RelayStatus struct {
 	Pairing                 bool                     `json:"pairing"`
 	State                   string                   `json:"state"`
 	Transport               string                   `json:"transport"`
+	TransportSelection      *RelayTransportSelection `json:"transportSelection,omitempty"`
 	ControlReady            bool                     `json:"controlReady"`
 	DataReady               bool                     `json:"dataReady"`
 	DataCheckedAt           *time.Time               `json:"dataCheckedAt,omitempty"`
@@ -45,6 +46,29 @@ type RelayStatus struct {
 	Capabilities            []string                 `json:"capabilities"`
 	AssignmentSource        string                   `json:"assignmentSource"`
 	Sessions                []RelaySessionDiagnostic `json:"sessions"`
+}
+
+// TransportSelection describes host-to-node data only. Browser paths and the
+// authenticated management connection have independent diagnostics.
+type RelayTransportSelection struct {
+	Supported   bool                   `json:"supported"`
+	Preferred   protocol.FRPTransport  `json:"preferred"`
+	Active      protocol.FRPTransport  `json:"active,omitempty"`
+	Pending     protocol.FRPTransport  `json:"pending,omitempty"`
+	LastAttempt *RelayTransportAttempt `json:"lastAttempt,omitempty"`
+}
+
+type RelayTransportAttempt struct {
+	NodeID      string                `json:"nodeId"`
+	Protocol    protocol.FRPTransport `json:"protocol"`
+	Stage       string                `json:"stage"`
+	Error       string                `json:"error"`
+	DurationMS  int64                 `json:"durationMs"`
+	CompletedAt time.Time             `json:"completedAt"`
+}
+
+type RelayTransportRequest struct {
+	Protocol protocol.FRPTransport `json:"protocol"`
 }
 
 type RelaySessionDiagnostic struct {
