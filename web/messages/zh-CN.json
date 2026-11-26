@@ -1958,6 +1958,7 @@
   "s5_exceeds_20mib_preview_limit": "超过 20 MiB 预览上限",
   "s5_exceeds_download_limit": "超过 100 MiB 下载上限，不可下载",
   "s5_explorer": "资源管理器",
+  "s5_external_file": "外部文件",
   "s5_file_actions": "文件操作",
   "s5_file_actions_for": "文件操作 {name}",
   "s5_file_after": "修改后的文件",

@@ -15,6 +15,7 @@
   import {
     parseChatCodeLink,
     resolveMarkdownReference,
+    resolveOutsideMarkdownReference,
     type ChatCodeLinkHandler,
     type MarkdownWorkspace,
   } from "../../domains/code/markdown-link";
@@ -35,6 +36,7 @@
     text,
     variant = "document",
     path = "",
+    absolutePath = "",
     active = true,
     workspace,
     headings = $bindable([]),
@@ -45,6 +47,8 @@
     variant?: "document" | "message";
     /** Root-relative path of the previewed file; relative links resolve against it. */
     path?: string;
+    /** Absolute path of the previewed file; links climbing above the root resolve against it. */
+    absolutePath?: string;
     /** Inactive previews cancel image reads and release their object URLs. */
     active?: boolean;
     workspace?: MarkdownWorkspace;
@@ -197,14 +201,38 @@
       notice = (await workspace?.open(opened)) ?? "";
       return;
     }
-    const reference = resolveMarkdownReference(
-      path,
-      element.getAttribute("data-md-href") ?? "",
-    );
-    if (reference.kind === "outside") notice = m.s5_link_outside_workspace();
-    else if (reference.kind === "invalid") notice = m.s5_link_invalid_address();
+    const rawHref = element.getAttribute("data-md-href") ?? "";
+    if (/^file:/i.test(rawHref.trim())) {
+      const parsed = parseChatCodeLink(rawHref);
+      if (!parsed) {
+        notice = m.s5_link_invalid_address();
+        return;
+      }
+      if (!workspace) {
+        notice = m.s5_cannot_open_link_here();
+        return;
+      }
+      notice = "";
+      notice = await workspace.open(parsed.path, parsed.heading ?? "");
+      return;
+    }
+    const reference = resolveMarkdownReference(path, rawHref);
+    if (reference.kind === "invalid") notice = m.s5_link_invalid_address();
     else if (reference.kind === "anchor") scrollToHeading(reference.fragment);
-    else if (reference.path === path) {
+    else if (reference.kind === "outside") {
+      if (!workspace) notice = m.s5_cannot_open_link_here();
+      else {
+        const outside = resolveOutsideMarkdownReference(
+          absolutePath || (path ? `/${path}` : "/"),
+          rawHref,
+        );
+        if (!outside) notice = m.s5_link_invalid_address();
+        else {
+          notice = "";
+          notice = await workspace.open(outside.path, outside.fragment);
+        }
+      }
+    } else if (reference.path === path) {
       if (reference.fragment) scrollToHeading(reference.fragment);
       else region?.scrollTo({ top: 0 });
     } else if (!workspace) notice = m.s5_cannot_open_link_here();

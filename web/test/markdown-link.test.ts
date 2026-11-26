@@ -6,6 +6,7 @@ import {
   isWorkspaceReference,
   parseChatCodeLink,
   resolveMarkdownReference,
+  resolveOutsideMarkdownReference,
   targetFailure,
 } from "../src/domains/code/markdown-link";
 
@@ -94,6 +95,21 @@ describe("resolveMarkdownReference", () => {
       kind: "anchor",
       fragment: "安装",
     });
+  });
+
+  test("resolves links climbing above workspace against absolute document path", () => {
+    expect(
+      resolveOutsideMarkdownReference(
+        "/home/dev/repo/docs/guide/intro.md",
+        "../../../other/README.md#top",
+      ),
+    ).toEqual({ path: "/home/dev/other/README.md", fragment: "top" });
+    expect(
+      resolveOutsideMarkdownReference(
+        "/home/dev/repo/docs/guide/intro.md",
+        "../../../../../../../etc/hosts",
+      ),
+    ).toEqual({ path: "/etc/hosts", fragment: "" });
   });
 });
 

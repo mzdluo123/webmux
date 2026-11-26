@@ -16,7 +16,9 @@ export function fileTabLabels(tabs: CodeWorkspaceTab[]) {
       source:
         tab.rootKind === "artifacts"
           ? m.s5_artifacts_folder()
-          : (tab.diff?.change.group ?? doc?.source ?? ""),
+          : tab.rootKind === "filesystem"
+            ? m.s5_external_file()
+            : (tab.diff?.change.group ?? doc?.source ?? ""),
       absolute: doc?.absolutePath ?? "",
     };
     const group = groups.get(name);

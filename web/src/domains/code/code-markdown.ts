@@ -1,156 +1,21 @@
-import DOMPurify, { type Config } from "dompurify";
 import { marked, type Token, type TokensList } from "marked";
 import { m } from "$lib/paraglide/messages.js";
 import { highlightInto } from "./code-highlight";
 import { loadFenceLanguage } from "./code-language";
 import type { CodeMarkdownState } from "../../contracts/schemas";
 import {
-  isExternalLink,
-  isWorkspaceReference,
-  parseChatCodeLink,
   resolveMarkdownReference,
-  sessionLinkPath,
   targetFailure,
   type MarkdownImage,
   type MarkdownWorkspace,
 } from "./markdown-link";
+import {
+  sanitizeDocumentFragment,
+  sanitizeMessageHtml,
+} from "./code-markdown-sanitize";
 import { createSlugger, headingIdPrefix } from "./markdown-slug";
 
 export type MarkdownHeading = { level: number; text: string; slug: string };
-
-const forbiddenTags = [
-  "image",
-  "svg",
-  "math",
-  "use",
-  "foreignobject",
-  "picture",
-  "video",
-  "audio",
-  "source",
-  "track",
-  "iframe",
-  "object",
-  "embed",
-  "form",
-  "input",
-  "button",
-  "textarea",
-  "select",
-  "option",
-  "link",
-  "meta",
-  "base",
-  "style",
-  // Image maps would keep a raw relative `href` on `<area>`.
-  "map",
-  "area",
-];
-// Authored `id` / `name` could clobber application elements.
-const forbiddenAttributes = ["style", "srcset", "background", "id", "name"];
-
-// Each variant owns its DOMPurify instance: hooks are instance-wide state,
-// so the file preview's link and image handling never reaches chat messages.
-let allowMessageCodeLinks = false;
-const pendingCodeHrefs = new WeakMap<Element, string>();
-const messagePurifier = DOMPurify(window);
-messagePurifier.addHook("uponSanitizeAttribute", (node, data) => {
-  if (data.attrName.startsWith("data-md-")) {
-    data.keepAttr = false;
-    return;
-  }
-  // Capture valid code-location targets before DOMPurify's built-in URI
-  // filter strips non-HTTP schemes (`file:///...`) or colon line suffixes
-  // (`Makefile:15`), and never leave a non-external `href` on `<a>`.
-  if (node.tagName === "A" && data.attrName === "href") {
-    const sessionPath = sessionLinkPath(data.attrValue);
-    if (sessionPath) {
-      data.attrValue = sessionPath;
-      return;
-    }
-    if (!isExternalLink(data.attrValue)) {
-      if (allowMessageCodeLinks && parseChatCodeLink(data.attrValue))
-        pendingCodeHrefs.set(node, data.attrValue);
-      data.keepAttr = false;
-    }
-  }
-});
-messagePurifier.addHook("afterSanitizeAttributes", (node) => {
-  if (node.nodeType !== Node.ELEMENT_NODE) return;
-  const element = node as Element;
-  if (element.tagName !== "A") return;
-  const href = element.getAttribute("href");
-  if (href !== null && sessionLinkPath(href)) {
-    element.removeAttribute("target");
-    element.removeAttribute("rel");
-    return;
-  }
-  if (href !== null && isExternalLink(href)) {
-    element.setAttribute("target", "_blank");
-    element.setAttribute("rel", "noopener noreferrer");
-    return;
-  }
-  element.removeAttribute("href");
-  const codeHref = pendingCodeHrefs.get(element);
-  if (!codeHref) return;
-  pendingCodeHrefs.delete(element);
-  element.setAttribute("data-md-href", codeHref);
-  element.setAttribute("role", "link");
-  element.setAttribute("tabindex", "0");
-});
-const messageConfig: Config = {
-  FORBID_TAGS: ["img", ...forbiddenTags],
-  FORBID_ATTR: forbiddenAttributes,
-  ADD_ATTR: ["target", "rel"],
-};
-function sanitizeMessageHtml(html: string, codeLinks: boolean) {
-  allowMessageCodeLinks = codeLinks;
-  try {
-    return messagePurifier.sanitize(html, messageConfig);
-  } finally {
-    allowMessageCodeLinks = false;
-  }
-}
-
-const documentPurifier = DOMPurify(window);
-// `data-md-*` attributes carry the preview's own resolved references; an
-// author must not be able to forge them.
-documentPurifier.addHook("uponSanitizeAttribute", (_node, data) => {
-  if (data.attrName.startsWith("data-md-")) data.keepAttr = false;
-});
-// Workspace addresses leave `href` / `src` while the markup is still inert,
-// so the browser never requests them as application routes.
-documentPurifier.addHook("afterSanitizeAttributes", (node) => {
-  if (node.nodeType !== Node.ELEMENT_NODE) return;
-  const element = node as Element;
-  if (element.tagName === "A") {
-    const href = element.getAttribute("href");
-    if (href === null) return;
-    if (isExternalLink(href)) {
-      element.setAttribute("target", "_blank");
-      element.setAttribute("rel", "noopener noreferrer");
-      return;
-    }
-    element.removeAttribute("href");
-    if (!isWorkspaceReference(href)) return;
-    element.setAttribute("data-md-href", href);
-    element.setAttribute("role", "link");
-    element.setAttribute("tabindex", "0");
-  } else if (element.tagName === "IMG") {
-    const src = element.getAttribute("src") ?? "";
-    element.removeAttribute("src");
-    element.setAttribute(
-      isWorkspaceReference(src) ? "data-md-src" : "data-md-external",
-      src,
-    );
-  }
-});
-const documentConfig = {
-  FORBID_TAGS: forbiddenTags,
-  FORBID_ATTR: forbiddenAttributes,
-  ADD_ATTR: ["target", "rel"],
-  RETURN_DOM_FRAGMENT: true,
-} as const satisfies Config;
 
 const escapeHtml = (value: string) =>
   value.replace(
@@ -286,9 +151,8 @@ export function renderMarkdownDocument(
   base: string,
   isCurrent: () => boolean,
 ) {
-  const fragment = documentPurifier.sanitize(
+  const fragment = sanitizeDocumentFragment(
     marked.parse(source, { async: false, gfm: true }),
-    documentConfig,
   );
   const found: MarkdownPicture[] = [];
   for (const image of fragment.querySelectorAll("img")) {

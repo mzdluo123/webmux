@@ -47,7 +47,7 @@ func (b *binding) open(p string) (*os.File, error) {
 	}
 	parts := strings.Split(p, "/")
 	for i, part := range parts {
-		if i > 0 {
+		if i > 0 && b.Kind != RootFilesystem {
 			if boundary(int(f.Fd())) {
 				_ = f.Close()
 				return nil, problemf(ErrInvalid, "嵌套仓库边界不可遍历")
@@ -72,7 +72,7 @@ func (b *binding) open(p string) (*os.File, error) {
 		_ = f.Close()
 		return nil, err
 	}
-	if stat.IsDir() && p != "" {
+	if stat.IsDir() && p != "" && b.Kind != RootFilesystem {
 		if boundary(int(f.Fd())) {
 			_ = f.Close()
 			return nil, problemf(ErrInvalid, "嵌套仓库边界不可遍历")

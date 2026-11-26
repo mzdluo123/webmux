@@ -6,7 +6,7 @@ const CodeSourceSchema = z.enum(["worktree", "index", "head", "empty"]);
 export const CodeContextSchema = z.object({
   contextId: z.string(),
   rootPath: z.string(),
-  rootKind: z.enum(["directory", "worktree", "artifacts"]),
+  rootKind: z.enum(["directory", "worktree", "artifacts", "filesystem"]),
   browseAvailable: z.boolean(),
   diffAvailable: z.boolean(),
   ignoreAvailable: z.boolean(),

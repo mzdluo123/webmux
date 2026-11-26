@@ -34,6 +34,9 @@ type Archive struct {
 func (s *Service) Archive(ctx context.Context, id, cid, nid string, include bool) (*Archive, error) {
 	return holdTransfer(s, func() (*Archive, error) {
 		return withRoot(ctx, s, id, cid, func(b *binding) (*Archive, error) {
+			if !b.Browse {
+				return nil, problemf(ErrReadOnly, "当前上下文没有可用工作树文件目录")
+			}
 			p, e := nodePath(nid)
 			if e != nil {
 				return nil, e

@@ -160,7 +160,7 @@ func (s *Service) FileSource(ctx context.Context, id, cid, nid, source string) (
 	})
 }
 func (s *Service) fileFromSource(ctx context.Context, key scopeKey, cid string, b *binding, nid, source string) (File, error) {
-	if !b.Browse && (source == "" || source == "worktree") {
+	if !b.Browse && b.Kind != RootFilesystem && (source == "" || source == "worktree") {
 		return File{}, problemf(ErrReadOnly, "当前上下文没有可用工作树文件目录")
 	}
 	p, e := nodePath(nid)

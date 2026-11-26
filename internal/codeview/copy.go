@@ -357,6 +357,9 @@ func fsErrorOrNil(op string, err error) error {
 // deletion of a directory.
 func (s *Service) Usage(ctx context.Context, id, cid, nid string) (Usage, error) {
 	return withRoot(ctx, s, id, cid, func(b *binding) (Usage, error) {
+		if !b.Browse {
+			return Usage{}, problemf(ErrReadOnly, "当前上下文没有可用工作树文件目录")
+		}
 		p, err := nodePath(nid)
 		if err != nil {
 			return Usage{}, err

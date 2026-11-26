@@ -68,7 +68,7 @@ test("scripts, frames, external images, unsafe links and author ids stay inert",
     '<iframe src="https://example.com/frame"></iframe>',
     '<img src="https://example.com/a.png" alt="远程">',
     "![外部](https://example.com/b.png)",
-    '<a href="javascript:alert(1)">危险</a> <a href="data:text/html,x">数据</a> <a href="file:///etc/passwd">文件</a>',
+    '<a href="javascript:alert(1)">危险</a> <a href="data:text/html,x">数据</a> <a href="file://evil.example/etc/passwd">远端文件</a>',
     '<div id="app">作者</div><a name="top">锚</a>',
     '<span data-md-href="../secret.md" data-md-open="x">伪造</span>',
     "[相对](docs/other.md) [网站](https://example.com) [邮件](mailto:a@example.com)",
@@ -84,7 +84,7 @@ test("scripts, frames, external images, unsafe links and author ids stay inert",
   expect("mdScript" in window).toBe(false);
   expect(root.textContent).toContain("图片：远程（https://example.com/a.png）");
   expect(root.textContent).toContain("图片：外部（https://example.com/b.png）");
-  for (const name of ["危险", "数据", "文件"]) {
+  for (const name of ["危险", "数据", "远端文件"]) {
     const link = page.getByText(name).element();
     expect(link.hasAttribute("href")).toBe(false);
     expect(link.hasAttribute("data-md-href")).toBe(false);
@@ -239,9 +239,10 @@ test("relative links open workspace paths and report failures in place", async (
     text: [
       "[配置](config.md) [根说明](../../README.md) [示例](./examples/)",
       "[部署](/docs/deploy.md?x=1#systemd) [外部](../../../../etc/passwd)",
-      "[缺失](missing.md)",
+      "[本地文件](file:///tmp/plan.md#overview) [缺失](missing.md)",
     ].join("\n\n"),
     path: "docs/guide/intro.md",
+    absolutePath: "/repo/docs/guide/intro.md",
     workspace: space.value,
   });
   const before = location.href;
@@ -249,15 +250,16 @@ test("relative links open workspace paths and report failures in place", async (
   await page.getByText("根说明").click({ modifiers: ["ControlOrMeta"] });
   await page.getByText("示例").click({ modifiers: ["Shift"] });
   await page.getByText("部署").click();
+  await page.getByText("外部").click();
+  await page.getByText("本地文件").click();
   expect(space.opened).toEqual([
     { path: "docs/guide/config.md", heading: "" },
     { path: "README.md", heading: "" },
     { path: "docs/guide/examples", heading: "" },
     { path: "docs/deploy.md", heading: "systemd" },
+    { path: "/etc/passwd", heading: "" },
+    { path: "/tmp/plan.md", heading: "overview" },
   ]);
-  await page.getByText("外部").click();
-  await expect.element(page.getByText("链接目标不在工作区内")).toBeVisible();
-  expect(space.opened).toHaveLength(4);
   space.reply("链接目标不存在");
   await page.getByText("缺失").click();
   await expect.element(page.getByText("链接目标不存在")).toBeVisible();

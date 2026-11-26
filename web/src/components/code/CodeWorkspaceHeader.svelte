@@ -102,7 +102,7 @@
         >
           {#each tabs as tab (tab.key)}
             {@const path = tab.file?.document.path ?? tab.diff?.new.path ?? ""}
-            {@const meta = `${tab.rootKind === "artifacts" ? m.s5_artifacts_folder() : tab.diff ? tab.diff.change.group : tab.file?.document.source}${tab.status !== "unchanged" ? " ●" : ""}`}
+            {@const meta = `${tab.rootKind === "artifacts" ? m.s5_artifacts_folder() : tab.rootKind === "filesystem" ? m.s5_external_file() : tab.diff ? tab.diff.change.group : tab.file?.document.source}${tab.status !== "unchanged" ? " ●" : ""}`}
             {@const image = [
               tab.file?.document.mediaType,
               tab.diff?.new.mediaType,

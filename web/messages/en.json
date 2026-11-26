@@ -2219,6 +2219,7 @@
   "s5_exceeds_20mib_preview_limit": "Exceeds 20 MiB preview limit",
   "s5_exceeds_download_limit": "Exceeds 100 MiB download limit",
   "s5_explorer": "Explorer",
+  "s5_external_file": "External",
   "s5_file_actions": "File actions",
   "s5_file_actions_for": "File actions {name}",
   "s5_file_after": "File after changes",
