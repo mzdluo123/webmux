@@ -31,6 +31,10 @@ export interface SocketConnection {
   close(): void;
   // Explicit recovery may reopen an exited or moved session, not a missing one.
   reconnect(): void;
+  // Suspends an idle background connection without entering reconnect backoff.
+  suspend(): void;
+  // Reopens a suspended connection using the latest target path and resume state.
+  resume(): void;
   // Probes an OPEN socket via `resume` when none is in flight, replacing a
   // silent mobile connection after resumeTimeout.
   probe(): void;

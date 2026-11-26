@@ -46,6 +46,8 @@ export interface TerminalRenderer {
   readonly term: Terminal;
   // Fits the grid to the host's current box.
   fit(): void;
+  // Switches between foreground WebGL rendering and background GPU release.
+  setActive(active: boolean): void;
   // Releases observers now and the terminal after its pending frames.
   dispose(): void;
 }
@@ -84,22 +86,34 @@ export function createTerminalRenderer(
   term.loadAddon(fitAddon);
   term.open(parent);
   const releaseSync = holdRepaintsDuringSync(term);
+  const WEBGL_RELEASE_GRACE_MS = 8_000;
   let webgl: WebglAddon | undefined;
-  const useDomRenderer = () => {
+  let webglDisabled = false;
+  let active = true;
+  let releaseWebglTimer: number | undefined;
+  const disposeWebgl = (permanent: boolean) => {
+    clearTimeout(releaseWebglTimer);
+    releaseWebglTimer = undefined;
+    if (permanent) webglDisabled = true;
     if (!webgl) return;
     const addon = webgl;
     webgl = undefined;
     addon.dispose();
-    term.refresh(0, term.rows - 1);
+    if (!disposed) term.refresh(0, term.rows - 1);
   };
-  try {
-    webgl = new WebglAddon();
-    term.loadAddon(webgl);
-    webgl.onContextLoss(useDomRenderer);
-  } catch {
-    useDomRenderer();
-    // xterm's built-in DOM renderer remains available without WebGL.
-  }
+  const useDomRenderer = () => disposeWebgl(true);
+  const attachWebgl = () => {
+    if (disposed || webglDisabled || webgl) return;
+    try {
+      webgl = new WebglAddon();
+      term.loadAddon(webgl);
+      webgl.onContextLoss(useDomRenderer);
+    } catch {
+      useDomRenderer();
+      // xterm's built-in DOM renderer remains available without WebGL.
+    }
+  };
+  attachWebgl();
   const theme = () => {
     if (disposed) return;
     term.options.theme = terminalTheme();
@@ -112,7 +126,7 @@ export function createTerminalRenderer(
   });
   let timer: number | undefined;
   const observer = new ResizeObserver(([entry]) => {
-    if (disposed) return;
+    if (disposed || !active) return;
     if (webgl) {
       const pixels = entry?.devicePixelContentBoxSize?.[0];
       const css = entry?.contentRect;
@@ -179,8 +193,26 @@ export function createTerminalRenderer(
     fit() {
       if (!disposed) fitAddon.fit();
     },
+    setActive(nextActive: boolean) {
+      if (disposed || active === nextActive) return;
+      active = nextActive;
+      term.options.cursorBlink = nextActive;
+      clearTimeout(releaseWebglTimer);
+      releaseWebglTimer = undefined;
+      if (nextActive) {
+        attachWebgl();
+        term.refresh(0, term.rows - 1);
+      } else if (webgl) {
+        releaseWebglTimer = window.setTimeout(() => {
+          releaseWebglTimer = undefined;
+          if (!disposed && !active) disposeWebgl(false);
+        }, WEBGL_RELEASE_GRACE_MS);
+      }
+    },
     dispose() {
       disposed = true;
+      clearTimeout(releaseWebglTimer);
+      releaseWebglTimer = undefined;
       cursor.dispose();
       cancelAnimationFrame(remeasureFrame);
       stopFontLoads();

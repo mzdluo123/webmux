@@ -33,6 +33,7 @@
   import { allowAutomaticInputFocus } from "../../hooks/shared/input-focus";
   import { m } from "$lib/paraglide/messages.js";
   import { featureAvailable } from "../../platform/feature-host.svelte";
+  import type { SessionCacheTier } from "../../domains/sessions/session-cache";
 
   let {
     id,
@@ -42,6 +43,7 @@
     reopen,
     visible,
     active,
+    cacheTier = "active",
     panels,
     referenceTarget,
     dockSessionName,
@@ -68,6 +70,7 @@
     reopen: (session: SessionInfo) => void;
     visible: boolean;
     active: boolean;
+    cacheTier?: SessionCacheTier;
     panels: ReturnType<typeof sessionPanelIds>;
     referenceTarget?: {
       paste: (text: string) => TextInsertion;
@@ -154,9 +157,11 @@
     setError: (message) => (error = message),
     onUploadNotice: untrack(() => onUploadNotice),
   });
+  const pageActive = $derived(cacheTier === "active");
   const terminalShown = () =>
     hybrid.view === "terminal" || hybrid.view === "recovery";
-  const terminalVisible = () => !!dock.rect(panels.terminal) && terminalShown();
+  const terminalVisible = () =>
+    pageActive && !!dock.rect(panels.terminal) && terminalShown();
   const chrome = useSessionTerminalChrome({
     id: () => id,
     code: features.code,
@@ -292,8 +297,12 @@
         false,
         untrack(() => subscribeRemoved),
         () => chatAvailable,
+        () => cacheTier,
       )
     : terminalSession(t);
+  $effect(() => {
+    t.setCacheTier(cacheTier);
+  });
   chrome.syncSessionEffects(
     hybrid,
     () => t.connection,
@@ -364,7 +373,7 @@
   {/if}
 </div>
 
-{#if active && visible}
+{#if pageActive && active && visible}
   <SessionTerminalDialogs
     {id}
     features={availableFeatures}
@@ -399,7 +408,9 @@
     {id}
     {headerTerminal}
     {documentScroll}
-    chatVisible={hybrid.view === "chat" && !!dock.rect(panels.terminal)}
+    chatVisible={pageActive &&
+      hybrid.view === "chat" &&
+      !!dock.rect(panels.terminal)}
     {hybrid}
     terminal={t}
     uploads={availableFeatures.files ? uploads : undefined}

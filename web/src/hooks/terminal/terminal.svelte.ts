@@ -33,6 +33,7 @@ import {
 } from "./terminal-input";
 import { createTerminalSocket } from "./terminal-socket.svelte";
 import { useTerminalReadiness } from "./terminal-readiness.svelte";
+import type { SessionCacheTier } from "../../domains/sessions/session-cache";
 export type { TerminalController } from "../../domains/terminal/terminal-search";
 
 // A single parsed model and socket survive terminal view and hybrid switches.
@@ -52,6 +53,7 @@ export function useTerminal(
 ): TerminalController {
   let terminal = $state.raw<Terminal>();
   let renderer: TerminalRenderer | undefined;
+  let cacheTier: SessionCacheTier = "active";
   let scrollOnFit = false;
   let sized = false;
   let fitWidth = 0;
@@ -229,6 +231,8 @@ export function useTerminal(
       const term = view.term;
       renderer = view;
       terminal = term;
+      view.setActive(cacheTier === "active");
+      stream.setCacheTier(cacheTier);
       search = new SearchAddon({ highlightLimit: terminalFindLimit });
       term.loadAddon(search);
       canFind = true;
@@ -456,6 +460,14 @@ export function useTerminal(
     dismissError: stream.dismissError,
     resync: stream.resync,
     reconnect: stream.reconnect,
+    setCacheTier(tier: SessionCacheTier) {
+      if (cacheTier === tier) return;
+      const wasActive = cacheTier === "active";
+      cacheTier = tier;
+      renderer?.setActive(tier === "active");
+      stream.setCacheTier(tier);
+      if (tier === "active" && !wasActive) safeFit();
+    },
     fit: safeFit,
     scrollToBottom,
     focus() {

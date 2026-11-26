@@ -24,7 +24,7 @@
   import ConnectionGate from "./components/shell/ConnectionGate.svelte";
   import RelayAccessOverlay from "./components/shell/RelayAccessOverlay.svelte";
   import AppOverlays from "./components/shell/AppOverlays.svelte";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { navigate } from "./platform/api";
   import { Button } from "$lib/components/ui/button";
   import LazyPage from "./components/shared/LazyPage.svelte";
@@ -65,10 +65,13 @@
   import { useRouteFocus } from "./hooks/shared/route-focus";
   import { createAppBootstrap } from "./app/app-bootstrap.svelte";
   import { createAppLinkHandler } from "./app/app-link-navigation";
+  import { createSessionCache } from "./hooks/shared/session-cache.svelte";
+  import { resetTerminalFeaturesCache } from "./features/terminal";
   import { m } from "$lib/paraglide/messages.js";
 
   const focusRoute = useRouteFocus();
   const drafts = createTerminalDrafts({ storage: activeBrowserDraftStorage() });
+  const sessionCache = createSessionCache();
   let uploadNotice = $state("");
 
   function normalizeLegacyNewPath(pathname: string): string {
@@ -95,7 +98,8 @@
   const sessionId = $derived(route.name === "terminal" ? route.id : "");
   const shellRoute = $derived(shellRouteFor(route));
   let shell = $state<AppShell>();
-  let terminal = $state<TerminalPage>();
+  const terminals = $state<Record<string, TerminalPage | undefined>>({});
+  const terminal = $derived(sessionId ? terminals[sessionId] : undefined);
   let switcherOpen = $state(false);
   let switcherInvoker: HTMLElement | null = null;
   let pendingSessionOpen = $state("");
@@ -111,13 +115,18 @@
     onClearUiForAuth: (relay) => {
       switcherOpen = false;
       if (relay) return;
+      sessionCache.clear();
       drafts.clearAll();
       uploadNotice = "";
       pendingSessionOpen = "";
       switcherInvoker = null;
     },
     onRebuilding: (value) => {
-      if (value) switcherOpen = false;
+      if (value) {
+        switcherOpen = false;
+        sessionCache.clear();
+        resetTerminalFeaturesCache();
+      }
     },
   });
 
@@ -170,11 +179,50 @@
       ? m.s1_page_chat()
       : m.s1_page_terminal(),
   );
+  $effect(() => {
+    if (!boot.ready || !shellRoute) return;
+    const id = sessionId;
+    untrack(() => sessionCache.activate(id));
+  });
+  $effect(() => {
+    const list = shell?.sessionSwitcherSource().sessions.sessions;
+    if (!list) return;
+    untrack(() => sessionCache.syncSessions(list));
+  });
   // Re-read the cached chunk when the open session changes. Filling the
   // cache during this visit must not replace the page already on screen.
-  const openedPage = $derived.by(() => {
-    void sessionId;
-    return cachedSessionPage();
+  let loadedSessionPage = $state.raw<SessionPageModule | undefined>(
+    cachedSessionPage(),
+  );
+  let sessionPageError = $state("");
+  let loadingSessionPage = false;
+  function ensureSessionPage() {
+    const existing = cachedSessionPage();
+    if (existing) {
+      loadedSessionPage = existing;
+      return;
+    }
+    if (loadingSessionPage) return;
+    loadingSessionPage = true;
+    sessionPageError = "";
+    void loadSessionPage()
+      .then((mod) => {
+        loadedSessionPage = mod;
+      })
+      .catch((loadError: unknown) => {
+        sessionPageError =
+          loadError instanceof Error
+            ? loadError.message
+            : m.s1_page_load_failed({ label: pageLabel });
+      })
+      .finally(() => {
+        loadingSessionPage = false;
+      });
+  }
+  $effect(() => {
+    if (boot.ready && shellRoute && sessionId && !loadedSessionPage) {
+      untrack(ensureSessionPage);
+    }
   });
 
   onMount(() => {
@@ -208,6 +256,7 @@
     return () => {
       stopBoot();
       disconnectPins();
+      sessionCache.dispose();
       drafts.clearAll();
       document.removeEventListener("click", link);
       window.removeEventListener("popstate", change);
@@ -314,27 +363,27 @@
           }
         : undefined}
     >
-      {#if sessionId}
-        {#if openedPage}
-          {@render session(openedPage)}
+      {#if loadedSessionPage && sessionCache.entries.length > 0}
+        {#each sessionCache.entries as entry (entry.id)}
+          {@render cachedSession(loadedSessionPage, entry.id)}
+        {/each}
+      {:else if sessionId}
+        <main class="mx-auto max-w-xl p-6" aria-busy={!sessionPageError}>
+          {#if sessionPageError}
+            <InlineNotice tone="warning">{sessionPageError}</InlineNotice>
+          {:else}
+            <InlineNotice
+              >{m.s1_loading_target({ label: pageLabel })}</InlineNotice
+            >
+          {/if}
+        </main>
+      {/if}
+      {#if !sessionId}
+        {#if route.name !== "sessions" || contributions.workspace}
+          <FeaturePage {route} {search} />
         {:else}
-          <LazyPage
-            load={loadSessionPage}
-            label={pageLabel}
-            errorMessage={(loadError) =>
-              loadError instanceof Error
-                ? loadError.message
-                : m.s1_page_load_failed({ label: pageLabel })}
-          >
-            {#snippet children(page)}
-              {@render session(page)}
-            {/snippet}
-          </LazyPage>
+          <SessionList />
         {/if}
-      {:else if route.name !== "sessions" || contributions.workspace}
-        <FeaturePage {route} {search} />
-      {:else}
-        <SessionList />
       {/if}
     </AppShell>
   {/if}
@@ -355,21 +404,25 @@
   <FeatureLoadNotices errors={featureContributions.errors} />
 {/if}
 
-{#snippet session(page: SessionPageModule)}
-  {#key sessionId}
-    <page.default
-      bind:this={terminal}
-      id={sessionId}
-      openTarget={pendingSessionOpen === sessionId ? pendingSessionOpen : ""}
-      onOpenTargetHandled={() => {
-        if (pendingSessionOpen === sessionId) pendingSessionOpen = "";
-      }}
-      {drafts}
-      onUploadNotice={(message: string) => {
-        if (boot.ready) uploadNotice = message;
-      }}
-    />
-  {/key}
+{#snippet cachedSession(page: SessionPageModule, id: string)}
+  <page.default
+    bind:this={terminals[id]}
+    {id}
+    pageActive={sessionId === id}
+    cacheTier={sessionCache.tierOf(id)}
+    openTarget={pendingSessionOpen === id ? pendingSessionOpen : ""}
+    onOpenTargetHandled={() => {
+      if (pendingSessionOpen === id) pendingSessionOpen = "";
+    }}
+    onJoinSession={(joinedId: string) => {
+      if (joinedId !== id) sessionCache.evict(joinedId);
+    }}
+    onEvict={() => sessionCache.evict(id)}
+    {drafts}
+    onUploadNotice={(message: string) => {
+      if (boot.ready) uploadNotice = message;
+    }}
+  />
 {/snippet}
 
 {#if canSwitch}

@@ -149,6 +149,22 @@ export function recordApiTiming(
   });
 }
 
+export function recordSessionSwitch(
+  result: "hit-warm" | "hit-cool" | "miss",
+  durationMs: number,
+  cacheSize: number,
+) {
+  if (!active) return;
+  enqueue({
+    ts: new Date().toISOString(),
+    kind: "interaction",
+    op: `session-switch:${result}`,
+    durationMs: round2(durationMs),
+    value: cacheSize,
+    route: currentRoute(),
+  });
+}
+
 export function recordWsMessage(path: string, bytes: number, handleMs: number) {
   if (!active) return;
   const op = normalizePath(path);

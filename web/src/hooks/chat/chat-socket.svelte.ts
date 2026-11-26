@@ -25,6 +25,10 @@ export interface ChatSocket {
   open(): void;
   /** Reopens a stream that ended (a session that came back). */
   reconnect(): void;
+  /** Suspends the underlying socket while preserving model and resume cursor. */
+  suspend(): void;
+  /** Resumes a suspended socket using the saved generation + seq cursor. */
+  resume(): void;
   dispose(): void;
 }
 
@@ -42,6 +46,7 @@ export function createChatSocket(
   let connection = $state<Connection>("connecting");
   let error = $state("");
   let socket: SocketConnection | undefined;
+  let suspended = false;
   // The first events frame after a snapshot is the backlog.
   let backlog = true;
 
@@ -81,6 +86,7 @@ export function createChatSocket(
         error = message;
       },
     );
+    if (suspended) socket.suspend();
   }
 
   return {
@@ -98,9 +104,20 @@ export function createChatSocket(
     },
     open,
     reconnect() {
+      suspended = false;
       socket?.reconnect();
     },
+    suspend() {
+      suspended = true;
+      socket?.suspend();
+    },
+    resume() {
+      if (!suspended) return;
+      suspended = false;
+      socket?.resume();
+    },
     dispose() {
+      suspended = false;
       socket?.close();
       socket = undefined;
     },

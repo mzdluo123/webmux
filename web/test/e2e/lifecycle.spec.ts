@@ -99,7 +99,11 @@ for (const initialization of ["connected", "font-pending"] as const) {
         page.getByRole("menuitem", { name: "关闭会话", exact: true }),
       ).toBeVisible();
       await page.keyboard.press("Escape");
-      await expect.poll(() => closed).toBe(opened);
+      // The recently visited session stays warm in the LRU cache pool so
+      // returning to it reuses the mounted page without a full replay.
+      await expect(
+        page.locator(".terminal-page[data-cache-hidden='true']"),
+      ).toHaveCount(1);
       await expect
         .poll(async () => {
           const response = await request.get(`/api/sessions/${id}`);
@@ -107,7 +111,7 @@ for (const initialization of ["connected", "font-pending"] as const) {
           expect(current.status).not.toBe("exited");
           return current.clients;
         })
-        .toBe(0);
+        .toBe(opened - closed);
       expect(await page.evaluate(() => performance.timeOrigin)).toBe(
         timeOrigin,
       );
@@ -124,14 +128,16 @@ for (const initialization of ["connected", "font-pending"] as const) {
         );
         await frame.promise;
       });
-      expect(opened).toBe(0);
-      await expect(page.locator(".xterm")).toHaveCount(0);
+      await expect(
+        page.locator(".terminal-page:not([data-cache-hidden='true'])"),
+      ).toHaveCount(0);
     }
 
-    // Re-enter the same PTY, execute a real command, then exercise teardown again.
+    // Re-enter the same PTY, execute a real command, then return to the list again.
     await page.goBack();
     await expectConnected(page);
     await expect(page.locator(".restore-overlay")).toBeHidden();
+    expect(opened).toBe(1);
     await runCommand(page, "printf '\\n%s%s\\n' 'back-navigation-' 'alive'");
     await expectTerminalLine(page, "back-navigation-alive");
     await returnToList();
