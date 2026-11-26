@@ -1,9 +1,6 @@
 package session
 
-import (
-	"context"
-	"sync"
-)
+import "bytes"
 
 // DEC mode 2031 reports: CSI ? 997 ; 1 n is dark, 2 is light. The browser
 // reports the effective page theme to the manager; the manager forwards it
@@ -13,39 +10,98 @@ const (
 	colorSchemeLightReport = "\x1b[?997;2n"
 )
 
-// ReportColorScheme writes a color scheme report when this session's program
-// enabled DEC mode 2031. It uses the automatic-reply path so the report never
-// counts as user input or takes terminal control.
-func (s *Session) ReportColorScheme(ctx context.Context, dark bool) error {
-	s.mu.Lock()
-	enabled := s.preview.ColorSchemeReports()
-	s.mu.Unlock()
-	if !enabled {
-		return nil
-	}
-	report := colorSchemeLightReport
+const (
+	colorSchemeUnknown int32 = iota
+	colorSchemeDark
+	colorSchemeLight
+)
+
+var (
+	colorSchemeDarkReportBytes  = []byte(colorSchemeDarkReport)
+	colorSchemeLightReportBytes = []byte(colorSchemeLightReport)
+)
+
+func colorSchemeReport(dark bool) []byte {
 	if dark {
-		report = colorSchemeDarkReport
+		return colorSchemeDarkReportBytes
 	}
-	return s.WriteInput(ctx, []byte(report), true)
+	return colorSchemeLightReportBytes
 }
 
-// ReportColorScheme forwards the effective theme of one browser to every
-// running session whose program asked for reports. Notifications are events:
-// sessions created or programs enabled after an earlier notification still
-// need a repeated report of the same theme.
-func (m *Manager) ReportColorScheme(ctx context.Context, dark bool) {
+func isColorSchemeReport(reply []byte) bool {
+	return bytes.Equal(reply, colorSchemeDarkReportBytes) || bytes.Equal(reply, colorSchemeLightReportBytes)
+}
+
+// queueColorSchemeReportLocked queues or replaces this run's pending color
+// scheme report. Only the latest theme matters when several changes arrive
+// before the reply loop can write them.
+func (s *Session) queueColorSchemeReportLocked(dark bool) {
+	if s.run == nil || !s.preview.ColorSchemeReports() {
+		return
+	}
+	report := colorSchemeReport(dark)
+	for i, queued := range s.replies {
+		if isColorSchemeReport(queued) {
+			s.replies[i] = report
+			select {
+			case s.run.replyWake <- struct{}{}:
+			default:
+			}
+			return
+		}
+	}
+	s.queueReplyLocked(report)
+}
+
+// QueueColorSchemeReport queues a report when this session's program enabled
+// DEC mode 2031. The reply loop writes it as automatic input even while no
+// browser is attached; it never counts as user input or takes control.
+func (s *Session) QueueColorSchemeReport(dark bool) {
+	s.mu.Lock()
+	s.queueColorSchemeReportLocked(dark)
+	s.mu.Unlock()
+}
+
+// colorSchemeModeEnabledLocked applies the recorded browser theme when a
+// program newly enables DEC mode 2031.
+func (s *Session) colorSchemeModeEnabledLocked() {
+	if s.options.colorScheme == nil {
+		return
+	}
+	if dark, ok := s.options.colorScheme(); ok {
+		s.queueColorSchemeReportLocked(dark)
+	}
+}
+
+// currentColorScheme is the latest theme reported by any browser. It is kept
+// in memory because a server restart also ends every terminal it describes.
+func (m *Manager) currentColorScheme() (dark bool, ok bool) {
+	switch m.colorScheme.Load() {
+	case colorSchemeDark:
+		return true, true
+	case colorSchemeLight:
+		return false, true
+	default:
+		return false, false
+	}
+}
+
+// BroadcastColorScheme records one browser's effective theme and queues it
+// for every running session whose program asked for reports. Programs that
+// enable DEC mode 2031 later receive the recorded theme when they enable it.
+func (m *Manager) BroadcastColorScheme(dark bool) {
+	state := colorSchemeLight
+	if dark {
+		state = colorSchemeDark
+	}
+	m.colorScheme.Store(state)
 	m.mu.Lock()
 	sessions := make([]*Session, 0, len(m.sessions))
 	for _, item := range m.sessions {
 		sessions = append(sessions, item)
 	}
 	m.mu.Unlock()
-	var workers sync.WaitGroup
 	for _, item := range sessions {
-		// A session can exit or lose its run concurrently with the broadcast;
-		// the next theme change reaches later runs again.
-		workers.Go(func() { _ = item.ReportColorScheme(ctx, dark) })
+		item.QueueColorSchemeReport(dark)
 	}
-	workers.Wait()
 }

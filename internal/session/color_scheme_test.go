@@ -1,10 +1,10 @@
 package session
 
 import (
-	"context"
 	"io"
 	"os"
 	"testing"
+	"time"
 )
 
 func colorSchemePipeSession(t *testing.T, enabled bool) (*Session, *os.File, *os.File) {
@@ -21,54 +21,101 @@ func colorSchemePipeSession(t *testing.T, enabled bool) (*Session, *os.File, *os
 	return s, reader, writer
 }
 
-func writtenColorScheme(t *testing.T, reader *os.File, writer *os.File) string {
-	t.Helper()
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
+func queuedColorSchemes(s *Session) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	replies := make([]string, 0, len(s.replies))
+	for _, reply := range s.replies {
+		replies = append(replies, string(reply))
 	}
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(data)
+	return replies
 }
 
-func TestReportColorSchemeWritesAutomaticReportOnlyWhenEnabled(t *testing.T) {
+func TestQueueColorSchemeReportOnlyWhenEnabled(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		enabled bool
-		dark    bool
-		want    string
+		want    []string
 	}{
-		{name: "dark", enabled: true, dark: true, want: colorSchemeDarkReport},
-		{name: "light", enabled: true, dark: false, want: colorSchemeLightReport},
-		{name: "disabled", enabled: false, dark: true, want: ""},
+		{name: "enabled", enabled: true, want: []string{colorSchemeDarkReport}},
+		{name: "disabled", enabled: false, want: nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s, reader, writer := colorSchemePipeSession(t, tc.enabled)
-			if err := s.ReportColorScheme(context.Background(), tc.dark); err != nil {
-				t.Fatal(err)
-			}
-			if got := writtenColorScheme(t, reader, writer); got != tc.want {
-				t.Fatalf("PTY input %q, want %q", got, tc.want)
+			s, _, _ := colorSchemePipeSession(t, tc.enabled)
+			s.QueueColorSchemeReport(true)
+			got := queuedColorSchemes(s)
+			if len(got) != len(tc.want) || (len(got) == 1 && got[0] != tc.want[0]) {
+				t.Fatalf("queued replies %q, want %q", got, tc.want)
 			}
 		})
 	}
 }
 
-func TestManagerColorSchemeBroadcastsNotifications(t *testing.T) {
-	enabled, enabledReader, enabledWriter := colorSchemePipeSession(t, true)
-	disabled, disabledReader, disabledWriter := colorSchemePipeSession(t, false)
+func TestQueueColorSchemeReportKeepsOnlyLatestTheme(t *testing.T) {
+	s, _, _ := colorSchemePipeSession(t, true)
+	s.QueueColorSchemeReport(true)
+	s.QueueColorSchemeReport(false)
+	s.QueueColorSchemeReport(true)
+	got := queuedColorSchemes(s)
+	if len(got) != 1 || got[0] != colorSchemeDarkReport {
+		t.Fatalf("queued replies %q", got)
+	}
+}
+
+func TestQueuedColorSchemeReportReachesPTYWithoutAClient(t *testing.T) {
+	s, reader, writer := colorSchemePipeSession(t, true)
+	go s.replyLoop(s.run)
+	s.QueueColorSchemeReport(true)
+
+	got := make(chan []byte, 1)
+	go func() {
+		buf := make([]byte, len(colorSchemeDarkReport))
+		n, _ := io.ReadFull(reader, buf)
+		got <- buf[:n]
+	}()
+	select {
+	case written := <-got:
+		if string(written) != colorSchemeDarkReport {
+			t.Fatalf("PTY input %q", written)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("color scheme report was never written without a client")
+	}
+	s.run.endLifetime()
+	<-s.run.repliesDone
+	_ = writer.Close()
+	if extra, _ := io.ReadAll(reader); len(extra) != 0 {
+		t.Fatalf("extra PTY input %q", extra)
+	}
+}
+
+func TestManagerColorSchemeBroadcastQueuesAndCoalesces(t *testing.T) {
+	enabled, _, _ := colorSchemePipeSession(t, true)
+	disabled, _, _ := colorSchemePipeSession(t, false)
 	m := &Manager{sessions: map[string]*Session{"enabled": enabled, "disabled": disabled}}
 
-	m.ReportColorScheme(context.Background(), true)
-	m.ReportColorScheme(context.Background(), true)
-	m.ReportColorScheme(context.Background(), false)
+	m.BroadcastColorScheme(true)
+	m.BroadcastColorScheme(false)
 
-	if got := writtenColorScheme(t, enabledReader, enabledWriter); got != colorSchemeDarkReport+colorSchemeDarkReport+colorSchemeLightReport {
-		t.Fatalf("enabled PTY input %q", got)
+	if dark, ok := m.currentColorScheme(); !ok || dark {
+		t.Fatalf("current color scheme dark=%v ok=%v", dark, ok)
 	}
-	if got := writtenColorScheme(t, disabledReader, disabledWriter); got != "" {
-		t.Fatalf("disabled PTY input %q", got)
+	if got := queuedColorSchemes(enabled); len(got) != 1 || got[0] != colorSchemeLightReport {
+		t.Fatalf("enabled queued replies %q", got)
+	}
+	if got := queuedColorSchemes(disabled); len(got) != 0 {
+		t.Fatalf("disabled queued replies %q", got)
+	}
+}
+
+func TestColorSchemeModeEnableQueuesRecordedTheme(t *testing.T) {
+	s, _, _ := colorSchemePipeSession(t, false)
+	s.options.colorScheme = func() (bool, bool) { return true, true }
+	s.mu.Lock()
+	s.preview.Feed([]byte("\x1b[?2031h"))
+	s.colorSchemeModeEnabledLocked()
+	s.mu.Unlock()
+	if got := queuedColorSchemes(s); len(got) != 1 || got[0] != colorSchemeDarkReport {
+		t.Fatalf("queued replies %q", got)
 	}
 }

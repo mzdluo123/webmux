@@ -149,8 +149,13 @@ func (s *Session) read(r *run) {
 			s.info.Status = s.outputStatusLocked()
 			if len(s.subs) > 0 {
 				s.broadcastLocked(outputMessage(p))
-				// After the output that toggled it, so the mode applies from there.
-				if s.preview.ColorSchemeReports() != reports {
+			}
+			if s.preview.ColorSchemeReports() != reports {
+				if s.preview.ColorSchemeReports() {
+					s.colorSchemeModeEnabledLocked()
+				}
+				if len(s.subs) > 0 {
+					// After the output that toggled it, so the mode applies from there.
 					s.broadcastLocked(s.controlLocked())
 				}
 			}

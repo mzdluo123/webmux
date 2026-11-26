@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,6 +43,8 @@ func TestTerminalThemeSecurityValidationAndBroadcast(t *testing.T) {
 
 	enabledPath := filepath.Join(dir, "enabled-input")
 	disabledPath := filepath.Join(dir, "disabled-input")
+	latePath := filepath.Join(dir, "late-input")
+	lateTrigger := filepath.Join(dir, "late-enable")
 	create := func(enable bool, path string) *session.Session {
 		t.Helper()
 		mode := ""
@@ -56,6 +59,9 @@ func TestTerminalThemeSecurityValidationAndBroadcast(t *testing.T) {
 	}
 	enabled := create(true, enabledPath)
 	create(false, disabledPath)
+	if _, err := m.Create(session.CreateInput{Cmd: []string{"/bin/bash", "-c", `stty raw -echo; while [ ! -f "$1" ]; do sleep 0.05; done; printf '\033[?2031h'; exec cat > "$0"`, latePath, lateTrigger}}); err != nil {
+		t.Fatal(err)
+	}
 	deadline := time.Now().Add(5 * time.Second)
 	for !bytes.Contains(enabled.Buffer(), []byte("\x1b[?2031h")) {
 		if time.Now().After(deadline) {
@@ -75,19 +81,49 @@ func TestTerminalThemeSecurityValidationAndBroadcast(t *testing.T) {
 	post("dark", http.StatusNoContent)
 	post("light", http.StatusNoContent)
 
-	wantEnabled := "\x1b[?997;1n\x1b[?997;1n\x1b[?997;2n"
+	validReports := func(input string) bool {
+		for input != "" {
+			switch {
+			case strings.HasPrefix(input, "\x1b[?997;1n"):
+				input = strings.TrimPrefix(input, "\x1b[?997;1n")
+			case strings.HasPrefix(input, "\x1b[?997;2n"):
+				input = strings.TrimPrefix(input, "\x1b[?997;2n")
+			default:
+				return false
+			}
+		}
+		return true
+	}
 	deadline = time.Now().Add(5 * time.Second)
 	for {
 		enabledInput, _ := os.ReadFile(enabledPath)
 		disabledInput, _ := os.ReadFile(disabledPath)
-		if string(enabledInput) == wantEnabled {
+		if strings.HasSuffix(string(enabledInput), "\x1b[?997;2n") {
+			if !validReports(string(enabledInput)) {
+				t.Fatalf("enabled input contains non-report bytes %q", enabledInput)
+			}
 			if len(disabledInput) != 0 {
 				t.Fatalf("session without reports received %q", disabledInput)
 			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("enabled input %q did not end with a light report; disabled input %q", enabledInput, disabledInput)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if err := os.WriteFile(lateTrigger, []byte("enable"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	deadline = time.Now().Add(5 * time.Second)
+	for {
+		lateInput, _ := os.ReadFile(latePath)
+		if string(lateInput) == "\x1b[?997;2n" {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("enabled input %q, want %q; disabled input %q", enabledInput, wantEnabled, disabledInput)
+			t.Fatalf("late-enabling program input %q, want only the recorded light report", lateInput)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
