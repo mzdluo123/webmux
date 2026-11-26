@@ -348,9 +348,10 @@
 
 {#if features && availableFeatures}
   {#key features}
-    <main
+    <div
       class="terminal-page"
       class:ios={isIOS()}
+      role={pageActive ? "main" : undefined}
       data-document-scroll={documentScroll ? "true" : undefined}
       data-cache-hidden={pageActive ? undefined : "true"}
       inert={!pageActive}
@@ -465,7 +466,7 @@
           {/key}
         {/each}
       </DockWorkspace>
-    </main>
+    </div>
     {#if pageActive}
       <TerminalPageDialogs
         features={availableFeatures}
