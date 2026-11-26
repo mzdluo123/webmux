@@ -84,7 +84,7 @@
 - `tunnel-settings.json`、`tailscale-settings.json`、`voice-settings.json` 与 `p2p-settings.json` 共用 `internal/settingsstore` 的打开、读取、提交与 fail-closed 骨架；文件结构、校验与关闭方式由各自包注入，盘点中登记为 `entry-settings` 例外。
 - `tailscale-settings.json` 保存用户希望的 mode/port/provider；`tailscale-ownership.json` 保存本实例实际创建的外部入口（精确目标、端口、pending/active），供撤销和重启对账。它们的职责、权限和失败策略不同。
 - `relay-settings.json` 只接受并写入 v3，不再读取或迁移 v1/v2；旧格式 fail-closed 并保留原文件，不恢复旧身份或启用意图。破坏性升级先备份清理旧绑定状态，再全新配对；其他状态文件的版本门禁不变。
-- `frp-runtime` 只属于当前 Relay 连接代际：0700 临时目录内保存受管 `frpc`、配置与短期 JWT；令牌文件以 0600 临时文件原子替换。连接结束时清理目录，重启后从管理通道取得新授权。
+- `frp-runtime` 只属于当前 Relay 连接代际：受管 `frpc` 位于私有目录；活动和候选注册各有独立的 0700 目录，保存配置、短期 JWT，以及 QUIC 注册使用的节点叶证书。令牌以 0600 临时文件原子替换。注册结束后清理所属目录，重启后从管理通道取得新授权。
 - `relay-machine.json` 使用严格 v1 格式，首次配对前才生成并提交 32 字节随机机器 ID；打开服务只取得生命周期锁，不创建身份。删除绑定或删除 `relay-settings.json` 均保留该文件，机器 ID 不能恢复旧绑定或代替 GitHub 授权。
 - 机器 ID 只用于同账号配对判重，不是凭据，也不来自硬件指纹；不会进入状态响应、URL 或日志。身份损坏、锁冲突或 I/O 失败时保留原件、阻止新配对，不生成替代 ID，不影响本地 PTY；修复后重启服务再配对。
 - 旧 `tailscale.json` 即使损坏或与新文件并存，也在监听前阻止启动。先停止旧版本并核实/撤销其精确外部入口，再整理旧文件；不执行全局 reset。旧 `tunnel.json` 使 Cloudflare 保持关闭。新版不自动迁移文件或旧浏览器偏好。

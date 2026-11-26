@@ -570,3 +570,75 @@ func TestRelayTransportFailedPreferenceWriteKeepsPreviousPreference(t *testing.T
 		t.Fatalf("failed preference write misreported: selection=%+v err=%v", selection, err)
 	}
 }
+
+func TestRelayDisableDoesNotWaitForTransportTrial(t *testing.T) {
+	cfg, rc, client := relaySelectionTestController(t, protocol.FRPTransportWSS)
+	client.selection.Supported = true
+	client.selection.Active = protocol.FRPTransportWSS
+	connection, stop := context.WithCancel(t.Context())
+	defer stop()
+	rc.cancel = stop
+	rc.dataTransport(connection, 1, client.scope, true, "")
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	started := make(chan struct{})
+	reply := make(chan struct{})
+	client.apply = func(ctx context.Context, _ protocol.Scope, _ protocol.FRPTransport, persist func() error) error {
+		close(started)
+		select {
+		case <-reply:
+			// Model a successful response arriving late, after disable.
+			return persist()
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	trial := make(chan error, 1)
+	go func() {
+		_, err := rc.SelectTransport(ctx, protocol.FRPTransportQUIC)
+		trial <- err
+	}()
+	select {
+	case <-started:
+	case <-ctx.Done():
+		t.Fatal("transport trial did not start")
+	}
+
+	disabled := make(chan error, 1)
+	go func() {
+		off := false
+		_, err := rc.Update(ctx, contract.RelayUpdate{Enabled: &off})
+		disabled <- err
+	}()
+	select {
+	case err := <-disabled:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal("disable waited for the outstanding transport trial")
+	}
+	if connection.Err() == nil {
+		t.Fatal("disable did not cancel the connector")
+	}
+	close(reply)
+	select {
+	case err := <-trial:
+		if !errors.Is(err, protocol.Error{Code: protocol.StaleGeneration}) {
+			t.Fatalf("late commit error = %v, want stale generation", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("late commit did not finish")
+	}
+	status := rc.Status()
+	if status.Enabled || status.ControlReady || status.PublicURL != "" || status.TransportSelection.Active != "" ||
+		status.TransportSelection.Preferred != protocol.FRPTransportWSS {
+		t.Fatalf("late commit changed disabled state: status=%+v selection=%+v", status, status.TransportSelection)
+	}
+	stored, _, err := relaysetting.Inspect(cfg.StateDir, cfg.Relay)
+	if err != nil || stored.Config.Enabled || stored.DataProtocol() != protocol.FRPTransportWSS {
+		t.Fatalf("late commit changed durable disable or preference: enabled=%v preference=%q err=%v", stored.Config.Enabled, stored.DataProtocol(), err)
+	}
+}

@@ -62,6 +62,7 @@ export default defineConfig({
         "responsive-dialog.spec.ts",
         "acp-chat*.spec.ts",
         "git-workbench.spec.ts",
+        "relay-transport.spec.ts",
       ],
     },
   ],

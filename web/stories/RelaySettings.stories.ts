@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/svelte-vite";
 import RelaySettings from "../src/components/settings/RelaySettings.svelte";
+import RelayTransportDemo from "./RelayTransportDemo.svelte";
 import type { RelayStatus, RelayPairing } from "../src/contracts/relay-schemas";
 import type { RelaySettingsView } from "../src/hooks/settings/relay-settings.svelte";
 import { relayStatus as status, relayPairing } from "../test/fixtures/relay";
@@ -71,6 +72,7 @@ const meta = {
     onenable: () => {},
     ondisconnect: () => {},
     onreconnect: () => {},
+    ontransport: () => {},
     ondelete: () => {},
   },
 } satisfies Meta<typeof RelaySettings>;
@@ -345,6 +347,101 @@ export const WssOnly: Story = {
     },
   },
 };
+
+const transportReady: RelayStatus = {
+  ...ready,
+  nodeId: "relay-west",
+  transportSelection: { supported: true, preferred: "wss", active: "wss" },
+};
+const transportFailure: NonNullable<
+  NonNullable<RelayStatus["transportSelection"]>["lastAttempt"]
+> = {
+  nodeId: transportReady.nodeId,
+  protocol: "quic",
+  stage: "handshake",
+  error: "expired",
+  durationMs: 5000,
+  completedAt: "2026-11-25T10:42:24Z",
+};
+
+export const TransportSelection: Story = {
+  args: { view: { ...baseView, status: transportReady } },
+  render: (args) => ({ Component: RelayTransportDemo, props: args }),
+};
+export const TransportTesting: Story = {
+  args: {
+    view: {
+      ...baseView,
+      status: {
+        ...transportReady,
+        transportSelection: {
+          supported: true,
+          preferred: "wss",
+          active: "wss",
+          pending: "quic",
+        },
+      },
+    },
+  },
+};
+export const TransportFailure: Story = {
+  args: {
+    view: {
+      ...baseView,
+      status: {
+        ...transportReady,
+        transportSelection: {
+          supported: true,
+          preferred: "wss",
+          active: "wss",
+          lastAttempt: transportFailure,
+        },
+      },
+    },
+  },
+};
+export const TransportUnsupported: Story = {
+  args: {
+    view: {
+      ...baseView,
+      status: {
+        ...transportReady,
+        transportSelection: {
+          supported: false,
+          preferred: "wss",
+          active: "wss",
+        },
+      },
+    },
+  },
+};
+export const TransportRecovery: Story = {
+  args: {
+    view: {
+      ...baseView,
+      status: {
+        ...transportReady,
+        state: "connecting",
+        dataReady: false,
+        dataCheckedAt: undefined,
+        dataReachability: "unknown",
+        publicUrl: undefined,
+        transportSelection: {
+          supported: false,
+          preferred: "quic",
+          lastAttempt: {
+            ...transportFailure,
+            stage: "prepare",
+            error: "incompatible_version",
+            durationMs: 0,
+          },
+        },
+      },
+    },
+  },
+  render: (args) => ({ Component: RelayTransportDemo, props: args }),
+};
+
 export const Phone: Story = {
   ...Pairing,
   globals: { viewport: { value: "mobile1", isRotated: false } },

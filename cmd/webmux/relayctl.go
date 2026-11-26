@@ -37,6 +37,7 @@ type relayTransportClient interface {
 
 type relayController struct {
 	op                 sync.Mutex
+	transportOp        sync.Mutex
 	mu                 sync.Mutex
 	ctx                context.Context
 	store              *relaysetting.Service
@@ -245,16 +246,21 @@ func (rc *relayController) SelectTransport(ctx context.Context, desired protocol
 	if !desired.Valid() {
 		return rc.Status(), relaysetting.ErrInvalid
 	}
+	if !rc.transportOp.TryLock() {
+		return rc.Status(), protocol.Error{Code: protocol.Conflict}
+	}
+	defer rc.transportOp.Unlock()
 	if !rc.op.TryLock() {
 		return rc.Status(), protocol.Error{Code: protocol.Conflict}
 	}
-	defer rc.op.Unlock()
-
+	// Snapshot admission under the settings-operation lock, but do not hold
+	// it across the trial: disable, delete and reconnect must be able to stop it.
 	rc.mu.Lock()
 	client, ok := rc.client.(relayTransportClient)
 	gen, scope := rc.generation, rc.scope
 	ready := !rc.closed && rc.settings.Config.Enabled && rc.status.ControlReady && rc.store.Unavailable() == nil
 	rc.mu.Unlock()
+	rc.op.Unlock()
 	if !ok || !ready {
 		return rc.Status(), protocol.Error{Code: protocol.Unavailable}
 	}
@@ -262,6 +268,9 @@ func (rc *relayController) SelectTransport(ctx context.Context, desired protocol
 	// Only management must be ready: an explicit WSS request must also work
 	// when the saved QUIC preference did not bring up a data route.
 	err := client.ApplyTransportInScope(ctx, scope, desired, func() error {
+		// Serialize the local write with operations that save a settings copy.
+		rc.op.Lock()
+		defer rc.op.Unlock()
 		rc.mu.Lock()
 		defer rc.mu.Unlock()
 		if rc.closed || gen != rc.generation || scope != rc.scope || !rc.status.ControlReady {

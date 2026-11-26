@@ -13,7 +13,9 @@
   import { useDockMotion } from "../../hooks/shared/dock-motion.svelte";
   import RelayDiagnostics from "./RelayDiagnostics.svelte";
   import RelayReadiness from "./RelayReadiness.svelte";
+  import RelayTransportSettings from "./RelayTransportSettings.svelte";
   import type { RelaySettingsView } from "../../hooks/settings/relay-settings.svelte";
+  import type { RelayDataProtocol } from "../../contracts/relay-schemas";
   import {
     relayDiagnostic,
     relayEndpoint,
@@ -27,6 +29,7 @@
     onenable,
     ondisconnect,
     onreconnect,
+    ontransport,
     ondelete,
   }: {
     view: RelaySettingsView;
@@ -36,6 +39,7 @@
     onenable: () => void;
     ondisconnect: () => void;
     onreconnect: () => void;
+    ontransport: (value: RelayDataProtocol) => void;
     ondelete: () => void;
   } = $props();
   let confirmation = $state<
@@ -203,7 +207,7 @@
 </script>
 
 {#snippet feedback()}
-  {#if view.phase === "submitting" && !active}
+  {#if view.phase === "submitting" && !active && !view.testingTransport}
     <p role="status" class="text-sm">{m.relay_operation_submitting()}</p>
   {:else if view.phase === "verifying"}
     <InlineNotice tone="warning">{m.relay_operation_verifying()}</InlineNotice>
@@ -411,6 +415,14 @@
       {/if}
     </section>
     {#if status && !view.loading}
+      {#if status.paired}
+        <RelayTransportSettings
+          {status}
+          {blocked}
+          testing={view.testingTransport}
+          {ontransport}
+        />
+      {/if}
       <RelayDiagnostics
         {status}
         {blocked}
