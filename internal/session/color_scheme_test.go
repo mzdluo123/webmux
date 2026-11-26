@@ -97,25 +97,10 @@ func TestManagerColorSchemeBroadcastQueuesAndCoalesces(t *testing.T) {
 	m.BroadcastColorScheme(true)
 	m.BroadcastColorScheme(false)
 
-	if dark, ok := m.currentColorScheme(); !ok || dark {
-		t.Fatalf("current color scheme dark=%v ok=%v", dark, ok)
-	}
 	if got := queuedColorSchemes(enabled); len(got) != 1 || got[0] != colorSchemeLightReport {
 		t.Fatalf("enabled queued replies %q", got)
 	}
 	if got := queuedColorSchemes(disabled); len(got) != 0 {
 		t.Fatalf("disabled queued replies %q", got)
-	}
-}
-
-func TestColorSchemeModeEnableQueuesRecordedTheme(t *testing.T) {
-	s, _, _ := colorSchemePipeSession(t, false)
-	s.options.colorScheme = func() (bool, bool) { return true, true }
-	s.mu.Lock()
-	s.preview.Feed([]byte("\x1b[?2031h"))
-	s.colorSchemeModeEnabledLocked()
-	s.mu.Unlock()
-	if got := queuedColorSchemes(s); len(got) != 1 || got[0] != colorSchemeDarkReport {
-		t.Fatalf("queued replies %q", got)
 	}
 }

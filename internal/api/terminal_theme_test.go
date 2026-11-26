@@ -43,8 +43,6 @@ func TestTerminalThemeSecurityValidationAndBroadcast(t *testing.T) {
 
 	enabledPath := filepath.Join(dir, "enabled-input")
 	disabledPath := filepath.Join(dir, "disabled-input")
-	latePath := filepath.Join(dir, "late-input")
-	lateTrigger := filepath.Join(dir, "late-enable")
 	create := func(enable bool, path string) *session.Session {
 		t.Helper()
 		mode := ""
@@ -59,9 +57,6 @@ func TestTerminalThemeSecurityValidationAndBroadcast(t *testing.T) {
 	}
 	enabled := create(true, enabledPath)
 	create(false, disabledPath)
-	if _, err := m.Create(session.CreateInput{Cmd: []string{"/bin/bash", "-c", `stty raw -echo; while [ ! -f "$1" ]; do sleep 0.05; done; printf '\033[?2031h'; exec cat > "$0"`, latePath, lateTrigger}}); err != nil {
-		t.Fatal(err)
-	}
 	deadline := time.Now().Add(5 * time.Second)
 	for !bytes.Contains(enabled.Buffer(), []byte("\x1b[?2031h")) {
 		if time.Now().After(deadline) {
@@ -109,21 +104,6 @@ func TestTerminalThemeSecurityValidationAndBroadcast(t *testing.T) {
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("enabled input %q did not end with a light report; disabled input %q", enabledInput, disabledInput)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	if err := os.WriteFile(lateTrigger, []byte("enable"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	deadline = time.Now().Add(5 * time.Second)
-	for {
-		lateInput, _ := os.ReadFile(latePath)
-		if string(lateInput) == "\x1b[?997;2n" {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("late-enabling program input %q, want only the recorded light report", lateInput)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}

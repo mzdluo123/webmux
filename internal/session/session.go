@@ -184,8 +184,6 @@ type startOptions struct {
 	// cols and rows are the initial terminal size; zero is DefaultCols by
 	// DefaultRows.
 	cols, rows uint16
-	// colorScheme reports the latest browser-reported theme, when one is known.
-	colorScheme func() (dark bool, ok bool)
 }
 
 // size is the initial terminal size with the defaults filled in.

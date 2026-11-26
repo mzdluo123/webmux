@@ -10,12 +10,6 @@ const (
 	colorSchemeLightReport = "\x1b[?997;2n"
 )
 
-const (
-	colorSchemeUnknown int32 = iota
-	colorSchemeDark
-	colorSchemeLight
-)
-
 var (
 	colorSchemeDarkReportBytes  = []byte(colorSchemeDarkReport)
 	colorSchemeLightReportBytes = []byte(colorSchemeLightReport)
@@ -62,39 +56,10 @@ func (s *Session) QueueColorSchemeReport(dark bool) {
 	s.mu.Unlock()
 }
 
-// colorSchemeModeEnabledLocked applies the recorded browser theme when a
-// program newly enables DEC mode 2031.
-func (s *Session) colorSchemeModeEnabledLocked() {
-	if s.options.colorScheme == nil {
-		return
-	}
-	if dark, ok := s.options.colorScheme(); ok {
-		s.queueColorSchemeReportLocked(dark)
-	}
-}
-
-// currentColorScheme is the latest theme reported by any browser. It is kept
-// in memory because a server restart also ends every terminal it describes.
-func (m *Manager) currentColorScheme() (dark bool, ok bool) {
-	switch m.colorScheme.Load() {
-	case colorSchemeDark:
-		return true, true
-	case colorSchemeLight:
-		return false, true
-	default:
-		return false, false
-	}
-}
-
-// BroadcastColorScheme records one browser's effective theme and queues it
-// for every running session whose program asked for reports. Programs that
-// enable DEC mode 2031 later receive the recorded theme when they enable it.
+// BroadcastColorScheme queues one browser's effective theme for every running
+// session whose program asked for reports. Notifications are events: sessions
+// created or programs enabled later receive a report when a browser attaches.
 func (m *Manager) BroadcastColorScheme(dark bool) {
-	state := colorSchemeLight
-	if dark {
-		state = colorSchemeDark
-	}
-	m.colorScheme.Store(state)
 	m.mu.Lock()
 	sessions := make([]*Session, 0, len(m.sessions))
 	for _, item := range m.sessions {

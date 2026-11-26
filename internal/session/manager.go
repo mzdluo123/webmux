@@ -15,7 +15,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/rainchan/webmux/internal/pathutil"
@@ -88,8 +87,6 @@ type Manager struct {
 	reserved func(id string) bool
 	// socket is the local API socket advertised as WEBMUX_SOCKET (SetSocket).
 	socket string
-	// colorScheme is the latest browser-reported terminal color scheme.
-	colorScheme atomic.Int32
 }
 
 // Error kinds are translated by the owning controller.
@@ -284,7 +281,6 @@ func (m *Manager) startOptions(in CreateInput) startOptions {
 		terminalVersion: m.options.TerminalVersion,
 		submitDelay:     submitDelay,
 		serverEnv:       m.serverEnv(),
-		colorScheme:     m.currentColorScheme,
 		cols:            cols,
 		rows:            rows,
 	}
@@ -355,9 +351,6 @@ func (m *Manager) register(s *Session) error {
 	info := s.Info()
 	m.publishLocked(Event{Type: "created", Session: &info})
 	m.mu.Unlock()
-	if dark, ok := m.currentColorScheme(); ok {
-		s.QueueColorSchemeReport(dark)
-	}
 	slog.Info("session created", "id", s.info.ID)
 	return nil
 }
