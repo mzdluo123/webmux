@@ -68,7 +68,6 @@ func (rc *relayController) SelectTransport(ctx context.Context, desired protocol
 	return rc.Status(), err
 }
 
-
 // projectTransport is used with rc.mu held. The client's last attempt remains
 // useful after disconnect, but its active/pending fields must match this scope.
 func (rc *relayController) projectTransport() *contract.RelayTransportSelection {
