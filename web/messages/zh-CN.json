@@ -4223,7 +4223,7 @@
   "relay_error_persist": "访问已停止，但关闭状态未持久化；修复存储后重新保存。",
   "relay_error_auth": "登录已失效，请重新登录。",
   "relay_error_denied": "授权被拒绝；请检查账号邀请、所有者身份与当前入口权限。",
-  "relay_error_conflict": "即使使用同一账号，也必须先删除已有绑定再重新配对。如果本机缺少绑定身份，请先从所有者控制台删除绑定。",
+  "relay_error_conflict": "当前机器已存在绑定，或该账号已达到主机绑定上限。请先删除对应旧绑定（若本机缺少绑定身份，请从所有者控制台删除），再重新配对。",
   "relay_error_expired": "配对已过期，请重新开始。",
   "relay_error_rate": "操作过于频繁，请稍后重新操作。",
   "relay_error_unavailable": "控制服务或已分配节点暂不可用；WSS 就绪前不会开放入口。",

@@ -4904,7 +4904,7 @@
   "relay_error_persist": "Access has stopped, but the disabled state was not persisted. Repair storage and save again.",
   "relay_error_auth": "Your login has expired; sign in again.",
   "relay_error_denied": "Authorization denied; check the account invitation, owner identity and permissions for this entry point.",
-  "relay_error_conflict": "An existing binding must be deleted before a fresh pairing, even for the same account. If this installation has no local binding identity, delete it from the owner's console first.",
+  "relay_error_conflict": "This machine already has an existing binding, or this account has reached its bound-host limit. Delete an existing binding first (from the owner's console if this installation has no local binding identity), then pair again.",
   "relay_error_expired": "Pairing expired; start again.",
   "relay_error_rate": "Too many operations; retry later.",
   "relay_error_unavailable": "The control service or assigned node is temporarily unavailable; access stays closed until WSS is ready.",
