@@ -162,18 +162,18 @@
 
 位于 `/api/sessions/{id}/code`，响应带 `Cache-Control: no-store`。
 
-| 路由                                                       | 说明                                                                                              |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `GET /context`                                             | 根目录与能力：`contextId`、`rootPath`、`browseAvailable`、`diffAvailable`、`writableAvailable` 等 |
-| `GET /tree?contextId&nodeId&includeIgnored&cursor`         | 分页目录列表                                                                                      |
-| `GET /files?contextId&q&includeIgnored`                    | 有界路径搜索                                                                                      |
-| `GET /locate?contextId&path`                               | 解析用户输入的路径，返回根内 `nodeId`、`path`、`kind`（file / directory）                         |
-| `GET /file?contextId&nodeId&source`                        | 文件快照，`source` 为 worktree / index / head                                                     |
-| `GET /changes?contextId&cursor&q&nodeId&group`             | 分页 Git 修改列表                                                                                 |
-| `GET /diff?contextId&changeId`                             | 冻结的新旧双侧原文                                                                                |
-| `GET /snapshots/{snapshotId}/file?side=old\|new`           | 读取已捕获的比较侧全文                                                                            |
-| `GET /snapshots/{snapshotId}/raw?side=old\|new&download=1` | 按快照返回原始字节（≤100 MiB）；Diff 快照必须指定 `side`；也接受 HEAD                             |
-| `POST /check`                                              | 批量变化检测，返回 unchanged / updated / missing / expired / unknown                              |
+| 路由                                                       | 说明                                                                                                                                                                                                      |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /context`                                             | 根目录与能力：`contextId`、`rootPath`、`browseAvailable`、`diffAvailable`、`writableAvailable` 等；`root` 支持 `workspace`（默认）、`artifacts` 与只读不可浏览的 `filesystem`（用于打开工作区外常规文件） |
+| `GET /tree?contextId&nodeId&includeIgnored&cursor`         | 分页目录列表                                                                                                                                                                                              |
+| `GET /files?contextId&q&includeIgnored`                    | 有界路径搜索                                                                                                                                                                                              |
+| `GET /locate?contextId&path`                               | 解析用户输入的路径，返回根内 `nodeId`、`path`、`kind`（file / directory）                                                                                                                                 |
+| `GET /file?contextId&nodeId&source`                        | 文件快照，`source` 为 worktree / index / head                                                                                                                                                             |
+| `GET /changes?contextId&cursor&q&nodeId&group`             | 分页 Git 修改列表                                                                                                                                                                                         |
+| `GET /diff?contextId&changeId`                             | 冻结的新旧双侧原文                                                                                                                                                                                        |
+| `GET /snapshots/{snapshotId}/file?side=old\|new`           | 读取已捕获的比较侧全文                                                                                                                                                                                    |
+| `GET /snapshots/{snapshotId}/raw?side=old\|new&download=1` | 按快照返回原始字节（≤100 MiB）；Diff 快照必须指定 `side`；也接受 HEAD                                                                                                                                     |
+| `POST /check`                                              | 批量变化检测，返回 unchanged / updated / missing / expired / unknown                                                                                                                                      |
 
 `/locate` 的相对路径以本机 OSC 7 报告目录为基点，没有报告时用启动目录；按实际文件系统解析符号链接后，必须位于代码根内（403），远端报告返回 409。结果只是节点标识，读取仍走根目录的逐段 `O_NOFOLLOW` 检查。
 

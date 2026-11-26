@@ -10,22 +10,21 @@
   import { SvelteMap } from "svelte/reactivity";
   import CodeNavigator from "./CodeNavigator.svelte";
   import CodeWorkspaceHeader from "./CodeWorkspaceHeader.svelte";
-  import { api } from "../../platform/api";
   import {
     CodeFileSchema,
-    CodeChangesSchema,
     CodeDiffSchema,
-    CodeLocationSchema,
     type CodeChange,
     type CodeReveal,
     type CodeWorkspaceSnapshot,
+    type CodeLocationSchema,
   } from "../../contracts/schemas";
   import type { z } from "zod";
   import type { CodeHost } from "../../domains/code/code-host";
   import { nodeId } from "../../domains/code/code-reference";
   import {
     createMarkdownWorkspace,
-    locateRevealTarget,
+    locatePathTarget,
+    resolveRevealAction,
   } from "../../domains/code/code-reveal";
   import {
     shouldCloseOverlayNav,
@@ -136,13 +135,23 @@
     )?.getBoundingClientRect();
   }
   async function locate(input: string) {
-    if (!ws.s.context) return;
-    await show(
-      await api(
-        `${base}/locate?${ws.params({ path: input })}`,
-        CodeLocationSchema,
-      ),
+    const context = ws.s.context;
+    if (!context) return;
+    const { origin, location } = await locatePathTarget(
+      base,
+      (extra) => ws.params(extra),
+      context,
+      input,
     );
+    if (origin.contextId === context.contextId) await show(location);
+    else {
+      const failure = await openFileInOrigin(
+        origin,
+        location.path,
+        location.nodeId,
+      );
+      if (failure) throw new Error(failure);
+    }
   }
   async function show(target: z.infer<typeof CodeLocationSchema>) {
     if (target.kind === "file") return openFile(target.path, target.nodeId);
@@ -181,14 +190,20 @@
   }
   let headingSequence = 0;
   let jumpSequence = 0;
-  const markdownWorkspace = createMarkdownWorkspace({
+  const markdownWorkspaceOptions = {
     id: () => id,
     base: () => base,
     getContext: () => ws.s.context,
-    params: (extra) => ws.params(extra),
+    params: (extra?: Record<string, string>) => ws.params(extra),
     show,
+    openFileInOrigin,
     getTabs: () => ws.s.tabs,
     nextHeadingKey: () => ++headingSequence,
+  };
+  const markdownWorkspace = createMarkdownWorkspace(markdownWorkspaceOptions);
+  const externalMarkdownWorkspace = createMarkdownWorkspace({
+    ...markdownWorkspaceOptions,
+    externalOrigin: true,
   });
   async function openDiff(change: CodeChange, origin = ws.s.context) {
     if (!origin) return;
@@ -225,38 +240,23 @@
     const current = ws.s.context;
     if (!current) return;
     try {
-      const { origin, location, usedRawPath } = await locateRevealTarget(
+      const action = await resolveRevealAction(
         base,
         (extra) => ws.params(extra),
         current,
         target,
       );
-      if (location.kind !== "file") {
-        if (origin.contextId === ws.s.context?.contextId) await show(location);
+      if (action.kind === "directory") {
+        if (action.origin.contextId === ws.s.context?.contextId)
+          await show(action.location);
         return;
       }
-      const mode =
-        target.mode ??
-        (target.line !== undefined || target.heading ? "file" : "diff");
-      if (mode === "diff" && origin.diffAvailable) {
-        const found = await api(
-          `${base}/changes?${ws.params({ contextId: origin.contextId, nodeId: location.nodeId })}`,
-          CodeChangesSchema,
-        );
-        const change =
-          found.entries.find((entry) => entry.group !== "staged") ??
-          found.entries[0];
-        if (change) {
-          if (await openDiff(change, origin)) showRevealError();
-          return;
-        }
+      if (action.kind === "diff") {
+        if (await openDiff(action.change, action.origin)) showRevealError();
+        return;
       }
-      const failure = await openFileInOrigin(
-        origin,
-        location.path,
-        location.nodeId,
-      );
-      if (failure) {
+      const { origin, location, mode, usedRawPath } = action;
+      if (await openFileInOrigin(origin, location.path, location.nodeId)) {
         showRevealError();
         return;
       }
@@ -315,7 +315,8 @@
       void ws.load();
       for (const tab of ws.s.tabs) void ws.refresh(tab);
     }}
-    inspectablePath={doc?.rootKind === "artifacts"
+    inspectablePath={doc?.rootKind === "artifacts" ||
+    doc?.rootKind === "filesystem"
       ? ""
       : (doc?.file?.document.path ?? doc?.diff?.new.path ?? "")}
     {onOpenGit}
@@ -358,14 +359,17 @@
     unified
     bind:quick={tab.quick}
     bind:menu={tab.menu}
-    workspace={tab.contextId === ws.s.context?.contextId
-      ? markdownWorkspace
-      : undefined}
+    workspace={tab.rootKind === "filesystem"
+      ? externalMarkdownWorkspace
+      : tab.contextId === ws.s.context?.contextId
+        ? markdownWorkspace
+        : undefined}
     heading={tab.heading}
     onHeading={() => (tab.heading = undefined)}
     jump={tab.jump}
     onJump={() => (tab.jump = undefined)}
-    diffAvailable={tab.rootKind !== "artifacts"}
+    diffAvailable={tab.rootKind !== "artifacts" &&
+      tab.rootKind !== "filesystem"}
   />
 {/snippet}
 

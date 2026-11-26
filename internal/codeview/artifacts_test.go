@@ -1,6 +1,7 @@
 package codeview
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -100,5 +101,119 @@ func TestArtifactsRoot(t *testing.T) {
 	}
 	if next, err := s.Context(ctx, id, RootArtifacts); err != nil || next.ID == c.ID {
 		t.Fatalf("rebound context %+v %v", next, err)
+	}
+}
+
+func TestFilesystemRoot(t *testing.T) {
+	ctx := context.Background()
+	parent := t.TempDir()
+	work := filepath.Join(parent, "work")
+	otherRepo := filepath.Join(parent, "other-repo")
+	if err := os.MkdirAll(work, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(otherRepo, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	outsideFile := filepath.Join(otherRepo, "notes.md")
+	write(t, otherRepo, "notes.md", "# outside\n")
+	siblingFile := filepath.Join(parent, "sibling.txt")
+	write(t, parent, "sibling.txt", "sibling\n")
+
+	m := session.NewManager(session.Options{DefaultCwd: work})
+	item, err := m.Create(session.CreateInput{Cwd: work, Cmd: []string{"/bin/sh"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New(m, nil)
+	t.Cleanup(func() {
+		s.Close()
+		c, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		m.Shutdown(c)
+	})
+	id := item.Info().ID
+
+	ws, err := s.Context(ctx, id, RootWorkspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Locate(ctx, id, ws.ID, outsideFile); errorKind(err) != ErrForbidden {
+		t.Fatalf("workspace locate outside: %v", err)
+	}
+
+	fs, err := s.Context(ctx, id, RootFilesystem)
+	if err != nil || fs.Kind != RootFilesystem || fs.Root != string(os.PathSeparator) || fs.Browse || fs.Diff || fs.Ignore || fs.Write {
+		t.Fatalf("filesystem context %+v %v", fs, err)
+	}
+
+	// Absolute path inside another Git repository is locatable and readable.
+	loc, err := s.Locate(ctx, id, fs.ID, outsideFile)
+	if err != nil || loc.Kind != "file" {
+		t.Fatalf("locate outside git repo: %+v %v", loc, err)
+	}
+	f, err := s.File(ctx, id, fs.ID, loc.NodeID)
+	if err != nil || f.Document.Text != "# outside\n" {
+		t.Fatalf("file outside git repo: %+v %v", f.Document, err)
+	}
+	if snap, err := s.SnapshotFile(ctx, id, f.Snapshot, ""); err != nil || snap.Document.Text != "# outside\n" {
+		t.Fatalf("snapshot outside: %+v %v", snap.Document, err)
+	}
+	tr, err := s.Raw(ctx, id, f.Snapshot, "")
+	if err != nil {
+		t.Fatalf("raw outside: %v", err)
+	}
+	var rawBuf bytes.Buffer
+	if err := tr.WriteTo(ctx, &rawBuf); err != nil {
+		tr.Close()
+		t.Fatalf("raw stream outside: %v", err)
+	}
+	tr.Close()
+	if rawBuf.String() != "# outside\n" {
+		t.Fatalf("raw body %q", rawBuf.String())
+	}
+
+	// Relative path climbing out of workspace resolves from session cwd.
+	relLoc, err := s.Locate(ctx, id, fs.ID, "../sibling.txt")
+	if err != nil || relLoc.Kind != "file" {
+		t.Fatalf("locate relative outside: %+v %v", relLoc, err)
+	}
+	rf, err := s.File(ctx, id, fs.ID, relLoc.NodeID)
+	if err != nil || rf.Document.Text != "sibling\n" {
+		t.Fatalf("file relative outside: %+v %v", rf.Document, err)
+	}
+	if canonical, err := filepath.EvalSymlinks(siblingFile); err == nil && rf.Document.Absolute != canonical {
+		t.Fatalf("absolute path %q want %q", rf.Document.Absolute, canonical)
+	}
+
+	// Staleness checks track updates on external files.
+	chk, err := s.Check(ctx, id, CheckRequest{Context: fs.ID, Snapshots: []string{f.Snapshot}})
+	if err != nil || chk.Snapshots[f.Snapshot] != "unchanged" {
+		t.Fatalf("check unchanged: %+v %v", chk, err)
+	}
+	write(t, otherRepo, "notes.md", "# updated\n")
+	chk, err = s.Check(ctx, id, CheckRequest{Context: fs.ID, Snapshots: []string{f.Snapshot}})
+	if err != nil || chk.Snapshots[f.Snapshot] != "updated" {
+		t.Fatalf("check updated: %+v %v", chk, err)
+	}
+
+	// Browsing, archiving, usage, diffs and mutations remain disabled.
+	if _, err := s.Tree(ctx, id, fs.ID, "", false, ""); errorKind(err) != ErrConflict {
+		t.Fatalf("tree on filesystem root: %v", err)
+	}
+	if _, err := s.Search(ctx, id, fs.ID, "notes", false); errorKind(err) != ErrConflict {
+		t.Fatalf("search on filesystem root: %v", err)
+	}
+	if _, err := s.Archive(ctx, id, fs.ID, "", false); errorKind(err) != ErrConflict {
+		t.Fatalf("archive on filesystem root: %v", err)
+	}
+	if _, err := s.Usage(ctx, id, fs.ID, ""); errorKind(err) != ErrConflict {
+		t.Fatalf("usage on filesystem root: %v", err)
+	}
+	if _, err := s.Rename(ctx, id, fs.ID, loc.NodeID, "other.md"); errorKind(err) != ErrForbidden {
+		t.Fatalf("rename on filesystem root: %v", err)
+	}
+	if err := s.Delete(ctx, id, fs.ID, loc.NodeID, false); errorKind(err) != ErrForbidden {
+		t.Fatalf("delete on filesystem root: %v", err)
 	}
 }

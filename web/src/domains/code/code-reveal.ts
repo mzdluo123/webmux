@@ -5,6 +5,7 @@ import { codeRawPath, isImageType } from "./code-image";
 import {
   aborted,
   type CodeContext,
+  type CodeTabOrigin,
   type CodeWorkspaceTab,
 } from "./code-workspace";
 import {
@@ -14,9 +15,11 @@ import {
   type MarkdownWorkspace,
 } from "./markdown-link";
 import {
+  CodeChangesSchema,
   CodeContextSchema,
   CodeFileSchema,
   CodeLocationSchema,
+  type CodeChange,
   type CodeReveal,
 } from "../../contracts/schemas";
 
@@ -49,32 +52,100 @@ export function createMarkdownWorkspace(options: {
   getContext: () => CodeContext | undefined;
   params: (extra?: Record<string, string>) => URLSearchParams;
   show: (target: z.infer<typeof CodeLocationSchema>) => Promise<string>;
+  openFileInOrigin: (
+    origin: CodeTabOrigin,
+    path: string,
+    opaqueId: string,
+  ) => Promise<string>;
   getTabs: () => CodeWorkspaceTab[];
   nextHeadingKey: () => number;
+  externalOrigin?: boolean;
 }): MarkdownWorkspace {
+  const applyHeading = (contextId: string, nodeId: string, heading: string) => {
+    if (!heading) return;
+    const tab = options
+      .getTabs()
+      .find((t) => t.key === `${contextId}:${nodeId}:worktree`);
+    if (tab) tab.heading = { slug: heading, key: options.nextHeadingKey() };
+  };
+  const openAbsolute = async (absolutePath: string, heading: string) => {
+    const context = options.getContext();
+    let targetOrigin: CodeTabOrigin | undefined;
+    let target: z.infer<typeof CodeLocationSchema> | undefined;
+    let firstError: unknown;
+    if (context && context.rootKind !== "filesystem") {
+      try {
+        target = await api(
+          `${options.base()}/locate?${options.params({ contextId: context.contextId, path: absolutePath })}`,
+          CodeLocationSchema,
+        );
+        targetOrigin = context;
+      } catch (e) {
+        firstError = e;
+      }
+    }
+    if (!target) {
+      if (
+        !firstError ||
+        (firstError instanceof APIError && firstError.status === 403)
+      ) {
+        try {
+          const outside = await locateOutsideRoot(
+            options.base(),
+            options.params,
+            [{ path: absolutePath, raw: false }],
+            context?.rootKind === "artifacts",
+          );
+          if (outside) {
+            targetOrigin = outside.origin;
+            target = outside.location;
+          }
+        } catch (e) {
+          firstError = e;
+        }
+      }
+    }
+    if (!target || !targetOrigin) {
+      return targetFailure("link", firstError ?? new APIError(403, ""));
+    }
+    const failure =
+      targetOrigin.contextId === context?.contextId
+        ? await options.show(target)
+        : target.kind === "file"
+          ? await options.openFileInOrigin(
+              targetOrigin,
+              target.path,
+              target.nodeId,
+            )
+          : m.s5_link_outside_workspace();
+    if (failure) return m.s5_link_target_unreadable({ failure });
+    applyHeading(targetOrigin.contextId, target.nodeId, heading);
+    return "";
+  };
   return {
     async open(path, heading = "") {
+      if (path.startsWith("/") || options.externalOrigin) {
+        return openAbsolute(path.startsWith("/") ? path : `/${path}`, heading);
+      }
+      const context = options.getContext();
       let target: z.infer<typeof CodeLocationSchema>;
       try {
         target = await resolveWorkspaceTarget(
           options.base(),
-          options.getContext(),
+          context,
           options.params,
           path,
         );
       } catch (e) {
+        if (e instanceof APIError && e.status === 403 && context) {
+          const root = context.rootPath.replace(/\/+$/, "");
+          return openAbsolute(path ? `${root}/${path}` : root || "/", heading);
+        }
         return targetFailure("link", e);
       }
       const failure = await options.show(target);
       if (failure) return m.s5_link_target_unreadable({ failure });
-      const context = options.getContext();
-      const tab = options
-        .getTabs()
-        .find(
-          (t) => t.key === `${context?.contextId}:${target.nodeId}:worktree`,
-        );
-      if (heading && tab)
-        tab.heading = { slug: heading, key: options.nextHeadingKey() };
+      if (context) applyHeading(context.contextId, target.nodeId, heading);
       return "";
     },
     async image(path, signal) {
@@ -154,7 +225,97 @@ function revealCandidates(origin: CodeContext, target: CodeReveal) {
   return list;
 }
 
-export async function locateRevealTarget(
+async function locateOutsideRoot(
+  base: string,
+  params: (extra?: Record<string, string>) => URLSearchParams,
+  candidates: { path: string; raw: boolean }[],
+  skipArtifacts = false,
+) {
+  if (!skipArtifacts && candidates.some((item) => item.path.startsWith("/"))) {
+    try {
+      const artifactsOrigin = await api(
+        `${base}/context?root=artifacts`,
+        CodeContextSchema,
+      );
+      for (const item of candidates) {
+        try {
+          const location = await api(
+            `${base}/locate?${params({ contextId: artifactsOrigin.contextId, path: item.path })}`,
+            CodeLocationSchema,
+          );
+          return {
+            origin: artifactsOrigin,
+            location,
+            usedRawPath: item.raw,
+          };
+        } catch {
+          // Try rawPath if present; otherwise fall through to filesystem root.
+        }
+      }
+    } catch {
+      // No existing artifacts folder; fall through to filesystem root.
+    }
+  }
+  let fsOrigin: CodeContext;
+  try {
+    fsOrigin = await api(`${base}/context?root=filesystem`, CodeContextSchema);
+  } catch {
+    return undefined;
+  }
+  let fsError: unknown;
+  for (const item of candidates) {
+    try {
+      const location = await api(
+        `${base}/locate?${params({ contextId: fsOrigin.contextId, path: item.path })}`,
+        CodeLocationSchema,
+      );
+      if (location.kind === "file") {
+        return {
+          origin: fsOrigin,
+          location,
+          usedRawPath: item.raw,
+        };
+      }
+    } catch (e) {
+      if (
+        !fsError &&
+        e instanceof APIError &&
+        e.status !== 404 &&
+        e.status !== 403
+      )
+        fsError = e;
+    }
+  }
+  if (fsError) throw fsError;
+  return undefined;
+}
+
+export async function locatePathTarget(
+  base: string,
+  params: (extra?: Record<string, string>) => URLSearchParams,
+  origin: CodeContext,
+  path: string,
+) {
+  try {
+    const location = await api(
+      `${base}/locate?${params({ path })}`,
+      CodeLocationSchema,
+    );
+    return { origin, location };
+  } catch (e) {
+    if (!(e instanceof APIError && e.status === 403)) throw e;
+    const fallback = await locateOutsideRoot(
+      base,
+      params,
+      [{ path, raw: false }],
+      origin.rootKind === "artifacts",
+    );
+    if (!fallback) throw e;
+    return { origin: fallback.origin, location: fallback.location };
+  }
+}
+
+async function locateRevealTarget(
   base: string,
   params: (extra?: Record<string, string>) => URLSearchParams,
   origin: CodeContext,
@@ -183,43 +344,63 @@ export async function locateRevealTarget(
         break;
     }
   }
-  if (
-    target.path.startsWith("/") &&
-    firstError instanceof APIError &&
-    firstError.status === 403
-  ) {
-    try {
-      const artifactsOrigin = await api(
-        `${base}/context?root=artifacts`,
-        CodeContextSchema,
-      );
-      const artifactPaths =
-        target.rawPath && target.rawPath !== target.path
-          ? [
-              { path: target.path, raw: false },
-              { path: target.rawPath, raw: true },
-            ]
-          : [{ path: target.path, raw: false }];
-      for (const item of artifactPaths) {
-        try {
-          const location = await api(
-            `${base}/locate?${params({ contextId: artifactsOrigin.contextId, path: item.path })}`,
-            CodeLocationSchema,
-          );
-          return {
-            origin: artifactsOrigin,
-            location,
-            usedRawPath: item.raw,
-          };
-        } catch {
-          // Try rawPath if present; otherwise report the workspace error.
-        }
-      }
-    } catch {
-      // No existing artifacts folder; report the workspace error.
-    }
+  if (firstError instanceof APIError && firstError.status === 403) {
+    const fallbackPaths =
+      target.rawPath && target.rawPath !== target.path
+        ? [
+            { path: target.path, raw: false },
+            { path: target.rawPath, raw: true },
+          ]
+        : [{ path: target.path, raw: false }];
+    const outside = await locateOutsideRoot(base, params, fallbackPaths);
+    if (outside) return outside;
   }
   throw firstError;
+}
+
+export type RevealResolution =
+  | {
+      kind: "directory";
+      origin: CodeContext;
+      location: z.infer<typeof CodeLocationSchema>;
+    }
+  | { kind: "diff"; origin: CodeContext; change: CodeChange }
+  | {
+      kind: "file";
+      origin: CodeContext;
+      location: z.infer<typeof CodeLocationSchema>;
+      mode: "file" | "diff";
+      usedRawPath: boolean;
+    };
+
+export async function resolveRevealAction(
+  base: string,
+  params: (extra?: Record<string, string>) => URLSearchParams,
+  origin: CodeContext,
+  target: CodeReveal,
+): Promise<RevealResolution> {
+  const {
+    origin: resolvedOrigin,
+    location,
+    usedRawPath,
+  } = await locateRevealTarget(base, params, origin, target);
+  if (location.kind !== "file") {
+    return { kind: "directory", origin: resolvedOrigin, location };
+  }
+  const mode =
+    target.mode ??
+    (target.line !== undefined || target.heading ? "file" : "diff");
+  if (mode === "diff" && resolvedOrigin.diffAvailable) {
+    const found = await api(
+      `${base}/changes?${params({ contextId: resolvedOrigin.contextId, nodeId: location.nodeId })}`,
+      CodeChangesSchema,
+    );
+    const change =
+      found.entries.find((entry) => entry.group !== "staged") ??
+      found.entries[0];
+    if (change) return { kind: "diff", origin: resolvedOrigin, change };
+  }
+  return { kind: "file", origin: resolvedOrigin, location, mode, usedRawPath };
 }
 
 /**

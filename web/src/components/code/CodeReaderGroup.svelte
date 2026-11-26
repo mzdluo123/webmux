@@ -29,7 +29,9 @@
   const source = $derived(
     doc.rootKind === "artifacts"
       ? m.s5_artifacts_folder()
-      : (doc.diff?.change.group ?? file?.source),
+      : doc.rootKind === "filesystem"
+        ? m.s5_external_file()
+        : (doc.diff?.change.group ?? file?.source),
   );
 </script>
 

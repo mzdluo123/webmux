@@ -120,6 +120,29 @@ export function resolveMarkdownReference(
   return { kind: "path", path: segments.filter(Boolean).join("/"), fragment };
 }
 
+/**
+ * Resolves a relative Markdown link that climbs above the workspace root
+ * against the document's absolute path, returning an absolute POSIX path.
+ */
+export function resolveOutsideMarkdownReference(
+  documentAbsolutePath: string,
+  reference: string,
+): { path: string; fragment: string } | null {
+  const { rawPath, fragment } = splitReference(reference);
+  if (!rawPath) return null;
+  const decoded = decode(rawPath);
+  if (decoded === undefined || decoded.includes("\0")) return null;
+  const segments = decoded.startsWith("/")
+    ? []
+    : documentAbsolutePath.split("/").slice(0, -1).filter(Boolean);
+  for (const segment of decoded.split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === "..") segments.pop();
+    else segments.push(segment);
+  }
+  return { path: "/" + segments.join("/"), fragment };
+}
+
 /** Explains why a link target or image could not be resolved or read. */
 export function targetFailure(
   subject: "link" | "image" | (string & {}),

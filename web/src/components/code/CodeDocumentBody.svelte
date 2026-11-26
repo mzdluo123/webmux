@@ -224,6 +224,7 @@
       bind:headings
       text={doc.text}
       path={doc.path}
+      absolutePath={doc.absolutePath}
       {active}
       {workspace}
       restore={restoreFor("markdown")}

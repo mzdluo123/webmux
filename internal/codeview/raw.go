@@ -118,7 +118,7 @@ func (s *Service) openRawInBinding(ctx context.Context, key scopeKey, b *binding
 	}
 	t := &Transfer{Name: path.Base(d.rawPath), MediaType: d.MediaType, Size: d.Size, binding: b, path: d.rawPath}
 	if d.Source == "worktree" {
-		if !b.Browse || d.identity == nil {
+		if (!b.Browse && b.Kind != RootFilesystem) || d.identity == nil {
 			return nil, problemf(ErrConflict, "内容已变化，请刷新")
 		}
 		f, e := b.open(d.rawPath)

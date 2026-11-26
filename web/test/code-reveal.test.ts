@@ -13,13 +13,31 @@ const context = {
   writableAvailable: true,
 };
 
-function useTransport(locate: (path: string) => Response | Promise<Response>) {
+const fsContext = {
+  contextId: "fs-ctx",
+  rootPath: "/",
+  rootKind: "filesystem",
+  browseAvailable: false,
+  diffAvailable: false,
+  ignoreAvailable: false,
+  reason: "",
+  writableAvailable: false,
+};
+
+function useTransport(
+  locate: (path: string) => Response | Promise<Response>,
+  allowFilesystem = true,
+) {
   const paths: string[] = [];
   setClientTransport({
     origin: "http://test",
     fetch: async (path: string) => {
       paths.push(path);
       if (path === "/sessions/s/code/context") return Response.json(context);
+      if (path === "/sessions/s/code/context?root=filesystem")
+        return allowFilesystem
+          ? Response.json(fsContext)
+          : new Response("not found", { status: 404, statusText: "not found" });
       if (path.startsWith("/sessions/s/code/locate?")) return locate(path);
       return new Response("not found", {
         status: 404,
@@ -37,15 +55,49 @@ function useTransport(locate: (path: string) => Response | Promise<Response>) {
 afterEach(() => setClientTransport(null));
 
 describe("checkRevealTarget", () => {
-  test("reports targets outside the workspace root for in-place notices", async () => {
-    useTransport(
-      () => new Response("forbidden", { status: 403, statusText: "forbidden" }),
-    );
+  test("falls back to filesystem root for files outside the workspace", async () => {
+    const paths = useTransport((path) => {
+      const url = new URL(path, "http://test");
+      if (url.searchParams.get("contextId") === "fs-ctx") {
+        return Response.json({
+          nodeId: "n-ext",
+          path: "repo.worktrees/sync/cloudbuild.release.yaml",
+          kind: "file",
+        });
+      }
+      return new Response("forbidden", {
+        status: 403,
+        statusText: "forbidden",
+      });
+    });
     await expect(
       checkRevealTarget("/sessions/s/code", {
         path: "/repo.worktrees/sync/cloudbuild.release.yaml",
         rawPath: "/repo.worktrees/sync/cloudbuild.release.yaml:129",
         line: 129,
+      }),
+    ).resolves.toBe("");
+    expect(paths).toContain("/sessions/s/code/context?root=filesystem");
+  });
+
+  test("reports directories outside the workspace as unopenable", async () => {
+    useTransport((path) => {
+      const url = new URL(path, "http://test");
+      if (url.searchParams.get("contextId") === "fs-ctx") {
+        return Response.json({
+          nodeId: "n-dir",
+          path: "etc",
+          kind: "directory",
+        });
+      }
+      return new Response("forbidden", {
+        status: 403,
+        statusText: "forbidden",
+      });
+    });
+    await expect(
+      checkRevealTarget("/sessions/s/code", {
+        path: "/etc",
       }),
     ).resolves.toBe("链接目标不在工作区内");
   });

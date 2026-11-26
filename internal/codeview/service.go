@@ -39,10 +39,12 @@ type snapshot struct {
 }
 
 // The roots a session can browse: its workspace (launch directory or the
-// Git worktree containing it) and its interaction artifacts folder.
+// Git worktree containing it), its interaction artifacts folder, and a
+// read-only filesystem root for opening files outside the workspace.
 const (
-	RootWorkspace = "workspace"
-	RootArtifacts = "artifacts"
+	RootWorkspace  = "workspace"
+	RootArtifacts  = "artifacts"
+	RootFilesystem = "filesystem"
 )
 
 type scopeKind uint8
@@ -221,6 +223,9 @@ func (s *Service) bind(ctx context.Context, key scopeKey) (*binding, error) {
 	if key.subroot == RootArtifacts {
 		return s.bindArtifacts(key.owner)
 	}
+	if key.subroot == RootFilesystem {
+		return s.bindFilesystem(key.owner)
+	}
 	if s.manager == nil {
 		return nil, problemf(ErrNotFound, "会话不存在")
 	}
@@ -354,13 +359,47 @@ func (s *Service) bindArtifacts(id string) (*binding, error) {
 	return b, nil
 }
 
+// bindFilesystem binds the host root directory as a read-only, non-browsable
+// context so session links and path jumps can open regular files outside the
+// workspace.
+func (s *Service) bindFilesystem(id string) (*binding, error) {
+	if s.manager == nil {
+		return nil, problemf(ErrNotFound, "会话不存在")
+	}
+	if _, err := s.manager.Get(id); err != nil {
+		return nil, problemf(ErrNotFound, "会话不存在")
+	}
+	key := sessionScope(id, RootFilesystem)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if b := s.roots[key]; b != nil {
+		if s.validate(context.Background(), b) == nil {
+			b.timeUsed = time.Now()
+			return b, nil
+		}
+		delete(s.roots, key)
+	}
+	root := string(os.PathSeparator)
+	identity, err := os.Lstat(root)
+	if err != nil || !identity.IsDir() {
+		return nil, problemf(ErrUnavailable, "文件系统根不可用")
+	}
+	b := &binding{
+		Context:  Context{ID: random(), Root: root, Kind: RootFilesystem},
+		identity: identity,
+		timeUsed: time.Now(),
+	}
+	s.roots[key] = b
+	return b, nil
+}
+
 // Context returns the browsing context of session id's root: RootWorkspace
-// (also for an empty root) or RootArtifacts.
+// (also for an empty root), RootArtifacts, or RootFilesystem.
 func (s *Service) Context(ctx context.Context, id, root string) (Context, error) {
 	switch root {
 	case "":
 		root = RootWorkspace
-	case RootWorkspace, RootArtifacts:
+	case RootWorkspace, RootArtifacts, RootFilesystem:
 	default:
 		return Context{}, problemf(ErrInvalid, "未知的浏览根")
 	}
@@ -407,8 +446,10 @@ func withRoot[T any](ctx context.Context, s *Service, id, cid string, fn func(*b
 }
 
 func (s *Service) rootOfLocked(id, cid string) string {
-	if b := s.roots[sessionScope(id, RootArtifacts)]; b != nil && b.ID == cid {
-		return RootArtifacts
+	for _, root := range []string{RootArtifacts, RootFilesystem} {
+		if b := s.roots[sessionScope(id, root)]; b != nil && b.ID == cid {
+			return root
+		}
 	}
 	return RootWorkspace
 }
