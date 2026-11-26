@@ -36,8 +36,6 @@ function terminalTheme() {
 export interface TerminalRendererEvents {
   // The host may need a new grid: its box, DPR or measured font changed.
   layout: () => void;
-  // The page theme changed and xterm already uses the new colours.
-  themeChanged: () => void;
   // An http(s) OSC 8 hyperlink in terminal output was activated.
   openLink?: (url: string) => void;
 }
@@ -103,7 +101,6 @@ export function createTerminalRenderer(
   const theme = () => {
     if (disposed) return;
     term.options.theme = terminalTheme();
-    events.themeChanged();
   };
   const colors = new MutationObserver(theme);
   colors.observe(document.documentElement, {

@@ -347,6 +347,43 @@ test("local and active feature preference saves do not submit or erase inactive 
   ).toHaveLength(0);
 });
 
+test("effective theme changes notify the terminal theme endpoint in order", async () => {
+  const notifications: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>(async (input, init) => {
+      const path = new URL(String(input), location.href).pathname;
+      if (path === "/api/terminal/theme") {
+        notifications.push(String(init?.body));
+        return new Response(null, { status: 204 });
+      }
+      if (path === "/api/settings")
+        return Response.json({
+          revision: 0,
+          updatedAt: "",
+          values: emptySettings,
+        });
+      if (path === "/api/launch-configs") return Response.json([]);
+      if (path === "/api/config")
+        return Response.json({ defaultCwd: "/tmp", portDetection: true });
+      return Response.json({ error: "unavailable" }, { status: 503 });
+    }),
+  );
+  stopSettings();
+  await reloadSettings();
+  render(Settings);
+
+  themePreference.set("light");
+  themePreference.set("dark");
+  themePreference.set("light");
+  await vi.waitFor(() =>
+    expect(notifications).toEqual([
+      JSON.stringify({ theme: "dark" }),
+      JSON.stringify({ theme: "light" }),
+    ]),
+  );
+});
+
 test("theme and bottom toolbar stay device-local, work offline, and sync across same-browser windows", async () => {
   vi.stubGlobal(
     "fetch",

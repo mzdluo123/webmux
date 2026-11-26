@@ -1,5 +1,10 @@
 import { createSubscriber } from "svelte/reactivity";
-import { ThemeSchema, type Theme } from "../../contracts/schemas";
+import {
+  NoContentSchema,
+  ThemeSchema,
+  type Theme,
+} from "../../contracts/schemas";
+import { api } from "../../platform/api";
 import { resolveStorageKey, store, stored } from "../../platform/storage";
 
 type ThemePreference = "system" | Theme;
@@ -41,11 +46,31 @@ let transition: ViewTransition | undefined;
 let pendingTheme: Theme | undefined;
 let initialized = false;
 
+function effectiveDark(): boolean {
+  return choice ? choice === "dark" : !systemPrefersLight();
+}
+
+// Serialize notifications so rapid toggles reach the server in the same order.
+// A failure drops only that notification; the next effective change tries again.
+let terminalThemeNotifications = Promise.resolve();
+function notifyTerminalTheme(): void {
+  const theme: Theme = effectiveDark() ? "dark" : "light";
+  terminalThemeNotifications = terminalThemeNotifications.then(async () => {
+    try {
+      await api("/terminal/theme", NoContentSchema, "POST", { theme });
+    } catch {
+      // The terminal connection is unavailable without the server too.
+    }
+  });
+}
+
 function applyTheme(): void {
   if (typeof document === "undefined") return;
-  const dark = choice ? choice === "dark" : !systemPrefersLight();
+  const dark = effectiveDark();
   const root = document.documentElement;
+  const wasDark = root.classList.contains("dark");
   root.classList.toggle("dark", dark);
+  if (dark !== wasDark) notifyTerminalTheme();
   const meta = document.querySelector<HTMLMetaElement>(
     'meta[name="theme-color"]',
   );

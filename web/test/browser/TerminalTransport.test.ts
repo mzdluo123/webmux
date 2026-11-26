@@ -477,7 +477,7 @@ test("automatic replies to device queries are sent apart from user input, even w
   await expect.poll(() => frames(0)).toEqual(["\x1b[1;2R"]);
 });
 
-test("color scheme reports follow the page theme once the program enables them", async () => {
+test("color scheme reports follow control state without duplicating theme notifications", async () => {
   const root = document.documentElement;
   root.classList.remove("dark");
   const { socket } = await openTerminal();
@@ -492,14 +492,16 @@ test("color scheme reports follow the page theme once the program enables them",
   // before this browser attached learns it now.
   socket.grantControl(80, 24, true);
   await expect.poll(reports).toEqual(["\x1b[?997;1n"]);
+  // Theme changes are broadcast by the backend; this attachment reports its
+  // current scheme on control changes and history queries without adding a
+  // second client-side notification path.
   root.classList.remove("dark");
-  await expect.poll(reports).toEqual(["\x1b[?997;1n", "\x1b[?997;2n"]);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(reports()).toEqual(["\x1b[?997;1n"]);
   // A query in replayed history was answered when it was live.
   socket.receive(1, "\x1b[?996n");
   socket.receive(0, "\x1b[?996n");
-  await expect
-    .poll(reports)
-    .toEqual(["\x1b[?997;1n", "\x1b[?997;2n", "\x1b[?997;2n"]);
+  await expect.poll(reports).toEqual(["\x1b[?997;1n", "\x1b[?997;2n"]);
   expect(socket.sent.filter((frame) => frame[0] === 0)).toEqual([]);
 });
 

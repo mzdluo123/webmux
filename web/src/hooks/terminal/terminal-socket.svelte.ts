@@ -155,10 +155,9 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     };
     // DEC mode 2031 reports: CSI ? 997 ; 1 n is dark, 2 is light.
     const root = document.documentElement;
-    let reportedDark: boolean | undefined;
     const reportScheme = () => {
-      reportedDark = root.classList.contains("dark");
-      term.input(`\x1b[?997;${reportedDark ? 1 : 2}n`, false);
+      const dark = root.classList.contains("dark");
+      term.input(`\x1b[?997;${dark ? 1 : 2}n`, false);
     };
     let resetPosition: StreamPosition | undefined;
     let appending = false;
@@ -349,14 +348,6 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     document.addEventListener("visibilitychange", visible);
 
     return {
-      themeChanged() {
-        if (disposed) return;
-        if (
-          control?.colorSchemeReports &&
-          reportedDark !== root.classList.contains("dark")
-        )
-          reportScheme();
-      },
       dispose() {
         disposed = true;
         hover.cancel();
