@@ -80,6 +80,12 @@ type ControlState struct {
 // MaxTerminalDimension is the largest column or row count of a PTY grid.
 const MaxTerminalDimension = 1000
 
+// TerminalThemeNotification is a browser's effective light/dark theme.
+// The server forwards it to terminal programs subscribed to DEC mode 2031.
+type TerminalThemeNotification struct {
+	Theme string `json:"theme"`
+}
+
 // TerminalResize is the controller's grid.
 type TerminalResize struct {
 	Cols uint16 `json:"cols"`

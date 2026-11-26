@@ -46,6 +46,33 @@ test("reopening suppresses historical device replies and preserves live replies"
     .toBe(initial + "~~" + initial);
 });
 
+test("theme changes reach a running TUI before the browser attaches", async ({
+  page,
+  request,
+  workDir,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("webmux.theme", "light"));
+  const path = join(workDir, "theme-replies");
+  const program = `stty raw -echo; printf '\\033[?2031h'; cat > ${quote(path)}`;
+  const created = await request.post("/api/sessions", {
+    data: { cwd: workDir, cmd: ["/bin/bash", "-c", program] },
+  });
+  expect(created.status()).toBe(201);
+  const { id } = (await created.json()).session;
+  await expect
+    .poll(async () => (await request.get(`/api/sessions/${id}/buffer`)).text())
+    .toContain("\x1b[?2031h");
+
+  await page.goto("/settings");
+  const group = page.getByRole("radiogroup", { name: "主题", exact: true });
+  await group.getByRole("radio", { name: "深色", exact: true }).click();
+  await expect.poll(() => readFile(path, "utf8")).toBe("\x1b[?997;1n");
+  await group.getByRole("radio", { name: "浅色", exact: true }).click();
+  await expect
+    .poll(() => readFile(path, "utf8"))
+    .toBe("\x1b[?997;1n\x1b[?997;2n");
+});
+
 for (const theme of ["light", "dark"] as const) {
   test(`a new TUI learns the ${theme} theme even if it probes before the browser attaches`, async ({
     page,

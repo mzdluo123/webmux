@@ -23,7 +23,6 @@ export interface TerminalSocketView {
 }
 
 export interface TerminalSocketAttachment {
-  themeChanged(): void;
   dispose(): void;
 }
 

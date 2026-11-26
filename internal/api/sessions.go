@@ -51,6 +51,7 @@ func (s *Server) sessionRoutes(mux *http.ServeMux) {
 	serveIn(mux, "POST /api/sessions/{id}/input", http.StatusOK, s.commandFailure, s.input)
 	serveInDone(mux, "POST /api/sessions/{id}/interrupt", s.commandFailure, s.interrupt)
 	serveIn(mux, "POST /api/sessions/{id}/resize", http.StatusOK, s.commandFailure, s.resize)
+	serveInDone(mux, "POST /api/terminal/theme", s.commandFailure, s.terminalTheme)
 }
 
 var sessionStates = map[string][]contract.SessionState{

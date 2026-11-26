@@ -224,8 +224,6 @@ export function useTerminal(
     function mountTerminal() {
       const view = createTerminalRenderer(parent, fontSize, {
         layout: safeFit,
-        // Called only by the theme observer, once `attachment` exists.
-        themeChanged: () => attachment.themeChanged(),
         openLink: clipboard.openLink,
       });
       const term = view.term;
