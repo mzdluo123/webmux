@@ -28,13 +28,6 @@ type relayControlClient interface {
 	Connect(context.Context, ed25519.PrivateKey, protocol.Assignment, relay.Callbacks) error
 }
 
-type relayTransportClient interface {
-	Scope() (protocol.Scope, bool)
-	TransportSelection() relay.TransportSelection
-	SetPreferredTransport(protocol.FRPTransport)
-	ApplyTransportInScope(context.Context, protocol.Scope, protocol.FRPTransport, func() error) error
-}
-
 type relayController struct {
 	op                 sync.Mutex
 	transportOp        sync.Mutex
@@ -68,10 +61,7 @@ type relayController struct {
 	closed             bool
 }
 
-var (
-	_ api.RelayControl     = (*relayController)(nil)
-	_ relayTransportClient = (*relay.Client)(nil)
-)
+var _ api.RelayControl = (*relayController)(nil)
 
 func newRelayController(ctx context.Context, c config.Config, public *transport.PublicOrigins) (*relayController, error) {
 	store := relaysetting.Open(c.StateDir, c.Relay)
@@ -240,56 +230,6 @@ func (rc *relayController) Reconnect(requestCtx context.Context) (contract.Relay
 	rc.mu.Unlock()
 	rc.restart()
 	return rc.finishOperation(nil, false)
-}
-
-func (rc *relayController) SelectTransport(ctx context.Context, desired protocol.FRPTransport) (contract.RelayStatus, error) {
-	if !desired.Valid() {
-		return rc.Status(), relaysetting.ErrInvalid
-	}
-	if !rc.transportOp.TryLock() {
-		return rc.Status(), protocol.Error{Code: protocol.Conflict}
-	}
-	defer rc.transportOp.Unlock()
-	if !rc.op.TryLock() {
-		return rc.Status(), protocol.Error{Code: protocol.Conflict}
-	}
-	// Snapshot admission under the settings-operation lock, but do not hold
-	// it across the trial: disable, delete and reconnect must be able to stop it.
-	rc.mu.Lock()
-	client, ok := rc.client.(relayTransportClient)
-	gen, scope := rc.generation, rc.scope
-	ready := !rc.closed && rc.settings.Config.Enabled && rc.status.ControlReady && rc.store.Unavailable() == nil
-	rc.mu.Unlock()
-	rc.op.Unlock()
-	if !ok || !ready {
-		return rc.Status(), protocol.Error{Code: protocol.Unavailable}
-	}
-
-	// Only management must be ready: an explicit WSS request must also work
-	// when the saved QUIC preference did not bring up a data route.
-	err := client.ApplyTransportInScope(ctx, scope, desired, func() error {
-		// Serialize the local write with operations that save a settings copy.
-		rc.op.Lock()
-		defer rc.op.Unlock()
-		rc.mu.Lock()
-		defer rc.mu.Unlock()
-		if rc.closed || gen != rc.generation || scope != rc.scope || !rc.status.ControlReady {
-			return protocol.Error{Code: protocol.StaleGeneration}
-		}
-		if liveScope, live := client.Scope(); !live || liveScope != scope {
-			return protocol.Error{Code: protocol.StaleGeneration}
-		}
-		next := rc.settings
-		next.PreferredTransport = desired
-		if err := rc.store.Save(next); err != nil {
-			return err
-		}
-		rc.settings = next
-		// A reconnect may start as soon as this callback returns.
-		client.SetPreferredTransport(desired)
-		return nil
-	})
-	return rc.Status(), err
 }
 
 func (rc *relayController) beginOperation(kind string) {

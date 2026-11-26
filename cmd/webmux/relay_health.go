@@ -91,26 +91,3 @@ func (rc *relayController) projectData(s *contract.RelayStatus) {
 	s.Error = "relay origin probe failed"
 	s.ReadinessError = "data-probe-failed"
 }
-
-// projectTransport is used with rc.mu held. The client's last attempt remains
-// useful after disconnect, but its active/pending fields must match this scope.
-func (rc *relayController) projectTransport() *contract.RelayTransportSelection {
-	out := &contract.RelayTransportSelection{Preferred: rc.settings.DataProtocol()}
-	client, ok := rc.client.(relayTransportClient)
-	if !ok {
-		return out
-	}
-	selection := client.TransportSelection()
-	if scope, live := client.Scope(); live && rc.status.ControlReady && scope == rc.scope {
-		out.Supported = selection.Supported
-		out.Active = selection.Active
-		out.Pending = selection.Pending
-	}
-	if attempt := selection.LastAttempt; attempt != nil {
-		out.LastAttempt = &contract.RelayTransportAttempt{
-			NodeID: attempt.NodeID, Protocol: attempt.Protocol, Stage: attempt.Stage, Error: attempt.Error,
-			DurationMS: attempt.DurationMs, CompletedAt: attempt.CompletedAt,
-		}
-	}
-	return out
-}
