@@ -44,6 +44,21 @@ test("multi-row bottom placement scrolls the buffer and returns intact when drag
         (_, idx) => `\r\ntail-line-${idx + 1}`,
       ).join(""),
   );
+  await expect
+    .poll(() => {
+      const buffer = api.emulator!.buffer.active;
+      for (let line = 0; line < buffer.length; line++) {
+        if (
+          buffer
+            .getLine(line)
+            ?.translateToString(true)
+            .includes(`tail-line-${rows + 20}`)
+        )
+          return true;
+      }
+      return false;
+    })
+    .toBe(true);
   await expect.poll(() => canvases().length).toBe(1);
   const image = canvases()[0]!;
   await expect.poll(() => image.style.display).toBe("none");

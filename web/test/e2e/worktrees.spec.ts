@@ -630,6 +630,10 @@ test("late Git response cannot replace a newer refresh", async ({
   const capture = new Promise<void>((resolve) => {
     captured = resolve;
   });
+  let fulfillRouted!: () => void;
+  const routed = new Promise<void>((resolve) => {
+    fulfillRouted = resolve;
+  });
   let intercepted = false;
   await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     if (intercepted) {
@@ -640,6 +644,7 @@ test("late Git response cannot replace a newer refresh", async ({
     captured();
     await delayed;
     await route.fulfill({ status: 200, json: old });
+    fulfillRouted();
   });
   await withWorkspaceRefresh(page);
   await capture;
@@ -651,11 +656,8 @@ test("late Git response cannot replace a newer refresh", async ({
   const repo = page.locator("[data-repository-id]");
   await expand(repo);
   await expectHomeWorktrees(page, 2, 2);
-  const lateResponse = page.waitForResponse((response) =>
-    response.url().endsWith("/api/repositories"),
-  );
   release();
-  await (await lateResponse).finished();
+  await routed;
   await page.evaluate(
     () =>
       new Promise<void>((resolve) =>
