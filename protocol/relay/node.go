@@ -149,6 +149,7 @@ type NodeConfig struct {
 	WSS          *WSSConfig   `json:"wss,omitempty"`
 	TURN         *TURNConfig  `json:"turn,omitempty"`
 	Limits       Limits       `json:"limits"`
+	QUIC         *QUICConfig  `json:"quic,omitempty"`
 }
 
 func (c NodeConfig) Validate() error {
@@ -178,9 +179,21 @@ func (c NodeConfig) Validate() error {
 			return err
 		}
 	}
+	if q := c.QUIC; q != nil {
+		if c.WSS == nil || q.validate() != nil || q.TLSSecret.KeyID == c.WSS.TLSSecret.KeyID {
+			return Error{Code: InvalidConfig}
+		}
+	}
 	if t := c.TURN; t != nil {
 		if net.ParseIP(t.ListenIP) == nil || net.ParseIP(t.AdvertisedPublicIP) == nil || t.MappedLocalIP != "" && net.ParseIP(t.MappedLocalIP) == nil || t.UDPPort == 0 && t.TCPPort == 0 && t.TLSPort == 0 || t.RelayMinPort == 0 || t.RelayMaxPort < t.RelayMinPort || !dnsName(t.Realm) || t.AuthSecret.Purpose != SecretTURN {
 			return Error{Code: InvalidConfig}
+		}
+		if c.QUIC != nil {
+			_, port, _ := net.SplitHostPort(c.QUIC.ListenAddress)
+			udp, _ := strconv.ParseUint(port, 10, 16)
+			if udp == uint64(t.UDPPort) || udp >= uint64(t.RelayMinPort) && udp <= uint64(t.RelayMaxPort) {
+				return Error{Code: InvalidConfig}
+			}
 		}
 		// Reserve the private frp range only on nodes that run frps. A TURN
 		// UDP listener is independent of the frps TCP listeners.

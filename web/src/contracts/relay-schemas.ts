@@ -27,6 +27,28 @@ const PublicURLSchema = z.string().refine(
   { error: () => m.relay_invalid_public_origin() },
 );
 
+const DataProtocolSchema = z.enum(["wss", "quic"]);
+export type RelayDataProtocol = z.infer<typeof DataProtocolSchema>;
+export const RelayTransportRequestSchema = z
+  .object({ protocol: DataProtocolSchema })
+  .strict();
+const TransportSelectionSchema = z.object({
+  supported: z.boolean(),
+  preferred: DataProtocolSchema,
+  active: DataProtocolSchema.optional(),
+  pending: DataProtocolSchema.optional(),
+  lastAttempt: z
+    .object({
+      nodeId: z.string().max(64),
+      protocol: DataProtocolSchema,
+      stage: z.enum(["prepare", "handshake", "probe", "commit"]),
+      error: z.string().max(64),
+      durationMs: z.number().int().nonnegative(),
+      completedAt: z.iso.datetime({ offset: true }),
+    })
+    .optional(),
+});
+
 export const RelayStatusSchema = z.object({
   operation: z.object({
     kind: z.enum(["idle", "enable", "disable", "reconnect", "delete"]),
@@ -50,6 +72,7 @@ export const RelayStatusSchema = z.object({
   pairing: z.boolean(),
   state: z.enum(["off", "connecting", "ready", "failed"]),
   transport: z.literal("wss"),
+  transportSelection: TransportSelectionSchema.optional(),
   controlReady: z.boolean(),
   dataReady: z.boolean(),
   dataCheckedAt: z.iso.datetime({ offset: true }).optional(),

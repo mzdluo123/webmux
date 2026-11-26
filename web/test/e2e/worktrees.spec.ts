@@ -630,6 +630,8 @@ test("late Git response cannot replace a newer refresh", async ({
   const capture = new Promise<void>((resolve) => {
     captured = resolve;
   });
+  const { promise: lateRequestSettled, resolve: settled } =
+    Promise.withResolvers<void>();
   let intercepted = false;
   await page.route(/\/api\/repositories(?:\?|$)/, async (route) => {
     if (intercepted) {
@@ -637,6 +639,15 @@ test("late Git response cannot replace a newer refresh", async ({
       return;
     }
     intercepted = true;
+    const observed = route.request();
+    const onSettled = (req: typeof observed) => {
+      if (req !== observed) return;
+      page.off("requestfinished", onSettled);
+      page.off("requestfailed", onSettled);
+      settled();
+    };
+    page.on("requestfinished", onSettled);
+    page.on("requestfailed", onSettled);
     captured();
     await delayed;
     await route.fulfill({ status: 200, json: old });
@@ -651,11 +662,9 @@ test("late Git response cannot replace a newer refresh", async ({
   const repo = page.locator("[data-repository-id]");
   await expand(repo);
   await expectHomeWorktrees(page, 2, 2);
-  const lateResponse = page.waitForResponse((response) =>
-    response.url().endsWith("/api/repositories"),
-  );
+  // Superseding the refresh can abort the old request before it has a response.
   release();
-  await (await lateResponse).finished();
+  await lateRequestSettled;
   await page.evaluate(
     () =>
       new Promise<void>((resolve) =>

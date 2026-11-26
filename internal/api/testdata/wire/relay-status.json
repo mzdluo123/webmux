@@ -14,13 +14,13 @@
     "controlSource": "default",
     "dataCheckedAt": "2026-11-25T10:42:16Z",
     "dataOrigin": "",
-    "dataReachability": "unavailable",
-    "dataReady": false,
+    "dataReachability": "reachable",
+    "dataReady": true,
     "enabled": true,
-    "error": "relay origin probe failed",
+    "error": "",
     "hybridSupported": false,
     "hybridUnavailableReason": "",
-    "nodeId": "",
+    "nodeId": "node-a",
     "operation": {
       "accessClosed": false,
       "deleted": false,
@@ -33,13 +33,26 @@
     "paired": true,
     "pairing": false,
     "publicUrl": "https://host.relay.example",
-    "readinessError": "data-probe-failed",
+    "readinessError": "",
     "reconnectReason": "",
     "sessions": [],
-    "state": "failed",
+    "state": "ready",
     "storageAvailable": false,
     "tcpAlgorithm": "unknown",
     "tokenStrong": false,
-    "transport": "wss"
+    "transport": "wss",
+    "transportSelection": {
+      "active": "wss",
+      "lastAttempt": {
+        "completedAt": "2026-11-25T10:42:28Z",
+        "durationMs": 12000,
+        "error": "expired",
+        "nodeId": "node-a",
+        "protocol": "quic",
+        "stage": "handshake"
+      },
+      "preferred": "wss",
+      "supported": true
+    }
   }
 }

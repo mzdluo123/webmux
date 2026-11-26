@@ -90,6 +90,7 @@ export function statusSummary(
 export type RowStatus =
   | "working"
   | "waiting"
+  | "failed"
   | "idle"
   | "dormant"
   | "ended"
@@ -100,6 +101,9 @@ export const rowStatusLabels: Record<RowStatus, string> = {
   },
   get waiting() {
     return m.s3_row_status_waiting();
+  },
+  get failed() {
+    return m.s1_attention_error();
   },
   get idle() {
     return m.s3_row_status_idle();
@@ -115,10 +119,12 @@ export const rowStatusLabels: Record<RowStatus, string> = {
   },
 };
 export function rowStatus(
-  session: Pick<SessionInfo, "status" | "attention" | "agent">,
+  session: Pick<SessionInfo, "status" | "exitCode" | "attention" | "agent">,
 ): RowStatus {
-  if (session.status === "exited") return "ended";
+  if (session.status === "exited")
+    return sessionStatusTone(session) === "destructive" ? "failed" : "ended";
   const kind = session.attention?.kind;
+  if (kind === "error") return "failed";
   if (
     kind === "question" ||
     kind === "permission" ||

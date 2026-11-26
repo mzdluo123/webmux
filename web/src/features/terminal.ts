@@ -52,8 +52,21 @@ export function availableTerminalFeatures(
   };
 }
 
+let cachedFeatures: TerminalFeatures | undefined;
+
+/** Returns synchronously cached features once loaded cleanly. */
+export function cachedTerminalFeatures(): TerminalFeatures | undefined {
+  return cachedFeatures;
+}
+
+/** Clears cached feature modules when capabilities are rebuilt. */
+export function resetTerminalFeaturesCache() {
+  cachedFeatures = undefined;
+}
+
 /** Disabled implementations never load; an optional chunk failure leaves PTY usable. */
 export async function loadTerminalFeatures(): Promise<TerminalFeatures> {
+  if (cachedFeatures) return cachedFeatures;
   const errors: string[] = [];
   async function load<T>(id: FeatureID, implementation: () => Promise<T>) {
     if (!featureEnabled(id)) return undefined;
@@ -77,7 +90,7 @@ export async function loadTerminalFeatures(): Promise<TerminalFeatures> {
         ? load("workspace", () => import("./terminal-git"))
         : undefined,
     ]);
-  return {
+  const loaded: TerminalFeatures = {
     chat: files ? chat : undefined,
     files,
     code,
@@ -88,4 +101,6 @@ export async function loadTerminalFeatures(): Promise<TerminalFeatures> {
     git: code ? git : undefined,
     errors,
   };
+  if (errors.length === 0) cachedFeatures = loaded;
+  return loaded;
 }

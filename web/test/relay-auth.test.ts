@@ -15,7 +15,10 @@ import {
 } from "../src/domains/settings/relay-diagnostics";
 import { prepareHostAuthentication } from "../src/hooks/shared/host-authentication";
 import { locale } from "../src/lib/locale";
-import { RelayStatusSchema } from "../src/contracts/relay-schemas";
+import {
+  RelayStatusSchema,
+  RelayTransportRequestSchema,
+} from "../src/contracts/relay-schemas";
 import { m } from "$lib/paraglide/messages.js";
 import { relayStatus } from "./fixtures/relay";
 
@@ -224,4 +227,58 @@ test("Relay status without public control pins preserves authenticated WSS assig
     publicUrl: "https://host.relay.example",
   };
   expect(RelayStatusSchema.parse(ready)).toEqual(ready);
+});
+
+test("Relay status preserves separate transport preference, active route and attempt observations", () => {
+  expect(RelayStatusSchema.parse(relayStatus)).not.toHaveProperty(
+    "transportSelection",
+  );
+  const transportSelection = {
+    supported: false,
+    preferred: "quic",
+    pending: "wss",
+    lastAttempt: {
+      nodeId: "us1",
+      protocol: "quic",
+      stage: "handshake",
+      error: "expired",
+      durationMs: 5000,
+      completedAt: "2026-11-25T10:42:24Z",
+    },
+  };
+  const status = { ...relayStatus, transportSelection };
+  expect(RelayStatusSchema.parse(status).transportSelection).toEqual(
+    transportSelection,
+  );
+  expect(
+    RelayStatusSchema.safeParse({
+      ...status,
+      transportSelection: { ...transportSelection, active: "udp" },
+    }).success,
+  ).toBe(false);
+  expect(
+    RelayStatusSchema.safeParse({
+      ...status,
+      transportSelection: {
+        ...transportSelection,
+        lastAttempt: { ...transportSelection.lastAttempt, durationMs: -1 },
+      },
+    }).success,
+  ).toBe(false);
+});
+
+test("Relay transport requests select a protocol only", () => {
+  for (const protocol of ["wss", "quic"])
+    expect(RelayTransportRequestSchema.parse({ protocol })).toEqual({
+      protocol,
+    });
+  expect(
+    RelayTransportRequestSchema.safeParse({ protocol: "udp" }).success,
+  ).toBe(false);
+  expect(
+    RelayTransportRequestSchema.safeParse({
+      protocol: "quic",
+      nodeId: "other-node",
+    }).success,
+  ).toBe(false);
 });

@@ -135,6 +135,30 @@ func TestRelayRejectsOldStorageVersions(t *testing.T) {
 	}
 }
 
+func TestTransportPreferenceSurvivesRestartAndLocalRecovery(t *testing.T) {
+	dir := t.TempDir()
+	state := storageTestSettings()
+	for _, selected := range []protocol.FRPTransport{protocol.FRPTransportQUIC, protocol.FRPTransportWSS} {
+		store := Open(dir, state.Config)
+		if selected == protocol.FRPTransportWSS {
+			saved, _ := store.Effective()
+			if saved.DataProtocol() != protocol.FRPTransportQUIC {
+				t.Fatal("lost transport preference on restart")
+			}
+		}
+		state.PreferredTransport = selected
+		err := store.Save(state)
+		store.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, _, err := Inspect(dir, state.Config)
+	if err != nil || got.DataProtocol() != protocol.FRPTransportWSS || got.Binding == nil || *got.Binding != *state.Binding {
+		t.Fatal("switching back to WSS changed the pairing or did not persist")
+	}
+}
+
 func TestRelayV3PreservesBindingAndPairingState(t *testing.T) {
 	for _, state := range []string{"enabled", "disabled", "pending", "unconfigured"} {
 		t.Run(state, func(t *testing.T) {

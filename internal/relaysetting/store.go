@@ -19,24 +19,34 @@ var (
 )
 
 type Settings struct {
-	Config      config.RelayConfig
-	Seed        string
-	PendingSeed string
-	Binding     *protocol.Binding
-	OwnerLogin  string
-	Confirmed   bool
+	Config             config.RelayConfig
+	Seed               string
+	PendingSeed        string
+	Binding            *protocol.Binding
+	OwnerLogin         string
+	Confirmed          bool
+	PreferredTransport protocol.FRPTransport
+}
+
+// DataProtocol supplies the legacy WSS default without writing an override.
+func (s Settings) DataProtocol() protocol.FRPTransport {
+	if s.PreferredTransport == "" {
+		return protocol.FRPTransportWSS
+	}
+	return s.PreferredTransport
 }
 
 type storedFile struct {
-	V               int               `json:"v"`
-	Enabled         *bool             `json:"enabled"`
-	Confirmed       *bool             `json:"confirmed"`
-	ControlEndpoint string            `json:"controlEndpoint"`
-	ControlAudience string            `json:"controlAudience"`
-	Seed            string            `json:"seed"`
-	PendingSeed     string            `json:"pendingSeed"`
-	Binding         *protocol.Binding `json:"binding"`
-	OwnerLogin      string            `json:"ownerLogin"`
+	V                  int                   `json:"v"`
+	Enabled            *bool                 `json:"enabled"`
+	Confirmed          *bool                 `json:"confirmed"`
+	ControlEndpoint    string                `json:"controlEndpoint"`
+	ControlAudience    string                `json:"controlAudience"`
+	Seed               string                `json:"seed"`
+	PendingSeed        string                `json:"pendingSeed"`
+	Binding            *protocol.Binding     `json:"binding"`
+	OwnerLogin         string                `json:"ownerLogin"`
+	PreferredTransport protocol.FRPTransport `json:"preferredTransport,omitempty"`
 }
 
 func (storedFile) UnavailableErr() error { return ErrUnavailable }
@@ -55,11 +65,11 @@ var storeSpec = settingsstore.Spec[Settings, storedFile]{
 			c.ControlEndpoint = defaults.Config.ControlEndpoint
 			c.ControlAudience = defaults.Config.ControlAudience
 		}
-		return validateBootstrap(defaults, Settings{Config: c, Seed: f.Seed, PendingSeed: f.PendingSeed, Binding: f.Binding, OwnerLogin: f.OwnerLogin, Confirmed: *f.Confirmed})
+		return validateBootstrap(defaults, Settings{Config: c, Seed: f.Seed, PendingSeed: f.PendingSeed, Binding: f.Binding, OwnerLogin: f.OwnerLogin, Confirmed: *f.Confirmed, PreferredTransport: f.PreferredTransport})
 	},
 	Normalize: validateBootstrap,
 	Encode: func(s Settings) storedFile {
-		return storedFile{V: 3, Enabled: &s.Config.Enabled, Confirmed: &s.Confirmed, ControlEndpoint: s.Config.ControlEndpoint, ControlAudience: s.Config.ControlAudience, Seed: s.Seed, PendingSeed: s.PendingSeed, Binding: s.Binding, OwnerLogin: s.OwnerLogin}
+		return storedFile{V: 3, Enabled: &s.Config.Enabled, Confirmed: &s.Confirmed, ControlEndpoint: s.Config.ControlEndpoint, ControlAudience: s.Config.ControlAudience, Seed: s.Seed, PendingSeed: s.PendingSeed, Binding: s.Binding, OwnerLogin: s.OwnerLogin, PreferredTransport: s.PreferredTransport}
 	},
 	FailClosed: func(s *Settings) { s.Config.Enabled = false },
 	Closed:     "relay settings service is closed",
@@ -75,6 +85,12 @@ func validateBootstrap(defaults, next Settings) (Settings, error) {
 }
 
 func validateSettings(s Settings) (Settings, error) {
+	if !s.DataProtocol().Valid() {
+		return Settings{}, ErrInvalid
+	}
+	if s.PreferredTransport == protocol.FRPTransportWSS {
+		s.PreferredTransport = ""
+	}
 	c, err := s.Config.Validated()
 	if err != nil {
 		return Settings{}, ErrInvalid

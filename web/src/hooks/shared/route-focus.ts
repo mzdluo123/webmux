@@ -8,7 +8,7 @@ export function useRouteFocus() {
     if (!pending) return;
     const target = document.querySelector<HTMLElement>(pending);
     if (!target) return;
-    const main = pending === "main";
+    const main = pending.startsWith("main");
     const active = document.activeElement;
     // Keep a page's input autofocus or focus the user moved as it loaded.
     if (
@@ -39,7 +39,9 @@ export function useRouteFocus() {
     // The open drawer owns focus while changing the route underneath it.
     if (shellUi.drawerOpen) return;
     pending =
-      target === "main" ? "main" : ".app-shell-main [data-sidebar-opener]";
+      target === "main"
+        ? 'main:not([data-cache-hidden="true"]), [role="main"]:not([data-cache-hidden="true"])'
+        : ".app-shell-main [data-sidebar-opener]";
     void tick().then(focusTarget);
   };
 }

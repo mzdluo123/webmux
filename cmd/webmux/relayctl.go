@@ -30,6 +30,7 @@ type relayControlClient interface {
 
 type relayController struct {
 	op                 sync.Mutex
+	transportOp        sync.Mutex
 	mu                 sync.Mutex
 	ctx                context.Context
 	store              *relaysetting.Service
@@ -93,6 +94,7 @@ func newRelayController(ctx context.Context, c config.Config, public *transport.
 		rc.status.ReadinessError = "control-bootstrap-unavailable"
 		return rc, nil
 	}
+	client.SetPreferredTransport(settings.DataProtocol())
 	rc.client = client
 	rc.auth, err = relaysetting.NewAuth(relaysetting.AuthConfig{}, relaysetting.AuthDependencies{Client: client, Snapshot: rc.authSnapshot})
 	if err != nil {
@@ -127,6 +129,7 @@ func (rc *relayController) Status() contract.RelayStatus {
 	defer rc.mu.Unlock()
 	s := rc.status
 	rc.projectData(&s)
+	s.TransportSelection = rc.projectTransport()
 	s.Enabled = rc.settings.Config.Enabled
 	s.Paired = rc.settings.Binding != nil
 	s.Pairing = activeRelayPairing(rc.pairing.Phase)

@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"bufio"
 	"context"
 	"crypto/ed25519"
 	"crypto/tls"
@@ -33,10 +34,11 @@ func TestRelayIntegrationHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	var fixture struct {
-		Assignment  protocol.Assignment
-		Key         []byte
-		Certificate []byte
-		Target      string
+		Assignment      protocol.Assignment
+		Key             []byte
+		Certificate     []byte
+		Target          string
+		SelectTransport bool
 	}
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
@@ -77,6 +79,30 @@ func TestRelayIntegrationHost(t *testing.T) {
 	c.assignment = &fixture.Assignment
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
+	if fixture.SelectTransport {
+		results := os.NewFile(3, "transport-results")
+		defer results.Close()
+		go func() {
+			in := bufio.NewScanner(os.Stdin)
+			for in.Scan() {
+				want := protocol.FRPTransport(in.Text())
+				var persisted bool
+				scope, _ := c.Scope()
+				err := c.ApplyTransportInScope(ctx, scope, want, func() error { persisted = true; return nil })
+				result := struct {
+					Status    TransportSelection
+					Persisted bool
+					Code      protocol.Code
+				}{Status: c.TransportSelection(), Persisted: persisted}
+				if err != nil {
+					result.Code = protocolCode(err)
+				}
+				if json.NewEncoder(results).Encode(result) != nil {
+					return
+				}
+			}
+		}()
+	}
 	err = c.Connect(ctx, ed25519.PrivateKey(fixture.Key), fixture.Assignment, callbacks)
 	if ctx.Err() == nil && (!revoked || protocolCode(err) != protocol.Forbidden) {
 		t.Fatalf("connector exited before test shutdown or revocation: %v", err)

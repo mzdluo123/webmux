@@ -373,9 +373,17 @@
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
     env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
+.session-cache-slot[data-cache-hidden="true"],
+.terminal-page[data-cache-hidden="true"] {
+  visibility: hidden;
+  pointer-events: none;
+  content-visibility: hidden;
+  z-index: -1;
+}
 @media (max-width: 639px) {
   /* Session commands occupy both the workspace bar and the touch pane title. */
-  body:has(.terminal-page) [data-slot="attention-toasts"] {
+  body:has(.terminal-page:not([data-cache-hidden="true"]))
+    [data-slot="attention-toasts"] {
     top: calc(env(safe-area-inset-top) + 3rem + var(--control-touch));
   }
 }
@@ -392,6 +400,11 @@
   min-height: 100dvh;
   overflow: visible;
   padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
+}
+.terminal-page[data-document-scroll="true"] .session-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 .terminal-page[data-document-scroll="true"] .session-toolbar .app-header {
   padding-top: env(safe-area-inset-top);

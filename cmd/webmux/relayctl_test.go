@@ -199,6 +199,20 @@ func TestRelayObservationDoesNotChangeOriginAuthorization(t *testing.T) {
 	if s := rc.Status(); !s.ControlReady || s.PublicURL != "" || s.DataCheckedAt != nil {
 		t.Fatalf("old allocation returned after a new management scope: %+v", s)
 	}
+	// A probe old enough to have been invalidated with its registration must
+	// not be shown as the new route's last check.
+	rc.dataTransport(ctx, 1, next, true, "")
+	rc.dataObserved(ctx, 1, next, relay.DataObservation{CheckedAt: now, ValidUntil: now.Add(time.Minute), Ready: true})
+	assertObservation("reachable", now)
+	rc.dataObserved(ctx, 1, next, relay.DataObservation{})
+	assertObservation("unknown", now)
+	rc.dataTransport(ctx, 1, next, false, protocol.Unavailable)
+	rc.dataObserved(ctx, 1, next, relay.DataObservation{RouteChanged: true})
+	rc.dataTransport(ctx, 1, next, true, "")
+	assertObservation("unknown", time.Time{})
+	now = now.Add(time.Second)
+	rc.dataObserved(ctx, 1, next, relay.DataObservation{CheckedAt: now, ValidUntil: now.Add(time.Minute), Ready: true})
+	assertObservation("reachable", now)
 }
 
 func TestRelayConnectedClearsFailureOnlyForActiveGeneration(t *testing.T) {
@@ -381,5 +395,250 @@ func TestRelayReconnectBackoffResetsAfterStableReadyAndHonorsRetryAfter(t *testi
 	// Attempt 4: stable Ready (>= ControlLease) reset backoff back to 1s.
 	if delays[3] < time.Second || delays[3] >= 1500*time.Millisecond {
 		t.Fatalf("attempt 4 delay after stable session = %v, want in [1s, 1.5s)", delays[3])
+	}
+}
+
+type relaySelectionTestClient struct {
+	relayControlClient
+	scope     protocol.Scope
+	selection relay.TransportSelection
+	apply     func(context.Context, protocol.Scope, protocol.FRPTransport, func() error) error
+}
+
+func (c *relaySelectionTestClient) Scope() (protocol.Scope, bool) {
+	return c.scope, true
+}
+
+func (c *relaySelectionTestClient) TransportSelection() relay.TransportSelection {
+	return c.selection
+}
+
+func (c *relaySelectionTestClient) SetPreferredTransport(preferred protocol.FRPTransport) {
+	c.selection.Preferred = preferred
+}
+
+func (c *relaySelectionTestClient) ApplyTransportInScope(ctx context.Context, scope protocol.Scope, desired protocol.FRPTransport, persist func() error) error {
+	return c.apply(ctx, scope, desired, persist)
+}
+
+func relaySelectionTestController(t *testing.T, preferred protocol.FRPTransport) (config.Config, *relayController, *relaySelectionTestClient) {
+	t.Helper()
+	cfg := config.Config{
+		StateDir: t.TempDir(),
+		Token:    strings.Repeat("x", 43),
+		Relay:    config.RelayConfig{Transport: "wss", ControlEndpoint: "https://control.example.com", ControlAudience: "control.example.com"},
+	}
+	settings := relaysetting.Settings{
+		Config: cfg.Relay, Confirmed: true, PreferredTransport: preferred,
+		Seed: base64.RawURLEncoding.EncodeToString(make([]byte, ed25519.SeedSize)),
+	}
+	host := protocol.HostID("0123456789abcdef0123456789abcdef")
+	settings.Binding = &protocol.Binding{HostID: host, OwnerID: "123", BindingGeneration: 1, PublicURL: "https://" + host.Label() + ".example.com"}
+	settings.Config.Enabled = true
+	store := relaysetting.Open(cfg.StateDir, cfg.Relay)
+	err := store.Save(settings)
+	store.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rc, err := newRelayController(t.Context(), cfg, &transport.PublicOrigins{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(rc.Close)
+	status := rc.Status()
+	selection := status.TransportSelection
+	if selection == nil || selection.Preferred != preferred || selection.Supported || selection.Active != "" || status.DataReady {
+		t.Fatalf("startup misreported persisted preference as live data: %+v", status)
+	}
+	real, ok := rc.client.(relayTransportClient)
+	if !ok || real.TransportSelection().Preferred != preferred {
+		t.Fatal("connector did not receive the saved preference")
+	}
+	client := &relaySelectionTestClient{scope: protocol.Scope{HostID: host, BindingGeneration: 1, ConnectorGeneration: 1}, selection: relay.TransportSelection{Preferred: preferred}}
+	rc.client = client
+	rc.generation = 1
+	rc.connected(t.Context(), 1, client.scope)
+	return cfg, rc, client
+}
+
+func inspectRelayPreference(t *testing.T, cfg config.Config) protocol.FRPTransport {
+	t.Helper()
+	settings, _, err := relaysetting.Inspect(cfg.StateDir, cfg.Relay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return settings.DataProtocol()
+}
+
+func TestRelayRecoveryPersistsOnlyAfterConfirmedWSS(t *testing.T) {
+	cfg, rc, client := relaySelectionTestController(t, protocol.FRPTransportQUIC)
+	checkedAt := rc.clock()
+	client.apply = func(_ context.Context, _ protocol.Scope, desired protocol.FRPTransport, _ func() error) error {
+		client.selection.LastAttempt = &relay.TransportAttempt{NodeID: "node-a", Protocol: desired, Stage: "probe",
+			Error: string(protocol.Expired), DurationMs: 12000, CompletedAt: checkedAt}
+		return protocol.Error{Code: protocol.Expired}
+	}
+	status, err := rc.SelectTransport(t.Context(), protocol.FRPTransportWSS)
+	if !errors.Is(err, protocol.Error{Code: protocol.Expired}) || inspectRelayPreference(t, cfg) != protocol.FRPTransportQUIC {
+		t.Fatalf("failed probe changed saved preference: status=%+v err=%v", status, err)
+	}
+	selection := status.TransportSelection
+	if selection == nil || selection.Active != "" || selection.Preferred != protocol.FRPTransportQUIC ||
+		selection.LastAttempt == nil || selection.LastAttempt.NodeID != "node-a" || selection.LastAttempt.Stage != "probe" ||
+		selection.LastAttempt.Protocol != protocol.FRPTransportWSS || selection.LastAttempt.Error != string(protocol.Expired) ||
+		selection.LastAttempt.DurationMS != 12000 || !selection.LastAttempt.CompletedAt.Equal(checkedAt) || status.DataCheckedAt != nil {
+		t.Fatalf("failed recovery missing attempt diagnostics: selection=%+v status=%+v", selection, status)
+	}
+
+	client.apply = func(ctx context.Context, scope protocol.Scope, desired protocol.FRPTransport, persist func() error) error {
+		if desired != protocol.FRPTransportWSS || scope != client.scope {
+			t.Fatalf("recovery received protocol=%q scope=%+v", desired, scope)
+		}
+		client.selection.Pending = desired
+		busy, err := rc.SelectTransport(ctx, protocol.FRPTransportQUIC)
+		if !errors.Is(err, protocol.Error{Code: protocol.Conflict}) || busy.TransportSelection.Pending != desired ||
+			busy.TransportSelection.Preferred != protocol.FRPTransportQUIC || busy.TransportSelection.Active != "" {
+			t.Fatalf("concurrent attempt not fenced: selection=%+v err=%v", busy.TransportSelection, err)
+		}
+		if inspectRelayPreference(t, cfg) != protocol.FRPTransportQUIC {
+			t.Fatal("unconfirmed WSS recovery overwrote the preference")
+		}
+		rc.dataTransport(ctx, 1, scope, true, "")
+		rc.dataObserved(ctx, 1, scope, relay.DataObservation{CheckedAt: checkedAt, ValidUntil: checkedAt.Add(time.Minute), Ready: true})
+		client.selection.Active = desired
+		if err := persist(); err != nil {
+			return err
+		}
+		client.selection.Pending = ""
+		client.selection.LastAttempt = &relay.TransportAttempt{NodeID: "node-a", Protocol: desired, Stage: "commit", CompletedAt: checkedAt}
+		return nil
+	}
+	status, err = rc.SelectTransport(t.Context(), protocol.FRPTransportWSS)
+	selection = status.TransportSelection
+	if err != nil || inspectRelayPreference(t, cfg) != protocol.FRPTransportWSS ||
+		selection == nil || selection.Preferred != protocol.FRPTransportWSS || selection.Active != protocol.FRPTransportWSS ||
+		selection.Pending != "" || selection.Supported || selection.LastAttempt == nil || selection.LastAttempt.Stage != "commit" ||
+		!status.DataReady || status.DataReachability != "reachable" || status.DataCheckedAt == nil || !status.DataCheckedAt.Equal(checkedAt) {
+		t.Fatalf("verified local recovery not published: selection=%+v status=%+v err=%v", selection, status, err)
+	}
+}
+
+func TestRelayTransportCommitCannotPersistInAnotherScope(t *testing.T) {
+	for _, updateController := range []bool{false, true} {
+		name := "connector superseded before callback"
+		if updateController {
+			name = "controller already on next connector scope"
+		}
+		t.Run(name, func(t *testing.T) {
+			cfg, rc, client := relaySelectionTestController(t, protocol.FRPTransportWSS)
+			client.apply = func(ctx context.Context, _ protocol.Scope, _ protocol.FRPTransport, persist func() error) error {
+				client.scope.ConnectorGeneration++
+				if updateController {
+					rc.connected(ctx, 1, client.scope)
+				}
+				return persist()
+			}
+			_, err := rc.SelectTransport(t.Context(), protocol.FRPTransportQUIC)
+			if !errors.Is(err, protocol.Error{Code: protocol.StaleGeneration}) || inspectRelayPreference(t, cfg) != protocol.FRPTransportWSS {
+				t.Fatalf("stale commit overwrote preference: %v", err)
+			}
+		})
+	}
+}
+
+func TestRelayTransportFailedPreferenceWriteKeepsPreviousPreference(t *testing.T) {
+	cfg, rc, client := relaySelectionTestController(t, protocol.FRPTransportWSS)
+	client.selection.Supported = true
+	moved := filepath.Join(t.TempDir(), "preserved")
+	client.apply = func(_ context.Context, _ protocol.Scope, desired protocol.FRPTransport, persist func() error) error {
+		if err := os.Rename(cfg.StateDir, moved); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(cfg.StateDir, []byte("blocked"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		client.selection.Active = desired // The node already committed.
+		return persist()
+	}
+	status, err := rc.SelectTransport(t.Context(), protocol.FRPTransportQUIC)
+	selection := status.TransportSelection
+	cfg.StateDir = moved
+	if !errors.Is(err, relaysetting.ErrUnavailable) || status.StorageAvailable ||
+		selection.Preferred != protocol.FRPTransportWSS || selection.Active != protocol.FRPTransportQUIC ||
+		inspectRelayPreference(t, cfg) != protocol.FRPTransportWSS {
+		t.Fatalf("failed preference write misreported: selection=%+v err=%v", selection, err)
+	}
+}
+
+func TestRelayDisableDoesNotWaitForTransportTrial(t *testing.T) {
+	cfg, rc, client := relaySelectionTestController(t, protocol.FRPTransportWSS)
+	client.selection.Supported = true
+	client.selection.Active = protocol.FRPTransportWSS
+	connection, stop := context.WithCancel(t.Context())
+	defer stop()
+	rc.cancel = stop
+	rc.dataTransport(connection, 1, client.scope, true, "")
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	started := make(chan struct{})
+	reply := make(chan struct{})
+	client.apply = func(ctx context.Context, _ protocol.Scope, _ protocol.FRPTransport, persist func() error) error {
+		close(started)
+		select {
+		case <-reply:
+			// Model a successful response arriving late, after disable.
+			return persist()
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	trial := make(chan error, 1)
+	go func() {
+		_, err := rc.SelectTransport(ctx, protocol.FRPTransportQUIC)
+		trial <- err
+	}()
+	select {
+	case <-started:
+	case <-ctx.Done():
+		t.Fatal("transport trial did not start")
+	}
+
+	disabled := make(chan error, 1)
+	go func() {
+		off := false
+		_, err := rc.Update(ctx, contract.RelayUpdate{Enabled: &off})
+		disabled <- err
+	}()
+	select {
+	case err := <-disabled:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal("disable waited for the outstanding transport trial")
+	}
+	if connection.Err() == nil {
+		t.Fatal("disable did not cancel the connector")
+	}
+	close(reply)
+	select {
+	case err := <-trial:
+		if !errors.Is(err, protocol.Error{Code: protocol.StaleGeneration}) {
+			t.Fatalf("late commit error = %v, want stale generation", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("late commit did not finish")
+	}
+	status := rc.Status()
+	if status.Enabled || status.ControlReady || status.PublicURL != "" || status.TransportSelection.Active != "" ||
+		status.TransportSelection.Preferred != protocol.FRPTransportWSS {
+		t.Fatalf("late commit changed disabled state: status=%+v selection=%+v", status, status.TransportSelection)
+	}
+	stored, _, err := relaysetting.Inspect(cfg.StateDir, cfg.Relay)
+	if err != nil || stored.Config.Enabled || stored.DataProtocol() != protocol.FRPTransportWSS {
+		t.Fatalf("late commit changed durable disable or preference: enabled=%v preference=%q err=%v", stored.Config.Enabled, stored.DataProtocol(), err)
 	}
 }

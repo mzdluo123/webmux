@@ -44,10 +44,14 @@ func (rc *relayController) dataTransport(ctx context.Context, gen uint64, scope 
 func (rc *relayController) dataObserved(ctx context.Context, gen uint64, scope protocol.Scope, observation relay.DataObservation) {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
-	if !rc.liveDataScope(ctx, gen, scope) || rc.status.PublicURL == "" {
+	if !rc.liveDataScope(ctx, gen, scope) {
 		return
 	}
-	if observation.CheckedAt.IsZero() {
+	if observation.RouteChanged {
+		rc.observation = relay.DataObservation{}
+	} else if rc.status.PublicURL == "" {
+		return
+	} else if observation.CheckedAt.IsZero() {
 		rc.observation.ValidUntil = time.Time{}
 	} else if observation.CheckedAt.After(rc.observation.CheckedAt) {
 		rc.observation = observation

@@ -42,7 +42,11 @@ func PrintStatus(w io.Writer, s contract.StatusV1) {
 			line("Access:   %s (%s)", access.URL, access.Label)
 		}
 		if r := s.Relay; r != nil && (r.Enabled || r.Paired) {
-			line("Relay:    %s (baseline=%s, controlReady=%t, dataReady=%t)", r.State, r.Transport, r.ControlReady, r.DataReady)
+			baseline := r.Transport
+			if selection := r.TransportSelection; selection != nil {
+				baseline = valueOr(string(selection.Active), "none")
+			}
+			line("Relay:    %s (baseline=%s, controlReady=%t, dataReady=%t)", r.State, baseline, r.ControlReady, r.DataReady)
 			if reason := valueOr(r.Error, r.ReconnectReason); reason != "" {
 				line("Relay reason: %s", reason)
 			}

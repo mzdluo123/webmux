@@ -211,7 +211,10 @@ func TestServerLocalAPIStatusAndStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	if relay := status.Relay; relay == nil || relay.Transport != "wss" || relay.State != "off" ||
-		relay.ControlReady || relay.DataReady || relay.PublicURL != "" || !reflect.DeepEqual(relay, localStatus.Relay) {
+		relay.ControlReady || relay.DataReady || relay.PublicURL != "" || relay.TransportSelection == nil ||
+		relay.TransportSelection.Preferred != "wss" || relay.TransportSelection.Supported ||
+		relay.TransportSelection.Active != "" || relay.TransportSelection.Pending != "" ||
+		relay.TransportSelection.LastAttempt != nil || !reflect.DeepEqual(relay, localStatus.Relay) {
 		t.Fatalf("Relay v1 status differs between CLI and local API: CLI=%+v, API=%+v", relay, localStatus.Relay)
 	}
 	var fields struct{ Relay map[string]json.RawMessage }

@@ -21,14 +21,9 @@ import (
 	"github.com/rainchan/webmux/internal/frphelper"
 )
 
-const frpcConfig = `serverAddr = "127.0.0.1"
-serverPort = %d
-loginFailExit = true
+const frpcCommon = `loginFailExit = true
 log.to = "console"
 log.level = "info"
-transport.protocol = "websocket"
-transport.tls.enable = false
-transport.tcpMux = false
 transport.poolCount = 0
 transport.heartbeatInterval = 10
 transport.heartbeatTimeout = 30
@@ -77,9 +72,11 @@ func (s *connection) startFRP(ctx context.Context, dir, executable string, key *
 	}
 	r.originUntil = expires
 	r.access.grant.Store(time.Unix(grant.ExpiresAt, 0).UnixNano())
-	r.bridgeLn, err = listenFRP(frpBridgeSockets)
-	if err != nil {
-		return nil, protocol.Error{Code: protocol.Unavailable}
+	if grant.Protocol() == protocol.FRPTransportWSS {
+		r.bridgeLn, err = listenFRP(frpBridgeSockets)
+		if err != nil {
+			return nil, protocol.Error{Code: protocol.Unavailable}
+		}
 	}
 	r.originLn, err = listenFRP(frpBridgeSockets)
 	if err != nil {
@@ -91,24 +88,34 @@ func (s *connection) startFRP(ctx context.Context, dir, executable string, key *
 	}
 	r.tokenFile = token
 	configPath := filepath.Join(dir, "frpc.toml")
-	bridgePort := r.bridgeLn.Addr().(*net.TCPAddr).Port
+	var route string
+	if r.bridgeLn != nil {
+		route = fmt.Sprintf("serverAddr = \"127.0.0.1\"\nserverPort = %d\ntransport.protocol = \"websocket\"\ntransport.tls.enable = false\ntransport.tcpMux = false\n", r.bridgeLn.Addr().(*net.TCPAddr).Port)
+	} else {
+		route, err = quicClientRoute(dir, grant.Transport)
+		if err != nil {
+			return nil, err
+		}
+	}
 	originPort := r.originLn.Addr().(*net.TCPAddr).Port
-	cfg := fmt.Sprintf(frpcConfig, bridgePort, token, grant.ProxyName, originPort, grant.RemotePort)
+	cfg := route + fmt.Sprintf(frpcCommon, token, grant.ProxyName, originPort, grant.RemotePort)
 	if err := os.WriteFile(configPath, []byte(cfg), 0600); err != nil {
 		return nil, protocol.Error{Code: protocol.InvalidConfig}
 	}
-	r.bridge = newFRPBridge(s.client, &s.assignment.Trust, grant, r.access, r.bridgeLn.Addr().String())
 	server := func(handler http.Handler) *http.Server {
 		return &http.Server{Handler: handler, BaseContext: func(net.Listener) context.Context { return ctx },
 			ReadHeaderTimeout: protocol.AuthTimeout, IdleTimeout: protocol.ControlLease, MaxHeaderBytes: 32 << 10,
 			ErrorLog: log.New(io.Discard, "", 0)}
 	}
-	r.bridgeHTTP = server(r.bridgeLn.track(r.bridge))
+	if r.bridgeLn != nil {
+		r.bridge = newFRPBridge(s.client, &s.assignment.Trust, grant, r.access, r.bridgeLn.Addr().String())
+		r.bridgeHTTP = server(r.bridgeLn.track(r.bridge))
+		go func() { _ = r.bridgeHTTP.Serve(r.bridgeLn) }()
+	}
 	r.originHTTP = server(originHandler(s.assignment.Binding.PublicURL, s.callbacks.Origin, r.access, expires))
 	r.originHTTP.ConnContext = originConnContext
 	r.originHTTP.TLSConfig = secure
 	r.originHTTP.SetKeepAlivesEnabled(false)
-	go func() { _ = r.bridgeHTTP.Serve(r.bridgeLn) }()
 	go func() { _ = r.originHTTP.Serve(tls.NewListener(r.originLn, secure)) }()
 
 	if err := frphelper.Verify(executable); err != nil {
@@ -117,9 +124,10 @@ func (s *connection) startFRP(ctx context.Context, dir, executable string, key *
 	if !r.access.active(time.Now()) {
 		return nil, protocol.Error{Code: protocol.Expired}
 	}
-	// Register Host and Origin before the child can receive any gateway work.
-	// The gateway still gates public traffic on its own authenticated probe.
-	s.publishTransport(true, "")
+	// Candidate origins remain private until the node commits the route.
+	if grant.Transport == nil {
+		s.publishTransport(true, "")
+	}
 	cmd := exec.CommandContext(ctx, executable, "-c", configPath)
 	cmd.Dir = dir
 	cmd.Env = []string{}
@@ -179,6 +187,21 @@ func (r *frpRuntime) close() {
 			slog.Warn("relay could not remove the retired frpc token file")
 		}
 	}
+}
+
+// The child's actual QUIC handshake trusts only the non-CA leaf pinned by
+// this authenticated grant. It cannot use the OS roots or a redirect.
+func quicClientRoute(dir string, transport *protocol.TransportGrant) (string, error) {
+	if transport == nil || transport.Protocol != protocol.FRPTransportQUIC || transport.Validate() != nil {
+		return "", protocol.Error{Code: protocol.InvalidConfig}
+	}
+	ep := transport.Endpoint
+	host, port, _ := net.SplitHostPort(ep.Address)
+	leaf := filepath.Join(dir, "quic-node.pem")
+	if err := os.WriteFile(leaf, []byte(ep.CertificatePEM), 0600); err != nil {
+		return "", protocol.Error{Code: protocol.InvalidConfig}
+	}
+	return fmt.Sprintf("serverAddr = %q\nserverPort = %s\ntransport.protocol = \"quic\"\ntransport.tls.enable = true\ntransport.tls.serverName = %q\ntransport.tls.trustedCaFile = %q\ntransport.tls.useSystemCa = false\n", host, port, ep.ServerName, leaf), nil
 }
 
 func replaceFRPToken(path, token string) (err error) {

@@ -344,3 +344,18 @@
 - `pnpm --dir web check`、测试和 Storybook 的 `svelte-check`、`pnpm --dir web lint`、`pnpm --dir web check:arch` 的 49 项及 `make docs-check` 通过。
 - 隔离生产构建用 Chromium 核对 1280×900、768×800、667×375、390×844、375×667 与 320×568 的明暗主题。页面无横向溢出；菜单留在视口内，Esc 后焦点回到按钮；手机六枚顶栏按钮均为 44×44px。
 - 录制 390×844 深色视口的混合会话视图切换、快捷指令、收起和恢复；未在 iOS 或 Android 真机验证。
+
+## 2026-11-25：侧栏会话失败状态灯（US-C06）
+
+- `pnpm --dir web test:browser test/browser/AppShell.test.ts -t 'sidebar updates the failure light'` 在 Chromium 通过。覆盖实时失败、关注解除、非零退出和分支等待计数。
+- 使用浏览器夹具和同一组演示会话对比修复前后：在 1280×900、768×800、390×844、375×667 与 320×568 检查明暗主题、长标题和侧栏边界。未在手机或平板真机验证。
+- `pnpm --dir web check`、`pnpm --dir web check:test`、`pnpm --dir web lint`、`pnpm --dir web check:arch` 均通过。
+
+## 2026-11-26：浏览器端会话切换 LRU 缓存与后台分级刷新（US-D03）
+
+- 范围：更新 `US-D03` 验收要点（故事编号与总数不变），实现浏览器端最近使用会话页缓存池（桌面 5 / 移动 3）、Active / Warm / Cool 三态后台刷新、WebGL 后台宽限期释放与按需恢复、WebSocket `suspend`/`resume` 增量续接及前后台副作用隔离。
+- 已执行验证：
+  - `make format`、`make check`（含 `svelte-check`、`vp build`、`make docs-check`、`make persistence-check`、`pnpm --dir web check:arch` 49 项、`go vet` 与 `golangci-lint`）全部通过。
+  - `pnpm --dir web exec vp test run --config vitest.config.ts` 全量 97 个单元测试文件（1335 项测试，含新增 `session-cache.test.ts` 与 `ws-suspend.test.ts`）全部通过。
+  - `pnpm --dir web exec playwright test test/e2e/session-switch-cache.spec.ts test/e2e/browser-chrome.spec.ts test/e2e/continuity.spec.ts test/e2e/app-shell.spec.ts` 32 项通过（0 失败）。
+- 局限：未在 iOS / Android 真机上实测低内存 WebGL 上下文回收行为。

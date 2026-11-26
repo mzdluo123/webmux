@@ -4,6 +4,7 @@ import type {
   SubmissionProgress,
 } from "../../contracts/schemas";
 import type { Connection } from "../../platform/ws-contracts";
+import type { SessionCacheTier } from "../sessions/session-cache";
 import type { Modifiers } from "./terminal-keys";
 import type { Terminal } from "@xterm/xterm";
 import type { SearchAddon } from "@xterm/addon-search";
@@ -182,6 +183,8 @@ export interface TerminalController {
   resync(): void;
   // Reattaches after the session moved back to its terminal side.
   reconnect(): void;
+  // Applies foreground/warm/cool lifecycle state for cached session pages.
+  setCacheTier(tier: SessionCacheTier): void;
   fit(): void;
   scrollToBottom(): void;
   focus(): void;
