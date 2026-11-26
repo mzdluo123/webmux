@@ -131,13 +131,14 @@ func (s *Service) CreateWorktree(ctx context.Context, repositoryID string, req C
 		}
 	}
 	_, operationErr := s.git(ctx, r.entry.AnchorPath, argv...)
+	r.markSnapshotDirty()
 	// Cancellation is not evidence that Git made no changes. A fresh bounded
 	// read uses its own context; no rollback deletes branches or directories.
 	refreshCtx, refreshCancel := context.WithTimeout(context.Background(), readTimeout)
 	defer refreshCancel()
-	actual := s.readRepository(refreshCtx, r)
+	actual, readErr := s.currentWorktrees(refreshCtx, r)
 	if operationErr != nil {
-		if advanced && actual.Availability == "available" {
+		if advanced && readErr == nil {
 			found := false
 			for _, tree := range actual.Worktrees {
 				if tree.Path == path {
@@ -157,11 +158,14 @@ func (s *Service) CreateWorktree(ctx context.Context, repositoryID string, req C
 		}
 		return Worktree{}, problemf(category, "%v；请刷新实际工作树/分支，可能存在残留", operationErr)
 	}
-	if actual.Availability != "available" {
-		return Worktree{}, problemf(ErrConflict, "Git 创建已完成但刷新失败: %s", actual.Error)
+	if readErr != nil {
+		return Worktree{}, problemf(ErrConflict, "Git 创建已完成但刷新失败: %v", readErr)
 	}
-	for _, tree := range actual.Worktrees {
-		if tree.Path == path {
+	for i := range actual.Worktrees {
+		if actual.Worktrees[i].Path == path {
+			s.populateWorktreeStatus(refreshCtx, r.entry.CommonDir, &actual.Worktrees[i])
+			s.fillLastCommits(refreshCtx, r.entry.AnchorPath, actual.Worktrees[i:i+1])
+			tree := actual.Worktrees[i]
 			s.recordManagedWorktree(r, actual, tree.ID)
 			s.captureWorktreeCreateBaseline(refreshCtx, r, repositoryID, tree)
 			s.notifyWorkspaces()
