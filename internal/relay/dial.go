@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/websocket"
 	protocol "github.com/mzdluo123/webmux/protocol/relay"
+	"github.com/rainchan/webmux/internal/frphelper"
 	"github.com/xtaci/smux"
 )
 
@@ -19,7 +20,14 @@ func (c *Client) dial(ctx context.Context, key ed25519.PrivateKey, a protocol.As
 	defer cancel()
 	httpClient := c.httpClient(&a.Trust)
 	defer httpClient.CloseIdleConnections()
-	ws, response, err := websocket.Dial(authCtx, a.ConnectorURL, &websocket.DialOptions{HTTPClient: httpClient, Subprotocols: []string{protocol.ConnectorSubprotocol}, CompressionMode: websocket.CompressionDisabled})
+	var headers http.Header
+	if frphelper.Available() == nil {
+		headers = http.Header{protocol.TransportHeader: []string{protocol.TransportSelectionV1}}
+	}
+	ws, response, err := websocket.Dial(authCtx, a.ConnectorURL, &websocket.DialOptions{
+		HTTPClient: httpClient, Subprotocols: []string{protocol.ConnectorSubprotocol}, CompressionMode: websocket.CompressionDisabled,
+		HTTPHeader: headers,
+	})
 	if err != nil {
 		if response != nil && response.StatusCode >= 300 && response.StatusCode < 400 {
 			return nil, protocol.Error{Code: protocol.Forbidden}
@@ -76,7 +84,9 @@ func (c *Client) dial(ctx context.Context, key ed25519.PrivateKey, a protocol.As
 	if err != nil {
 		return nil, protocol.Error{Code: protocol.InvalidConfig}
 	}
-	return &physical{ws: ws, mux: mux, scope: scope}, nil
+	offer := response.Header.Values(protocol.TransportHeader)
+	selection := headers != nil && len(offer) == 1 && offer[0] == protocol.TransportSelectionV1
+	return &physical{ws: ws, mux: mux, scope: scope, selection: selection}, nil
 }
 
 func checkChallenge(challenge protocol.ConnectorChallenge, a protocol.Assignment, now time.Time) error {

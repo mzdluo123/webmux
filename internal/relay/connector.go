@@ -33,6 +33,7 @@ type physical struct {
 	ws        *websocket.Conn
 	mux       *smux.Session
 	scope     protocol.Scope
+	selection bool
 	closeOnce sync.Once
 }
 
@@ -58,6 +59,8 @@ type connection struct {
 	dataCancel context.CancelFunc
 	dataDone   chan struct{}
 	status     chan timedFRPStatus
+	dataCtx    context.Context
+	transport  chan *transportOperation
 
 	eventMu      sync.Mutex
 	stopped      bool
@@ -102,7 +105,8 @@ func (c *Client) Connect(ctx context.Context, key ed25519.PrivateKey, a protocol
 	}
 	dataCtx, stopData := context.WithCancel(ctx)
 	s := &connection{client: c, assignment: a, callbacks: callbacks, ctx: ctx, cancel: cancel, control: p, scope: p.scope,
-		ready: make(chan struct{}), shutdownDone: make(chan struct{}), dataCancel: stopData, dataDone: make(chan struct{}), status: make(chan timedFRPStatus, 16)}
+		ready: make(chan struct{}), shutdownDone: make(chan struct{}), dataCtx: dataCtx, dataCancel: stopData, dataDone: make(chan struct{}), status: make(chan timedFRPStatus, 16),
+		transport: make(chan *transportOperation)}
 	go func() {
 		defer close(s.dataDone)
 		select {
@@ -166,6 +170,8 @@ func (s *connection) publishReady(rpc *controlRPC) bool {
 	s.mu.Unlock()
 	s.client.mu.Lock()
 	s.client.active = s
+	s.client.selection.Active = ""
+	s.client.selection.Supported = s.control.selection
 	s.client.mu.Unlock()
 	s.callbacks.Ready(s.scope)
 	close(s.ready)
@@ -229,6 +235,8 @@ func (s *connection) stop(err error) {
 	s.client.mu.Lock()
 	if s.client.active == s {
 		s.client.active = nil
+		s.client.selection.Active = ""
+		s.client.selection.Supported = false
 	}
 	s.client.mu.Unlock()
 	s.cancel()

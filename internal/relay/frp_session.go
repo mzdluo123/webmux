@@ -2,6 +2,7 @@ package relay
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"encoding/base64"
 	"errors"
 	"log/slog"
@@ -24,11 +25,13 @@ type timedFRPStatus struct {
 }
 
 // DataObservation reports a node probe for the current grant. A zero value
-// invalidates the result without replacing the last sampled time.
+// invalidates freshness without replacing the last sampled time. RouteChanged
+// also drops the sample from the retired registration.
 type DataObservation struct {
-	CheckedAt  time.Time
-	ValidUntil time.Time
-	Ready      bool
+	CheckedAt    time.Time
+	ValidUntil   time.Time
+	Ready        bool
+	RouteChanged bool
 }
 
 func (st timedFRPStatus) observation(now time.Time, grant *protocol.AllocationGrant) (DataObservation, bool) {
@@ -45,16 +48,28 @@ func (st timedFRPStatus) observation(now time.Time, grant *protocol.AllocationGr
 }
 
 type frpGrantResult struct {
-	grant *protocol.AllocationGrant
-	err   error
+	grant     *protocol.AllocationGrant
+	requested *protocol.AllocationGrant
+	err       error
 }
 
 func (s *connection) requestFRP(ctx context.Context, csr string, current *protocol.AllocationGrant) <-chan frpGrantResult {
 	result := make(chan frpGrantResult, 1)
 	go func() {
+		if current != nil && current.Transport != nil {
+			r := protocol.TransportRequest{Action: protocol.TransportRenew, OperationID: current.Transport.OperationID, RouteVersion: current.Transport.RouteVersion,
+				AllocationRenew: &protocol.AllocationRenew{AllocationID: current.AllocationID, GrantRevision: current.GrantRevision}}
+			reply, err := s.callTransport(ctx, r)
+			if err == nil && (reply.State != protocol.TransportCommitted || reply.Active != current.Protocol() ||
+				reply.ActiveAllocationID != current.AllocationID || reply.Grant == nil) {
+				err = protocol.Error{Code: protocol.StaleGeneration}
+			}
+			result <- frpGrantResult{grant: reply.Grant, requested: current, err: err}
+			return
+		}
 		id, err := newToken()
 		if err != nil {
-			result <- frpGrantResult{err: err}
+			result <- frpGrantResult{requested: current, err: err}
 			return
 		}
 		message := s.rpc.message(protocol.ControlFRPAllocate, id)
@@ -65,19 +80,25 @@ func (s *connection) requestFRP(ctx context.Context, csr string, current *protoc
 			message.AllocationRenew = &protocol.AllocationRenew{AllocationID: current.AllocationID, GrantRevision: current.GrantRevision}
 		}
 		reply, err := s.rpc.call(ctx, message, protocol.ControlFRPGrant, nil)
-		result <- frpGrantResult{grant: reply.AllocationGrant, err: err}
+		result <- frpGrantResult{grant: reply.AllocationGrant, requested: current, err: err}
 	}()
 	return result
 }
 
 func (s *connection) validateFRPGrant(g, current *protocol.AllocationGrant) error {
-	connector, _ := url.Parse(s.assignment.ConnectorURL)
-	endpoint, err := url.Parse(g.TransportURL)
-	if err != nil || endpoint.Hostname() != connector.Hostname() || g.RemotePort < protocol.FRPPortMin || g.RemotePort > protocol.FRPPortMax {
-		return protocol.Error{Code: protocol.WrongAudience}
-	}
-	if g.NodeOrigin != nil || g.ExpiresAt-g.IssuedAt > 120 || g.ExpiresAt-g.NotBefore > 125 {
+	if g == nil || g.NodeOrigin != nil || g.ExpiresAt-g.IssuedAt > 120 || g.ExpiresAt-g.NotBefore > 125 ||
+		g.RemotePort < protocol.FRPPortMin || g.RemotePort > protocol.FRPPortMax {
 		return protocol.Error{Code: protocol.Invalid}
+	}
+	if g.Protocol() == protocol.FRPTransportWSS {
+		connector, _ := url.Parse(s.assignment.ConnectorURL)
+		endpoint, err := url.Parse(g.TransportURL)
+		if err != nil || endpoint.Hostname() != connector.Hostname() {
+			return protocol.Error{Code: protocol.WrongAudience}
+		}
+	} else if s.control == nil || !s.control.selection || g.Protocol() != protocol.FRPTransportQUIC || g.Transport.Validate() != nil ||
+		g.TransportURL != "" || g.BridgeKey != "" {
+		return protocol.Error{Code: protocol.Forbidden}
 	}
 	// The management channel authenticates this grant. Check that the opaque
 	// credential actually describes the same binding; stock frps and node
@@ -87,9 +108,13 @@ func (s *connection) validateFRPGrant(g, current *protocol.AllocationGrant) erro
 	raw, err := base64.RawURLEncoding.Strict().DecodeString(body)
 	var claims protocol.FRPClaims
 	if err != nil || protocol.Decode(raw, &claims, protocol.MaxControlBytes) != nil || claims.ID.Validate() != nil || claims.Issuer == "" ||
-		claims != (protocol.FRPClaims{Issuer: claims.Issuer, Audience: protocol.FRPAudience(s.assignment.NodeID), Subject: string(g.AllocationID), ID: claims.ID,
-			IssuedAt: g.IssuedAt, NotBefore: g.NotBefore, ExpiresAt: g.ExpiresAt, Scope: s.scope, NodeID: s.assignment.NodeID,
-			AllocationID: g.AllocationID, GrantRevision: g.GrantRevision, Role: protocol.FRPRole, ProxyName: g.ProxyName, RemotePort: g.RemotePort}) {
+		!g.Transport.Equal(claims.Transport) {
+		return protocol.Error{Code: protocol.Forbidden}
+	}
+	claims.Transport = nil
+	if claims != (protocol.FRPClaims{Issuer: claims.Issuer, Audience: protocol.FRPAudience(s.assignment.NodeID), Subject: string(g.AllocationID), ID: claims.ID,
+		IssuedAt: g.IssuedAt, NotBefore: g.NotBefore, ExpiresAt: g.ExpiresAt, Scope: s.scope, NodeID: s.assignment.NodeID,
+		AllocationID: g.AllocationID, GrantRevision: g.GrantRevision, Role: protocol.FRPRole, ProxyName: g.ProxyName, RemotePort: g.RemotePort}) {
 		return protocol.Error{Code: protocol.Forbidden}
 	}
 	if current == nil {
@@ -97,7 +122,7 @@ func (s *connection) validateFRPGrant(g, current *protocol.AllocationGrant) erro
 	}
 	if g.AllocationID != current.AllocationID || g.GrantRevision != current.GrantRevision+1 ||
 		g.ProxyName != current.ProxyName || g.RemotePort != current.RemotePort || g.TransportURL != current.TransportURL ||
-		g.BridgeKey != current.BridgeKey || g.Origin != current.Origin || g.JWT == current.JWT {
+		g.BridgeKey != current.BridgeKey || g.Origin != current.Origin || g.JWT == current.JWT || !g.Transport.Equal(current.Transport) {
 		return protocol.Error{Code: protocol.StaleGeneration}
 	}
 	return nil
@@ -112,38 +137,49 @@ func (s *connection) runFRP(ctx context.Context) {
 	if ctx.Err() != nil {
 		return
 	}
+	boot := s.beginSavedTransport()
+	failInit := func(code protocol.Code) {
+		s.publishTransport(false, code)
+		if boot != nil {
+			s.finishTransportAttempt(boot, selectionOutcome{stage: "prepare", err: protocol.Error{Code: code}})
+		}
+	}
 	if err := frphelper.Available(); err != nil {
-		s.publishTransport(false, protocol.InvalidConfig)
+		failInit(protocol.InvalidConfig)
 		return
 	}
 	dir, err := os.MkdirTemp("", "webmux-frpc-")
 	if err != nil {
-		s.publishTransport(false, protocol.InvalidConfig)
+		failInit(protocol.InvalidConfig)
 		return
 	}
-	defer func(owned string) {
-		if err := os.RemoveAll(owned); err != nil {
-			slog.Warn("relay could not remove the private frpc runtime directory")
-		}
-	}(dir)
+	defer removeRegistrationDir(dir)
 	dir, err = filepath.Abs(dir)
 	if err != nil {
-		s.publishTransport(false, protocol.InvalidConfig)
+		failInit(protocol.InvalidConfig)
 		return
 	}
 	executable, err := frphelper.Materialize(dir)
 	if err != nil {
-		s.publishTransport(false, protocol.InvalidConfig)
+		failInit(protocol.InvalidConfig)
 		return
 	}
 	key, csr, err := newOriginCSR()
 	if err != nil {
-		s.publishTransport(false, protocol.Unavailable)
+		failInit(protocol.Unavailable)
 		return
 	}
+	ctx, cancel := context.WithCancel(ctx)
 	var (
 		current        *protocol.AllocationGrant
-		data           *frpRuntime
+		data, retiring *frpRegistration
+		candidate      <-chan candidateResult
+		operation      = boot
+		waitProbe      bool
+		recovery       bool // Explicit recovery on an old node, with no old route.
+		legacy         = s.client.TransportSelection().Preferred == protocol.FRPTransportWSS
+		verifiedUntil  time.Time
+		retireAt       time.Time
 		pending        <-chan frpGrantResult
 		lost, exited   <-chan struct{}
 		badTLS         <-chan struct{}
@@ -154,8 +190,25 @@ func (s *connection) runFRP(ctx context.Context) {
 		failures       int
 		rpcFailures    int
 	)
+	finish := func(outcome selectionOutcome) {
+		s.finishTransportAttempt(operation, outcome)
+		operation, waitProbe = nil, false
+	}
+	setRuntime := func(next *frpRegistration) {
+		data, lost, exited, badTLS = next, nil, nil, nil
+		runningSince = time.Time{}
+		if data != nil {
+			exited = data.exited
+			if data.bridge != nil {
+				lost, badTLS = data.bridge.lost, data.bridge.badTLS
+			}
+			runningSince = time.Now()
+			reportedReason = ""
+		}
+	}
 	reportFailure := func(reason protocol.Code) {
 		reportedReason = reason
+		s.setActiveTransport("")
 		s.publishTransport(false, reason)
 	}
 	stop := func(reason protocol.Code) {
@@ -166,13 +219,29 @@ func (s *connection) runFRP(ctx context.Context) {
 		if data != nil {
 			data.close()
 		}
-		data, lost, exited, badTLS = nil, nil, nil, nil
-		runningSince = time.Time{}
+		setRuntime(nil)
+		verifiedUntil = time.Time{}
 	}
 	defer func() {
-		stop(protocol.Unavailable)
+		cancel()
+		s.setActiveTransport("")
+		if data != nil {
+			data.close()
+		}
+		if retiring != nil {
+			retiring.close()
+		}
+		if candidate != nil {
+			result := <-candidate
+			if result.data != nil {
+				result.data.close()
+			}
+		}
+		if operation != nil {
+			finish(unavailableSelection())
+		}
 		if pending != nil {
-			<-pending // The only in-flight request observes ctx cancellation.
+			<-pending
 		}
 	}()
 	applyStatus := func(st timedFRPStatus) {
@@ -182,10 +251,17 @@ func (s *connection) runFRP(ctx context.Context) {
 		}
 		if observation, ok := st.observation(now, current); ok {
 			s.publishObservation(observation)
+			if observation.Ready && observation.ValidUntil.After(now) {
+				verifiedUntil = observation.ValidUntil
+				s.setActiveTransport(current.Protocol())
+			} else {
+				verifiedUntil = time.Time{}
+				s.setActiveTransport("")
+			}
 		}
 	}
 	restart := func(reason protocol.Code) {
-		if data != nil && data.bridge.login.Load() && time.Since(runningSince) >= protocol.ControlLease {
+		if data != nil && (!verifiedUntil.IsZero() || data.bridge != nil && data.bridge.login.Load()) && time.Since(runningSince) >= protocol.ControlLease {
 			failures = 0
 		}
 		stop(reason)
@@ -207,21 +283,75 @@ func (s *connection) runFRP(ctx context.Context) {
 				stop(protocol.Unavailable)
 			}
 		}
-		if pending == nil && !now.Before(nextRequest) {
-			pending = s.requestFRP(ctx, csr, current)
-			// A status may overtake delivery of the correlated grant result to
-			// this worker. Keep one candidate while the request is pending.
-			latestStatus = timedFRPStatus{}
+		if retiring != nil && !now.Before(retireAt) {
+			retiring.close()
+			retiring = nil
+		}
+		if !verifiedUntil.IsZero() && !now.Before(verifiedUntil) {
+			verifiedUntil = time.Time{}
+			s.setActiveTransport("")
+		}
+		if operation != nil && candidate == nil && pending == nil && !waitProbe {
+			switch {
+			case operation.ctx.Err() != nil:
+				finish(selectionOutcome{stage: "prepare", err: operation.ctx.Err()})
+			case current != nil && current.Protocol() == operation.desired:
+				waitProbe = true
+			case retiring != nil:
+				finish(selectionOutcome{stage: "prepare", err: protocol.Error{Code: protocol.Conflict}})
+			case s.control.selection:
+				candidate = s.startTransportCandidate(ctx, operation, dir, executable, current)
+			case operation.desired == protocol.FRPTransportWSS:
+				recovery = !legacy && current == nil
+				legacy, waitProbe = true, true
+				nextRequest = now
+			default:
+				reportFailure(protocol.Incompatible)
+				finish(selectionOutcome{stage: "prepare", err: protocol.Error{Code: protocol.Incompatible}})
+			}
 		}
 		var wake time.Time
-		if pending == nil {
-			wake = nextRequest
+		var cancelProbe <-chan struct{}
+		if waitProbe {
+			deadline := operation.started.Add(protocol.TransportCandidateTTL)
+			switch {
+			case operation.ctx.Err() != nil || !now.Before(deadline):
+				probeErr := operation.ctx.Err()
+				if probeErr == nil {
+					probeErr = protocol.Error{Code: protocol.Expired}
+				}
+				finish(selectionOutcome{stage: "probe", err: probeErr})
+				if recovery {
+					// A legacy node can revoke this unconfirmed route by
+					// fencing its management generation.
+					go s.stop(protocol.Error{Code: protocol.Unavailable})
+					return
+				}
+			case verifiedUntil.After(now):
+				finish(selectionOutcome{stage: "commit"})
+				recovery = false
+			default:
+				cancelProbe = operation.ctx.Done()
+				wake = deadline
+			}
+		}
+		if pending == nil && (current != nil || legacy && candidate == nil) {
+			if !now.Before(nextRequest) {
+				pending = s.requestFRP(ctx, csr, current)
+				// Status can overtake the corresponding grant result.
+				latestStatus = timedFRPStatus{}
+			} else {
+				wake = earlierWake(wake, nextRequest)
+			}
 		}
 		if data != nil {
-			expires := time.Unix(current.ExpiresAt, 0)
-			if wake.IsZero() || expires.Before(wake) {
-				wake = expires
-			}
+			wake = earlierWake(wake, time.Unix(current.ExpiresAt, 0))
+		}
+		if retiring != nil {
+			wake = earlierWake(wake, retireAt)
+		}
+		if !verifiedUntil.IsZero() {
+			wake = earlierWake(wake, verifiedUntil)
 		}
 		var alarm <-chan time.Time
 		if !wake.IsZero() {
@@ -234,11 +364,14 @@ func (s *connection) runFRP(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-alarm:
+		case <-cancelProbe:
+		case request := <-s.transport:
+			operation = request
 		case <-lost:
 			restart(protocol.Unavailable)
 		case <-exited:
 			code := protocol.Unavailable
-			if reportedReason == protocol.Unauthenticated && !data.bridge.login.Load() {
+			if reportedReason == protocol.Unauthenticated && data.bridge != nil && !data.bridge.login.Load() {
 				code = protocol.Unauthenticated
 			}
 			select {
@@ -256,10 +389,46 @@ func (s *connection) runFRP(ctx context.Context) {
 			if pending != nil && (current == nil || st.AllocationID == current.AllocationID && st.GrantRevision == current.GrantRevision+1) {
 				latestStatus = st
 			}
+		case result := <-candidate:
+			candidate = nil
+			if ctx.Err() != nil {
+				if result.data != nil {
+					result.data.close()
+				}
+				return
+			}
+			if result.outcome.err != nil {
+				if data == nil {
+					reportFailure(selectionErrorCode(result.outcome.err))
+				}
+				finish(result.outcome)
+				if result.uncertain {
+					go s.stop(protocol.Error{Code: protocol.Unavailable})
+					return
+				}
+				continue
+			}
+			// Commit already changed the node's route. Admit another
+			// candidate only after retiring the old child.
+			if data != nil {
+				retiring, retireAt = data, time.Now().Add(2*time.Second)
+			}
+			current, key = result.grant, result.key
+			setRuntime(result.data)
+			verifiedUntil, legacy = time.Now().Add(frpObservationTTL), false
+			nextRequest = time.Now() // Extend the short candidate grant promptly.
+			rpcFailures, failures = 0, 0
+			s.publishObservation(DataObservation{RouteChanged: true})
+			s.setActiveTransport(current.Protocol())
+			s.publishTransport(true, "")
+			finish(result.outcome)
 		case result := <-pending:
 			pending = nil
 			if ctx.Err() != nil {
 				return
+			}
+			if result.requested != current {
+				continue // An old route's renewal raced a successful commit.
 			}
 			if result.err != nil {
 				if data == nil && reportedReason != protocol.Unauthenticated {
@@ -269,6 +438,10 @@ func (s *connection) runFRP(ctx context.Context) {
 				delay := frpBackoff(rpcFailures)
 				var remote protocol.Error
 				if errors.As(result.err, &remote) {
+					if current != nil && current.Transport != nil && remote.Code == protocol.StaleGeneration && data == nil {
+						go s.stop(protocol.Error{Code: protocol.Unavailable})
+						return
+					}
 					delay = max(delay, min(time.Duration(remote.RetryAfterSeconds)*time.Second, time.Minute))
 				}
 				nextRequest = maxTime(nextRequest, time.Now().Add(delay))
@@ -277,7 +450,6 @@ func (s *connection) runFRP(ctx context.Context) {
 			g := result.grant
 			if err := s.validateFRPGrant(g, current); err != nil {
 				stop(protocol.Unauthenticated)
-				<-ctx.Done()
 				return
 			}
 			if data != nil && !data.access.active(time.Now()) {
@@ -299,24 +471,23 @@ func (s *connection) runFRP(ctx context.Context) {
 			current = g
 			nextRequest = time.Unix(g.RenewAfter, 0)
 			if data == nil {
-				data, err = s.startFRP(ctx, dir, executable, key, *g)
+				next, err := s.startRegistration(ctx, dir, executable, key, *g)
 				if err != nil {
 					code := protocolCode(err)
 					if code == protocol.InvalidConfig || code == protocol.Unauthenticated {
 						reportFailure(code)
-						<-ctx.Done()
 						return
 					}
 					restart(code)
 					continue
 				}
-				lost, exited, badTLS = data.bridge.lost, data.exited, data.bridge.badTLS
-				reportedReason = ""
-				runningSince = time.Now()
+				setRuntime(next)
+				if g.Transport != nil {
+					s.publishTransport(true, "")
+				}
 			} else {
 				if time.Unix(g.ExpiresAt, 0).After(data.originUntil) || replaceFRPToken(data.tokenFile, g.JWT) != nil {
 					stop(protocol.InvalidConfig)
-					<-ctx.Done()
 					return
 				}
 				if !data.access.active(time.Now()) {
@@ -331,6 +502,52 @@ func (s *connection) runFRP(ctx context.Context) {
 			applyStatus(latestStatus)
 		}
 	}
+}
+
+type frpRegistration struct {
+	*frpRuntime
+	dir string
+}
+
+func (s *connection) startRegistration(ctx context.Context, dir, executable string, key *ecdsa.PrivateKey, g protocol.AllocationGrant) (*frpRegistration, error) {
+	child, err := os.MkdirTemp(dir, "registration-")
+	if err != nil {
+		return nil, protocol.Error{Code: protocol.InvalidConfig}
+	}
+	data, err := s.startFRP(ctx, child, executable, key, g)
+	if err != nil {
+		removeRegistrationDir(child)
+		return nil, err
+	}
+	return &frpRegistration{frpRuntime: data, dir: child}, nil
+}
+
+func (r *frpRegistration) close() {
+	r.frpRuntime.close()
+	removeRegistrationDir(r.dir)
+}
+
+func removeRegistrationDir(dir string) {
+	if err := os.RemoveAll(dir); err != nil {
+		slog.Warn("relay could not remove the private frpc runtime directory")
+	}
+}
+
+func earlierWake(wake, next time.Time) time.Time {
+	if wake.IsZero() || next.Before(wake) {
+		return next
+	}
+	return wake
+}
+
+func selectionErrorCode(err error) protocol.Code {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return protocol.Expired
+	}
+	if errors.Is(err, context.Canceled) {
+		return protocol.Unavailable
+	}
+	return protocolCode(err)
 }
 
 func maxTime(a, b time.Time) time.Time {
