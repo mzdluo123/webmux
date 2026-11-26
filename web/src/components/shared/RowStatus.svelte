@@ -13,6 +13,7 @@
   const tones: Record<Exclude<RowStatus, "released" | "dormant">, string> = {
     working: "bg-success",
     waiting: "bg-warning",
+    failed: "bg-destructive",
     idle: "bg-muted-foreground/70",
     ended: "border border-muted-foreground/70",
   };
