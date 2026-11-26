@@ -40,6 +40,7 @@ import type {
   TerminalDrafts,
 } from "../../domains/terminal/terminal-draft.svelte";
 import { createChatSocket } from "../chat/chat-socket.svelte";
+import type { SessionCacheTier } from "../../domains/sessions/session-cache";
 
 // A switch to the terminal stays on the progress until the new run has
 // drawn on this page, at most this long; the progress stays at least
@@ -59,6 +60,7 @@ export function useHybrid(
   manageChrome = true,
   subscribeRemoved?: (listener: (id: string) => void) => () => void,
   available: () => boolean = () => true,
+  cacheTier: () => SessionCacheTier = () => "active",
 ): HybridSession {
   const chat = createChatSocket(id, live);
   const actions = chatActions(id);
@@ -181,6 +183,10 @@ export function useHybrid(
     untrack(() => chat.open());
     return () => chat.dispose();
   });
+  $effect(() => {
+    const tier = cacheTier();
+    untrack(() => (tier === "cool" ? chat.suspend() : chat.resume()));
+  });
   // Every terminal frame is the newest description of the session.
   $effect(() => {
     const next = terminal.info;
@@ -262,7 +268,8 @@ export function useHybrid(
     untrack(read);
   });
   $effect(() => {
-    if (!manageChrome || view !== "chat" || !info) return;
+    if (!manageChrome || cacheTier() !== "active" || view !== "chat" || !info)
+      return;
     setBrowserChrome(`${info.title} · WebMux`, info.status === "running");
   });
   // Back on the terminal view, the stream that 4409 closed attaches again.
@@ -287,10 +294,6 @@ export function useHybrid(
     const controller = new AbortController();
     recordController = controller;
     const epoch = ++recordEpoch;
-    // Runtime removal can precede the archive commit. Keep the current
-    // recovery prompt mounted during the canonical read: a failed launch
-    // removes its temporary shell and the user may still need to pick an
-    // agent conversation. The result clears a 404, live session or failed read.
     lookup = "none";
     lookupSessionRecord(id, controller.signal).then(
       (result) => {
@@ -329,8 +332,7 @@ export function useHybrid(
     };
   });
 
-  // Notices that reach this device while it does not show the timeline,
-  // such as prompts returned to the device that switched.
+  // Notices reaching this device off-timeline (e.g. returned prompts).
   function live(events: ChatEvent[]) {
     if (view === "chat") return;
     for (const event of events)

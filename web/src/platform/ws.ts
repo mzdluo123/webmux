@@ -76,7 +76,9 @@ export function connect(
   const resolveTarget = () => (typeof path === "string" ? path : path());
   let targetPath = resolveTarget();
   const ownerStream = relayOwnerAuthenticated() || relayAuthStatus().relay;
-  let suspended = relayAuthStatus().relay && !relayOwnerAuthenticated();
+  let relaySuspended = relayAuthStatus().relay && !relayOwnerAuthenticated();
+  let clientSuspended = false;
+  const isSuspended = () => relaySuspended || clientSuspended;
   let inputUncertain = false;
   const inputFence = new InputHandoffFence();
   const state = (next: Connection) => {
@@ -105,7 +107,7 @@ export function connect(
   }
   const handoffController = createManagedHandoff({
     inputFence,
-    isActive: () => !disposed && !finished,
+    isActive: () => !disposed && !finished && !isSuspended(),
     resolvePath: resolveTarget,
     getSocket: () => socket,
     openCandidate: (transport, target) =>
@@ -243,7 +245,7 @@ export function connect(
       state("reconnecting");
       if (ownerStream && relayAuthStatus().relay) {
         window.dispatchEvent(new Event("webmux:relay-check"));
-        if (suspended || disposed) return;
+        if (isSuspended() || disposed) return;
       }
       const ceiling = Math.min(8000, 500 * 2 ** Math.min(attempt++, 4));
       const delay = ceiling * (0.5 + Math.random() * 0.5);
@@ -252,7 +254,7 @@ export function connect(
     next.onerror = () => next.close();
   }
   function open() {
-    if (disposed || finished || suspended) return;
+    if (disposed || finished || isSuspended()) return;
     clearTimeout(timer);
     clearTimeout(stableTimer);
     clearTimeout(resumeTimer);
@@ -278,7 +280,7 @@ export function connect(
     // the socket in the background.
     clearTimeout(resumeTimer);
     resumeTimer = undefined;
-    if (document.hidden || finished) return;
+    if (document.hidden || finished || isSuspended()) return;
     // A suspended mobile socket may still claim OPEN after the network died.
     // Callers that can probe it keep a healthy connection.
     const current = socket;
@@ -343,8 +345,33 @@ export function connect(
     },
     reconnect() {
       if (disposed || finished === "missing") return;
+      clientSuspended = false;
       finished = undefined;
       open();
+    },
+    suspend() {
+      if (disposed || clientSuspended) return;
+      clientSuspended = true;
+      clearTimeout(timer);
+      clearTimeout(stableTimer);
+      clearTimeout(resumeTimer);
+      resumeTimer = undefined;
+      clearControls();
+      handoffController.clear();
+      const previous = socket;
+      socket = undefined;
+      if (previous) {
+        previous.onopen = null;
+        previous.onmessage = null;
+        previous.onclose = null;
+        previous.onerror = null;
+        previous.close(1000, "suspended");
+      }
+    },
+    resume() {
+      if (disposed || !clientSuspended) return;
+      clientSuspended = false;
+      if (!finished && !relaySuspended) open();
     },
     probe() {
       if (
@@ -380,7 +407,7 @@ export function connect(
       api.close();
       return;
     }
-    suspended = true;
+    relaySuspended = true;
     clearTimeout(timer);
     clearTimeout(stableTimer);
     clearTimeout(resumeTimer);
@@ -394,9 +421,9 @@ export function connect(
     if (!finished) state("reconnecting");
   };
   const restoredAuth = () => {
-    if (!suspended || disposed) return;
-    suspended = false;
-    open();
+    if (!relaySuspended || disposed) return;
+    relaySuspended = false;
+    if (!clientSuspended) open();
   };
   window.addEventListener("webmux:relay-revoked", revoked);
   window.addEventListener("webmux:relay-restored", restoredAuth);

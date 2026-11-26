@@ -1,16 +1,10 @@
 import { SvelteMap } from "svelte/reactivity";
-import { inflateSync } from "fflate";
 import type { Terminal } from "@xterm/xterm";
-import {
-  ControlStateSchema,
-  ExitSchema,
-  SessionInfoSchema,
-  StreamPositionSchema,
-  SubmissionStatusSchema,
-  type ControlState,
-  type SessionInfo,
-  type StreamPosition,
-  type SubmissionProgress,
+import type {
+  ControlState,
+  SessionInfo,
+  StreamPosition,
+  SubmissionProgress,
 } from "../../contracts/schemas";
 import {
   clientIdentity,
@@ -40,11 +34,14 @@ import {
   registerTerminalProtocolHandlers,
   restoreTerminalSnapshot,
 } from "./terminal-sync";
-import type {
-  TerminalSocketAttachment,
-  TerminalSocketView,
+import {
+  decodeTerminalFrame,
+  parseTerminalJsonFrame,
+  type TerminalSocketAttachment,
+  type TerminalSocketView,
 } from "./terminal-socket-view";
 import { createTerminalInputError } from "./terminal-input-error";
+import type { SessionCacheTier } from "../../domains/sessions/session-cache";
 
 // Terminal stream of one session (`/ws/s/{id}`, docs/protocol/websocket.md).
 export function createTerminalSocket(id: string, manageChrome = true) {
@@ -56,11 +53,10 @@ export function createTerminalSocket(id: string, manageChrome = true) {
   let error = $state(inputError.capture(""));
   let historyTruncated = $state(false);
   let control = $state<ControlState>();
-  // The run whose output this page has drawn: a hybrid switch to the
-  // terminal waits for the new run's first bytes before showing the pane.
   let drawn = $state<string>();
   let terminal: Terminal | undefined;
   let socket: SocketConnection | undefined;
+  let cacheTier: SessionCacheTier = "active";
   let replaying = false;
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
@@ -70,7 +66,6 @@ export function createTerminalSocket(id: string, manageChrome = true) {
   let synced = $state(false);
   const controlling = () =>
     !!control && control.controller?.clientId === identity.id;
-  // Unconfirmed submissions, re-queried after every reconnect.
   const submissions = new SvelteMap<
     string,
     (state: SubmissionProgress) => void
@@ -144,6 +139,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     const sendSize = () => {
       const size = `${term.cols}:${term.rows}`;
       if (
+        cacheTier === "active" &&
         controlling() &&
         view.isVisible() &&
         term.cols > 0 &&
@@ -157,6 +153,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     const root = document.documentElement;
     let reportedDark: boolean | undefined;
     const reportScheme = () => {
+      if (cacheTier !== "active") return;
       reportedDark = root.classList.contains("dark");
       term.input(`\x1b[?997;${reportedDark ? 1 : 2}n`, false);
     };
@@ -176,10 +173,10 @@ export function createTerminalSocket(id: string, manageChrome = true) {
         ),
       (data) => {
         if (typeof data === "string") return;
-        let frame = new Uint8Array(data);
-        if (frame[0] === 7) frame = inflateSync(frame.subarray(1));
-        let payload = frame.subarray(1);
-        if (frame[0] === 0) {
+        const decoded = decodeTerminalFrame(data);
+        const code = decoded.code;
+        let payload = decoded.payload;
+        if (code === 0) {
           const trimmed = trimOverlapChunk(payload, skipOverlap);
           skipOverlap = trimmed.remainingSkip;
           if (!trimmed.slice) return;
@@ -194,7 +191,6 @@ export function createTerminalSocket(id: string, manageChrome = true) {
             const run = generation ?? info?.generation;
             if (run && drawn !== run) drawn = run;
             if (appending) {
-              // Searches keep their viewport; ordinary resumes show the tail.
               appending = false;
               term.write("", () => {
                 if (disposed) return;
@@ -206,39 +202,9 @@ export function createTerminalSocket(id: string, manageChrome = true) {
             stale = true;
             restoring = true;
           }
-        } else if (frame[0] === 4) {
-          const position = StreamPositionSchema.parse(
-            JSON.parse(decoder.decode(payload)),
-          );
-          historyTruncated = position.truncated;
-          resetPosition = undefined;
-          appending = false;
-          skipOverlap = 0;
-          if (position.mode === "reset") resetPosition = position;
-          else {
-            const decision = resolveAppendOverlap(
-              synced,
-              generation,
-              offset,
-              position,
-            );
-            if (decision.accept) {
-              skipOverlap = decision.skipBytes;
-              output.replay();
-              stale = false;
-              restoring = false;
-              appending = decision.hasTail;
-              if (!appending && !view.preserveViewport()) view.scrollToBottom();
-            } else {
-              synced = false;
-              restoring = true;
-              ws.send(2, new Uint8Array());
-            }
-          }
-        } else if (frame[0] === 1) {
+        } else if (code === 1) {
           const position = resetPosition;
           resetPosition = undefined;
-          // A hidden page keeps its terminal and resume point unchanged.
           if (document.hidden) stale = true;
           else {
             stale = false;
@@ -247,45 +213,74 @@ export function createTerminalSocket(id: string, manageChrome = true) {
             generation = position?.generation;
             offset = position?.end ?? 0;
           }
-        } else if (frame[0] === 5) {
-          const status = SubmissionStatusSchema.parse(
-            JSON.parse(decoder.decode(payload)),
-          );
-          submissions.get(status.id)?.(status.state);
-          if (status.state !== "received") submissions.delete(status.id);
-        } else if (frame[0] === 6) {
-          const wasControlling = controlling();
-          control = ControlStateSchema.parse(
-            JSON.parse(decoder.decode(payload)),
-          );
-          if (!wasControlling) sentSize = "";
-          // A new controller answers queries using this device's theme.
-          if (
-            control.colorSchemeReports &&
-            (!schemeReports || (controlling() && !wasControlling))
-          )
-            reportScheme();
-          schemeReports = control.colorSchemeReports;
-          view.fit();
-          sendSize();
-        } else if (frame[0] === 2) {
-          info = SessionInfoSchema.parse(JSON.parse(decoder.decode(payload)));
-          if (manageChrome)
-            setBrowserChrome(
-              info.title + " · WebMux",
-              info.status === "running",
-            );
-        } else if (frame[0] === 3) {
-          exited = true;
-          exitCode = ExitSchema.parse(
-            JSON.parse(decoder.decode(payload)),
-          ).exitCode;
-          if (stale && !document.hidden) restoreExited();
+        } else {
+          const parsed = parseTerminalJsonFrame(code, payload, decoder);
+          if (!parsed) return;
+          if (parsed.kind === "position") {
+            const position = parsed.value;
+            historyTruncated = position.truncated;
+            resetPosition = undefined;
+            appending = false;
+            skipOverlap = 0;
+            if (position.mode === "reset") resetPosition = position;
+            else {
+              const decision = resolveAppendOverlap(
+                synced,
+                generation,
+                offset,
+                position,
+              );
+              if (decision.accept) {
+                skipOverlap = decision.skipBytes;
+                output.replay();
+                stale = false;
+                restoring = false;
+                appending = decision.hasTail;
+                if (!appending && !view.preserveViewport())
+                  view.scrollToBottom();
+              } else {
+                synced = false;
+                restoring = true;
+                ws.send(2, new Uint8Array());
+              }
+            }
+          } else if (parsed.kind === "submission") {
+            submissions.get(parsed.value.id)?.(parsed.value.state);
+            if (parsed.value.state !== "received")
+              submissions.delete(parsed.value.id);
+          } else if (parsed.kind === "control") {
+            const wasControlling = controlling();
+            control = parsed.value;
+            if (!wasControlling) sentSize = "";
+            if (
+              control.colorSchemeReports &&
+              (!schemeReports || (controlling() && !wasControlling))
+            )
+              reportScheme();
+            schemeReports = control.colorSchemeReports;
+            view.fit();
+            sendSize();
+          } else if (parsed.kind === "info") {
+            info = parsed.value;
+            if (manageChrome && cacheTier === "active")
+              setBrowserChrome(
+                info.title + " · WebMux",
+                info.status === "running",
+              );
+          } else if (parsed.kind === "exit") {
+            exited = true;
+            exitCode = parsed.exitCode;
+            if (stale && !document.hidden) restoreExited();
+          }
         }
       },
       (state) => {
         connection = state;
-        if (manageChrome && (state === "reconnecting" || state === "missing"))
+        if (
+          manageChrome &&
+          cacheTier === "active" &&
+          (state === "reconnecting" || state === "missing")
+        )
           resetBrowserChrome();
         if (state === "connected") {
           sentSize = "";
@@ -324,6 +319,7 @@ export function createTerminalSocket(id: string, manageChrome = true) {
       },
     );
     socket = ws;
+    if (cacheTier === "cool") ws.suspend();
     graphics = attachTerminalGraphics(term, (text) => {
       if (!replaying) ws.send(6, encoder.encode(text));
     });
@@ -386,6 +382,18 @@ export function createTerminalSocket(id: string, manageChrome = true) {
     socket?.reconnect();
   };
 
+  const setCacheTier = (nextTier: SessionCacheTier) => {
+    if (cacheTier === nextTier) return;
+    const prevTier = cacheTier;
+    cacheTier = nextTier;
+    if (nextTier === "cool") {
+      hover.cancel();
+      socket?.suspend();
+    } else if (prevTier === "cool") {
+      socket?.resume();
+    }
+  };
+
   return {
     get info() {
       return info;
@@ -429,7 +437,6 @@ export function createTerminalSocket(id: string, manageChrome = true) {
       return identity.id;
     },
     attach,
-    // Sends user input. A rejected send is reported, never queued.
     sendInput(input: string) {
       hover.flush();
       const sent =
@@ -438,20 +445,15 @@ export function createTerminalSocket(id: string, manageChrome = true) {
       if (sent) socket?.probe();
       return sent;
     },
-    // Sends one of xterm's automatic replies to a device query.
     sendReply(reply: string) {
       if (!replaying) socket?.send(6, encoder.encode(reply));
     },
-    // Coalesces controller pointer hover on the reply lane without taking control.
     sendHover(report: string) {
       if (!replaying && accepting() && controlling()) hover.schedule(report);
     },
-    // Takes input and grid control for this browser tab.
     claim() {
       if (control && !controlling()) socket?.send(5, new Uint8Array());
     },
-    // Sends text and an optional Enter as one acknowledged submission. The
-    // body is prepared like xterm's paste; `report` receives each state.
     submit(
       submissionId: string,
       text: string,
@@ -476,7 +478,6 @@ export function createTerminalSocket(id: string, manageChrome = true) {
       target.term.scrollToBottom();
       return true;
     },
-    // Follows a submission whose acknowledgement may have been lost.
     track(submissionId: string, report: (state: SubmissionProgress) => void) {
       submissions.set(submissionId, report);
       if (connection === "connected")
@@ -486,12 +487,12 @@ export function createTerminalSocket(id: string, manageChrome = true) {
       submissions.delete(submissionId);
     },
     dismissError,
-    // Every reset, including after exit, uses the server's safe replay path.
     resync() {
       dismissError();
       if (exitCode === null) socket?.send(2, new Uint8Array());
       else reconnect();
     },
     reconnect,
+    setCacheTier,
   };
 }

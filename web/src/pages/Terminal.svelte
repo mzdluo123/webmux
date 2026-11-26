@@ -3,13 +3,12 @@
   import { onMount, onDestroy, tick, untrack } from "svelte";
   import { m } from "$lib/paraglide/messages.js";
   import { dockGroup } from "$lib/dock-layout";
-  import SessionWorkspaceHeader from "../components/terminal/SessionWorkspaceHeader.svelte";
+  import TerminalPageToolbar from "../components/terminal/TerminalPageToolbar.svelte";
   import { MediaQuery } from "svelte/reactivity";
   import { navigate, store, stored } from "../platform/api";
   import type { SessionInfo } from "../contracts/schemas";
   import { errorMessage } from "../platform/error";
   import { isIOS, hasTouchInput } from "../platform/touch-input";
-  import { chatDocumentScroll, isStandalone } from "../platform/capabilities";
   import type { ChatScrollState } from "../platform/capabilities";
   import {
     setBrowserChrome,
@@ -18,7 +17,6 @@
   import TerminalSplitPanel from "../components/terminal/TerminalSplitPanel.svelte";
   import DockWorkspace from "../components/shared/DockWorkspace.svelte";
   import TerminalPageDialogs from "../components/terminal/TerminalPageDialogs.svelte";
-  import TerminalPageNotices from "../components/terminal/TerminalPageNotices.svelte";
   import { useViewport } from "../hooks/shared/viewport.svelte";
   import type { TerminalDrafts } from "../domains/terminal/terminal-draft.svelte";
   import SessionTerminal from "../components/terminal/SessionTerminal.svelte";
@@ -32,35 +30,49 @@
   import { migrateSessionLayout } from "../domains/terminal/session-layout-migration";
   import {
     MAX_PANES,
-    createSplitShellSession,
-    directionalPane,
     paneIds,
-    parsePrefixKeydown,
     removePane,
     restoreLayout,
     splitPane,
     type SplitDirection,
     type PaneLayout,
   } from "../domains/terminal/terminal-layout";
+  import {
+    ensureExistingPane,
+    ensureMessagePane,
+    handleTerminalPageKeydown,
+    resolveTerminalDocumentScroll,
+    runTerminalSplit,
+  } from "../domains/terminal/terminal-page-keydown";
   import { useTerminalPageFeed } from "../hooks/terminal/terminal-page-feed.svelte";
   import { retainTerminalDrafts } from "../domains/terminal/terminal-draft-owners";
   import {
-    loadTerminalFeatures,
     availableTerminalFeatures,
+    cachedTerminalFeatures,
+    loadTerminalFeatures,
     type TerminalFeatures,
   } from "../features/terminal";
   import { allowAutomaticInputFocus } from "../hooks/shared/input-focus";
+  import type { SessionCacheTier } from "../domains/sessions/session-cache";
 
   let {
     id,
+    pageActive = true,
+    cacheTier = "active",
     openTarget = "",
     onOpenTargetHandled,
+    onJoinSession,
+    onEvict,
     drafts,
     onUploadNotice,
   }: {
     id: string;
+    pageActive?: boolean;
+    cacheTier?: SessionCacheTier;
     openTarget?: string;
     onOpenTargetHandled?: () => void;
+    onJoinSession?: (sessionId: string) => void;
+    onEvict?: () => void;
     drafts: TerminalDrafts;
     onUploadNotice: (message: string) => void;
   } = $props();
@@ -76,10 +88,10 @@
     }),
   );
   $effect(() => {
+    if (!pageActive) return;
     shell?.setActivePane(active);
     return () => shell?.setActivePane("");
   });
-
   let lastInput = $state(untrack(() => active));
   let info = $state<Record<string, SessionInfo>>({});
   let connections = $state<Record<string, string>>({});
@@ -93,20 +105,25 @@
   let prefix = $state(false);
   let busy = $state(false);
   let error = $state("");
-  let features = $state<TerminalFeatures>();
+  let features = $state<TerminalFeatures | undefined>(cachedTerminalFeatures());
   const availableFeatures = $derived(
     features ? availableTerminalFeatures(features) : undefined,
   );
   onMount(() => {
+    mounted = true;
     let disposed = false;
-    void loadTerminalFeatures()
-      .then((value) => {
-        if (!disposed) features = value;
-      })
-      .catch((cause) => {
-        if (!disposed) error = errorMessage(cause);
-      });
+    if (!features) {
+      void loadTerminalFeatures().then(
+        (v) => {
+          if (!disposed) features = v;
+        },
+        (c) => {
+          if (!disposed) error = errorMessage(c);
+        },
+      );
+    }
     return () => {
+      mounted = false;
       disposed = true;
     };
   });
@@ -114,12 +131,6 @@
   let joinTarget = "";
   let creating = $state<SessionInfo | null>(null);
   const splitBusy = $derived(busy || creating !== null);
-  function createSession(target: string) {
-    const source = info[target];
-    if (splitBusy || ids.length >= MAX_PANES || !source) return;
-    active = target;
-    creating = source;
-  }
   const desktop = new MediaQuery("(min-width: 1024px)");
   let mounted = false;
   const terminals = $state<Record<string, SessionTerminal | undefined>>({});
@@ -133,23 +144,22 @@
   let scrollStates = $state<Record<string, ChatScrollState>>({});
   const ids = $derived(layout ? paneIds(layout) : []);
   $effect(() => retainTerminalDrafts(drafts, ids));
-  const documentScroll = $derived.by(() => {
-    const firstId = ids[0];
-    const current = firstId ? scrollStates[firstId] : undefined;
-    if (!firstId || !current || ids.length !== 1 || !dock) return false;
-    const panels = sessionPanelIds(firstId);
-    if (!dock.isVisible(panels.terminal) || info[firstId]?.view !== "chat")
-      return false;
-    return chatDocumentScroll({
-      ...current,
-      singlePane: ids.length === 1,
-      standalone: isStandalone(),
-    });
-  });
+  const documentScroll = $derived(
+    resolveTerminalDocumentScroll({
+      pageActive,
+      ids,
+      scrollStates,
+      viewOf: (sid) => info[sid]?.view,
+      isPanelVisible: (panel) => dock?.isVisible(panel) ?? false,
+    }),
+  );
   const viewport = useViewport(() => !documentScroll);
   const keyboardDismissed = () => hasTouchInput() && viewport.keyboardDismissed;
-  onDestroy(resetBrowserChrome);
+  onDestroy(() => {
+    if (pageActive) resetBrowserChrome();
+  });
   $effect(() => {
+    if (!pageActive) return;
     const current = info[active];
     if (current)
       setBrowserChrome(
@@ -180,16 +190,25 @@
     info[sessionId]?.title ||
     m.s4_tab_terminal();
   const dockSessions = $derived(dockSessionLabels(ids, paneTitle));
-  onMount(() => {
-    mounted = true;
-    if (openTarget) {
-      onOpenTargetHandled?.();
-      if (!activateSession(openTarget)) reopenSession(openTarget);
+  function createSession(target: string) {
+    const source = info[target];
+    if (splitBusy || ids.length >= MAX_PANES || !source) return;
+    active = target;
+    creating = source;
+  }
+  $effect(() => {
+    if (!pageActive) {
+      prefix = false;
+      return;
     }
-    void revealMessage();
-    return () => {
-      mounted = false;
-    };
+    const target = openTarget;
+    untrack(() => {
+      if (target) {
+        onOpenTargetHandled?.();
+        if (!activateSession(target)) reopenSession(target);
+      }
+      void revealMessage();
+    });
   });
 
   async function focus(sessionId: string, keyboard = true) {
@@ -206,42 +225,30 @@
     void focus(sessionId);
     return true;
   }
-
-  // A reference can name the route anchor after its pane was closed.
-  // Reuse the split chooser's add path without remounting surviving panes.
   export function reopenSession(sessionId: string) {
-    void openExistingPane(sessionId).catch(
-      (cause: unknown) => (error = errorMessage(cause)),
-    );
+    void ensureExistingPane({
+      sessionId,
+      activate: activateSession,
+      getIds: () => ids,
+      add: (sid, dir) => add(sid, dir),
+      getError: () => error,
+      clearError: () => (error = ""),
+    }).catch((cause: unknown) => (error = errorMessage(cause)));
   }
-  async function openExistingPane(sessionId: string) {
-    if (activateSession(sessionId)) return;
-    if (ids.length >= MAX_PANES)
-      throw new Error(m.s1_max_panes_reopen({ max: String(MAX_PANES) }));
-    error = "";
-    await add(sessionId, "horizontal");
-    if (!ids.includes(sessionId))
-      throw new Error(error || m.s1_open_session_failed_unmodified());
-  }
-
   async function revealMessage() {
-    const query = new URLSearchParams(location.search);
-    const target = query.get("messageSession");
-    if (!query.get("message") || !target) return;
-    if (!ids.includes(target)) {
-      if (ids.length >= MAX_PANES) {
-        error = m.s1_max_panes_reveal_message({ max: String(MAX_PANES) });
-        return;
-      }
-      await add(target, "horizontal");
-      if (!ids.includes(target)) return;
-    }
-    error = "";
-    active = target;
-    prefix = false;
-    messagePanel = target;
+    await ensureMessagePane({
+      search: location.search,
+      getIds: () => ids,
+      add: (sid, dir) => add(sid, dir),
+      onLimitError: (msg) => (error = msg),
+      onRevealed: (target) => {
+        error = "";
+        active = target;
+        prefix = false;
+        messagePanel = target;
+      },
+    });
   }
-
   function close(sessionId: string) {
     if (!layout || !ids.includes(sessionId)) return;
     const next = removePane(layout, sessionId);
@@ -251,7 +258,8 @@
     layout = next;
     if (!next) {
       active = "";
-      navigate("/");
+      onEvict?.();
+      if (pageActive) navigate("/");
       return;
     }
     if (active === sessionId)
@@ -276,12 +284,12 @@
       ids.length >= MAX_PANES
     )
       return;
+    onJoinSession?.(sessionId);
     const panels = sessionPanelIds(target);
     const chat = info[target]?.view === "chat";
-    const dockTarget = chat ? panels.reader : panels.terminal;
     dock?.add(
       sessionId,
-      dockTarget,
+      chat ? panels.reader : panels.terminal,
       chat || direction === "vertical" ? "bottom" : "right",
       true,
     );
@@ -290,53 +298,53 @@
       : { kind: "pane", sessionId };
     await focus(sessionId);
   }
-  async function split(direction: SplitDirection, target: string) {
-    if (splitBusy || ids.length >= MAX_PANES || !ids.includes(target)) return;
+  function split(direction: SplitDirection, target: string) {
     const source = info[target];
-    if (!source) return;
-    active = target;
-    busy = true;
-    error = "";
-    try {
-      const session = await createSplitShellSession(source);
-      if (mounted) {
-        info[session.id] = session;
-        await add(session.id, direction, target);
-      }
-    } catch (err) {
-      if (mounted) error = m.s1_split_pane_failed({ error: errorMessage(err) });
-    } finally {
-      if (mounted) busy = false;
-    }
+    if (
+      splitBusy ||
+      ids.length >= MAX_PANES ||
+      !ids.includes(target) ||
+      !source
+    )
+      return;
+    void runTerminalSplit(source, direction, target, {
+      isMounted: () => mounted,
+      onStart: () => {
+        active = target;
+        busy = true;
+        error = "";
+      },
+      onCreated: async (s, d, t) => {
+        info[s.id] = s;
+        await add(s.id, d, t);
+      },
+      onError: (msg) => (error = msg),
+      onFinally: () => (busy = false),
+    });
   }
   function keydown(event: KeyboardEvent) {
-    const cmd = parsePrefixKeydown(event, prefix);
-    if (cmd.kind === "ignore") return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    if (cmd.kind === "enter-prefix") {
-      prefix = true;
-      return;
-    }
-    prefix = false;
-    if (cmd.kind === "send-prefix") terminals[active]?.send("\x02");
-    else if (cmd.kind === "split") void split(cmd.direction, active);
-    else if (cmd.kind === "cycle")
-      void focus(ids[(ids.indexOf(active) + 1) % ids.length]!);
-    else if (cmd.kind === "zoom") dock?.toggleZoom(active);
-    else if (cmd.kind === "close" && !busy) close(active);
-    else if (cmd.kind === "arrow") {
-      const panes = ids.flatMap((sessionId) => {
-        const rect = dock?.rect(sessionId);
-        return rect ? [{ ...rect, sessionId }] : [];
-      });
-      const next = directionalPane(panes, active, cmd.key);
-      if (next) void focus(next);
-    }
+    if (!pageActive) return;
+    handleTerminalPageKeydown(event, {
+      getPrefix: () => prefix,
+      setPrefix: (value) => (prefix = value),
+      getActive: () => active,
+      getIds: () => ids,
+      isBusy: () => busy,
+      sendPrefix: (id) => terminals[id]?.send("\x02"),
+      split: (dir, id) => void split(dir, id),
+      focus: (id) => void focus(id),
+      toggleZoom: (id) => dock?.toggleZoom(id),
+      close,
+      paneRect: (id) => dock?.rect(id),
+    });
   }
 </script>
 
-<svelte:window onpopstate={revealMessage} />
+<svelte:window
+  onpopstate={() => {
+    if (pageActive) void revealMessage();
+  }}
+/>
 
 {#if features && availableFeatures}
   {#key features}
@@ -344,11 +352,14 @@
       class="terminal-page"
       class:ios={isIOS()}
       data-document-scroll={documentScroll ? "true" : undefined}
+      data-cache-hidden={pageActive ? undefined : "true"}
+      inert={!pageActive}
+      aria-hidden={!pageActive}
       style:--viewport-height={`${viewport.height}px`}
       onkeydowncapture={keydown}
     >
-      <div class="session-toolbar shrink-0">
-        <SessionWorkspaceHeader
+      {#if pageActive}
+        <TerminalPageToolbar
           {dock}
           closePane={(panel) =>
             ids.includes(panel) ? close(panel) : dock?.minimize(panel)}
@@ -358,23 +369,13 @@
           openFiles={availableFeatures.code
             ? () => terminals[active]?.openCode()
             : undefined}
+          {prefix}
+          featureErrors={features.errors}
+          {error}
           onerror={(message) => (error = message)}
+          dismissError={() => (error = "")}
         />
-      </div>
-      {#if prefix}
-        <p
-          class="shrink-0 border-b px-2 py-1 text-xs text-muted-foreground"
-          role="status"
-        >
-          {m.s4_prefix_shortcut_bar()}
-        </p>
       {/if}
-      <TerminalPageNotices
-        featureErrors={features.errors}
-        {error}
-        reloadPage={() => location.reload()}
-        dismissError={() => (error = "")}
-      />
       <DockWorkspace
         bind:this={dock}
         storageKey={`session.v2.${id}`}
@@ -392,9 +393,9 @@
         edgeRails
         pickerTrigger={false}
         onSelectPanel={(panel) => {
-          const session = panelSession(ids, panel);
-          if (session) active = session;
-          if (session === panel) lastInput = panel;
+          const s = panelSession(ids, panel);
+          if (s) active = s;
+          if (s === panel) lastInput = panel;
         }}
       >
         {#snippet pickerActions(closePanel, panel, hide)}
@@ -408,10 +409,7 @@
             onsplit={(direction) => void split(direction, target)}
             oncreate={() => createSession(target)}
             onchoose={ids.includes(target)
-              ? () => {
-                  joinTarget = target;
-                  choosing = true;
-                }
+              ? () => ((joinTarget = target), (choosing = true))
               : undefined}
             onclose={target && (!compact.current || panel?.id === target)
               ? () => close(target)
@@ -433,19 +431,19 @@
               dockSessionName={dockSession?.name}
               dockSessionNumber={dockSession?.number}
               desktop={desktop.current}
-              onactivate={() => {
-                active = sessionId;
-                prefix = false;
-              }}
+              onactivate={() => ((active = sessionId), (prefix = false))}
               {drafts}
               {onUploadNotice}
-              visible={dock?.isAnyVisible((panel) =>
-                ownsSessionPanel(sessionId, panel),
-              ) ?? false}
+              visible={pageActive &&
+                (dock?.isAnyVisible((panel) =>
+                  ownsSessionPanel(sessionId, panel),
+                ) ??
+                  false)}
               {keyboardDismissed}
               keyboardVisibility={() => viewport.keyboard}
               viewportHeight={() => viewport.height}
-              active={active === sessionId}
+              active={pageActive && active === sessionId}
+              {cacheTier}
               reopen={(session) => {
                 info[sessionId] = session;
                 dock?.show(panels.terminal);
@@ -458,42 +456,34 @@
               feedSession={feed.byId.get(sessionId)}
               subscribeRemoved={feed.subscribeRemoved}
               {documentScroll}
-              onscrollstate={(state) => {
-                scrollStates[sessionId] = state;
-              }}
-              oninfo={(value, connection) => {
+              onscrollstate={(state) => (scrollStates[sessionId] = state)}
+              oninfo={(value, conn) => {
                 info[value.id] = value;
-                connections[value.id] = connection;
+                connections[value.id] = conn;
               }}
             />
           {/key}
         {/each}
       </DockWorkspace>
     </main>
-    <TerminalPageDialogs
-      features={availableFeatures}
-      bind:choosing
-      bind:creating
-      bind:forwarding
-      excluded={ids}
-      feedSessions={feed.sessions}
-      oncancelchoose={() => void focus(active)}
-      onselect={(sessionId, direction) => {
-        choosing = false;
-        void add(sessionId, direction, joinTarget);
-      }}
-      oncreated={(session, direction, targetId) => {
-        info[session.id] = session;
-        void add(session.id, direction, targetId);
-      }}
-    />
+    {#if pageActive}
+      <TerminalPageDialogs
+        features={availableFeatures}
+        bind:choosing
+        bind:creating
+        bind:forwarding
+        excluded={ids}
+        feedSessions={feed.sessions}
+        oncancelchoose={() => void focus(active)}
+        onselect={(sessionId, direction) => {
+          choosing = false;
+          void add(sessionId, direction, joinTarget);
+        }}
+        oncreated={(session, direction, targetId) => {
+          info[session.id] = session;
+          void add(session.id, direction, targetId);
+        }}
+      />
+    {/if}
   {/key}
 {/if}
-
-<style>
-  .terminal-page[data-document-scroll="true"] .session-toolbar {
-    position: sticky;
-    top: 0;
-    z-index: 20;
-  }
-</style>
