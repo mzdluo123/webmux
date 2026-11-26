@@ -50,7 +50,7 @@ func TestRelayLocalSessionProcessDeniedAllSensitiveRoutes(t *testing.T) {
 	t.Cleanup(func() { manager.Shutdown(context.Background()) })
 	handler := NewLocal(Deps{Manager: manager}, Local{InSession: func(int) bool { return true }})
 	for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodDelete} {
-		for _, path := range []string{"/api/relay", "/api/relay/enrollments", "/api/relay/ice", "/api/relay/auth/session", "/api/relay/reconnect", "/api/relay/binding"} {
+		for _, path := range []string{"/api/relay", "/api/relay/enrollments", "/api/relay/ice", "/api/relay/auth/session", "/api/relay/reconnect", "/api/relay/transport", "/api/relay/binding"} {
 			r := httptest.NewRequest(method, "http://localhost"+path, strings.NewReader("{}"))
 			r = r.WithContext(context.WithValue(r.Context(), peerKey{}, 123))
 			w := httptest.NewRecorder()
@@ -77,9 +77,10 @@ func TestRelayAuthCookieSecurityAttributes(t *testing.T) {
 
 type relayEnrollmentControl struct {
 	RelayControl
-	requests  []contract.RelayEnrollmentRequest
-	operation contract.RelayOperation
-	status    contract.RelayStatus
+	requests          []contract.RelayEnrollmentRequest
+	operation         contract.RelayOperation
+	status            contract.RelayStatus
+	transportRequests []protocol.FRPTransport
 }
 
 func (c *relayEnrollmentControl) Enroll(_ context.Context, req contract.RelayEnrollmentRequest) (contract.RelayPairing, error) {
@@ -95,6 +96,13 @@ func (c *relayEnrollmentControl) Cancel(context.Context) (contract.RelayPairing,
 	return contract.RelayPairing{Phase: "cancelling"}, nil
 }
 
+func (c *relayEnrollmentControl) SelectTransport(_ context.Context, desired protocol.FRPTransport) (contract.RelayStatus, error) {
+	c.transportRequests = append(c.transportRequests, desired)
+	c.status.TransportSelection.Preferred = desired
+	c.status.TransportSelection.Active = desired
+	return c.Status(), nil
+}
+
 func (c *relayEnrollmentControl) Status() contract.RelayStatus {
 	operation := c.operation
 	if operation.Kind == "" {
@@ -107,11 +115,56 @@ func (c *relayEnrollmentControl) Status() contract.RelayStatus {
 	}
 	return contract.RelayStatus{
 		Operation: operation, State: "off", Transport: "wss",
-		TCPAlgorithm: "unknown", ControlSource: "default",
+		TransportSelection: &contract.RelayTransportSelection{Preferred: protocol.FRPTransportWSS},
+		TCPAlgorithm:       "unknown", ControlSource: "default",
 		ControlReachability: "unknown", DataReachability: "unknown",
 		AssignmentRevision: "0", ConfigRevision: "0", AppliedRevision: "0",
 		AssignmentSource: "unassigned", Capabilities: []string{},
 		Sessions: []contract.RelaySessionDiagnostic{},
+	}
+}
+
+func TestRelayTransportRejectsUnassignedDialTargets(t *testing.T) {
+	control := &relayEnrollmentControl{}
+	s := &Server{Deps: Deps{Relay: &Relay{Control: control}}}
+	mux := http.NewServeMux()
+	s.relayRoutes(mux)
+	for _, body := range []string{`{"protocol":"quic","address":"127.0.0.1:8000"}`, `{"protocol":"auto"}`, `{}`} {
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/relay/transport", strings.NewReader(body)))
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("%s returned %d", body, w.Code)
+		}
+	}
+	if len(control.transportRequests) != 0 {
+		t.Fatal("invalid selection reached relay controller")
+	}
+}
+
+func TestRelayTransportLocalAdminRecovery(t *testing.T) {
+	manager := session.NewManager(session.Options{})
+	t.Cleanup(func() { manager.Shutdown(context.Background()) })
+	control := &relayEnrollmentControl{}
+	control.status = control.Status()
+	control.status.ControlReady = true
+	control.status.TransportSelection.Preferred = protocol.FRPTransportQUIC
+	handler := NewLocal(Deps{Manager: manager, Relay: &Relay{Control: control}}, Local{InSession: func(pid int) bool { return pid == 123 }})
+	r := httptest.NewRequest(http.MethodPost, "http://localhost/api/relay/transport", strings.NewReader(`{"protocol":"wss"}`))
+	r = r.WithContext(context.WithValue(r.Context(), peerKey{}, 456))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+	if w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "no-store" ||
+		len(control.transportRequests) != 1 || control.transportRequests[0] != protocol.FRPTransportWSS {
+		t.Fatalf("local admin could not request WSS recovery: HTTP %d %s", w.Code, w.Body)
+	}
+	var status contract.RelayStatus
+	if err := json.Unmarshal(w.Body.Bytes(), &status); err != nil || status.TransportSelection == nil {
+		t.Fatalf("invalid recovery response: %s (%v)", w.Body, err)
+	}
+	if status.DataReady || status.TransportSelection.Supported ||
+		status.TransportSelection.Preferred != protocol.FRPTransportWSS ||
+		status.TransportSelection.Active != protocol.FRPTransportWSS {
+		t.Fatalf("local recovery did not return the controller's result: %+v", status)
 	}
 }
 
@@ -192,14 +245,21 @@ func TestWireSnapshotsRelay(t *testing.T) {
 	control.status = control.Status()
 	control.status.Enabled = true
 	control.status.Paired = true
-	control.status.State = "failed"
+	control.status.State = "ready"
 	control.status.ControlReady = true
 	control.status.ControlReachability = "reachable"
-	control.status.DataReachability = "unavailable"
+	control.status.DataReady = true
+	control.status.DataReachability = "reachable"
 	checkedAt := time.Date(2026, time.November, 25, 10, 42, 16, 0, time.UTC)
 	control.status.DataCheckedAt = &checkedAt
-	control.status.ReadinessError = "data-probe-failed"
-	control.status.Error = "relay origin probe failed"
+	control.status.NodeID = "node-a"
+	control.status.TransportSelection = &contract.RelayTransportSelection{
+		Supported: true, Preferred: protocol.FRPTransportWSS, Active: protocol.FRPTransportWSS,
+		LastAttempt: &contract.RelayTransportAttempt{
+			NodeID: "node-a", Protocol: protocol.FRPTransportQUIC, Stage: "handshake",
+			Error: string(protocol.Expired), DurationMS: 12000, CompletedAt: checkedAt.Add(12 * time.Second),
+		},
+	}
 	control.status.BoundPublicURL = "https://host.relay.example"
 	control.status.PublicURL = control.status.BoundPublicURL
 	s := &Server{Deps: Deps{Relay: &Relay{Control: control}}}

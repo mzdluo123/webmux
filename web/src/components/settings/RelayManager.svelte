@@ -13,5 +13,6 @@
   onenable={() => void controller.setEnabled(true)}
   ondisconnect={() => void controller.disconnect()}
   onreconnect={() => void controller.reconnect()}
+  ontransport={(protocol) => void controller.selectTransport(protocol)}
   ondelete={() => void controller.deleteBinding()}
 />

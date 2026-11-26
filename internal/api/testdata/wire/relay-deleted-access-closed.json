@@ -38,6 +38,10 @@
     "storageAvailable": false,
     "tcpAlgorithm": "unknown",
     "tokenStrong": false,
-    "transport": "wss"
+    "transport": "wss",
+    "transportSelection": {
+      "preferred": "wss",
+      "supported": false
+    }
   }
 }

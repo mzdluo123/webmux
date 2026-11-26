@@ -18,7 +18,6 @@ import (
 	protocol "github.com/mzdluo123/webmux/protocol/relay"
 	"github.com/rainchan/webmux/internal/config"
 	"github.com/rainchan/webmux/internal/contract"
-	"github.com/rainchan/webmux/internal/relay"
 	"github.com/rainchan/webmux/internal/relaysetting"
 	"github.com/rainchan/webmux/internal/transport"
 )
@@ -35,7 +34,7 @@ type machinePollReply struct {
 }
 
 type machineEnrollmentClient struct {
-	*relay.Client
+	relayControlClient
 	enrolled       chan machineEnrollmentCall
 	polled         chan struct{}
 	replies        chan machinePollReply

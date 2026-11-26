@@ -18,6 +18,7 @@ type RelayControl interface {
 	Status() contract.RelayStatus
 	Update(context.Context, contract.RelayUpdate) (contract.RelayStatus, error)
 	Reconnect(context.Context) (contract.RelayStatus, error)
+	SelectTransport(context.Context, protocol.FRPTransport) (contract.RelayStatus, error)
 	Pairing() contract.RelayPairing
 	Enroll(context.Context, contract.RelayEnrollmentRequest) (contract.RelayPairing, error)
 	Cancel(context.Context) (contract.RelayPairing, error)
@@ -114,6 +115,23 @@ func (s *Server) relayRoutes(mux *http.ServeMux) {
 			return
 		}
 		reply(w, 200, v)
+	})
+	mux.HandleFunc("POST /api/relay/transport", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		var req contract.RelayTransportRequest
+		if !decodeStrict(w, r, &req, 4096, errors.New("invalid relay transport request")) {
+			return
+		}
+		if !req.Protocol.Valid() {
+			failure(w, http.StatusBadRequest, errors.New("invalid data protocol"))
+			return
+		}
+		status, err := c.SelectTransport(r.Context(), req.Protocol)
+		if err != nil {
+			relayFailure(w, err)
+			return
+		}
+		reply(w, http.StatusOK, status)
 	})
 	mux.HandleFunc("POST /api/relay/reconnect", func(w http.ResponseWriter, r *http.Request) {
 		v, err := c.Reconnect(r.Context())

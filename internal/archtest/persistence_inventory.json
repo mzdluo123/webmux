@@ -258,11 +258,15 @@
       "count": 1,
       "owner": "relay-machine"
     },
-    "internal/relay/frp_session.go|*connection.runFRP|os.RemoveAll": {
+    "internal/relay/frp_session.go|removeRegistrationDir|os.RemoveAll": {
       "count": 1,
       "owner": "frp-runtime"
     },
     "internal/relay/frpc.go|*connection.startFRP|os.WriteFile": {
+      "count": 1,
+      "owner": "frp-runtime"
+    },
+    "internal/relay/frpc.go|quicClientRoute|os.WriteFile": {
       "count": 1,
       "owner": "frp-runtime"
     },

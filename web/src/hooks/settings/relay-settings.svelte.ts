@@ -6,6 +6,8 @@ import {
   RelayPairingSchema,
   RelayEnrollmentRequestSchema,
   RelayUpdateSchema,
+  RelayTransportRequestSchema,
+  type RelayDataProtocol,
   type RelayStatus,
   type RelayPairing,
 } from "../../contracts/relay-schemas";
@@ -17,6 +19,7 @@ export interface RelaySettingsView {
   pairing: RelayPairing | undefined;
   loading: boolean;
   busy: boolean;
+  testingTransport?: RelayDataProtocol;
   phase:
     | "idle"
     | "loading"
@@ -30,6 +33,9 @@ export interface RelaySettingsView {
 
 function failureMessage(cause: unknown) {
   if (cause === "auth") return m.relay_error_auth();
+  if (cause === "transport-busy") return m.relay_transport_busy();
+  if (cause === "transport-unconfirmed")
+    return m.relay_transport_result_unknown();
   if (!(cause instanceof APIError)) return m.relay_error_host();
   if (cause.notPersisted) return m.relay_error_persist();
   switch (cause.status) {
@@ -170,16 +176,19 @@ export function useRelaySettings() {
   async function submit<T>(
     request: (signal: AbortSignal) => Promise<T>,
     apply: (value: T) => void,
+    timeoutMs = 10_000,
   ) {
     clearTimeout(timer);
     reading = false;
     ui.phase = "submitting";
     failure = undefined;
     rejected = false;
+    const priorAttempt =
+      ui.status?.transportSelection?.lastAttempt?.completedAt;
     const ticket = requests.begin();
     try {
       const result = await request(
-        AbortSignal.any([ticket.signal, AbortSignal.timeout(10_000)]),
+        AbortSignal.any([ticket.signal, AbortSignal.timeout(timeoutMs)]),
       );
       if (ticket.current()) apply(result);
     } catch (cause) {
@@ -189,11 +198,36 @@ export function useRelaySettings() {
           cause instanceof APIError &&
           cause.status < 500 &&
           cause.status !== 429;
+        if (
+          ui.testingTransport &&
+          !(
+            cause instanceof APIError &&
+            (cause.notPersisted || [401, 403].includes(cause.status))
+          )
+        ) {
+          failure =
+            cause instanceof APIError && cause.status === 409
+              ? "transport-busy"
+              : "transport-unconfirmed";
+          rejected = true;
+        }
       }
     } finally {
       if (ticket.current()) {
         ui.phase = "verifying";
         await refresh();
+        const receipt = ui.status?.transportSelection?.lastAttempt;
+        if (
+          (failure === "transport-busy" ||
+            failure === "transport-unconfirmed") &&
+          receipt &&
+          receipt.protocol === ui.testingTransport &&
+          receipt.completedAt !== priorAttempt
+        ) {
+          rejected = false;
+          failure = undefined;
+          ui.phase = receipt.error ? "failed" : "completed";
+        }
       }
     }
   }
@@ -280,6 +314,27 @@ export function useRelaySettings() {
         "PUT",
         RelayUpdateSchema.parse({ enabled, confirmPublic: enabled }),
       ),
+    selectTransport: async (protocol: RelayDataProtocol) => {
+      if (ui.busy || ui.loading || requests.disposed) return;
+      // Probing a parallel route leaves the current browser grant intact.
+      ui.testingTransport = protocol;
+      try {
+        await submit(
+          (signal) =>
+            api(
+              "/relay/transport",
+              RelayStatusSchema,
+              "POST",
+              RelayTransportRequestSchema.parse({ protocol }),
+              signal,
+            ),
+          accept,
+          60_000,
+        );
+      } finally {
+        delete ui.testingTransport;
+      }
+    },
     disconnect: () => mutate("/relay/disconnect", "POST", {}),
     reconnect: () => mutate("/relay/reconnect", "POST", {}),
     deleteBinding: () => mutate("/relay/binding", "DELETE", {}),

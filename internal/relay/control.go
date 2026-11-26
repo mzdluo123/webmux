@@ -119,11 +119,11 @@ func (r *controlRPC) readLoop() {
 			if protocolCode(err) == protocol.Expired && message.Type == protocol.ControlFRPStatus {
 				continue
 			}
-			if protocolCode(err) != protocol.Expired || message.Type != protocol.ControlFRPGrant {
+			if protocolCode(err) != protocol.Expired || message.Type != protocol.ControlFRPGrant && message.Type != protocol.ControlTransportResult {
 				r.session.stop(err)
 				return
 			}
-			message.Type, message.AllocationGrant = protocol.ControlFailure, nil
+			message.Type, message.AllocationGrant, message.TransportResult = protocol.ControlFailure, nil, nil
 			message.Error = &protocol.Error{Code: protocol.Expired}
 		}
 		switch message.Type {
@@ -162,7 +162,11 @@ func (r *controlRPC) readLoop() {
 				}
 				r.session.status <- status
 			}
-		case protocol.ControlGrant, protocol.ControlICEConfig, protocol.ControlFRPGrant, protocol.ControlFailure:
+		case protocol.ControlGrant, protocol.ControlICEConfig, protocol.ControlFRPGrant, protocol.ControlTransportResult, protocol.ControlFailure:
+			if message.Type == protocol.ControlTransportResult && !r.session.control.selection {
+				r.session.stop(protocol.Error{Code: protocol.Incompatible})
+				return
+			}
 			r.mu.Lock()
 			pending, found := r.pending[message.RequestID]
 			if found {

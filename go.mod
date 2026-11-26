@@ -12,7 +12,7 @@ require (
 	github.com/coder/websocket v1.8.15
 	github.com/creack/pty v1.1.24
 	github.com/mzdluo123/snapcompact-go v0.1.1-0.20261118090152-568ce53ff15a
-	github.com/mzdluo123/webmux/protocol/relay v0.0.0-20261125145854-c39ec463877c
+	github.com/mzdluo123/webmux/protocol/relay v0.0.0-20261125235707-3d0723c02cd8
 	github.com/pion/ice/v4 v4.4.8
 	github.com/pion/sdp/v3 v3.0.20
 	github.com/pion/turn/v5 v5.1.3

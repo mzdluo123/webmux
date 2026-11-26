@@ -76,20 +76,22 @@ type StreamResult struct {
 type ControlType string
 
 const (
-	ControlExchange    ControlType = "login.exchange"
-	ControlResume      ControlType = "login.resume"
-	ControlGrant       ControlType = "login.grant"
-	ControlICERequest  ControlType = "ice.request"
-	ControlICEConfig   ControlType = "ice.config"
-	ControlRevoke      ControlType = "revoke"
-	ControlRevokeAck   ControlType = "revoke.ack"
-	ControlFailure     ControlType = "error"
-	ControlPing        ControlType = "ping"
-	ControlPong        ControlType = "pong"
-	ControlFRPAllocate ControlType = "frp.allocate"
-	ControlFRPRenew    ControlType = "frp.renew"
-	ControlFRPGrant    ControlType = "frp.grant"
-	ControlFRPStatus   ControlType = "frp.status"
+	ControlExchange         ControlType = "login.exchange"
+	ControlResume           ControlType = "login.resume"
+	ControlGrant            ControlType = "login.grant"
+	ControlICERequest       ControlType = "ice.request"
+	ControlICEConfig        ControlType = "ice.config"
+	ControlRevoke           ControlType = "revoke"
+	ControlRevokeAck        ControlType = "revoke.ack"
+	ControlFailure          ControlType = "error"
+	ControlPing             ControlType = "ping"
+	ControlPong             ControlType = "pong"
+	ControlFRPAllocate      ControlType = "frp.allocate"
+	ControlFRPRenew         ControlType = "frp.renew"
+	ControlFRPGrant         ControlType = "frp.grant"
+	ControlFRPStatus        ControlType = "frp.status"
+	ControlTransportRequest ControlType = "frp.transport.request"
+	ControlTransportResult  ControlType = "frp.transport.result"
 )
 
 type Revocation struct {
@@ -180,6 +182,8 @@ type ControlMessage struct {
 	AllocationRenew   *AllocationRenew   `json:"allocationRenew,omitempty"`
 	AllocationGrant   *AllocationGrant   `json:"allocationGrant,omitempty"`
 	AllocationStatus  *AllocationStatus  `json:"allocationStatus,omitempty"`
+	TransportRequest  *TransportRequest  `json:"transportRequest,omitempty"`
+	TransportResult   *TransportResult   `json:"transportResult,omitempty"`
 }
 
 func (m ControlMessage) Validate(expected Scope, now time.Time) error {
@@ -203,6 +207,7 @@ func (m ControlMessage) Validate(expected Scope, now time.Time) error {
 		m.Exchange != nil, m.Resume != nil, m.Grant != nil, m.ICERequest != nil, m.ICEConfig != nil,
 		m.Revocation != nil, m.RevocationAck != nil, m.Error != nil,
 		m.AllocationRequest != nil, m.AllocationRenew != nil, m.AllocationGrant != nil, m.AllocationStatus != nil,
+		m.TransportRequest != nil, m.TransportResult != nil,
 	} {
 		if present {
 			count++
@@ -272,12 +277,20 @@ func (m ControlMessage) Validate(expected Scope, now time.Time) error {
 			return validateAllocationRef(m.AllocationRenew.AllocationID, m.AllocationRenew.GrantRevision)
 		}
 	case ControlFRPGrant:
-		if m.AllocationGrant != nil {
+		if m.AllocationGrant != nil && m.AllocationGrant.Transport == nil {
 			return m.AllocationGrant.validate(now, false)
 		}
 	case ControlFRPStatus:
 		if m.AllocationStatus != nil {
 			return m.AllocationStatus.validate(m.ExpiresAt)
+		}
+	case ControlTransportRequest:
+		if m.TransportRequest != nil {
+			return m.TransportRequest.Validate(false)
+		}
+	case ControlTransportResult:
+		if m.TransportResult != nil {
+			return m.TransportResult.validate(now, false)
 		}
 	case ControlFailure:
 		if m.Error != nil && m.Error.Code.Valid() {

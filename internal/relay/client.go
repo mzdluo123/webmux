@@ -40,6 +40,9 @@ type Client struct {
 	assignment  *protocol.Assignment
 	active      *connection
 	connecting  bool
+	preferred   protocol.FRPTransport
+	selection   TransportSelection
+	transportOp *transportOperation
 }
 
 func New(cfg Config) (*Client, error) {
