@@ -6,6 +6,8 @@ import {
   RelayPairingSchema,
   RelayEnrollmentRequestSchema,
   RelayUpdateSchema,
+  RelayTransportRequestSchema,
+  type RelayDataProtocol,
   type RelayStatus,
   type RelayPairing,
 } from "../../contracts/relay-schemas";
@@ -170,6 +172,7 @@ export function useRelaySettings() {
   async function submit<T>(
     request: (signal: AbortSignal) => Promise<T>,
     apply: (value: T) => void,
+    timeoutMs = 10_000,
   ) {
     clearTimeout(timer);
     reading = false;
@@ -179,7 +182,7 @@ export function useRelaySettings() {
     const ticket = requests.begin();
     try {
       const result = await request(
-        AbortSignal.any([ticket.signal, AbortSignal.timeout(10_000)]),
+        AbortSignal.any([ticket.signal, AbortSignal.timeout(timeoutMs)]),
       );
       if (ticket.current()) apply(result);
     } catch (cause) {
@@ -280,6 +283,22 @@ export function useRelaySettings() {
         "PUT",
         RelayUpdateSchema.parse({ enabled, confirmPublic: enabled }),
       ),
+    selectTransport: async (protocol: RelayDataProtocol) => {
+      if (ui.busy || ui.loading || requests.disposed) return;
+      // Probing a parallel route leaves the current browser grant intact.
+      await submit(
+        (signal) =>
+          api(
+            "/relay/transport",
+            RelayStatusSchema,
+            "POST",
+            RelayTransportRequestSchema.parse({ protocol }),
+            signal,
+          ),
+        accept,
+        60_000,
+      );
+    },
     disconnect: () => mutate("/relay/disconnect", "POST", {}),
     reconnect: () => mutate("/relay/reconnect", "POST", {}),
     deleteBinding: () => mutate("/relay/binding", "DELETE", {}),
