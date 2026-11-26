@@ -632,3 +632,78 @@ func TestVersionCacheReusesUnchangedAndTimedOutBinaries(t *testing.T) {
 	}
 	_ = fastPath
 }
+
+func TestTimedOutBinaryReprobesAsynchronouslyAfterTTL(t *testing.T) {
+	binDir := t.TempDir()
+	gateFile := filepath.Join(t.TempDir(), "fast-mode")
+	// Starts hanging (> VersionTimeout); once gateFile is created, prints 3.4.5 immediately
+	// without changing the binary's own stat (realPath, modNS, size).
+	writeExecutable(t, binDir, "flaky-tool", "#!/bin/sh\nif [ -f '"+gateFile+"' ]; then echo '3.4.5'; exit 0; fi\nsleep 10\n")
+
+	var curUnix atomic.Int64
+	curUnix.Store(time.Date(2026, 11, 20, 16, 0, 0, 0, time.UTC).Unix())
+
+	svc := agentcheck.New(agentcheck.Options{
+		Entries: []agentcatalog.Entry{
+			{ID: "flaky", Title: "Flaky", Kind: agentcatalog.KindHybrid, Executables: []string{"flaky-tool"}},
+		},
+		ShellPath:      "/bin/sh",
+		Env:            []string{"PATH=" + binDir + ":/usr/bin:/bin", "SHELL=/bin/sh"},
+		LocalTTL:       30 * time.Second,
+		VersionTimeout: 200 * time.Millisecond,
+		Now:            func() time.Time { return time.Unix(curUnix.Load(), 0).UTC() },
+	})
+
+	// Cold scan times out on flaky-tool.
+	rep, err := svc.Inspect(context.Background(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Tools[0].InstalledVersion != "" {
+		t.Fatalf("cold scan version = %q, want empty", rep.Tools[0].InstalledVersion)
+	}
+
+	// Advance past both LocalTTL (30s) and versionTimeoutCacheTTL (5m) while still hanging:
+	// Inspect must return promptly without blocking on VersionTimeout.
+	curUnix.Add(int64((6 * time.Minute).Seconds()))
+	start := time.Now()
+	rep2, err := svc.Inspect(context.Background(), false)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep2.Tools[0].InstalledVersion != "" {
+		t.Fatalf("stale-timeout scan version = %q, want empty", rep2.Tools[0].InstalledVersion)
+	}
+	if elapsed >= 150*time.Millisecond {
+		t.Fatalf("stale-timeout scan blocked for %s, want async re-probe", elapsed)
+	}
+
+	// Wait for the background re-probe (200ms timeout) to finish, then enable fast-mode
+	// and advance past TTL again so the next async re-probe populates version 3.4.5.
+	time.Sleep(300 * time.Millisecond)
+	if err := os.WriteFile(gateFile, []byte("ok"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	curUnix.Add(int64((6 * time.Minute).Seconds()))
+	if _, err := svc.Inspect(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Poll until the background re-probe stores 3.4.5 and a fresh LocalTTL window observes it.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		curUnix.Add(int64((45 * time.Second).Seconds()))
+		rep3, err := svc.Inspect(context.Background(), false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rep3.Tools[0].InstalledVersion == "3.4.5" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("background re-probe did not populate recovered version; got %q", rep3.Tools[0].InstalledVersion)
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+}

@@ -253,17 +253,43 @@ func statBinary(absPath string) (binaryStat, bool) {
 	return binaryStat{realPath: resolved, modNS: info.ModTime().UnixNano(), size: info.Size()}, true
 }
 
-func (s *Service) lookupCachedVersion(absPath string, st binaryStat, now time.Time) (string, bool) {
+func (s *Service) lookupCachedVersion(absPath string, st binaryStat, now time.Time) (version string, ok bool, needsAsyncReprobe bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rec, ok := s.versionCache[absPath]
 	if !ok || rec.stat != st {
-		return "", false
+		return "", false, false
 	}
 	if rec.timedOut && now.Sub(rec.checkedAt) >= versionTimeoutCacheTTL {
-		return "", false
+		return rec.version, true, true
 	}
-	return rec.version, true
+	return rec.version, true, false
+}
+
+func (s *Service) reprobeBinaryVersionAsync(env []string, binary string, st binaryStat) {
+	s.mu.Lock()
+	if s.versionReprobing == nil {
+		s.versionReprobing = make(map[string]bool)
+	}
+	if s.versionReprobing[binary] {
+		s.mu.Unlock()
+		return
+	}
+	s.versionReprobing[binary] = true
+	s.mu.Unlock()
+
+	envCopy := append([]string(nil), env...)
+	go func() {
+		defer func() {
+			s.mu.Lock()
+			delete(s.versionReprobing, binary)
+			s.mu.Unlock()
+		}()
+		ver, timedOut, _ := s.readBinaryVersion(context.Background(), envCopy, binary)
+		if curStat, ok := statBinary(binary); ok && curStat == st {
+			s.storeCachedVersion(binary, st, ver, timedOut, s.now())
+		}
+	}()
 }
 
 func (s *Service) storeCachedVersion(absPath string, st binaryStat, ver string, timedOut bool, now time.Time) {
@@ -300,11 +326,14 @@ func (s *Service) probeVersions(parent context.Context, baseEnv, paths []string,
 		}
 		st, hasStat := statBinary(absPath)
 		if !bypassCache && hasStat {
-			if cached, ok := s.lookupCachedVersion(absPath, st, now); ok {
+			if cached, ok, asyncReprobe := s.lookupCachedVersion(absPath, st, now); ok {
 				if cached != "" {
 					mu.Lock()
 					results[absPath] = cached
 					mu.Unlock()
+				}
+				if asyncReprobe {
+					s.reprobeBinaryVersionAsync(env, absPath, st)
 				}
 				continue
 			}
