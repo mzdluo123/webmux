@@ -17,7 +17,7 @@
     - `GET .../git/commits/{oid}` 返回完整提交消息、作者与提交者元组、`comparedParentOid`（合并提交支持切换任一真实父 OID）与变更文件列表；
   - 暂存操作直接读写目标工作树真实 Git `index`：
     - `GET .../git/staging`、`GET .../git/staging/diff`、`POST .../git/stage` 与 `POST .../git/unstage` 支持整文件、单 Hunk 与任意逐行 `lineSelections`（US-J28）暂存/取消暂存（含 `unborn HEAD`）；
-    - 路径身份或 Hunk 变化返回 409 `reason: "stale"`，检测到外部 `.git/index.lock` 返回 409 `reason: "busy"` 且绝不删除锁文件；
+    - 路径身份或 Hunk 变化返回 409 `reason: "stale"`；`.git/index.lock` 竞争先在有界预算内自动重试（吸收秒级瞬时冲突），锁持续存在仍返回 409 `reason: "busy"` 且绝不删除锁文件；
   - 提交采用预览确认与执行后复核两阶段保障：
     - `POST .../git/commit-preview` 展示完整 `HEAD -> index` 待提交集合（含终端 CLI 预暂存文件）、身份、可执行 Hook、阻塞项与限时确认码；
     - `POST .../git/commit` 在独立 2 分钟受控窗口内执行提交（客户端断开不强杀已启动的 `git commit`），经 reflog 与 `{oid, parents, tree}` 复核返回 `matched`、`needs_review`（如 `pre-commit` Hook 改写索引）或 `uncertain`；

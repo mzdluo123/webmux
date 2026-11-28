@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"time"
 )
 
 type StageArea string
@@ -113,7 +114,60 @@ func (s *Service) releaseWorktreeWrite(canonicalPath string) {
 	ch <- struct{}{}
 }
 
+const (
+	// Git fails the instant a lock file exists, with no grace period of its
+	// own, so a sub-second transient collision — an editor, a CLI agent or a
+	// background refresh touching the same index — would surface as a
+	// user-visible failure even though a retry moments later succeeds.
+	// Lock acquisition precedes any mutation, so an attempt that failed with
+	// a lock error applied nothing and is safe to replay. The budget stays
+	// far below writeTimeout: a lock that outlives it is a real external
+	// process and keeps surfacing as ErrLocked.
+	lockBusyRetryBudget = 2500 * time.Millisecond
+	lockBusyRetryDelay  = 150 * time.Millisecond
+)
+
 func (s *Service) gitInputOutput(ctx context.Context, cwd string, stdin io.Reader, extra []string, args ...string) ([]byte, string, error) {
+	// A replay needs the input again. Only update-index writes the index
+	// among the commands run here, and its --index-info payloads are small
+	// metadata, so they are buffered up front; streaming inputs never feed
+	// index writes and keep their single-attempt behavior.
+	var input []byte
+	replayable := stdin == nil
+	if !replayable && len(args) > 0 && args[0] == "update-index" {
+		data, err := io.ReadAll(stdin)
+		if err != nil {
+			return nil, "", problemf(ErrInternal, "读取 Git 标准输入失败: %v", err)
+		}
+		input = data
+		replayable = true
+	}
+
+	attemptStdin := stdin
+	if replayable && stdin != nil {
+		attemptStdin = bytes.NewReader(input)
+	}
+	deadline := time.Now().Add(lockBusyRetryBudget)
+	for {
+		out, stderr, err := s.gitInputOutputOnce(ctx, cwd, attemptStdin, extra, args...)
+		if !errors.Is(err, ErrLocked) || !replayable {
+			return out, stderr, err
+		}
+		if time.Now().Add(lockBusyRetryDelay).After(deadline) {
+			return out, stderr, err
+		}
+		timer := time.NewTimer(lockBusyRetryDelay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return out, stderr, err
+		case <-timer.C:
+		}
+		attemptStdin = bytes.NewReader(input)
+	}
+}
+
+func (s *Service) gitInputOutputOnce(ctx context.Context, cwd string, stdin io.Reader, extra []string, args ...string) ([]byte, string, error) {
 	if s.gitPath == "" {
 		return nil, "", problemf(ErrUnavailable, "%s", s.Capability().GitError)
 	}

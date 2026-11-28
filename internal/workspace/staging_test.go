@@ -303,3 +303,84 @@ func TestStageUnbornHeadStaleSnapshotAndSpecialDegradation(t *testing.T) {
 		t.Fatalf("expected ErrConflict when staging unmerged conflict path, got %v", err)
 	}
 }
+
+func TestStageRetriesTransientIndexLockAndFailsPersistentOne(t *testing.T) {
+	t.Parallel()
+	isolateGit(t)
+	ctx := context.Background()
+
+	newStagingRepo := func(t *testing.T) (string, *Service, Repository, Worktree) {
+		dir := initRepo(t)
+		putFile(t, filepath.Join(dir, "a.txt"), "base\n")
+		gitTest(t, dir, "add", "a.txt")
+		gitTest(t, dir, "commit", "-m", "seed")
+		putFile(t, filepath.Join(dir, "a.txt"), "base\nedited\n")
+		s, _ := testService(t, t.TempDir(), dir)
+		repo := registerTest(t, s, dir)
+		mainWT, err := findTree(repo, worktreeID(repo.ID, dir))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return dir, s, repo, mainWT
+	}
+	stage := func(t *testing.T, s *Service, repo Repository, wt Worktree) error {
+		diff, err := s.InspectStagingFile(ctx, repo.ID, wt.ID, StageAreaUnstaged, "a.txt")
+		if err != nil {
+			t.Fatalf("InspectStagingFile: %v", err)
+		}
+		return s.Stage(ctx, StageRequest{
+			RepositoryID: repo.ID,
+			WorktreeID:   wt.ID,
+			Identity:     diff.Identity,
+		})
+	}
+
+	t.Run("transient lock retried to success", func(t *testing.T) {
+		dir, s, repo, wt := newStagingRepo(t)
+		lockPath := filepath.Join(dir, ".git", "index.lock")
+		if err := os.WriteFile(lockPath, []byte(""), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan error, 1)
+		go func() { done <- stage(t, s, repo, wt) }()
+		time.Sleep(600 * time.Millisecond)
+		select {
+		case err := <-done:
+			t.Fatalf("Stage finished while the lock was still held: %v", err)
+		default:
+		}
+		if err := os.Remove(lockPath); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-done; err != nil {
+			t.Fatalf("Stage after transient lock release: %v", err)
+		}
+		out := gitTest(t, dir, "diff", "--cached", "--name-only")
+		if strings.TrimSpace(out) != "a.txt" {
+			t.Fatalf("expected a.txt staged, got %q", out)
+		}
+	})
+
+	t.Run("persistent lock still surfaces ErrLocked", func(t *testing.T) {
+		dir, s, repo, wt := newStagingRepo(t)
+		lockPath := filepath.Join(dir, ".git", "index.lock")
+		if err := os.WriteFile(lockPath, []byte(""), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		start := time.Now()
+		err := stage(t, s, repo, wt)
+		elapsed := time.Since(start)
+		if !errors.Is(err, ErrLocked) {
+			t.Fatalf("expected ErrLocked for a persistent index.lock, got %v", err)
+		}
+		if elapsed < lockBusyRetryBudget/2 {
+			t.Fatalf("persistent lock gave up after %v without using the %v retry budget", elapsed, lockBusyRetryBudget)
+		}
+		if elapsed > writeTimeout {
+			t.Fatalf("persistent lock retries exceeded writeTimeout: %v", elapsed)
+		}
+		if _, statErr := os.Stat(lockPath); statErr != nil {
+			t.Fatalf("the external index.lock must never be removed: %v", statErr)
+		}
+	})
+}
