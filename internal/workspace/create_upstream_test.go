@@ -305,7 +305,7 @@ func TestCreateWorktreeLatestUpstream(t *testing.T) {
 			req := CreateRequest{Mode: "new", Branch: "task", Base: "refs/heads/main", Path: filepath.Join(t.TempDir(), "tree"), LatestUpstream: true}
 			tree, err := s.CreateWorktree(context.Background(), r.ID, req)
 			if kind == "offline" {
-				if !errors.Is(err, ErrInvalid) {
+				if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "无法获取最新上游提交，请重试") {
 					t.Fatalf("expected fetch failure, got %v", err)
 				}
 				return
