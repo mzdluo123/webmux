@@ -245,11 +245,11 @@ func (s *Service) checkCreationUpstream(ctx context.Context, repositoryID string
 	}
 	moved := before.ref != after.ref || before.remote != after.remote || before.merge != after.merge || before.upstreamRef != after.upstreamRef || !remoteOnly && before.head != after.head
 	if req.LatestUpstream {
-		if moved || refreshed.Upstream != after.upstream || refreshed.UpstreamHead != after.upstreamHead {
-			return check, problemf(ErrInvalid, "刷新期间上游已变化，请重试")
-		}
 		if refreshed.UpstreamHead == "" || remoteOnly && refreshed.FetchWarning != "" {
 			return check, problemf(ErrInvalid, "无法获取最新上游提交，请重试")
+		}
+		if moved || refreshed.Upstream != after.upstream || refreshed.UpstreamHead != after.upstreamHead {
+			return check, problemf(ErrInvalid, "刷新期间上游已变化，请重试")
 		}
 		check.base = refreshed.UpstreamHead
 		return check, nil
